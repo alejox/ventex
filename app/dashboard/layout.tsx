@@ -18,6 +18,7 @@ import {
   IconHelpCircle,
   IconMenu,
   IconLogOut,
+  IconShoppingCart,
 } from "@/app/assets/icons/DashboardIcons";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { signout } from "@/utils/supabase/actions";
@@ -25,6 +26,7 @@ import { signout } from "@/utils/supabase/actions";
 const navigation = [
   { name: "Panel", href: "/dashboard", icon: IconHome },
   { name: "Punto de Venta", href: "/dashboard/pos", icon: IconCreditCard },
+  { name: "Ventas", href: "/dashboard/sales", icon: IconShoppingCart },
   { name: "Inventario", href: "/dashboard/inventory", icon: IconBox },
   { name: "Finanzas", href: "/dashboard/finance", icon: IconDollar },
   { name: "Clientes", href: "/dashboard/customers", icon: IconUsers },
