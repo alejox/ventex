@@ -1,3 +1,6 @@
+"use client";
+
+import { useState, useEffect } from "react";
 import { 
   IconSearch, 
   IconBox,
@@ -52,29 +55,106 @@ function IconMoreHorizontal(props: React.SVGProps<SVGSVGElement>) {
 }
 
 export default function InventoryPage() {
-  const inventory = [
-    { id: 1, name: "Nimbus Smart Watch V2", category: "Electrónica", sku: "NTM-SW-002", price: 209.00, stock: "Óptimo (120)", stockStatus: "optimal" },
-    { id: 2, name: "Aura Over-Ear Headphones", category: "Electrónica", sku: "AUR-OE-001", price: 149.50, stock: "Stock Bajo (8)", stockStatus: "low" },
-    { id: 3, name: "Velocity Running Shoe (Red)", category: "Ropa", sku: "VEL-RS-R42", price: 120.00, stock: "Agotado (0)", stockStatus: "out" },
-    { id: 4, name: "Minimalist Desk Lamp", category: "Hogar y Oficina", sku: "MIN-DL-WHT", price: 45.00, stock: "Óptimo (320)", stockStatus: "optimal" },
-  ];
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  
+  const [categories, setCategories] = useState<{ id: string; name: string; description: string }[]>([]);
+
+  const [newCategory, setNewCategory] = useState({ name: "", description: "" });
+
+  const [products, setProducts] = useState<any[]>([]);
+  const [newProduct, setNewProduct] = useState({
+    name: "",
+    category_id: "",
+    sku: "",
+    price: "",
+    stock_level: "",
+    image_url: ""
+  });
+
+  useEffect(() => {
+    (async () => {
+      const { createClient } = await import("@/utils/supabase/client");
+      const supabase = createClient();
+      const [catRes, prodRes] = await Promise.all([
+        supabase.from("categories").select("id, name, description").order("name"),
+        supabase.from("products").select("*, categories(name)").order("created_at", { ascending: false }),
+      ]);
+      if (catRes.data) setCategories(catRes.data);
+      if (prodRes.data) setProducts(prodRes.data);
+    })();
+  }, []);
+
+  const handleSaveProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const { createClient } = await import("@/utils/supabase/client");
+    const supabase = createClient();
+
+    const { data, error } = await supabase
+      .from("products")
+      .insert({
+        name: newProduct.name,
+        category_id: newProduct.category_id || null,
+        sku: newProduct.sku,
+        price: parseFloat(newProduct.price),
+        stock_level: parseInt(newProduct.stock_level),
+        image_url: newProduct.image_url || null,
+      })
+      .select("*, categories(name)")
+      .single();
+
+    if (!error && data) {
+      setProducts([data, ...products]);
+      setIsModalOpen(false);
+      setNewProduct({ name: "", category_id: "", sku: "", price: "", stock_level: "", image_url: "" });
+    }
+  };
+
+  const handleSaveCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const { createClient } = await import("@/utils/supabase/client");
+    const supabase = createClient();
+
+    const { data, error } = await supabase
+      .from("categories")
+      .insert({ name: newCategory.name, description: newCategory.description })
+      .select("id, name, description")
+      .single();
+
+    if (!error && data) {
+      setCategories([...categories, data]);
+    }
+    setIsCategoryModalOpen(false);
+    setNewCategory({ name: "", description: "" });
+  };
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h1 className="text-2xl font-bold text-on-surface">Gestión de Inventario</h1>
-        <button className="bg-[#6063ee] hover:bg-[#c0c1ff] text-white hover:text-[#0b0664] text-sm font-semibold py-2.5 px-4 rounded-xl shadow-lg shadow-[#6063ee]/20 transition-colors flex items-center justify-center gap-2">
-          <span>+</span> Nuevo Producto
-        </button>
+        <div className="flex gap-3">
+          <button 
+            onClick={() => setIsCategoryModalOpen(true)}
+            className="bg-surface-container hover:bg-surface-container-high border border-outline-variant/20 text-on-surface text-sm font-semibold py-2.5 px-4 rounded-xl transition-colors flex items-center justify-center gap-2"
+          >
+            Nueva Categoría
+          </button>
+          <button 
+            onClick={() => setIsModalOpen(true)}
+            className="bg-primary hover:bg-primary-dim text-on-primary text-sm font-semibold py-2.5 px-4 rounded-xl shadow-[0_0_15px_rgba(96,99,238,0.2)] transition-colors flex items-center justify-center gap-2"
+          >
+            <span>+</span> Nuevo Producto
+          </button>
+        </div>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-surface-container rounded-2xl p-5 border border-outline-variant/10 shadow-sm flex justify-between items-center group">
           <div>
-            <p className="text-on-surface-variant text-sm font-medium mb-1">SKU Totales</p>
-            <h3 className="text-3xl font-bold text-on-surface">1,248</h3>
+            <p className="text-on-surface-variant text-sm font-medium mb-1">Productos</p>
+            <h3 className="text-3xl font-bold text-on-surface">{products.length}</h3>
           </div>
           <div className="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center group-hover:scale-110 transition-transform">
             <IconBox className="w-6 h-6" />
@@ -84,7 +164,9 @@ export default function InventoryPage() {
         <div className="bg-surface-container rounded-2xl p-5 border border-outline-variant/10 shadow-sm flex justify-between items-center group">
           <div>
             <p className="text-on-surface-variant text-sm font-medium mb-1">Valor del Inventario</p>
-            <h3 className="text-3xl font-bold text-on-surface">$84,500.00</h3>
+            <h3 className="text-3xl font-bold text-on-surface">
+              ${products.reduce((sum, p) => sum + parseFloat(p.price) * p.stock_level, 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+            </h3>
           </div>
           <div className="w-12 h-12 rounded-xl bg-[#8b5cf6]/10 text-[#8b5cf6] flex items-center justify-center group-hover:scale-110 transition-transform">
             <IconLayers className="w-6 h-6" />
@@ -94,7 +176,7 @@ export default function InventoryPage() {
         <div className="bg-error-container/10 rounded-2xl p-5 border border-error-container/30 shadow-sm flex justify-between items-center group">
           <div>
             <p className="text-error-dim text-sm font-medium mb-1">Stock Bajo</p>
-            <h3 className="text-3xl font-bold text-error">12</h3>
+            <h3 className="text-3xl font-bold text-error">{products.filter(p => p.stock_level > 0 && p.stock_level <= 5).length}</h3>
           </div>
           <div className="w-12 h-12 rounded-xl bg-error/10 text-error flex items-center justify-center group-hover:scale-110 transition-transform">
             <IconAlertTriangle className="w-6 h-6" />
@@ -116,9 +198,10 @@ export default function InventoryPage() {
           </div>
           <div className="flex w-full md:w-auto gap-3">
             <select className="bg-surface-container border border-outline-variant/20 rounded-xl px-4 py-2 text-sm text-on-surface focus:outline-none focus:border-primary flex-1 md:w-40 appearance-none">
-              <option>Todas las Categorías</option>
-              <option>Electrónica</option>
-              <option>Ropa</option>
+              <option value="">Todas las Categorías</option>
+              {categories.map(cat => (
+                <option key={cat.id} value={cat.name}>{cat.name}</option>
+              ))}
             </select>
             <select className="bg-surface-container border border-outline-variant/20 rounded-xl px-4 py-2 text-sm text-on-surface focus:outline-none focus:border-primary flex-1 md:w-36 appearance-none">
               <option>Estado de Stock</option>
@@ -147,55 +230,248 @@ export default function InventoryPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-outline-variant/5 text-sm">
-              {inventory.map((item) => (
-                <tr key={item.id} className="hover:bg-surface-container-lowest transition-colors group">
-                  <td className="p-4 pl-6">
-                    <div className="w-10 h-10 rounded-lg bg-surface-container border border-outline-variant/10 flex items-center justify-center text-on-surface-variant/30">
-                       <IconImagePlaceholder className="w-5 h-5" />
-                    </div>
-                  </td>
-                  <td className="p-4 font-medium text-on-surface">{item.name}</td>
-                  <td className="p-4 text-on-surface-variant">{item.category}</td>
-                  <td className="p-4 text-on-surface-variant font-mono text-xs">{item.sku}</td>
-                  <td className="p-4 text-on-surface font-semibold">${item.price.toFixed(2)}</td>
-                  <td className="p-4">
-                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold ${
-                      item.stockStatus === 'optimal' ? 'bg-[#10b981]/10 text-[#10b981] border border-[#10b981]/20' :
-                      item.stockStatus === 'low' ? 'bg-[#f59e0b]/10 text-[#f59e0b] border border-[#f59e0b]/20' :
-                      'bg-error-container/20 text-error-dim border border-error-container/30'
-                    }`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${
-                        item.stockStatus === 'optimal' ? 'bg-[#10b981]' :
-                        item.stockStatus === 'low' ? 'bg-[#f59e0b]' :
-                        'bg-error'
-                      }`}></span>
-                      {item.stock}
-                    </span>
-                  </td>
-                  <td className="p-4 pr-6 text-center">
-                    <button className="text-on-surface-variant hover:text-primary transition-colors p-1">
-                      <IconMoreHorizontal className="w-5 h-5" />
-                    </button>
+              {products.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="p-12 text-center text-on-surface-variant text-sm">
+                    No hay productos todavía. Crea tu primer producto.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                products.map((item) => {
+                  const stockStatus = item.stock_level === 0 ? 'out' : item.stock_level <= 5 ? 'low' : 'optimal';
+                  const stockLabel = item.stock_level === 0 ? 'Agotado' : item.stock_level <= 5 ? `Stock Bajo (${item.stock_level})` : `Óptimo (${item.stock_level})`;
+                  return (
+                    <tr key={item.id} className="hover:bg-surface-container-lowest transition-colors group">
+                      <td className="p-4 pl-6">
+                        <div className="w-10 h-10 rounded-lg bg-surface-container border border-outline-variant/10 flex items-center justify-center text-on-surface-variant/30">
+                          {item.image_url ? (
+                            <img src={item.image_url} alt={item.name} className="w-full h-full object-cover rounded-lg" />
+                          ) : (
+                            <IconImagePlaceholder className="w-5 h-5" />
+                          )}
+                        </div>
+                      </td>
+                      <td className="p-4 font-medium text-on-surface">{item.name}</td>
+                      <td className="p-4 text-on-surface-variant">{item.categories?.name ?? "—"}</td>
+                      <td className="p-4 text-on-surface-variant font-mono text-xs">{item.sku}</td>
+                      <td className="p-4 text-on-surface font-semibold">${parseFloat(item.price).toFixed(2)}</td>
+                      <td className="p-4">
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold ${
+                          stockStatus === 'optimal' ? 'bg-[#10b981]/10 text-[#10b981] border border-[#10b981]/20' :
+                          stockStatus === 'low' ? 'bg-[#f59e0b]/10 text-[#f59e0b] border border-[#f59e0b]/20' :
+                          'bg-error-container/20 text-error-dim border border-error-container/30'
+                        }`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${
+                            stockStatus === 'optimal' ? 'bg-[#10b981]' :
+                            stockStatus === 'low' ? 'bg-[#f59e0b]' :
+                            'bg-error'
+                          }`}></span>
+                          {stockLabel}
+                        </span>
+                      </td>
+                      <td className="p-4 pr-6 text-center">
+                        <button className="text-on-surface-variant hover:text-primary transition-colors p-1">
+                          <IconMoreHorizontal className="w-5 h-5" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
 
         {/* Footer & Pagination */}
+        {products.length > 0 && (
         <div className="p-5 border-t border-outline-variant/10 flex flex-col sm:flex-row items-center justify-between gap-4 bg-surface-container-lowest">
-          <p className="text-xs text-on-surface-variant font-medium">Mostrando 1 a 4 de 1,248 registros</p>
+          <p className="text-xs text-on-surface-variant font-medium">Mostrando {products.length} de {products.length} registros</p>
           <div className="flex gap-1 items-center">
             <button className="px-3 py-1.5 rounded-lg text-xs font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors border border-transparent hover:border-outline-variant/10">Anterior</button>
-            <button className="w-8 h-8 flex items-center justify-center rounded-lg bg-primary text-white hover:text-[#0b0664] text-xs font-bold shadow-md shadow-primary/20">1</button>
-            <button className="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-on-surface text-xs font-bold transition-colors">2</button>
-            <button className="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-on-surface text-xs font-bold transition-colors">3</button>
-            <span className="text-on-surface-variant px-1">...</span>
+            <button className="w-8 h-8 flex items-center justify-center rounded-lg bg-primary text-on-primary text-xs font-bold shadow-md shadow-primary/20">1</button>
             <button className="px-3 py-1.5 rounded-lg text-xs font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors border border-transparent hover:border-outline-variant/10">Siguiente</button>
           </div>
         </div>
+        )}
       </div>
+
+      {/* Modal Nuevo Producto */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-surface-container rounded-3xl w-full max-w-lg border border-outline-variant/10 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-6 border-b border-outline-variant/10 flex justify-between items-center bg-surface-container-low">
+              <h2 className="text-xl font-bold text-on-surface">Nuevo Producto</h2>
+              <button 
+                onClick={() => setIsModalOpen(false)} 
+                className="w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors"
+              >
+                <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="20" height="20">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+              </button>
+            </div>
+            
+            <form onSubmit={handleSaveProduct} className="p-6 space-y-5">
+              <div className="space-y-1.5">
+                <label className="text-[13px] font-semibold text-on-surface block">Nombre del Producto</label>
+                <input 
+                  type="text" 
+                  value={newProduct.name}
+                  onChange={e => setNewProduct({...newProduct, name: e.target.value})}
+                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50" 
+                  placeholder="Ej. Nimbus Smart Watch V2"
+                  required 
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[13px] font-semibold text-on-surface block">Categoría</label>
+                <div className="relative">
+                  <select 
+                    value={newProduct.category_id}
+                    onChange={e => setNewProduct({...newProduct, category_id: e.target.value})}
+                    className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all appearance-none" 
+                    required
+                  >
+                    <option value="" disabled>Selecciona una categoría...</option>
+                    {categories.map(cat => (
+                      <option key={cat.id} value={cat.id}>{cat.name}</option>
+                    ))}
+                  </select>
+                  <svg className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant pointer-events-none" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[13px] font-semibold text-on-surface block">SKU</label>
+                  <input 
+                    type="text" 
+                    value={newProduct.sku}
+                    onChange={e => setNewProduct({...newProduct, sku: e.target.value})}
+                    className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all font-mono placeholder:text-on-surface-variant/50" 
+                    placeholder="Ej. NTM-SW-002"
+                    required 
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[13px] font-semibold text-on-surface block">Precio ($)</label>
+                  <input 
+                    type="number" 
+                    step="0.01" 
+                    value={newProduct.price}
+                    onChange={e => setNewProduct({...newProduct, price: e.target.value})}
+                    className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50" 
+                    placeholder="0.00"
+                    required 
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[13px] font-semibold text-on-surface block">Nivel de Stock</label>
+                  <input 
+                    type="number" 
+                    value={newProduct.stock_level}
+                    onChange={e => setNewProduct({...newProduct, stock_level: e.target.value})}
+                    className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50" 
+                    placeholder="Ej. 120"
+                    required 
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[13px] font-semibold text-on-surface block">Imagen (URL opcional)</label>
+                  <input 
+                    type="url" 
+                    value={newProduct.image_url}
+                    onChange={e => setNewProduct({...newProduct, image_url: e.target.value})}
+                    className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50" 
+                    placeholder="https://..."
+                  />
+                </div>
+              </div>
+
+              <div className="pt-4 flex justify-end gap-3 border-t border-outline-variant/10">
+                <button 
+                  type="button" 
+                  onClick={() => setIsModalOpen(false)}
+                  className="px-5 py-2.5 rounded-xl text-sm font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="submit" 
+                  className="px-5 py-2.5 rounded-xl text-sm font-semibold bg-primary hover:bg-primary-dim text-on-primary shadow-[0_0_15px_rgba(96,99,238,0.2)] transition-all flex items-center gap-2"
+                >
+                  Guardar Producto
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Nueva Categoría */}
+      {isCategoryModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-surface-container rounded-3xl w-full max-w-sm border border-outline-variant/10 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-6 border-b border-outline-variant/10 flex justify-between items-center bg-surface-container-low">
+              <h2 className="text-xl font-bold text-on-surface">Nueva Categoría</h2>
+              <button 
+                onClick={() => setIsCategoryModalOpen(false)} 
+                className="w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors"
+              >
+                <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="20" height="20">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+              </button>
+            </div>
+            
+            <form onSubmit={handleSaveCategory} className="p-6 space-y-5">
+              <div className="space-y-1.5">
+                <label className="text-[13px] font-semibold text-on-surface block">Nombre de Categoría</label>
+                <input 
+                  type="text" 
+                  value={newCategory.name}
+                  onChange={e => setNewCategory({...newCategory, name: e.target.value})}
+                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50" 
+                  placeholder="Ej. Accesorios, Muebles..."
+                  required 
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[13px] font-semibold text-on-surface block">Descripción (Opcional)</label>
+                <textarea 
+                  value={newCategory.description}
+                  onChange={e => setNewCategory({...newCategory, description: e.target.value})}
+                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50 resize-none h-24" 
+                  placeholder="Breve descripción de los productos..."
+                ></textarea>
+              </div>
+
+              <div className="pt-2 flex justify-end gap-3 border-t border-outline-variant/10">
+                <button 
+                  type="button" 
+                  onClick={() => setIsCategoryModalOpen(false)}
+                  className="px-5 py-2.5 rounded-xl text-sm font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="submit" 
+                  className="px-5 py-2.5 rounded-xl text-sm font-semibold bg-primary hover:bg-primary-dim text-on-primary shadow-[0_0_15px_rgba(96,99,238,0.2)] transition-all flex items-center gap-2"
+                >
+                  Crear
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

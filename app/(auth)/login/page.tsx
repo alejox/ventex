@@ -110,7 +110,7 @@ export default function LoginPage() {
               Contraseña
             </label>
             <Link
-              href="#"
+              href="/reset-password"
               className="text-xs text-primary hover:text-primary-dim font-medium transition-colors"
             >
               ¿Olvidaste tu contraseña?
