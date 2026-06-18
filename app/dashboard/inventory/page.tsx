@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { 
-  IconSearch, 
+import {
+  IconSearch,
   IconBox,
 } from "@/app/assets/icons/DashboardIcons";
+import { useInventoryStore } from "@/stores/inventory.store";
+import type { NewProductInput, NewCategoryInput } from "@/services/inventory.service";
 
 function IconAlertTriangle(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -54,78 +56,51 @@ function IconMoreHorizontal(props: React.SVGProps<SVGSVGElement>) {
   );
 }
 
+const EMPTY_PRODUCT: NewProductInput = {
+  name: "",
+  category_id: "",
+  sku: "",
+  price: "",
+  stock_level: "",
+  image_url: "",
+};
+
+const EMPTY_CATEGORY: NewCategoryInput = { name: "", description: "" };
+
 export default function InventoryPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
-  
-  const [categories, setCategories] = useState<{ id: string; name: string; description: string }[]>([]);
 
-  const [newCategory, setNewCategory] = useState({ name: "", description: "" });
+  const [newCategory, setNewCategory] = useState<NewCategoryInput>(EMPTY_CATEGORY);
+  const [newProduct, setNewProduct] = useState<NewProductInput>(EMPTY_PRODUCT);
 
-  const [products, setProducts] = useState<any[]>([]);
-  const [newProduct, setNewProduct] = useState({
-    name: "",
-    category_id: "",
-    sku: "",
-    price: "",
-    stock_level: "",
-    image_url: ""
-  });
+  // Estado de datos vive en el store; el componente solo lo consume (component → store → services).
+  const products = useInventoryStore((s) => s.products);
+  const categories = useInventoryStore((s) => s.categories);
+  const fetchInventory = useInventoryStore((s) => s.fetchInventory);
+  const addProduct = useInventoryStore((s) => s.addProduct);
+  const addCategory = useInventoryStore((s) => s.addCategory);
 
   useEffect(() => {
-    (async () => {
-      const { createClient } = await import("@/utils/supabase/client");
-      const supabase = createClient();
-      const [catRes, prodRes] = await Promise.all([
-        supabase.from("categories").select("id, name, description").order("name"),
-        supabase.from("products").select("*, categories(name)").order("created_at", { ascending: false }),
-      ]);
-      if (catRes.data) setCategories(catRes.data);
-      if (prodRes.data) setProducts(prodRes.data);
-    })();
-  }, []);
+    fetchInventory();
+  }, [fetchInventory]);
 
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { createClient } = await import("@/utils/supabase/client");
-    const supabase = createClient();
-
-    const { data, error } = await supabase
-      .from("products")
-      .insert({
-        name: newProduct.name,
-        category_id: newProduct.category_id || null,
-        sku: newProduct.sku,
-        price: parseFloat(newProduct.price),
-        stock_level: parseInt(newProduct.stock_level),
-        image_url: newProduct.image_url || null,
-      })
-      .select("*, categories(name)")
-      .single();
-
-    if (!error && data) {
-      setProducts([data, ...products]);
+    const ok = await addProduct(newProduct);
+    if (ok) {
       setIsModalOpen(false);
-      setNewProduct({ name: "", category_id: "", sku: "", price: "", stock_level: "", image_url: "" });
+      setNewProduct(EMPTY_PRODUCT);
     }
   };
 
   const handleSaveCategory = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { createClient } = await import("@/utils/supabase/client");
-    const supabase = createClient();
-
-    const { data, error } = await supabase
-      .from("categories")
-      .insert({ name: newCategory.name, description: newCategory.description })
-      .select("id, name, description")
-      .single();
-
-    if (!error && data) {
-      setCategories([...categories, data]);
+    const ok = await addCategory(newCategory);
+    if (ok) {
+      setIsCategoryModalOpen(false);
+      setNewCategory(EMPTY_CATEGORY);
     }
-    setIsCategoryModalOpen(false);
-    setNewCategory({ name: "", description: "" });
   };
 
   return (
@@ -165,7 +140,7 @@ export default function InventoryPage() {
           <div>
             <p className="text-on-surface-variant text-sm font-medium mb-1">Valor del Inventario</p>
             <h3 className="text-3xl font-bold text-on-surface">
-              ${products.reduce((sum, p) => sum + parseFloat(p.price) * p.stock_level, 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+              ${products.reduce((sum, p) => sum + p.price * p.stock_level, 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}
             </h3>
           </div>
           <div className="w-12 h-12 rounded-xl bg-[#8b5cf6]/10 text-[#8b5cf6] flex items-center justify-center group-hover:scale-110 transition-transform">
@@ -254,7 +229,7 @@ export default function InventoryPage() {
                       <td className="p-4 font-medium text-on-surface">{item.name}</td>
                       <td className="p-4 text-on-surface-variant">{item.categories?.name ?? "—"}</td>
                       <td className="p-4 text-on-surface-variant font-mono text-xs">{item.sku}</td>
-                      <td className="p-4 text-on-surface font-semibold">${parseFloat(item.price).toFixed(2)}</td>
+                      <td className="p-4 text-on-surface font-semibold">${item.price.toFixed(2)}</td>
                       <td className="p-4">
                         <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold ${
                           stockStatus === 'optimal' ? 'bg-[#10b981]/10 text-[#10b981] border border-[#10b981]/20' :
