@@ -25,9 +25,9 @@ const navigation = [
   { name: "Panel", href: "/dashboard", icon: IconHome },
   { name: "Punto de Venta", href: "/dashboard/pos", icon: IconCreditCard },
   { name: "Inventario", href: "/dashboard/inventory", icon: IconBox },
-  { name: "Finanzas", href: "#", icon: IconDollar },
-  { name: "Clientes", href: "#", icon: IconUsers },
-  { name: "Calendario", href: "#", icon: IconCalendar },
+  { name: "Finanzas", href: "/dashboard/finance", icon: IconDollar },
+  { name: "Clientes", href: "/dashboard/customers", icon: IconUsers },
+  { name: "Calendario", href: "/dashboard/calendar", icon: IconCalendar },
 ];
 
 export default function DashboardLayout({

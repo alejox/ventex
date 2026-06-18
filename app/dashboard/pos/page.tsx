@@ -1,7 +1,9 @@
 import { 
   IconSearch, 
   IconPlus, 
+  IconUsers,
 } from "@/app/assets/icons/DashboardIcons";
+import Link from "next/link";
 
 // Custom trash icon
 function IconTrash(props: React.SVGProps<SVGSVGElement>) {
@@ -46,6 +48,29 @@ export default function POSPage() {
             placeholder="Buscar por nombre, SKU, o escanear código..." 
             className="w-full bg-surface-container rounded-2xl py-3.5 pl-11 pr-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50 border border-outline-variant/10 shadow-sm"
           />
+        </div>
+
+        {/* Quick Actions (Mobile mimicking Dashboard) */}
+        <div className="grid grid-cols-2 gap-4 mb-6">
+          <button className="col-span-2 bg-[#6063ee] text-white rounded-2xl p-4 flex items-center justify-between shadow-lg shadow-[#6063ee]/20 lg:hidden">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
+                <IconPlus className="w-5 h-5" />
+              </div>
+              <span className="font-bold">Nueva Venta</span>
+            </div>
+            <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" width="20" height="20"><polyline points="9 18 15 12 9 6" /></svg>
+          </button>
+          
+          <Link href="/dashboard/customers/new" className="bg-surface-container rounded-2xl p-4 border border-outline-variant/10 flex flex-col gap-3 shadow-sm hover:border-primary transition-colors">
+            <IconUsers className="w-6 h-6 text-emerald-500" />
+            <span className="text-sm font-bold text-on-surface">Añadir Cliente</span>
+          </Link>
+          
+          <div className="bg-surface-container rounded-2xl p-4 border border-outline-variant/10 flex flex-col gap-3 shadow-sm hover:border-error transition-colors cursor-pointer">
+            <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" width="24" height="24" className="text-error"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <span className="text-sm font-bold text-on-surface">Stock Alert</span>
+          </div>
         </div>
 
         {/* Categories */}
