@@ -1,0 +1,64 @@
+import { create } from "zustand";
+import * as inventoryService from "@/services/inventory.service";
+import type {
+  Product,
+  Category,
+  NewProductInput,
+  NewCategoryInput,
+} from "@/services/inventory.service";
+
+interface InventoryState {
+  products: Product[];
+  categories: Category[];
+  loading: boolean;
+  error: string | null;
+  fetchInventory: () => Promise<void>;
+  /** Devuelve true si el alta fue correcta (para que el componente cierre el modal). */
+  addProduct: (input: NewProductInput) => Promise<boolean>;
+  addCategory: (input: NewCategoryInput) => Promise<boolean>;
+}
+
+const toMessage = (e: unknown) =>
+  e instanceof Error ? e.message : "Ocurrió un error inesperado";
+
+export const useInventoryStore = create<InventoryState>((set) => ({
+  products: [],
+  categories: [],
+  loading: false,
+  error: null,
+
+  fetchInventory: async () => {
+    set({ loading: true, error: null });
+    try {
+      const [categories, products] = await Promise.all([
+        inventoryService.fetchCategories(),
+        inventoryService.fetchProducts(),
+      ]);
+      set({ categories, products, loading: false });
+    } catch (e) {
+      set({ error: toMessage(e), loading: false });
+    }
+  },
+
+  addProduct: async (input) => {
+    try {
+      const product = await inventoryService.createProduct(input);
+      set((s) => ({ products: [product, ...s.products] }));
+      return true;
+    } catch (e) {
+      set({ error: toMessage(e) });
+      return false;
+    }
+  },
+
+  addCategory: async (input) => {
+    try {
+      const category = await inventoryService.createCategory(input);
+      set((s) => ({ categories: [...s.categories, category] }));
+      return true;
+    } catch (e) {
+      set({ error: toMessage(e) });
+      return false;
+    }
+  },
+}));
