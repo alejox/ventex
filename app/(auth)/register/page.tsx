@@ -1,0 +1,476 @@
+"use client";
+
+import Link from "next/link";
+import { useState } from "react";
+import { LogoVertical } from "@/components/Logo";
+
+// --- Icons ---
+const ScissorsIcon = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="6" cy="6" r="3" />
+    <circle cx="6" cy="18" r="3" />
+    <line x1="20" y1="4" x2="8.12" y2="15.88" />
+    <line x1="14.47" y1="14.48" x2="20" y2="20" />
+    <line x1="8.12" y1="8.12" x2="12" y2="12" />
+  </svg>
+);
+
+const BagIcon = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z" />
+    <line x1="3" y1="6" x2="21" y2="6" />
+    <path d="M16 10a4 4 0 0 1-8 0" />
+  </svg>
+);
+
+const CarIcon = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 16H9m10 0h3v-3.15a1 1 0 0 0-.84-.99L16 11l-2.7-3.6a2 2 0 0 0-1.6-.8H8.3a2 2 0 0 0-1.6.8L4 11l-5.16.86a1 1 0 0 0-.84.99V16h3" />
+    <circle cx="6.5" cy="16.5" r="2.5" />
+    <circle cx="16.5" cy="16.5" r="2.5" />
+  </svg>
+);
+
+const BriefcaseIcon = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+    <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+  </svg>
+);
+
+const RocketIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z" />
+    <path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z" />
+    <path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0" />
+    <path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5" />
+  </svg>
+);
+
+const CartIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="9" cy="21" r="1" />
+    <circle cx="20" cy="21" r="1" />
+    <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
+  </svg>
+);
+
+const LayersIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+    <rect x="7" y="7" width="14" height="14" rx="2" ry="2" />
+  </svg>
+);
+
+// --- Component ---
+export default function RegisterPage() {
+  const [step, setStep] = useState(1);
+  const [businessType, setBusinessType] = useState("");
+  const [modules, setModules] = useState({ ecommerce: false, landingPage: false });
+  
+  // Step 3 state
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [name, setName] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [confirmed, setConfirmed] = useState(false);
+
+  const handleNext = () => setStep(step + 1);
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+
+    // Use Supabase client to register
+    const { createClient } = await import("@/utils/supabase/client");
+    const supabase = createClient();
+
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        data: {
+          full_name: name,
+          business_type: businessType,
+          modules: modules,
+        }
+      }
+    });
+
+    setLoading(false);
+
+    if (error) {
+      setError(error.message);
+    } else {
+      setConfirmed(true);
+    }
+  };
+
+  const businessOptions = [
+    { id: "salon", label: "Salón de Belleza", icon: <ScissorsIcon /> },
+    { id: "tienda", label: "Tienda General", icon: <BagIcon /> },
+    { id: "lavaautos", label: "Lavaautos", icon: <CarIcon /> },
+    { id: "servicios", label: "Servicios Profesionales", icon: <BriefcaseIcon /> },
+  ];
+
+  if (confirmed) {
+    return (
+      <div className="w-full max-w-[420px] mx-auto text-center">
+        <div className="flex justify-center mb-8 lg:hidden">
+          <LogoVertical className="w-[120px] h-[32px]" />
+        </div>
+        <div className="w-16 h-16 rounded-full bg-primary/10 text-primary flex items-center justify-center mx-auto mb-6">
+          <svg className="w-8 h-8" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+          </svg>
+        </div>
+        <h2 className="text-[28px] font-bold text-on-surface mb-2">
+          Revisa tu correo
+        </h2>
+        <p className="text-on-surface-variant text-sm mb-8 leading-relaxed">
+          Te enviamos un enlace de confirmación a <strong className="text-on-surface">{email}</strong>.
+          Revisa tu bandeja de entrada y haz clic en el enlace para activar tu cuenta.
+        </p>
+        <div className="bg-surface-container-low rounded-xl p-4 mb-8 text-left">
+          <p className="text-xs text-on-surface-variant font-medium mb-2">¿No encuentras el correo?</p>
+          <ul className="text-xs text-on-surface-variant space-y-1.5 list-disc list-inside">
+            <li>Revisa tu carpeta de spam o correo no deseado</li>
+            <li>Asegúrate de haber escrito bien tu correo</li>
+          </ul>
+        </div>
+        <Link
+          href="/login"
+          className="inline-block w-full bg-primary hover:bg-primary-dim text-on-primary font-semibold py-3.5 rounded-xl transition-all text-[15px] text-center"
+        >
+          Ir a Iniciar Sesión
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full max-w-[420px] mx-auto">
+      {/* Mobile Logo */}
+      <div className="flex justify-center mb-8 lg:hidden">
+        <LogoVertical className="w-[120px] h-[32px]" />
+      </div>
+
+      {step === 1 && (
+        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="text-center lg:text-center mb-8">
+            <h2 className="text-[28px] font-bold text-on-surface mb-2 tracking-tight">
+              Personaliza tu experiencia
+            </h2>
+            <p className="text-on-surface-variant text-[15px]">
+              Selecciona el tipo de negocio que mejor te describe para configurar tu panel.
+            </p>
+          </div>
+
+          <div className="space-y-3 mb-8">
+            {businessOptions.map((option) => (
+              <button
+                key={option.id}
+                onClick={() => setBusinessType(option.id)}
+                className={`w-full py-4 px-6 rounded-[20px] border flex flex-col items-center justify-center gap-3 transition-all duration-300 ${
+                  businessType === option.id
+                    ? "bg-primary/5 border-primary ring-1 ring-primary/50 shadow-[0_0_20px_rgba(96,99,238,0.1)]"
+                    : "bg-surface-container-low border-outline-variant/10 hover:bg-surface-container hover:border-outline-variant/20"
+                }`}
+              >
+                <div className={`w-11 h-11 rounded-full flex items-center justify-center border transition-all duration-300 ${
+                  businessType === option.id
+                    ? "bg-primary border-primary text-on-primary shadow-md"
+                    : "bg-surface-container-highest border-outline-variant/20 text-on-surface-variant"
+                }`}>
+                  {option.icon}
+                </div>
+                <span className={`text-[15px] font-semibold transition-colors ${businessType === option.id ? 'text-primary' : 'text-on-surface'}`}>
+                  {option.label}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          <button
+            onClick={handleNext}
+            disabled={!businessType}
+            className="w-full bg-primary hover:bg-primary-dim disabled:bg-surface-container-high disabled:text-on-surface-variant/50 disabled:cursor-not-allowed text-on-primary font-semibold py-3.5 rounded-xl transition-all text-[15px] shadow-[0_0_15px_rgba(96,99,238,0.15)] flex justify-center items-center gap-2"
+          >
+            Continuar
+          </button>
+
+          <div className="mt-6 flex flex-col items-center">
+            <span className="text-[13px] text-on-surface-variant font-medium mb-4">
+              Paso 1 de 3: Perfil de Negocio
+            </span>
+            <div className="flex gap-4 text-[12px] text-on-surface-variant/70">
+               <Link href="#" className="hover:text-on-surface transition-colors">Términos y Condiciones</Link>
+               <Link href="#" className="hover:text-on-surface transition-colors">Privacidad</Link>
+               <Link href="#" className="hover:text-on-surface transition-colors">Ayuda</Link>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {step === 2 && (
+        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="text-center lg:text-center mb-8 flex flex-col items-center">
+            <div className="w-12 h-12 rounded-2xl bg-surface-container-high border border-outline-variant/10 flex items-center justify-center text-primary mb-5 shadow-sm">
+               <RocketIcon />
+            </div>
+            <h2 className="text-[28px] font-bold text-on-surface mb-2 tracking-tight">
+              Potencia tu presencia digital
+            </h2>
+            <p className="text-on-surface-variant text-[15px]">
+              ¿Quieres añadir herramientas de venta online?
+            </p>
+          </div>
+
+          <div className="space-y-4 mb-8">
+            {/* E-commerce Module */}
+            <div className={`p-5 rounded-[24px] border transition-all duration-300 ${modules.ecommerce ? 'bg-primary/5 border-primary/40' : 'bg-surface-container-low border-outline-variant/10 hover:bg-surface-container'}`}>
+               <div className="flex justify-between items-start mb-3">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center border transition-colors ${modules.ecommerce ? 'bg-primary text-on-primary border-primary' : 'bg-surface-container-highest border-outline-variant/20 text-on-surface-variant'}`}>
+                     <CartIcon />
+                  </div>
+                  {/* Toggle */}
+                  <button 
+                     onClick={() => setModules({...modules, ecommerce: !modules.ecommerce})}
+                     className={`w-11 h-6 rounded-full relative transition-colors duration-300 focus:outline-none ${modules.ecommerce ? 'bg-primary' : 'bg-surface-container-highest border border-outline-variant/20'}`}
+                  >
+                     <span className={`absolute top-[2px] w-5 h-5 bg-white rounded-full shadow-sm transition-all duration-300 ${modules.ecommerce ? 'left-[22px]' : 'left-[2px]'}`}></span>
+                  </button>
+               </div>
+               <h3 className="text-[17px] font-bold text-on-surface mb-2">Módulo E-commerce</h3>
+               <p className="text-[13px] text-on-surface-variant leading-relaxed mb-4">
+                  Vende tus productos 24/7 con una tienda integrada. Gestiona inventario, pagos y envíos en un solo lugar.
+               </p>
+               <div className="flex gap-2">
+                  <span className="px-3 py-1 rounded-full bg-surface-container-highest border border-outline-variant/10 text-[11px] font-semibold text-on-surface-variant">
+                     Checkout seguro
+                  </span>
+                  <span className="px-3 py-1 rounded-full bg-surface-container-highest border border-outline-variant/10 text-[11px] font-semibold text-on-surface-variant">
+                     Stock real
+                  </span>
+               </div>
+            </div>
+
+            {/* Landing Page Module */}
+            <div className={`p-5 rounded-[24px] border transition-all duration-300 ${modules.landingPage ? 'bg-primary/5 border-primary/40' : 'bg-surface-container-low border-outline-variant/10 hover:bg-surface-container'}`}>
+               <div className="flex justify-between items-start mb-3">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center border transition-colors ${modules.landingPage ? 'bg-primary text-on-primary border-primary' : 'bg-surface-container-highest border-outline-variant/20 text-on-surface-variant'}`}>
+                     <LayersIcon />
+                  </div>
+                  {/* Toggle */}
+                  <button 
+                     onClick={() => setModules({...modules, landingPage: !modules.landingPage})}
+                     className={`w-11 h-6 rounded-full relative transition-colors duration-300 focus:outline-none ${modules.landingPage ? 'bg-primary' : 'bg-surface-container-highest border border-outline-variant/20'}`}
+                  >
+                     <span className={`absolute top-[2px] w-5 h-5 bg-white rounded-full shadow-sm transition-all duration-300 ${modules.landingPage ? 'left-[22px]' : 'left-[2px]'}`}></span>
+                  </button>
+               </div>
+               <h3 className="text-[17px] font-bold text-on-surface mb-2">Landing Page</h3>
+               <p className="text-[13px] text-on-surface-variant leading-relaxed mb-4">
+                  Una página de marketing profesional para captar clientes. Atrae leads calificados con un diseño de alta conversión.
+               </p>
+               <div className="flex gap-2">
+                  <span className="px-3 py-1 rounded-full bg-surface-container-highest border border-outline-variant/10 text-[11px] font-semibold text-on-surface-variant">
+                     Captación Leads
+                  </span>
+                  <span className="px-3 py-1 rounded-full bg-surface-container-highest border border-outline-variant/10 text-[11px] font-semibold text-on-surface-variant">
+                     Diseño UX
+                  </span>
+               </div>
+            </div>
+          </div>
+
+          <button
+            onClick={handleNext}
+            className="w-full bg-primary hover:bg-primary-dim text-on-primary font-semibold py-3.5 rounded-xl transition-all text-[15px] shadow-[0_0_15px_rgba(96,99,238,0.15)] flex justify-center items-center gap-2 mb-4"
+          >
+            Continuar
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+               <path d="M5 12h14M12 5l7 7-7 7"/>
+            </svg>
+          </button>
+          
+          <div className="mt-4 flex flex-col items-center">
+            <span className="text-[13px] text-on-surface-variant font-medium">
+              Paso 2 de 3: Módulos Adicionales
+            </span>
+          </div>
+        </div>
+      )}
+
+      {step === 3 && (
+        <div className="animate-in fade-in slide-in-from-right-4 duration-500">
+          <div className="text-center lg:text-left mb-8">
+            <h2 className="text-[28px] font-bold text-on-surface mb-2 tracking-tight">
+              Crea tu cuenta
+            </h2>
+            <p className="text-on-surface-variant text-[15px]">
+              Ingresa tus datos para finalizar el registro.
+            </p>
+          </div>
+
+          <form className="space-y-5" onSubmit={handleRegister}>
+            {error && (
+              <div className="bg-error-container/20 text-error-dim text-[13px] px-4 py-3 rounded-lg border border-error-container/30">
+                {error}
+              </div>
+            )}
+            
+            <div className="space-y-1.5">
+              <label className="text-[13px] font-semibold text-on-surface block">
+                Nombre completo
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Juan Pérez"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-10 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50"
+                  required
+                />
+                <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-on-surface-variant/70" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                  <circle cx="12" cy="7" r="4" />
+                </svg>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[13px] font-semibold text-on-surface block">
+                Correo electrónico
+              </label>
+              <div className="relative">
+                <input
+                  type="email"
+                  placeholder="nombre@ejemplo.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-10 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50"
+                  required
+                />
+                <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-on-surface-variant/70" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <rect x="3" y="5" width="18" height="14" rx="2" ry="2" />
+                  <polyline points="3 7 12 13 21 7" />
+                </svg>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[13px] font-semibold text-on-surface block">
+                Contraseña
+              </label>
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-10 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50"
+                  required
+                  minLength={6}
+                />
+                <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-on-surface-variant/70" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                  <path d="M7 11V7a5 5 0 0110 0v4" />
+                </svg>
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant/70 hover:text-on-surface transition-colors"
+                >
+                  {showPassword ? (
+                    <svg
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      viewBox="0 0 24 24"
+                      width="16"
+                      height="16"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24M1 1l22 22" />
+                    </svg>
+                  ) : (
+                    <svg
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      viewBox="0 0 24 24"
+                      width="16"
+                      height="16"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 pt-1 pb-2">
+              <div className="relative flex items-center">
+                <input
+                  type="checkbox"
+                  id="terms"
+                  required
+                  className="peer appearance-none w-4 h-4 border border-outline-variant/40 rounded bg-surface-container-lowest checked:bg-primary checked:border-primary transition-colors cursor-pointer"
+                />
+                <svg className="absolute w-3 h-3 left-0.5 top-0.5 text-on-primary pointer-events-none opacity-0 peer-checked:opacity-100 transition-opacity" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              </div>
+              <label htmlFor="terms" className="text-[12px] text-on-surface-variant cursor-pointer select-none">
+                Acepto los <Link href="#" className="text-primary hover:underline">Términos y Condiciones</Link>
+              </label>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-primary hover:bg-primary-dim disabled:bg-primary/50 disabled:cursor-not-allowed text-on-primary font-semibold py-3.5 rounded-xl transition-all text-[15px] shadow-[0_0_15px_rgba(96,99,238,0.15)] flex justify-center items-center gap-2"
+            >
+              {loading ? (
+                <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+              ) : (
+                <>
+                  Finalizar Registro
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                     <path d="M5 12h14M12 5l7 7-7 7"/>
+                  </svg>
+                </>
+              )}
+            </button>
+            <div className="mt-4 flex flex-col items-center">
+              <span className="text-[13px] text-on-surface-variant font-medium">
+                Paso 3 de 3: Datos de Cuenta
+              </span>
+            </div>
+          </form>
+          
+          <div className="mt-8 text-center text-[13px] text-on-surface-variant">
+            ¿Ya tienes una cuenta?{" "}
+            <Link
+              href="/login"
+              className="text-primary font-semibold hover:text-primary-dim transition-colors"
+            >
+              Iniciar Sesión
+            </Link>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

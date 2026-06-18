@@ -1,3 +1,5 @@
+import { createClient } from "@/utils/supabase/server";
+import { redirect } from "next/navigation";
 import {
   IconCreditCard,
   IconDollar,
@@ -9,92 +11,195 @@ import {
   IconUsers,
 } from "@/app/assets/icons/DashboardIcons";
 
-export default function DashboardPage() {
+type ColorConfig = {
+  bgLine: string;
+  textHover: string;
+  badgeText: string;
+  badgeBg: string;
+  iconText: string;
+  iconBg: string;
+};
+
+const colors: Record<string, ColorConfig> = {
+  primary: {
+    bgLine: "bg-primary",
+    textHover: "group-hover:text-primary",
+    badgeText: "text-primary",
+    badgeBg: "bg-primary/10",
+    iconText: "text-primary",
+    iconBg: "bg-primary/10",
+  },
+  emerald: {
+    bgLine: "bg-[#10b981]",
+    textHover: "group-hover:text-[#10b981]",
+    badgeText: "text-[#10b981]",
+    badgeBg: "bg-[#10b981]/10",
+    iconText: "text-[#10b981]",
+    iconBg: "bg-[#10b981]/10",
+  },
+  violet: {
+    bgLine: "bg-[#8b5cf6]",
+    textHover: "group-hover:text-[#8b5cf6]",
+    badgeText: "text-[#8b5cf6]",
+    badgeBg: "bg-[#8b5cf6]/10",
+    iconText: "text-[#8b5cf6]",
+    iconBg: "bg-[#8b5cf6]/10",
+  },
+  amber: {
+    bgLine: "bg-[#f59e0b]",
+    textHover: "group-hover:text-[#f59e0b]",
+    badgeText: "text-[#f59e0b]",
+    badgeBg: "bg-[#f59e0b]/10",
+    iconText: "text-[#f59e0b]",
+    iconBg: "bg-[#f59e0b]/10",
+  },
+  error: {
+    bgLine: "bg-error",
+    textHover: "group-hover:text-error",
+    badgeText: "text-error",
+    badgeBg: "bg-error-container/20 border border-error-container/30",
+    iconText: "text-error",
+    iconBg: "bg-error/10",
+  }
+};
+
+const getDashboardConfig = (businessType: string) => {
+  switch(businessType) {
+    case 'salon':
+      return {
+        stats: [
+          { title: "Ingresos del Día", value: "$1,250.00", trend: "12.5%", icon: IconDollar, color: colors.primary },
+          { title: "Citas Completadas", value: "14", trend: "8.2%", icon: IconCalendar, color: colors.emerald },
+          { title: "Citas Pendientes", value: "6", trend: "", icon: IconCalendar, color: colors.violet },
+          { title: "Nuevos Clientes", value: "3", trend: "", icon: IconUsers, color: colors.amber },
+        ],
+        actions: [
+          { title: "Nueva Cita", icon: IconCalendar },
+          { title: "Registrar Cliente", icon: IconUsers },
+          { title: "Añadir Servicio", icon: IconPlus },
+          { title: "Venta de Producto", icon: IconShoppingCart },
+        ],
+        recentActivity: [
+          { title: "Corte de Cabello - Ana Gómez", desc: "Hace 15 mins", value: "+$45.00", status: "Completado", icon: IconCalendar, color: colors.primary },
+          { title: "Reserva Confirmada", desc: "Cliente: Carlos Ruiz", value: "Mañana 10:00", status: "Agendado", icon: IconUsers, color: colors.emerald },
+          { title: "Venta Producto - Champú", desc: "Hace 2 horas", value: "+$25.00", status: "Completado", icon: IconShoppingCart, color: colors.primary },
+          { title: "Cita Cancelada", desc: "Cliente: María López", value: "-$30.00", status: "Cancelado", icon: IconCalendar, color: colors.error },
+        ]
+      };
+    case 'lavaautos':
+      return {
+        stats: [
+          { title: "Lavados Hoy", value: "28", trend: "15%", icon: IconBox, color: colors.primary },
+          { title: "Ingresos", value: "$420.00", trend: "5%", icon: IconDollar, color: colors.emerald },
+          { title: "En Espera", value: "4", trend: "", icon: IconCalendar, color: colors.violet },
+          { title: "Servicios Extra", value: "12", trend: "", icon: IconPlus, color: colors.amber },
+        ],
+        actions: [
+          { title: "Registrar Ingreso", icon: IconPlus },
+          { title: "Terminar Lavado", icon: IconBox },
+          { title: "Añadir Extra", icon: IconShoppingCart },
+          { title: "Ver Historial", icon: IconCalendar },
+        ],
+        recentActivity: [
+          { title: "Lavado Completo - ABC-123", desc: "Hace 5 mins", value: "+$25.00", status: "Completado", icon: IconBox, color: colors.primary },
+          { title: "Lavado Básico - XYZ-987", desc: "Hace 30 mins", value: "+$15.00", status: "Completado", icon: IconBox, color: colors.primary },
+          { title: "Ingreso Vehículo - DEF-456", desc: "Hace 45 mins", value: "En proceso", status: "Lavando", icon: IconPlus, color: colors.amber },
+        ]
+      };
+    case 'servicios':
+      return {
+        stats: [
+          { title: "Proyectos Activos", value: "12", trend: "15%", icon: IconBox, color: colors.primary },
+          { title: "Horas Facturadas", value: "145h", trend: "12%", icon: IconCalendar, color: colors.emerald },
+          { title: "Facturas Pendientes", value: "4", trend: "", icon: IconCreditCard, color: colors.violet },
+          { title: "Reuniones Hoy", value: "3", trend: "", icon: IconUsers, color: colors.amber },
+        ],
+        actions: [
+          { title: "Nueva Factura", icon: IconCreditCard },
+          { title: "Registrar Proyecto", icon: IconPlus },
+          { title: "Agendar Reunión", icon: IconCalendar },
+          { title: "Añadir Cliente", icon: IconUsers },
+        ],
+        recentActivity: [
+          { title: "Factura Pagada - INV-001", desc: "Hace 1 hora", value: "+$1,200.00", status: "Pagado", icon: IconDollar, color: colors.emerald },
+          { title: "Reunión de Avance", desc: "Cliente: Empresa X", value: "Hoy 14:00", status: "Agendado", icon: IconUsers, color: colors.primary },
+          { title: "Propuesta Enviada", desc: "Hace 3 horas", value: "$4,500.00", status: "En revisión", icon: IconBox, color: colors.amber },
+        ]
+      };
+    case 'tienda':
+    default:
+      return {
+        stats: [
+          { title: "Ventas Totales", value: "$24,500.00", trend: "12.5%", icon: IconCreditCard, color: colors.primary },
+          { title: "Flujo de Caja", value: "+$840.00", trend: "4.2%", icon: IconDollar, color: colors.emerald },
+          { title: "Inventario Bajo", value: "8", trend: "", icon: IconBox, color: colors.violet },
+          { title: "Nuevos Clientes", value: "12", trend: "", icon: IconUsers, color: colors.amber },
+        ],
+        actions: [
+          { title: "Nueva Venta", icon: IconShoppingCart },
+          { title: "Añadir Producto", icon: IconPlus },
+          { title: "Registrar Cliente", icon: IconUsers },
+          { title: "Ver Reportes", icon: IconTrendingUp },
+        ],
+        recentActivity: [
+          { title: "Venta POS - #INV-2023", desc: "Hace 2 mins", value: "+$124.50", status: "Completado", icon: IconShoppingCart, color: colors.emerald },
+          { title: "Stock Recibido", desc: "Proveedor: TechSupply", value: "50 Unids", status: "Procesado", icon: IconBox, color: colors.amber },
+          { title: "Venta POS - #INV-2022", desc: "Hace 1 hora", value: "+$45.00", status: "Completado", icon: IconShoppingCart, color: colors.emerald },
+          { title: "Pago Fallido", desc: "Cliente: Sarah Smith", value: "-$210.00", status: "Rechazado", icon: IconCreditCard, color: colors.error },
+        ]
+      };
+  }
+};
+
+export default async function DashboardPage() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
+  const businessType = user.user_metadata?.business_type || 'tienda';
+  const fullName = user.user_metadata?.full_name || 'Admin';
+  
+  const config = getDashboardConfig(businessType);
+
   return (
     <div className="space-y-8">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-on-surface">
-          Bienvenido de nuevo, Admin
+          Bienvenido de nuevo, {fullName.split(' ')[0]}
         </h1>
         <p className="text-on-surface-variant text-sm mt-1">
-          Miércoles, 17 de Junio, 2026 • 6:58 PM
+          {new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
         </p>
       </div>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Card 1 */}
-        <div className="bg-surface-container rounded-2xl p-5 border border-outline-variant/10 shadow-sm relative overflow-hidden group">
-          <div className="absolute top-0 left-0 w-1 h-full bg-primary opacity-50 group-hover:opacity-100 transition-opacity"></div>
-          <div className="flex justify-between items-start mb-4">
-            <div className="w-10 h-10 rounded-xl bg-surface-container-high flex items-center justify-center text-on-surface-variant group-hover:text-primary transition-colors">
-              <IconCreditCard className="w-5 h-5" />
+        {config.stats.map((stat, i) => (
+          <div key={i} className="bg-surface-container rounded-2xl p-5 border border-outline-variant/10 shadow-sm relative overflow-hidden group">
+            <div className={`absolute top-0 left-0 w-1 h-full ${stat.color.bgLine} opacity-50 group-hover:opacity-100 transition-opacity`}></div>
+            <div className="flex justify-between items-start mb-4">
+              <div className={`w-10 h-10 rounded-xl bg-surface-container-high flex items-center justify-center text-on-surface-variant ${stat.color.textHover} transition-colors`}>
+                <stat.icon className="w-5 h-5" />
+              </div>
+              {stat.trend && (
+                <div className={`flex items-center gap-1 text-xs font-medium ${stat.color.badgeText} ${stat.color.badgeBg} px-2 py-1 rounded-full`}>
+                  <IconTrendingUp className="w-3 h-3" />
+                  <span>{stat.trend}</span>
+                </div>
+              )}
             </div>
-            <div className="flex items-center gap-1 text-xs font-medium text-primary bg-primary/10 px-2 py-1 rounded-full">
-              <IconTrendingUp className="w-3 h-3" />
-              <span>12.5%</span>
-            </div>
-          </div>
-          <div>
-            <p className="text-on-surface-variant text-sm font-medium mb-1">
-              Ventas Totales
-            </p>
-            <h3 className="text-2xl font-bold text-on-surface">$24,500.00</h3>
-          </div>
-        </div>
-
-        {/* Card 2 */}
-        <div className="bg-surface-container rounded-2xl p-5 border border-outline-variant/10 shadow-sm relative overflow-hidden group">
-          <div className="absolute top-0 left-0 w-1 h-full bg-[#10b981] opacity-50 group-hover:opacity-100 transition-opacity"></div>
-          <div className="flex justify-between items-start mb-4">
-            <div className="w-10 h-10 rounded-xl bg-surface-container-high flex items-center justify-center text-on-surface-variant group-hover:text-[#10b981] transition-colors">
-              <IconDollar className="w-5 h-5" />
-            </div>
-            <div className="flex items-center gap-1 text-xs font-medium text-[#10b981] bg-[#10b981]/10 px-2 py-1 rounded-full">
-              <IconTrendingUp className="w-3 h-3" />
-              <span>4.2%</span>
+            <div>
+              <p className="text-on-surface-variant text-sm font-medium mb-1">
+                {stat.title}
+              </p>
+              <h3 className="text-2xl font-bold text-on-surface">{stat.value}</h3>
             </div>
           </div>
-          <div>
-            <p className="text-on-surface-variant text-sm font-medium mb-1">
-              Flujo de Caja
-            </p>
-            <h3 className="text-2xl font-bold text-on-surface">+$840.00</h3>
-          </div>
-        </div>
-
-        {/* Card 3 */}
-        <div className="bg-surface-container rounded-2xl p-5 border border-outline-variant/10 shadow-sm relative overflow-hidden group">
-          <div className="absolute top-0 left-0 w-1 h-full bg-[#8b5cf6] opacity-50 group-hover:opacity-100 transition-opacity"></div>
-          <div className="flex justify-between items-start mb-4">
-            <div className="w-10 h-10 rounded-xl bg-surface-container-high flex items-center justify-center text-on-surface-variant group-hover:text-[#8b5cf6] transition-colors">
-              <IconCalendar className="w-5 h-5" />
-            </div>
-          </div>
-          <div>
-            <p className="text-on-surface-variant text-sm font-medium mb-1">
-              Citas de Hoy
-            </p>
-            <h3 className="text-2xl font-bold text-on-surface">8</h3>
-          </div>
-        </div>
-
-        {/* Card 4 */}
-        <div className="bg-surface-container rounded-2xl p-5 border border-outline-variant/10 shadow-sm relative overflow-hidden group">
-          <div className="absolute top-0 left-0 w-1 h-full bg-[#f59e0b] opacity-50 group-hover:opacity-100 transition-opacity"></div>
-          <div className="flex justify-between items-start mb-4">
-            <div className="w-10 h-10 rounded-xl bg-surface-container-high flex items-center justify-center text-on-surface-variant group-hover:text-[#f59e0b] transition-colors">
-              <IconBox className="w-5 h-5" />
-            </div>
-          </div>
-          <div>
-            <p className="text-on-surface-variant text-sm font-medium mb-1">
-              Tareas Pendientes
-            </p>
-            <h3 className="text-2xl font-bold text-on-surface">12</h3>
-          </div>
-        </div>
+        ))}
       </div>
 
       {/* Middle Section */}
@@ -155,38 +260,16 @@ export default function DashboardPage() {
         <div className="bg-surface-container rounded-3xl p-6 border border-outline-variant/10 shadow-sm flex flex-col">
           <h3 className="font-semibold text-on-surface mb-6">Acciones Rápidas</h3>
           <div className="grid grid-cols-2 gap-4 flex-1">
-            <button className="flex flex-col items-center justify-center gap-3 bg-surface-container-lowest hover:bg-surface-container-high border border-outline-variant/10 hover:border-primary/30 rounded-2xl p-4 transition-all group shadow-sm hover:shadow-md hover:shadow-primary/5">
-              <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center group-hover:scale-110 transition-transform">
-                <IconShoppingCart className="w-5 h-5" />
-              </div>
-              <span className="text-xs font-medium text-on-surface-variant group-hover:text-on-surface text-center">
-                Nueva Venta
-              </span>
-            </button>
-            <button className="flex flex-col items-center justify-center gap-3 bg-surface-container-lowest hover:bg-surface-container-high border border-outline-variant/10 hover:border-primary/30 rounded-2xl p-4 transition-all group shadow-sm hover:shadow-md hover:shadow-primary/5">
-              <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center group-hover:scale-110 transition-transform">
-                <IconPlus className="w-5 h-5" />
-              </div>
-              <span className="text-xs font-medium text-on-surface-variant group-hover:text-on-surface text-center">
-                Añadir Producto
-              </span>
-            </button>
-            <button className="flex flex-col items-center justify-center gap-3 bg-surface-container-lowest hover:bg-surface-container-high border border-outline-variant/10 hover:border-primary/30 rounded-2xl p-4 transition-all group shadow-sm hover:shadow-md hover:shadow-primary/5">
-              <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center group-hover:scale-110 transition-transform">
-                <IconUsers className="w-5 h-5" />
-              </div>
-              <span className="text-xs font-medium text-on-surface-variant group-hover:text-on-surface text-center">
-                Registrar Cliente
-              </span>
-            </button>
-            <button className="flex flex-col items-center justify-center gap-3 bg-surface-container-lowest hover:bg-surface-container-high border border-outline-variant/10 hover:border-primary/30 rounded-2xl p-4 transition-all group shadow-sm hover:shadow-md hover:shadow-primary/5">
-              <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center group-hover:scale-110 transition-transform">
-                <IconCalendar className="w-5 h-5" />
-              </div>
-              <span className="text-xs font-medium text-on-surface-variant group-hover:text-on-surface text-center">
-                Agendar Cita
-              </span>
-            </button>
+            {config.actions.map((action, i) => (
+              <button key={i} className="flex flex-col items-center justify-center gap-3 bg-surface-container-lowest hover:bg-surface-container-high border border-outline-variant/10 hover:border-primary/30 rounded-2xl p-4 transition-all group shadow-sm hover:shadow-md hover:shadow-primary/5">
+                <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <action.icon className="w-5 h-5" />
+                </div>
+                <span className="text-xs font-medium text-on-surface-variant group-hover:text-on-surface text-center">
+                  {action.title}
+                </span>
+              </button>
+            ))}
           </div>
         </div>
       </div>
@@ -201,97 +284,31 @@ export default function DashboardPage() {
         </div>
 
         <div className="space-y-3">
-          {/* Item 1 */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-2xl bg-surface-container-lowest border border-outline-variant/5 hover:border-outline-variant/20 transition-colors gap-4">
-            <div className="flex items-center gap-4">
-              <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                <IconShoppingCart className="w-5 h-5" />
+          {config.recentActivity.map((activity, i) => (
+            <div key={i} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-2xl bg-surface-container-lowest border border-outline-variant/5 hover:border-outline-variant/20 transition-colors gap-4">
+              <div className="flex items-center gap-4">
+                <div className={`w-10 h-10 rounded-full ${activity.color.iconBg} ${activity.color.iconText} flex items-center justify-center shrink-0`}>
+                  <activity.icon className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-on-surface">
+                    {activity.title}
+                  </p>
+                  <p className="text-xs text-on-surface-variant mt-0.5">
+                    {activity.desc}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm font-medium text-on-surface">
-                  Venta POS - #INV-2023
+              <div className="sm:text-right flex sm:flex-col justify-between items-center sm:items-end">
+                <p className={`text-sm font-bold ${activity.color.textHover.replace('group-hover:', '')}`}>
+                  {activity.value}
                 </p>
-                <p className="text-xs text-on-surface-variant mt-0.5">
-                  Cliente: John Doe • hace 2 mins
-                </p>
-              </div>
-            </div>
-            <div className="sm:text-right flex sm:flex-col justify-between items-center sm:items-end">
-              <p className="text-sm font-bold text-[#10b981]">+$124.50</p>
-              <p className="text-[11px] font-medium text-on-surface-variant mt-0.5 bg-surface-variant px-2 py-0.5 rounded-md">
-                Completado
-              </p>
-            </div>
-          </div>
-
-          {/* Item 2 */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-2xl bg-surface-container-lowest border border-outline-variant/5 hover:border-outline-variant/20 transition-colors gap-4">
-            <div className="flex items-center gap-4">
-              <div className="w-10 h-10 rounded-full bg-[#f59e0b]/10 text-[#f59e0b] flex items-center justify-center shrink-0">
-                <IconBox className="w-5 h-5" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-on-surface">
-                  Stock Recibido
-                </p>
-                <p className="text-xs text-on-surface-variant mt-0.5">
-                  Proveedor: TechSupply Inc • hace 45 mins
+                <p className={`text-[11px] font-medium text-on-surface-variant mt-0.5 px-2 py-0.5 rounded-md ${activity.color === colors.error ? colors.error.badgeBg : 'bg-surface-variant'}`}>
+                  {activity.status}
                 </p>
               </div>
             </div>
-            <div className="sm:text-right flex sm:flex-col justify-between items-center sm:items-end">
-              <p className="text-sm font-bold text-on-surface">50 Unidades</p>
-              <p className="text-[11px] font-medium text-on-surface-variant mt-0.5 bg-surface-variant px-2 py-0.5 rounded-md">
-                Procesado
-              </p>
-            </div>
-          </div>
-
-          {/* Item 3 */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-2xl bg-surface-container-lowest border border-outline-variant/5 hover:border-outline-variant/20 transition-colors gap-4">
-            <div className="flex items-center gap-4">
-              <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                <IconShoppingCart className="w-5 h-5" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-on-surface">
-                  Venta POS - #INV-2022
-                </p>
-                <p className="text-xs text-on-surface-variant mt-0.5">
-                  Cliente de Paso • hace 1 hora
-                </p>
-              </div>
-            </div>
-            <div className="sm:text-right flex sm:flex-col justify-between items-center sm:items-end">
-              <p className="text-sm font-bold text-[#10b981]">+$45.00</p>
-              <p className="text-[11px] font-medium text-on-surface-variant mt-0.5 bg-surface-variant px-2 py-0.5 rounded-md">
-                Completado
-              </p>
-            </div>
-          </div>
-
-          {/* Item 4 */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-2xl bg-surface-container-lowest border border-outline-variant/5 hover:border-outline-variant/20 transition-colors gap-4">
-            <div className="flex items-center gap-4">
-              <div className="w-10 h-10 rounded-full bg-error/10 text-error flex items-center justify-center shrink-0">
-                <IconCreditCard className="w-5 h-5" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-on-surface">
-                  Pago Fallido
-                </p>
-                <p className="text-xs text-on-surface-variant mt-0.5">
-                  Cliente: Sarah Smith • hace 2 horas
-                </p>
-              </div>
-            </div>
-            <div className="sm:text-right flex sm:flex-col justify-between items-center sm:items-end">
-              <p className="text-sm font-bold text-error">-$210.00</p>
-              <p className="text-[11px] font-medium text-on-surface-variant mt-0.5 bg-error-container/20 text-error-dim border border-error-container/30 px-2 py-0.5 rounded-md">
-                Rechazado
-              </p>
-            </div>
-          </div>
+          ))}
         </div>
       </div>
     </div>

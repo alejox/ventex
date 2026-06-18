@@ -20,6 +20,7 @@ import {
   IconLogOut,
 } from "@/app/assets/icons/DashboardIcons";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { signout } from "@/utils/supabase/actions";
 
 const navigation = [
   { name: "Panel", href: "/dashboard", icon: IconHome },
@@ -27,6 +28,7 @@ const navigation = [
   { name: "Inventario", href: "/dashboard/inventory", icon: IconBox },
   { name: "Finanzas", href: "/dashboard/finance", icon: IconDollar },
   { name: "Clientes", href: "/dashboard/customers", icon: IconUsers },
+  { name: "Distribuidores", href: "/dashboard/distributors", icon: IconBox },
   { name: "Calendario", href: "/dashboard/calendar", icon: IconCalendar },
 ];
 
@@ -157,13 +159,15 @@ export default function DashboardLayout({
                       Ajustes de Perfil
                     </Link>
 
-                    <Link
-                      href="/login"
-                      className="flex items-center gap-3 px-4 py-2 mt-1 text-sm font-medium text-error hover:text-error-dim hover:bg-error/10 transition-colors w-full text-left"
-                    >
-                      <IconLogOut className="w-4 h-4" />
-                      Cerrar Sesión
-                    </Link>
+                    <form action={signout}>
+                      <button
+                        type="submit"
+                        className="flex items-center gap-3 px-4 py-2 mt-1 text-sm font-medium text-error hover:text-error-dim hover:bg-error/10 transition-colors w-full text-left"
+                      >
+                        <IconLogOut className="w-4 h-4" />
+                        Cerrar Sesión
+                      </button>
+                    </form>
                   </div>
                 </>
               )}
