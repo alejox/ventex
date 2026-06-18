@@ -106,7 +106,8 @@ export async function fetchTaxRate(): Promise<number> {
 export async function createSale(input: CheckoutInput): Promise<string> {
   const supabase = createClient();
   const { data, error } = await supabase.rpc("create_sale", {
-    p_customer_id: input.customerId,
+    // El tipo generado no refleja que el parámetro acepta null (venta a cliente "De Paso").
+    p_customer_id: input.customerId as string,
     p_payment_method: input.paymentMethod,
     p_discount_amount: input.discount,
     p_items: input.items,

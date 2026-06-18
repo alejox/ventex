@@ -4,7 +4,7 @@ import { createClient } from "@/utils/supabase/client";
 export interface Category {
   id: string;
   name: string;
-  description: string;
+  description: string | null;
 }
 
 export interface Product {
@@ -58,10 +58,7 @@ export async function fetchProducts(): Promise<Product[]> {
 
 export async function createProduct(input: NewProductInput): Promise<Product> {
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
+  // user_id lo asigna el trigger/DEFAULT auth.uid() (tenant-isolation, ver CLAUDE.md).
   const { data, error } = await supabase
     .from("products")
     .insert({
@@ -71,7 +68,6 @@ export async function createProduct(input: NewProductInput): Promise<Product> {
       price: parseFloat(input.price),
       stock_level: parseInt(input.stock_level),
       image_url: input.image_url || null,
-      user_id: user?.id, // tenant-isolation: toda fila lleva user_id (ver CLAUDE.md)
     })
     .select(PRODUCT_SELECT)
     .single();
@@ -81,16 +77,12 @@ export async function createProduct(input: NewProductInput): Promise<Product> {
 
 export async function createCategory(input: NewCategoryInput): Promise<Category> {
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
+  // user_id lo asigna el trigger/DEFAULT auth.uid().
   const { data, error } = await supabase
     .from("categories")
     .insert({
       name: input.name,
       description: input.description,
-      user_id: user?.id,
     })
     .select("id, name, description")
     .single();

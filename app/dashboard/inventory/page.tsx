@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import {
   IconSearch,
   IconBox,
@@ -218,9 +219,16 @@ export default function InventoryPage() {
                   return (
                     <tr key={item.id} className="hover:bg-surface-container-lowest transition-colors group">
                       <td className="p-4 pl-6">
-                        <div className="w-10 h-10 rounded-lg bg-surface-container border border-outline-variant/10 flex items-center justify-center text-on-surface-variant/30">
+                        <div className="relative w-10 h-10 rounded-lg bg-surface-container border border-outline-variant/10 flex items-center justify-center text-on-surface-variant/30 overflow-hidden">
                           {item.image_url ? (
-                            <img src={item.image_url} alt={item.name} className="w-full h-full object-cover rounded-lg" />
+                            <Image
+                              src={item.image_url}
+                              alt={item.name}
+                              fill
+                              sizes="40px"
+                              unoptimized
+                              className="object-cover"
+                            />
                           ) : (
                             <IconImagePlaceholder className="w-5 h-5" />
                           )}
