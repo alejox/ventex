@@ -1,206 +1,350 @@
-import React from "react";
-import { 
-  IconChevronLeft, 
-  IconChevronRight, 
-  IconPlus, 
-  IconClock,
-  IconVideo,
-  IconUsers
+"use client";
+
+import { useEffect, useState, useMemo } from "react";
+import { useAppointmentsStore } from "@/stores/appointments.store";
+import AppointmentModal from "@/components/appointments/AppointmentModal";
+import type { Appointment } from "@/services/appointments.service";
+import {
+  IconChevronLeft,
+  IconChevronRight,
+  IconPlus,
 } from "@/app/assets/icons/DashboardIcons";
 
-export default function CalendarPage() {
-  const daysOfWeek = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
-  
-  // Generating a simple mock month (35 days total for grid)
-  const calendarDays = Array.from({ length: 35 }, (_, i) => {
-    const dayNumber = i - 2; // Offset to start month on a Wednesday
-    if (dayNumber < 1) return { day: 30 + dayNumber, isCurrentMonth: false };
-    if (dayNumber > 31) return { day: dayNumber - 31, isCurrentMonth: false };
-    return { day: dayNumber, isCurrentMonth: true };
-  });
+// ---- HELPERS ----
+const MONTHS_ES = [
+  "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+  "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
+];
+const DAYS_SHORT = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 
-  const upcomingEvents = [
-    {
-      id: 1,
-      title: "Reunión de Sincronización Q3",
-      time: "10:00 AM - 11:30 AM",
-      type: "video",
-      color: "bg-[#6063ee]",
-      textColor: "text-[#6063ee]",
-      attendees: 4
-    },
-    {
-      id: 2,
-      title: "Revisión de Inventario Anual",
-      time: "02:00 PM - 04:00 PM",
-      type: "in-person",
-      color: "bg-emerald-500",
-      textColor: "text-emerald-500",
-      attendees: 2
-    },
-    {
-      id: 3,
-      title: "Llamada con Proveedor Principal",
-      time: "04:30 PM - 05:00 PM",
-      type: "video",
-      color: "bg-amber-500",
-      textColor: "text-amber-500",
-      attendees: 2
+function formatDate(d: Date): string {
+  return d.toISOString().split("T")[0];
+}
+
+function getMonthGrid(year: number, month: number) {
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const daysInPrev = new Date(year, month, 0).getDate();
+  const cells: { day: number; date: string; isCurrentMonth: boolean }[] = [];
+  for (let i = firstDay - 1; i >= 0; i--) {
+    const d = daysInPrev - i;
+    cells.push({
+      day: d,
+      date: formatDate(new Date(year, month - 1, d)),
+      isCurrentMonth: false,
+    });
+  }
+  for (let d = 1; d <= daysInMonth; d++) {
+    cells.push({
+      day: d,
+      date: formatDate(new Date(year, month, d)),
+      isCurrentMonth: true,
+    });
+  }
+  const remaining = 42 - cells.length;
+  for (let d = 1; d <= remaining; d++) {
+    cells.push({
+      day: d,
+      date: formatDate(new Date(year, month + 1, d)),
+      isCurrentMonth: false,
+    });
+  }
+  return cells;
+}
+
+function getWeekDays(date: Date) {
+  const start = new Date(date);
+  start.setDate(start.getDate() - start.getDay());
+  const days: { day: number; date: string; dayName: string }[] = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(start);
+    d.setDate(d.getDate() + i);
+    days.push({
+      day: d.getDate(),
+      date: formatDate(d),
+      dayName: DAYS_SHORT[d.getDay()],
+    });
+  }
+  return days;
+}
+
+const HOURS = Array.from({ length: 14 }, (_, i) => i + 7); // 7:00 - 20:00
+
+function getStatusColor(status: string) {
+  switch (status) {
+    case "confirmed":
+      return "bg-[#6063ee]/15 text-[#6063ee] border-l-[#6063ee]";
+    case "completed":
+      return "bg-emerald-500/15 text-emerald-600 border-l-emerald-500";
+    case "cancelled":
+      return "bg-error-container/20 text-error-dim border-l-error-container";
+    default:
+      return "bg-amber-500/15 text-amber-600 border-l-amber-500";
+  }
+}
+
+function getStatusLabel(status: string) {
+  switch (status) {
+    case "pending": return "Pendiente";
+    case "confirmed": return "Confirmada";
+    case "completed": return "Completada";
+    case "cancelled": return "Cancelada";
+    default: return status;
+  }
+}
+
+// ---- COMPONENT ----
+export default function CalendarPage() {
+  const { appointments, loading, error, fetchAppointments, setSelectedDate } =
+    useAppointmentsStore();
+
+  const [view, setView] = useState<"month" | "week" | "day">("month");
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [modalOpen, setModalOpen] = useState(false);
+  const [selectedAppointment, setSelectedAppointment] =
+    useState<Appointment | null>(null);
+  const [defaultStartTime, setDefaultStartTime] = useState<string>("09:00");
+
+  const today = useMemo(() => formatDate(new Date()), []);
+  const currentMonth = currentDate.getMonth();
+  const currentYear = currentDate.getFullYear();
+
+  // Fetch appointments based on view
+  useEffect(() => {
+    let start: string;
+    let end: string;
+
+    if (view === "month") {
+      const firstDay = formatDate(new Date(currentYear, currentMonth, 1));
+      const lastDay = formatDate(new Date(currentYear, currentMonth + 1, 0));
+      start = firstDay;
+      end = lastDay;
+    } else if (view === "week") {
+      const weekDays = getWeekDays(currentDate);
+      start = weekDays[0].date;
+      end = weekDays[6].date;
+    } else {
+      start = formatDate(currentDate);
+      end = formatDate(currentDate);
     }
-  ];
+
+    fetchAppointments(start, end);
+  }, [view, currentDate, currentMonth, currentYear, fetchAppointments]);
+
+  // Group appointments by date
+  const appointmentsByDate = useMemo(() => {
+    const map: Record<string, Appointment[]> = {};
+    appointments.forEach((a) => {
+      if (!map[a.appointment_date]) map[a.appointment_date] = [];
+      map[a.appointment_date].push(a);
+    });
+    return map;
+  }, [appointments]);
+
+  // Navigate
+  const navigatePrev = () => {
+    const d = new Date(currentDate);
+    if (view === "month") d.setMonth(d.getMonth() - 1);
+    else if (view === "week") d.setDate(d.getDate() - 7);
+    else d.setDate(d.getDate() - 1);
+    setCurrentDate(d);
+  };
+
+  const navigateNext = () => {
+    const d = new Date(currentDate);
+    if (view === "month") d.setMonth(d.getMonth() + 1);
+    else if (view === "week") d.setDate(d.getDate() + 7);
+    else d.setDate(d.getDate() + 1);
+    setCurrentDate(d);
+  };
+
+  const goToday = () => setCurrentDate(new Date());
+
+  // Open modal for new appointment
+  const handleNewAppointment = (date?: string, time?: string) => {
+    setSelectedAppointment(null);
+    setDefaultStartTime(time || "09:00");
+    if (date) {
+      setSelectedDate(new Date(date + "T12:00:00"));
+    }
+    setModalOpen(true);
+  };
+
+  // Open modal for existing appointment
+  const handleEditAppointment = (appt: Appointment) => {
+    setSelectedAppointment(appt);
+    setModalOpen(true);
+  };
+
+  // Get month grid
+  const monthGrid = useMemo(
+    () => getMonthGrid(currentYear, currentMonth),
+    [currentYear, currentMonth],
+  );
+
+  // Get week days
+  const weekDays = useMemo(() => getWeekDays(currentDate), [currentDate]);
+
+  // Get appointments for a specific hour (day view)
+  const getAppointmentsForHour = (date: string, hour: number) => {
+    const dayAppts = appointmentsByDate[date] || [];
+    return dayAppts.filter((a) => {
+      const startH = parseInt(a.start_time.split(":")[0]);
+      return startH === hour;
+    });
+  };
 
   return (
-    <div className="flex flex-col gap-6 w-full h-[calc(100vh-8rem)] animate-in fade-in duration-500">
+    <div className="flex flex-col gap-6 w-full animate-in fade-in duration-500">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0">
         <div>
           <h1 className="text-2xl font-bold text-on-surface">Calendario</h1>
-          <p className="text-sm text-on-surface-variant mt-1">Gestiona tus citas, eventos y recordatorios de stock.</p>
+          <p className="text-sm text-on-surface-variant mt-1">
+            Gestiona tus citas, eventos y agenda.
+          </p>
         </div>
         <div className="flex items-center gap-3">
+          {/* View toggle */}
           <div className="flex items-center bg-surface-container border border-outline-variant/10 rounded-xl p-1 shadow-sm">
-            <button className="px-3 py-1.5 text-xs font-bold bg-surface-container-lowest text-on-surface rounded-lg shadow-sm">Mes</button>
-            <button className="px-3 py-1.5 text-xs font-semibold text-on-surface-variant hover:text-on-surface transition-colors">Semana</button>
-            <button className="px-3 py-1.5 text-xs font-semibold text-on-surface-variant hover:text-on-surface transition-colors">Día</button>
+            {(["month", "week", "day"] as const).map((v) => (
+              <button
+                key={v}
+                onClick={() => setView(v)}
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${
+                  view === v
+                    ? "bg-surface-container-lowest text-on-surface shadow-sm"
+                    : "text-on-surface-variant hover:text-on-surface"
+                }`}
+              >
+                {v === "month" ? "Mes" : v === "week" ? "Semana" : "Día"}
+              </button>
+            ))}
           </div>
-          <button className="bg-[#6063ee] hover:bg-[#c0c1ff] text-white hover:text-[#0b0664] text-sm font-semibold py-2.5 px-4 rounded-xl shadow-lg shadow-[#6063ee]/20 transition-colors flex items-center justify-center gap-2">
+          <button
+            onClick={goToday}
+            className="px-3 py-2 text-xs font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded-xl transition-colors border border-outline-variant/10"
+          >
+            Hoy
+          </button>
+          <button
+            onClick={() => handleNewAppointment()}
+            className="bg-[#6063ee] hover:bg-[#c0c1ff] text-white hover:text-[#0b0664] text-sm font-semibold py-2.5 px-4 rounded-xl shadow-lg shadow-[#6063ee]/20 transition-colors flex items-center justify-center gap-2"
+          >
             <IconPlus className="w-4 h-4" />
-            <span className="hidden sm:inline">Nuevo Evento</span>
+            <span className="hidden sm:inline">Nueva Cita</span>
           </button>
         </div>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-0">
-        
-        {/* Left Sidebar - Upcoming Events */}
-        <div className="w-full lg:w-80 flex flex-col gap-6 shrink-0 overflow-y-auto pr-2 scrollbar-hide">
-          {/* Mini Calendar Widget */}
-          <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-3xl p-6 shadow-sm">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="font-bold text-on-surface">Octubre 2024</h3>
-              <div className="flex gap-1">
-                <button className="p-1 text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded-lg transition-colors">
-                  <IconChevronLeft className="w-4 h-4" />
-                </button>
-                <button className="p-1 text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded-lg transition-colors">
-                  <IconChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-7 gap-1 text-center mb-2">
-              {daysOfWeek.map(day => (
-                <span key={day} className="text-[10px] font-bold text-on-surface-variant">{day.charAt(0)}</span>
-              ))}
-            </div>
-            <div className="grid grid-cols-7 gap-1 text-center text-sm">
-              {calendarDays.map((d, i) => (
-                <button 
-                  key={i} 
-                  className={`w-8 h-8 mx-auto flex items-center justify-center rounded-full text-xs font-medium transition-colors ${
-                    !d.isCurrentMonth ? "text-on-surface-variant/30" :
-                    d.day === 15 ? "bg-[#6063ee] text-white shadow-md shadow-[#6063ee]/30 font-bold" :
-                    "text-on-surface hover:bg-surface-container"
-                  }`}
-                >
-                  {d.day}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Upcoming Events List */}
-          <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-3xl p-6 shadow-sm flex-1">
-            <h3 className="font-bold text-on-surface mb-6">Próximos Eventos</h3>
-            <div className="space-y-4">
-              {upcomingEvents.map(event => (
-                <div key={event.id} className="group relative p-4 rounded-2xl bg-surface-container hover:bg-surface-container-high transition-colors border border-outline-variant/5">
-                  <div className={`absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 ${event.color} rounded-r-full`}></div>
-                  
-                  <h4 className="text-sm font-bold text-on-surface line-clamp-1 mb-1 group-hover:text-primary transition-colors">{event.title}</h4>
-                  
-                  <div className="flex items-center gap-2 text-[11px] font-medium text-on-surface-variant mb-3">
-                    <IconClock className="w-3.5 h-3.5" />
-                    <span>{event.time}</span>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div className="flex -space-x-2">
-                      {[...Array(event.attendees)].map((_, i) => (
-                        <div key={i} className="w-6 h-6 rounded-full bg-surface-container-high border-2 border-surface-container-lowest shadow-sm flex items-center justify-center overflow-hidden">
-                           <IconUsers className="w-3 h-3 text-on-surface-variant" />
-                        </div>
-                      ))}
-                    </div>
-                    {event.type === 'video' && (
-                      <div className={`p-1.5 rounded-lg ${event.color}/10 ${event.textColor}`}>
-                        <IconVideo className="w-3.5 h-3.5" />
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-            
-            <button className="w-full mt-6 py-3 text-sm font-bold text-primary hover:bg-primary/5 rounded-xl transition-colors">
-              Ver todos los eventos
-            </button>
-          </div>
+      {/* Navigation */}
+      <div className="flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={navigatePrev}
+            className="p-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded-xl transition-colors"
+          >
+            <IconChevronLeft className="w-5 h-5" />
+          </button>
+          <h2 className="text-lg font-bold text-on-surface min-w-[200px] text-center">
+            {view === "month"
+              ? `${MONTHS_ES[currentMonth]} ${currentYear}`
+              : view === "week"
+                ? `${weekDays[0].dayName} ${weekDays[0].day} - ${weekDays[6].dayName} ${weekDays[6].day} ${MONTHS_ES[currentMonth]}`
+                : `${DAYS_SHORT[currentDate.getDay()]} ${currentDate.getDate()} ${MONTHS_ES[currentMonth]}`}
+          </h2>
+          <button
+            onClick={navigateNext}
+            className="p-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded-xl transition-colors"
+          >
+            <IconChevronRight className="w-5 h-5" />
+          </button>
         </div>
+      </div>
 
-        {/* Right Area - Main Calendar Grid */}
-        <div className="flex-1 bg-surface-container-lowest border border-outline-variant/10 rounded-3xl shadow-sm flex flex-col overflow-hidden">
-          {/* Header Row */}
+      {/* Error */}
+      {error && (
+        <div className="rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim">
+          {error}
+        </div>
+      )}
+
+      {/* Loading */}
+      {loading && (
+        <p className="text-center text-sm text-on-surface-variant py-12">
+          Cargando citas...
+        </p>
+      )}
+
+      {/* ---- MONTH VIEW ---- */}
+      {!loading && view === "month" && (
+        <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-3xl shadow-sm overflow-hidden">
+          {/* Day headers */}
           <div className="grid grid-cols-7 border-b border-outline-variant/10 bg-surface-container/50">
-            {daysOfWeek.map((day, i) => (
-              <div key={day} className={`p-4 text-center text-xs font-bold tracking-wider uppercase ${i === 0 || i === 6 ? 'text-on-surface-variant/50' : 'text-on-surface-variant'}`}>
+            {DAYS_SHORT.map((day, i) => (
+              <div
+                key={day}
+                className={`p-3 text-center text-xs font-bold tracking-wider uppercase ${
+                  i === 0 || i === 6
+                    ? "text-on-surface-variant/50"
+                    : "text-on-surface-variant"
+                }`}
+              >
                 {day}
               </div>
             ))}
           </div>
 
-          {/* Grid Area */}
-          <div className="flex-1 grid grid-cols-7 grid-rows-5 bg-outline-variant/5 gap-px">
-            {calendarDays.map((d, i) => {
-              const isToday = d.day === 15 && d.isCurrentMonth;
-              const hasEvent1 = d.day === 15 && d.isCurrentMonth;
-              const hasEvent2 = d.day === 18 && d.isCurrentMonth;
-              const hasEvent3 = d.day === 8 && d.isCurrentMonth;
+          {/* Grid */}
+          <div className="grid grid-cols-7 grid-rows-6">
+            {monthGrid.map((cell) => {
+              const isToday = cell.date === today;
+              const dayAppts = appointmentsByDate[cell.date] || [];
 
               return (
-                <div 
-                  key={i} 
-                  className={`bg-surface-container-lowest p-2 hover:bg-surface-container/30 transition-colors flex flex-col gap-1 ${!d.isCurrentMonth ? 'opacity-40' : ''}`}
+                <div
+                  key={cell.date}
+                  className={`min-h-[100px] p-2 border-b border-r border-outline-variant/5 hover:bg-surface-container/20 transition-colors ${
+                    !cell.isCurrentMonth ? "opacity-40" : ""
+                  }`}
+                  onClick={() => {
+                    if (cell.isCurrentMonth) {
+                      setSelectedDate(new Date(cell.date + "T12:00:00"));
+                      handleNewAppointment(cell.date);
+                    }
+                  }}
                 >
-                  <div className="flex justify-between items-start">
-                    <span className={`w-7 h-7 flex items-center justify-center rounded-full text-xs font-semibold ${
-                      isToday ? "bg-[#6063ee] text-white shadow-md shadow-[#6063ee]/30" : "text-on-surface-variant"
-                    }`}>
-                      {d.day}
+                  <div className="flex justify-between items-start mb-1">
+                    <span
+                      className={`w-7 h-7 flex items-center justify-center rounded-full text-xs font-semibold ${
+                        isToday
+                          ? "bg-[#6063ee] text-white shadow-md shadow-[#6063ee]/30"
+                          : "text-on-surface-variant"
+                      }`}
+                    >
+                      {cell.day}
                     </span>
                   </div>
 
-                  {/* Mock Events rendering inside cells */}
-                  <div className="flex-1 overflow-y-auto space-y-1 mt-1 scrollbar-hide">
-                    {hasEvent1 && (
-                      <>
-                        <div className="px-2 py-1 text-[10px] font-bold text-white bg-[#6063ee] rounded-md truncate shadow-sm">
-                          10:00 Sincronización
-                        </div>
-                        <div className="px-2 py-1 text-[10px] font-bold text-amber-700 bg-amber-500/20 rounded-md truncate">
-                          16:30 Proveedor
-                        </div>
-                      </>
-                    )}
-                    {hasEvent2 && (
-                      <div className="px-2 py-1 text-[10px] font-bold text-emerald-700 bg-emerald-500/20 rounded-md truncate">
-                        Todo el día - Auditoría
-                      </div>
-                    )}
-                    {hasEvent3 && (
-                      <div className="px-2 py-1 text-[10px] font-bold text-[#6063ee] bg-[#6063ee]/10 border border-[#6063ee]/20 rounded-md truncate">
-                        14:00 Diseño UX
-                      </div>
+                  <div className="space-y-1">
+                    {dayAppts.slice(0, 3).map((appt) => (
+                      <button
+                        key={appt.id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEditAppointment(appt);
+                        }}
+                        className={`w-full text-left px-2 py-1 text-[10px] font-bold rounded-md truncate border-l-2 ${getStatusColor(
+                          appt.status,
+                        )}`}
+                      >
+                        {appt.start_time.slice(0, 5)} {appt.title}
+                      </button>
+                    ))}
+                    {dayAppts.length > 3 && (
+                      <span className="text-[10px] text-on-surface-variant font-medium px-2">
+                        +{dayAppts.length - 3} más
+                      </span>
                     )}
                   </div>
                 </div>
@@ -208,8 +352,256 @@ export default function CalendarPage() {
             })}
           </div>
         </div>
+      )}
 
-      </div>
+      {/* ---- WEEK VIEW ---- */}
+      {!loading && view === "week" && (
+        <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-3xl shadow-sm overflow-hidden">
+          {/* Day headers */}
+          <div className="grid grid-cols-8 border-b border-outline-variant/10 bg-surface-container/50">
+            <div className="p-3" />
+            {weekDays.map((d) => {
+              const isToday = d.date === today;
+              return (
+                <div key={d.date} className="p-3 text-center">
+                  <div className="text-xs font-bold text-on-surface-variant">
+                    {d.dayName}
+                  </div>
+                  <div
+                    className={`text-lg font-bold ${
+                      isToday
+                        ? "text-[#6063ee]"
+                        : "text-on-surface"
+                    }`}
+                  >
+                    {d.day}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Time grid */}
+          <div className="grid grid-cols-8 max-h-[600px] overflow-y-auto">
+            {/* Hour labels */}
+            <div className="border-r border-outline-variant/5">
+              {HOURS.map((h) => (
+                <div
+                  key={h}
+                  className="h-16 border-b border-outline-variant/5 flex items-start justify-end pr-2 pt-1"
+                >
+                  <span className="text-[10px] font-medium text-on-surface-variant">
+                    {String(h).padStart(2, "0")}:00
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {/* Day columns */}
+            {weekDays.map((d) => (
+              <div
+                key={d.date}
+                className="border-r border-outline-variant/5"
+              >
+                {HOURS.map((h) => {
+                  const hourAppts = getAppointmentsForHour(d.date, h);
+                  return (
+                    <div
+                      key={h}
+                      className="h-16 border-b border-outline-variant/5 relative hover:bg-surface-container/20 transition-colors cursor-pointer"
+                      onClick={() => handleNewAppointment(d.date, `${String(h).padStart(2, "0")}:00`)}
+                    >
+                      {hourAppts.map((appt) => (
+                        <button
+                          key={appt.id}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleEditAppointment(appt);
+                          }}
+                          className={`absolute inset-x-1 top-0 px-1.5 py-0.5 text-[10px] font-bold rounded border-l-2 ${getStatusColor(
+                            appt.status,
+                          )} truncate z-10`}
+                          style={{
+                            height: `${Math.max(
+                              ((parseInt(appt.end_time.split(":")[0]) * 60 +
+                                parseInt(appt.end_time.split(":")[1])) -
+                                (parseInt(appt.start_time.split(":")[0]) * 60 +
+                                  parseInt(appt.start_time.split(":")[1]))) /
+                                60 *
+                                64,
+                              20,
+                            )}px`,
+                          }}
+                        >
+                          {appt.start_time.slice(0, 5)} {appt.title}
+                        </button>
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ---- DAY VIEW ---- */}
+      {!loading && view === "day" && (
+        <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-3xl shadow-sm overflow-hidden">
+          <div className="max-h-[600px] overflow-y-auto">
+            {HOURS.map((h) => {
+              const dateStr = formatDate(currentDate);
+              const hourAppts = getAppointmentsForHour(dateStr, h);
+
+              return (
+                <div key={h} className="flex border-b border-outline-variant/5">
+                  <div className="w-20 shrink-0 p-3 text-right border-r border-outline-variant/5">
+                    <span className="text-xs font-medium text-on-surface-variant">
+                      {String(h).padStart(2, "0")}:00
+                    </span>
+                  </div>
+                  <div
+                    className="flex-1 min-h-[64px] p-2 hover:bg-surface-container/20 transition-colors cursor-pointer"
+                    onClick={() =>
+                      handleNewAppointment(
+                        dateStr,
+                        `${String(h).padStart(2, "0")}:00`,
+                      )
+                    }
+                  >
+                    {hourAppts.map((appt) => (
+                      <button
+                        key={appt.id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEditAppointment(appt);
+                        }}
+                        className={`w-full text-left p-3 rounded-xl mb-1 border-l-4 ${getStatusColor(
+                          appt.status,
+                        )}`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-bold text-on-surface">
+                            {appt.title}
+                          </span>
+                          <span className="text-xs text-on-surface-variant">
+                            {appt.start_time.slice(0, 5)} -{" "}
+                            {appt.end_time.slice(0, 5)}
+                          </span>
+                        </div>
+                        {appt.customers?.full_name && (
+                          <span className="text-xs text-on-surface-variant">
+                            {appt.customers.full_name}
+                          </span>
+                        )}
+                        {appt.service_type && (
+                          <span className="text-xs text-on-surface-variant ml-2">
+                            - {appt.service_type}
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Upcoming list (month view sidebar) */}
+      {!loading && view === "month" && appointments.length > 0 && (
+        <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-3xl p-6 shadow-sm">
+          <h3 className="font-bold text-on-surface mb-4">
+            Próximas Citas ({appointments.length})
+          </h3>
+          <div className="space-y-2">
+            {appointments.slice(0, 5).map((appt) => (
+              <button
+                key={appt.id}
+                onClick={() => handleEditAppointment(appt)}
+                className="w-full flex items-center gap-4 p-3 rounded-xl hover:bg-surface-container transition-colors text-left"
+              >
+                <div
+                  className={`w-2 h-10 rounded-full ${
+                    appt.status === "confirmed"
+                      ? "bg-[#6063ee]"
+                      : appt.status === "completed"
+                        ? "bg-emerald-500"
+                        : appt.status === "cancelled"
+                          ? "bg-error-container"
+                          : "bg-amber-500"
+                  }`}
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-bold text-on-surface truncate">
+                    {appt.title}
+                  </div>
+                  <div className="text-xs text-on-surface-variant">
+                    {appt.appointment_date} {appt.start_time.slice(0, 5)} -{" "}
+                    {appt.end_time.slice(0, 5)}
+                  </div>
+                </div>
+                <span
+                  className={`text-[10px] font-bold px-2 py-1 rounded-md border ${getStatusColor(
+                    appt.status,
+                  )}`}
+                >
+                  {getStatusLabel(appt.status)}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Empty state */}
+      {!loading && appointments.length === 0 && (
+        <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-3xl p-12 shadow-sm flex flex-col items-center justify-center text-center">
+          <div className="w-16 h-16 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant mb-4">
+            <svg
+              width="32"
+              height="32"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+              <line x1="16" y1="2" x2="16" y2="6" />
+              <line x1="8" y1="2" x2="8" y2="6" />
+              <line x1="3" y1="10" x2="21" y2="10" />
+            </svg>
+          </div>
+          <h2 className="text-lg font-bold text-on-surface mb-2">
+            No hay citas este mes
+          </h2>
+          <p className="text-sm text-on-surface-variant max-w-sm mb-6">
+            Crea tu primera cita haciendo clic en el botón de arriba o en
+            cualquier celda del calendario.
+          </p>
+          <button
+            onClick={() => handleNewAppointment()}
+            className="px-6 py-2.5 bg-surface-container border border-outline-variant/20 text-on-surface text-sm font-semibold rounded-xl hover:bg-surface-container-high transition-colors"
+          >
+            Nueva Cita
+          </button>
+        </div>
+      )}
+
+      {/* Modal */}
+      <AppointmentModal
+        open={modalOpen}
+        onClose={() => {
+          setModalOpen(false);
+          setSelectedAppointment(null);
+        }}
+        selectedDate={currentDate}
+        appointment={selectedAppointment}
+        defaultStartTime={defaultStartTime}
+      />
     </div>
   );
 }

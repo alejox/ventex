@@ -3,6 +3,12 @@
 import Link from "next/link";
 import { useState } from "react";
 import { LogoVertical } from "@/components/Logo";
+import {
+  BUSINESS_OPTIONS,
+  MODULES_BY_TYPE,
+  type BusinessType,
+  type ModuleId,
+} from "@/config/business";
 
 // --- Icons ---
 const ScissorsIcon = () => (
@@ -55,10 +61,30 @@ const CartIcon = () => (
   </svg>
 );
 
-const LayersIcon = () => (
+const CalendarIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-    <rect x="7" y="7" width="14" height="14" rx="2" ry="2" />
+    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+    <line x1="16" y1="2" x2="16" y2="6" />
+    <line x1="8" y1="2" x2="8" y2="6" />
+    <line x1="3" y1="10" x2="21" y2="10" />
+  </svg>
+);
+
+const BoxIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+    <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+    <line x1="12" y1="22.08" x2="12" y2="12" />
+  </svg>
+);
+
+const FileIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+    <polyline points="14 2 14 8 20 8" />
+    <line x1="16" y1="13" x2="8" y2="13" />
+    <line x1="16" y1="17" x2="8" y2="17" />
+    <polyline points="10 9 9 9 8 9" />
   </svg>
 );
 
@@ -66,7 +92,7 @@ const LayersIcon = () => (
 export default function RegisterPage() {
   const [step, setStep] = useState(1);
   const [businessType, setBusinessType] = useState("");
-  const [modules, setModules] = useState({ ecommerce: false, landingPage: false });
+  const [modules, setModules] = useState<Record<string, boolean>>({});
   
   // Step 3 state
   const [email, setEmail] = useState("");
@@ -110,12 +136,20 @@ export default function RegisterPage() {
     }
   };
 
-  const businessOptions = [
-    { id: "salon", label: "Salón de Belleza", icon: <ScissorsIcon /> },
-    { id: "tienda", label: "Tienda General", icon: <BagIcon /> },
-    { id: "lavaautos", label: "Lavaautos", icon: <CarIcon /> },
-    { id: "servicios", label: "Servicios Profesionales", icon: <BriefcaseIcon /> },
-  ];
+  // Iconos por id (la presentación; los datos viven en config/business.ts).
+  const BUSINESS_ICONS: Record<BusinessType, React.ReactNode> = {
+    salon: <ScissorsIcon />,
+    tienda: <BagIcon />,
+    lavaautos: <CarIcon />,
+    servicios: <BriefcaseIcon />,
+  };
+
+  const MODULE_ICONS: Record<ModuleId, React.ReactNode> = {
+    ecommerce: <CartIcon />,
+    appointments: <CalendarIcon />,
+    inventory: <BoxIcon />,
+    billing: <FileIcon />,
+  };
 
   if (confirmed) {
     return (
@@ -171,7 +205,7 @@ export default function RegisterPage() {
           </div>
 
           <div className="space-y-3 mb-8">
-            {businessOptions.map((option) => (
+            {BUSINESS_OPTIONS.map((option) => (
               <button
                 key={option.id}
                 onClick={() => setBusinessType(option.id)}
@@ -186,7 +220,7 @@ export default function RegisterPage() {
                     ? "bg-primary border-primary text-on-primary shadow-md"
                     : "bg-surface-container-highest border-outline-variant/20 text-on-surface-variant"
                 }`}>
-                  {option.icon}
+                  {BUSINESS_ICONS[option.id]}
                 </div>
                 <span className={`text-[15px] font-semibold transition-colors ${businessType === option.id ? 'text-primary' : 'text-on-surface'}`}>
                   {option.label}
@@ -223,69 +257,33 @@ export default function RegisterPage() {
                <RocketIcon />
             </div>
             <h2 className="text-[28px] font-bold text-on-surface mb-2 tracking-tight">
-              Potencia tu presencia digital
+              Potencia tu negocio
             </h2>
             <p className="text-on-surface-variant text-[15px]">
-              ¿Quieres añadir herramientas de venta online?
+              Selecciona las herramientas que necesitas.
             </p>
           </div>
 
           <div className="space-y-4 mb-8">
-            {/* E-commerce Module */}
-            <div className={`p-5 rounded-[24px] border transition-all duration-300 ${modules.ecommerce ? 'bg-primary/5 border-primary/40' : 'bg-surface-container-low border-outline-variant/10 hover:bg-surface-container'}`}>
-               <div className="flex justify-between items-start mb-3">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center border transition-colors ${modules.ecommerce ? 'bg-primary text-on-primary border-primary' : 'bg-surface-container-highest border-outline-variant/20 text-on-surface-variant'}`}>
-                     <CartIcon />
-                  </div>
-                  {/* Toggle */}
-                  <button 
-                     onClick={() => setModules({...modules, ecommerce: !modules.ecommerce})}
-                     className={`w-11 h-6 rounded-full relative transition-colors duration-300 focus:outline-none ${modules.ecommerce ? 'bg-primary' : 'bg-surface-container-highest border border-outline-variant/20'}`}
-                  >
-                     <span className={`absolute top-[2px] w-5 h-5 bg-white rounded-full shadow-sm transition-all duration-300 ${modules.ecommerce ? 'left-[22px]' : 'left-[2px]'}`}></span>
-                  </button>
-               </div>
-               <h3 className="text-[17px] font-bold text-on-surface mb-2">Módulo E-commerce</h3>
-               <p className="text-[13px] text-on-surface-variant leading-relaxed mb-4">
-                  Vende tus productos 24/7 con una tienda integrada. Gestiona inventario, pagos y envíos en un solo lugar.
-               </p>
-               <div className="flex gap-2">
-                  <span className="px-3 py-1 rounded-full bg-surface-container-highest border border-outline-variant/10 text-[11px] font-semibold text-on-surface-variant">
-                     Checkout seguro
-                  </span>
-                  <span className="px-3 py-1 rounded-full bg-surface-container-highest border border-outline-variant/10 text-[11px] font-semibold text-on-surface-variant">
-                     Stock real
-                  </span>
-               </div>
-            </div>
-
-            {/* Landing Page Module */}
-            <div className={`p-5 rounded-[24px] border transition-all duration-300 ${modules.landingPage ? 'bg-primary/5 border-primary/40' : 'bg-surface-container-low border-outline-variant/10 hover:bg-surface-container'}`}>
-               <div className="flex justify-between items-start mb-3">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center border transition-colors ${modules.landingPage ? 'bg-primary text-on-primary border-primary' : 'bg-surface-container-highest border-outline-variant/20 text-on-surface-variant'}`}>
-                     <LayersIcon />
-                  </div>
-                  {/* Toggle */}
-                  <button 
-                     onClick={() => setModules({...modules, landingPage: !modules.landingPage})}
-                     className={`w-11 h-6 rounded-full relative transition-colors duration-300 focus:outline-none ${modules.landingPage ? 'bg-primary' : 'bg-surface-container-highest border border-outline-variant/20'}`}
-                  >
-                     <span className={`absolute top-[2px] w-5 h-5 bg-white rounded-full shadow-sm transition-all duration-300 ${modules.landingPage ? 'left-[22px]' : 'left-[2px]'}`}></span>
-                  </button>
-               </div>
-               <h3 className="text-[17px] font-bold text-on-surface mb-2">Landing Page</h3>
-               <p className="text-[13px] text-on-surface-variant leading-relaxed mb-4">
-                  Una página de marketing profesional para captar clientes. Atrae leads calificados con un diseño de alta conversión.
-               </p>
-               <div className="flex gap-2">
-                  <span className="px-3 py-1 rounded-full bg-surface-container-highest border border-outline-variant/10 text-[11px] font-semibold text-on-surface-variant">
-                     Captación Leads
-                  </span>
-                  <span className="px-3 py-1 rounded-full bg-surface-container-highest border border-outline-variant/10 text-[11px] font-semibold text-on-surface-variant">
-                     Diseño UX
-                  </span>
-               </div>
-            </div>
+            {(MODULES_BY_TYPE[businessType as BusinessType] || []).map((mod) => (
+              <div key={mod.id} className={`p-5 rounded-[24px] border transition-all duration-300 ${modules[mod.id] ? 'bg-primary/5 border-primary/40' : 'bg-surface-container-low border-outline-variant/10 hover:bg-surface-container'}`}>
+                 <div className="flex justify-between items-start mb-3">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center border transition-colors ${modules[mod.id] ? 'bg-primary text-on-primary border-primary' : 'bg-surface-container-highest border-outline-variant/20 text-on-surface-variant'}`}>
+                       {MODULE_ICONS[mod.id]}
+                    </div>
+                    <button 
+                       onClick={() => setModules({...modules, [mod.id]: !modules[mod.id]})}
+                       className={`w-11 h-6 rounded-full relative transition-colors duration-300 focus:outline-none ${modules[mod.id] ? 'bg-primary' : 'bg-surface-container-highest border border-outline-variant/20'}`}
+                    >
+                       <span className={`absolute top-[2px] w-5 h-5 bg-white rounded-full shadow-sm transition-all duration-300 ${modules[mod.id] ? 'left-[22px]' : 'left-[2px]'}`}></span>
+                    </button>
+                 </div>
+                 <h3 className="text-[17px] font-bold text-on-surface mb-2">{mod.label}</h3>
+                 <p className="text-[13px] text-on-surface-variant leading-relaxed">
+                    {mod.description}
+                 </p>
+              </div>
+            ))}
           </div>
 
           <button

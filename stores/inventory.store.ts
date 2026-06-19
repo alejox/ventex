@@ -13,8 +13,12 @@ interface InventoryState {
   loading: boolean;
   error: string | null;
   fetchInventory: () => Promise<void>;
-  /** Devuelve true si el alta fue correcta (para que el componente cierre el modal). */
-  addProduct: (input: NewProductInput) => Promise<boolean>;
+  /**
+   * Devuelve true si el alta fue correcta (para que el componente cierre el modal).
+   * Si se pasa `imageFile`, se sube primero a Storage y su URL pública se guarda
+   * como `image_url`.
+   */
+  addProduct: (input: NewProductInput, imageFile?: File | null) => Promise<boolean>;
   addCategory: (input: NewCategoryInput) => Promise<boolean>;
 }
 
@@ -40,9 +44,12 @@ export const useInventoryStore = create<InventoryState>((set) => ({
     }
   },
 
-  addProduct: async (input) => {
+  addProduct: async (input, imageFile) => {
     try {
-      const product = await inventoryService.createProduct(input);
+      const image_url = imageFile
+        ? await inventoryService.uploadProductImage(imageFile)
+        : input.image_url;
+      const product = await inventoryService.createProduct({ ...input, image_url });
       set((s) => ({ products: [product, ...s.products] }));
       return true;
     } catch (e) {

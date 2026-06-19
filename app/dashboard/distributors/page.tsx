@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
-import Link from "next/link";
+import { useEffect, useState } from "react";
 import { IconPlus } from "@/app/assets/icons/DashboardIcons";
 import { useDistributorsStore } from "@/stores/distributors.store";
+import type { NewDistributorInput } from "@/services/distributors.service";
 
 function IconTruck(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -16,15 +16,43 @@ function IconTruck(props: React.SVGProps<SVGSVGElement>) {
   );
 }
 
+const EMPTY_DISTRIBUTOR: NewDistributorInput = {
+  business_name: "",
+  contact_name: "",
+  email: "",
+  phone: "",
+  address: "",
+  rfc_rut: "",
+};
+
 export default function DistributorsPage() {
   const distributors = useDistributorsStore((s) => s.distributors);
   const loading = useDistributorsStore((s) => s.loading);
   const error = useDistributorsStore((s) => s.error);
+  const submitting = useDistributorsStore((s) => s.submitting);
   const fetchDistributors = useDistributorsStore((s) => s.fetchDistributors);
+  const addDistributor = useDistributorsStore((s) => s.addDistributor);
+
+  const [modalOpen, setModalOpen] = useState(false);
+  const [form, setForm] = useState<NewDistributorInput>(EMPTY_DISTRIBUTOR);
 
   useEffect(() => {
     fetchDistributors();
   }, [fetchDistributors]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const ok = await addDistributor(form);
+    if (ok) {
+      setModalOpen(false);
+      setForm(EMPTY_DISTRIBUTOR);
+    }
+  };
+
+  const handleCloseModal = () => {
+    setModalOpen(false);
+    setForm(EMPTY_DISTRIBUTOR);
+  };
 
   return (
     <div className="flex flex-col gap-6 w-full animate-in fade-in duration-500">
@@ -33,13 +61,13 @@ export default function DistributorsPage() {
           <h1 className="text-2xl font-bold text-on-surface">Distribuidores</h1>
           <p className="text-sm text-on-surface-variant mt-1">Gestiona tus proveedores y distribuidores.</p>
         </div>
-        <Link
-          href="/dashboard/distributors/new"
+        <button
+          onClick={() => setModalOpen(true)}
           className="bg-[#6063ee] hover:bg-[#c0c1ff] text-white hover:text-[#0b0664] text-sm font-semibold py-2.5 px-4 rounded-xl shadow-lg shadow-[#6063ee]/20 transition-colors flex items-center justify-center gap-2"
         >
           <IconPlus className="w-4 h-4" />
           <span>Añadir Distribuidor</span>
-        </Link>
+        </button>
       </div>
 
       {error && (
@@ -59,12 +87,12 @@ export default function DistributorsPage() {
           <p className="text-sm text-on-surface-variant max-w-sm mb-6">
             Registra a tus distribuidores para gestionar pedidos, pagos y stock de forma centralizada.
           </p>
-          <Link
-            href="/dashboard/distributors/new"
+          <button
+            onClick={() => setModalOpen(true)}
             className="px-6 py-2.5 bg-surface-container border border-outline-variant/20 text-on-surface text-sm font-semibold rounded-xl hover:bg-surface-container-high transition-colors"
           >
             Añadir tu primer distribuidor
-          </Link>
+          </button>
         </div>
       ) : (
         <div className="bg-surface-container rounded-3xl border border-outline-variant/10 shadow-sm overflow-hidden">
@@ -104,6 +132,120 @@ export default function DistributorsPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Nuevo Distribuidor */}
+      {modalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-surface-container rounded-t-3xl sm:rounded-3xl w-full sm:max-w-lg max-h-[90vh] border border-outline-variant/10 shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200 flex flex-col">
+            <div className="p-4 sm:p-6 border-b border-outline-variant/10 flex justify-between items-center bg-surface-container-low shrink-0">
+              <h2 className="text-lg sm:text-xl font-bold text-on-surface">Nuevo Distribuidor</h2>
+              <button
+                onClick={handleCloseModal}
+                className="w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors"
+                aria-label="Cerrar"
+              >
+                <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="20" height="20">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 sm:space-y-5 overflow-y-auto">
+              {error && (
+                <div className="rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim">
+                  {error}
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <label className="text-[13px] font-semibold text-on-surface block">Nombre del Negocio</label>
+                <input
+                  type="text"
+                  required
+                  value={form.business_name}
+                  onChange={(e) => setForm({ ...form, business_name: e.target.value })}
+                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50"
+                  placeholder="Ej. Distribuidora del Norte S.A."
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[13px] font-semibold text-on-surface block">Nombre del Contacto</label>
+                  <input
+                    type="text"
+                    value={form.contact_name}
+                    onChange={(e) => setForm({ ...form, contact_name: e.target.value })}
+                    className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50"
+                    placeholder="Ej. Juan Pérez"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[13px] font-semibold text-on-surface block">Correo Electrónico</label>
+                  <input
+                    type="email"
+                    value={form.email}
+                    onChange={(e) => setForm({ ...form, email: e.target.value })}
+                    className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50"
+                    placeholder="contacto@distribuidora.com"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[13px] font-semibold text-on-surface block">Teléfono</label>
+                  <input
+                    type="tel"
+                    value={form.phone}
+                    onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                    className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50"
+                    placeholder="+52 55 1234 5678"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[13px] font-semibold text-on-surface block">RFC / RUT</label>
+                  <input
+                    type="text"
+                    value={form.rfc_rut}
+                    onChange={(e) => setForm({ ...form, rfc_rut: e.target.value })}
+                    className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all font-mono placeholder:text-on-surface-variant/50"
+                    placeholder="DNO890123AAA"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[13px] font-semibold text-on-surface block">Dirección</label>
+                <textarea
+                  value={form.address}
+                  onChange={(e) => setForm({ ...form, address: e.target.value })}
+                  rows={3}
+                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50 resize-none"
+                  placeholder="Calle, ciudad, estado, código postal"
+                />
+              </div>
+
+              <div className="pt-4 flex flex-col-reverse sm:flex-row gap-3 border-t border-outline-variant/10">
+                <button
+                  type="button"
+                  onClick={handleCloseModal}
+                  className="flex-1 px-5 py-2.5 rounded-xl text-sm font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="flex-1 px-5 py-2.5 rounded-xl text-sm font-semibold bg-primary hover:bg-primary-dim text-on-primary shadow-[0_0_15px_rgba(96,99,238,0.2)] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {submitting ? "Guardando…" : "Guardar Distribuidor"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

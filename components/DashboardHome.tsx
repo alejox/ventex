@@ -11,8 +11,11 @@ import {
   IconShoppingCart,
   IconTrendingUp,
   IconTrendingDown,
+  IconCalendar,
 } from "@/app/assets/icons/DashboardIcons";
 import { useDashboardStore } from "@/stores/dashboard.store";
+import { useProfile } from "@/components/ProfileProvider";
+import { visibleQuickActions } from "@/config/business";
 
 const money = (n: number) =>
   n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -23,22 +26,29 @@ const axisLabel = (n: number) =>
 const formatDate = (iso: string) =>
   new Date(iso).toLocaleDateString("es-ES", { day: "2-digit", month: "short" });
 
-const QUICK_ACTIONS = [
-  { title: "Nueva Venta", icon: IconShoppingCart, href: "/dashboard/pos" },
-  { title: "Añadir Producto", icon: IconPlus, href: "/dashboard/inventory" },
-  { title: "Registrar Cliente", icon: IconUsers, href: "/dashboard/customers/new" },
-  { title: "Ver Finanzas", icon: IconTrendingUp, href: "/dashboard/finance" },
-];
+type IconType = typeof IconShoppingCart;
+
+// Mapa id de acción rápida -> icono (el modelo lógico vive en config/business.ts).
+const QUICK_ACTION_ICONS: Record<string, IconType> = {
+  "new-sale": IconShoppingCart,
+  "new-product": IconPlus,
+  "new-customer": IconUsers,
+  "view-finance": IconTrendingUp,
+  "new-appointment": IconCalendar,
+};
 
 export default function DashboardHome() {
   const data = useDashboardStore((s) => s.data);
   const loading = useDashboardStore((s) => s.loading);
   const error = useDashboardStore((s) => s.error);
   const fetchDashboard = useDashboardStore((s) => s.fetchDashboard);
+  const profile = useProfile();
 
   useEffect(() => {
     fetchDashboard();
   }, [fetchDashboard]);
+
+  const quickActions = visibleQuickActions(profile?.businessType ?? null, profile?.modules ?? null);
 
   const chartMax = useMemo(() => {
     const values = (data?.monthly ?? []).flatMap((m) => [m.income, m.expense]);
@@ -119,20 +129,23 @@ export default function DashboardHome() {
         <div className="bg-surface-container rounded-3xl p-6 border border-outline-variant/10 shadow-sm flex flex-col">
           <h3 className="font-semibold text-on-surface mb-6">Acciones Rápidas</h3>
           <div className="grid grid-cols-2 gap-4 flex-1">
-            {QUICK_ACTIONS.map((action) => (
-              <Link
-                key={action.title}
-                href={action.href}
-                className="flex flex-col items-center justify-center gap-3 bg-surface-container-lowest hover:bg-surface-container-high border border-outline-variant/10 hover:border-primary/30 rounded-2xl p-4 transition-all group shadow-sm hover:shadow-md hover:shadow-primary/5"
-              >
-                <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <action.icon className="w-5 h-5" />
-                </div>
-                <span className="text-xs font-medium text-on-surface-variant group-hover:text-on-surface text-center">
-                  {action.title}
-                </span>
-              </Link>
-            ))}
+            {quickActions.map((action) => {
+              const Icon = QUICK_ACTION_ICONS[action.id];
+              return (
+                <Link
+                  key={action.id}
+                  href={action.href}
+                  className="flex flex-col items-center justify-center gap-3 bg-surface-container-lowest hover:bg-surface-container-high border border-outline-variant/10 hover:border-primary/30 rounded-2xl p-4 transition-all group shadow-sm hover:shadow-md hover:shadow-primary/5"
+                >
+                  <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center group-hover:scale-110 transition-transform">
+                    {Icon && <Icon className="w-5 h-5" />}
+                  </div>
+                  <span className="text-xs font-medium text-on-surface-variant group-hover:text-on-surface text-center">
+                    {action.title}
+                  </span>
+                </Link>
+              );
+            })}
           </div>
         </div>
       </div>
