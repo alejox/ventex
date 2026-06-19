@@ -38,6 +38,59 @@ export type Database = {
         }
         Relationships: []
       }
+      appointments: {
+        Row: {
+          created_at: string
+          customer_id: string | null
+          description: string | null
+          end_time: string
+          id: string
+          notes: string | null
+          appointment_date: string
+          service_type: string | null
+          start_time: string
+          status: string
+          title: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          customer_id?: string | null
+          description?: string | null
+          end_time: string
+          id?: string
+          notes?: string | null
+          appointment_date: string
+          service_type?: string | null
+          start_time: string
+          status?: string
+          title: string
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string | null
+          description?: string | null
+          end_time?: string
+          id?: string
+          notes?: string | null
+          appointment_date?: string
+          service_type?: string | null
+          start_time?: string
+          status?: string
+          title?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointments_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       customers: {
         Row: {
           created_at: string | null
