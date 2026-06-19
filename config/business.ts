@@ -22,12 +22,6 @@ export interface Profile {
   modules: Modules;
 }
 
-/**
- * Tipos de negocio que SIEMPRE obtienen el punto de venta / superficie de
- * ventas físicas, hayan activado o no el módulo de e-commerce.
- */
-export const POS_TYPES: BusinessType[] = ["tienda", "lavaautos"];
-
 // ---- Catálogo de tipos de negocio (paso 1 del registro) ----
 export interface BusinessOption {
   id: BusinessType;
@@ -108,26 +102,40 @@ export const QUICK_ACTIONS: QuickAction[] = [
   { id: "new-appointment", title: "Nueva Cita", href: "/dashboard/calendar", module: "appointments" },
 ];
 
-/** ¿Está habilitado un módulo para este negocio? Centraliza el caso especial de POS. */
-export function isModuleEnabled(
-  moduleId: ModuleId,
-  businessType: BusinessType | null,
-  modules: Modules | null,
-): boolean {
-  if (moduleId === "ecommerce") {
-    return Boolean(modules?.ecommerce) || (businessType != null && POS_TYPES.includes(businessType));
-  }
-  return Boolean(modules?.[moduleId]);
-}
+// ---- Modelo de visibilidad: el TIPO define un menú base, los MÓDULOS suman ----
+// Un ítem se muestra si: (1) es universal, (2) pertenece al menú base del tipo,
+// o (3) algún módulo opcional activado lo habilita.
+
+/** Secciones que ve cualquier cuenta, sea cual sea su tipo. */
+const UNIVERSAL_NAV_IDS = ["panel", "finance", "customers"];
+
+/** Menú base por tipo de negocio (además de las universales). */
+const BASE_NAV_BY_TYPE: Record<BusinessType, string[]> = {
+  salon: ["calendar", "inventory", "distributors"],
+  tienda: ["pos", "sales", "inventory", "distributors"],
+  lavaautos: ["calendar", "inventory", "distributors"],
+  servicios: ["calendar"],
+};
+
+const UNIVERSAL_QUICK_IDS = ["new-customer", "view-finance"];
+
+const BASE_QUICK_BY_TYPE: Record<BusinessType, string[]> = {
+  salon: ["new-appointment", "new-product"],
+  tienda: ["new-sale", "new-product"],
+  lavaautos: ["new-appointment", "new-product"],
+  servicios: ["new-appointment"],
+};
 
 export function visibleNavItems(
   businessType: BusinessType | null,
   modules: Modules | null,
 ): NavItem[] {
+  const base = businessType ? BASE_NAV_BY_TYPE[businessType] ?? [] : [];
   return NAV_ITEMS.filter(
     (item) =>
-      item.modules.length === 0 ||
-      item.modules.some((m) => isModuleEnabled(m, businessType, modules)),
+      UNIVERSAL_NAV_IDS.includes(item.id) ||
+      base.includes(item.id) ||
+      item.modules.some((m) => Boolean(modules?.[m])),
   );
 }
 
@@ -135,7 +143,11 @@ export function visibleQuickActions(
   businessType: BusinessType | null,
   modules: Modules | null,
 ): QuickAction[] {
+  const base = businessType ? BASE_QUICK_BY_TYPE[businessType] ?? [] : [];
   return QUICK_ACTIONS.filter(
-    (a) => a.module == null || isModuleEnabled(a.module, businessType, modules),
+    (a) =>
+      UNIVERSAL_QUICK_IDS.includes(a.id) ||
+      base.includes(a.id) ||
+      (a.module != null && Boolean(modules?.[a.module])),
   );
 }
