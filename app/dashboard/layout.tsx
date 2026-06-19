@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { LogoHorizontal, LogoVertical } from "@/components/Logo";
 import { useState, useEffect, useMemo } from "react";
@@ -22,6 +21,7 @@ import {
 } from "@/app/assets/icons/DashboardIcons";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { signout } from "@/utils/supabase/actions";
+import { useSessionStore } from "@/stores/session.store";
 
 // ---- Navigation config: which modules need which nav items ----
 const ALL_NAV = [
@@ -61,29 +61,19 @@ export default function DashboardLayout({
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
-  const [userName, setUserName] = useState("Admin");
-  const [userEmail, setUserEmail] = useState("");
-  const [businessType, setBusinessType] = useState<string | null>(null);
-  const [modules, setModules] = useState<Record<string, boolean> | null>(null);
+  const user = useSessionStore((s) => s.user);
+  const loadSession = useSessionStore((s) => s.loadSession);
 
   useEffect(() => {
-    async function loadUser() {
-      const { createClient } = await import("@/utils/supabase/client");
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        setUserName(user.user_metadata?.full_name || user.email?.split("@")[0] || "Admin");
-        setUserEmail(user.email || "");
-        setBusinessType(user.user_metadata?.business_type || null);
-        setModules(user.user_metadata?.modules || null);
-      }
-    }
-    loadUser();
-  }, []);
+    loadSession();
+  }, [loadSession]);
+
+  const userName = user?.name ?? "Admin";
+  const userEmail = user?.email ?? "";
 
   const navigation = useMemo(
-    () => filterNavigation(businessType, modules),
-    [businessType, modules],
+    () => filterNavigation(user?.businessType ?? null, user?.modules ?? null),
+    [user?.businessType, user?.modules],
   );
 
   const initials = userName

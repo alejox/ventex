@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import Link from "next/link";
 import {
   IconCreditCard,
@@ -14,6 +14,7 @@ import {
   IconCalendar,
 } from "@/app/assets/icons/DashboardIcons";
 import { useDashboardStore } from "@/stores/dashboard.store";
+import { useSessionStore } from "@/stores/session.store";
 
 const money = (n: number) =>
   n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -45,23 +46,16 @@ export default function DashboardHome() {
   const loading = useDashboardStore((s) => s.loading);
   const error = useDashboardStore((s) => s.error);
   const fetchDashboard = useDashboardStore((s) => s.fetchDashboard);
-  const [modules, setModules] = useState<Record<string, boolean> | null>(null);
+  const modules = useSessionStore((s) => s.user?.modules ?? null);
+  const loadSession = useSessionStore((s) => s.loadSession);
 
   useEffect(() => {
     fetchDashboard();
   }, [fetchDashboard]);
 
   useEffect(() => {
-    async function loadUser() {
-      const { createClient } = await import("@/utils/supabase/client");
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        setModules(user.user_metadata?.modules || null);
-      }
-    }
-    loadUser();
-  }, []);
+    loadSession();
+  }, [loadSession]);
 
   const quickActions = useMemo(() => filterQuickActions(modules), [modules]);
 
