@@ -75,9 +75,15 @@ export default function InventoryPage() {
   const [newCategory, setNewCategory] = useState<NewCategoryInput>(EMPTY_CATEGORY);
   const [newProduct, setNewProduct] = useState<NewProductInput>(EMPTY_PRODUCT);
 
+  // Imagen: UI-only state (el archivo y su preview local). La subida la hace el store→service.
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string>("");
+  const [saving, setSaving] = useState(false);
+
   // Estado de datos vive en el store; el componente solo lo consume (component → store → services).
   const products = useInventoryStore((s) => s.products);
   const categories = useInventoryStore((s) => s.categories);
+  const error = useInventoryStore((s) => s.error);
   const fetchInventory = useInventoryStore((s) => s.fetchInventory);
   const addProduct = useInventoryStore((s) => s.addProduct);
   const addCategory = useInventoryStore((s) => s.addCategory);
@@ -86,13 +92,33 @@ export default function InventoryPage() {
     fetchInventory();
   }, [fetchInventory]);
 
+  const resetImage = () => {
+    setImagePreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return "";
+    });
+    setImageFile(null);
+  };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] ?? null;
+    if (imagePreview) URL.revokeObjectURL(imagePreview);
+    setImageFile(file);
+    setImagePreview(file ? URL.createObjectURL(file) : "");
+  };
+
+  const closeProductModal = () => {
+    setIsModalOpen(false);
+    setNewProduct(EMPTY_PRODUCT);
+    resetImage();
+  };
+
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
-    const ok = await addProduct(newProduct);
-    if (ok) {
-      setIsModalOpen(false);
-      setNewProduct(EMPTY_PRODUCT);
-    }
+    setSaving(true);
+    const ok = await addProduct(newProduct, imageFile);
+    setSaving(false);
+    if (ok) closeProductModal();
   };
 
   const handleSaveCategory = async (e: React.FormEvent) => {
@@ -284,8 +310,8 @@ export default function InventoryPage() {
           <div className="bg-surface-container rounded-3xl w-full max-w-lg border border-outline-variant/10 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="p-6 border-b border-outline-variant/10 flex justify-between items-center bg-surface-container-low">
               <h2 className="text-xl font-bold text-on-surface">Nuevo Producto</h2>
-              <button 
-                onClick={() => setIsModalOpen(false)} 
+              <button
+                onClick={closeProductModal}
                 className="w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors"
               >
                 <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="20" height="20">
@@ -353,43 +379,61 @@ export default function InventoryPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-on-surface block">Nivel de Stock</label>
-                  <input 
-                    type="number" 
-                    value={newProduct.stock_level}
-                    onChange={e => setNewProduct({...newProduct, stock_level: e.target.value})}
-                    className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50" 
-                    placeholder="Ej. 120"
-                    required 
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-on-surface block">Imagen (URL opcional)</label>
-                  <input 
-                    type="url" 
-                    value={newProduct.image_url}
-                    onChange={e => setNewProduct({...newProduct, image_url: e.target.value})}
-                    className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50" 
-                    placeholder="https://..."
-                  />
-                </div>
+              <div className="space-y-1.5">
+                <label className="text-[13px] font-semibold text-on-surface block">Nivel de Stock</label>
+                <input
+                  type="number"
+                  value={newProduct.stock_level}
+                  onChange={e => setNewProduct({...newProduct, stock_level: e.target.value})}
+                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50"
+                  placeholder="Ej. 120"
+                  required
+                />
               </div>
 
+              <div className="space-y-1.5">
+                <label className="text-[13px] font-semibold text-on-surface block">Imagen (opcional)</label>
+                {imagePreview ? (
+                  <div className="flex items-center gap-4">
+                    <div className="relative w-20 h-20 rounded-xl overflow-hidden border border-outline-variant/20 bg-surface-container-lowest shrink-0">
+                      <Image src={imagePreview} alt="Vista previa" fill sizes="80px" unoptimized className="object-cover" />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={resetImage}
+                      className="text-sm font-medium text-error hover:text-error-dim transition-colors"
+                    >
+                      Quitar imagen
+                    </button>
+                  </div>
+                ) : (
+                  <label className="flex flex-col items-center justify-center gap-2 w-full py-6 rounded-xl border border-dashed border-outline-variant/40 bg-surface-container-lowest text-on-surface-variant hover:border-primary/50 hover:text-on-surface cursor-pointer transition-colors">
+                    <IconImagePlaceholder className="w-6 h-6" />
+                    <span className="text-xs font-medium">Haz clic para subir una imagen</span>
+                    <span className="text-[11px] text-on-surface-variant/60">PNG, JPG, WEBP o GIF · máx. 5MB</span>
+                    <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={handleImageChange} className="hidden" />
+                  </label>
+                )}
+              </div>
+
+              {error && (
+                <p className="text-sm text-error">{error}</p>
+              )}
+
               <div className="pt-4 flex justify-end gap-3 border-t border-outline-variant/10">
-                <button 
-                  type="button" 
-                  onClick={() => setIsModalOpen(false)}
+                <button
+                  type="button"
+                  onClick={closeProductModal}
                   className="px-5 py-2.5 rounded-xl text-sm font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-colors"
                 >
                   Cancelar
                 </button>
-                <button 
-                  type="submit" 
-                  className="px-5 py-2.5 rounded-xl text-sm font-semibold bg-primary hover:bg-primary-dim text-on-primary shadow-[0_0_15px_rgba(96,99,238,0.2)] transition-all flex items-center gap-2"
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="px-5 py-2.5 rounded-xl text-sm font-semibold bg-primary hover:bg-primary-dim text-on-primary shadow-[0_0_15px_rgba(96,99,238,0.2)] transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Guardar Producto
+                  {saving ? "Guardando…" : "Guardar Producto"}
                 </button>
               </div>
             </form>
