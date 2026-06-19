@@ -18,6 +18,7 @@ import {
   IconHelpCircle,
   IconMenu,
   IconLogOut,
+  IconShoppingCart,
 } from "@/app/assets/icons/DashboardIcons";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { signout } from "@/utils/supabase/actions";
@@ -25,6 +26,7 @@ import { signout } from "@/utils/supabase/actions";
 const navigation = [
   { name: "Panel", href: "/dashboard", icon: IconHome },
   { name: "Punto de Venta", href: "/dashboard/pos", icon: IconCreditCard },
+  { name: "Ventas", href: "/dashboard/sales", icon: IconShoppingCart },
   { name: "Inventario", href: "/dashboard/inventory", icon: IconBox },
   { name: "Finanzas", href: "/dashboard/finance", icon: IconDollar },
   { name: "Clientes", href: "/dashboard/customers", icon: IconUsers },
@@ -75,7 +77,7 @@ export default function DashboardLayout({
 
         <div className="p-4 border-t border-outline-variant/10">
           <Link
-            href="#"
+            href="/dashboard/settings"
             className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-sm font-medium text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
           >
             <IconSettings className="w-5 h-5" />
@@ -219,7 +221,7 @@ export default function DashboardLayout({
             </div>
             <div className="p-4 border-t border-outline-variant/10">
               <Link
-                href="#"
+                href="/dashboard/settings"
                 className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-sm font-medium text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
               >
                 <IconSettings className="w-5 h-5" />
