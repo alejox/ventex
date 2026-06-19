@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   IconCreditCard,
@@ -11,6 +11,7 @@ import {
   IconShoppingCart,
   IconTrendingUp,
   IconTrendingDown,
+  IconCalendar,
 } from "@/app/assets/icons/DashboardIcons";
 import { useDashboardStore } from "@/stores/dashboard.store";
 
@@ -23,22 +24,46 @@ const axisLabel = (n: number) =>
 const formatDate = (iso: string) =>
   new Date(iso).toLocaleDateString("es-ES", { day: "2-digit", month: "short" });
 
-const QUICK_ACTIONS = [
-  { title: "Nueva Venta", icon: IconShoppingCart, href: "/dashboard/pos" },
-  { title: "Añadir Producto", icon: IconPlus, href: "/dashboard/inventory" },
-  { title: "Registrar Cliente", icon: IconUsers, href: "/dashboard/customers" },
-  { title: "Ver Finanzas", icon: IconTrendingUp, href: "/dashboard/finance" },
+// All possible quick actions with their required module
+const ALL_QUICK_ACTIONS = [
+  { title: "Nueva Venta", icon: IconShoppingCart, href: "/dashboard/pos", module: "ecommerce" },
+  { title: "Añadir Producto", icon: IconPlus, href: "/dashboard/inventory", module: "inventory" },
+  { title: "Registrar Cliente", icon: IconUsers, href: "/dashboard/customers", module: "" },
+  { title: "Ver Finanzas", icon: IconTrendingUp, href: "/dashboard/finance", module: "" },
+  { title: "Nueva Cita", icon: IconCalendar, href: "/dashboard/calendar", module: "appointments" },
 ];
+
+function filterQuickActions(modules: Record<string, boolean> | null) {
+  return ALL_QUICK_ACTIONS.filter((a) => {
+    if (!a.module) return true;
+    return modules?.[a.module] || false;
+  });
+}
 
 export default function DashboardHome() {
   const data = useDashboardStore((s) => s.data);
   const loading = useDashboardStore((s) => s.loading);
   const error = useDashboardStore((s) => s.error);
   const fetchDashboard = useDashboardStore((s) => s.fetchDashboard);
+  const [modules, setModules] = useState<Record<string, boolean> | null>(null);
 
   useEffect(() => {
     fetchDashboard();
   }, [fetchDashboard]);
+
+  useEffect(() => {
+    async function loadUser() {
+      const { createClient } = await import("@/utils/supabase/client");
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setModules(user.user_metadata?.modules || null);
+      }
+    }
+    loadUser();
+  }, []);
+
+  const quickActions = useMemo(() => filterQuickActions(modules), [modules]);
 
   const chartMax = useMemo(() => {
     const values = (data?.monthly ?? []).flatMap((m) => [m.income, m.expense]);
@@ -119,7 +144,7 @@ export default function DashboardHome() {
         <div className="bg-surface-container rounded-3xl p-6 border border-outline-variant/10 shadow-sm flex flex-col">
           <h3 className="font-semibold text-on-surface mb-6">Acciones Rápidas</h3>
           <div className="grid grid-cols-2 gap-4 flex-1">
-            {QUICK_ACTIONS.map((action) => (
+            {quickActions.map((action) => (
               <Link
                 key={action.title}
                 href={action.href}
