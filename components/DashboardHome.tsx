@@ -26,7 +26,7 @@ const formatDate = (iso: string) =>
 const QUICK_ACTIONS = [
   { title: "Nueva Venta", icon: IconShoppingCart, href: "/dashboard/pos" },
   { title: "Añadir Producto", icon: IconPlus, href: "/dashboard/inventory" },
-  { title: "Registrar Cliente", icon: IconUsers, href: "/dashboard/customers/new" },
+  { title: "Registrar Cliente", icon: IconUsers, href: "/dashboard/customers" },
   { title: "Ver Finanzas", icon: IconTrendingUp, href: "/dashboard/finance" },
 ];
 
