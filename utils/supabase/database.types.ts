@@ -243,6 +243,33 @@ export type Database = {
           },
         ]
       }
+      profiles: {
+        Row: {
+          business_type: string | null
+          created_at: string
+          full_name: string | null
+          id: string
+          modules: Json
+          updated_at: string
+        }
+        Insert: {
+          business_type?: string | null
+          created_at?: string
+          full_name?: string | null
+          id: string
+          modules?: Json
+          updated_at?: string
+        }
+        Update: {
+          business_type?: string | null
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          modules?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
       sale_items: {
         Row: {
           created_at: string

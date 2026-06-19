@@ -3,6 +3,12 @@
 import Link from "next/link";
 import { useState } from "react";
 import { LogoVertical } from "@/components/Logo";
+import {
+  BUSINESS_OPTIONS,
+  MODULES_BY_TYPE,
+  type BusinessType,
+  type ModuleId,
+} from "@/config/business";
 
 // --- Icons ---
 const ScissorsIcon = () => (
@@ -52,13 +58,6 @@ const CartIcon = () => (
     <circle cx="9" cy="21" r="1" />
     <circle cx="20" cy="21" r="1" />
     <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
-  </svg>
-);
-
-const LayersIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-    <rect x="7" y="7" width="14" height="14" rx="2" ry="2" />
   </svg>
 );
 
@@ -137,32 +136,20 @@ export default function RegisterPage() {
     }
   };
 
-  const MODULES_BY_TYPE: Record<string, Array<{ id: string; label: string; description: string; icon: React.ReactNode }>> = {
-    salon: [
-      { id: "ecommerce", label: "E-commerce", description: "Vende productos de belleza, maquillaje y accesorios 24/7.", icon: <CartIcon /> },
-      { id: "appointments", label: "Citas", description: "Gestiona citas, agendas y disponibilidad de tus estilistas.", icon: <CalendarIcon /> },
-      { id: "inventory", label: "Inventario", description: "Controla stock de productos, shampoos, tintes y más.", icon: <BoxIcon /> },
-    ],
-    tienda: [
-      { id: "ecommerce", label: "E-commerce", description: "Vende tus productos online con carrito de compras y pagos seguros.", icon: <CartIcon /> },
-      { id: "inventory", label: "Inventario", description: "Gestiona tu stock, categorías y códigos de barras.", icon: <BoxIcon /> },
-    ],
-    lavaautos: [
-      { id: "appointments", label: "Servicios / Citas", description: "Agenda servicios de lavado, detailing y mantenimiento.", icon: <CalendarIcon /> },
-      { id: "inventory", label: "Inventario", description: "Controla insumos: jabones, ceras, filtros y más.", icon: <BoxIcon /> },
-    ],
-    servicios: [
-      { id: "appointments", label: "Citas / Agenda", description: "Gestiona tu agenda de consultas y reuniones.", icon: <CalendarIcon /> },
-      { id: "billing", label: "Facturación", description: "Genera facturas y cotizaciones para tus clientes.", icon: <FileIcon /> },
-    ],
+  // Iconos por id (la presentación; los datos viven en config/business.ts).
+  const BUSINESS_ICONS: Record<BusinessType, React.ReactNode> = {
+    salon: <ScissorsIcon />,
+    tienda: <BagIcon />,
+    lavaautos: <CarIcon />,
+    servicios: <BriefcaseIcon />,
   };
 
-  const businessOptions = [
-    { id: "salon", label: "Salón de Belleza", icon: <ScissorsIcon /> },
-    { id: "tienda", label: "Tienda General", icon: <BagIcon /> },
-    { id: "lavaautos", label: "Lavaautos", icon: <CarIcon /> },
-    { id: "servicios", label: "Servicios Profesionales", icon: <BriefcaseIcon /> },
-  ];
+  const MODULE_ICONS: Record<ModuleId, React.ReactNode> = {
+    ecommerce: <CartIcon />,
+    appointments: <CalendarIcon />,
+    inventory: <BoxIcon />,
+    billing: <FileIcon />,
+  };
 
   if (confirmed) {
     return (
@@ -218,7 +205,7 @@ export default function RegisterPage() {
           </div>
 
           <div className="space-y-3 mb-8">
-            {businessOptions.map((option) => (
+            {BUSINESS_OPTIONS.map((option) => (
               <button
                 key={option.id}
                 onClick={() => setBusinessType(option.id)}
@@ -233,7 +220,7 @@ export default function RegisterPage() {
                     ? "bg-primary border-primary text-on-primary shadow-md"
                     : "bg-surface-container-highest border-outline-variant/20 text-on-surface-variant"
                 }`}>
-                  {option.icon}
+                  {BUSINESS_ICONS[option.id]}
                 </div>
                 <span className={`text-[15px] font-semibold transition-colors ${businessType === option.id ? 'text-primary' : 'text-on-surface'}`}>
                   {option.label}
@@ -278,11 +265,11 @@ export default function RegisterPage() {
           </div>
 
           <div className="space-y-4 mb-8">
-            {(MODULES_BY_TYPE[businessType] || []).map((mod) => (
+            {(MODULES_BY_TYPE[businessType as BusinessType] || []).map((mod) => (
               <div key={mod.id} className={`p-5 rounded-[24px] border transition-all duration-300 ${modules[mod.id] ? 'bg-primary/5 border-primary/40' : 'bg-surface-container-low border-outline-variant/10 hover:bg-surface-container'}`}>
                  <div className="flex justify-between items-start mb-3">
                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center border transition-colors ${modules[mod.id] ? 'bg-primary text-on-primary border-primary' : 'bg-surface-container-highest border-outline-variant/20 text-on-surface-variant'}`}>
-                       {mod.icon}
+                       {MODULE_ICONS[mod.id]}
                     </div>
                     <button 
                        onClick={() => setModules({...modules, [mod.id]: !modules[mod.id]})}
