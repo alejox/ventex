@@ -18,6 +18,11 @@ export interface CustomerOption {
   tax_exempt: boolean;
 }
 
+export interface StaffOption {
+  id: string;
+  full_name: string;
+}
+
 export interface CartLine {
   item: CatalogItem;
   quantity: number;
@@ -40,6 +45,7 @@ export interface CheckoutItem {
 
 export interface CheckoutInput {
   customerId: string | null;
+  staffId: string | null;
   paymentMethod: PaymentMethod;
   discount: number;
   items: CheckoutItem[];
@@ -110,6 +116,18 @@ export async function fetchCatalog(): Promise<CatalogItem[]> {
   return [...products, ...services];
 }
 
+/** Miembros del equipo activos, para atribuir la venta (comisiones). */
+export async function fetchStaff(): Promise<StaffOption[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("staff")
+    .select("id, full_name")
+    .eq("status", "active")
+    .order("full_name");
+  if (error) throw error;
+  return (data ?? []) as StaffOption[];
+}
+
 export async function fetchCustomers(): Promise<CustomerOption[]> {
   const supabase = createClient();
   const { data, error } = await supabase
@@ -142,6 +160,7 @@ export async function createSale(input: CheckoutInput): Promise<string> {
     p_discount_amount: input.discount,
     // El parámetro jsonb acepta líneas con product_id o service_id.
     p_items: input.items as unknown as never,
+    p_staff_id: input.staffId ?? undefined,
   });
   if (error) throw error;
   return data as string;

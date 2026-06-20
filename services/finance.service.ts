@@ -60,7 +60,7 @@ const monthKeyOf = (value: string) => value.slice(0, 7);
 
 export async function fetchOverview(): Promise<FinanceOverview> {
   const supabase = createClient();
-  const [salesRes, expRes] = await Promise.all([
+  const [salesRes, expRes, invRes] = await Promise.all([
     supabase
       .from("sales")
       .select("id, sale_number, total, status, created_at")
@@ -69,15 +69,25 @@ export async function fetchOverview(): Promise<FinanceOverview> {
       .from("expenses")
       .select("id, description, category, amount, expense_date")
       .order("expense_date", { ascending: false }),
+    supabase
+      .from("invoices")
+      .select("id, invoice_number, total, status, issue_date")
+      .eq("status", "paid")
+      .order("issue_date", { ascending: false }),
   ]);
   if (salesRes.error) throw salesRes.error;
   if (expRes.error) throw expRes.error;
+  if (invRes.error) throw invRes.error;
 
   const sales = salesRes.data ?? [];
   const expenses = expRes.data ?? [];
+  // Facturas pagadas cuentan como ingreso (las cotizaciones/pendientes no).
+  const invoices = invRes.data ?? [];
 
   const completed = sales.filter((s) => s.status === "completed");
-  const revenue = completed.reduce((sum, s) => sum + s.total, 0);
+  const revenue =
+    completed.reduce((sum, s) => sum + s.total, 0) +
+    invoices.reduce((sum, i) => sum + i.total, 0);
   const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
 
   const months = lastMonths(MONTHS);
@@ -85,6 +95,10 @@ export async function fetchOverview(): Promise<FinanceOverview> {
   for (const s of completed) {
     const b = buckets.get(monthKeyOf(s.created_at));
     if (b) b.income += s.total;
+  }
+  for (const i of invoices) {
+    const b = buckets.get(monthKeyOf(i.issue_date));
+    if (b) b.income += i.total;
   }
   for (const e of expenses) {
     const b = buckets.get(monthKeyOf(e.expense_date));
@@ -98,6 +112,13 @@ export async function fetchOverview(): Promise<FinanceOverview> {
       label: `Venta #${s.sale_number}`,
       amount: s.total,
       date: s.created_at,
+    })),
+    ...invoices.slice(0, 8).map((i) => ({
+      id: i.id,
+      kind: "sale" as const,
+      label: `Factura #${i.invoice_number}`,
+      amount: i.total,
+      date: i.issue_date,
     })),
     ...expenses.slice(0, 8).map((e) => ({
       id: e.id,

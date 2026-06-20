@@ -16,6 +16,9 @@ const EMPTY_STAFF: NewStaffInput = {
   status: "active",
 };
 
+const money = (n: number) =>
+  n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
 export default function StaffPage() {
   const staff = useStaffStore((s) => s.staff);
   const loading = useStaffStore((s) => s.loading);
@@ -24,6 +27,9 @@ export default function StaffPage() {
   const fetchStaff = useStaffStore((s) => s.fetchStaff);
   const addStaff = useStaffStore((s) => s.addStaff);
   const updateStaff = useStaffStore((s) => s.updateStaff);
+  const commissions = useStaffStore((s) => s.commissions);
+  const commissionsLoading = useStaffStore((s) => s.commissionsLoading);
+  const fetchCommissions = useStaffStore((s) => s.fetchCommissions);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -31,7 +37,8 @@ export default function StaffPage() {
 
   useEffect(() => {
     fetchStaff();
-  }, [fetchStaff]);
+    fetchCommissions();
+  }, [fetchStaff, fetchCommissions]);
 
   const openCreate = () => {
     setEditingId(null);
@@ -149,6 +156,46 @@ export default function StaffPage() {
               </div>
             </button>
           ))}
+        </div>
+      )}
+
+      {/* Comisiones del mes */}
+      {(commissionsLoading || commissions.length > 0) && (
+        <div className="bg-surface-container rounded-3xl border border-outline-variant/10 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-outline-variant/10 bg-surface-container-low">
+            <h2 className="text-sm font-bold text-on-surface">Comisiones del mes</h2>
+            <p className="text-xs text-on-surface-variant mt-0.5">
+              Calculadas sobre los servicios vendidos atribuidos a cada miembro.
+            </p>
+          </div>
+          {commissionsLoading ? (
+            <p className="text-center text-sm text-on-surface-variant py-8">Calculando…</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse min-w-[520px]">
+                <thead>
+                  <tr className="text-[10px] uppercase tracking-wider text-on-surface-variant font-bold border-b border-outline-variant/10">
+                    <th className="p-4 pl-6">Miembro</th>
+                    <th className="p-4 text-center">Ventas</th>
+                    <th className="p-4 text-right">Servicios</th>
+                    <th className="p-4 text-center">%</th>
+                    <th className="p-4 pr-6 text-right">Comisión</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-outline-variant/5 text-sm">
+                  {commissions.map((c) => (
+                    <tr key={c.staff_id} className="hover:bg-surface-container-lowest transition-colors">
+                      <td className="p-4 pl-6 font-medium text-on-surface">{c.full_name}</td>
+                      <td className="p-4 text-center text-on-surface-variant">{c.salesCount}</td>
+                      <td className="p-4 text-right text-on-surface-variant tabular-nums">${money(c.servicesTotal)}</td>
+                      <td className="p-4 text-center text-on-surface-variant">{c.commission_rate}%</td>
+                      <td className="p-4 pr-6 text-right font-bold text-on-surface tabular-nums">${money(c.commission)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 

@@ -37,11 +37,13 @@ export default function POSPage() {
   // Datos y acciones desde el store (component → store → services).
   const catalog = usePosStore((s) => s.catalog);
   const customers = usePosStore((s) => s.customers);
+  const staff = usePosStore((s) => s.staff);
   const taxRate = usePosStore((s) => s.taxRate);
   const loading = usePosStore((s) => s.loading);
   const error = usePosStore((s) => s.error);
   const cart = usePosStore((s) => s.cart);
   const customerId = usePosStore((s) => s.customerId);
+  const staffId = usePosStore((s) => s.staffId);
   const discount = usePosStore((s) => s.discount);
   const paymentMethod = usePosStore((s) => s.paymentMethod);
   const submitting = usePosStore((s) => s.submitting);
@@ -52,6 +54,7 @@ export default function POSPage() {
   const decrement = usePosStore((s) => s.decrement);
   const removeFromCart = usePosStore((s) => s.removeFromCart);
   const setCustomer = usePosStore((s) => s.setCustomer);
+  const setStaff = usePosStore((s) => s.setStaff);
   const setDiscount = usePosStore((s) => s.setDiscount);
   const setPaymentMethod = usePosStore((s) => s.setPaymentMethod);
   const clearCart = usePosStore((s) => s.clearCart);
@@ -208,6 +211,18 @@ export default function POSPage() {
               </option>
             ))}
           </select>
+          {staff.length > 0 && (
+            <select
+              value={staffId ?? ""}
+              onChange={(e) => setStaff(e.target.value || null)}
+              className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-xl px-3 py-2 text-sm text-on-surface focus:outline-none focus:border-primary appearance-none"
+            >
+              <option value="">Atendido por: —</option>
+              {staff.map((m) => (
+                <option key={m.id} value={m.id}>{m.full_name}</option>
+              ))}
+            </select>
+          )}
         </div>
 
         {/* Líneas */}

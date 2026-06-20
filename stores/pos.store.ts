@@ -3,6 +3,7 @@ import * as posService from "@/services/pos.service";
 import type {
   CatalogItem,
   CustomerOption,
+  StaffOption,
   CartLine,
   PaymentMethod,
 } from "@/services/pos.service";
@@ -11,6 +12,7 @@ interface PosState {
   // Datos del catálogo (vienen de services)
   catalog: CatalogItem[];
   customers: CustomerOption[];
+  staff: StaffOption[];
   taxRate: number;
   loading: boolean;
   error: string | null;
@@ -18,6 +20,7 @@ interface PosState {
   // Estado de la orden actual
   cart: CartLine[];
   customerId: string | null;
+  staffId: string | null;
   discount: number;
   paymentMethod: PaymentMethod;
   submitting: boolean;
@@ -28,6 +31,7 @@ interface PosState {
   decrement: (itemId: string) => void;
   removeFromCart: (itemId: string) => void;
   setCustomer: (customerId: string | null) => void;
+  setStaff: (staffId: string | null) => void;
   setDiscount: (discount: number) => void;
   setPaymentMethod: (method: PaymentMethod) => void;
   clearCart: () => void;
@@ -41,12 +45,14 @@ const toMessage = (e: unknown) =>
 export const usePosStore = create<PosState>((set, get) => ({
   catalog: [],
   customers: [],
+  staff: [],
   taxRate: 0.16,
   loading: false,
   error: null,
 
   cart: [],
   customerId: null,
+  staffId: null,
   discount: 0,
   paymentMethod: "efectivo",
   submitting: false,
@@ -54,12 +60,13 @@ export const usePosStore = create<PosState>((set, get) => ({
   init: async () => {
     set({ loading: true, error: null });
     try {
-      const [catalog, customers, taxRate] = await Promise.all([
+      const [catalog, customers, staff, taxRate] = await Promise.all([
         posService.fetchCatalog(),
         posService.fetchCustomers(),
+        posService.fetchStaff(),
         posService.fetchTaxRate(),
       ]);
-      set({ catalog, customers, taxRate, loading: false });
+      set({ catalog, customers, staff, taxRate, loading: false });
     } catch (e) {
       set({ error: toMessage(e), loading: false });
     }
@@ -98,17 +105,19 @@ export const usePosStore = create<PosState>((set, get) => ({
     set((s) => ({ cart: s.cart.filter((l) => l.item.id !== itemId) })),
 
   setCustomer: (customerId) => set({ customerId }),
+  setStaff: (staffId) => set({ staffId }),
   setDiscount: (discount) => set({ discount: Number.isFinite(discount) ? Math.max(discount, 0) : 0 }),
   setPaymentMethod: (paymentMethod) => set({ paymentMethod }),
-  clearCart: () => set({ cart: [], discount: 0, customerId: null }),
+  clearCart: () => set({ cart: [], discount: 0, customerId: null, staffId: null }),
 
   checkout: async () => {
-    const { cart, customerId, discount, paymentMethod } = get();
+    const { cart, customerId, staffId, discount, paymentMethod } = get();
     if (cart.length === 0) return false;
     set({ submitting: true, error: null });
     try {
       await posService.createSale({
         customerId,
+        staffId,
         paymentMethod,
         discount,
         items: cart.map((l) =>
@@ -119,7 +128,7 @@ export const usePosStore = create<PosState>((set, get) => ({
       });
       // Refresca el catálogo para reflejar el stock ya descontado por la RPC.
       const catalog = await posService.fetchCatalog();
-      set({ cart: [], discount: 0, customerId: null, submitting: false, catalog });
+      set({ cart: [], discount: 0, customerId: null, staffId: null, submitting: false, catalog });
       return true;
     } catch (e) {
       set({ error: toMessage(e), submitting: false });

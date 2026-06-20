@@ -52,7 +52,7 @@ export default function AppointmentModal({
   appointment,
   defaultStartTime,
 }: AppointmentModalProps) {
-  const { submitting, addAppointment, updateAppointment, updateStatus, deleteAppointment } =
+  const { submitting, addAppointment, updateAppointment, updateStatus, chargeAppointment, deleteAppointment } =
     useAppointmentsStore();
   const customers = useCustomersStore((s) => s.customers);
   const fetchCustomers = useCustomersStore((s) => s.fetchCustomers);
@@ -146,6 +146,19 @@ export default function AppointmentModal({
   const handleStatusChange = async (status: string) => {
     if (!appointment) return;
     await updateStatus(appointment.id, status);
+  };
+
+  const canCharge =
+    !!appointment &&
+    !!appointment.service_id &&
+    appointment.status !== "completed" &&
+    appointment.status !== "cancelled";
+
+  const handleCharge = async () => {
+    if (!appointment) return;
+    if (!confirm("¿Cobrar esta cita? Se registrará como venta y la cita quedará completada.")) return;
+    const ok = await chargeAppointment(appointment);
+    if (ok) onClose();
   };
 
   const handleServiceChange = (id: string) => {
@@ -407,6 +420,16 @@ export default function AppointmentModal({
                   className="px-4 py-2.5 rounded-xl text-sm font-semibold text-error-dim hover:bg-error-container/20 transition-colors"
                 >
                   Eliminar
+                </button>
+              )}
+              {canCharge && (
+                <button
+                  type="button"
+                  onClick={handleCharge}
+                  disabled={submitting}
+                  className="px-4 py-2.5 rounded-xl text-sm font-semibold text-emerald-600 bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors disabled:opacity-50"
+                >
+                  Cobrar
                 </button>
               )}
             </div>

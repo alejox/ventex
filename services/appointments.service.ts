@@ -1,5 +1,6 @@
 import { createClient } from "@/utils/supabase/client";
 import { findOrCreateVehicleByPlate } from "@/services/vehicles.service";
+import { createSale } from "@/services/pos.service";
 
 // ---- TYPES ----
 export interface Appointment {
@@ -174,6 +175,23 @@ export async function updateAppointmentStatus(
     .update({ status })
     .eq("id", id);
   if (error) throw error;
+}
+
+/**
+ * Cobra una cita: genera una venta con su servicio, atribuida al barbero/operario
+ * y al cliente de la cita. Devuelve el id de la venta creada.
+ */
+export async function chargeAppointment(appt: Appointment): Promise<string> {
+  if (!appt.service_id) {
+    throw new Error("La cita no tiene un servicio asignado para cobrar");
+  }
+  return createSale({
+    customerId: appt.customer_id,
+    staffId: appt.staff_id,
+    paymentMethod: "efectivo",
+    discount: 0,
+    items: [{ service_id: appt.service_id, quantity: 1 }],
+  });
 }
 
 export async function deleteAppointment(id: string): Promise<void> {

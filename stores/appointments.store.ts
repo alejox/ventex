@@ -19,6 +19,8 @@ interface AppointmentsState {
     input: NewAppointmentInput,
   ) => Promise<boolean>;
   updateStatus: (id: string, status: string) => Promise<boolean>;
+  /** Cobra la cita (crea la venta del servicio) y la marca como completada. */
+  chargeAppointment: (appointment: Appointment) => Promise<boolean>;
   deleteAppointment: (id: string) => Promise<boolean>;
   setSelectedDate: (date: Date) => void;
 }
@@ -88,6 +90,24 @@ export const useAppointmentsStore = create<AppointmentsState>((set) => ({
       return true;
     } catch (e) {
       set({ error: toMessage(e) });
+      return false;
+    }
+  },
+
+  chargeAppointment: async (appointment) => {
+    set({ submitting: true, error: null });
+    try {
+      await appointmentsService.chargeAppointment(appointment);
+      await appointmentsService.updateAppointmentStatus(appointment.id, "completed");
+      set((s) => ({
+        appointments: s.appointments.map((a) =>
+          a.id === appointment.id ? { ...a, status: "completed" } : a,
+        ),
+        submitting: false,
+      }));
+      return true;
+    } catch (e) {
+      set({ error: toMessage(e), submitting: false });
       return false;
     }
   },

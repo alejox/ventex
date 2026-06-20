@@ -513,6 +513,7 @@ export type Database = {
           id: string
           payment_method: string
           sale_number: number
+          staff_id: string | null
           status: string
           subtotal: number
           tax_amount: number
@@ -527,6 +528,7 @@ export type Database = {
           id?: string
           payment_method?: string
           sale_number?: number
+          staff_id?: string | null
           status?: string
           subtotal?: number
           tax_amount?: number
@@ -541,6 +543,7 @@ export type Database = {
           id?: string
           payment_method?: string
           sale_number?: number
+          staff_id?: string | null
           status?: string
           subtotal?: number
           tax_amount?: number
@@ -554,6 +557,13 @@ export type Database = {
             columns: ["customer_id"]
             isOneToOne: false
             referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
             referencedColumns: ["id"]
           },
         ]
@@ -706,6 +716,7 @@ export type Database = {
           p_discount_amount: number
           p_items: Json
           p_payment_method: string
+          p_staff_id?: string
         }
         Returns: string
       }
