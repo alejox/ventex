@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { useAppointmentsStore } from "@/stores/appointments.store";
 import { useCustomersStore } from "@/stores/customers.store";
+import { useServicesStore } from "@/stores/services.store";
+import { useStaffStore } from "@/stores/staff.store";
 import type { Appointment, NewAppointmentInput } from "@/services/appointments.service";
 
 interface AppointmentModalProps {
@@ -15,6 +17,8 @@ interface AppointmentModalProps {
 
 const EMPTY_FORM: NewAppointmentInput = {
   customer_id: null,
+  service_id: null,
+  staff_id: null,
   title: "",
   description: "",
   service_type: "",
@@ -22,6 +26,13 @@ const EMPTY_FORM: NewAppointmentInput = {
   start_time: "09:00",
   end_time: "10:00",
   notes: "",
+};
+
+/** Suma minutos a "HH:MM" (tope 23:59) para calcular la hora de fin. */
+const addMinutes = (time: string, mins: number) => {
+  const [h, m] = time.split(":").map(Number);
+  const total = Math.min(h * 60 + m + mins, 23 * 60 + 59);
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
 };
 
 const STATUS_OPTIONS = [
@@ -42,20 +53,31 @@ export default function AppointmentModal({
     useAppointmentsStore();
   const customers = useCustomersStore((s) => s.customers);
   const fetchCustomers = useCustomersStore((s) => s.fetchCustomers);
+  const services = useServicesStore((s) => s.services);
+  const fetchServices = useServicesStore((s) => s.fetchServices);
+  const staff = useStaffStore((s) => s.staff);
+  const fetchStaff = useStaffStore((s) => s.fetchStaff);
 
   const [form, setForm] = useState<NewAppointmentInput>(EMPTY_FORM);
   const [error, setError] = useState("");
   const isEditing = !!appointment;
 
+  const activeServices = services.filter((s) => s.status === "active");
+  const activeStaff = staff.filter((m) => m.status === "active");
+
   useEffect(() => {
     if (customers.length === 0) fetchCustomers();
-  }, [customers.length, fetchCustomers]);
+    if (services.length === 0) fetchServices();
+    if (staff.length === 0) fetchStaff();
+  }, [customers.length, fetchCustomers, services.length, fetchServices, staff.length, fetchStaff]);
 
   useEffect(() => {
     if (open) {
       if (appointment) {
         setForm({
           customer_id: appointment.customer_id,
+          service_id: appointment.service_id,
+          staff_id: appointment.staff_id,
           title: appointment.title,
           description: appointment.description || "",
           service_type: appointment.service_type || "",
@@ -117,6 +139,18 @@ export default function AppointmentModal({
   const handleStatusChange = async (status: string) => {
     if (!appointment) return;
     await updateStatus(appointment.id, status);
+  };
+
+  const handleServiceChange = (id: string) => {
+    const svc = activeServices.find((s) => s.id === id);
+    setForm((f) => ({
+      ...f,
+      service_id: id || null,
+      // Sincroniza el texto y autocompleta título/duración a partir del servicio.
+      service_type: svc ? svc.name : "",
+      title: f.title.trim() ? f.title : svc?.name ?? f.title,
+      end_time: svc ? addMinutes(f.start_time, svc.duration_minutes) : f.end_time,
+    }));
   };
 
   if (!open) return null;
@@ -208,20 +242,44 @@ export default function AppointmentModal({
             </select>
           </div>
 
-          {/* Service type */}
-          <div className="space-y-1.5">
-            <label className="text-[13px] font-semibold text-on-surface block">
-              Tipo de Servicio
-            </label>
-            <input
-              type="text"
-              value={form.service_type}
-              onChange={(e) =>
-                setForm({ ...form, service_type: e.target.value })
-              }
-              className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50"
-              placeholder="Ej. Corte, Lavado, Consulta..."
-            />
+          {/* Service + Barber */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-[13px] font-semibold text-on-surface block">
+                Servicio
+              </label>
+              <select
+                value={form.service_id || ""}
+                onChange={(e) => handleServiceChange(e.target.value)}
+                className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
+              >
+                <option value="">Sin servicio</option>
+                {activeServices.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[13px] font-semibold text-on-surface block">
+                Barbero / Staff
+              </label>
+              <select
+                value={form.staff_id || ""}
+                onChange={(e) =>
+                  setForm({ ...form, staff_id: e.target.value || null })
+                }
+                className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
+              >
+                <option value="">Sin asignar</option>
+                {activeStaff.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.full_name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {/* Date */}

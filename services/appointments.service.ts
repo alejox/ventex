@@ -4,6 +4,8 @@ import { createClient } from "@/utils/supabase/client";
 export interface Appointment {
   id: string;
   customer_id: string | null;
+  service_id: string | null;
+  staff_id: string | null;
   title: string;
   description: string | null;
   service_type: string | null;
@@ -14,10 +16,14 @@ export interface Appointment {
   notes: string | null;
   created_at: string;
   customers: { full_name: string } | null;
+  services: { name: string } | null;
+  staff: { full_name: string } | null;
 }
 
 export interface NewAppointmentInput {
   customer_id: string | null;
+  service_id: string | null;
+  staff_id: string | null;
   title: string;
   description: string;
   service_type: string;
@@ -28,7 +34,7 @@ export interface NewAppointmentInput {
 }
 
 // ---- SELECT ----
-const SELECT = "*, customers(full_name)";
+const SELECT = "*, customers(full_name), services(name), staff(full_name)";
 
 // ---- HELPERS ----
 const one = <T>(embed: unknown): T | null => {
@@ -53,6 +59,8 @@ export async function fetchAppointments(
   return (data ?? []).map((a) => ({
     ...a,
     customers: one<{ full_name: string }>(a.customers),
+    services: one<{ name: string }>(a.services),
+    staff: one<{ full_name: string }>(a.staff),
   })) as Appointment[];
 }
 
@@ -69,6 +77,8 @@ export async function fetchAppointmentsByDate(
   return (data ?? []).map((a) => ({
     ...a,
     customers: one<{ full_name: string }>(a.customers),
+    services: one<{ name: string }>(a.services),
+    staff: one<{ full_name: string }>(a.staff),
   })) as Appointment[];
 }
 
@@ -82,6 +92,8 @@ export async function createAppointment(
       title: input.title,
       description: input.description || null,
       service_type: input.service_type || null,
+      service_id: input.service_id || null,
+      staff_id: input.staff_id || null,
       customer_id: input.customer_id || null,
       appointment_date: input.appointment_date,
       start_time: input.start_time,
@@ -94,6 +106,8 @@ export async function createAppointment(
   return {
     ...data,
     customers: one<{ full_name: string }>(data.customers),
+    services: one<{ name: string }>(data.services),
+    staff: one<{ full_name: string }>(data.staff),
   } as Appointment;
 }
 
@@ -108,6 +122,8 @@ export async function updateAppointment(
       title: input.title,
       description: input.description || null,
       service_type: input.service_type || null,
+      service_id: input.service_id || null,
+      staff_id: input.staff_id || null,
       customer_id: input.customer_id || null,
       appointment_date: input.appointment_date,
       start_time: input.start_time,
@@ -121,6 +137,8 @@ export async function updateAppointment(
   return {
     ...data,
     customers: one<{ full_name: string }>(data.customers),
+    services: one<{ name: string }>(data.services),
+    staff: one<{ full_name: string }>(data.staff),
   } as Appointment;
 }
 

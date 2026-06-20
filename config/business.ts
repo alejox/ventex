@@ -138,16 +138,46 @@ const BASE_QUICK_BY_TYPE: Record<BusinessType, string[]> = {
   servicios: ["new-appointment"],
 };
 
+/**
+ * Tipos de negocio cuyos módulos vienen TODOS activados por defecto (sin opt-in):
+ * el dueño ve la suite completa de su rubro sin tener que habilitar nada.
+ * Salón / Barbería: Citas, Servicios, Barberos, Inventario y E-commerce.
+ */
+const FULL_MODULE_TYPES: BusinessType[] = ["salon"];
+
+/** Todos los ids de módulo que ofrece un tipo de negocio. */
+export function modulesForType(businessType: BusinessType): ModuleId[] {
+  return (MODULES_BY_TYPE[businessType] ?? []).map((m) => m.id);
+}
+
+/**
+ * Módulos efectivos de una cuenta: para los tipos "full module" se activan
+ * todos los del rubro; el resto respeta lo guardado en el perfil (opt-in).
+ */
+export function effectiveModules(
+  businessType: BusinessType | null,
+  modules: Modules | null,
+): Modules {
+  const stored = modules ?? {};
+  if (businessType && FULL_MODULE_TYPES.includes(businessType)) {
+    const all: Modules = { ...stored };
+    for (const id of modulesForType(businessType)) all[id] = true;
+    return all;
+  }
+  return stored;
+}
+
 export function visibleNavItems(
   businessType: BusinessType | null,
   modules: Modules | null,
 ): NavItem[] {
   const base = businessType ? BASE_NAV_BY_TYPE[businessType] ?? [] : [];
+  const active = effectiveModules(businessType, modules);
   return NAV_ITEMS.filter(
     (item) =>
       UNIVERSAL_NAV_IDS.includes(item.id) ||
       base.includes(item.id) ||
-      item.modules.some((m) => Boolean(modules?.[m])),
+      item.modules.some((m) => Boolean(active[m])),
   );
 }
 
@@ -156,10 +186,11 @@ export function visibleQuickActions(
   modules: Modules | null,
 ): QuickAction[] {
   const base = businessType ? BASE_QUICK_BY_TYPE[businessType] ?? [] : [];
+  const active = effectiveModules(businessType, modules);
   return QUICK_ACTIONS.filter(
     (a) =>
       UNIVERSAL_QUICK_IDS.includes(a.id) ||
       base.includes(a.id) ||
-      (a.module != null && Boolean(modules?.[a.module])),
+      (a.module != null && Boolean(active[a.module])),
   );
 }

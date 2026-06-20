@@ -15,6 +15,8 @@ CREATE TABLE IF NOT EXISTS appointments (
   notes text,
   created_at timestamptz DEFAULT now()
 );
+-- Nota: la conexión con services/staff (columnas service_id, staff_id) se añade
+-- en 20260620121000, después de crear esas tablas (20260620120000).
 
 -- Habilitar RLS
 ALTER TABLE appointments ENABLE ROW LEVEL SECURITY;

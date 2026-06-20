@@ -23,7 +23,9 @@ export type Database = {
           end_time: string
           id: string
           notes: string | null
+          service_id: string | null
           service_type: string | null
+          staff_id: string | null
           start_time: string
           status: string | null
           title: string
@@ -37,7 +39,9 @@ export type Database = {
           end_time: string
           id?: string
           notes?: string | null
+          service_id?: string | null
           service_type?: string | null
+          staff_id?: string | null
           start_time: string
           status?: string | null
           title: string
@@ -51,7 +55,9 @@ export type Database = {
           end_time?: string
           id?: string
           notes?: string | null
+          service_id?: string | null
           service_type?: string | null
+          staff_id?: string | null
           start_time?: string
           status?: string | null
           title?: string
@@ -63,6 +69,20 @@ export type Database = {
             columns: ["customer_id"]
             isOneToOne: false
             referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
             referencedColumns: ["id"]
           },
         ]
