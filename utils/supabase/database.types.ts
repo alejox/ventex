@@ -30,6 +30,8 @@ export type Database = {
           status: string | null
           title: string
           user_id: string
+          vehicle_model: string | null
+          vehicle_plate: string | null
         }
         Insert: {
           appointment_date: string
@@ -46,6 +48,8 @@ export type Database = {
           status?: string | null
           title: string
           user_id?: string
+          vehicle_model?: string | null
+          vehicle_plate?: string | null
         }
         Update: {
           appointment_date?: string
@@ -62,6 +66,8 @@ export type Database = {
           status?: string | null
           title?: string
           user_id?: string
+          vehicle_model?: string | null
+          vehicle_plate?: string | null
         }
         Relationships: [
           {

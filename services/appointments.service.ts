@@ -9,6 +9,8 @@ export interface Appointment {
   title: string;
   description: string | null;
   service_type: string | null;
+  vehicle_plate: string | null;
+  vehicle_model: string | null;
   appointment_date: string;
   start_time: string;
   end_time: string;
@@ -27,6 +29,8 @@ export interface NewAppointmentInput {
   title: string;
   description: string;
   service_type: string;
+  vehicle_plate: string;
+  vehicle_model: string;
   appointment_date: string;
   start_time: string;
   end_time: string;
@@ -94,6 +98,8 @@ export async function createAppointment(
       service_type: input.service_type || null,
       service_id: input.service_id || null,
       staff_id: input.staff_id || null,
+      vehicle_plate: input.vehicle_plate || null,
+      vehicle_model: input.vehicle_model || null,
       customer_id: input.customer_id || null,
       appointment_date: input.appointment_date,
       start_time: input.start_time,
@@ -124,6 +130,8 @@ export async function updateAppointment(
       service_type: input.service_type || null,
       service_id: input.service_id || null,
       staff_id: input.staff_id || null,
+      vehicle_plate: input.vehicle_plate || null,
+      vehicle_model: input.vehicle_model || null,
       customer_id: input.customer_id || null,
       appointment_date: input.appointment_date,
       start_time: input.start_time,

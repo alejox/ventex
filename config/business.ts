@@ -61,7 +61,9 @@ export const MODULES_BY_TYPE: Record<BusinessType, ModuleOption[]> = {
     { id: "inventory", label: "Inventario", description: "Gestiona tu stock, categorías y códigos de barras." },
   ],
   lavaautos: [
-    { id: "appointments", label: "Servicios / Citas", description: "Agenda servicios de lavado, detailing y mantenimiento." },
+    { id: "appointments", label: "Citas", description: "Agenda turnos de lavado, detailing y mantenimiento." },
+    { id: "services", label: "Servicios", description: "Tu menú de lavados: básico, premium, encerado y detailing, con precio y duración." },
+    { id: "staff", label: "Equipo", description: "Administra tus lavadores y detailers, con sus comisiones." },
     { id: "inventory", label: "Inventario", description: "Controla insumos: jabones, ceras, filtros y más." },
   ],
   servicios: [
@@ -87,7 +89,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: "pos", name: "Punto de Venta", href: "/dashboard/pos", modules: ["ecommerce"] },
   { id: "sales", name: "Ventas", href: "/dashboard/sales", modules: ["ecommerce"] },
   { id: "services", name: "Servicios", href: "/dashboard/services", modules: ["services"] },
-  { id: "staff", name: "Barberos / Staff", href: "/dashboard/staff", modules: ["staff"] },
+  { id: "staff", name: "Equipo", href: "/dashboard/staff", modules: ["staff"] },
   { id: "inventory", name: "Inventario", href: "/dashboard/inventory", modules: ["inventory"] },
   { id: "finance", name: "Finanzas", href: "/dashboard/finance", modules: [] },
   { id: "customers", name: "Clientes", href: "/dashboard/customers", modules: [] },
@@ -111,7 +113,7 @@ export const QUICK_ACTIONS: QuickAction[] = [
   { id: "view-finance", title: "Ver Finanzas", href: "/dashboard/finance", module: null },
   { id: "new-appointment", title: "Nueva Cita", href: "/dashboard/calendar", module: "appointments" },
   { id: "new-service", title: "Nuevo Servicio", href: "/dashboard/services", module: "services" },
-  { id: "new-staff", title: "Añadir Barbero", href: "/dashboard/staff", module: "staff" },
+  { id: "new-staff", title: "Añadir al Equipo", href: "/dashboard/staff", module: "staff" },
 ];
 
 // ---- Modelo de visibilidad: el TIPO define un menú base, los MÓDULOS suman ----
@@ -143,7 +145,7 @@ const BASE_QUICK_BY_TYPE: Record<BusinessType, string[]> = {
  * el dueño ve la suite completa de su rubro sin tener que habilitar nada.
  * Salón / Barbería: Citas, Servicios, Barberos, Inventario y E-commerce.
  */
-const FULL_MODULE_TYPES: BusinessType[] = ["salon"];
+const FULL_MODULE_TYPES: BusinessType[] = ["salon", "lavaautos"];
 
 /** Todos los ids de módulo que ofrece un tipo de negocio. */
 export function modulesForType(businessType: BusinessType): ModuleId[] {

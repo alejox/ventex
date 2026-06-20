@@ -5,6 +5,7 @@ import { useAppointmentsStore } from "@/stores/appointments.store";
 import { useCustomersStore } from "@/stores/customers.store";
 import { useServicesStore } from "@/stores/services.store";
 import { useStaffStore } from "@/stores/staff.store";
+import { useProfile } from "@/components/ProfileProvider";
 import type { Appointment, NewAppointmentInput } from "@/services/appointments.service";
 
 interface AppointmentModalProps {
@@ -22,6 +23,8 @@ const EMPTY_FORM: NewAppointmentInput = {
   title: "",
   description: "",
   service_type: "",
+  vehicle_plate: "",
+  vehicle_model: "",
   appointment_date: "",
   start_time: "09:00",
   end_time: "10:00",
@@ -57,6 +60,8 @@ export default function AppointmentModal({
   const fetchServices = useServicesStore((s) => s.fetchServices);
   const staff = useStaffStore((s) => s.staff);
   const fetchStaff = useStaffStore((s) => s.fetchStaff);
+  const profile = useProfile();
+  const isCarWash = profile?.businessType === "lavaautos";
 
   const [form, setForm] = useState<NewAppointmentInput>(EMPTY_FORM);
   const [error, setError] = useState("");
@@ -81,6 +86,8 @@ export default function AppointmentModal({
           title: appointment.title,
           description: appointment.description || "",
           service_type: appointment.service_type || "",
+          vehicle_plate: appointment.vehicle_plate || "",
+          vehicle_model: appointment.vehicle_model || "",
           appointment_date: appointment.appointment_date,
           start_time: appointment.start_time.slice(0, 5),
           end_time: appointment.end_time.slice(0, 5),
@@ -263,7 +270,7 @@ export default function AppointmentModal({
             </div>
             <div className="space-y-1.5">
               <label className="text-[13px] font-semibold text-on-surface block">
-                Barbero / Staff
+                Asignado a
               </label>
               <select
                 value={form.staff_id || ""}
@@ -281,6 +288,40 @@ export default function AppointmentModal({
               </select>
             </div>
           </div>
+
+          {/* Vehículo (lavaautos) */}
+          {isCarWash && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-[13px] font-semibold text-on-surface block">
+                  Placa
+                </label>
+                <input
+                  type="text"
+                  value={form.vehicle_plate}
+                  onChange={(e) =>
+                    setForm({ ...form, vehicle_plate: e.target.value.toUpperCase() })
+                  }
+                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all font-mono uppercase placeholder:text-on-surface-variant/50"
+                  placeholder="ABC123"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[13px] font-semibold text-on-surface block">
+                  Vehículo
+                </label>
+                <input
+                  type="text"
+                  value={form.vehicle_model}
+                  onChange={(e) =>
+                    setForm({ ...form, vehicle_model: e.target.value })
+                  }
+                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50"
+                  placeholder="Ej. Mazda 3 gris"
+                />
+              </div>
+            </div>
+          )}
 
           {/* Date */}
           <div className="space-y-1.5">

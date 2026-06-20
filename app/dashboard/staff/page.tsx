@@ -5,7 +5,7 @@ import { IconUserBadge, IconPlus } from "@/app/assets/icons/DashboardIcons";
 import { useStaffStore } from "@/stores/staff.store";
 import type { NewStaffInput, StaffMember } from "@/services/staff.service";
 
-const ROLES = ["Barbero", "Estilista", "Colorista", "Manicurista", "Recepción", "Otro"];
+const ROLES = ["Barbero", "Estilista", "Colorista", "Manicurista", "Lavador", "Detailer", "Recepción", "Otro"];
 
 const EMPTY_STAFF: NewStaffInput = {
   full_name: "",
@@ -79,7 +79,7 @@ export default function StaffPage() {
     <div className="flex flex-col gap-6 w-full animate-in fade-in duration-500">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-on-surface">Barberos / Staff</h1>
+          <h1 className="text-2xl font-bold text-on-surface">Equipo</h1>
           <p className="text-sm text-on-surface-variant mt-1">
             Administra tu equipo y la comisión que gana cada uno por servicio.
           </p>
@@ -89,7 +89,7 @@ export default function StaffPage() {
           className="bg-[#6063ee] hover:bg-[#c0c1ff] text-white hover:text-[#0b0664] text-sm font-semibold py-2.5 px-4 rounded-xl shadow-lg shadow-[#6063ee]/20 transition-colors flex items-center justify-center gap-2"
         >
           <IconPlus className="w-4 h-4" />
-          <span>Añadir Barbero</span>
+          <span>Añadir al Equipo</span>
         </button>
       </div>
 
@@ -108,13 +108,13 @@ export default function StaffPage() {
           </div>
           <h2 className="text-lg font-bold text-on-surface mb-2">Aún no hay miembros del equipo</h2>
           <p className="text-sm text-on-surface-variant max-w-sm mb-6">
-            Añade a tus barberos y estilistas para asignarles citas y llevar el control de sus comisiones.
+            Añade a tu personal para asignarle citas y llevar el control de sus comisiones.
           </p>
           <button
             onClick={openCreate}
             className="px-6 py-2.5 bg-surface-container border border-outline-variant/20 text-on-surface text-sm font-semibold rounded-xl hover:bg-surface-container-high transition-colors"
           >
-            Añadir tu primer barbero
+            Añadir tu primer miembro
           </button>
         </div>
       ) : (
@@ -157,7 +157,7 @@ export default function StaffPage() {
           <div className="bg-surface-container rounded-t-3xl sm:rounded-3xl w-full sm:max-w-lg max-h-[90vh] border border-outline-variant/10 shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200 flex flex-col">
             <div className="p-4 sm:p-6 border-b border-outline-variant/10 flex justify-between items-center bg-surface-container-low shrink-0">
               <h2 className="text-lg sm:text-xl font-bold text-on-surface">
-                {editingId ? "Editar Miembro" : "Nuevo Barbero / Staff"}
+                {editingId ? "Editar Miembro" : "Nuevo Miembro del Equipo"}
               </h2>
               <button
                 onClick={handleClose}

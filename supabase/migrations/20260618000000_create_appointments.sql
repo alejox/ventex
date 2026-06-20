@@ -13,6 +13,8 @@ CREATE TABLE IF NOT EXISTS appointments (
   end_time time NOT NULL,
   status text DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'completed', 'cancelled')),
   notes text,
+  vehicle_plate text,  -- placa del vehículo (lavaautos)
+  vehicle_model text,  -- marca / modelo / color (lavaautos)
   created_at timestamptz DEFAULT now()
 );
 -- Nota: la conexión con services/staff (columnas service_id, staff_id) se añade

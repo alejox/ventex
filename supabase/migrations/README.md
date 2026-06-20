@@ -18,6 +18,8 @@ desde cero: `supabase db reset` (aplica todas en orden).
 | `20260620012351_add_doc_type_to_distributors_and_customers` | Historial remoto |
 | `20260620120000_create_services_and_staff_tables` | Historial remoto — módulos Salón / Barbería |
 | `20260620120500_harden_appointments_user_id` | Historial remoto — default + trigger en appointments |
+| `20260620121000_link_appointments_to_services_and_staff` | Historial remoto — FKs service_id / staff_id en citas |
+| `20260620121500_add_vehicle_fields_to_appointments` | Historial remoto — placa / modelo de vehículo (lavaautos) |
 
 ## Notas
 
