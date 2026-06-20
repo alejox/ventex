@@ -30,6 +30,7 @@ export type Database = {
           status: string | null
           title: string
           user_id: string
+          vehicle_id: string | null
           vehicle_model: string | null
           vehicle_plate: string | null
         }
@@ -48,6 +49,7 @@ export type Database = {
           status?: string | null
           title: string
           user_id?: string
+          vehicle_id?: string | null
           vehicle_model?: string | null
           vehicle_plate?: string | null
         }
@@ -66,6 +68,7 @@ export type Database = {
           status?: string | null
           title?: string
           user_id?: string
+          vehicle_id?: string | null
           vehicle_model?: string | null
           vehicle_plate?: string | null
         }
@@ -89,6 +92,13 @@ export type Database = {
             columns: ["staff_id"]
             isOneToOne: false
             referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
             referencedColumns: ["id"]
           },
         ]
@@ -520,6 +530,47 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      vehicles: {
+        Row: {
+          color: string | null
+          created_at: string
+          customer_id: string | null
+          id: string
+          make_model: string | null
+          notes: string | null
+          plate: string
+          user_id: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          customer_id?: string | null
+          id?: string
+          make_model?: string | null
+          notes?: string | null
+          plate: string
+          user_id?: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          customer_id?: string | null
+          id?: string
+          make_model?: string | null
+          notes?: string | null
+          plate?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicles_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

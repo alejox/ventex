@@ -160,6 +160,7 @@ export default function RegisterPage() {
     billing: <FileIcon />,
     services: <ScissorsIcon />,
     staff: <UsersIcon />,
+    vehicles: <CarIcon />,
   };
 
   if (confirmed) {

@@ -14,6 +14,7 @@ import {
   IconCalendar,
   IconScissors,
   IconUserBadge,
+  IconCar,
 } from "@/app/assets/icons/DashboardIcons";
 import { useDashboardStore } from "@/stores/dashboard.store";
 import { useProfile } from "@/components/ProfileProvider";
@@ -39,6 +40,7 @@ const QUICK_ACTION_ICONS: Record<string, IconType> = {
   "new-appointment": IconCalendar,
   "new-service": IconScissors,
   "new-staff": IconUserBadge,
+  "new-vehicle": IconCar,
 };
 
 export default function DashboardHome() {

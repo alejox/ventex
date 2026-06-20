@@ -16,7 +16,8 @@ export type ModuleId =
   | "inventory"
   | "billing"
   | "services"
-  | "staff";
+  | "staff"
+  | "vehicles";
 export type Modules = Partial<Record<ModuleId, boolean>>;
 
 /** Datos del perfil de cuenta (tabla public.profiles). */
@@ -64,6 +65,7 @@ export const MODULES_BY_TYPE: Record<BusinessType, ModuleOption[]> = {
     { id: "appointments", label: "Citas", description: "Agenda turnos de lavado, detailing y mantenimiento." },
     { id: "services", label: "Servicios", description: "Tu menú de lavados: básico, premium, encerado y detailing, con precio y duración." },
     { id: "staff", label: "Equipo", description: "Administra tus lavadores y detailers, con sus comisiones." },
+    { id: "vehicles", label: "Vehículos", description: "Historial por placa: vehículos, sus dueños y todas sus visitas." },
     { id: "inventory", label: "Inventario", description: "Controla insumos: jabones, ceras, filtros y más." },
   ],
   servicios: [
@@ -90,6 +92,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: "sales", name: "Ventas", href: "/dashboard/sales", modules: ["ecommerce"] },
   { id: "services", name: "Servicios", href: "/dashboard/services", modules: ["services"] },
   { id: "staff", name: "Equipo", href: "/dashboard/staff", modules: ["staff"] },
+  { id: "vehicles", name: "Vehículos", href: "/dashboard/vehicles", modules: ["vehicles"] },
   { id: "inventory", name: "Inventario", href: "/dashboard/inventory", modules: ["inventory"] },
   { id: "finance", name: "Finanzas", href: "/dashboard/finance", modules: [] },
   { id: "customers", name: "Clientes", href: "/dashboard/customers", modules: [] },
@@ -114,6 +117,7 @@ export const QUICK_ACTIONS: QuickAction[] = [
   { id: "new-appointment", title: "Nueva Cita", href: "/dashboard/calendar", module: "appointments" },
   { id: "new-service", title: "Nuevo Servicio", href: "/dashboard/services", module: "services" },
   { id: "new-staff", title: "Añadir al Equipo", href: "/dashboard/staff", module: "staff" },
+  { id: "new-vehicle", title: "Registrar Vehículo", href: "/dashboard/vehicles", module: "vehicles" },
 ];
 
 // ---- Modelo de visibilidad: el TIPO define un menú base, los MÓDULOS suman ----

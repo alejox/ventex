@@ -1,4 +1,5 @@
 import { createClient } from "@/utils/supabase/client";
+import { findOrCreateVehicleByPlate } from "@/services/vehicles.service";
 
 // ---- TYPES ----
 export interface Appointment {
@@ -6,6 +7,7 @@ export interface Appointment {
   customer_id: string | null;
   service_id: string | null;
   staff_id: string | null;
+  vehicle_id: string | null;
   title: string;
   description: string | null;
   service_type: string | null;
@@ -90,6 +92,10 @@ export async function createAppointment(
   input: NewAppointmentInput,
 ): Promise<Appointment> {
   const supabase = createClient();
+  const vehicle_id = await findOrCreateVehicleByPlate(
+    input.vehicle_plate,
+    input.vehicle_model,
+  );
   const { data, error } = await supabase
     .from("appointments")
     .insert({
@@ -100,6 +106,7 @@ export async function createAppointment(
       staff_id: input.staff_id || null,
       vehicle_plate: input.vehicle_plate || null,
       vehicle_model: input.vehicle_model || null,
+      vehicle_id,
       customer_id: input.customer_id || null,
       appointment_date: input.appointment_date,
       start_time: input.start_time,
@@ -122,6 +129,10 @@ export async function updateAppointment(
   input: NewAppointmentInput,
 ): Promise<Appointment> {
   const supabase = createClient();
+  const vehicle_id = await findOrCreateVehicleByPlate(
+    input.vehicle_plate,
+    input.vehicle_model,
+  );
   const { data, error } = await supabase
     .from("appointments")
     .update({
@@ -132,6 +143,7 @@ export async function updateAppointment(
       staff_id: input.staff_id || null,
       vehicle_plate: input.vehicle_plate || null,
       vehicle_model: input.vehicle_model || null,
+      vehicle_id,
       customer_id: input.customer_id || null,
       appointment_date: input.appointment_date,
       start_time: input.start_time,
