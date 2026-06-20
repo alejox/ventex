@@ -107,12 +107,12 @@ export const QUICK_ACTIONS: QuickAction[] = [
 // o (3) algún módulo opcional activado lo habilita.
 
 /** Secciones que ve cualquier cuenta, sea cual sea su tipo. */
-const UNIVERSAL_NAV_IDS = ["panel", "finance", "customers"];
+const UNIVERSAL_NAV_IDS = ["panel", "pos", "finance", "customers"];
 
 /** Menú base por tipo de negocio (además de las universales). */
 const BASE_NAV_BY_TYPE: Record<BusinessType, string[]> = {
   salon: ["calendar", "inventory", "distributors"],
-  tienda: ["pos", "sales", "inventory", "distributors"],
+  tienda: ["sales", "inventory", "distributors"],
   lavaautos: ["calendar", "inventory", "distributors"],
   servicios: ["calendar"],
 };
