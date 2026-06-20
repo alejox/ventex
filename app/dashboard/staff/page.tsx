@@ -5,7 +5,7 @@ import { IconUserBadge, IconPlus } from "@/app/assets/icons/DashboardIcons";
 import { useStaffStore } from "@/stores/staff.store";
 import type { NewStaffInput, StaffMember } from "@/services/staff.service";
 
-const ROLES = ["Barbero", "Estilista", "Colorista", "Manicurista", "Lavador", "Detailer", "Recepción", "Otro"];
+const ROLES = ["Barbero", "Estilista", "Colorista", "Manicurista", "Lavador", "Detailer", "Consultor", "Profesional", "Recepción", "Otro"];
 
 const EMPTY_STAFF: NewStaffInput = {
   full_name: "",

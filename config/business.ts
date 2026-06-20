@@ -70,9 +70,8 @@ export const MODULES_BY_TYPE: Record<BusinessType, ModuleOption[]> = {
   ],
   servicios: [
     { id: "appointments", label: "Citas / Agenda", description: "Gestiona tu agenda de consultas y reuniones." },
-    // TODO(billing): el módulo de facturación aún no tiene página propia en
-    // el dashboard (sin nav ni acción rápida). Decidir producto: construir
-    // /dashboard/billing o retirar esta opción del registro.
+    { id: "services", label: "Servicios", description: "Tu catálogo de honorarios: consultoría, asesoría, sesiones, con precio y duración." },
+    { id: "staff", label: "Equipo", description: "Administra a tus profesionales y consultores, con sus comisiones." },
     { id: "billing", label: "Facturación", description: "Genera facturas y cotizaciones para tus clientes." },
   ],
 };
@@ -93,6 +92,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: "services", name: "Servicios", href: "/dashboard/services", modules: ["services"] },
   { id: "staff", name: "Equipo", href: "/dashboard/staff", modules: ["staff"] },
   { id: "vehicles", name: "Vehículos", href: "/dashboard/vehicles", modules: ["vehicles"] },
+  { id: "billing", name: "Facturación", href: "/dashboard/billing", modules: ["billing"] },
   { id: "inventory", name: "Inventario", href: "/dashboard/inventory", modules: ["inventory"] },
   { id: "finance", name: "Finanzas", href: "/dashboard/finance", modules: [] },
   { id: "customers", name: "Clientes", href: "/dashboard/customers", modules: [] },
@@ -118,6 +118,7 @@ export const QUICK_ACTIONS: QuickAction[] = [
   { id: "new-service", title: "Nuevo Servicio", href: "/dashboard/services", module: "services" },
   { id: "new-staff", title: "Añadir al Equipo", href: "/dashboard/staff", module: "staff" },
   { id: "new-vehicle", title: "Registrar Vehículo", href: "/dashboard/vehicles", module: "vehicles" },
+  { id: "new-invoice", title: "Nueva Factura", href: "/dashboard/billing", module: "billing" },
 ];
 
 // ---- Modelo de visibilidad: el TIPO define un menú base, los MÓDULOS suman ----
@@ -149,7 +150,7 @@ const BASE_QUICK_BY_TYPE: Record<BusinessType, string[]> = {
  * el dueño ve la suite completa de su rubro sin tener que habilitar nada.
  * Salón / Barbería: Citas, Servicios, Barberos, Inventario y E-commerce.
  */
-const FULL_MODULE_TYPES: BusinessType[] = ["salon", "lavaautos"];
+const FULL_MODULE_TYPES: BusinessType[] = ["salon", "lavaautos", "servicios"];
 
 /** Todos los ids de módulo que ofrece un tipo de negocio. */
 export function modulesForType(businessType: BusinessType): ModuleId[] {

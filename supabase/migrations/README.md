@@ -21,6 +21,7 @@ desde cero: `supabase db reset` (aplica todas en orden).
 | `20260620121000_link_appointments_to_services_and_staff` | Historial remoto — FKs service_id / staff_id en citas |
 | `20260620121500_add_vehicle_fields_to_appointments` | Historial remoto — placa / modelo de vehículo (lavaautos) |
 | `20260620122000_create_vehicles_and_link_appointments` | Historial remoto — tabla vehicles + FK vehicle_id en citas |
+| `20260620122500_create_invoices_and_items` | Historial remoto — facturación (servicios profesionales) |
 
 ## Notas
 

@@ -21,6 +21,7 @@ import {
   IconScissors,
   IconUserBadge,
   IconCar,
+  IconFileText,
 } from "@/app/assets/icons/DashboardIcons";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { signout } from "@/utils/supabase/actions";
@@ -37,6 +38,7 @@ const NAV_ICONS: Record<string, IconType> = {
   services: IconScissors,
   staff: IconUserBadge,
   vehicles: IconCar,
+  billing: IconFileText,
   inventory: IconBox,
   finance: IconDollar,
   customers: IconUsers,
