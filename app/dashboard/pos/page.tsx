@@ -76,7 +76,7 @@ export default function POSPage() {
     return catalog.filter((p) => {
       const matchesCategory = activeCategory === "Todos" || p.category_name === activeCategory;
       const matchesSearch =
-        !q || p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q);
+        !q || p.name.toLowerCase().includes(q) || (p.sku ?? "").toLowerCase().includes(q);
       return matchesCategory && matchesSearch;
     });
   }, [catalog, search, activeCategory]);
@@ -146,39 +146,43 @@ export default function POSPage() {
           ) : filtered.length === 0 ? (
             <p className="text-center text-sm text-on-surface-variant py-12">
               {catalog.length === 0
-                ? "No hay productos. Agrega productos en Inventario."
-                : "Ningún producto coincide con el filtro."}
+                ? "No hay productos ni servicios. Agrégalos en Inventario o Servicios."
+                : "Ningún ítem coincide con el filtro."}
             </p>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4">
-              {filtered.map((product) => (
+              {filtered.map((item) => (
                 <button
-                  key={product.id}
-                  onClick={() => addToCart(product)}
+                  key={item.id}
+                  onClick={() => addToCart(item)}
                   className="text-left bg-surface-container rounded-2xl p-3 border border-outline-variant/10 flex flex-col hover:border-primary/30 transition-colors group shadow-sm"
                 >
                   <div className="aspect-square rounded-xl bg-surface-container-lowest flex items-center justify-center mb-3 group-hover:bg-surface-container-low transition-colors">
                     <IconImagePlaceholder className="w-8 h-8 text-on-surface-variant/30" />
                   </div>
                   <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1">
-                    SKU: {product.sku}
+                    {item.kind === "service" ? "Servicio" : `SKU: ${item.sku}`}
                   </p>
                   <h3 className="text-sm font-medium text-on-surface mb-2 line-clamp-2 leading-tight flex-1 group-hover:text-primary transition-colors">
-                    {product.name}
+                    {item.name}
                   </h3>
                   <div className="flex items-center justify-between mt-auto">
-                    <span className="text-[#6063ee] font-bold">${money(product.price)}</span>
-                    <span
-                      className={`text-[10px] font-bold ${
-                        product.stock_level <= 0
-                          ? "text-error"
-                          : product.stock_level <= 5
-                            ? "text-amber-500"
-                            : "text-on-surface-variant"
-                      }`}
-                    >
-                      Stock: {product.stock_level}
-                    </span>
+                    <span className="text-[#6063ee] font-bold">${money(item.price)}</span>
+                    {item.kind === "service" ? (
+                      <span className="text-[10px] font-bold text-on-surface-variant">Servicio</span>
+                    ) : (
+                      <span
+                        className={`text-[10px] font-bold ${
+                          (item.stock_level ?? 0) <= 0
+                            ? "text-error"
+                            : (item.stock_level ?? 0) <= 5
+                              ? "text-amber-500"
+                              : "text-on-surface-variant"
+                        }`}
+                      >
+                        Stock: {item.stock_level}
+                      </span>
+                    )}
                   </div>
                 </button>
               ))}
@@ -210,42 +214,42 @@ export default function POSPage() {
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
           {cart.length === 0 ? (
             <p className="text-center text-sm text-on-surface-variant py-8">
-              Toca un producto para agregarlo a la orden.
+              Toca un producto o servicio para agregarlo a la orden.
             </p>
           ) : (
             cart.map((line) => (
-              <div key={line.product.id} className="flex flex-col gap-2">
+              <div key={line.item.id} className="flex flex-col gap-2">
                 <div className="flex justify-between items-start gap-2">
                   <div>
-                    <h4 className="text-sm font-medium text-on-surface line-clamp-1">{line.product.name}</h4>
+                    <h4 className="text-sm font-medium text-on-surface line-clamp-1">{line.item.name}</h4>
                     <p className="text-[10px] text-on-surface-variant mt-0.5 uppercase tracking-wide">
-                      SKU: {line.product.sku}
+                      {line.item.kind === "service" ? "Servicio" : `SKU: ${line.item.sku}`}
                     </p>
                   </div>
                   <span className="text-sm font-bold text-on-surface shrink-0">
-                    ${money(line.product.price * line.quantity)}
+                    ${money(line.item.price * line.quantity)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between mt-1">
                   <div className="flex items-center border border-outline-variant/20 rounded-lg overflow-hidden bg-surface-container-lowest">
                     <button
-                      onClick={() => decrement(line.product.id)}
+                      onClick={() => decrement(line.item.id)}
                       className="w-8 h-7 flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors"
                     >
                       −
                     </button>
                     <span className="w-8 text-center text-xs font-medium text-on-surface">{line.quantity}</span>
                     <button
-                      onClick={() => increment(line.product.id)}
+                      onClick={() => increment(line.item.id)}
                       className="w-8 h-7 flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors"
                     >
                       +
                     </button>
                   </div>
                   <button
-                    onClick={() => removeFromCart(line.product.id)}
+                    onClick={() => removeFromCart(line.item.id)}
                     className="text-error/70 hover:text-error transition-colors p-1"
-                    aria-label="Quitar producto"
+                    aria-label="Quitar ítem"
                   >
                     <IconTrash className="w-4 h-4" />
                   </button>

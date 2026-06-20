@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import * as posService from "@/services/pos.service";
 import type {
-  CatalogProduct,
+  CatalogItem,
   CustomerOption,
   CartLine,
   PaymentMethod,
@@ -9,7 +9,7 @@ import type {
 
 interface PosState {
   // Datos del catálogo (vienen de services)
-  catalog: CatalogProduct[];
+  catalog: CatalogItem[];
   customers: CustomerOption[];
   taxRate: number;
   loading: boolean;
@@ -23,10 +23,10 @@ interface PosState {
   submitting: boolean;
 
   init: () => Promise<void>;
-  addToCart: (product: CatalogProduct) => void;
-  increment: (productId: string) => void;
-  decrement: (productId: string) => void;
-  removeFromCart: (productId: string) => void;
+  addToCart: (item: CatalogItem) => void;
+  increment: (itemId: string) => void;
+  decrement: (itemId: string) => void;
+  removeFromCart: (itemId: string) => void;
   setCustomer: (customerId: string | null) => void;
   setDiscount: (discount: number) => void;
   setPaymentMethod: (method: PaymentMethod) => void;
@@ -65,37 +65,37 @@ export const usePosStore = create<PosState>((set, get) => ({
     }
   },
 
-  addToCart: (product) =>
+  addToCart: (item) =>
     set((s) => {
-      const existing = s.cart.find((l) => l.product.id === product.id);
+      const existing = s.cart.find((l) => l.item.id === item.id);
       if (existing) {
         return {
           cart: s.cart.map((l) =>
-            l.product.id === product.id ? { ...l, quantity: l.quantity + 1 } : l,
+            l.item.id === item.id ? { ...l, quantity: l.quantity + 1 } : l,
           ),
         };
       }
-      return { cart: [...s.cart, { product, quantity: 1 }] };
+      return { cart: [...s.cart, { item, quantity: 1 }] };
     }),
 
-  increment: (productId) =>
+  increment: (itemId) =>
     set((s) => ({
       cart: s.cart.map((l) =>
-        l.product.id === productId ? { ...l, quantity: l.quantity + 1 } : l,
+        l.item.id === itemId ? { ...l, quantity: l.quantity + 1 } : l,
       ),
     })),
 
-  decrement: (productId) =>
+  decrement: (itemId) =>
     set((s) => ({
       cart: s.cart
         .map((l) =>
-          l.product.id === productId ? { ...l, quantity: l.quantity - 1 } : l,
+          l.item.id === itemId ? { ...l, quantity: l.quantity - 1 } : l,
         )
         .filter((l) => l.quantity > 0),
     })),
 
-  removeFromCart: (productId) =>
-    set((s) => ({ cart: s.cart.filter((l) => l.product.id !== productId) })),
+  removeFromCart: (itemId) =>
+    set((s) => ({ cart: s.cart.filter((l) => l.item.id !== itemId) })),
 
   setCustomer: (customerId) => set({ customerId }),
   setDiscount: (discount) => set({ discount: Number.isFinite(discount) ? Math.max(discount, 0) : 0 }),
@@ -111,7 +111,11 @@ export const usePosStore = create<PosState>((set, get) => ({
         customerId,
         paymentMethod,
         discount,
-        items: cart.map((l) => ({ product_id: l.product.id, quantity: l.quantity })),
+        items: cart.map((l) =>
+          l.item.kind === "service"
+            ? { service_id: l.item.id, quantity: l.quantity }
+            : { product_id: l.item.id, quantity: l.quantity },
+        ),
       });
       // Refresca el catálogo para reflejar el stock ya descontado por la RPC.
       const catalog = await posService.fetchCatalog();
