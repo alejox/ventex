@@ -9,6 +9,7 @@ export interface CatalogProduct {
   stock_level: number;
   category_id: string | null;
   category_name: string | null;
+  image_url: string | null;
 }
 
 export interface CustomerOption {
@@ -20,6 +21,7 @@ export interface CustomerOption {
 export interface CartLine {
   product: CatalogProduct;
   quantity: number;
+  discountAmount?: number;
 }
 
 export interface SaleTotals {
@@ -47,11 +49,11 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
 export function computeTotals(
   lines: CartLine[],
   taxRate: number,
-  taxExempt: boolean,
-  discount: number,
+  taxExempt: boolean
 ): SaleTotals {
   const subtotal = round2(lines.reduce((s, l) => s + l.product.price * l.quantity, 0));
-  const taxable = Math.max(subtotal - discount, 0);
+  const totalDiscount = round2(lines.reduce((s, l) => s + (l.discountAmount || 0), 0));
+  const taxable = Math.max(subtotal - totalDiscount, 0);
   const taxAmount = round2(taxable * (taxExempt ? 0 : taxRate));
   const total = round2(taxable + taxAmount);
   return { subtotal, taxAmount, total };
@@ -61,7 +63,7 @@ export async function fetchCatalog(): Promise<CatalogProduct[]> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("products")
-    .select("id, name, sku, price, stock_level, category_id, categories(name)")
+    .select("id, name, sku, price, stock_level, category_id, image_url, categories(name)")
     .order("name");
   if (error) throw error;
   return (data ?? []).map((p) => {
@@ -76,6 +78,7 @@ export async function fetchCatalog(): Promise<CatalogProduct[]> {
       stock_level: p.stock_level,
       category_id: p.category_id,
       category_name,
+      image_url: p.image_url ?? null,
     };
   });
 }
@@ -114,4 +117,15 @@ export async function createSale(input: CheckoutInput): Promise<string> {
   });
   if (error) throw error;
   return data as string;
+}
+
+export async function createCustomer(name: string): Promise<CustomerOption> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("customers")
+    .insert({ full_name: name, tax_exempt: false })
+    .select("id, full_name, tax_exempt")
+    .single();
+  if (error) throw error;
+  return data as CustomerOption;
 }

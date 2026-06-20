@@ -44,6 +44,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [calculatorOpen, setCalculatorOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const navigation = visibleNavItems(profile?.businessType ?? null, profile?.modules ?? null);
   const userName = profile?.fullName ?? "Admin";
@@ -58,17 +59,25 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     .toUpperCase();
 
   return (
-    <div className="flex min-h-screen bg-background text-on-background font-sans">
+    <div className="flex h-screen bg-background text-on-background font-sans">
       {/* Sidebar - Desktop */}
-      <aside className="hidden lg:flex w-64 flex-col justify-between border-r border-outline-variant/10 bg-surface-container-lowest transition-all">
+      <aside className={`print:hidden hidden lg:flex flex-col justify-between border-r border-outline-variant/10 bg-surface-container-lowest transition-all duration-300 ${sidebarCollapsed ? "w-20" : "w-64"}`}>
         <div>
-          <div className="h-20 flex items-center px-8 border-b border-outline-variant/10">
-            <LogoHorizontal className="w-[110px] h-[30px]" />
+          <div className="h-20 flex items-center justify-center border-b border-outline-variant/10 px-4">
+            {sidebarCollapsed ? (
+              <LogoVertical className="w-[30px] h-[30px]" />
+            ) : (
+              <LogoHorizontal className="w-[110px] h-[30px]" />
+            )}
           </div>
           <nav className="p-4 space-y-1">
-            <div className="text-[10px] font-bold text-on-surface-variant uppercase tracking-[0.2em] mb-4 px-4 mt-4">
-              Menú Principal
-            </div>
+            {!sidebarCollapsed ? (
+              <div className="text-[10px] font-bold text-on-surface-variant uppercase tracking-[0.2em] mb-4 px-4 mt-4 whitespace-nowrap overflow-hidden">
+                Menú Principal
+              </div>
+            ) : (
+              <div className="h-4 mt-4 mb-4" />
+            )}
             {navigation.map((item) => {
               const Icon = NAV_ICONS[item.id];
               const isActive = pathname === item.href;
@@ -76,14 +85,17 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                 <Link
                   key={item.id}
                   href={item.href}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-sm font-medium ${
+                  className={`flex items-center gap-3 py-3 rounded-xl transition-all text-sm font-medium overflow-hidden ${
+                    sidebarCollapsed ? "justify-center px-0" : "px-4"
+                  } ${
                     isActive
                       ? "bg-primary/10 text-primary"
                       : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
                   }`}
+                  title={sidebarCollapsed ? item.name : undefined}
                 >
-                  {Icon && <Icon className="w-5 h-5" />}
-                  {item.name}
+                  {Icon && <Icon className="w-5 h-5 shrink-0" />}
+                  {!sidebarCollapsed && <span className="whitespace-nowrap">{item.name}</span>}
                 </Link>
               );
             })}
@@ -93,10 +105,13 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         <div className="p-4 border-t border-outline-variant/10">
           <Link
             href="/dashboard/settings"
-            className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-sm font-medium text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
+            className={`flex items-center gap-3 py-3 rounded-xl transition-all text-sm font-medium text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low overflow-hidden ${
+              sidebarCollapsed ? "justify-center px-0" : "px-4"
+            }`}
+            title={sidebarCollapsed ? "Configuración" : undefined}
           >
-            <IconSettings className="w-5 h-5" />
-            Configuración
+            <IconSettings className="w-5 h-5 shrink-0" />
+            {!sidebarCollapsed && <span className="whitespace-nowrap">Configuración</span>}
           </Link>
         </div>
       </aside>
@@ -104,7 +119,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top Navbar */}
-        <header className="h-20 flex items-center justify-between px-6 lg:px-10 border-b border-outline-variant/10 bg-surface-container-lowest sticky top-0 z-20">
+        <header className="print:hidden h-20 flex items-center justify-between px-6 lg:px-10 border-b border-outline-variant/10 bg-surface-container-lowest sticky top-0 z-20">
           <div className="flex items-center gap-4 lg:hidden">
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -115,7 +130,14 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             <LogoVertical className="w-[50px] h-[24px]" />
           </div>
 
-          <div className="hidden lg:flex flex-1 max-w-xl">
+          <div className="hidden lg:flex items-center gap-4 flex-1 max-w-xl">
+            <button
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              className="text-on-surface-variant hover:text-on-surface focus:outline-none p-2 rounded-full hover:bg-surface-container-low transition-colors mr-2 shrink-0"
+              title="Alternar menú"
+            >
+              <IconMenu className="w-6 h-6" />
+            </button>
             <div className="relative w-full">
               <IconSearch className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant" />
               <input
@@ -205,7 +227,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-auto bg-background p-6 lg:p-10">
+        <main className="flex-1 overflow-auto bg-background p-6 lg:p-10 print:p-0 print:bg-white print:overflow-visible">
           {children}
         </main>
       </div>
@@ -294,7 +316,15 @@ function CalculatorModal({ onClose }: { onClose: () => void }) {
   };
 
   const backspace = () => {
-    setDisplay((s) => (s.length > 1 ? s.slice(0, -1) : "0"));
+    if (expression) {
+      setDisplay("0");
+      setPrev(null);
+      setOp(null);
+      setReset(false);
+      setExpression("");
+    } else {
+      setDisplay((s) => (s.length > 1 ? s.slice(0, -1) : "0"));
+    }
   };
 
   const clear = () => {

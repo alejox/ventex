@@ -35,16 +35,7 @@ export default function SettingsPage() {
   }, [fetchSettings]);
 
   return (
-    <div className="w-full max-w-2xl mx-auto pb-20 animate-in fade-in duration-300">
-      <div className="flex items-center gap-3 mb-6">
-        <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
-          <IconSettings className="w-5 h-5" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-bold text-on-surface">Ajustes</h1>
-          <p className="text-sm text-on-surface-variant">Configuración general de tu cuenta.</p>
-        </div>
-      </div>
+    <div className="w-full max-w-4xl mx-auto animate-in fade-in duration-300">
 
       <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-3xl p-6 md:p-8 shadow-sm mb-6">
         <h2 className="text-lg font-bold text-on-surface mb-1">Facturación</h2>
