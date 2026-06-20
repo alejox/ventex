@@ -87,11 +87,14 @@ export async function updateVehicle(id: string, input: NewVehicleInput): Promise
 /**
  * Busca un vehículo por placa (en la cuenta actual) o lo crea si no existe.
  * Usado al guardar una cita de lavaautos para enlazarla sin paso de registro.
+ * Si se pasa `customerId`, se preselecciona como dueño: al crear el vehículo,
+ * o al rellenar el dueño de uno existente que aún no lo tenía.
  * Devuelve el id del vehículo, o null si no hay placa.
  */
 export async function findOrCreateVehicleByPlate(
   plate: string,
   makeModel?: string,
+  customerId?: string | null,
 ): Promise<string | null> {
   const p = normalizePlate(plate || "");
   if (!p) return null;
@@ -99,15 +102,21 @@ export async function findOrCreateVehicleByPlate(
 
   const { data: existing, error: findErr } = await supabase
     .from("vehicles")
-    .select("id")
+    .select("id, customer_id")
     .eq("plate", p)
     .maybeSingle();
   if (findErr) throw findErr;
-  if (existing) return existing.id;
+  if (existing) {
+    // Rellena el dueño con el cliente de la cita solo si aún no tenía.
+    if (customerId && !existing.customer_id) {
+      await supabase.from("vehicles").update({ customer_id: customerId }).eq("id", existing.id);
+    }
+    return existing.id;
+  }
 
   const { data: created, error } = await supabase
     .from("vehicles")
-    .insert({ plate: p, make_model: makeModel || null })
+    .insert({ plate: p, make_model: makeModel || null, customer_id: customerId || null })
     .select("id")
     .single();
   if (error) throw error;

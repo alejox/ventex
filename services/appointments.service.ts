@@ -95,6 +95,7 @@ export async function createAppointment(
   const vehicle_id = await findOrCreateVehicleByPlate(
     input.vehicle_plate,
     input.vehicle_model,
+    input.customer_id,
   );
   const { data, error } = await supabase
     .from("appointments")
@@ -132,6 +133,7 @@ export async function updateAppointment(
   const vehicle_id = await findOrCreateVehicleByPlate(
     input.vehicle_plate,
     input.vehicle_model,
+    input.customer_id,
   );
   const { data, error } = await supabase
     .from("appointments")
