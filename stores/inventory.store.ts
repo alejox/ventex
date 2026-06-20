@@ -3,6 +3,7 @@ import * as inventoryService from "@/services/inventory.service";
 import type {
   Product,
   Category,
+  DistributorBrief,
   NewProductInput,
   NewCategoryInput,
 } from "@/services/inventory.service";
@@ -10,6 +11,7 @@ import type {
 interface InventoryState {
   products: Product[];
   categories: Category[];
+  distributors: DistributorBrief[];
   loading: boolean;
   error: string | null;
   fetchInventory: () => Promise<void>;
@@ -19,6 +21,7 @@ interface InventoryState {
    * como `image_url`.
    */
   addProduct: (input: NewProductInput, imageFile?: File | null) => Promise<boolean>;
+  updateProduct: (id: string, input: NewProductInput, imageFile?: File | null) => Promise<boolean>;
   addCategory: (input: NewCategoryInput) => Promise<boolean>;
 }
 
@@ -28,17 +31,19 @@ const toMessage = (e: unknown) =>
 export const useInventoryStore = create<InventoryState>((set) => ({
   products: [],
   categories: [],
+  distributors: [],
   loading: false,
   error: null,
 
   fetchInventory: async () => {
     set({ loading: true, error: null });
     try {
-      const [categories, products] = await Promise.all([
+      const [categories, products, distributors] = await Promise.all([
         inventoryService.fetchCategories(),
         inventoryService.fetchProducts(),
+        inventoryService.fetchDistributors(),
       ]);
-      set({ categories, products, loading: false });
+      set({ categories, products, distributors, loading: false });
     } catch (e) {
       set({ error: toMessage(e), loading: false });
     }
@@ -51,6 +56,20 @@ export const useInventoryStore = create<InventoryState>((set) => ({
         : input.image_url;
       const product = await inventoryService.createProduct({ ...input, image_url });
       set((s) => ({ products: [product, ...s.products] }));
+      return true;
+    } catch (e) {
+      set({ error: toMessage(e) });
+      return false;
+    }
+  },
+
+  updateProduct: async (id, input, imageFile) => {
+    try {
+      const image_url = imageFile
+        ? await inventoryService.uploadProductImage(imageFile)
+        : input.image_url;
+      const product = await inventoryService.updateProduct(id, { ...input, image_url });
+      set((s) => ({ products: s.products.map((p) => (p.id === id ? product : p)) }));
       return true;
     } catch (e) {
       set({ error: toMessage(e) });

@@ -81,7 +81,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: "inventory", name: "Inventario", href: "/dashboard/inventory", modules: ["inventory"] },
   { id: "finance", name: "Finanzas", href: "/dashboard/finance", modules: [] },
   { id: "customers", name: "Clientes", href: "/dashboard/customers", modules: [] },
-  { id: "distributors", name: "Distribuidores", href: "/dashboard/distributors", modules: ["inventory"] },
+  { id: "distributors", name: "Proveedores", href: "/dashboard/distributors", modules: ["inventory"] },
   { id: "calendar", name: "Calendario", href: "/dashboard/calendar", modules: ["appointments"] },
 ];
 

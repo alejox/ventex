@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { LogoHorizontal, LogoVertical } from "@/components/Logo";
 import {
@@ -43,6 +43,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const profile = useProfile();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [calculatorOpen, setCalculatorOpen] = useState(false);
 
   const navigation = visibleNavItems(profile?.businessType ?? null, profile?.modules ?? null);
   const userName = profile?.fullName ?? "Admin";
@@ -126,6 +127,23 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="flex items-center gap-4 sm:gap-6 ml-auto">
+            <button
+              onClick={() => setCalculatorOpen(true)}
+              className="text-on-surface-variant hover:text-on-surface transition-colors"
+              title="Calculadora"
+            >
+              <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-5 h-5">
+                <rect x="4" y="2" width="16" height="20" rx="2" />
+                <line x1="8" y1="6" x2="16" y2="6" />
+                <line x1="8" y1="10" x2="8" y2="10.01" />
+                <line x1="12" y1="10" x2="12" y2="10.01" />
+                <line x1="16" y1="10" x2="16" y2="10.01" />
+                <line x1="8" y1="14" x2="8" y2="14.01" />
+                <line x1="12" y1="14" x2="12" y2="14.01" />
+                <line x1="16" y1="14" x2="16" y2="14.01" />
+                <line x1="8" y1="18" x2="16" y2="18" />
+              </svg>
+            </button>
             <ThemeToggle />
             <button className="text-on-surface-variant hover:text-on-surface transition-colors relative">
               <IconBell className="w-5 h-5" />
@@ -188,9 +206,14 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
         {/* Page Content */}
         <main className="flex-1 overflow-auto bg-background p-6 lg:p-10">
-          <div className="max-w-6xl mx-auto">{children}</div>
+          {children}
         </main>
       </div>
+
+      {/* Calculator Modal */}
+      {calculatorOpen && (
+        <CalculatorModal onClose={() => setCalculatorOpen(false)} />
+      )}
 
       {/* Mobile Menu (Overlay) */}
       {mobileMenuOpen && (
@@ -241,6 +264,173 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           </aside>
         </div>
       )}
+    </div>
+  );
+}
+
+function CalculatorModal({ onClose }: { onClose: () => void }) {
+  const [display, setDisplay] = useState("0");
+  const [prev, setPrev] = useState<number | null>(null);
+  const [op, setOp] = useState<string | null>(null);
+  const [reset, setReset] = useState(false);
+  const [expression, setExpression] = useState("");
+
+  const inputDigit = (d: string) => {
+    if (reset) {
+      setDisplay(d);
+      setReset(false);
+    } else {
+      setDisplay((s) => (s === "0" ? d : s + d));
+    }
+  };
+
+  const inputDecimal = () => {
+    if (reset) {
+      setDisplay("0.");
+      setReset(false);
+    } else if (!display.includes(".")) {
+      setDisplay((s) => s + ".");
+    }
+  };
+
+  const backspace = () => {
+    setDisplay((s) => (s.length > 1 ? s.slice(0, -1) : "0"));
+  };
+
+  const clear = () => {
+    setDisplay("0");
+    setPrev(null);
+    setOp(null);
+    setReset(false);
+    setExpression("");
+  };
+
+  const displayOp = (operator: string) => {
+    switch (operator) {
+      case "÷": return "÷";
+      case "×": return "×";
+      default: return operator;
+    }
+  };
+
+  const setOperation = (nextOp: string) => {
+    const n = parseFloat(display);
+    if (prev === null) {
+      setPrev(n);
+      setExpression(`${n} ${displayOp(nextOp)}`);
+    } else if (op) {
+      const result = calculate(prev, n, op);
+      setDisplay(String(result));
+      setPrev(result);
+      setExpression(`${result} ${displayOp(nextOp)}`);
+    } else {
+      setExpression(`${prev} ${displayOp(nextOp)}`);
+    }
+    setOp(nextOp);
+    setReset(true);
+  };
+
+  const calculate = (a: number, b: number, operation: string): number => {
+    switch (operation) {
+      case "+": return a + b;
+      case "-": return a - b;
+      case "×": return a * b;
+      case "÷": return b !== 0 ? a / b : 0;
+      default: return b;
+    }
+  };
+
+  const evaluate = () => {
+    const n = parseFloat(display);
+    if (prev !== null && op) {
+      const result = calculate(prev, n, op);
+      setExpression(`${prev} ${displayOp(op)} ${n} =`);
+      setDisplay(String(result));
+      setPrev(result);
+      setOp(null);
+      setReset(true);
+    }
+  };
+
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { onClose(); return; }
+      if (e.key === "Enter" || e.key === "=") { evaluate(); return; }
+      if (e.key === "Backspace") { backspace(); return; }
+      if (e.key === ".") { inputDecimal(); return; }
+      if (e.key === "Delete") { clear(); return; }
+      if (/^[0-9]$/.test(e.key)) { inputDigit(e.key); return; }
+      if (e.key === "+") { setOperation("+"); return; }
+      if (e.key === "-") { setOperation("-"); return; }
+      if (e.key === "*") { setOperation("×"); return; }
+      if (e.key === "/") { e.preventDefault(); setOperation("÷"); return; }
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  });
+
+  const btn = (label: string, onClick: () => void, className = "") => (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`h-12 rounded-xl text-sm font-bold transition-colors ${className}`}
+    >
+      {label}
+    </button>
+  );
+
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose}>
+      <div
+        className="bg-surface-container rounded-3xl w-full max-w-xs border border-outline-variant/10 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="p-4 border-b border-outline-variant/10 flex justify-between items-center bg-surface-container-low">
+          <h2 className="text-sm font-bold text-on-surface">Calculadora</h2>
+          <button
+            onClick={onClose}
+            className="w-7 h-7 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors"
+          >
+            <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="16" height="16">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="p-4 space-y-3">
+          <div className="bg-surface-container-lowest rounded-2xl px-4 py-2 text-right min-h-[72px] flex flex-col justify-end">
+            {expression && (
+              <span className="text-xs text-on-surface-variant/60 tabular-nums mb-1">{expression}</span>
+            )}
+            <span className="text-3xl font-bold text-on-surface tabular-nums">{display}</span>
+          </div>
+
+          <div className="grid grid-cols-4 gap-2">
+            {btn("C", clear, "bg-error-container/20 text-error-dim hover:bg-error-container/30")}
+            {btn("⌫", backspace, "bg-surface-container-high text-on-surface hover:bg-surface-container-highest")}
+            {btn("÷", () => setOperation("÷"), "bg-surface-container-high text-on-surface hover:bg-surface-container-highest")}
+            {btn("×", () => setOperation("×"), "bg-surface-container-high text-on-surface hover:bg-surface-container-highest")}
+
+            {btn("7", () => inputDigit("7"), "bg-surface-container-lowest text-on-surface hover:bg-surface-container")}
+            {btn("8", () => inputDigit("8"), "bg-surface-container-lowest text-on-surface hover:bg-surface-container")}
+            {btn("9", () => inputDigit("9"), "bg-surface-container-lowest text-on-surface hover:bg-surface-container")}
+            {btn("-", () => setOperation("-"), "bg-surface-container-high text-on-surface hover:bg-surface-container-highest")}
+
+            {btn("4", () => inputDigit("4"), "bg-surface-container-lowest text-on-surface hover:bg-surface-container")}
+            {btn("5", () => inputDigit("5"), "bg-surface-container-lowest text-on-surface hover:bg-surface-container")}
+            {btn("6", () => inputDigit("6"), "bg-surface-container-lowest text-on-surface hover:bg-surface-container")}
+            {btn("+", () => setOperation("+"), "bg-surface-container-high text-on-surface hover:bg-surface-container-highest")}
+
+            {btn("1", () => inputDigit("1"), "bg-surface-container-lowest text-on-surface hover:bg-surface-container")}
+            {btn("2", () => inputDigit("2"), "bg-surface-container-lowest text-on-surface hover:bg-surface-container")}
+            {btn("3", () => inputDigit("3"), "bg-surface-container-lowest text-on-surface hover:bg-surface-container")}
+            {btn("=", evaluate, "bg-primary text-on-primary hover:bg-primary-dim row-span-2")}
+
+            {btn("0", () => inputDigit("0"), "bg-surface-container-lowest text-on-surface hover:bg-surface-container col-span-2")}
+            {btn(".", inputDecimal, "bg-surface-container-lowest text-on-surface hover:bg-surface-container")}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

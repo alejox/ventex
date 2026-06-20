@@ -17,7 +17,7 @@ export const metadata: Metadata = {
     "Punto de venta, inventario, finanzas y clientes en una sola plataforma. Empieza a vender en minutos.",
 };
 
-const BUSINESS_TYPES = ["Tiendas", "Salones", "Lava-autos", "Servicios", "Distribuidoras"];
+const BUSINESS_TYPES = ["Tiendas", "Salones", "Lava-autos", "Servicios", "Proveedoras"];
 
 const money = (n: number) =>
   n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });

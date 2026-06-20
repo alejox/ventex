@@ -16,6 +16,8 @@ function IconTruck(props: React.SVGProps<SVGSVGElement>) {
   );
 }
 
+const DOC_TYPES = ["NIT", "CC", "RUT", "RFC"];
+
 const EMPTY_DISTRIBUTOR: NewDistributorInput = {
   business_name: "",
   contact_name: "",
@@ -23,6 +25,7 @@ const EMPTY_DISTRIBUTOR: NewDistributorInput = {
   phone: "",
   address: "",
   rfc_rut: "",
+  doc_type: "NIT",
 };
 
 export default function DistributorsPage() {
@@ -58,15 +61,15 @@ export default function DistributorsPage() {
     <div className="flex flex-col gap-6 w-full animate-in fade-in duration-500">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-on-surface">Distribuidores</h1>
-          <p className="text-sm text-on-surface-variant mt-1">Gestiona tus proveedores y distribuidores.</p>
+          <h1 className="text-2xl font-bold text-on-surface">Proveedores</h1>
+          <p className="text-sm text-on-surface-variant mt-1">Gestiona tus proveedores.</p>
         </div>
         <button
           onClick={() => setModalOpen(true)}
           className="bg-[#6063ee] hover:bg-[#c0c1ff] text-white hover:text-[#0b0664] text-sm font-semibold py-2.5 px-4 rounded-xl shadow-lg shadow-[#6063ee]/20 transition-colors flex items-center justify-center gap-2"
         >
           <IconPlus className="w-4 h-4" />
-          <span>Añadir Distribuidor</span>
+          <span>Añadir Proveedor</span>
         </button>
       </div>
 
@@ -77,21 +80,21 @@ export default function DistributorsPage() {
       )}
 
       {loading ? (
-        <p className="text-center text-sm text-on-surface-variant py-12">Cargando distribuidores…</p>
+        <p className="text-center text-sm text-on-surface-variant py-12">Cargando proveedores…</p>
       ) : distributors.length === 0 ? (
         <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-3xl p-12 shadow-sm flex flex-col items-center justify-center text-center mt-8">
           <div className="w-16 h-16 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant mb-4">
             <IconTruck />
           </div>
-          <h2 className="text-lg font-bold text-on-surface mb-2">Aún no hay distribuidores</h2>
+          <h2 className="text-lg font-bold text-on-surface mb-2">Aún no hay proveedores</h2>
           <p className="text-sm text-on-surface-variant max-w-sm mb-6">
-            Registra a tus distribuidores para gestionar pedidos, pagos y stock de forma centralizada.
+            Registra a tus proveedores para gestionar pedidos, pagos y stock de forma centralizada.
           </p>
           <button
             onClick={() => setModalOpen(true)}
             className="px-6 py-2.5 bg-surface-container border border-outline-variant/20 text-on-surface text-sm font-semibold rounded-xl hover:bg-surface-container-high transition-colors"
           >
-            Añadir tu primer distribuidor
+            Añadir tu primer proveedor
           </button>
         </div>
       ) : (
@@ -103,7 +106,7 @@ export default function DistributorsPage() {
                   <th className="p-4 pl-6">Negocio</th>
                   <th className="p-4">Contacto</th>
                   <th className="p-4">Teléfono</th>
-                  <th className="p-4">RFC / RUT</th>
+                  <th className="p-4">Documento</th>
                   <th className="p-4 text-center">Estado</th>
                 </tr>
               </thead>
@@ -116,7 +119,7 @@ export default function DistributorsPage() {
                       <div className="text-xs text-on-surface-variant/70">{d.email ?? ""}</div>
                     </td>
                     <td className="p-4 text-on-surface-variant">{d.phone ?? "—"}</td>
-                    <td className="p-4 text-on-surface-variant font-mono text-xs">{d.rfc_rut ?? "—"}</td>
+                    <td className="p-4 text-on-surface-variant font-mono text-xs">{d.doc_type ? `${d.doc_type} ${d.rfc_rut}` : (d.rfc_rut ?? "—")}</td>
                     <td className="p-4 text-center">
                       <span
                         className={`inline-flex px-2.5 py-1 rounded-md text-[11px] font-bold border ${
@@ -136,12 +139,12 @@ export default function DistributorsPage() {
         </div>
       )}
 
-      {/* Modal Nuevo Distribuidor */}
+      {/* Modal Nuevo Proveedor */}
       {modalOpen && (
         <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-surface-container rounded-t-3xl sm:rounded-3xl w-full sm:max-w-lg max-h-[90vh] border border-outline-variant/10 shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200 flex flex-col">
             <div className="p-4 sm:p-6 border-b border-outline-variant/10 flex justify-between items-center bg-surface-container-low shrink-0">
-              <h2 className="text-lg sm:text-xl font-bold text-on-surface">Nuevo Distribuidor</h2>
+              <h2 className="text-lg sm:text-xl font-bold text-on-surface">Nuevo Proveedor</h2>
               <button
                 onClick={handleCloseModal}
                 className="w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors"
@@ -168,7 +171,7 @@ export default function DistributorsPage() {
                   value={form.business_name}
                   onChange={(e) => setForm({ ...form, business_name: e.target.value })}
                   className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50"
-                  placeholder="Ej. Distribuidora del Norte S.A."
+                  placeholder="Ej. Proveedora del Norte S.A."
                 />
               </div>
 
@@ -190,30 +193,40 @@ export default function DistributorsPage() {
                     value={form.email}
                     onChange={(e) => setForm({ ...form, email: e.target.value })}
                     className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50"
-                    placeholder="contacto@distribuidora.com"
+                    placeholder="contacto@proveedora.com"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-on-surface block">Teléfono</label>
-                  <input
-                    type="tel"
-                    value={form.phone}
-                    onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                    className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50"
-                    placeholder="+52 55 1234 5678"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-on-surface block">RFC / RUT</label>
+              <div className="space-y-1.5">
+                <label className="text-[13px] font-semibold text-on-surface block">Teléfono</label>
+                <input
+                  type="tel"
+                  value={form.phone}
+                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50"
+                  placeholder="+52 55 1234 5678"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[13px] font-semibold text-on-surface block">Documento</label>
+                <div className="flex gap-2">
+                  <select
+                    value={form.doc_type}
+                    onChange={(e) => setForm({ ...form, doc_type: e.target.value })}
+                    className="w-24 shrink-0 bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all appearance-none"
+                  >
+                    {DOC_TYPES.map((t) => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
                   <input
                     type="text"
                     value={form.rfc_rut}
                     onChange={(e) => setForm({ ...form, rfc_rut: e.target.value })}
-                    className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all font-mono placeholder:text-on-surface-variant/50"
-                    placeholder="DNO890123AAA"
+                    className="flex-1 bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all font-mono placeholder:text-on-surface-variant/50"
+                    placeholder="Número de documento"
                   />
                 </div>
               </div>
@@ -242,7 +255,7 @@ export default function DistributorsPage() {
                   disabled={submitting}
                   className="flex-1 px-5 py-2.5 rounded-xl text-sm font-semibold bg-primary hover:bg-primary-dim text-on-primary shadow-[0_0_15px_rgba(96,99,238,0.2)] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {submitting ? "Guardando…" : "Guardar Distribuidor"}
+                  {submitting ? "Guardando…" : "Guardar Proveedor"}
                 </button>
               </div>
             </form>

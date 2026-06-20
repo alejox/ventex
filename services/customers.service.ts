@@ -7,6 +7,7 @@ export interface Customer {
   email: string | null;
   phone: string | null;
   identification: string | null;
+  doc_type: string | null;
   tax_exempt: boolean;
   created_at: string;
 }
@@ -16,10 +17,11 @@ export interface NewCustomerInput {
   email: string;
   phone: string;
   identification: string;
+  doc_type: string;
   tax_exempt: boolean;
 }
 
-const SELECT = "id, full_name, email, phone, identification, tax_exempt, created_at";
+const SELECT = "id, full_name, email, phone, identification, doc_type, tax_exempt, created_at";
 
 export async function fetchCustomers(): Promise<Customer[]> {
   const supabase = createClient();
@@ -37,6 +39,7 @@ export async function createCustomer(input: NewCustomerInput): Promise<Customer>
       email: input.email || null,
       phone: input.phone || null,
       identification: input.identification || null,
+      doc_type: input.doc_type || null,
       tax_exempt: input.tax_exempt,
       // user_id lo asigna el trigger set_customers_user_id.
     })

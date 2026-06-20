@@ -5,11 +5,14 @@ import { IconUsers, IconPlus } from "@/app/assets/icons/DashboardIcons";
 import { useCustomersStore } from "@/stores/customers.store";
 import type { NewCustomerInput } from "@/services/customers.service";
 
+const DOC_TYPES = ["CC", "NIT", "RUT", "RFC"];
+
 const EMPTY_CUSTOMER: NewCustomerInput = {
   full_name: "",
   email: "",
   phone: "",
   identification: "",
+  doc_type: "CC",
   tax_exempt: false,
 };
 
@@ -90,7 +93,7 @@ export default function CustomersPage() {
                 <tr className="bg-surface-container-low border-b border-outline-variant/10 text-[10px] uppercase tracking-wider text-on-surface-variant font-bold">
                   <th className="p-4 pl-6">Nombre</th>
                   <th className="p-4">Contacto</th>
-                  <th className="p-4">RFC / RUT</th>
+                  <th className="p-4">Documento</th>
                   <th className="p-4 text-center">Impuestos</th>
                 </tr>
               </thead>
@@ -102,7 +105,7 @@ export default function CustomersPage() {
                       <div>{c.email ?? "—"}</div>
                       <div className="text-xs text-on-surface-variant/70">{c.phone ?? ""}</div>
                     </td>
-                    <td className="p-4 text-on-surface-variant font-mono text-xs">{c.identification ?? "—"}</td>
+                    <td className="p-4 text-on-surface-variant font-mono text-xs">{c.doc_type ? `${c.doc_type} ${c.identification}` : (c.identification ?? "—")}</td>
                     <td className="p-4 text-center">
                       {c.tax_exempt ? (
                         <span className="inline-flex px-2.5 py-1 rounded-md text-[11px] font-bold bg-[#f59e0b]/10 text-[#f59e0b] border border-[#f59e0b]/20">
@@ -182,14 +185,25 @@ export default function CustomersPage() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[13px] font-semibold text-on-surface block">RFC / RUT</label>
-                <input
-                  type="text"
-                  value={form.identification}
-                  onChange={(e) => setForm({ ...form, identification: e.target.value })}
-                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all font-mono placeholder:text-on-surface-variant/50"
-                  placeholder="MGO890123AAA"
-                />
+                <label className="text-[13px] font-semibold text-on-surface block">Documento</label>
+                <div className="flex gap-2">
+                  <select
+                    value={form.doc_type}
+                    onChange={(e) => setForm({ ...form, doc_type: e.target.value })}
+                    className="w-24 shrink-0 bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all appearance-none"
+                  >
+                    {DOC_TYPES.map((t) => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                  <input
+                    type="text"
+                    value={form.identification}
+                    onChange={(e) => setForm({ ...form, identification: e.target.value })}
+                    className="flex-1 bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all font-mono placeholder:text-on-surface-variant/50"
+                    placeholder="Número de documento"
+                  />
+                </div>
                 <p className="text-xs text-on-surface-variant">Requerido para facturación.</p>
               </div>
 
