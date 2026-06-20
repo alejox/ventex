@@ -16,6 +16,8 @@ desde cero: `supabase db reset` (aplica todas en orden).
 | `20260619224029_drop_broad_product_images_read_policy` | Historial remoto |
 | `20260620005908_add_distributor_id_to_products` | Historial remoto |
 | `20260620012351_add_doc_type_to_distributors_and_customers` | Historial remoto |
+| `20260620120000_create_services_and_staff_tables` | Historial remoto — módulos Salón / Barbería |
+| `20260620120500_harden_appointments_user_id` | Historial remoto — default + trigger en appointments |
 
 ## Notas
 

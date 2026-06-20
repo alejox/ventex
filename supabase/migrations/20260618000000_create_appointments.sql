@@ -3,7 +3,7 @@
 
 CREATE TABLE IF NOT EXISTS appointments (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  user_id uuid NOT NULL DEFAULT auth.uid() REFERENCES auth.users(id) ON DELETE CASCADE,
   customer_id uuid REFERENCES customers(id) ON DELETE SET NULL,
   title text NOT NULL,
   description text,
@@ -25,6 +25,11 @@ CREATE POLICY "Users own appointments" ON appointments
 
 -- Permitir acceso al rol authenticated
 GRANT SELECT, INSERT, UPDATE, DELETE ON appointments TO authenticated;
+
+-- user_id lo fija el trigger (anti-spoofing); el DEFAULT auth.uid() lo hace opcional en INSERT.
+CREATE TRIGGER set_appointments_user_id
+  BEFORE INSERT ON appointments
+  FOR EACH ROW EXECUTE FUNCTION public.set_user_id();
 
 -- Índice para consultas por rango de fechas
 CREATE INDEX IF NOT EXISTS idx_appointments_user_date ON appointments (user_id, appointment_date);

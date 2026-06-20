@@ -14,6 +14,59 @@ export type Database = {
   }
   public: {
     Tables: {
+      appointments: {
+        Row: {
+          appointment_date: string
+          created_at: string | null
+          customer_id: string | null
+          description: string | null
+          end_time: string
+          id: string
+          notes: string | null
+          service_type: string | null
+          start_time: string
+          status: string | null
+          title: string
+          user_id: string
+        }
+        Insert: {
+          appointment_date: string
+          created_at?: string | null
+          customer_id?: string | null
+          description?: string | null
+          end_time: string
+          id?: string
+          notes?: string | null
+          service_type?: string | null
+          start_time: string
+          status?: string | null
+          title: string
+          user_id?: string
+        }
+        Update: {
+          appointment_date?: string
+          created_at?: string | null
+          customer_id?: string | null
+          description?: string | null
+          end_time?: string
+          id?: string
+          notes?: string | null
+          service_type?: string | null
+          start_time?: string
+          status?: string | null
+          title?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointments_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       categories: {
         Row: {
           created_at: string
@@ -37,59 +90,6 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
-      }
-      appointments: {
-        Row: {
-          created_at: string
-          customer_id: string | null
-          description: string | null
-          end_time: string
-          id: string
-          notes: string | null
-          appointment_date: string
-          service_type: string | null
-          start_time: string
-          status: string
-          title: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          customer_id?: string | null
-          description?: string | null
-          end_time: string
-          id?: string
-          notes?: string | null
-          appointment_date: string
-          service_type?: string | null
-          start_time: string
-          status?: string
-          title: string
-          user_id?: string
-        }
-        Update: {
-          created_at?: string
-          customer_id?: string | null
-          description?: string | null
-          end_time?: string
-          id?: string
-          notes?: string | null
-          appointment_date?: string
-          service_type?: string | null
-          start_time?: string
-          status?: string
-          title?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "appointments_customer_id_fkey"
-            columns: ["customer_id"]
-            isOneToOne: false
-            referencedRelation: "customers"
-            referencedColumns: ["id"]
-          }
-        ]
       }
       customers: {
         Row: {
@@ -203,39 +203,48 @@ export type Database = {
         Row: {
           category_id: string | null
           created_at: string
+          distributor_id: string | null
           id: string
           image_url: string | null
           name: string
           price: number
+          purchase_price: number
           sku: string
           status: string | null
           stock_level: number
+          unit: string
           updated_at: string
           user_id: string
         }
         Insert: {
           category_id?: string | null
           created_at?: string
+          distributor_id?: string | null
           id?: string
           image_url?: string | null
           name: string
           price?: number
+          purchase_price?: number
           sku: string
           status?: string | null
           stock_level?: number
+          unit?: string
           updated_at?: string
           user_id?: string
         }
         Update: {
           category_id?: string | null
           created_at?: string
+          distributor_id?: string | null
           id?: string
           image_url?: string | null
           name?: string
           price?: number
+          purchase_price?: number
           sku?: string
           status?: string | null
           stock_level?: number
+          unit?: string
           updated_at?: string
           user_id?: string
         }
@@ -245,6 +254,13 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "products_distributor_id_fkey"
+            columns: ["distributor_id"]
+            isOneToOne: false
+            referencedRelation: "distributors"
             referencedColumns: ["id"]
           },
         ]
@@ -383,6 +399,39 @@ export type Database = {
           },
         ]
       }
+      services: {
+        Row: {
+          created_at: string
+          description: string | null
+          duration_minutes: number
+          id: string
+          name: string
+          price: number
+          status: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          duration_minutes?: number
+          id?: string
+          name: string
+          price?: number
+          status?: string
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          duration_minutes?: number
+          id?: string
+          name?: string
+          price?: number
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       settings: {
         Row: {
           created_at: string
@@ -406,6 +455,42 @@ export type Database = {
           id?: string
           tax_rate?: number
           updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      staff: {
+        Row: {
+          commission_rate: number
+          created_at: string
+          email: string | null
+          full_name: string
+          id: string
+          phone: string | null
+          role: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          commission_rate?: number
+          created_at?: string
+          email?: string | null
+          full_name: string
+          id?: string
+          phone?: string | null
+          role?: string | null
+          status?: string
+          user_id?: string
+        }
+        Update: {
+          commission_rate?: number
+          created_at?: string
+          email?: string | null
+          full_name?: string
+          id?: string
+          phone?: string | null
+          role?: string | null
+          status?: string
           user_id?: string
         }
         Relationships: []

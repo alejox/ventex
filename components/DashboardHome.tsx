@@ -12,6 +12,8 @@ import {
   IconTrendingUp,
   IconTrendingDown,
   IconCalendar,
+  IconScissors,
+  IconUserBadge,
 } from "@/app/assets/icons/DashboardIcons";
 import { useDashboardStore } from "@/stores/dashboard.store";
 import { useProfile } from "@/components/ProfileProvider";
@@ -35,6 +37,8 @@ const QUICK_ACTION_ICONS: Record<string, IconType> = {
   "new-customer": IconUsers,
   "view-finance": IconTrendingUp,
   "new-appointment": IconCalendar,
+  "new-service": IconScissors,
+  "new-staff": IconUserBadge,
 };
 
 export default function DashboardHome() {

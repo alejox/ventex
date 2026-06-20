@@ -18,6 +18,8 @@ import {
   IconMenu,
   IconLogOut,
   IconShoppingCart,
+  IconScissors,
+  IconUserBadge,
 } from "@/app/assets/icons/DashboardIcons";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { signout } from "@/utils/supabase/actions";
@@ -31,6 +33,8 @@ const NAV_ICONS: Record<string, IconType> = {
   panel: IconHome,
   pos: IconCreditCard,
   sales: IconShoppingCart,
+  services: IconScissors,
+  staff: IconUserBadge,
   inventory: IconBox,
   finance: IconDollar,
   customers: IconUsers,

@@ -10,7 +10,13 @@
  */
 
 export type BusinessType = "salon" | "tienda" | "lavaautos" | "servicios";
-export type ModuleId = "ecommerce" | "appointments" | "inventory" | "billing";
+export type ModuleId =
+  | "ecommerce"
+  | "appointments"
+  | "inventory"
+  | "billing"
+  | "services"
+  | "staff";
 export type Modules = Partial<Record<ModuleId, boolean>>;
 
 /** Datos del perfil de cuenta (tabla public.profiles). */
@@ -29,7 +35,7 @@ export interface BusinessOption {
 }
 
 export const BUSINESS_OPTIONS: BusinessOption[] = [
-  { id: "salon", label: "Salón de Belleza" },
+  { id: "salon", label: "Salón / Barbería" },
   { id: "tienda", label: "Tienda General" },
   { id: "lavaautos", label: "Lavaautos" },
   { id: "servicios", label: "Servicios Profesionales" },
@@ -44,9 +50,11 @@ export interface ModuleOption {
 
 export const MODULES_BY_TYPE: Record<BusinessType, ModuleOption[]> = {
   salon: [
-    { id: "ecommerce", label: "E-commerce", description: "Vende productos de belleza, maquillaje y accesorios 24/7." },
-    { id: "appointments", label: "Citas", description: "Gestiona citas, agendas y disponibilidad de tus estilistas." },
-    { id: "inventory", label: "Inventario", description: "Controla stock de productos, shampoos, tintes y más." },
+    { id: "appointments", label: "Citas", description: "Gestiona citas, agendas y disponibilidad de tus barberos y estilistas." },
+    { id: "services", label: "Servicios", description: "Define tu catálogo de servicios: corte, barba, tinte, con precio y duración." },
+    { id: "staff", label: "Barberos / Staff", description: "Administra tu equipo de barberos y estilistas, con sus comisiones." },
+    { id: "inventory", label: "Inventario", description: "Controla stock de productos, pomadas, ceras, shampoos y más." },
+    { id: "ecommerce", label: "E-commerce", description: "Vende productos de grooming y belleza online 24/7." },
   ],
   tienda: [
     { id: "ecommerce", label: "E-commerce", description: "Vende tus productos online con carrito de compras y pagos seguros." },
@@ -78,6 +86,8 @@ export const NAV_ITEMS: NavItem[] = [
   { id: "panel", name: "Panel", href: "/dashboard", modules: [] },
   { id: "pos", name: "Punto de Venta", href: "/dashboard/pos", modules: ["ecommerce"] },
   { id: "sales", name: "Ventas", href: "/dashboard/sales", modules: ["ecommerce"] },
+  { id: "services", name: "Servicios", href: "/dashboard/services", modules: ["services"] },
+  { id: "staff", name: "Barberos / Staff", href: "/dashboard/staff", modules: ["staff"] },
   { id: "inventory", name: "Inventario", href: "/dashboard/inventory", modules: ["inventory"] },
   { id: "finance", name: "Finanzas", href: "/dashboard/finance", modules: [] },
   { id: "customers", name: "Clientes", href: "/dashboard/customers", modules: [] },
@@ -100,6 +110,8 @@ export const QUICK_ACTIONS: QuickAction[] = [
   { id: "new-customer", title: "Registrar Cliente", href: "/dashboard/customers", module: null },
   { id: "view-finance", title: "Ver Finanzas", href: "/dashboard/finance", module: null },
   { id: "new-appointment", title: "Nueva Cita", href: "/dashboard/calendar", module: "appointments" },
+  { id: "new-service", title: "Nuevo Servicio", href: "/dashboard/services", module: "services" },
+  { id: "new-staff", title: "Añadir Barbero", href: "/dashboard/staff", module: "staff" },
 ];
 
 // ---- Modelo de visibilidad: el TIPO define un menú base, los MÓDULOS suman ----
