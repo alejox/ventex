@@ -9,6 +9,7 @@ import {
 } from "@/app/assets/icons/DashboardIcons";
 import { useInventoryStore } from "@/stores/inventory.store";
 import type { NewCategoryInput } from "@/services/inventory.service";
+import { ProductModal } from "@/components/ProductModal";
 
 function IconAlertTriangle(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -62,6 +63,7 @@ const EMPTY_CATEGORY: NewCategoryInput = { name: "", description: "" };
 
 export default function InventoryPage() {
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [isProductModalOpen, setIsProductModalOpen] = useState(false);
 
   const [newCategory, setNewCategory] = useState<NewCategoryInput>(EMPTY_CATEGORY);
 
@@ -119,15 +121,15 @@ export default function InventoryPage() {
             </svg>
             Nueva Categor&iacute;a
           </button>
-          <Link
-            href="/dashboard/inventory/product"
+          <button
+            onClick={() => setIsProductModalOpen(true)}
             className="h-11 bg-primary hover:bg-primary-dim text-on-primary text-sm font-semibold px-5 rounded-xl shadow-[0_0_20px_rgba(96,99,238,0.25)] transition-all flex items-center justify-center gap-2 hover:shadow-[0_0_25px_rgba(96,99,238,0.35)]"
           >
             <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-4 h-4">
               <path d="M12 5v14M5 12h14" />
             </svg>
             Nuevo Producto
-          </Link>
+          </button>
         </div>
       </div>
 
@@ -402,6 +404,9 @@ export default function InventoryPage() {
           </div>
         </div>
       )}
+
+      {/* Modal Nuevo Producto */}
+      {isProductModalOpen && <ProductModal onClose={() => setIsProductModalOpen(false)} />}
     </div>
   );
 }
