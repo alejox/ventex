@@ -5,7 +5,13 @@ import { IconFileText, IconPlus, IconXCircle } from "@/app/assets/icons/Dashboar
 import { useBillingStore } from "@/stores/billing.store";
 import { useCustomersStore } from "@/stores/customers.store";
 import { useServicesStore } from "@/stores/services.store";
-import type { Invoice, InvoiceLineInput, NewInvoiceInput } from "@/services/billing.service";
+import { useProfile } from "@/components/ProfileProvider";
+import type { Invoice, InvoiceItem, InvoiceLineInput, NewInvoiceInput } from "@/services/billing.service";
+
+const escapeHtml = (s: string) =>
+  s.replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string,
+  );
 
 const money = (n: number) =>
   n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -52,6 +58,7 @@ export default function BillingPage() {
   const fetchCustomers = useCustomersStore((s) => s.fetchCustomers);
   const services = useServicesStore((s) => s.services);
   const fetchServices = useServicesStore((s) => s.fetchServices);
+  const profile = useProfile();
 
   const [formOpen, setFormOpen] = useState(false);
   const [form, setForm] = useState<NewInvoiceInput>(newEmptyInvoice());
@@ -85,6 +92,64 @@ export default function BillingPage() {
   const openDetail = (inv: Invoice) => {
     setDetail(inv);
     fetchItems(inv.id);
+  };
+
+  /** Abre una vista limpia del documento e invoca la impresión (permite Guardar como PDF). */
+  const printInvoice = (inv: Invoice, lines: InvoiceItem[]) => {
+    const business = escapeHtml(profile?.fullName ?? "Ventex");
+    const rows = lines
+      .map(
+        (it) =>
+          `<tr><td>${escapeHtml(it.description)}</td><td class="c">${it.quantity}</td><td class="r">$${money(it.unit_price)}</td><td class="r">$${money(it.line_total)}</td></tr>`,
+      )
+      .join("");
+    const totalsRows = [
+      `<tr><td colspan="3" class="r">Subtotal</td><td class="r">$${money(inv.subtotal)}</td></tr>`,
+      inv.discount_amount > 0
+        ? `<tr><td colspan="3" class="r">Descuento</td><td class="r">-$${money(inv.discount_amount)}</td></tr>`
+        : "",
+      inv.tax_amount > 0
+        ? `<tr><td colspan="3" class="r">Impuesto (${(inv.tax_rate * 100).toFixed(0)}%)</td><td class="r">$${money(inv.tax_amount)}</td></tr>`
+        : "",
+      `<tr class="tot"><td colspan="3" class="r">Total</td><td class="r">$${money(inv.total)}</td></tr>`,
+    ].join("");
+    const html = `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>${TYPE_LABEL[inv.type] ?? inv.type} #${inv.invoice_number}</title>
+<style>
+  * { font-family: -apple-system, Segoe UI, Roboto, sans-serif; }
+  body { margin: 40px; color: #1a1a1a; }
+  .head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 32px; }
+  .biz { font-size: 20px; font-weight: 800; }
+  .doc { text-align: right; }
+  .doc h1 { margin: 0; font-size: 22px; }
+  .muted { color: #666; font-size: 13px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 13px; }
+  th, td { padding: 8px 10px; border-bottom: 1px solid #eee; }
+  th { text-align: left; text-transform: uppercase; font-size: 10px; letter-spacing: .05em; color: #888; }
+  .r { text-align: right; } .c { text-align: center; }
+  .tot td { font-weight: 800; border-top: 2px solid #1a1a1a; border-bottom: none; font-size: 15px; }
+  .notes { margin-top: 24px; font-size: 12px; color: #444; white-space: pre-wrap; }
+</style></head><body>
+  <div class="head">
+    <div><div class="biz">${business}</div></div>
+    <div class="doc">
+      <h1>${TYPE_LABEL[inv.type] ?? inv.type} #${inv.invoice_number}</h1>
+      <div class="muted">Emisión: ${formatDate(inv.issue_date)}</div>
+      ${inv.due_date ? `<div class="muted">Vencimiento: ${formatDate(inv.due_date)}</div>` : ""}
+    </div>
+  </div>
+  <div class="muted">Cliente: <strong>${escapeHtml(inv.customers?.full_name ?? "—")}</strong></div>
+  <table>
+    <thead><tr><th>Concepto</th><th class="c">Cant.</th><th class="r">Precio</th><th class="r">Importe</th></tr></thead>
+    <tbody>${rows}${totalsRows}</tbody>
+  </table>
+  ${inv.notes ? `<div class="notes">${escapeHtml(inv.notes)}</div>` : ""}
+</body></html>`;
+    const w = window.open("", "_blank", "width=820,height=920");
+    if (!w) return;
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+    w.print();
   };
 
   const setLine = (idx: number, patch: Partial<InvoiceLineInput>) =>
@@ -442,15 +507,24 @@ export default function BillingPage() {
                   {detail.customers?.full_name ?? "Sin cliente"} · {formatDate(detail.issue_date)}
                 </p>
               </div>
-              <button
-                onClick={() => setDetail(null)}
-                className="w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors"
-                aria-label="Cerrar"
-              >
-                <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="20" height="20">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  onClick={() => printInvoice(detail, items)}
+                  disabled={itemsLoading}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-colors disabled:opacity-50"
+                >
+                  Imprimir / PDF
+                </button>
+                <button
+                  onClick={() => setDetail(null)}
+                  className="w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors"
+                  aria-label="Cerrar"
+                >
+                  <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="20" height="20">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
             </div>
 
             <div className="p-4 sm:p-6 overflow-y-auto space-y-4">

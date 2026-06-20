@@ -490,13 +490,15 @@ export default function CalendarPage() {
                           </span>
                         </div>
                         {appt.customers?.full_name && (
-                          <span className="text-xs text-on-surface-variant">
+                          <span className="block text-xs text-on-surface-variant">
                             {appt.customers.full_name}
                           </span>
                         )}
-                        {appt.service_type && (
-                          <span className="text-xs text-on-surface-variant ml-2">
-                            - {appt.service_type}
+                        {(appt.services?.name || appt.service_type || appt.staff?.full_name) && (
+                          <span className="block text-xs text-on-surface-variant/80">
+                            {[appt.services?.name ?? appt.service_type, appt.staff?.full_name]
+                              .filter(Boolean)
+                              .join(" · ")}
                           </span>
                         )}
                       </button>
@@ -541,6 +543,11 @@ export default function CalendarPage() {
                     {appt.appointment_date} {appt.start_time.slice(0, 5)} -{" "}
                     {appt.end_time.slice(0, 5)}
                   </div>
+                  {(appt.services?.name || appt.staff?.full_name) && (
+                    <div className="text-xs text-on-surface-variant/80 truncate">
+                      {[appt.services?.name, appt.staff?.full_name].filter(Boolean).join(" · ")}
+                    </div>
+                  )}
                 </div>
                 <span
                   className={`text-[10px] font-bold px-2 py-1 rounded-md border ${getStatusColor(

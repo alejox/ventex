@@ -19,7 +19,7 @@ import {
 } from "@/app/assets/icons/DashboardIcons";
 import { useDashboardStore } from "@/stores/dashboard.store";
 import { useProfile } from "@/components/ProfileProvider";
-import { visibleQuickActions } from "@/config/business";
+import { visibleQuickActions, effectiveModules } from "@/config/business";
 
 const money = (n: number) =>
   n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -57,6 +57,10 @@ export default function DashboardHome() {
   }, [fetchDashboard]);
 
   const quickActions = visibleQuickActions(profile?.businessType ?? null, profile?.modules ?? null);
+  // Negocios con agenda (salón, barbería, lavaautos, servicios) priorizan "Citas Hoy".
+  const usesAppointments = Boolean(
+    effectiveModules(profile?.businessType ?? null, profile?.modules ?? null).appointments,
+  );
 
   const chartMax = useMemo(() => {
     const values = (data?.monthly ?? []).flatMap((m) => [m.income, m.expense]);
@@ -68,7 +72,9 @@ export default function DashboardHome() {
   const stats = [
     { title: "Ventas Totales", value: `$${money(data?.revenue ?? 0)}`, icon: IconCreditCard, bar: "bg-primary", tint: "group-hover:text-primary" },
     { title: "Flujo de Caja", value: `${net < 0 ? "-" : "+"}$${money(Math.abs(net))}`, icon: IconDollar, bar: net >= 0 ? "bg-[#10b981]" : "bg-error", tint: net >= 0 ? "group-hover:text-[#10b981]" : "group-hover:text-error" },
-    { title: "Inventario Bajo", value: String(data?.lowStockCount ?? 0), icon: IconBox, bar: "bg-[#8b5cf6]", tint: "group-hover:text-[#8b5cf6]" },
+    usesAppointments
+      ? { title: "Citas Hoy", value: String(data?.appointmentsToday ?? 0), icon: IconCalendar, bar: "bg-[#8b5cf6]", tint: "group-hover:text-[#8b5cf6]" }
+      : { title: "Inventario Bajo", value: String(data?.lowStockCount ?? 0), icon: IconBox, bar: "bg-[#8b5cf6]", tint: "group-hover:text-[#8b5cf6]" },
     { title: "Clientes", value: String(data?.customerCount ?? 0), icon: IconUsers, bar: "bg-[#f59e0b]", tint: "group-hover:text-[#f59e0b]" },
   ];
 
