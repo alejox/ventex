@@ -19,9 +19,9 @@ create policy "profiles_owner" on public.profiles
 
 grant select, insert, update, delete on public.profiles to authenticated;
 
--- updated_at automático (search_path inmutable por seguridad).
+-- updated_at automático.
 create or replace function public.set_updated_at()
-returns trigger language plpgsql set search_path = '' as $$
+returns trigger language plpgsql as $$
 begin
   new.updated_at = now();
   return new;
@@ -45,9 +45,6 @@ begin
   on conflict (id) do nothing;
   return new;
 end; $$;
-
--- Solo debe ejecutarse por el trigger, no vía RPC público.
-revoke execute on function public.handle_new_user() from public, anon, authenticated;
 
 create trigger on_auth_user_created
   after insert on auth.users

@@ -9,8 +9,10 @@ values (
 )
 on conflict (id) do nothing;
 
--- Nota: al ser un bucket público, las URLs se sirven sin policy de SELECT.
--- No se crea una policy de lectura amplia para no permitir listar archivos.
+-- Lectura pública (bucket público): cualquiera con la URL puede ver la imagen.
+create policy "product_images_public_read" on storage.objects
+  for select to public
+  using (bucket_id = 'product-images');
 
 -- Escritura aislada por usuario: el primer segmento de la ruta debe ser su uid
 -- (objetos guardados como `${auth.uid()}/archivo`).
