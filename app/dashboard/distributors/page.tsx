@@ -23,6 +23,7 @@ const EMPTY_DISTRIBUTOR: NewDistributorInput = {
   contact_name: "",
   email: "",
   phone: "",
+  whatsapp: "",
   address: "",
   rfc_rut: "",
   doc_type: "NIT",
@@ -35,25 +36,52 @@ export default function DistributorsPage() {
   const submitting = useDistributorsStore((s) => s.submitting);
   const fetchDistributors = useDistributorsStore((s) => s.fetchDistributors);
   const addDistributor = useDistributorsStore((s) => s.addDistributor);
+  const updateDistributor = useDistributorsStore((s) => s.updateDistributor);
 
   const [modalOpen, setModalOpen] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState<NewDistributorInput>(EMPTY_DISTRIBUTOR);
 
   useEffect(() => {
     fetchDistributors();
   }, [fetchDistributors]);
 
+  const openCreateModal = () => {
+    setEditId(null);
+    setForm(EMPTY_DISTRIBUTOR);
+    setModalOpen(true);
+  };
+
+  const openEditModal = (d: typeof distributors[number]) => {
+    setEditId(d.id);
+    setForm({
+      business_name: d.business_name,
+      contact_name: d.contact_name ?? "",
+      email: d.email ?? "",
+      phone: d.phone ?? "",
+      whatsapp: d.whatsapp ?? "",
+      address: d.address ?? "",
+      rfc_rut: d.rfc_rut ?? "",
+      doc_type: d.doc_type ?? "NIT",
+    });
+    setModalOpen(true);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const ok = await addDistributor(form);
+    const ok = editId
+      ? await updateDistributor(editId, form)
+      : await addDistributor(form);
     if (ok) {
       setModalOpen(false);
+      setEditId(null);
       setForm(EMPTY_DISTRIBUTOR);
     }
   };
 
   const handleCloseModal = () => {
     setModalOpen(false);
+    setEditId(null);
     setForm(EMPTY_DISTRIBUTOR);
   };
 
@@ -65,7 +93,7 @@ export default function DistributorsPage() {
           <p className="text-sm text-on-surface-variant mt-1">Gestiona tus proveedores.</p>
         </div>
         <button
-          onClick={() => setModalOpen(true)}
+          onClick={openCreateModal}
           className="bg-[#6063ee] hover:bg-[#c0c1ff] text-white hover:text-[#0b0664] text-sm font-semibold py-2.5 px-4 rounded-xl shadow-lg shadow-[#6063ee]/20 transition-colors flex items-center justify-center gap-2"
         >
           <IconPlus className="w-4 h-4" />
@@ -91,7 +119,7 @@ export default function DistributorsPage() {
             Registra a tus proveedores para gestionar pedidos, pagos y stock de forma centralizada.
           </p>
           <button
-            onClick={() => setModalOpen(true)}
+            onClick={openCreateModal}
             className="px-6 py-2.5 bg-surface-container border border-outline-variant/20 text-on-surface text-sm font-semibold rounded-xl hover:bg-surface-container-high transition-colors"
           >
             Añadir tu primer proveedor
@@ -106,8 +134,10 @@ export default function DistributorsPage() {
                   <th className="p-4 pl-6">Negocio</th>
                   <th className="p-4">Contacto</th>
                   <th className="p-4">Teléfono</th>
+                  <th className="p-4">WhatsApp</th>
                   <th className="p-4">Documento</th>
                   <th className="p-4 text-center">Estado</th>
+                  <th className="p-4 text-center">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-outline-variant/5 text-sm">
@@ -119,6 +149,7 @@ export default function DistributorsPage() {
                       <div className="text-xs text-on-surface-variant/70">{d.email ?? ""}</div>
                     </td>
                     <td className="p-4 text-on-surface-variant">{d.phone ?? "—"}</td>
+                    <td className="p-4 text-on-surface-variant">{d.whatsapp ?? "—"}</td>
                     <td className="p-4 text-on-surface-variant font-mono text-xs">{d.doc_type ? `${d.doc_type} ${d.rfc_rut}` : (d.rfc_rut ?? "—")}</td>
                     <td className="p-4 text-center">
                       <span
@@ -131,6 +162,20 @@ export default function DistributorsPage() {
                         {d.status === "active" ? "Activo" : d.status}
                       </span>
                     </td>
+                    <td className="p-4 text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          onClick={() => openEditModal(d)}
+                          className="w-9 h-9 flex items-center justify-center rounded-xl text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
+                          title="Editar proveedor"
+                        >
+                          <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-4 h-4">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                          </svg>
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -139,12 +184,14 @@ export default function DistributorsPage() {
         </div>
       )}
 
-      {/* Modal Nuevo Proveedor */}
+      {/* Modal Nuevo / Editar Proveedor */}
       {modalOpen && (
         <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-surface-container rounded-t-3xl sm:rounded-3xl w-full sm:max-w-lg max-h-[90vh] border border-outline-variant/10 shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200 flex flex-col">
             <div className="p-4 sm:p-6 border-b border-outline-variant/10 flex justify-between items-center bg-surface-container-low shrink-0">
-              <h2 className="text-lg sm:text-xl font-bold text-on-surface">Nuevo Proveedor</h2>
+              <h2 className="text-lg sm:text-xl font-bold text-on-surface">
+                {editId ? "Editar Proveedor" : "Nuevo Proveedor"}
+              </h2>
               <button
                 onClick={handleCloseModal}
                 className="w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors"
@@ -210,6 +257,20 @@ export default function DistributorsPage() {
               </div>
 
               <div className="space-y-1.5">
+                <label className="text-[13px] font-semibold text-on-surface block">
+                  WhatsApp para pedidos
+                </label>
+                <input
+                  type="tel"
+                  value={form.whatsapp}
+                  onChange={(e) => setForm({ ...form, whatsapp: e.target.value })}
+                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50"
+                  placeholder="+52 55 1234 5678"
+                />
+                <p className="text-xs text-on-surface-variant/60">N&uacute;mero al que se enviar&aacute;n las &oacute;rdenes de compra.</p>
+              </div>
+
+              <div className="space-y-1.5">
                 <label className="text-[13px] font-semibold text-on-surface block">Documento</label>
                 <div className="flex gap-2">
                   <select
@@ -255,7 +316,7 @@ export default function DistributorsPage() {
                   disabled={submitting}
                   className="flex-1 px-5 py-2.5 rounded-xl text-sm font-semibold bg-primary hover:bg-primary-dim text-on-primary shadow-[0_0_15px_rgba(96,99,238,0.2)] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {submitting ? "Guardando…" : "Guardar Proveedor"}
+                  {submitting ? "Guardando…" : editId ? "Actualizar Proveedor" : "Guardar Proveedor"}
                 </button>
               </div>
             </form>

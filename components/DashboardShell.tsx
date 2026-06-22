@@ -22,6 +22,7 @@ import {
   IconUserBadge,
   IconCar,
   IconFileText,
+  IconRefreshCw,
 } from "@/app/assets/icons/DashboardIcons";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { signout } from "@/utils/supabase/actions";
@@ -40,6 +41,7 @@ const NAV_ICONS: Record<string, IconType> = {
   vehicles: IconCar,
   billing: IconFileText,
   inventory: IconBox,
+  pedidos: IconRefreshCw,
   finance: IconDollar,
   customers: IconUsers,
   distributors: IconBox,

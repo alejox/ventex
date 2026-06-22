@@ -176,6 +176,7 @@ export type Database = {
           rfc_rut: string | null
           status: string | null
           user_id: string
+          whatsapp: string | null
         }
         Insert: {
           address?: string | null
@@ -189,6 +190,7 @@ export type Database = {
           rfc_rut?: string | null
           status?: string | null
           user_id?: string
+          whatsapp?: string | null
         }
         Update: {
           address?: string | null
@@ -202,6 +204,7 @@ export type Database = {
           rfc_rut?: string | null
           status?: string | null
           user_id?: string
+          whatsapp?: string | null
         }
         Relationships: []
       }
@@ -355,6 +358,7 @@ export type Database = {
           distributor_id: string | null
           id: string
           image_url: string | null
+          minimum_stock: number
           name: string
           price: number
           purchase_price: number
@@ -371,6 +375,7 @@ export type Database = {
           distributor_id?: string | null
           id?: string
           image_url?: string | null
+          minimum_stock?: number
           name: string
           price?: number
           purchase_price?: number
@@ -387,6 +392,7 @@ export type Database = {
           distributor_id?: string | null
           id?: string
           image_url?: string | null
+          minimum_stock?: number
           name?: string
           price?: number
           purchase_price?: number

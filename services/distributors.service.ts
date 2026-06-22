@@ -7,6 +7,7 @@ export interface Distributor {
   contact_name: string | null;
   email: string | null;
   phone: string | null;
+  whatsapp: string | null;
   address: string | null;
   rfc_rut: string | null;
   doc_type: string | null;
@@ -19,18 +20,40 @@ export interface NewDistributorInput {
   contact_name: string;
   email: string;
   phone: string;
+  whatsapp: string;
   address: string;
   rfc_rut: string;
   doc_type: string;
 }
 
-const SELECT = "id, business_name, contact_name, email, phone, address, rfc_rut, doc_type, status, created_at";
+const SELECT = "id, business_name, contact_name, email, phone, whatsapp, address, rfc_rut, doc_type, status, created_at";
 
 export async function fetchDistributors(): Promise<Distributor[]> {
   const supabase = createClient();
   const { data, error } = await supabase.from("distributors").select(SELECT).order("business_name");
   if (error) throw error;
   return (data ?? []) as Distributor[];
+}
+
+export async function updateDistributor(id: string, input: NewDistributorInput): Promise<Distributor> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("distributors")
+    .update({
+      business_name: input.business_name,
+      contact_name: input.contact_name || null,
+      email: input.email || null,
+      phone: input.phone || null,
+      whatsapp: input.whatsapp || null,
+      address: input.address || null,
+      rfc_rut: input.rfc_rut || null,
+      doc_type: input.doc_type || null,
+    })
+    .eq("id", id)
+    .select(SELECT)
+    .single();
+  if (error) throw error;
+  return data as Distributor;
 }
 
 export async function createDistributor(input: NewDistributorInput): Promise<Distributor> {
@@ -42,6 +65,7 @@ export async function createDistributor(input: NewDistributorInput): Promise<Dis
       contact_name: input.contact_name || null,
       email: input.email || null,
       phone: input.phone || null,
+      whatsapp: input.whatsapp || null,
       address: input.address || null,
       rfc_rut: input.rfc_rut || null,
       doc_type: input.doc_type || null,

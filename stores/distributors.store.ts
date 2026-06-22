@@ -11,6 +11,7 @@ interface DistributorsState {
   fetchDistributors: () => Promise<void>;
   /** Devuelve true si el alta fue correcta (para que el componente navegue/cierre). */
   addDistributor: (input: NewDistributorInput) => Promise<boolean>;
+  updateDistributor: (id: string, input: NewDistributorInput) => Promise<boolean>;
 }
 
 const toMessage = (e: unknown) =>
@@ -37,6 +38,21 @@ export const useDistributorsStore = create<DistributorsState>((set) => ({
     try {
       const distributor = await distributorsService.createDistributor(input);
       set((s) => ({ distributors: [...s.distributors, distributor], submitting: false }));
+      return true;
+    } catch (e) {
+      set({ error: toMessage(e), submitting: false });
+      return false;
+    }
+  },
+
+  updateDistributor: async (id, input) => {
+    set({ submitting: true, error: null });
+    try {
+      const distributor = await distributorsService.updateDistributor(id, input);
+      set((s) => ({
+        distributors: s.distributors.map((d) => (d.id === id ? distributor : d)),
+        submitting: false,
+      }));
       return true;
     } catch (e) {
       set({ error: toMessage(e), submitting: false });

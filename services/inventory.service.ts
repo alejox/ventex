@@ -21,6 +21,7 @@ export interface Product {
   purchase_price?: number;
   price: number;
   stock_level: number;
+  minimum_stock: number;
   image_url: string | null;
   created_at: string;
   categories: { name: string } | null;

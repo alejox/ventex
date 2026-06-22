@@ -94,6 +94,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: "vehicles", name: "Vehículos", href: "/dashboard/vehicles", modules: ["vehicles"] },
   { id: "billing", name: "Facturación", href: "/dashboard/billing", modules: ["billing"] },
   { id: "inventory", name: "Inventario", href: "/dashboard/inventory", modules: ["inventory"] },
+  { id: "pedidos", name: "Pedidos", href: "/dashboard/pedidos", modules: ["inventory"] },
   { id: "finance", name: "Finanzas", href: "/dashboard/finance", modules: [] },
   { id: "customers", name: "Clientes", href: "/dashboard/customers", modules: [] },
   { id: "distributors", name: "Proveedores", href: "/dashboard/distributors", modules: ["inventory"] },
@@ -119,6 +120,7 @@ export const QUICK_ACTIONS: QuickAction[] = [
   { id: "new-staff", title: "Añadir al Equipo", href: "/dashboard/staff", module: "staff" },
   { id: "new-vehicle", title: "Registrar Vehículo", href: "/dashboard/vehicles", module: "vehicles" },
   { id: "new-invoice", title: "Nueva Factura", href: "/dashboard/billing", module: "billing" },
+  { id: "replenish", title: "Nuevo Pedido", href: "/dashboard/pedidos", module: "inventory" },
 ];
 
 // ---- Modelo de visibilidad: el TIPO define un menú base, los MÓDULOS suman ----
