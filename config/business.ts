@@ -53,7 +53,7 @@ export const MODULES_BY_TYPE: Record<BusinessType, ModuleOption[]> = {
   salon: [
     { id: "appointments", label: "Citas", description: "Gestiona citas, agendas y disponibilidad de tus barberos y estilistas." },
     { id: "services", label: "Servicios", description: "Define tu catálogo de servicios: corte, barba, tinte, con precio y duración." },
-    { id: "staff", label: "Barberos / Staff", description: "Administra tu equipo de barberos y estilistas, con sus comisiones." },
+    { id: "staff", label: "Personal", description: "Administra tu equipo de barberos y estilistas, con sus comisiones." },
     { id: "inventory", label: "Inventario", description: "Controla stock de productos, pomadas, ceras, shampoos y más." },
     { id: "ecommerce", label: "E-commerce", description: "Vende productos de grooming y belleza online 24/7." },
   ],
@@ -64,14 +64,14 @@ export const MODULES_BY_TYPE: Record<BusinessType, ModuleOption[]> = {
   lavaautos: [
     { id: "appointments", label: "Citas", description: "Agenda turnos de lavado, detailing y mantenimiento." },
     { id: "services", label: "Servicios", description: "Tu menú de lavados: básico, premium, encerado y detailing, con precio y duración." },
-    { id: "staff", label: "Equipo", description: "Administra tus lavadores y detailers, con sus comisiones." },
+    { id: "staff", label: "Personal", description: "Administra tus lavadores y detailers, con sus comisiones." },
     { id: "vehicles", label: "Vehículos", description: "Historial por placa: vehículos, sus dueños y todas sus visitas." },
     { id: "inventory", label: "Inventario", description: "Controla insumos: jabones, ceras, filtros y más." },
   ],
   servicios: [
     { id: "appointments", label: "Citas / Agenda", description: "Gestiona tu agenda de consultas y reuniones." },
     { id: "services", label: "Servicios", description: "Tu catálogo de honorarios: consultoría, asesoría, sesiones, con precio y duración." },
-    { id: "staff", label: "Equipo", description: "Administra a tus profesionales y consultores, con sus comisiones." },
+    { id: "staff", label: "Personal", description: "Administra a tus profesionales y consultores, con sus comisiones." },
     { id: "billing", label: "Facturación", description: "Genera facturas y cotizaciones para tus clientes." },
   ],
 };
@@ -90,7 +90,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: "pos", name: "Punto de Venta", href: "/dashboard/pos", modules: ["ecommerce"] },
   { id: "sales", name: "Ventas", href: "/dashboard/sales", modules: ["ecommerce"] },
   { id: "services", name: "Servicios", href: "/dashboard/services", modules: ["services"] },
-  { id: "staff", name: "Equipo", href: "/dashboard/staff", modules: ["staff"] },
+  { id: "staff", name: "Personal", href: "/dashboard/staff", modules: ["staff"] },
   { id: "vehicles", name: "Vehículos", href: "/dashboard/vehicles", modules: ["vehicles"] },
   { id: "billing", name: "Facturación", href: "/dashboard/billing", modules: ["billing"] },
   { id: "inventory", name: "Inventario", href: "/dashboard/inventory", modules: ["inventory"] },
@@ -117,7 +117,7 @@ export const QUICK_ACTIONS: QuickAction[] = [
   { id: "view-finance", title: "Ver Finanzas", href: "/dashboard/finance", module: null },
   { id: "new-appointment", title: "Nueva Cita", href: "/dashboard/calendar", module: "appointments" },
   { id: "new-service", title: "Nuevo Servicio", href: "/dashboard/services", module: "services" },
-  { id: "new-staff", title: "Añadir al Equipo", href: "/dashboard/staff", module: "staff" },
+  { id: "new-staff", title: "Añadir Personal", href: "/dashboard/staff", module: "staff" },
   { id: "new-vehicle", title: "Registrar Vehículo", href: "/dashboard/vehicles", module: "vehicles" },
   { id: "new-invoice", title: "Nueva Factura", href: "/dashboard/billing", module: "billing" },
   { id: "replenish", title: "Nuevo Pedido", href: "/dashboard/pedidos", module: "inventory" },

@@ -1,21 +1,14 @@
 "use client";
 
-import React, { useState } from "react";
-import Image from "next/image";
+import React, { useState, useEffect, useCallback } from "react";
+import { useSettingsStore } from "@/stores/settings.store";
+import type { BusinessProfile } from "@/services/settings.service";
 
 function CameraIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
       <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" />
-    </svg>
-  );
-}
-
-function SearchIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" {...props}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
     </svg>
   );
 }
@@ -32,16 +25,36 @@ function Field({ label, required, children, className = "" }: { label: string; r
 }
 
 export default function BusinessSettingsPage() {
-  const [saving, setSaving] = useState(false);
-  const [personType, setPersonType] = useState<"natural" | "juridica">("natural");
+  const { settings, loading, submitting, fetchSettings, saveSettings } = useSettingsStore();
 
-  const handleSave = (e: React.FormEvent) => {
+  const [form, setForm] = useState<BusinessProfile>({});
+
+  useEffect(() => {
+    fetchSettings();
+  }, [fetchSettings]);
+
+  useEffect(() => {
+    if (settings?.business_profile) {
+      setForm(settings.business_profile);
+    }
+  }, [settings]);
+
+  const update = useCallback(<K extends keyof BusinessProfile>(key: K, value: BusinessProfile[K]) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  }, []);
+
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSaving(true);
-    setTimeout(() => {
-      setSaving(false);
-    }, 1000);
+    await saveSettings({
+      tax_rate: settings?.tax_rate ?? 0.19,
+      currency: settings?.currency ?? "COP",
+      business_profile: form,
+    });
   };
+
+  if (loading) {
+    return <div className="p-8 text-sm text-on-surface-variant">Cargando…</div>;
+  }
 
   return (
     <form onSubmit={handleSave} className="w-full max-w-5xl mx-auto pb-24 animate-in fade-in duration-300">
@@ -65,8 +78,11 @@ export default function BusinessSettingsPage() {
             <div className="flex flex-col md:flex-row items-center gap-8">
               <div className="relative">
                 <div className="w-64 h-32 rounded-xl border-2 border-primary overflow-hidden bg-surface-container flex items-center justify-center">
-                   {/* Placeholder for Logo */}
-                   <div className="text-on-surface-variant font-medium">Logo</div>
+                  {form.logoUrl ? (
+                    <img src={form.logoUrl} alt="Logo" className="w-full h-full object-contain" />
+                  ) : (
+                    <div className="text-on-surface-variant font-medium">Logo</div>
+                  )}
                 </div>
                 <button type="button" className="absolute -bottom-3 -right-3 w-10 h-10 bg-surface-container-lowest border border-outline-variant/20 rounded-full flex items-center justify-center text-on-surface shadow-sm hover:bg-surface-container transition-colors">
                   <CameraIcon className="w-5 h-5" />
@@ -86,45 +102,38 @@ export default function BusinessSettingsPage() {
               <div>
                 <label className="block text-sm font-semibold text-on-surface mb-2">Tipo de persona <span className="text-primary">*</span></label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <label className={`flex items-center gap-3 p-4 rounded-xl border cursor-pointer transition-colors ${personType === 'natural' ? 'border-primary bg-primary/5 text-primary' : 'border-outline-variant/20 bg-surface-container-low text-on-surface-variant hover:bg-surface-container'}`}>
-                    <input type="radio" name="person_type" value="natural" checked={personType === 'natural'} onChange={() => setPersonType('natural')} className="hidden" />
-                    <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${personType === 'natural' ? 'border-primary' : 'border-outline-variant/50'}`}>
-                      {personType === 'natural' && <div className="w-2 h-2 rounded-full bg-primary" />}
-                    </div>
-                    <span className="font-medium text-sm">Persona natural</span>
-                  </label>
-                  <label className={`flex items-center gap-3 p-4 rounded-xl border cursor-pointer transition-colors ${personType === 'juridica' ? 'border-primary bg-primary/5 text-primary' : 'border-outline-variant/20 bg-surface-container-low text-on-surface-variant hover:bg-surface-container'}`}>
-                    <input type="radio" name="person_type" value="juridica" checked={personType === 'juridica'} onChange={() => setPersonType('juridica')} className="hidden" />
-                    <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${personType === 'juridica' ? 'border-primary' : 'border-outline-variant/50'}`}>
-                      {personType === 'juridica' && <div className="w-2 h-2 rounded-full bg-primary" />}
-                    </div>
-                    <span className="font-medium text-sm">Persona jurídica</span>
-                  </label>
+                  {(["natural", "juridica"] as const).map((t) => (
+                    <label key={t} className={`flex items-center gap-3 p-4 rounded-xl border cursor-pointer transition-colors ${form.personType === t ? 'border-primary bg-primary/5 text-primary' : 'border-outline-variant/20 bg-surface-container-low text-on-surface-variant hover:bg-surface-container'}`}>
+                      <input type="radio" name="person_type" value={t} checked={form.personType === t} onChange={() => update("personType", t)} className="hidden" />
+                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${form.personType === t ? 'border-primary' : 'border-outline-variant/50'}`}>
+                        {form.personType === t && <div className="w-2 h-2 rounded-full bg-primary" />}
+                      </div>
+                      <span className="font-medium text-sm capitalize">{t === "natural" ? "Persona natural" : "Persona jurídica"}</span>
+                    </label>
+                  ))}
                 </div>
               </div>
 
               {/* Row 1 */}
               <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
                 <Field label="Tipo de identificación" required className="sm:col-span-4">
-                  <select className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface">
-                    <option>NIT - Número de identificación tributaria</option>
-                    <option>CC - Cédula de ciudadanía</option>
+                  <select value={form.identificationType ?? ""} onChange={(e) => update("identificationType", e.target.value)} className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface">
+                    <option value="">Seleccionar</option>
+                    <option value="NIT">NIT - Número de identificación tributaria</option>
+                    <option value="CC">CC - Cédula de ciudadanía</option>
                   </select>
                 </Field>
                 <Field label="Número de identificación" required className="sm:col-span-3">
-                  <div className="flex h-[42px]">
-                    <input type="text" placeholder="9012345678" className="w-full px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-l-lg focus:outline-none focus:border-primary text-sm text-on-surface" />
-                    <button type="button" className="px-3 bg-primary text-white flex items-center justify-center rounded-r-lg hover:bg-primary-dim transition-colors">
-                      <SearchIcon className="w-5 h-5" />
-                    </button>
-                  </div>
+                  <input type="text" value={form.identificationNumber ?? ""} onChange={(e) => update("identificationNumber", e.target.value)} placeholder="9012345678" className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface" />
                 </Field>
                 <Field label="DV" required className="sm:col-span-2">
-                  <input type="text" defaultValue="6" readOnly className="w-full h-[42px] px-3 bg-surface-container border border-outline-variant/10 rounded-lg text-sm text-on-surface-variant focus:outline-none" />
+                  <input type="text" value={form.dv ?? ""} onChange={(e) => update("dv", e.target.value)} className="w-full h-[42px] px-3 bg-surface-container border border-outline-variant/10 rounded-lg text-sm text-on-surface-variant focus:outline-none" />
                 </Field>
                 <Field label="Tipo de persona según nacionalidad" required className="sm:col-span-3">
-                  <select className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface-variant">
-                    <option>Seleccionar</option>
+                  <select value={form.nationalityType ?? ""} onChange={(e) => update("nationalityType", e.target.value)} className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface-variant">
+                    <option value="">Seleccionar</option>
+                    <option value="Nacional">Nacional</option>
+                    <option value="Extranjero">Extranjero</option>
                   </select>
                 </Field>
               </div>
@@ -132,54 +141,53 @@ export default function BusinessSettingsPage() {
               {/* Row 2 */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <Field label="Primer nombre" required>
-                  <input type="text" defaultValue="Alejox" className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface" />
+                  <input type="text" value={form.firstName ?? ""} onChange={(e) => update("firstName", e.target.value)} className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface" />
                 </Field>
                 <Field label="Segundo nombre">
-                  <input type="text" className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface" />
+                  <input type="text" value={form.secondName ?? ""} onChange={(e) => update("secondName", e.target.value)} className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface" />
                 </Field>
                 <Field label="Apellidos" required>
-                  <input type="text" className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface" />
+                  <input type="text" value={form.lastName ?? ""} onChange={(e) => update("lastName", e.target.value)} className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface" />
                 </Field>
               </div>
 
               {/* Row 3 */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <Field label="Nombre comercial">
-                  <input type="text" className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface" />
+                  <input type="text" value={form.businessName ?? ""} onChange={(e) => update("businessName", e.target.value)} className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface" />
                 </Field>
                 <Field label="Responsabilidad tributaria" required>
-                  <select className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface">
-                    <option>Responsable de IVA</option>
-                    <option>No responsable de IVA</option>
+                  <select value={form.taxResponsibility ?? ""} onChange={(e) => update("taxResponsibility", e.target.value)} className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface">
+                    <option value="">Seleccionar</option>
+                    <option value="Responsable de IVA">Responsable de IVA</option>
+                    <option value="No responsable de IVA">No responsable de IVA</option>
                   </select>
                 </Field>
                 <Field label="Municipio / Departamento">
-                  <select className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface-variant">
-                    <option>Seleccionar</option>
-                  </select>
+                  <input type="text" value={form.municipality ?? ""} onChange={(e) => update("municipality", e.target.value)} className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface" />
                 </Field>
               </div>
 
               {/* Row 4 */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <Field label="Dirección">
-                  <input type="text" className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface" />
+                  <input type="text" value={form.address ?? ""} onChange={(e) => update("address", e.target.value)} className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface" />
                 </Field>
                 <Field label="Código postal">
-                  <input type="text" className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface" />
+                  <input type="text" value={form.postalCode ?? ""} onChange={(e) => update("postalCode", e.target.value)} className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface" />
                 </Field>
                 <Field label="Correo electrónico">
-                  <input type="email" className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface" />
+                  <input type="email" value={form.email ?? ""} onChange={(e) => update("email", e.target.value)} className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface" />
                 </Field>
               </div>
 
               {/* Row 5 */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <Field label="Teléfono">
-                  <input type="tel" defaultValue="3148956814" className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface" />
+                  <input type="tel" value={form.phone ?? ""} onChange={(e) => update("phone", e.target.value)} className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface" />
                 </Field>
                 <Field label="Sitio web">
-                  <input type="url" className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface" />
+                  <input type="url" value={form.website ?? ""} onChange={(e) => update("website", e.target.value)} className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface" />
                 </Field>
               </div>
             </div>
@@ -198,23 +206,24 @@ export default function BusinessSettingsPage() {
           <div className="p-6 md:p-8">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <Field label="Sector">
-                <select className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface">
-                  <option>Otros</option>
-                  <option>Tecnología</option>
-                  <option>Alimentación</option>
+                <select value={form.sector ?? ""} onChange={(e) => update("sector", e.target.value)} className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface">
+                  <option value="">Seleccionar</option>
+                  <option value="Otros">Otros</option>
+                  <option value="Tecnología">Tecnología</option>
+                  <option value="Alimentación">Alimentación</option>
                 </select>
               </Field>
               <Field label="Precisión decimal" required>
-                <select className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface">
-                  <option>0</option>
-                  <option>1</option>
-                  <option>2</option>
+                <select value={form.decimalPrecision ?? "2"} onChange={(e) => update("decimalPrecision", e.target.value)} className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface">
+                  <option value="0">0</option>
+                  <option value="1">1</option>
+                  <option value="2">2</option>
                 </select>
               </Field>
               <Field label="Separador decimal" required>
-                <select className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface">
-                  <option>,</option>
-                  <option>.</option>
+                <select value={form.decimalSeparator ?? ","} onChange={(e) => update("decimalSeparator", e.target.value)} className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface">
+                  <option value=",">,</option>
+                  <option value=".">.</option>
                 </select>
               </Field>
             </div>
@@ -231,8 +240,8 @@ export default function BusinessSettingsPage() {
           <button type="button" className="flex-1 sm:flex-none px-6 py-2.5 rounded-xl border border-outline-variant/20 text-on-surface font-semibold hover:bg-surface-container-low transition-colors">
             Cancelar
           </button>
-          <button type="submit" disabled={saving} className="flex-1 sm:flex-none px-6 py-2.5 rounded-xl bg-primary text-white font-semibold hover:bg-primary-dim transition-colors disabled:opacity-50">
-            {saving ? "Guardando..." : "Guardar"}
+          <button type="submit" disabled={submitting} className="flex-1 sm:flex-none px-6 py-2.5 rounded-xl bg-primary text-white font-semibold hover:bg-primary-dim transition-colors disabled:opacity-50">
+            {submitting ? "Guardando..." : "Guardar"}
           </button>
         </div>
       </div>

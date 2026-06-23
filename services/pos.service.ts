@@ -17,6 +17,8 @@ export interface CustomerOption {
   id: string;
   full_name: string;
   tax_exempt: boolean;
+  doc_type: string | null;
+  identification: string | null;
 }
 
 export interface StaffOption {
@@ -28,6 +30,7 @@ export interface CartLine {
   item: CatalogItem;
   quantity: number;
   discountAmount?: number;
+  staffId?: string | null;
 }
 
 export interface SaleTotals {
@@ -43,6 +46,7 @@ export interface CheckoutItem {
   product_id?: string;
   service_id?: string;
   quantity: number;
+  staff_id?: string | null;
 }
 
 export interface CheckoutInput {
@@ -57,19 +61,34 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
 
 /**
  * Calcula los totales en el cliente para previsualización.
- * Refleja la misma lógica que la RPC `create_sale` (la autoridad final es el servidor):
- * impuesto sobre (subtotal - descuento), 0% si el cliente es exento.
+ * Los precios de los productos se almacenan como precio FINAL (IVA incluido).
+ * 
+ * Para clientes NO exentos:
+ *   - Subtotal (base) = netoConIva / (1 + taxRate)
+ *   - IVA = netoConIva - base
+ *   - Total = netoConIva
+ * 
+ * Para clientes exentos:
+ *   - Se extrae la base y se cobra solo ese valor (sin IVA)
+ *   - Total = base
  */
 export function computeTotals(
   lines: CartLine[],
   taxRate: number,
   taxExempt: boolean
 ): SaleTotals {
-  const subtotal = round2(lines.reduce((s, l) => s + l.item.price * l.quantity, 0));
+  const totalConIva = round2(lines.reduce((s, l) => s + l.item.price * l.quantity, 0));
   const totalDiscount = round2(lines.reduce((s, l) => s + (l.discountAmount || 0), 0));
-  const taxable = Math.max(subtotal - totalDiscount, 0);
-  const taxAmount = round2(taxable * (taxExempt ? 0 : taxRate));
-  const total = round2(taxable + taxAmount);
+  const netoConIva = Math.max(totalConIva - totalDiscount, 0);
+
+  if (taxExempt) {
+    const subtotal = round2(netoConIva / (1 + taxRate));
+    return { subtotal, taxAmount: 0, total: subtotal };
+  }
+
+  const subtotal = round2(netoConIva / (1 + taxRate));
+  const taxAmount = round2(netoConIva - subtotal);
+  const total = netoConIva;
   return { subtotal, taxAmount, total };
 }
 
@@ -136,22 +155,24 @@ export async function fetchCustomers(): Promise<CustomerOption[]> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("customers")
-    .select("id, full_name, tax_exempt")
+    .select("id, full_name, tax_exempt, doc_type, identification")
     .order("full_name");
   if (error) throw error;
   return (data ?? []).map((c) => ({
     id: c.id,
     full_name: c.full_name,
     tax_exempt: c.tax_exempt ?? false,
+    doc_type: c.doc_type ?? null,
+    identification: c.identification ?? null,
   }));
 }
 
-/** Tasa de IVA configurada en la cuenta (16% por defecto si no hay ajustes). */
+/** Tasa de IVA configurada en la cuenta (19% por defecto si no hay ajustes). */
 export async function fetchTaxRate(): Promise<number> {
   const supabase = createClient();
   const { data, error } = await supabase.from("settings").select("tax_rate").maybeSingle();
   if (error) throw error;
-  return data?.tax_rate ?? 0.16;
+  return data?.tax_rate ?? 0.19;
 }
 
 /** Registra la venta de forma transaccional vía RPC y devuelve el id de la venta. */
@@ -175,7 +196,7 @@ export async function createCustomer(name: string): Promise<CustomerOption> {
   const { data, error } = await supabase
     .from("customers")
     .insert({ full_name: name, tax_exempt: false })
-    .select("id, full_name, tax_exempt")
+    .select("id, full_name, tax_exempt, doc_type, identification")
     .single();
   if (error) throw error;
   return data as CustomerOption;

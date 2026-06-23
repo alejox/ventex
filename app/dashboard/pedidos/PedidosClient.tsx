@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import Image from "next/image";
+import * as XLSX from "xlsx";
 import { buildSuggestedItems } from "@/services/abastecimiento.service";
 import type { SuggestedOrderItem } from "@/services/abastecimiento.service";
 import { useDistributorsStore } from "@/stores/distributors.store";
@@ -91,6 +92,35 @@ export function PedidosClient({
     setQuantities({});
     setGenerated(true);
   };
+
+  const handleExportExcel = useCallback(() => {
+    const data = items.map((item) => {
+      const qty = quantities[item.productId] ?? item.suggestedQuantity;
+      return {
+        Producto: item.productName,
+        SKU: item.sku,
+        Proveedor: item.distributorName ?? "",
+        "Stock Actual": item.currentStock,
+        "Stock M\u00ednimo": item.minimumStock,
+        "Cantidad a Pedir": qty,
+        Unidad: item.unit,
+      };
+    });
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const colWidths = [
+      { wch: 40 }, { wch: 15 }, { wch: 25 }, { wch: 14 },
+      { wch: 14 }, { wch: 18 }, { wch: 10 },
+    ];
+    ws["!cols"] = colWidths;
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Pedido");
+
+    const now = new Date();
+    const dateStr = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,"0")}${String(now.getDate()).padStart(2,"0")}`;
+    XLSX.writeFile(wb, `pedido_${dateStr}.xlsx`);
+  }, [items, quantities]);
 
   const handleGenerate = () => {
     const result = buildSuggestedItems(initialProducts) as SuggestedOrderItem[];
@@ -467,6 +497,18 @@ export function PedidosClient({
       {/* Action Panel */}
       {generated && items.length > 0 && activeItems.length > 0 && (
         <div className="flex flex-col sm:flex-row items-center justify-end gap-4 pt-2">
+          <button
+            type="button"
+            onClick={handleExportExcel}
+            className="h-12 px-6 rounded-xl border border-outline-variant/30 text-sm font-semibold text-on-surface hover:bg-surface-container-low transition-colors flex items-center justify-center gap-2"
+          >
+            <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-4 h-4">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            Excel
+          </button>
           <button
             type="button"
             className="h-12 px-8 rounded-xl border border-outline-variant/30 text-sm font-semibold text-on-surface hover:bg-surface-container-low transition-colors flex items-center justify-center gap-2"

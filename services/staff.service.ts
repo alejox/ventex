@@ -8,6 +8,7 @@ export interface StaffMember {
   phone: string | null;
   email: string | null;
   commission_rate: number;
+  commission_type: string;
   status: string;
   created_at: string;
 }
@@ -18,6 +19,7 @@ export interface NewStaffInput {
   phone: string;
   email: string;
   commission_rate: string;
+  commission_type: string;
   status: string;
 }
 
@@ -26,12 +28,30 @@ export interface CommissionRow {
   staff_id: string;
   full_name: string;
   commission_rate: number;
+  commission_type: string;
   salesCount: number;
-  servicesTotal: number; // suma de líneas de servicio de sus ventas
-  commission: number; // commission_rate% × servicesTotal
+  servicesTotal: number;
+  commission: number;
 }
 
-const SELECT = "id, full_name, role, phone, email, commission_rate, status, created_at";
+export interface StaffSaleItem {
+  id: string;
+  product_name: string;
+  sku: string | null;
+  unit_price: number;
+  quantity: number;
+  line_total: number;
+  sale_number: number;
+  created_at: string;
+  customer_name: string | null;
+  payment_method: string;
+  commissionAmount: number;
+}
+
+const SELECT = "id, full_name, role, phone, email, commission_rate, commission_type, status, created_at";
+
+const calcCommission = (rate: number, type: string, lineTotal: number, quantity: number) =>
+  type === "fixed" ? rate * quantity : Math.round(lineTotal * (rate / 100) * 100) / 100;
 
 export async function fetchStaff(): Promise<StaffMember[]> {
   const supabase = createClient();
@@ -42,7 +62,6 @@ export async function fetchStaff(): Promise<StaffMember[]> {
 
 export async function createStaff(input: NewStaffInput): Promise<StaffMember> {
   const supabase = createClient();
-  // user_id lo asigna el trigger set_staff_user_id / DEFAULT auth.uid().
   const { data, error } = await supabase
     .from("staff")
     .insert({
@@ -51,6 +70,7 @@ export async function createStaff(input: NewStaffInput): Promise<StaffMember> {
       phone: input.phone || null,
       email: input.email || null,
       commission_rate: parseFloat(input.commission_rate) || 0,
+      commission_type: input.commission_type || "percentage",
       status: input.status,
     })
     .select(SELECT)
@@ -60,59 +80,103 @@ export async function createStaff(input: NewStaffInput): Promise<StaffMember> {
 }
 
 /**
- * Comisiones del mes en curso por miembro del equipo: toma las ventas
- * completadas atribuidas a cada uno, suma sus líneas de servicio y aplica su %.
+ * Comisiones del mes en curso por miembro del equipo.
+ * - percentage: rate% × line_total
+ * - fixed: rate × quantity
  */
 export async function fetchCommissions(): Promise<CommissionRow[]> {
   const supabase = createClient();
   const now = new Date();
   const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
-  const [staffRes, salesRes] = await Promise.all([
-    supabase.from("staff").select("id, full_name, commission_rate"),
+  const [staffRes, itemsRes] = await Promise.all([
+    supabase.from("staff").select("id, full_name, commission_rate, commission_type"),
     supabase
-      .from("sales")
-      .select("id, staff_id, status, created_at, sale_items(line_total, service_id)")
-      .eq("status", "completed")
-      .gte("created_at", start)
-      .not("staff_id", "is", null),
+      .from("sale_items")
+      .select("sale_id, staff_id, line_total, quantity, service_id, sales!inner(status, created_at)")
+      .not("staff_id", "is", null)
+      .not("service_id", "is", null)
+      .eq("sales.status", "completed")
+      .gte("sales.created_at", start),
   ]);
   if (staffRes.error) throw staffRes.error;
-  if (salesRes.error) throw salesRes.error;
+  if (itemsRes.error) throw itemsRes.error;
 
   const staff = staffRes.data ?? [];
-  const sales = (salesRes.data ?? []) as unknown as {
+  const items = (itemsRes.data ?? []) as unknown as {
+    sale_id: string;
     staff_id: string;
-    sale_items: { line_total: number; service_id: string | null }[] | null;
+    line_total: number;
+    quantity: number;
   }[];
 
-  const agg = new Map<string, { servicesTotal: number; salesCount: number }>();
-  for (const sale of sales) {
-    const items = sale.sale_items ?? [];
-    const servicesTotal = items
-      .filter((it) => it.service_id)
-      .reduce((sum, it) => sum + (it.line_total ?? 0), 0);
-    const prev = agg.get(sale.staff_id) ?? { servicesTotal: 0, salesCount: 0 };
-    agg.set(sale.staff_id, {
-      servicesTotal: prev.servicesTotal + servicesTotal,
-      salesCount: prev.salesCount + 1,
-    });
+  const byStaff = new Map<string, { servicesTotal: number; commission: number; sales: Set<string> }>();
+  for (const it of items) {
+    const prev = byStaff.get(it.staff_id) ?? { servicesTotal: 0, commission: 0, sales: new Set<string>() };
+    prev.servicesTotal += it.line_total ?? 0;
+    prev.sales.add(it.sale_id);
+    byStaff.set(it.staff_id, prev);
   }
 
   return staff
     .map((m) => {
-      const a = agg.get(m.id) ?? { servicesTotal: 0, salesCount: 0 };
+      const a = byStaff.get(m.id);
+      if (!a) return null;
+      const staffItems = items.filter((i) => i.staff_id === m.id);
+      let commission = 0;
+      if (m.commission_type === "fixed") {
+        commission = staffItems.reduce((s, i) => s + (m.commission_rate * i.quantity), 0);
+      } else {
+        commission = staffItems.reduce((s, i) => s + Math.round(i.line_total * (m.commission_rate / 100) * 100) / 100, 0);
+      }
       return {
         staff_id: m.id,
         full_name: m.full_name,
         commission_rate: m.commission_rate,
-        salesCount: a.salesCount,
+        commission_type: m.commission_type,
+        salesCount: a.sales.size,
         servicesTotal: a.servicesTotal,
-        commission: Math.round(a.servicesTotal * (m.commission_rate / 100) * 100) / 100,
+        commission: Math.round(commission * 100) / 100,
       };
     })
-    .filter((r) => r.salesCount > 0)
+    .filter((r): r is CommissionRow => r !== null && r.servicesTotal > 0)
     .sort((a, b) => b.commission - a.commission);
+}
+
+/**
+ * Ventas (líneas) atribuidas a un miembro del personal, con comisión calculada.
+ */
+export async function fetchStaffSales(staffId: string): Promise<StaffSaleItem[]> {
+  const supabase = createClient();
+  const [staffRes, dataRes] = await Promise.all([
+    supabase.from("staff").select("commission_rate, commission_type").eq("id", staffId).single(),
+    supabase
+      .from("sale_items")
+      .select("id, product_name, sku, unit_price, quantity, line_total, sales!inner(sale_number, created_at, payment_method, customers(full_name))")
+      .eq("staff_id", staffId),
+  ]);
+  if (staffRes.error) throw staffRes.error;
+  if (dataRes.error) throw dataRes.error;
+
+  const rate = (staffRes.data as { commission_rate: number; commission_type: string })?.commission_rate ?? 0;
+  const type = (staffRes.data as { commission_rate: number; commission_type: string })?.commission_type ?? "percentage";
+
+  const result = ((dataRes.data ?? []) as unknown[]).map((r: any) => ({
+    id: r.id,
+    product_name: r.product_name,
+    sku: r.sku,
+    unit_price: r.unit_price,
+    quantity: r.quantity,
+    line_total: r.line_total,
+    sale_number: r.sales?.sale_number ?? 0,
+    created_at: r.sales?.created_at ?? "",
+    customer_name: r.sales?.customers?.full_name ?? null,
+    payment_method: r.sales?.payment_method ?? "",
+    commissionAmount: calcCommission(rate, type, r.line_total, r.quantity),
+  }));
+
+  result.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  return result;
 }
 
 export async function updateStaff(id: string, input: NewStaffInput): Promise<StaffMember> {
@@ -125,6 +189,7 @@ export async function updateStaff(id: string, input: NewStaffInput): Promise<Sta
       phone: input.phone || null,
       email: input.email || null,
       commission_rate: parseFloat(input.commission_rate) || 0,
+      commission_type: input.commission_type || "percentage",
       status: input.status,
     })
     .eq("id", id)

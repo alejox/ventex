@@ -4,12 +4,19 @@ import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { IconSearch } from "@/app/assets/icons/DashboardIcons";
 import { usePosStore } from "@/stores/pos.store";
-import { computeTotals, type PaymentMethod } from "@/services/pos.service";
+import {
+  computeTotals,
+  type PaymentMethod,
+  type CartLine,
+  type CustomerOption,
+  type SaleTotals,
+} from "@/services/pos.service";
 import { ProductModal } from "@/components/ProductModal";
 import { CustomerModal } from "@/components/CustomerModal";
 import { PosReceipt } from "@/components/PosReceipt";
 import { RecentSalesModal } from "@/components/RecentSalesModal";
 import { DiscountModal } from "@/components/DiscountModal";
+import { SaleConfigModal } from "@/components/SaleConfigModal";
 
 function IconDiscount(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -78,6 +85,14 @@ const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
 const money = (n: number) =>
   n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+interface ReceiptData {
+  items: { name: string; sku: string | null; quantity: number; price: number; total: number }[];
+  customer: CustomerOption | null;
+  totals: SaleTotals;
+  paymentMethod: PaymentMethod;
+  date: Date;
+}
+
 export default function POSPage() {
   // Datos y acciones desde el store
   const catalog = usePosStore((s) => s.catalog);
@@ -89,6 +104,7 @@ export default function POSPage() {
   const tabs = usePosStore((s) => s.tabs);
   const activeTabId = usePosStore((s) => s.activeTabId);
   const submitting = usePosStore((s) => s.submitting);
+  const includeTax = usePosStore((s) => s.includeTax);
 
   const init = usePosStore((s) => s.init);
   const addTab = usePosStore((s) => s.addTab);
@@ -103,17 +119,21 @@ export default function POSPage() {
   const setCustomer = usePosStore((s) => s.setCustomer);
   const setStaff = usePosStore((s) => s.setStaff);
   const setPaymentMethod = usePosStore((s) => s.setPaymentMethod);
+  const setLineStaff = usePosStore((s) => s.setLineStaff);
   const clearCart = usePosStore((s) => s.clearCart);
   const checkout = usePosStore((s) => s.checkout);
 
   // Estado local
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("Todos");
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
   const [isDiscountModalOpen, setIsDiscountModalOpen] = useState(false);
   const [isRecentSalesModalOpen, setIsRecentSalesModalOpen] = useState(false);
+  const [isSaleConfigModalOpen, setIsSaleConfigModalOpen] = useState(false);
+  const [receiptData, setReceiptData] = useState<ReceiptData | null>(null);
 
   useEffect(() => {
     init();
@@ -131,12 +151,18 @@ export default function POSPage() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return catalog.filter((p) => {
-      const matchesCategory = activeCategory === "Todos" || p.category_name === activeCategory;
-      const matchesSearch =
-        !q || p.name.toLowerCase().includes(q) || (p.sku ?? "").toLowerCase().includes(q);
-      return matchesCategory && matchesSearch;
-    });
+    return catalog
+      .filter((p) => {
+        const matchesCategory = activeCategory === "Todos" || p.category_name === activeCategory;
+        const matchesSearch =
+          !q || p.name.toLowerCase().includes(q) || (p.sku ?? "").toLowerCase().includes(q);
+        return matchesCategory && matchesSearch;
+      })
+      .sort((a, b) => {
+        if (a.kind === "service" && b.kind !== "service") return -1;
+        if (a.kind !== "service" && b.kind === "service") return 1;
+        return 0;
+      });
   }, [catalog, search, activeCategory]);
 
   const selectedCustomer = useMemo(
@@ -145,11 +171,25 @@ export default function POSPage() {
   );
 
   const totals = useMemo(
-    () => computeTotals(cart, taxRate, selectedCustomer?.tax_exempt ?? false),
-    [cart, taxRate, selectedCustomer],
+    () => computeTotals(cart, includeTax ? taxRate : 0, selectedCustomer?.tax_exempt ?? false),
+    [cart, taxRate, includeTax, selectedCustomer],
   );
 
   const handleCheckout = async () => {
+    const data: ReceiptData = {
+      items: cart.map((l) => ({
+        name: l.item.name,
+        sku: l.item.sku,
+        quantity: l.quantity,
+        price: l.item.price,
+        total: l.item.price * l.quantity,
+      })),
+      customer: selectedCustomer,
+      totals,
+      paymentMethod,
+      date: new Date(),
+    };
+    setReceiptData(data);
     const ok = await checkout();
     if (ok) {
       setSearch("");
@@ -178,6 +218,29 @@ export default function POSPage() {
               className="w-full bg-surface-container-lowest rounded-2xl py-3.5 pl-14 pr-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant border border-outline-variant/30 shadow-sm"
             />
           </div>
+          <button
+            onClick={() => setViewMode(viewMode === "grid" ? "list" : "grid")}
+            className="w-12 h-12 rounded-2xl border border-outline-variant/30 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low transition-colors flex items-center justify-center shrink-0"
+            title={viewMode === "grid" ? "Vista lista" : "Vista cuadr\u00edcula"}
+          >
+            {viewMode === "grid" ? (
+              <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-5 h-5">
+                <line x1="8" y1="6" x2="21" y2="6" />
+                <line x1="8" y1="12" x2="21" y2="12" />
+                <line x1="8" y1="18" x2="21" y2="18" />
+                <line x1="3" y1="6" x2="3.01" y2="6" />
+                <line x1="3" y1="12" x2="3.01" y2="12" />
+                <line x1="3" y1="18" x2="3.01" y2="18" />
+              </svg>
+            ) : (
+              <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-5 h-5">
+                <rect x="3" y="3" width="7" height="7" />
+                <rect x="14" y="3" width="7" height="7" />
+                <rect x="3" y="14" width="7" height="7" />
+                <rect x="14" y="14" width="7" height="7" />
+              </svg>
+            )}
+          </button>
           <button
             onClick={() => setIsProductModalOpen(true)}
             className="whitespace-nowrap px-5 py-3.5 rounded-2xl bg-transparent border border-primary/50 text-primary text-sm font-semibold hover:bg-primary/10 transition-colors flex items-center gap-2"
@@ -222,64 +285,120 @@ export default function POSPage() {
                 ? "No hay productos ni servicios. Agrégalos en Inventario o Servicios."
                 : "Ningún ítem coincide con el filtro."}
             </p>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4">
-              {filtered.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => addToCart(item)}
-                  disabled={item.kind === "product" && (item.stock_level ?? 0) <= 0}
-                  className="text-left bg-surface-container rounded-2xl p-3 border border-outline-variant/10 flex flex-col hover:border-primary/30 transition-colors group shadow-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-outline-variant/10 relative"
-                >
-                  {item.kind === "product" && (item.stock_level ?? 0) <= 0 && (
-                    <div className="absolute inset-0 rounded-2xl bg-surface-container-lowest/60 flex items-center justify-center z-10">
-                      <span className="bg-error/10 text-error-dim text-xs font-bold px-3 py-1.5 rounded-lg border border-error/20">
-                        Sin Stock
-                      </span>
+          ) : viewMode === "grid" ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4">
+                {filtered.map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => addToCart(item)}
+                    disabled={item.kind === "product" && (item.stock_level ?? 0) <= 0}
+                    className={`text-left rounded-2xl p-3 border flex flex-col transition-colors group shadow-sm disabled:opacity-50 disabled:cursor-not-allowed relative ${
+                      item.kind === "service"
+                        ? "bg-emerald-500/5 border-emerald-500/20 hover:border-emerald-400/40 disabled:hover:border-emerald-500/20"
+                        : "bg-surface-container border-outline-variant/10 hover:border-primary/30 disabled:hover:border-outline-variant/10"
+                    }`}
+                  >
+                    {item.kind === "product" && (item.stock_level ?? 0) <= 0 && (
+                      <div className="absolute inset-0 rounded-2xl bg-surface-container-lowest/60 flex items-center justify-center z-10">
+                        <span className="bg-error/10 text-error-dim text-xs font-bold px-3 py-1.5 rounded-lg border border-error/20">
+                          Sin Stock
+                        </span>
+                      </div>
+                    )}
+                    <div className="aspect-square rounded-xl bg-surface-container-lowest flex items-center justify-center mb-3 group-hover:bg-surface-container-low transition-colors overflow-hidden">
+                      {item.image_url ? (
+                        <Image
+                          src={item.image_url}
+                          alt={item.name}
+                          width={160}
+                          height={160}
+                          unoptimized
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <IconImagePlaceholder className="w-8 h-8 text-on-surface-variant/30" />
+                      )}
                     </div>
-                  )}
-                  <div className="aspect-square rounded-xl bg-surface-container-lowest flex items-center justify-center mb-3 group-hover:bg-surface-container-low transition-colors overflow-hidden">
-                    {item.image_url ? (
-                      <Image
-                        src={item.image_url}
-                        alt={item.name}
-                        width={160}
-                        height={160}
-                        unoptimized
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <IconImagePlaceholder className="w-8 h-8 text-on-surface-variant/30" />
-                    )}
-                  </div>
-                  <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1">
-                    {item.kind === "service" ? "Servicio" : `SKU: ${item.sku}`}
-                  </p>
-                  <h3 className="text-sm font-medium text-on-surface mb-2 line-clamp-2 leading-tight flex-1 group-hover:text-primary transition-colors">
-                    {item.name}
-                  </h3>
-                  <div className="flex items-center justify-between mt-auto">
-                    <span className="text-on-surface font-bold">${money(item.price)}</span>
-                    {item.kind === "service" ? (
-                      <span className="text-[10px] font-bold text-on-surface-variant">Servicio</span>
-                    ) : (
-                      <span
-                        className={`text-[10px] font-bold ${
-                          (item.stock_level ?? 0) <= 0
-                            ? "text-error"
-                            : (item.stock_level ?? 0) <= 5
-                              ? "text-amber-500"
-                              : "text-on-surface-variant"
-                        }`}
-                      >
-                        Stock: {item.stock_level}
-                      </span>
-                    )}
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
+                    <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1">
+                      {item.kind === "service" ? "Servicio" : `SKU: ${item.sku}`}
+                    </p>
+                    <h3 className="text-sm font-medium text-on-surface mb-2 line-clamp-2 leading-tight flex-1 group-hover:text-primary transition-colors">
+                      {item.name}
+                    </h3>
+                    <div className="flex items-center justify-between mt-auto">
+                      <span className="text-on-surface font-bold">${money(item.price)}</span>
+                      {item.kind === "service" ? (
+                        <span className="text-[10px] font-bold text-on-surface-variant">Servicio</span>
+                      ) : (
+                        <span
+                          className={`text-[10px] font-bold ${
+                            (item.stock_level ?? 0) <= 0
+                              ? "text-error"
+                              : (item.stock_level ?? 0) <= 5
+                                ? "text-amber-500"
+                                : "text-on-surface-variant"
+                          }`}
+                        >
+                          Stock: {item.stock_level}
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                {filtered.map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => addToCart(item)}
+                    disabled={item.kind === "product" && (item.stock_level ?? 0) <= 0}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-colors text-left disabled:opacity-40 disabled:cursor-not-allowed ${
+                      item.kind === "service"
+                        ? "bg-emerald-500/5 border-emerald-500/20 hover:border-emerald-400/40"
+                        : "bg-surface-container border-outline-variant/10 hover:bg-surface-container-high"
+                    }`}
+                  >
+                    <div className="w-9 h-9 rounded-lg bg-surface-container-lowest flex items-center justify-center overflow-hidden shrink-0">
+                      {item.image_url ? (
+                        <Image
+                          src={item.image_url}
+                          alt={item.name}
+                          width={36}
+                          height={36}
+                          unoptimized
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-3 h-3 rounded bg-outline-variant/20" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[10px] text-on-surface-variant font-semibold uppercase tracking-wider truncate">
+                        {item.kind === "service" ? "Servicio" : item.sku}
+                      </p>
+                      <h3 className="text-xs font-medium text-on-surface truncate">{item.name}</h3>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-xs font-bold text-on-surface">${money(item.price)}</p>
+                      {item.kind !== "service" && (
+                        <span
+                          className={`text-[9px] font-bold ${
+                            (item.stock_level ?? 0) <= 0
+                              ? "text-error"
+                              : (item.stock_level ?? 0) <= 5
+                                ? "text-amber-500"
+                                : "text-on-surface-variant"
+                          }`}
+                        >
+                          {item.stock_level} uds.
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
         </div>
 
         {/* Tab Bar Inferior (Nuevas Vistas/Ventas Concurrentes) */}
@@ -339,7 +458,7 @@ export default function POSPage() {
                {/* Iconos visuales superiores */}
                <button onClick={() => setIsDiscountModalOpen(true)} className="hover:text-primary" title="Descuentos globales"><IconDiscount className="w-5 h-5" /></button>
                <button onClick={() => window.print()} className="hover:text-primary" title="Imprimir"><svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-5 h-5"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg></button>
-               <button className="hover:text-primary"><svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-5 h-5"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg></button>
+               <button onClick={() => setIsSaleConfigModalOpen(true)} className="hover:text-primary" title="Configuración"><svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-5 h-5"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg></button>
             </div>
           </div>
 
@@ -429,13 +548,17 @@ export default function POSPage() {
             </div>
           ) : (
             cart.map((line) => (
-              <div key={line.item.id} className="flex flex-col gap-2">
+              <div key={line.item.id} className={`flex flex-col gap-2 rounded-xl p-2 ${line.item.kind === "service" ? "bg-emerald-500/5 border border-emerald-500/10" : ""}`}>
                 <div className="flex justify-between items-start gap-2">
                   <div className="flex-1 flex justify-between items-start">
                     <div>
                       <h4 className="text-sm font-medium text-on-surface line-clamp-1">{line.item.name}</h4>
-                      <p className="text-[10px] text-on-surface-variant mt-0.5 uppercase tracking-wide">
-                        {line.item.kind === "service" ? "Servicio" : `SKU: ${line.item.sku}`}
+                      <p className="text-[10px] mt-0.5 uppercase tracking-wide font-semibold">
+                        {line.item.kind === "service" ? (
+                          <span className="text-emerald-500">Servicio</span>
+                        ) : (
+                          <span className="text-on-surface-variant">SKU: {line.item.sku}</span>
+                        )}
                       </p>
                     </div>
                     <div className="text-right">
@@ -450,6 +573,18 @@ export default function POSPage() {
                     </div>
                   </div>
                 </div>
+                {line.item.kind === "service" && staff.length > 0 && (
+                  <select
+                    value={line.staffId ?? ""}
+                    onChange={(e) => setLineStaff(line.item.id, e.target.value || null)}
+                    className="w-full bg-transparent border border-outline-variant/20 rounded-lg px-2 py-1 text-[10px] text-on-surface focus:outline-none focus:border-primary appearance-none"
+                  >
+                    <option value="">Atendido por —</option>
+                    {staff.map((m) => (
+                      <option key={m.id} value={m.id}>{m.full_name}</option>
+                    ))}
+                  </select>
+                )}
                 <div className="flex items-center justify-between mt-1">
                   <div className="flex items-center border border-outline-variant/20 rounded-lg overflow-hidden bg-surface-container-lowest">
                     <button
@@ -500,18 +635,20 @@ export default function POSPage() {
           {cart.length > 0 && (
             <div className="space-y-2 mb-4 bg-surface-container-lowest p-3 rounded-xl border border-outline-variant/10">
               <div className="flex justify-between text-sm text-on-surface-variant">
-                <span>Subtotal</span>
-                <span className="font-semibold text-on-surface">${money(totals.subtotal + cart.reduce((s, l) => s + (l.discountAmount || 0), 0))}</span>
+                <span>Subtotal (base)</span>
+                <span className="font-semibold text-on-surface">${money(totals.subtotal)}</span>
               </div>
-              
+              <div className="flex justify-between text-sm text-on-surface-variant">
+                <span>IVA ({includeTax ? (taxRate * 100).toFixed(0) : 0}%)</span>
+                <span className="font-semibold text-on-surface">${money(totals.taxAmount)}</span>
+              </div>
               {cart.reduce((s, l) => s + (l.discountAmount || 0), 0) > 0 && (
                 <div className="flex justify-between text-sm text-on-surface-variant">
                   <span>Descuento</span>
                   <span className="font-semibold">-${money(cart.reduce((s, l) => s + (l.discountAmount || 0), 0))}</span>
                 </div>
               )}
-              
-              <div className="flex justify-between text-sm text-on-surface-variant">
+              <div className="flex justify-between text-sm text-on-surface-variant border-t border-outline-variant/20 pt-2">
                 <span>Total</span>
                 <span className="font-bold text-on-surface">${money(totals.total)}</span>
               </div>
@@ -566,6 +703,7 @@ export default function POSPage() {
       {isCustomerModalOpen && <CustomerModal onClose={() => setIsCustomerModalOpen(false)} />}
       {isDiscountModalOpen && <DiscountModal onClose={() => setIsDiscountModalOpen(false)} />}
       {isRecentSalesModalOpen && <RecentSalesModal onClose={() => setIsRecentSalesModalOpen(false)} />}
+      {isSaleConfigModalOpen && <SaleConfigModal onClose={() => setIsSaleConfigModalOpen(false)} />}
       
       {/* Modal Venta Exitosa */}
       {isSuccessModalOpen && (
@@ -605,7 +743,7 @@ export default function POSPage() {
         </div>
       )}
       </div>
-      <PosReceipt />
+      <PosReceipt data={receiptData} />
     </>
   );
 }

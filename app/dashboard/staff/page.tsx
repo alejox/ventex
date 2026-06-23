@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { IconUserBadge, IconPlus } from "@/app/assets/icons/DashboardIcons";
 import { useStaffStore } from "@/stores/staff.store";
-import type { NewStaffInput, StaffMember } from "@/services/staff.service";
+import { fetchStaffSales } from "@/services/staff.service";
+import type { NewStaffInput, StaffMember, StaffSaleItem } from "@/services/staff.service";
 
 const ROLES = ["Barbero", "Estilista", "Colorista", "Manicurista", "Lavador", "Detailer", "Consultor", "Profesional", "Recepción", "Otro"];
 
@@ -13,6 +14,7 @@ const EMPTY_STAFF: NewStaffInput = {
   phone: "",
   email: "",
   commission_rate: "0",
+  commission_type: "percentage",
   status: "active",
 };
 
@@ -35,6 +37,26 @@ export default function StaffPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<NewStaffInput>(EMPTY_STAFF);
 
+  const [salesModalOpen, setSalesModalOpen] = useState(false);
+  const [salesStaff, setSalesStaff] = useState<StaffMember | null>(null);
+  const [sales, setSales] = useState<StaffSaleItem[]>([]);
+  const [salesLoading, setSalesLoading] = useState(false);
+
+  const openSales = useCallback(async (m: StaffMember) => {
+    setSalesStaff(m);
+    setSales([]);
+    setSalesLoading(true);
+    setSalesModalOpen(true);
+    try {
+      const data = await fetchStaffSales(m.id);
+      setSales(data);
+    } catch {
+      setSales([]);
+    } finally {
+      setSalesLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchStaff();
     fetchCommissions();
@@ -54,6 +76,7 @@ export default function StaffPage() {
       phone: m.phone ?? "",
       email: m.email ?? "",
       commission_rate: String(m.commission_rate),
+      commission_type: m.commission_type || "percentage",
       status: m.status,
     });
     setModalOpen(true);
@@ -86,7 +109,7 @@ export default function StaffPage() {
     <div className="flex flex-col gap-6 w-full animate-in fade-in duration-500">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-on-surface">Equipo</h1>
+          <h1 className="text-2xl font-bold text-on-surface">Personal</h1>
           <p className="text-sm text-on-surface-variant mt-1">
             Administra tu equipo y la comisión que gana cada uno por servicio.
           </p>
@@ -96,7 +119,7 @@ export default function StaffPage() {
           className="bg-[#6063ee] hover:bg-[#c0c1ff] text-white hover:text-[#0b0664] text-sm font-semibold py-2.5 px-4 rounded-xl shadow-lg shadow-[#6063ee]/20 transition-colors flex items-center justify-center gap-2"
         >
           <IconPlus className="w-4 h-4" />
-          <span>Añadir al Equipo</span>
+          <span>Añadir Personal</span>
         </button>
       </div>
 
@@ -130,8 +153,14 @@ export default function StaffPage() {
             <button
               key={m.id}
               onClick={() => openEdit(m)}
-              className="text-left bg-surface-container rounded-2xl border border-outline-variant/10 shadow-sm p-5 hover:border-primary/30 hover:shadow-md transition-all group"
+              className="text-left bg-surface-container rounded-2xl border border-outline-variant/10 shadow-sm p-5 hover:border-primary/30 hover:shadow-md transition-all group relative"
             >
+              <div className="absolute top-3 right-3 w-7 h-7 rounded-full bg-surface-container-lowest/80 border border-outline-variant/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-3.5 h-3.5 text-on-surface-variant">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                </svg>
+              </div>
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-12 h-12 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center shrink-0">
                   <span className="text-sm font-bold text-primary">{initials(m.full_name)}</span>
@@ -152,8 +181,16 @@ export default function StaffPage() {
               </div>
               <div className="flex items-center justify-between mt-4 pt-4 border-t border-outline-variant/10">
                 <span className="text-xs font-medium text-on-surface-variant">Comisión</span>
-                <span className="text-base font-bold text-on-surface tabular-nums">{m.commission_rate}%</span>
+                <span className="text-base font-bold text-on-surface tabular-nums">
+                  {m.commission_type === "fixed" ? `$${money(m.commission_rate)}/und` : `${m.commission_rate}%`}
+                </span>
               </div>
+              <button
+                onClick={(e) => { e.stopPropagation(); openSales(m); }}
+                className="mt-3 w-full py-1.5 rounded-lg border border-outline-variant/20 text-[11px] font-semibold text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors"
+              >
+                Ver Ventas
+              </button>
             </button>
           ))}
         </div>
@@ -178,7 +215,7 @@ export default function StaffPage() {
                     <th className="p-4 pl-6">Miembro</th>
                     <th className="p-4 text-center">Ventas</th>
                     <th className="p-4 text-right">Servicios</th>
-                    <th className="p-4 text-center">%</th>
+                    <th className="p-4 text-center">Tasa</th>
                     <th className="p-4 pr-6 text-right">Comisión</th>
                   </tr>
                 </thead>
@@ -188,7 +225,9 @@ export default function StaffPage() {
                       <td className="p-4 pl-6 font-medium text-on-surface">{c.full_name}</td>
                       <td className="p-4 text-center text-on-surface-variant">{c.salesCount}</td>
                       <td className="p-4 text-right text-on-surface-variant tabular-nums">${money(c.servicesTotal)}</td>
-                      <td className="p-4 text-center text-on-surface-variant">{c.commission_rate}%</td>
+                      <td className="p-4 text-center text-on-surface-variant">
+                        {c.commission_type === "fixed" ? `$${money(c.commission_rate)}/und` : `${c.commission_rate}%`}
+                      </td>
                       <td className="p-4 pr-6 text-right font-bold text-on-surface tabular-nums">${money(c.commission)}</td>
                     </tr>
                   ))}
@@ -199,12 +238,92 @@ export default function StaffPage() {
         </div>
       )}
 
+      {/* Modal Ventas del Personal */}
+      {salesModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-surface-container rounded-t-3xl sm:rounded-3xl w-full sm:max-w-2xl max-h-[90vh] border border-outline-variant/10 shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200 flex flex-col">
+            <div className="p-4 sm:p-6 border-b border-outline-variant/10 flex justify-between items-center bg-surface-container-low shrink-0">
+              <div>
+                <h2 className="text-lg sm:text-xl font-bold text-on-surface">
+                  {salesStaff?.full_name}
+                </h2>
+                <p className="text-xs text-on-surface-variant mt-0.5">Ventas realizadas</p>
+              </div>
+              <button
+                onClick={() => setSalesModalOpen(false)}
+                className="w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors"
+                aria-label="Cerrar"
+              >
+                <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="20" height="20">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+              {salesLoading ? (
+                <p className="text-center text-sm text-on-surface-variant py-12">Cargando ventas…</p>
+              ) : sales.length === 0 ? (
+                <p className="text-center text-sm text-on-surface-variant py-12">Sin ventas registradas.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse min-w-[500px]">
+                    <thead>
+                      <tr className="text-[10px] uppercase tracking-wider text-on-surface-variant font-bold border-b border-outline-variant/10">
+                        <th className="p-3 pl-0">Venta N.°</th>
+                        <th className="p-3">Fecha</th>
+                        <th className="p-3">Cliente</th>
+                        <th className="p-3">Producto</th>
+                        <th className="p-3 text-center">Cant</th>
+                        <th className="p-3 text-right">Total</th>
+                        <th className="p-3 pr-0 text-right">Comisión</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-outline-variant/5 text-sm">
+                      {sales.map((s) => (
+                        <tr key={s.id} className="hover:bg-surface-container-lowest transition-colors">
+                          <td className="p-3 pl-0 font-mono text-xs text-on-surface-variant">#{s.sale_number}</td>
+                          <td className="p-3 text-xs text-on-surface-variant whitespace-nowrap">
+                            {new Date(s.created_at).toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit" })}
+                          </td>
+                          <td className="p-3 text-xs text-on-surface max-w-[120px] truncate">
+                            {s.customer_name ?? "De Paso"}
+                          </td>
+                          <td className="p-3 text-xs text-on-surface max-w-[160px] truncate">{s.product_name}</td>
+                          <td className="p-3 text-center text-xs text-on-surface-variant">{s.quantity}</td>
+                          <td className="p-3 text-right text-xs font-bold text-on-surface tabular-nums">
+                            ${money(s.line_total)}
+                          </td>
+                          <td className="p-3 pr-0 text-right text-xs font-semibold text-emerald-600 tabular-nums">
+                            ${money(s.commissionAmount)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t border-outline-variant/10">
+                        <td colSpan={6} className="p-3 pl-0 text-right text-xs font-bold text-on-surface">
+                          Total comisiones
+                        </td>
+                        <td className="p-3 pr-0 text-right text-sm font-bold text-emerald-600 tabular-nums">
+                          ${money(sales.reduce((s, i) => s + i.commissionAmount, 0))}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {modalOpen && (
         <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-surface-container rounded-t-3xl sm:rounded-3xl w-full sm:max-w-lg max-h-[90vh] border border-outline-variant/10 shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200 flex flex-col">
             <div className="p-4 sm:p-6 border-b border-outline-variant/10 flex justify-between items-center bg-surface-container-low shrink-0">
               <h2 className="text-lg sm:text-xl font-bold text-on-surface">
-                {editingId ? "Editar Miembro" : "Nuevo Miembro del Equipo"}
+                {editingId ? "Editar Personal" : "Nuevo Personal"}
               </h2>
               <button
                 onClick={handleClose}
@@ -250,12 +369,25 @@ export default function StaffPage() {
                   </select>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-on-surface block">Comisión (%)</label>
+                  <label className="text-[13px] font-semibold text-on-surface block">Tipo</label>
+                  <select
+                    value={form.commission_type}
+                    onChange={(e) => setForm({ ...form, commission_type: e.target.value })}
+                    className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all appearance-none"
+                  >
+                    <option value="percentage">Porcentaje (%)</option>
+                    <option value="fixed">Valor fijo por unidad ($)</option>
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[13px] font-semibold text-on-surface block">
+                    {form.commission_type === "fixed" ? "Valor por unidad ($)" : "Comisión (%)"}
+                  </label>
                   <input
                     type="number"
                     step="0.01"
                     min="0"
-                    max="100"
+                    max={form.commission_type === "fixed" ? "999999" : "100"}
                     value={form.commission_rate}
                     onChange={(e) => setForm({ ...form, commission_rate: e.target.value })}
                     className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50"

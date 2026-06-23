@@ -31,6 +31,18 @@ interface PosState {
   activeTabId: string;
   submitting: boolean;
 
+  // Configuración
+  fastSale: boolean;
+  setFastSale: (val: boolean) => void;
+  includeTax: boolean;
+  setIncludeTax: (val: boolean) => void;
+  defaultPaymentMethod: PaymentMethod;
+  setDefaultPaymentMethod: (method: PaymentMethod) => void;
+  defaultStaffId: string | null;
+  setDefaultStaffId: (id: string | null) => void;
+  defaultCustomerId: string | null;
+  setDefaultCustomerId: (id: string | null) => void;
+
   init: () => Promise<void>;
 
   // Gestión de pestañas
@@ -50,6 +62,7 @@ interface PosState {
   setCustomer: (customerId: string | null) => void;
   setStaff: (staffId: string | null) => void;
   setLineDiscounts: (discounts: { itemId: string; discountAmount: number }[]) => void;
+  setLineStaff: (itemId: string, staffId: string | null) => void;
   setPaymentMethod: (method: PaymentMethod) => void;
   clearCart: () => void;
   /** Devuelve true si la venta se registró (para que el componente limpie la UI). */
@@ -59,14 +72,19 @@ interface PosState {
 const toMessage = (e: unknown) =>
   e instanceof Error ? e.message : "Ocurrió un error inesperado";
 
-const createDefaultTab = (index: number): SaleTab => ({
-  id: `tab-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-  name: index === 0 ? "Venta principal" : `Venta ${index + 1}`,
-  cart: [],
-  customerId: null,
-  staffId: null,
-  paymentMethod: "efectivo",
-});
+const createDefaultTab = (index: number, get?: () => PosState): SaleTab => {
+  const defaultMethod = get?.()?.defaultPaymentMethod ?? "efectivo";
+  const defaultStaff = get?.()?.defaultStaffId ?? null;
+  const defaultCustomer = get?.()?.defaultCustomerId ?? null;
+  return {
+    id: `tab-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    name: index === 0 ? "Venta principal" : `Venta ${index + 1}`,
+    cart: [],
+    customerId: defaultCustomer,
+    staffId: defaultStaff,
+    paymentMethod: defaultMethod,
+  };
+};
 
 /**
  * Productos tienen stock finito (no se puede vender más del disponible);
@@ -76,19 +94,28 @@ const atStockLimit = (item: CatalogItem, qty: number) =>
   item.kind === "product" && item.stock_level != null && qty >= item.stock_level;
 
 export const usePosStore = create<PosState>((set, get) => {
-  const initialTab = createDefaultTab(0);
-
   return {
     catalog: [],
     customers: [],
     staff: [],
-    taxRate: 0.16,
+    taxRate: 0.19,
     loading: false,
     error: null,
 
-    tabs: [initialTab],
-    activeTabId: initialTab.id,
+    tabs: [createDefaultTab(0)], // temporal hasta que se monte el store y sobrescriba si aplica
+    activeTabId: "", // se inicializará luego o en la primera tab
     submitting: false,
+
+    fastSale: false,
+    setFastSale: (val) => set({ fastSale: val }),
+    includeTax: true,
+    setIncludeTax: (val) => set({ includeTax: val }),
+    defaultPaymentMethod: "efectivo",
+    setDefaultPaymentMethod: (method) => set({ defaultPaymentMethod: method }),
+    defaultStaffId: null,
+    setDefaultStaffId: (id) => set({ defaultStaffId: id }),
+    defaultCustomerId: null,
+    setDefaultCustomerId: (id) => set({ defaultCustomerId: id }),
 
     init: async () => {
       set({ loading: true, error: null });
@@ -99,7 +126,13 @@ export const usePosStore = create<PosState>((set, get) => {
           posService.fetchStaff(),
           posService.fetchTaxRate(),
         ]);
-        set({ catalog, customers, staff, taxRate, loading: false });
+        const state = get();
+        if (state.activeTabId === "") {
+          const firstTab = createDefaultTab(0, get);
+          set({ catalog, customers, staff, taxRate, loading: false, tabs: [firstTab], activeTabId: firstTab.id });
+        } else {
+          set({ catalog, customers, staff, taxRate, loading: false });
+        }
       } catch (e) {
         set({ error: toMessage(e), loading: false });
       }
@@ -107,7 +140,7 @@ export const usePosStore = create<PosState>((set, get) => {
 
     addTab: () =>
       set((s) => {
-        const newTab = createDefaultTab(s.tabs.length);
+        const newTab = createDefaultTab(s.tabs.length, get);
         return { tabs: [...s.tabs, newTab], activeTabId: newTab.id };
       }),
 
@@ -117,7 +150,7 @@ export const usePosStore = create<PosState>((set, get) => {
       set((s) => {
         const newTabs = s.tabs.filter((t) => t.id !== id);
         if (newTabs.length === 0) {
-          const freshTab = createDefaultTab(0);
+          const freshTab = createDefaultTab(0, get);
           return { tabs: [freshTab], activeTabId: freshTab.id };
         }
         return {
@@ -249,6 +282,19 @@ export const usePosStore = create<PosState>((set, get) => {
         }),
       })),
 
+    setLineStaff: (itemId, staffId) =>
+      set((s) => ({
+        tabs: s.tabs.map((t) => {
+          if (t.id !== s.activeTabId) return t;
+          return {
+            ...t,
+            cart: t.cart.map((line) =>
+              line.item.id === itemId ? { ...line, staffId: staffId ?? null } : line,
+            ),
+          };
+        }),
+      })),
+
     setPaymentMethod: (paymentMethod) =>
       set((s) => ({
         tabs: s.tabs.map((t) =>
@@ -257,13 +303,18 @@ export const usePosStore = create<PosState>((set, get) => {
       })),
 
     clearCart: () =>
-      set((s) => ({
-        tabs: s.tabs.map((t) =>
-          t.id === s.activeTabId
-            ? { ...t, cart: [], customerId: null, staffId: null }
-            : t,
-        ),
-      })),
+      set((s) => {
+        const defaultMethod = get().defaultPaymentMethod;
+        const defaultStaff = get().defaultStaffId;
+        const defaultCustomer = get().defaultCustomerId;
+        return {
+          tabs: s.tabs.map((t) =>
+            t.id === s.activeTabId
+              ? { ...t, cart: [], customerId: defaultCustomer, staffId: defaultStaff, paymentMethod: defaultMethod }
+              : t,
+          ),
+        };
+      }),
 
     checkout: async () => {
       const state = get();
@@ -280,25 +331,31 @@ export const usePosStore = create<PosState>((set, get) => {
           staffId,
           paymentMethod,
           discount: totalDiscount,
-          items: cart.map((l) =>
-            l.item.kind === "service"
-              ? { service_id: l.item.id, quantity: l.quantity }
-              : { product_id: l.item.id, quantity: l.quantity },
-          ),
+          items: cart.map((l) => {
+            const base = l.item.kind === "service"
+              ? { service_id: l.item.id }
+              : { product_id: l.item.id };
+            return { ...base, quantity: l.quantity, staff_id: l.staffId ?? null };
+          }),
         });
 
         // Refresca el catálogo para reflejar el stock ya descontado por la RPC.
         const catalog = await posService.fetchCatalog();
 
-        set((s) => ({
-          submitting: false,
-          catalog,
-          tabs: s.tabs.map((t) =>
-            t.id === s.activeTabId
-              ? { ...t, cart: [], customerId: null, staffId: null }
-              : t,
-          ),
-        }));
+        set((s) => {
+          const defaultMethod = get().defaultPaymentMethod;
+          const defaultStaff = get().defaultStaffId;
+          const defaultCustomer = get().defaultCustomerId;
+          return {
+            submitting: false,
+            catalog,
+            tabs: s.tabs.map((t) =>
+              t.id === s.activeTabId
+                ? { ...t, cart: [], customerId: defaultCustomer, staffId: defaultStaff, paymentMethod: defaultMethod }
+                : t,
+            ),
+          };
+        });
 
         return true;
       } catch (e) {

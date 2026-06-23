@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { Suspense, useState, useEffect, use } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { useInventoryStore } from "@/stores/inventory.store";
 import type { NewProductInput } from "@/services/inventory.service";
 
-export default function ProductFormPage() {
+function ProductForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const editId = searchParams.get("id");
@@ -342,5 +342,13 @@ export default function ProductFormPage() {
         </div>
       </form>
     </div>
+  );
+}
+
+export default function ProductFormPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-sm text-on-surface-variant">Cargando…</div>}>
+      <ProductForm />
+    </Suspense>
   );
 }
