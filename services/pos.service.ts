@@ -8,9 +8,12 @@ export interface CatalogItem {
   name: string;
   sku: string | null;
   price: number;
-  stock_level: number | null; // null para servicios
+  stock_level: number | null;
   category_name: string | null;
   image_url: string | null;
+  has_commission: boolean;
+  commission_type: "percentage" | "fixed" | null;
+  commission_value: number | null;
 }
 
 export interface CustomerOption {
@@ -99,11 +102,11 @@ export async function fetchCatalog(): Promise<CatalogItem[]> {
   const [productsRes, servicesRes] = await Promise.all([
     supabase
       .from("products")
-      .select("id, name, sku, price, stock_level, image_url, categories(name)")
+      .select("id, name, sku, price, stock_level, image_url, has_commission, commission_type, commission_value, categories(name)")
       .order("name"),
     supabase
       .from("services")
-      .select("id, name, price")
+      .select("id, name, price, has_commission, commission_type, commission_value")
       .eq("status", "active")
       .order("name"),
   ]);
@@ -123,6 +126,9 @@ export async function fetchCatalog(): Promise<CatalogItem[]> {
       stock_level: p.stock_level,
       category_name,
       image_url: p.image_url ?? null,
+      has_commission: p.has_commission ?? false,
+      commission_type: (p.commission_type ?? null) as "percentage" | "fixed" | null,
+      commission_value: p.commission_value ?? null,
     };
   });
 
@@ -135,6 +141,9 @@ export async function fetchCatalog(): Promise<CatalogItem[]> {
     stock_level: null,
     category_name: "Servicios",
     image_url: null,
+    has_commission: s.has_commission ?? false,
+    commission_type: (s.commission_type ?? null) as "percentage" | "fixed" | null,
+    commission_value: s.commission_value ?? null,
   }));
 
   return [...products, ...services];

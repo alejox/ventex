@@ -45,6 +45,7 @@ const NAV_ICONS: Record<string, IconType> = {
   finance: IconDollar,
   customers: IconUsers,
   distributors: IconBox,
+  purchases: IconRefreshCw,
   calendar: IconCalendar,
 };
 

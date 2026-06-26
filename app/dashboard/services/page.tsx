@@ -11,6 +11,9 @@ const EMPTY_SERVICE: NewServiceInput = {
   price: "",
   duration_minutes: "30",
   status: "active",
+  has_commission: false,
+  commission_type: "percentage",
+  commission_value: "",
 };
 
 const money = (n: number) =>
@@ -47,6 +50,9 @@ export default function ServicesPage() {
       price: String(s.price),
       duration_minutes: String(s.duration_minutes),
       status: s.status,
+      has_commission: s.has_commission ?? false,
+      commission_type: s.commission_type ?? "percentage",
+      commission_value: s.commission_value ? String(s.commission_value) : "",
     });
     setModalOpen(true);
   };
@@ -219,6 +225,57 @@ export default function ServicesPage() {
                   className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50 resize-none"
                   placeholder="Detalles del servicio (opcional)"
                 />
+              </div>
+
+              {/* Comisión */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-3 sm:p-4 bg-surface-container-low rounded-xl border border-outline-variant/10">
+                  <div>
+                    <p className="text-sm font-bold text-on-surface">Genera comisión</p>
+                    <p className="text-xs text-on-surface-variant mt-1">Asigna una comisión al personal por este servicio</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setForm({ ...form, has_commission: !form.has_commission, commission_type: "percentage", commission_value: "" })}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none shrink-0 ml-4 ${
+                      form.has_commission ? "bg-[#6063ee]" : "bg-outline-variant/30"
+                    }`}
+                  >
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      form.has_commission ? "translate-x-6" : "translate-x-1"
+                    }`} />
+                  </button>
+                </div>
+                {form.has_commission && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-[13px] font-semibold text-on-surface block">Tipo</label>
+                      <select
+                        value={form.commission_type}
+                        onChange={(e) => setForm({ ...form, commission_type: e.target.value })}
+                        className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all appearance-none"
+                      >
+                        <option value="percentage">Porcentaje (%)</option>
+                        <option value="fixed">Valor fijo ($)</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[13px] font-semibold text-on-surface block">
+                        {form.commission_type === "fixed" ? "Valor por unidad ($)" : "Porcentaje (%)"}
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        max={form.commission_type === "fixed" ? "999999" : "100"}
+                        value={form.commission_value}
+                        onChange={(e) => setForm({ ...form, commission_value: e.target.value })}
+                        className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50"
+                        placeholder={form.commission_type === "fixed" ? "0.00" : "0"}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center justify-between p-3 sm:p-4 bg-surface-container-low rounded-xl border border-outline-variant/10">

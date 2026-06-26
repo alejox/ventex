@@ -53,6 +53,7 @@ interface PosState {
 
   // Acciones sobre la pestaña activa
   addToCart: (item: CatalogItem) => void;
+  addToTab: (item: CatalogItem, tabId: string) => void;
   increment: (itemId: string) => void;
   decrement: (itemId: string) => void;
   setQuantity: (itemId: string, quantity: number) => void;
@@ -177,6 +178,25 @@ export const usePosStore = create<PosState>((set, get) => {
       set((s) => ({
         tabs: s.tabs.map((t) => {
           if (t.id !== s.activeTabId) return t;
+          const existing = t.cart.find((l) => l.item.id === item.id);
+          const currentQty = existing?.quantity ?? 0;
+          if (atStockLimit(item, currentQty)) return t;
+          if (existing) {
+            return {
+              ...t,
+              cart: t.cart.map((l) =>
+                l.item.id === item.id ? { ...l, quantity: l.quantity + 1 } : l,
+              ),
+            };
+          }
+          return { ...t, cart: [...t.cart, { item, quantity: 1 }] };
+        }),
+      })),
+
+    addToTab: (item, tabId) =>
+      set((s) => ({
+        tabs: s.tabs.map((t) => {
+          if (t.id !== tabId) return t;
           const existing = t.cart.find((l) => l.item.id === item.id);
           const currentQty = existing?.quantity ?? 0;
           if (atStockLimit(item, currentQty)) return t;

@@ -11,6 +11,7 @@ export interface Distributor {
   address: string | null;
   rfc_rut: string | null;
   doc_type: string | null;
+  dv: string | null;
   status: string;
   created_at: string;
 }
@@ -24,9 +25,10 @@ export interface NewDistributorInput {
   address: string;
   rfc_rut: string;
   doc_type: string;
+  dv: string;
 }
 
-const SELECT = "id, business_name, contact_name, email, phone, whatsapp, address, rfc_rut, doc_type, status, created_at";
+const SELECT = "id, business_name, contact_name, email, phone, whatsapp, address, rfc_rut, doc_type, dv, status, created_at";
 
 export async function fetchDistributors(): Promise<Distributor[]> {
   const supabase = createClient();
@@ -48,6 +50,7 @@ export async function updateDistributor(id: string, input: NewDistributorInput):
       address: input.address || null,
       rfc_rut: input.rfc_rut || null,
       doc_type: input.doc_type || null,
+      dv: input.dv || null,
     })
     .eq("id", id)
     .select(SELECT)
@@ -69,6 +72,7 @@ export async function createDistributor(input: NewDistributorInput): Promise<Dis
       address: input.address || null,
       rfc_rut: input.rfc_rut || null,
       doc_type: input.doc_type || null,
+      dv: input.dv || null,
       // user_id lo asigna el trigger set_distributors_user_id.
     })
     .select(SELECT)

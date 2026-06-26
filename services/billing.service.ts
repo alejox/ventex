@@ -63,6 +63,7 @@ export async function fetchInvoices(): Promise<Invoice[]> {
   const { data, error } = await supabase
     .from("invoices")
     .select(SELECT)
+    .neq("type", "compra")
     .order("created_at", { ascending: false });
   if (error) throw error;
   return (data ?? []).map((i) => ({

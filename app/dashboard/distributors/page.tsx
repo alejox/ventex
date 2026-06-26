@@ -27,6 +27,7 @@ const EMPTY_DISTRIBUTOR: NewDistributorInput = {
   address: "",
   rfc_rut: "",
   doc_type: "NIT",
+  dv: "",
 };
 
 export default function DistributorsPage() {
@@ -63,6 +64,7 @@ export default function DistributorsPage() {
       address: d.address ?? "",
       rfc_rut: d.rfc_rut ?? "",
       doc_type: d.doc_type ?? "NIT",
+      dv: d.dv ?? "",
     });
     setModalOpen(true);
   };
@@ -150,7 +152,7 @@ export default function DistributorsPage() {
                     </td>
                     <td className="p-4 text-on-surface-variant">{d.phone ?? "—"}</td>
                     <td className="p-4 text-on-surface-variant">{d.whatsapp ?? "—"}</td>
-                    <td className="p-4 text-on-surface-variant font-mono text-xs">{d.doc_type ? `${d.doc_type} ${d.rfc_rut}` : (d.rfc_rut ?? "—")}</td>
+                    <td className="p-4 text-on-surface-variant font-mono text-xs">{d.doc_type ? `${d.doc_type} ${d.rfc_rut}${d.dv ? `-${d.dv}` : ""}` : (d.rfc_rut ?? "—")}</td>
                     <td className="p-4 text-center">
                       <span
                         className={`inline-flex px-2.5 py-1 rounded-md text-[11px] font-bold border ${
@@ -288,6 +290,15 @@ export default function DistributorsPage() {
                     onChange={(e) => setForm({ ...form, rfc_rut: e.target.value })}
                     className="flex-1 bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all font-mono placeholder:text-on-surface-variant/50"
                     placeholder="Número de documento"
+                  />
+                  <input
+                    type="text"
+                    maxLength={2}
+                    value={form.dv}
+                    onChange={(e) => setForm({ ...form, dv: e.target.value.replace(/\D/g, "") })}
+                    className="w-14 shrink-0 bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-2 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all font-mono text-center placeholder:text-on-surface-variant/50"
+                    placeholder="DV"
+                    title="Dígito de verificación"
                   />
                 </div>
               </div>

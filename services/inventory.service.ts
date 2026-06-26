@@ -23,6 +23,10 @@ export interface Product {
   stock_level: number;
   minimum_stock: number;
   image_url: string | null;
+  has_commission: boolean;
+  commission_type: string | null;
+  commission_value: number | null;
+  units_per_package?: number;
   created_at: string;
   categories: { name: string } | null;
   distributors: { business_name: string } | null;
@@ -39,6 +43,10 @@ export interface NewProductInput {
   price: string;
   stock_level: string;
   image_url: string;
+  has_commission: boolean;
+  commission_type: string;
+  commission_value: string;
+  units_per_package?: string;
 }
 
 
@@ -109,7 +117,6 @@ export async function fetchProducts(): Promise<Product[]> {
 
 export async function createProduct(input: NewProductInput): Promise<Product> {
   const supabase = createClient();
-  // user_id lo asigna el trigger/DEFAULT auth.uid() (tenant-isolation, ver CLAUDE.md).
   const { data, error } = await supabase
     .from("products")
     .insert({
@@ -122,6 +129,10 @@ export async function createProduct(input: NewProductInput): Promise<Product> {
       price: parseFloat(input.price),
       stock_level: parseInt(input.stock_level),
       image_url: input.image_url || null,
+      has_commission: input.has_commission,
+      commission_type: input.has_commission ? input.commission_type : null,
+      commission_value: input.has_commission ? parseFloat(input.commission_value) || null : null,
+      units_per_package: parseInt(input.units_per_package || "1") || 1,
     } as never)
     .select(PRODUCT_SELECT)
     .single();
@@ -143,6 +154,10 @@ export async function updateProduct(id: string, input: NewProductInput): Promise
       price: parseFloat(input.price),
       stock_level: parseInt(input.stock_level),
       image_url: input.image_url || null,
+      has_commission: input.has_commission,
+      commission_type: input.has_commission ? input.commission_type : null,
+      commission_value: input.has_commission ? parseFloat(input.commission_value) || null : null,
+      units_per_package: parseInt(input.units_per_package || "1") || 1,
     } as never)
     .eq("id", id)
     .select(PRODUCT_SELECT)

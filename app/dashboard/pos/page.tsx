@@ -643,7 +643,7 @@ export default function POSPage() {
                     </div>
                   </div>
                 </div>
-                {line.item.kind === "service" && staff.length > 0 && (
+                {(line.item.kind === "service" || line.item.has_commission) && staff.length > 0 && (
                   <select
                     value={line.staffId ?? ""}
                     onChange={(e) => setLineStaff(line.item.id, e.target.value || null)}
@@ -843,7 +843,7 @@ export default function POSPage() {
 
               {/* Botones de montos rápidos */}
               <div className="grid grid-cols-3 gap-2">
-                {[20000, 50000, 100000].map((amount) => (
+                {[2000, 5000, 10000, 20000, 50000, 100000].map((amount) => (
                   <button
                     key={amount}
                     type="button"
@@ -857,28 +857,14 @@ export default function POSPage() {
                     ${money(amount)}
                   </button>
                 ))}
-                <button
-                  type="button"
-                  onClick={() => setAmountTendered(String(Math.ceil(totals.total / 1000) * 1000))}
-                  className="py-2.5 rounded-xl text-xs font-bold border border-outline-variant/20 text-on-surface-variant hover:border-primary/30 hover:text-on-surface transition-colors"
-                >
-                  Exacto
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAmountTendered(String(Math.ceil((totals.total + 1000) / 1000) * 1000))}
-                  className="py-2.5 rounded-xl text-xs font-bold border border-outline-variant/20 text-on-surface-variant hover:border-primary/30 hover:text-on-surface transition-colors"
-                >
-                  + $1k
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAmountTendered(String(Math.ceil((totals.total + 5000) / 1000) * 1000))}
-                  className="py-2.5 rounded-xl text-xs font-bold border border-outline-variant/20 text-on-surface-variant hover:border-primary/30 hover:text-on-surface transition-colors"
-                >
-                  + $5k
-                </button>
               </div>
+              <button
+                type="button"
+                onClick={() => setAmountTendered(String(totals.total))}
+                className="w-full py-2.5 rounded-xl text-xs font-bold border border-outline-variant/20 text-on-surface-variant hover:border-primary/30 hover:text-on-surface transition-colors"
+              >
+                Valor exacto
+              </button>
 
               {/* Cambio */}
               {(() => {

@@ -168,6 +168,7 @@ export type Database = {
           contact_name: string | null
           created_at: string | null
           doc_type: string | null
+          dv: string | null
           email: string | null
           id: string
           phone: string | null
@@ -182,6 +183,7 @@ export type Database = {
           contact_name?: string | null
           created_at?: string | null
           doc_type?: string | null
+          dv?: string | null
           email?: string | null
           id?: string
           phone?: string | null
@@ -196,6 +198,7 @@ export type Database = {
           contact_name?: string | null
           created_at?: string | null
           doc_type?: string | null
+          dv?: string | null
           email?: string | null
           id?: string
           phone?: string | null
@@ -243,6 +246,7 @@ export type Database = {
           id: string
           invoice_id: string
           line_total: number
+          product_id: string | null
           quantity: number
           service_id: string | null
           unit_price: number
@@ -254,6 +258,7 @@ export type Database = {
           id?: string
           invoice_id: string
           line_total?: number
+          product_id?: string | null
           quantity?: number
           service_id?: string | null
           unit_price?: number
@@ -265,6 +270,7 @@ export type Database = {
           id?: string
           invoice_id?: string
           line_total?: number
+          product_id?: string | null
           quantity?: number
           service_id?: string | null
           unit_price?: number
@@ -276,6 +282,13 @@ export type Database = {
             columns: ["invoice_id"]
             isOneToOne: false
             referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
             referencedColumns: ["id"]
           },
           {
@@ -292,6 +305,7 @@ export type Database = {
           created_at: string
           customer_id: string | null
           discount_amount: number
+          distributor_id: string | null
           due_date: string | null
           id: string
           invoice_number: number
@@ -299,6 +313,7 @@ export type Database = {
           notes: string | null
           status: string
           subtotal: number
+          supplier_invoice_number: string | null
           tax_amount: number
           tax_rate: number
           total: number
@@ -309,6 +324,7 @@ export type Database = {
           created_at?: string
           customer_id?: string | null
           discount_amount?: number
+          distributor_id?: string | null
           due_date?: string | null
           id?: string
           invoice_number?: number
@@ -316,6 +332,7 @@ export type Database = {
           notes?: string | null
           status?: string
           subtotal?: number
+          supplier_invoice_number?: string | null
           tax_amount?: number
           tax_rate?: number
           total?: number
@@ -326,6 +343,7 @@ export type Database = {
           created_at?: string
           customer_id?: string | null
           discount_amount?: number
+          distributor_id?: string | null
           due_date?: string | null
           id?: string
           invoice_number?: number
@@ -333,6 +351,7 @@ export type Database = {
           notes?: string | null
           status?: string
           subtotal?: number
+          supplier_invoice_number?: string | null
           tax_amount?: number
           tax_rate?: number
           total?: number
@@ -347,13 +366,24 @@ export type Database = {
             referencedRelation: "customers"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "invoices_distributor_id_fkey"
+            columns: ["distributor_id"]
+            isOneToOne: false
+            referencedRelation: "distributors"
+            referencedColumns: ["id"]
+          },
         ]
       }
       products: {
         Row: {
           category_id: string | null
+          commission_type: string | null
+          commission_value: number | null
           created_at: string
           distributor_id: string | null
+          has_commission: boolean
+          icon: string | null
           id: string
           image_url: string | null
           minimum_stock: number
@@ -364,13 +394,18 @@ export type Database = {
           status: string | null
           stock_level: number
           unit: string
+          units_per_package: number
           updated_at: string
           user_id: string
         }
         Insert: {
           category_id?: string | null
+          commission_type?: string | null
+          commission_value?: number | null
           created_at?: string
           distributor_id?: string | null
+          has_commission?: boolean
+          icon?: string | null
           id?: string
           image_url?: string | null
           minimum_stock?: number
@@ -381,13 +416,18 @@ export type Database = {
           status?: string | null
           stock_level?: number
           unit?: string
+          units_per_package?: number
           updated_at?: string
           user_id?: string
         }
         Update: {
           category_id?: string | null
+          commission_type?: string | null
+          commission_value?: number | null
           created_at?: string
           distributor_id?: string | null
+          has_commission?: boolean
+          icon?: string | null
           id?: string
           image_url?: string | null
           minimum_stock?: number
@@ -398,6 +438,7 @@ export type Database = {
           status?: string | null
           stock_level?: number
           unit?: string
+          units_per_package?: number
           updated_at?: string
           user_id?: string
         }
@@ -584,9 +625,13 @@ export type Database = {
       }
       services: {
         Row: {
+          commission_type: string | null
+          commission_value: number | null
           created_at: string
           description: string | null
           duration_minutes: number
+          has_commission: boolean
+          icon: string | null
           id: string
           name: string
           price: number
@@ -594,9 +639,13 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          commission_type?: string | null
+          commission_value?: number | null
           created_at?: string
           description?: string | null
           duration_minutes?: number
+          has_commission?: boolean
+          icon?: string | null
           id?: string
           name: string
           price?: number
@@ -604,9 +653,13 @@ export type Database = {
           user_id?: string
         }
         Update: {
+          commission_type?: string | null
+          commission_value?: number | null
           created_at?: string
           description?: string | null
           duration_minutes?: number
+          has_commission?: boolean
+          icon?: string | null
           id?: string
           name?: string
           price?: number
@@ -740,6 +793,10 @@ export type Database = {
         }
         Returns: string
       }
+      increment_stock: {
+        Args: { p_product_id: string; p_quantity: number }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
@@ -749,3 +806,126 @@ export type Database = {
     }
   }
 }
+
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+
+export type Tables<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      Row: infer R
+    }
+    ? R
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
+    : never
+
+export type TablesInsert<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Insert: infer I
+    }
+    ? I
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
+    : never
+
+export type TablesUpdate<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Update: infer U
+    }
+    ? U
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
+    : never
+
+export type Enums<
+  DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never = never,
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
+
+export const Constants = {
+  public: {
+    Enums: {},
+  },
+} as const

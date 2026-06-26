@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useInventoryStore } from "@/stores/inventory.store";
+import { CategoryQuickModal } from "@/components/CategoryQuickModal";
 
 interface ProductModalProps {
   onClose: () => void;
@@ -41,15 +42,17 @@ export function ProductModal({ onClose }: ProductModalProps) {
   const [type, setType] = useState("Producto");
   const [name, setName] = useState("");
   const [categoryId, setCategoryId] = useState("");
+  const [categoryModalOpen, setCategoryModalOpen] = useState(false);
   const [unit, setUnit] = useState("Unidad");
   const [bodega, setBodega] = useState("Principal");
   const [quantity, setQuantity] = useState("0");
-  const [cost, setCost] = useState("0");
-  const [basePrice, setBasePrice] = useState("0");
-  const [tax, setTax] = useState("Ninguno");
+  const [unitsPerPackage, setUnitsPerPackage] = useState("24");
+  const [packageBasePrice, setPackageBasePrice] = useState("0");
+  const [tax, setTax] = useState("19%");
+  const [unitSellingPrice, setUnitSellingPrice] = useState("0");
 
-  const taxMultiplier = tax === "Ninguno" ? 1 : 1.19; // Ejemplo simplificado
-  const finalPrice = (parseFloat(basePrice || "0") * taxMultiplier).toFixed(2);
+  const taxMultiplier = tax === "Ninguno" ? 1 : 1.19;
+  const packageTotal = (parseFloat(packageBasePrice || "0") * taxMultiplier).toFixed(0);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,15 +66,25 @@ export function ProductModal({ onClose }: ProductModalProps) {
       distributor_id: "",
       sku: `PRD-${Math.floor(Math.random() * 100000)}`,
       unit,
-      purchase_price: isService ? "0" : cost,
-      price: finalPrice, // Guardar precio final como precio de venta
-      stock_level: isService ? "0" : quantity,
+      purchase_price: isService ? "0" : packageTotal,
+      price: isService ? finalPriceValue : unitSellingPrice,
+      stock_level: isService ? "0" : String(parseInt(quantity || "0") * parseInt(unitsPerPackage || "1")),
       image_url: "",
+      has_commission: false,
+      commission_type: "percentage",
+      commission_value: "",
+      units_per_package: isService ? "1" : (unitsPerPackage || "1"),
     });
     if (ok) {
       onClose();
     }
   };
+
+  // For services, keep the old price logic
+  const [basePrice, setBasePrice] = useState("0");
+  const [serviceTax, setServiceTax] = useState("Ninguno");
+  const serviceTaxMultiplier = serviceTax === "Ninguno" ? 1 : 1.19;
+  const finalPriceValue = (parseFloat(basePrice || "0") * serviceTaxMultiplier).toFixed(2);
 
   return (
     <div
@@ -142,20 +155,33 @@ export function ProductModal({ onClose }: ProductModalProps) {
               <label className="flex items-center gap-1 text-sm font-semibold text-on-surface">
                 Categoría <IconInfo className="w-4 h-4 text-primary" />
               </label>
-              <select
-                value={categoryId}
-                onChange={(e) => setCategoryId(e.target.value)}
-                className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary appearance-none"
-              >
-                <option value="">Seleccionar</option>
-                {categories.map((cat) => (
-                  <option key={cat.id} value={cat.id}>{cat.name}</option>
-                ))}
-              </select>
+              <div className="flex gap-2">
+                <select
+                  value={categoryId}
+                  onChange={(e) => setCategoryId(e.target.value)}
+                  className="flex-1 bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary appearance-none"
+                >
+                  <option value="">Seleccionar</option>
+                  {categories.map((cat) => (
+                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => setCategoryModalOpen(true)}
+                  className="shrink-0 w-10 h-10 flex items-center justify-center rounded-xl bg-primary/10 text-primary hover:bg-primary hover:text-white transition-colors"
+                  title="Crear nueva categoría"
+                >
+                  <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-4 h-4">
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
+                </button>
+              </div>
             </div>
 
             {/* Unidad de medida */}
-            <div className={`space-y-1.5 ${type !== "Producto" ? "sm:col-span-2" : ""}`}>
+            <div className="space-y-1.5">
               <label className="flex items-center gap-1 text-sm font-semibold text-on-surface">
                 Unidad de medida <span className="text-primary">*</span>
               </label>
@@ -187,10 +213,10 @@ export function ProductModal({ onClose }: ProductModalProps) {
                   </select>
                 </div>
 
-                {/* Cantidad */}
+                {/* Cantidad de paquetes */}
                 <div className="space-y-1.5">
                   <label className="flex items-center gap-1 text-sm font-semibold text-on-surface">
-                    Cantidad <span className="text-primary">*</span>
+                    Paquetes en stock <span className="text-primary">*</span>
                   </label>
                   <input
                     type="number"
@@ -202,73 +228,137 @@ export function ProductModal({ onClose }: ProductModalProps) {
                   />
                 </div>
 
-                {/* Costo inicial */}
+            {/* Unidades por paquete (opcional) */}
                 <div className="space-y-1.5">
                   <label className="flex items-center gap-1 text-sm font-semibold text-on-surface">
-                    Costo inicial por unidad <span className="text-primary">*</span>
-                    <IconInfo className="w-4 h-4 text-primary" />
+                    Unidades por paquete
+                    <span className="text-xs text-on-surface-variant font-normal">(opcional)</span>
                   </label>
                   <input
                     type="number"
-                    min="0"
-                    step="0.01"
-                    value={cost}
-                    onChange={(e) => setCost(e.target.value)}
-                    required
+                    min="1"
+                    value={unitsPerPackage}
+                    onChange={(e) => setUnitsPerPackage(e.target.value)}
                     className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                    placeholder="Ej. 24"
                   />
                 </div>
               </>
             )}
           </div>
 
-          {/* Precios */}
-          <div className="flex flex-col sm:flex-row items-end gap-3 pt-2">
-            <div className="space-y-1.5 flex-1 w-full">
-              <label className="flex items-center gap-1 text-sm font-semibold text-on-surface">
-                Precio base <span className="text-primary">*</span>
-              </label>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={basePrice}
-                onChange={(e) => setBasePrice(e.target.value)}
-                required
-                className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-              />
-            </div>
-            
-            <div className="pb-3 text-primary font-bold text-lg hidden sm:block">+</div>
+          {/* Sección de precios */}
+          {type === "Producto" ? (
+            <div className="space-y-4">
+              <h3 className="text-sm font-bold text-on-surface">Precio del paquete</h3>
+              <div className="flex flex-col sm:flex-row items-end gap-3">
+                <div className="space-y-1.5 flex-1 w-full">
+                  <label className="flex items-center gap-1 text-sm font-semibold text-on-surface">
+                    Precio base <span className="text-primary">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={packageBasePrice}
+                    onChange={(e) => setPackageBasePrice(e.target.value)}
+                    required
+                    className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                  />
+                </div>
+                <div className="pb-3 text-primary font-bold text-lg hidden sm:block">+</div>
+                <div className="space-y-1.5 flex-1 w-full">
+                  <label className="flex items-center gap-1 text-sm font-semibold text-on-surface">
+                    Impuestos
+                  </label>
+                  <select
+                    value={tax}
+                    onChange={(e) => setTax(e.target.value)}
+                    className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary appearance-none"
+                  >
+                    <option value="Ninguno">Ninguno</option>
+                    <option value="19%">IVA 19%</option>
+                  </select>
+                </div>
+                <div className="pb-3 text-primary font-bold text-lg hidden sm:block">=</div>
+                <div className="space-y-1.5 flex-1 w-full">
+                  <label className="flex items-center gap-1 text-sm font-semibold text-on-surface">
+                    Total del paquete <span className="text-primary">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    value={packageTotal}
+                    readOnly
+                    className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary opacity-80 cursor-not-allowed"
+                  />
+                </div>
+              </div>
 
-            <div className="space-y-1.5 flex-1 w-full">
-              <label className="flex items-center gap-1 text-sm font-semibold text-on-surface">
-                Impuestos
-              </label>
-              <select
-                value={tax}
-                onChange={(e) => setTax(e.target.value)}
-                className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary appearance-none"
-              >
-                <option value="Ninguno">Ninguno</option>
-                <option value="19%">IVA 19%</option>
-              </select>
+              <div className="pt-2 border-t border-outline-variant/10">
+                <div className="space-y-1.5 max-w-xs">
+                  <label className="flex items-center gap-1 text-sm font-semibold text-on-surface">
+                    Precio de venta por unidad <span className="text-primary">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={unitSellingPrice}
+                    onChange={(e) => setUnitSellingPrice(e.target.value)}
+                    required
+                    className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                  />
+                  <p className="text-xs text-on-surface-variant">
+                    Precio al que se venderá cada unidad individual.
+                  </p>
+                </div>
+              </div>
             </div>
-
-            <div className="pb-3 text-primary font-bold text-lg hidden sm:block">=</div>
-
-            <div className="space-y-1.5 flex-1 w-full">
-              <label className="flex items-center gap-1 text-sm font-semibold text-on-surface">
-                Precio final <span className="text-primary">*</span>
-              </label>
-              <input
-                type="number"
-                value={finalPrice}
-                readOnly
-                className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary opacity-80 cursor-not-allowed"
-              />
+          ) : (
+            /* Servicios: precio base + impuesto = precio final */
+            <div className="flex flex-col sm:flex-row items-end gap-3 pt-2">
+              <div className="space-y-1.5 flex-1 w-full">
+                <label className="flex items-center gap-1 text-sm font-semibold text-on-surface">
+                  Precio base <span className="text-primary">*</span>
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={basePrice}
+                  onChange={(e) => setBasePrice(e.target.value)}
+                  required
+                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                />
+              </div>
+              <div className="pb-3 text-primary font-bold text-lg hidden sm:block">+</div>
+              <div className="space-y-1.5 flex-1 w-full">
+                <label className="flex items-center gap-1 text-sm font-semibold text-on-surface">
+                  Impuestos
+                </label>
+                <select
+                  value={serviceTax}
+                  onChange={(e) => setServiceTax(e.target.value)}
+                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary appearance-none"
+                >
+                  <option value="Ninguno">Ninguno</option>
+                  <option value="19%">IVA 19%</option>
+                </select>
+              </div>
+              <div className="pb-3 text-primary font-bold text-lg hidden sm:block">=</div>
+              <div className="space-y-1.5 flex-1 w-full">
+                <label className="flex items-center gap-1 text-sm font-semibold text-on-surface">
+                  Precio final <span className="text-primary">*</span>
+                </label>
+                <input
+                  type="number"
+                  value={finalPriceValue}
+                  readOnly
+                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary opacity-80 cursor-not-allowed"
+                />
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Botones */}
           <div className="pt-6 flex flex-col sm:flex-row justify-between gap-4 border-t border-outline-variant/10">
@@ -308,6 +398,10 @@ export function ProductModal({ onClose }: ProductModalProps) {
           </div>
         </form>
       </div>
+
+      {categoryModalOpen && (
+        <CategoryQuickModal onClose={() => setCategoryModalOpen(false)} />
+      )}
     </div>
   );
 }

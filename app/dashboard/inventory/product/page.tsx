@@ -30,6 +30,10 @@ function ProductForm() {
     price: "",
     stock_level: "",
     image_url: "",
+    has_commission: false,
+    commission_type: "percentage",
+    commission_value: "",
+    units_per_package: "1",
   });
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState("");
@@ -58,6 +62,10 @@ function ProductForm() {
       price: String(product.price),
       stock_level: String(product.stock_level),
       image_url: product.image_url ?? "",
+      has_commission: product.has_commission ?? false,
+      commission_type: product.commission_type ?? "percentage",
+      commission_value: product.commission_value ? String(product.commission_value) : "",
+      units_per_package: product.units_per_package ? String(product.units_per_package) : "1",
     });
     if (product.image_url) setImagePreview(product.image_url);
     setLoadingProduct(false);
@@ -271,6 +279,75 @@ function ProductForm() {
               placeholder="Ej. 120"
               required
             />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-[13px] font-semibold text-on-surface block">Unidades por Paquete <span className="text-on-surface-variant font-normal">(opcional)</span></label>
+            <input
+              type="number"
+              min="1"
+              value={form.units_per_package}
+              onChange={(e) => setForm({ ...form, units_per_package: e.target.value })}
+              className="w-full max-w-xs bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-on-surface-variant/50"
+              placeholder="Ej. 24"
+            />
+          </div>
+
+          {/* Comisión */}
+          <div className="pt-4 border-t border-outline-variant/10">
+            <div className="flex items-center gap-3 mb-4">
+              <button
+                type="button"
+                onClick={() => setForm({ ...form, has_commission: !form.has_commission, commission_type: "percentage", commission_value: "" })}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${
+                  form.has_commission ? "bg-[#6063ee]" : "bg-outline-variant/30"
+                }`}
+              >
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  form.has_commission ? "translate-x-6" : "translate-x-1"
+                }`} />
+              </button>
+              <div>
+                <p className="text-sm font-semibold text-on-surface">Genera comisión</p>
+                <p className="text-xs text-on-surface-variant">Asigna una comisión al personal por este producto</p>
+              </div>
+            </div>
+
+            {form.has_commission && (
+              <div className="grid grid-cols-2 gap-5 pl-14">
+                <div className="space-y-1.5">
+                  <label className="text-[13px] font-semibold text-on-surface block">Tipo de comisión</label>
+                  <div className="relative">
+                    <select
+                      value={form.commission_type}
+                      onChange={(e) => setForm({ ...form, commission_type: e.target.value })}
+                      className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all appearance-none"
+                    >
+                      <option value="percentage">Porcentaje (%)</option>
+                      <option value="fixed">Valor fijo ($)</option>
+                    </select>
+                    <svg className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant pointer-events-none" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                      <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[13px] font-semibold text-on-surface block">
+                    {form.commission_type === "fixed" ? "Valor por unidad ($)" : "Porcentaje (%)"}
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max={form.commission_type === "fixed" ? "999999" : "100"}
+                    value={form.commission_value}
+                    onChange={(e) => setForm({ ...form, commission_value: e.target.value })}
+                    className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-on-surface-variant/50"
+                    placeholder={form.commission_type === "fixed" ? "0.00" : "0"}
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
