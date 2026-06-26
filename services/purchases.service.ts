@@ -100,6 +100,7 @@ export async function createPurchaseInvoice(params: {
   distributor_id: string;
   issue_date: string;
   supplier_invoice_number: string;
+  status: string;
   items: PurchaseLineInput[];
 }): Promise<PurchaseInvoice> {
   const supabase = createClient();
@@ -112,7 +113,7 @@ export async function createPurchaseInvoice(params: {
       distributor_id: params.distributor_id,
       supplier_invoice_number: params.supplier_invoice_number || null,
       type: "compra",
-      status: "paid",
+      status: params.status,
       issue_date: params.issue_date,
       subtotal,
       discount_amount: 0,
@@ -148,6 +149,72 @@ export async function createPurchaseInvoice(params: {
       p_product_id: item.product_id,
       p_quantity: item.quantity,
     });
+  }
+
+  return toInvoice(raw);
+}
+
+export async function updateInvoiceStatus(id: string, status: string): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase.from("invoices").update({ status }).eq("id", id);
+  if (error) throw error;
+}
+
+export async function updatePurchaseInvoice(
+  id: string,
+  params: {
+    distributor_id: string;
+    issue_date: string;
+    supplier_invoice_number: string;
+    status: string;
+    items: PurchaseLineInput[];
+  }
+): Promise<PurchaseInvoice> {
+  const supabase = createClient();
+
+  const subtotal = params.items.reduce((s, i) => s + i.quantity * i.unit_price, 0);
+
+  const { data: invoice, error: invErr } = await supabase
+    .from("invoices")
+    .update({
+      distributor_id: params.distributor_id,
+      supplier_invoice_number: params.supplier_invoice_number || null,
+      issue_date: params.issue_date,
+      status: params.status,
+      subtotal,
+      discount_amount: 0,
+      tax_rate: 0,
+      tax_amount: 0,
+      total: subtotal,
+    })
+    .eq("id", id)
+    .select(INVOICE_SELECT)
+    .single();
+
+  if (invErr) throw invErr;
+
+  const raw = invoice as unknown as RawInvoice;
+
+  const { error: delErr } = await supabase
+    .from("invoice_items")
+    .delete()
+    .eq("invoice_id", id);
+  if (delErr) throw delErr;
+
+  if (params.items.length > 0) {
+    const lines = params.items.map((i) => ({
+      invoice_id: id,
+      product_id: i.product_id,
+      description: i.description,
+      quantity: i.quantity,
+      unit_price: i.unit_price,
+      line_total: i.quantity * i.unit_price,
+    }));
+
+    const { error: itemsErr } = await supabase
+      .from("invoice_items")
+      .insert(lines);
+    if (itemsErr) throw itemsErr;
   }
 
   return toInvoice(raw);

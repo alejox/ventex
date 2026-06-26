@@ -13,6 +13,15 @@ interface PurchasesState {
     distributor_id: string;
     issue_date: string;
     supplier_invoice_number: string;
+    status: string;
+    items: PurchaseLineInput[];
+  }) => Promise<boolean>;
+  updateStatus: (id: string, status: string) => Promise<void>;
+  updateInvoice: (id: string, params: {
+    distributor_id: string;
+    issue_date: string;
+    supplier_invoice_number: string;
+    status: string;
     items: PurchaseLineInput[];
   }) => Promise<boolean>;
 }
@@ -45,6 +54,35 @@ export const usePurchasesStore = create<PurchasesState>((set) => ({
     } catch (e) {
       set({ error: toMessage(e), submitting: false });
       return false;
+    }
+  },
+
+  updateInvoice: async (id, params) => {
+    set({ submitting: true, error: null });
+    try {
+      const invoice = await purchasesService.updatePurchaseInvoice(id, params);
+      set((s) => ({
+        invoices: s.invoices.map((inv) => (inv.id === id ? invoice : inv)),
+        submitting: false,
+      }));
+      return true;
+    } catch (e) {
+      set({ error: toMessage(e), submitting: false });
+      return false;
+    }
+  },
+
+  updateStatus: async (id, status) => {
+    set({ error: null });
+    try {
+      await purchasesService.updateInvoiceStatus(id, status);
+      set((s) => ({
+        invoices: s.invoices.map((inv) =>
+          inv.id === id ? { ...inv, status } : inv
+        ),
+      }));
+    } catch (e) {
+      set({ error: toMessage(e) });
     }
   },
 }));

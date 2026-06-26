@@ -65,35 +65,33 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
 
 /**
  * Calcula los totales en el cliente para previsualización.
- * Los precios de los productos se almacenan como precio FINAL (IVA incluido).
+ * Los precios de los productos se almacenan como PRECIO BASE (sin IVA).
  * 
  * Para clientes NO exentos:
- *   - Subtotal (base) = netoConIva / (1 + taxRate)
- *   - IVA = netoConIva - base
- *   - Total = netoConIva
+ *   - Subtotal = suma de los precios base
+ *   - IVA = subtotal * taxRate
+ *   - Total = subtotal + IVA
  * 
  * Para clientes exentos:
- *   - Se extrae la base y se cobra solo ese valor (sin IVA)
- *   - Total = base
+ *   - IVA = 0
+ *   - Total = subtotal
  */
 export function computeTotals(
   lines: CartLine[],
   taxRate: number,
   taxExempt: boolean
 ): SaleTotals {
-  const totalConIva = round2(lines.reduce((s, l) => s + l.item.price * l.quantity, 0));
+  const subtotalBase = round2(lines.reduce((s, l) => s + l.item.price * l.quantity, 0));
   const totalDiscount = round2(lines.reduce((s, l) => s + (l.discountAmount || 0), 0));
-  const netoConIva = Math.max(totalConIva - totalDiscount, 0);
+  const subtotalNeto = Math.max(subtotalBase - totalDiscount, 0);
 
   if (taxExempt) {
-    const subtotal = round2(netoConIva / (1 + taxRate));
-    return { subtotal, taxAmount: 0, discount: totalDiscount, total: subtotal };
+    return { subtotal: subtotalNeto, taxAmount: 0, discount: totalDiscount, total: subtotalNeto };
   }
 
-  const subtotal = round2(netoConIva / (1 + taxRate));
-  const taxAmount = round2(netoConIva - subtotal);
-  const total = netoConIva;
-  return { subtotal, taxAmount, discount: totalDiscount, total };
+  const taxAmount = round2(subtotalNeto * taxRate);
+  const total = round2(subtotalNeto + taxAmount);
+  return { subtotal: subtotalNeto, taxAmount, discount: totalDiscount, total };
 }
 
 /** Catálogo del POS: productos (con stock) + servicios activos (sin stock). */

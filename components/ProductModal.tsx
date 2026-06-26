@@ -89,7 +89,6 @@ export function ProductModal({ onClose }: ProductModalProps) {
   return (
     <div
       className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
         className="bg-surface-container-lowest rounded-[24px] w-full max-w-2xl border border-outline-variant/10 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col"
@@ -107,7 +106,7 @@ export function ProductModal({ onClose }: ProductModalProps) {
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 pt-0 space-y-6 flex-1 overflow-y-auto">
+        <form onSubmit={handleSubmit} onKeyDown={(e) => { if (e.key === "Enter") e.preventDefault(); }} className="p-6 pt-0 space-y-6 flex-1 overflow-y-auto">
           {/* Tipo de producto */}
           <div className="space-y-3">
             <label className="flex items-center gap-1 text-sm font-semibold text-on-surface">

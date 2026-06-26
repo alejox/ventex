@@ -110,6 +110,7 @@ export default function RegisterPage() {
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [businessName, setBusinessName] = useState("");
   const [confirmed, setConfirmed] = useState(false);
 
   const handleNext = () => setStep(step + 1);
@@ -130,6 +131,7 @@ export default function RegisterPage() {
         emailRedirectTo: `${window.location.origin}/auth/callback`,
         data: {
           full_name: name,
+          business_name: businessName,
           business_type: businessType,
           modules: modules,
         }
@@ -336,7 +338,27 @@ export default function RegisterPage() {
             
             <div className="space-y-1.5">
               <label className="text-[13px] font-semibold text-on-surface block">
-                Nombre completo
+                Nombre del negocio
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Mi Tienda"
+                  value={businessName}
+                  onChange={(e) => setBusinessName(e.target.value)}
+                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-10 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50"
+                  required
+                />
+                <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-on-surface-variant/70" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                  <polyline points="9 22 9 12 15 12 15 22" />
+                </svg>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[13px] font-semibold text-on-surface block">
+                Tu nombre
               </label>
               <div className="relative">
                 <input

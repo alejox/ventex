@@ -3,11 +3,14 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { IconPlus, IconBox } from "@/app/assets/icons/DashboardIcons";
 import { usePurchasesStore } from "@/stores/purchases.store";
+import type { PurchaseInvoice, PurchaseInvoiceItem } from "@/services/purchases.service";
+import * as purchasesService from "@/services/purchases.service";
 import { useDistributorsStore } from "@/stores/distributors.store";
 import { useInventoryStore } from "@/stores/inventory.store";
 import { ProductModal } from "@/components/ProductModal";
 import { DistributorQuickModal } from "@/components/DistributorQuickModal";
 import { CategoryQuickModal } from "@/components/CategoryQuickModal";
+import { PurchaseInvoiceDetailModal } from "@/components/PurchaseInvoiceDetailModal";
 
 const money = (n: number) =>
   "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -37,6 +40,8 @@ export default function PurchasesPage() {
   const submitting = usePurchasesStore((s) => s.submitting);
   const fetchInvoices = usePurchasesStore((s) => s.fetchInvoices);
   const createInvoice = usePurchasesStore((s) => s.createInvoice);
+  const updateStatus = usePurchasesStore((s) => s.updateStatus);
+  const updateInvoice = usePurchasesStore((s) => s.updateInvoice);
 
   const distributors = useDistributorsStore((s) => s.distributors);
   const fetchDistributors = useDistributorsStore((s) => s.fetchDistributors);
@@ -48,12 +53,16 @@ export default function PurchasesPage() {
   const [distributorId, setDistributorId] = useState("");
   const [issueDate, setIssueDate] = useState(today());
   const [supplierInvoiceNumber, setSupplierInvoiceNumber] = useState("");
+  const [status, setStatus] = useState("paid");
   const [lines, setLines] = useState<LineForm[]>([emptyLine()]);
   const [productSearch, setProductSearch] = useState("");
   const [showDropdown, setShowDropdown] = useState<number | null>(null);
   const [productModalOpen, setProductModalOpen] = useState(false);
   const [distributorModalOpen, setDistributorModalOpen] = useState(false);
   const [categoryModalOpen, setCategoryModalOpen] = useState(false);
+  const [detailInvoice, setDetailInvoice] = useState<PurchaseInvoice | null>(null);
+  const [editingInvoice, setEditingInvoice] = useState<PurchaseInvoice | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
   const searchInputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   useEffect(() => {
@@ -63,16 +72,43 @@ export default function PurchasesPage() {
   }, [fetchInvoices, fetchDistributors, fetchInventory]);
 
   const openModal = () => {
+    setEditingInvoice(null);
     setDistributorId("");
     setIssueDate(today());
     setSupplierInvoiceNumber("");
+    setStatus("paid");
     setLines([emptyLine()]);
+    setProductSearch("");
+    setModalOpen(true);
+  };
+
+  const openEdit = async (invoice: PurchaseInvoice) => {
+    setEditingInvoice(invoice);
+    setDistributorId(invoice.distributor_id ?? "");
+    setIssueDate(invoice.issue_date);
+    setSupplierInvoiceNumber(invoice.supplier_invoice_number ?? "");
+    setStatus(invoice.status);
+    try {
+      const items = await purchasesService.fetchPurchaseInvoiceItems(invoice.id);
+      setLines(
+        items.map((item) => ({
+          product_id: item.product_id ?? "",
+          product_name: item.products?.name ?? item.description,
+          description: item.description,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+        }))
+      );
+    } catch {
+      setLines([emptyLine()]);
+    }
     setProductSearch("");
     setModalOpen(true);
   };
 
   const closeModal = () => {
     setModalOpen(false);
+    setEditingInvoice(null);
     setDistributorId("");
   };
 
@@ -119,17 +155,33 @@ export default function PurchasesPage() {
     [lines]
   );
 
+  const filteredInvoices = useMemo(
+    () =>
+      !searchQuery
+        ? invoices
+        : invoices.filter(
+            (inv) =>
+              inv.supplier_invoice_number?.toLowerCase().includes(searchQuery.toLowerCase())
+          ),
+    [invoices, searchQuery]
+  );
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const validLines = lines.filter((l) => l.product_id && l.quantity > 0);
     if (!distributorId || validLines.length === 0) return;
 
-    const ok = await createInvoice({
+    const payload = {
       distributor_id: distributorId,
       issue_date: issueDate,
       supplier_invoice_number: supplierInvoiceNumber,
+      status,
       items: validLines,
-    });
+    };
+
+    const ok = editingInvoice
+      ? await updateInvoice(editingInvoice.id, payload)
+      : await createInvoice(payload);
 
     if (ok) closeModal();
   };
@@ -184,25 +236,45 @@ export default function PurchasesPage() {
         </div>
       ) : (
         <div className="bg-surface-container rounded-3xl border border-outline-variant/10 shadow-sm overflow-hidden">
+          <div className="p-4 border-b border-outline-variant/10">
+            <div className="relative max-w-xs">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Buscar por factura…"
+                className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-xl py-2 pl-9 pr-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/40"
+              />
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant/60" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.35-4.35" />
+              </svg>
+            </div>
+          </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[720px]">
+            <table className="w-full text-left border-collapse min-w-[800px]">
               <thead>
                 <tr className="bg-surface-container-low border-b border-outline-variant/10 text-[10px] uppercase tracking-wider text-on-surface-variant font-bold">
                   <th className="p-4 pl-6">#</th>
                   <th className="p-4">Proveedor</th>
+                  <th className="p-4">Factura Proveedor</th>
                   <th className="p-4">Fecha</th>
                   <th className="p-4 text-right">Total</th>
                   <th className="p-4 text-center">Estado</th>
+                  <th className="p-4 text-center w-16">Acción</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-outline-variant/5 text-sm">
-                {invoices.map((inv) => (
+                {filteredInvoices.map((inv) => (
                   <tr key={inv.id} className="hover:bg-surface-container-lowest transition-colors">
                     <td className="p-4 pl-6 font-mono text-xs text-on-surface-variant">
                       #{inv.invoice_number}
                     </td>
                     <td className="p-4 font-medium text-on-surface">
                       {inv.distributors?.business_name ?? "—"}
+                    </td>
+                    <td className="p-4 text-on-surface-variant font-mono text-xs">
+                      {inv.supplier_invoice_number || "—"}
                     </td>
                     <td className="p-4 text-on-surface-variant">
                       {new Date(inv.issue_date).toLocaleDateString("es-ES")}
@@ -211,15 +283,47 @@ export default function PurchasesPage() {
                       {money(Number(inv.total))}
                     </td>
                     <td className="p-4 text-center">
-                      <span
-                        className={`inline-flex px-2.5 py-1 rounded-md text-[11px] font-bold border ${
+                      <select
+                        value={inv.status}
+                        onChange={(e) => updateStatus(inv.id, e.target.value)}
+                        className={`text-[11px] font-bold border rounded-md px-2.5 py-1 appearance-none cursor-pointer focus:outline-none ${
                           inv.status === "paid"
                             ? "bg-[#10b981]/10 text-[#10b981] border-[#10b981]/20"
+                            : inv.status === "pending"
+                            ? "bg-amber-100 text-amber-700 border-amber-200"
                             : "bg-surface-variant text-on-surface-variant border-transparent"
                         }`}
                       >
-                        {inv.status === "paid" ? "Pagada" : inv.status}
-                      </span>
+                        <option value="paid">Pagada</option>
+                        <option value="pending">Pendiente</option>
+                        <option value="cancelled">Anulada</option>
+                      </select>
+                    </td>
+                    <td className="p-4 text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => openEdit(inv)}
+                          className="w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
+                          title="Editar factura"
+                        >
+                          <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-4 h-4">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDetailInvoice(inv)}
+                          className="w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
+                          title="Ver detalles"
+                        >
+                          <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-4 h-4">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                            <circle cx="12" cy="12" r="3" />
+                          </svg>
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -233,7 +337,7 @@ export default function PurchasesPage() {
         <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-surface-container rounded-t-3xl sm:rounded-3xl w-full sm:max-w-2xl max-h-[90vh] border border-outline-variant/10 shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200 flex flex-col">
             <div className="p-4 sm:p-6 border-b border-outline-variant/10 flex justify-between items-center bg-surface-container-low shrink-0">
-              <h2 className="text-lg sm:text-xl font-bold text-on-surface">Nueva Compra</h2>
+              <h2 className="text-lg sm:text-xl font-bold text-on-surface">{editingInvoice ? "Editar Compra" : "Nueva Compra"}</h2>
               <button
                 onClick={closeModal}
                 className="w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors"
@@ -300,6 +404,18 @@ export default function PurchasesPage() {
                     className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
                     placeholder="N° factura del proveedor"
                   />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[13px] font-semibold text-on-surface block">Estado</label>
+                  <select
+                    value={status}
+                    onChange={(e) => setStatus(e.target.value)}
+                    className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all appearance-none"
+                  >
+                    <option value="paid">Pagada</option>
+                    <option value="pending">Pendiente</option>
+                    <option value="cancelled">Anulada</option>
+                  </select>
                 </div>
               </div>
 
@@ -435,7 +551,7 @@ export default function PurchasesPage() {
                   disabled={submitting || !distributorId || lines.every((l) => !l.product_id)}
                   className="flex-1 px-5 py-2.5 rounded-xl text-sm font-semibold bg-primary hover:bg-primary-dim text-on-primary shadow-[0_0_15px_rgba(96,99,238,0.2)] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {submitting ? "Guardando…" : "Confirmar Compra"}
+                  {submitting ? "Guardando…" : editingInvoice ? "Guardar Cambios" : "Confirmar Compra"}
                 </button>
               </div>
             </form>
@@ -460,6 +576,13 @@ export default function PurchasesPage() {
             setProductModalOpen(false);
             handleProductCreated();
           }}
+        />
+      )}
+
+      {detailInvoice && (
+        <PurchaseInvoiceDetailModal
+          invoice={detailInvoice}
+          onClose={() => setDetailInvoice(null)}
         />
       )}
     </div>
