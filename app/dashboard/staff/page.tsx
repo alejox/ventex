@@ -150,10 +150,10 @@ export default function StaffPage() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {staff.map((m) => (
-            <button
+            <div
               key={m.id}
               onClick={() => openEdit(m)}
-              className="text-left bg-surface-container rounded-2xl border border-outline-variant/10 shadow-sm p-5 hover:border-primary/30 hover:shadow-md transition-all group relative"
+              className="text-left bg-surface-container rounded-2xl border border-outline-variant/10 shadow-sm p-5 hover:border-primary/30 hover:shadow-md transition-all group relative cursor-pointer"
             >
               <div className="absolute top-3 right-3 w-7 h-7 rounded-full bg-surface-container-lowest/80 border border-outline-variant/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                 <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-3.5 h-3.5 text-on-surface-variant">
@@ -191,7 +191,7 @@ export default function StaffPage() {
               >
                 Ver Ventas
               </button>
-            </button>
+            </div>
           ))}
         </div>
       )}
