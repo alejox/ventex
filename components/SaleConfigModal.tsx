@@ -16,8 +16,6 @@ const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
 export function SaleConfigModal({ onClose }: SaleConfigModalProps) {
   const staff = usePosStore((s) => s.staff);
   const customers = usePosStore((s) => s.customers);
-  const fastSale = usePosStore((s) => s.fastSale);
-  const setFastSale = usePosStore((s) => s.setFastSale);
   const includeTax = usePosStore((s) => s.includeTax);
   const setIncludeTax = usePosStore((s) => s.setIncludeTax);
   const defaultPaymentMethod = usePosStore((s) => s.defaultPaymentMethod);
@@ -41,31 +39,6 @@ export function SaleConfigModal({ onClose }: SaleConfigModalProps) {
         </div>
 
         <div className="p-6 flex-1 overflow-y-auto space-y-6">
-          {/* Venta rápida */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-on-surface flex items-center gap-2">
-                <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-4 h-4 text-amber-500">
-                  <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-                </svg>
-                Venta rápida
-              </h3>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  className="sr-only peer"
-                  checked={fastSale}
-                  onChange={(e) => setFastSale(e.target.checked)}
-                />
-                <div className="w-11 h-6 bg-surface-container-high peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-              </label>
-            </div>
-            <p className="text-xs text-on-surface-variant leading-relaxed">
-              Con esta opción, todas tus ventas se crearán con un pago automático asociado al método que indiques.{" "}
-              <a href="#" className="text-primary hover:underline">Cómo funciona</a>
-            </p>
-          </div>
-
           <div className="space-y-1">
             <label className="text-sm font-semibold text-on-surface">Método de pago predefinido</label>
             <select

@@ -32,8 +32,6 @@ interface PosState {
   submitting: boolean;
 
   // Configuración
-  fastSale: boolean;
-  setFastSale: (val: boolean) => void;
   includeTax: boolean;
   setIncludeTax: (val: boolean) => void;
   defaultPaymentMethod: PaymentMethod;
@@ -51,7 +49,7 @@ interface PosState {
   removeTab: (id: string) => void;
 
   // Gestión de clientes
-  addCustomer: (name: string) => Promise<boolean>;
+  addCustomer: (params: { name: string; doc_type?: string; identification?: string }) => Promise<boolean>;
 
   // Acciones sobre la pestaña activa
   addToCart: (item: CatalogItem) => void;
@@ -106,8 +104,6 @@ export const usePosStore = create<PosState>((set, get) => {
     activeTabId: "", // se inicializará luego o en la primera tab
     submitting: false,
 
-    fastSale: false,
-    setFastSale: (val) => set({ fastSale: val }),
     includeTax: true,
     setIncludeTax: (val) => set({ includeTax: val }),
     defaultPaymentMethod: "efectivo",
@@ -160,9 +156,9 @@ export const usePosStore = create<PosState>((set, get) => {
         };
       }),
 
-    addCustomer: async (name) => {
+    addCustomer: async (params) => {
       try {
-        const newCustomer = await posService.createCustomer(name);
+        const newCustomer = await posService.createCustomer(params);
         set((s) => ({
           customers: [...s.customers, newCustomer],
           // Auto-seleccionar el cliente recién creado en la pestaña activa.

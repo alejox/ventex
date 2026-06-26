@@ -19,6 +19,7 @@ interface ReceiptCustomer {
 interface ReceiptTotals {
   subtotal: number;
   taxAmount: number;
+  discount: number;
   total: number;
 }
 
@@ -141,6 +142,12 @@ export function PosReceipt({ data }: Props) {
                 <span className="font-bold">IVA:</span>
                 <span>{fmt(data.totals.taxAmount)}</span>
               </div>
+              {data.totals.discount > 0 && (
+                <div className="flex justify-between">
+                  <span className="font-bold">Descuento:</span>
+                  <span className="text-red-600">-{fmt(data.totals.discount)}</span>
+                </div>
+              )}
               <div className="flex justify-between text-base border-t border-black pt-1 mt-1">
                 <span className="font-bold">Total:</span>
                 <span className="font-bold">{fmt(data.totals.total)}</span>

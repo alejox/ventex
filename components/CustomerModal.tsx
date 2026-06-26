@@ -7,19 +7,28 @@ interface CustomerModalProps {
   onClose: () => void;
 }
 
+const DOC_TYPES = [
+  { value: "CC", label: "Cédula de Ciudadanía" },
+  { value: "CE", label: "Cédula de Extranjería" },
+  { value: "NIT", label: "NIT" },
+  { value: "PP", label: "Pasaporte" },
+];
+
 export function CustomerModal({ onClose }: CustomerModalProps) {
   const addCustomer = usePosStore((s) => s.addCustomer);
   const [name, setName] = useState("");
+  const [docType, setDocType] = useState("CC");
+  const [identification, setIdentification] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
-    
+
     setLoading(true);
-    const ok = await addCustomer(name.trim());
+    const ok = await addCustomer({ name: name.trim(), doc_type: docType, identification: identification.trim() || undefined });
     setLoading(false);
-    
+
     if (ok) {
       onClose();
     }
@@ -57,6 +66,34 @@ export function CustomerModal({ onClose }: CustomerModalProps) {
               autoFocus
               className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
             />
+          </div>
+
+          <div className="grid grid-cols-[1fr_2fr] gap-3">
+            <div className="space-y-1.5">
+              <label className="text-sm font-semibold text-on-surface">Tipo</label>
+              <select
+                value={docType}
+                onChange={(e) => setDocType(e.target.value)}
+                className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+              >
+                {DOC_TYPES.map((t) => (
+                  <option key={t.value} value={t.value}>
+                    {t.value}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-semibold text-on-surface">Identificación</label>
+              <input
+                type="text"
+                value={identification}
+                onChange={(e) => setIdentification(e.target.value)}
+                placeholder="Número"
+                inputMode="numeric"
+                className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+              />
+            </div>
           </div>
 
           <div className="pt-2 flex justify-end gap-3">

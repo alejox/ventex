@@ -36,6 +36,7 @@ export interface CartLine {
 export interface SaleTotals {
   subtotal: number;
   taxAmount: number;
+  discount: number;
   total: number;
 }
 
@@ -83,13 +84,13 @@ export function computeTotals(
 
   if (taxExempt) {
     const subtotal = round2(netoConIva / (1 + taxRate));
-    return { subtotal, taxAmount: 0, total: subtotal };
+    return { subtotal, taxAmount: 0, discount: totalDiscount, total: subtotal };
   }
 
   const subtotal = round2(netoConIva / (1 + taxRate));
   const taxAmount = round2(netoConIva - subtotal);
   const total = netoConIva;
-  return { subtotal, taxAmount, total };
+  return { subtotal, taxAmount, discount: totalDiscount, total };
 }
 
 /** Catálogo del POS: productos (con stock) + servicios activos (sin stock). */
@@ -191,11 +192,20 @@ export async function createSale(input: CheckoutInput): Promise<string> {
   return data as string;
 }
 
-export async function createCustomer(name: string): Promise<CustomerOption> {
+export async function createCustomer(params: {
+  name: string;
+  doc_type?: string;
+  identification?: string;
+}): Promise<CustomerOption> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("customers")
-    .insert({ full_name: name, tax_exempt: false })
+    .insert({
+      full_name: params.name,
+      doc_type: params.doc_type || null,
+      identification: params.identification || null,
+      tax_exempt: false,
+    })
     .select("id, full_name, tax_exempt, doc_type, identification")
     .single();
   if (error) throw error;

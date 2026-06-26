@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { IconSearch } from "@/app/assets/icons/DashboardIcons";
 import { usePosStore } from "@/stores/pos.store";
@@ -133,15 +133,81 @@ export default function POSPage() {
   const [isDiscountModalOpen, setIsDiscountModalOpen] = useState(false);
   const [isRecentSalesModalOpen, setIsRecentSalesModalOpen] = useState(false);
   const [isSaleConfigModalOpen, setIsSaleConfigModalOpen] = useState(false);
+  const [isCashConfirmOpen, setIsCashConfirmOpen] = useState(false);
   const [receiptData, setReceiptData] = useState<ReceiptData | null>(null);
+  const [amountTendered, setAmountTendered] = useState("");
+  const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     init();
   }, [init]);
 
+  useEffect(() => {
+    searchRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    if (isSuccessModalOpen) {
+      const timer = setTimeout(() => setIsSuccessModalOpen(false), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [isSuccessModalOpen]);
+
   const activeTab = useMemo(() => tabs.find(t => t.id === activeTabId) || tabs[0], [tabs, activeTabId]);
-  
+
   const { cart, customerId, staffId, paymentMethod } = activeTab;
+
+  // Use refs for keyboard handler to avoid stale closures
+  const cartRef = useRef(cart);
+  cartRef.current = cart;
+  const submittingRef = useRef(submitting);
+  submittingRef.current = submitting;
+  const paymentMethodRef = useRef(paymentMethod);
+  paymentMethodRef.current = paymentMethod;
+  const amountTenderedRef = useRef(amountTendered);
+  amountTenderedRef.current = amountTendered;
+  const isProductModalOpenRef = useRef(isProductModalOpen);
+  isProductModalOpenRef.current = isProductModalOpen;
+  const isCustomerModalOpenRef = useRef(isCustomerModalOpen);
+  isCustomerModalOpenRef.current = isCustomerModalOpen;
+  const isDiscountModalOpenRef = useRef(isDiscountModalOpen);
+  isDiscountModalOpenRef.current = isDiscountModalOpen;
+  const isRecentSalesModalOpenRef = useRef(isRecentSalesModalOpen);
+  isRecentSalesModalOpenRef.current = isRecentSalesModalOpen;
+  const isSaleConfigModalOpenRef = useRef(isSaleConfigModalOpen);
+  isSaleConfigModalOpenRef.current = isSaleConfigModalOpen;
+  const isSuccessModalOpenRef = useRef(isSuccessModalOpen);
+  isSuccessModalOpenRef.current = isSuccessModalOpen;
+  const isCashConfirmOpenRef = useRef(isCashConfirmOpen);
+  isCashConfirmOpenRef.current = isCashConfirmOpen;
+  const totalsRef = useRef<SaleTotals>(null!);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setIsProductModalOpen(false);
+        setIsCustomerModalOpen(false);
+        setIsDiscountModalOpen(false);
+        setIsRecentSalesModalOpen(false);
+        setIsSaleConfigModalOpen(false);
+        setIsSuccessModalOpen(false);
+        setIsCashConfirmOpen(false);
+      }
+      if (e.key === "Enter" && !e.ctrlKey && !e.metaKey) {
+        const anyModal = isProductModalOpenRef.current || isCustomerModalOpenRef.current || isDiscountModalOpenRef.current || isRecentSalesModalOpenRef.current || isSaleConfigModalOpenRef.current || isSuccessModalOpenRef.current || isCashConfirmOpenRef.current;
+        if (!anyModal && cartRef.current.length > 0 && !submittingRef.current) {
+          if (paymentMethodRef.current === "efectivo") {
+            setAmountTendered("");
+            setIsCashConfirmOpen(true);
+          } else {
+            handleCheckout();
+          }
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   const categories = useMemo(() => {
     const names = new Set<string>();
@@ -174,8 +240,10 @@ export default function POSPage() {
     () => computeTotals(cart, includeTax ? taxRate : 0, selectedCustomer?.tax_exempt ?? false),
     [cart, taxRate, includeTax, selectedCustomer],
   );
+  totalsRef.current = totals;
 
   const handleCheckout = async () => {
+    const realTotals = computeTotals(cart, taxRate, selectedCustomer?.tax_exempt ?? false);
     const data: ReceiptData = {
       items: cart.map((l) => ({
         name: l.item.name,
@@ -185,7 +253,7 @@ export default function POSPage() {
         total: l.item.price * l.quantity,
       })),
       customer: selectedCustomer,
-      totals,
+      totals: realTotals,
       paymentMethod,
       date: new Date(),
     };
@@ -194,6 +262,7 @@ export default function POSPage() {
     if (ok) {
       setSearch("");
       setActiveCategory("Todos");
+      setAmountTendered("");
       setIsSuccessModalOpen(true);
     }
   };
@@ -215,6 +284,7 @@ export default function POSPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Buscar productos"
+              ref={(el) => { if (el) searchRef.current = el; }}
               className="w-full bg-surface-container-lowest rounded-2xl py-3.5 pl-14 pr-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant border border-outline-variant/30 shadow-sm"
             />
           </div>
@@ -589,7 +659,7 @@ export default function POSPage() {
                   <div className="flex items-center border border-outline-variant/20 rounded-lg overflow-hidden bg-surface-container-lowest">
                     <button
                       onClick={() => decrement(line.item.id)}
-                      className="w-8 h-7 flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors"
+                      className="w-11 h-11 flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors text-lg"
                     >
                       −
                     </button>
@@ -602,7 +672,7 @@ export default function POSPage() {
                         const v = parseInt(e.target.value, 10);
                         if (Number.isFinite(v)) setQuantity(line.item.id, v);
                       }}
-                      className="w-10 text-center text-xs font-medium text-on-surface bg-transparent border-none outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      className="w-12 text-center text-xs font-medium text-on-surface bg-transparent border-none outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     />
                     <button
                       onClick={() => increment(line.item.id)}
@@ -611,7 +681,7 @@ export default function POSPage() {
                         line.item.stock_level != null &&
                         line.quantity >= line.item.stock_level
                       }
-                      className="w-8 h-7 flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                      className="w-11 h-11 flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors disabled:opacity-30 disabled:cursor-not-allowed text-lg"
                     >
                       +
                     </button>
@@ -629,8 +699,17 @@ export default function POSPage() {
           )}
         </div>
 
-        {/* Area de checkout inferior */}
+          {/* Area de checkout inferior */}
         <div className="p-4 bg-surface-container-lowest mt-auto">
+          {/* Contador de productos */}
+          {cart.length > 0 && (
+            <div className="flex items-center justify-between mb-3 px-1">
+              <span className="text-xs font-semibold text-on-surface-variant">
+                {cart.length} ítem{cart.length !== 1 ? "s" : ""} · {cart.reduce((s, l) => s + l.quantity, 0)} unidad{cart.reduce((s, l) => s + l.quantity, 0) !== 1 ? "es" : ""}
+              </span>
+            </div>
+          )}
+
           {/* Resumen de totales */}
           {cart.length > 0 && (
             <div className="space-y-2 mb-4 bg-surface-container-lowest p-3 rounded-xl border border-outline-variant/10">
@@ -642,10 +721,10 @@ export default function POSPage() {
                 <span>IVA ({includeTax ? (taxRate * 100).toFixed(0) : 0}%)</span>
                 <span className="font-semibold text-on-surface">${money(totals.taxAmount)}</span>
               </div>
-              {cart.reduce((s, l) => s + (l.discountAmount || 0), 0) > 0 && (
+              {totals.discount > 0 && (
                 <div className="flex justify-between text-sm text-on-surface-variant">
                   <span>Descuento</span>
-                  <span className="font-semibold">-${money(cart.reduce((s, l) => s + (l.discountAmount || 0), 0))}</span>
+                  <span className="font-semibold">-${money(totals.discount)}</span>
                 </div>
               )}
               <div className="flex justify-between text-sm text-on-surface-variant border-t border-outline-variant/20 pt-2">
@@ -657,43 +736,60 @@ export default function POSPage() {
 
           <div className="flex gap-2">
             <button
-              onClick={handleCheckout}
+              onClick={() => {
+                if (paymentMethod === "efectivo") {
+                  setAmountTendered("");
+                  setIsCashConfirmOpen(true);
+                } else {
+                  handleCheckout();
+                }
+              }}
               disabled={cart.length === 0 || submitting}
-              className={`flex-1 flex items-center justify-between rounded-xl px-4 py-3 font-semibold transition-all ${
-                cart.length === 0 
+              className={`flex-1 flex items-center justify-center gap-2 rounded-xl px-4 py-3 font-semibold transition-all ${
+                cart.length === 0
                   ? "bg-surface-container-highest cursor-not-allowed opacity-70 text-on-surface-variant/50" 
                   : "bg-primary text-white hover:bg-primary-dim shadow-sm"
               }`}
             >
-              <span>Vender</span>
-              <span>${money(totals.total)}</span>
+              {submitting ? (
+                <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+              ) : (
+                <>
+                  <span>Vender</span>
+                  <span>${money(totals.total)}</span>
+                </>
+              )}
+            </button>
+            <button
+              onClick={clearCart}
+              disabled={cart.length === 0 || submitting}
+              className="w-[52px] flex-shrink-0 flex items-center justify-center rounded-xl bg-surface-container border border-outline-variant/10 text-error hover:bg-error/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed py-3"
+              aria-label="Limpiar venta"
+            >
+              <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-6 h-6">
+                <polyline points="3 6 5 6 21 6" />
+                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                <path d="M10 11v6" />
+                <path d="M14 11v6" />
+                <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+              </svg>
             </button>
             <div className="relative group">
               <button
                 onClick={() => setIsRecentSalesModalOpen(true)}
-                className="w-[52px] h-full flex-shrink-0 flex items-center justify-center rounded-xl bg-surface-container border border-outline-variant/10 text-on-surface hover:bg-surface-container-high transition-colors"
+                className="w-[52px] flex-shrink-0 flex items-center justify-center rounded-xl bg-surface-container border border-outline-variant/10 text-on-surface hover:bg-surface-container-high transition-colors py-3"
                 aria-label="Últimas ventas"
               >
-                <IconReceipt className="w-5 h-5" />
+                <IconReceipt className="w-6 h-6" />
               </button>
               <div className="absolute bottom-full right-0 mb-2 w-max opacity-0 scale-95 invisible group-hover:opacity-100 group-hover:scale-100 group-hover:visible transition-all duration-150 ease-out bg-inverse-surface text-inverse-on-surface text-xs font-medium py-1.5 px-2.5 rounded shadow-lg pointer-events-none z-50">
                 Últimas ventas
                 <div className="absolute top-full right-4 -mt-px border-4 border-transparent border-t-inverse-surface"></div>
               </div>
             </div>
-          </div>
-
-          <div className="border border-outline-variant/20 rounded-xl p-3 flex justify-between items-center mt-3 bg-surface-container-lowest">
-             <span className="text-sm font-semibold text-on-surface">
-               {cart.reduce((s, l) => s + l.quantity, 0)} Producto{cart.reduce((s, l) => s + l.quantity, 0) !== 1 ? 's' : ''}
-             </span>
-             <button
-               onClick={clearCart}
-               disabled={cart.length === 0 || submitting}
-               className="text-sm font-medium text-primary hover:text-primary-dim transition-colors disabled:opacity-50"
-             >
-               Cancelar
-             </button>
           </div>
         </div>
       </div>
@@ -704,7 +800,133 @@ export default function POSPage() {
       {isDiscountModalOpen && <DiscountModal onClose={() => setIsDiscountModalOpen(false)} />}
       {isRecentSalesModalOpen && <RecentSalesModal onClose={() => setIsRecentSalesModalOpen(false)} />}
       {isSaleConfigModalOpen && <SaleConfigModal onClose={() => setIsSaleConfigModalOpen(false)} />}
-      
+
+      {/* Modal Confirmación Pago en Efectivo */}
+      {isCashConfirmOpen && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setIsCashConfirmOpen(false)}>
+          <div
+            className="bg-surface-container-lowest rounded-[24px] w-full max-w-sm border border-outline-variant/10 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6 pb-4 flex justify-between items-center border-b border-outline-variant/10">
+              <h2 className="text-xl font-bold text-on-surface">Pago en efectivo</h2>
+              <button
+                onClick={() => setIsCashConfirmOpen(false)}
+                className="w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-low transition-colors"
+              >
+                <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-5 h-5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="p-6 space-y-5">
+              {/* Total a pagar */}
+              <div className="text-center">
+                <p className="text-sm text-on-surface-variant mb-1">Total a pagar</p>
+                <p className="text-3xl font-bold text-on-surface">${money(totals.total)}</p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-on-surface">Monto recibido ($)</label>
+                <input
+                  autoFocus
+                  type="number"
+                  step="100"
+                  min="0"
+                  value={amountTendered}
+                  onChange={(e) => setAmountTendered(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full bg-surface-container border border-outline-variant/20 rounded-xl px-4 py-3 text-lg text-on-surface font-bold text-center focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                />
+              </div>
+
+              {/* Botones de montos rápidos */}
+              <div className="grid grid-cols-3 gap-2">
+                {[20000, 50000, 100000].map((amount) => (
+                  <button
+                    key={amount}
+                    type="button"
+                    onClick={() => setAmountTendered(String(amount))}
+                    className={`py-2.5 rounded-xl text-xs font-bold border transition-colors ${
+                      parseFloat(amountTendered) === amount
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-outline-variant/20 text-on-surface-variant hover:border-primary/30 hover:text-on-surface"
+                    }`}
+                  >
+                    ${money(amount)}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setAmountTendered(String(Math.ceil(totals.total / 1000) * 1000))}
+                  className="py-2.5 rounded-xl text-xs font-bold border border-outline-variant/20 text-on-surface-variant hover:border-primary/30 hover:text-on-surface transition-colors"
+                >
+                  Exacto
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAmountTendered(String(Math.ceil((totals.total + 1000) / 1000) * 1000))}
+                  className="py-2.5 rounded-xl text-xs font-bold border border-outline-variant/20 text-on-surface-variant hover:border-primary/30 hover:text-on-surface transition-colors"
+                >
+                  + $1k
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAmountTendered(String(Math.ceil((totals.total + 5000) / 1000) * 1000))}
+                  className="py-2.5 rounded-xl text-xs font-bold border border-outline-variant/20 text-on-surface-variant hover:border-primary/30 hover:text-on-surface transition-colors"
+                >
+                  + $5k
+                </button>
+              </div>
+
+              {/* Cambio */}
+              {(() => {
+                const tendered = parseFloat(amountTendered) || 0;
+                const change = tendered - totals.total;
+                if (tendered > 0) {
+                  return (
+                    <div className={`flex justify-between items-center p-3 rounded-xl ${change >= 0 ? "bg-[#10b981]/5 border border-[#10b981]/20" : "bg-error/5 border border-error/20"}`}>
+                      <span className="font-semibold text-sm text-on-surface-variant">Cambio</span>
+                      <span className={`text-xl font-bold ${change >= 0 ? "text-[#10b981]" : "text-error"}`}>
+                        {change >= 0 ? `$${money(change)}` : `Faltan $${money(Math.abs(change))}`}
+                      </span>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => setIsCashConfirmOpen(false)}
+                  className="flex-1 py-3 rounded-xl border border-outline-variant/30 text-sm font-semibold text-on-surface hover:bg-surface-container-low transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => {
+                    setIsCashConfirmOpen(false);
+                    handleCheckout();
+                  }}
+                  disabled={(parseFloat(amountTendered) || 0) < totals.total || submitting}
+                  className="flex-1 py-3 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary-dim transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {submitting ? (
+                    <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                  ) : (
+                    "Confirmar pago"
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal Venta Exitosa */}
       {isSuccessModalOpen && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setIsSuccessModalOpen(false)}>
