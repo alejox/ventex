@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { usePosStore } from "@/stores/pos.store";
+import { notifySuccess } from "@/lib/notifications";
 
 interface CustomerModalProps {
   onClose: () => void;
@@ -30,6 +31,10 @@ export function CustomerModal({ onClose }: CustomerModalProps) {
     setLoading(false);
 
     if (ok) {
+      notifySuccess(
+        "¡Cliente registrado con éxito! 🎉",
+        "El cliente ha sido añadido a tu base de datos."
+      );
       onClose();
     }
   };

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useDistributorsStore } from "@/stores/distributors.store";
+import { notifySuccess } from "@/lib/notifications";
 
 interface DistributorQuickModalProps {
   onClose: () => void;
@@ -36,6 +37,10 @@ export function DistributorQuickModal({ onClose, onCreated }: DistributorQuickMo
       dv,
     });
     if (ok) {
+      notifySuccess(
+        "¡Proveedor creado con éxito! 🎉",
+        "El proveedor ya está disponible en tu base de datos."
+      );
       onCreated("", businessName);
       onClose();
     }

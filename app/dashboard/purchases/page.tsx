@@ -7,7 +7,6 @@ import type { PurchaseInvoice, PurchaseInvoiceItem } from "@/services/purchases.
 import * as purchasesService from "@/services/purchases.service";
 import { useDistributorsStore } from "@/stores/distributors.store";
 import { useInventoryStore } from "@/stores/inventory.store";
-import { ProductModal } from "@/components/ProductModal";
 import { DistributorQuickModal } from "@/components/DistributorQuickModal";
 import { CategoryQuickModal } from "@/components/CategoryQuickModal";
 import { PurchaseInvoiceDetailModal } from "@/components/PurchaseInvoiceDetailModal";
@@ -57,7 +56,6 @@ export default function PurchasesPage() {
   const [lines, setLines] = useState<LineForm[]>([emptyLine()]);
   const [productSearch, setProductSearch] = useState("");
   const [showDropdown, setShowDropdown] = useState<number | null>(null);
-  const [productModalOpen, setProductModalOpen] = useState(false);
   const [distributorModalOpen, setDistributorModalOpen] = useState(false);
   const [categoryModalOpen, setCategoryModalOpen] = useState(false);
   const [detailInvoice, setDetailInvoice] = useState<PurchaseInvoice | null>(null);
@@ -188,10 +186,6 @@ export default function PurchasesPage() {
 
   const handleDistributorCreated = (_id: string, _name: string) => {
     fetchDistributors();
-  };
-
-  const handleProductCreated = () => {
-    fetchInventory();
   };
 
   return (
@@ -463,7 +457,7 @@ export default function PurchasesPage() {
                         />
                         <button
                           type="button"
-                          onClick={() => setProductModalOpen(true)}
+                          onClick={() => window.location.href = "/dashboard/inventory/product"}
                           className="shrink-0 w-9 h-9 flex items-center justify-center rounded-lg bg-primary/10 text-primary hover:bg-primary hover:text-white transition-colors"
                           title="Crear nuevo producto"
                         >
@@ -568,15 +562,6 @@ export default function PurchasesPage() {
 
       {categoryModalOpen && (
         <CategoryQuickModal onClose={() => setCategoryModalOpen(false)} />
-      )}
-
-      {productModalOpen && (
-        <ProductModal
-          onClose={() => {
-            setProductModalOpen(false);
-            handleProductCreated();
-          }}
-        />
       )}
 
       {detailInvoice && (

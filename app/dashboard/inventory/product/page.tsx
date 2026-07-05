@@ -6,6 +6,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useInventoryStore } from "@/stores/inventory.store";
 import type { NewProductInput } from "@/services/inventory.service";
+import { DistributorQuickModal } from "@/components/DistributorQuickModal";
 
 function ProductForm() {
   const router = useRouter();
@@ -35,11 +36,29 @@ function ProductForm() {
     commission_value: "",
     units_per_package: "1",
   });
+  const handleDistributorCreated = () => {
+    fetchInventory();
+  };
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loadingProduct, setLoadingProduct] = useState(!!editId);
+  const [distributorModalOpen, setDistributorModalOpen] = useState(false);
+  const [purchasePriceBase, setPurchasePriceBase] = useState("0");
+  const [purchasePriceTax, setPurchasePriceTax] = useState("19%");
+  const [priceMode, setPriceMode] = useState<"manual" | "percentage">("manual");
+  const [sellingPriceBase, setSellingPriceBase] = useState("0");
+  const [sellingPriceTax, setSellingPriceTax] = useState("19%");
+  const [priceMargin, setPriceMargin] = useState("0");
+
+  const taxMultiplier = purchasePriceTax === "Ninguno" ? 1 : 1.19;
+  const purchasePriceTotal = (parseFloat(purchasePriceBase || "0") * taxMultiplier).toFixed(0);
+
+  const sellingTaxMultiplier = sellingPriceTax === "Ninguno" ? 1 : 1.19;
+  const sellingPriceTotal = priceMode === "manual"
+    ? (parseFloat(sellingPriceBase || "0") * sellingTaxMultiplier).toFixed(0)
+    : (parseFloat(purchasePriceTotal || "0") * (1 + parseFloat(priceMargin || "0") / 100)).toFixed(0);
 
   useEffect(() => {
     fetchInventory();
@@ -67,6 +86,8 @@ function ProductForm() {
       commission_value: product.commission_value ? String(product.commission_value) : "",
       units_per_package: product.units_per_package ? String(product.units_per_package) : "1",
     });
+    setPurchasePriceBase(String(product.purchase_price ?? "0"));
+    setSellingPriceBase(String(product.price ?? "0"));
     if (product.image_url) setImagePreview(product.image_url);
     setLoadingProduct(false);
   }, [editId, products, router]);
@@ -111,9 +132,14 @@ function ProductForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
+    const payload = {
+      ...form,
+      purchase_price: purchasePriceTotal,
+      price: sellingPriceTotal,
+    };
     const ok = editId
-      ? await updateProduct(editId, form, imageFile)
-      : await addProduct(form, imageFile);
+      ? await updateProduct(editId, payload, imageFile)
+      : await addProduct(payload, imageFile);
     setSaving(false);
     if (ok) router.push("/dashboard/inventory");
   };
@@ -186,20 +212,33 @@ function ProductForm() {
             </div>
             <div className="space-y-1.5">
               <label className="text-[13px] font-semibold text-on-surface block">Proveedor</label>
-              <div className="relative">
-                <select
-                  value={form.distributor_id}
-                  onChange={(e) => setForm({ ...form, distributor_id: e.target.value })}
-                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all appearance-none"
+              <div className="flex gap-2 items-center">
+                <div className="relative flex-1">
+                  <select
+                    value={form.distributor_id}
+                    onChange={(e) => setForm({ ...form, distributor_id: e.target.value })}
+                    className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all appearance-none"
+                  >
+                    <option value="">Sin proveedor</option>
+                    {distributors.map((d) => (
+                      <option key={d.id} value={d.id}>{d.business_name}</option>
+                    ))}
+                  </select>
+                  <svg className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant pointer-events-none" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setDistributorModalOpen(true)}
+                  className="shrink-0 w-11 py-3 flex items-center justify-center rounded-xl bg-primary/10 text-primary hover:bg-primary hover:text-white transition-colors"
+                  title="Crear nuevo proveedor"
                 >
-                  <option value="">Sin proveedor</option>
-                  {distributors.map((d) => (
-                    <option key={d.id} value={d.id}>{d.business_name}</option>
-                  ))}
-                </select>
-                <svg className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant pointer-events-none" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <polyline points="6 9 12 15 18 9" />
-                </svg>
+                  <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-4 h-4">
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
+                </button>
               </div>
             </div>
             <div className="space-y-1.5">
@@ -243,29 +282,132 @@ function ProductForm() {
                 required
               />
             </div>
-            <div className="space-y-1.5">
-              <label className="text-[13px] font-semibold text-on-surface block">Precio de Compra ($)</label>
-              <input
-                type="number"
-                step="0.01"
-                value={form.purchase_price}
-                onChange={(e) => setForm({ ...form, purchase_price: e.target.value })}
-                className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-on-surface-variant/50"
-                placeholder="0.00"
-                required
-              />
+          </div>
+
+          <div className="border-t border-outline-variant/10 pt-6 space-y-6">
+            <div>
+              <h3 className="text-base font-bold text-on-surface">Precio de Compra (Paquete)</h3>
             </div>
-            <div className="space-y-1.5">
-              <label className="text-[13px] font-semibold text-on-surface block">Precio de Venta ($)</label>
-              <input
-                type="number"
-                step="0.01"
-                value={form.price}
-                onChange={(e) => setForm({ ...form, price: e.target.value })}
-                className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-on-surface-variant/50"
-                placeholder="0.00"
-                required
-              />
+            <div className="flex flex-col sm:flex-row items-end gap-3">
+              <div className="space-y-1.5 flex-1">
+                <label className="text-[13px] font-semibold text-on-surface block">Precio base</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={purchasePriceBase}
+                  onFocus={(e) => e.target.select()}
+                  onChange={(e) => setPurchasePriceBase(e.target.value)}
+                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+                  required
+                />
+              </div>
+              <div className="pb-3 text-primary font-bold text-lg hidden sm:block">+</div>
+              <div className="space-y-1.5 flex-1">
+                <label className="text-[13px] font-semibold text-on-surface block">IVA</label>
+                <select
+                  value={purchasePriceTax}
+                  onChange={(e) => setPurchasePriceTax(e.target.value)}
+                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all appearance-none"
+                >
+                  <option value="Ninguno">Ninguno</option>
+                  <option value="19%">19%</option>
+                </select>
+              </div>
+              <div className="pb-3 text-primary font-bold text-lg hidden sm:block">=</div>
+              <div className="space-y-1.5 flex-1">
+                <label className="text-[13px] font-semibold text-on-surface block">Total</label>
+                <input
+                  type="number"
+                  value={purchasePriceTotal}
+                  readOnly
+                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all opacity-80 cursor-not-allowed"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t border-outline-variant/10 pt-6 space-y-6">
+            <div>
+              <h3 className="text-base font-bold text-on-surface">Precio de Venta (Unidad)</h3>
+            </div>
+            <div className="space-y-4">
+              <div className="flex gap-4">
+                {(["manual", "percentage"] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => setPriceMode(mode)}
+                    className={`flex-1 py-2.5 rounded-xl text-sm font-medium border transition-colors ${
+                      priceMode === mode
+                        ? "border-primary text-primary bg-primary/5"
+                        : "border-outline-variant/30 text-on-surface hover:bg-surface-container-low"
+                    }`}
+                  >
+                    {mode === "manual" ? "Manual" : "% Margen"}
+                  </button>
+                ))}
+              </div>
+
+              {priceMode === "manual" ? (
+                <div className="flex flex-col sm:flex-row items-end gap-3">
+                  <div className="space-y-1.5 flex-1">
+                    <label className="text-[13px] font-semibold text-on-surface block">Precio base</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={sellingPriceBase}
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => setSellingPriceBase(e.target.value)}
+                      className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+                      required
+                    />
+                  </div>
+                  <div className="pb-3 text-primary font-bold text-lg hidden sm:block">+</div>
+                  <div className="space-y-1.5 flex-1">
+                    <label className="text-[13px] font-semibold text-on-surface block">IVA</label>
+                    <select
+                      value={sellingPriceTax}
+                      onChange={(e) => setSellingPriceTax(e.target.value)}
+                      className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all appearance-none"
+                    >
+                      <option value="Ninguno">Ninguno</option>
+                      <option value="19%">19%</option>
+                    </select>
+                  </div>
+                  <div className="pb-3 text-primary font-bold text-lg hidden sm:block">=</div>
+                  <div className="space-y-1.5 flex-1">
+                    <label className="text-[13px] font-semibold text-on-surface block">Total</label>
+                    <input
+                      type="number"
+                      value={sellingPriceTotal}
+                      readOnly
+                      className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all opacity-80 cursor-not-allowed"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="max-w-xs space-y-1.5">
+                  <label className="text-[13px] font-semibold text-on-surface block">Margen de ganancia (%)</label>
+                  <div className="flex gap-3 items-end">
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={priceMargin}
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => setPriceMargin(e.target.value)}
+                      className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+                      placeholder="Ej. 30"
+                    />
+                    <div className="pb-3 text-sm text-on-surface-variant">%</div>
+                  </div>
+                  <p className="text-xs text-on-surface-variant mt-2">
+                    Precio de venta sugerido: <strong className="text-on-surface font-mono">${Number(sellingPriceTotal).toLocaleString("en-US")}</strong> (costo {priceMargin || "0"}% sobre total de compra)
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 
@@ -418,6 +560,13 @@ function ProductForm() {
           </button>
         </div>
       </form>
+
+      {distributorModalOpen && (
+        <DistributorQuickModal
+          onClose={() => setDistributorModalOpen(false)}
+          onCreated={handleDistributorCreated}
+        />
+      )}
     </div>
   );
 }

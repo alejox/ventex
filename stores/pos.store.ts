@@ -30,6 +30,8 @@ interface PosState {
   tabs: SaleTab[];
   activeTabId: string;
   submitting: boolean;
+  stockAlert: string | null;
+  clearStockAlert: () => void;
 
   // Configuración
   includeTax: boolean;
@@ -104,6 +106,7 @@ export const usePosStore = create<PosState>((set, get) => {
     tabs: [createDefaultTab(0)], // temporal hasta que se monte el store y sobrescriba si aplica
     activeTabId: "", // se inicializará luego o en la primera tab
     submitting: false,
+    stockAlert: null,
 
     includeTax: true,
     setIncludeTax: (val) => set({ includeTax: val }),
@@ -174,13 +177,18 @@ export const usePosStore = create<PosState>((set, get) => {
       }
     },
 
-    addToCart: (item) =>
+    addToCart: (item) => {
+      const s = get();
+      const tab = s.tabs.find((t) => t.id === s.activeTabId);
+      const existing = tab?.cart.find((l) => l.item.id === item.id);
+      const currentQty = existing?.quantity ?? 0;
+      if (atStockLimit(item, currentQty)) {
+        set({ stockAlert: `"${item.name}" — Stock insuficiente (${item.stock_level} uds.)` });
+        return;
+      }
       set((s) => ({
         tabs: s.tabs.map((t) => {
           if (t.id !== s.activeTabId) return t;
-          const existing = t.cart.find((l) => l.item.id === item.id);
-          const currentQty = existing?.quantity ?? 0;
-          if (atStockLimit(item, currentQty)) return t;
           if (existing) {
             return {
               ...t,
@@ -191,15 +199,21 @@ export const usePosStore = create<PosState>((set, get) => {
           }
           return { ...t, cart: [...t.cart, { item, quantity: 1 }] };
         }),
-      })),
+      }));
+    },
 
-    addToTab: (item, tabId) =>
+    addToTab: (item, tabId) => {
+      const s = get();
+      const tab = s.tabs.find((t) => t.id === tabId);
+      const existing = tab?.cart.find((l) => l.item.id === item.id);
+      const currentQty = existing?.quantity ?? 0;
+      if (atStockLimit(item, currentQty)) {
+        set({ stockAlert: `"${item.name}" — Stock insuficiente (${item.stock_level} uds.)` });
+        return;
+      }
       set((s) => ({
         tabs: s.tabs.map((t) => {
           if (t.id !== tabId) return t;
-          const existing = t.cart.find((l) => l.item.id === item.id);
-          const currentQty = existing?.quantity ?? 0;
-          if (atStockLimit(item, currentQty)) return t;
           if (existing) {
             return {
               ...t,
@@ -210,14 +224,22 @@ export const usePosStore = create<PosState>((set, get) => {
           }
           return { ...t, cart: [...t.cart, { item, quantity: 1 }] };
         }),
-      })),
+      }));
+    },
 
-    increment: (itemId) =>
+    increment: (itemId) => {
+      const s = get();
+      const tab = s.tabs.find((t) => t.id === s.activeTabId);
+      const line = tab?.cart.find((l) => l.item.id === itemId);
+      if (!line || atStockLimit(line.item, line.quantity)) {
+        if (line) {
+          set({ stockAlert: `"${line.item.name}" — Stock insuficiente (${line.item.stock_level} uds.)` });
+        }
+        return;
+      }
       set((s) => ({
         tabs: s.tabs.map((t) => {
           if (t.id !== s.activeTabId) return t;
-          const line = t.cart.find((l) => l.item.id === itemId);
-          if (!line || atStockLimit(line.item, line.quantity)) return t;
           return {
             ...t,
             cart: t.cart.map((l) =>
@@ -225,7 +247,8 @@ export const usePosStore = create<PosState>((set, get) => {
             ),
           };
         }),
-      })),
+      }));
+    },
 
     decrement: (itemId) =>
       set((s) => ({
@@ -242,7 +265,18 @@ export const usePosStore = create<PosState>((set, get) => {
         }),
       })),
 
-    setQuantity: (itemId, quantity) =>
+    setQuantity: (itemId, quantity) => {
+      const s = get();
+      const tab = s.tabs.find((t) => t.id === s.activeTabId);
+      const line = tab?.cart.find((l) => l.item.id === itemId);
+      if (
+        line &&
+        line.item.kind === "product" &&
+        line.item.stock_level != null &&
+        quantity > line.item.stock_level
+      ) {
+        set({ stockAlert: `"${line.item.name}" — Stock insuficiente (${line.item.stock_level} uds.)` });
+      }
       set((s) => ({
         tabs: s.tabs.map((t) => {
           if (t.id !== s.activeTabId) return t;
@@ -261,7 +295,8 @@ export const usePosStore = create<PosState>((set, get) => {
             }),
           };
         }),
-      })),
+      }));
+    },
 
     removeFromCart: (itemId) =>
       set((s) => ({
@@ -379,5 +414,7 @@ export const usePosStore = create<PosState>((set, get) => {
         return false;
       }
     },
+
+    clearStockAlert: () => set({ stockAlert: null }),
   };
 });

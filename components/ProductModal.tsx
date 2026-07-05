@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useInventoryStore } from "@/stores/inventory.store";
 import { CategoryQuickModal } from "@/components/CategoryQuickModal";
+import { notifySuccess } from "@/lib/notifications";
 
 interface ProductModalProps {
   onClose: () => void;
@@ -76,6 +77,12 @@ export function ProductModal({ onClose }: ProductModalProps) {
       units_per_package: isService ? "1" : (unitsPerPackage || "1"),
     });
     if (ok) {
+      notifySuccess(
+        type === "Servicio" ? "¡Servicio creado con éxito! 🎉" : "¡Producto creado con éxito! 🎉",
+        type === "Servicio" 
+          ? "El servicio ya está disponible en tu inventario."
+          : "El producto ya está disponible en tu inventario."
+      );
       onClose();
     }
   };

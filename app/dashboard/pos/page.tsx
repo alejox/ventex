@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { IconSearch } from "@/app/assets/icons/DashboardIcons";
 import { usePosStore } from "@/stores/pos.store";
 import {
@@ -11,12 +12,12 @@ import {
   type CustomerOption,
   type SaleTotals,
 } from "@/services/pos.service";
-import { ProductModal } from "@/components/ProductModal";
 import { CustomerModal } from "@/components/CustomerModal";
 import { PosReceipt } from "@/components/PosReceipt";
 import { RecentSalesModal } from "@/components/RecentSalesModal";
 import { DiscountModal } from "@/components/DiscountModal";
 import { SaleConfigModal } from "@/components/SaleConfigModal";
+import { notifySuccess, notifyError } from "@/lib/notifications";
 
 function IconDiscount(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -106,6 +107,16 @@ export default function POSPage() {
   const submitting = usePosStore((s) => s.submitting);
   const includeTax = usePosStore((s) => s.includeTax);
 
+  const stockAlert = usePosStore((s) => s.stockAlert);
+  const clearStockAlert = usePosStore((s) => s.clearStockAlert);
+
+  useEffect(() => {
+    if (stockAlert) {
+      notifyError(stockAlert);
+      clearStockAlert();
+    }
+  }, [stockAlert, clearStockAlert]);
+
   const init = usePosStore((s) => s.init);
   const addTab = usePosStore((s) => s.addTab);
   const setActiveTab = usePosStore((s) => s.setActiveTab);
@@ -127,7 +138,6 @@ export default function POSPage() {
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("Todos");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-  const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
   const [isDiscountModalOpen, setIsDiscountModalOpen] = useState(false);
@@ -136,6 +146,7 @@ export default function POSPage() {
   const [isCashConfirmOpen, setIsCashConfirmOpen] = useState(false);
   const [receiptData, setReceiptData] = useState<ReceiptData | null>(null);
   const [amountTendered, setAmountTendered] = useState("");
+  const router = useRouter();
   const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -166,8 +177,6 @@ export default function POSPage() {
   paymentMethodRef.current = paymentMethod;
   const amountTenderedRef = useRef(amountTendered);
   amountTenderedRef.current = amountTendered;
-  const isProductModalOpenRef = useRef(isProductModalOpen);
-  isProductModalOpenRef.current = isProductModalOpen;
   const isCustomerModalOpenRef = useRef(isCustomerModalOpen);
   isCustomerModalOpenRef.current = isCustomerModalOpen;
   const isDiscountModalOpenRef = useRef(isDiscountModalOpen);
@@ -185,7 +194,6 @@ export default function POSPage() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        setIsProductModalOpen(false);
         setIsCustomerModalOpen(false);
         setIsDiscountModalOpen(false);
         setIsRecentSalesModalOpen(false);
@@ -194,7 +202,7 @@ export default function POSPage() {
         setIsCashConfirmOpen(false);
       }
       if (e.key === "Enter" && !e.ctrlKey && !e.metaKey) {
-        const anyModal = isProductModalOpenRef.current || isCustomerModalOpenRef.current || isDiscountModalOpenRef.current || isRecentSalesModalOpenRef.current || isSaleConfigModalOpenRef.current || isSuccessModalOpenRef.current || isCashConfirmOpenRef.current;
+        const anyModal = isCustomerModalOpenRef.current || isDiscountModalOpenRef.current || isRecentSalesModalOpenRef.current || isSaleConfigModalOpenRef.current || isSuccessModalOpenRef.current || isCashConfirmOpenRef.current;
         if (!anyModal && cartRef.current.length > 0 && !submittingRef.current) {
           if (paymentMethodRef.current === "efectivo") {
             setAmountTendered("");
@@ -260,6 +268,10 @@ export default function POSPage() {
     setReceiptData(data);
     const ok = await checkout();
     if (ok) {
+      notifySuccess(
+        "¡Venta realizada con éxito! 🎉",
+        "El comprobante de la transacción está listo."
+      );
       setSearch("");
       setActiveCategory("Todos");
       setAmountTendered("");
@@ -283,7 +295,27 @@ export default function POSPage() {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar productos"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  const q = search.trim().toLowerCase();
+                  if (q) {
+                    const match = catalog.find(
+                      (p) => p.sku?.toLowerCase() === q
+                    );
+                    if (match) {
+                      if (match.kind === "product" && (match.stock_level === null || match.stock_level <= 0)) {
+                        notifyError("Sin stock", `"${match.name}" no tiene unidades disponibles`);
+                      } else {
+                        addToCart(match);
+                        setSearch("");
+                      }
+                    }
+                  }
+                  e.preventDefault();
+                  e.stopPropagation();
+                }
+              }}
+              placeholder="Buscar productos o escanear código"
               ref={(el) => { if (el) searchRef.current = el; }}
               className="w-full bg-surface-container-lowest rounded-2xl py-3.5 pl-14 pr-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant border border-outline-variant/30 shadow-sm"
             />
@@ -312,7 +344,7 @@ export default function POSPage() {
             )}
           </button>
           <button
-            onClick={() => setIsProductModalOpen(true)}
+            onClick={() => router.push("/dashboard/inventory/product")}
             className="whitespace-nowrap px-5 py-3.5 rounded-2xl bg-transparent border border-primary/50 text-primary text-sm font-semibold hover:bg-primary/10 transition-colors flex items-center gap-2"
           >
             Nuevo producto
@@ -795,7 +827,6 @@ export default function POSPage() {
       </div>
 
       {/* Modales */}
-      {isProductModalOpen && <ProductModal onClose={() => setIsProductModalOpen(false)} />}
       {isCustomerModalOpen && <CustomerModal onClose={() => setIsCustomerModalOpen(false)} />}
       {isDiscountModalOpen && <DiscountModal onClose={() => setIsDiscountModalOpen(false)} />}
       {isRecentSalesModalOpen && <RecentSalesModal onClose={() => setIsRecentSalesModalOpen(false)} />}

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useInventoryStore } from "@/stores/inventory.store";
+import { notifySuccess } from "@/lib/notifications";
 
 interface CategoryQuickModalProps {
   onClose: () => void;
@@ -17,7 +18,13 @@ export function CategoryQuickModal({ onClose }: CategoryQuickModalProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const ok = await addCategory({ name, description });
-    if (ok) onClose();
+    if (ok) {
+      notifySuccess(
+        "¡Categoría creada con éxito! 🎉",
+        "La categoría ya está disponible para que clasifiques tus productos."
+      );
+      onClose();
+    }
   };
 
   return (
