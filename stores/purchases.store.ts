@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import * as purchasesService from "@/services/purchases.service";
-import type { PurchaseInvoice, PurchaseLineInput } from "@/services/purchases.service";
+import type { PurchaseInvoice, PurchaseInvoiceParams } from "@/services/purchases.service";
 
 interface PurchasesState {
   invoices: PurchaseInvoice[];
@@ -9,21 +9,10 @@ interface PurchasesState {
   submitting: boolean;
 
   fetchInvoices: () => Promise<void>;
-  createInvoice: (params: {
-    distributor_id: string;
-    issue_date: string;
-    supplier_invoice_number: string;
-    status: string;
-    items: PurchaseLineInput[];
-  }) => Promise<boolean>;
+  createInvoice: (params: PurchaseInvoiceParams) => Promise<boolean>;
   updateStatus: (id: string, status: string) => Promise<void>;
-  updateInvoice: (id: string, params: {
-    distributor_id: string;
-    issue_date: string;
-    supplier_invoice_number: string;
-    status: string;
-    items: PurchaseLineInput[];
-  }) => Promise<boolean>;
+  updateInvoice: (id: string, params: PurchaseInvoiceParams) => Promise<boolean>;
+  cancelInvoice: (id: string, items: { product_id: string; quantity: number }[]) => Promise<boolean>;
 }
 
 const toMessage = (e: unknown) =>
@@ -83,6 +72,23 @@ export const usePurchasesStore = create<PurchasesState>((set) => ({
       }));
     } catch (e) {
       set({ error: toMessage(e) });
+    }
+  },
+
+  cancelInvoice: async (id, items) => {
+    set({ submitting: true, error: null });
+    try {
+      await purchasesService.cancelPurchaseInvoice(id, items);
+      set((s) => ({
+        invoices: s.invoices.map((inv) =>
+          inv.id === id ? { ...inv, status: "cancelled" } : inv
+        ),
+        submitting: false,
+      }));
+      return true;
+    } catch (e) {
+      set({ error: toMessage(e), submitting: false });
+      return false;
     }
   },
 }));

@@ -8,6 +8,7 @@ import { notifySuccess } from "@/lib/notifications";
 
 interface ProductModalProps {
   onClose: () => void;
+  onCreated?: (productId: string, productName: string) => void;
 }
 
 function IconInfo(props: React.SVGProps<SVGSVGElement>) {
@@ -30,7 +31,7 @@ function IconExternalLink(props: React.SVGProps<SVGSVGElement>) {
   );
 }
 
-export function ProductModal({ onClose }: ProductModalProps) {
+export function ProductModal({ onClose, onCreated }: ProductModalProps) {
   const router = useRouter();
   const categories = useInventoryStore((s) => s.categories);
   const fetchInventory = useInventoryStore((s) => s.fetchInventory);
@@ -50,7 +51,9 @@ export function ProductModal({ onClose }: ProductModalProps) {
   const [unitsPerPackage, setUnitsPerPackage] = useState("24");
   const [packageBasePrice, setPackageBasePrice] = useState("0");
   const [tax, setTax] = useState("19%");
+  const [sellingPriceMode, setSellingPriceMode] = useState<"manual" | "final">("manual");
   const [unitSellingPrice, setUnitSellingPrice] = useState("0");
+  const [finalSellingPrice, setFinalSellingPrice] = useState("0");
 
   const taxMultiplier = tax === "Ninguno" ? 1 : 1.19;
   const packageTotal = (parseFloat(packageBasePrice || "0") * taxMultiplier).toFixed(0);
@@ -61,14 +64,18 @@ export function ProductModal({ onClose }: ProductModalProps) {
 
     const isService = type === "Servicio";
 
-    const ok = await addProduct({
+    const sellingPrice = type === "Producto"
+      ? (sellingPriceMode === "final" ? finalSellingPrice : (parseFloat(unitSellingPrice || "0") * (tax === "Ninguno" ? 1 : 1.19)).toFixed(0))
+      : finalPriceValue;
+
+    const result = await addProduct({
       name,
       category_id: categoryId,
       distributor_id: "",
       sku: `PRD-${Math.floor(Math.random() * 100000)}`,
       unit,
       purchase_price: isService ? "0" : packageTotal,
-      price: isService ? finalPriceValue : unitSellingPrice,
+      price: sellingPrice,
       stock_level: isService ? "0" : String(parseInt(quantity || "0") * parseInt(unitsPerPackage || "1")),
       image_url: "",
       has_commission: false,
@@ -76,13 +83,14 @@ export function ProductModal({ onClose }: ProductModalProps) {
       commission_value: "",
       units_per_package: isService ? "1" : (unitsPerPackage || "1"),
     });
-    if (ok) {
+    if (result) {
       notifySuccess(
-        type === "Servicio" ? "¡Servicio creado con éxito! 🎉" : "¡Producto creado con éxito! 🎉",
-        type === "Servicio" 
-          ? "El servicio ya está disponible en tu inventario."
-          : "El producto ya está disponible en tu inventario."
+        type === "Servicio" ? "¡Servicio creado con éxito!" : "¡Producto creado con éxito!",
+        type === "Servicio"
+          ? "El servicio ya está disponible."
+          : "El producto ya está disponible."
       );
+      onCreated?.(typeof result === "string" ? result : "", name);
       onClose();
     }
   };
@@ -300,24 +308,77 @@ export function ProductModal({ onClose }: ProductModalProps) {
                 </div>
               </div>
 
-              <div className="pt-2 border-t border-outline-variant/10">
-                <div className="space-y-1.5 max-w-xs">
-                  <label className="flex items-center gap-1 text-sm font-semibold text-on-surface">
-                    Precio de venta por unidad <span className="text-primary">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={unitSellingPrice}
-                    onChange={(e) => setUnitSellingPrice(e.target.value)}
-                    required
-                    className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-                  />
-                  <p className="text-xs text-on-surface-variant">
-                    Precio al que se venderá cada unidad individual.
-                  </p>
+              <div className="pt-2 border-t border-outline-variant/10 space-y-3">
+                <div className="flex gap-3">
+                  {(["manual", "final"] as const).map((mode) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => setSellingPriceMode(mode)}
+                      className={`flex-1 py-2 rounded-lg text-xs font-medium border transition-colors ${
+                        sellingPriceMode === mode
+                          ? "border-primary text-primary bg-primary/5"
+                          : "border-outline-variant/30 text-on-surface-variant hover:bg-surface-container-low"
+                      }`}
+                    >
+                      {mode === "manual" ? "Base + IVA" : "Precio final"}
+                    </button>
+                  ))}
                 </div>
+                {sellingPriceMode === "manual" ? (
+                  <div className="flex items-end gap-2">
+                    <div className="space-y-1 flex-1">
+                      <label className="flex items-center gap-1 text-xs font-semibold text-on-surface">
+                        Precio base <span className="text-primary">*</span>
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={unitSellingPrice}
+                        onChange={(e) => setUnitSellingPrice(e.target.value)}
+                        required
+                        className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                      />
+                    </div>
+                    <div className="pb-3 text-primary font-bold text-lg hidden sm:block">+</div>
+                    <div className="space-y-1 flex-1">
+                      <label className="flex items-center gap-1 text-xs font-semibold text-on-surface">IVA</label>
+                      <div className="pt-1 text-xs text-on-surface-variant">
+                        {tax === "Ninguno" ? "Sin IVA" : `19% → $${(parseFloat(unitSellingPrice || "0") * 0.19).toFixed(0)}`}
+                      </div>
+                    </div>
+                    <div className="pb-3 text-primary font-bold text-lg hidden sm:block">=</div>
+                    <div className="space-y-1 flex-1">
+                      <label className="flex items-center gap-1 text-xs font-semibold text-on-surface">Total</label>
+                      <div className="text-sm font-bold text-on-surface font-mono pt-1">
+                        ${(parseFloat(unitSellingPrice || "0") * (tax === "Ninguno" ? 1 : 1.19)).toFixed(0)}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    <label className="flex items-center gap-1 text-xs font-semibold text-on-surface">
+                      Precio de venta final (IVA{" "}
+                      {tax === "Ninguno" ? "no incluido" : "incluido"}){" "}
+                      <span className="text-primary">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={finalSellingPrice}
+                      onChange={(e) => setFinalSellingPrice(e.target.value)}
+                      required
+                      className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                    />
+                    {tax !== "Ninguno" && finalSellingPrice && parseFloat(finalSellingPrice) > 0 && (
+                      <p className="text-xs text-on-surface-variant mt-1">
+                        Base: ${(parseFloat(finalSellingPrice) / 1.19).toFixed(0)} | IVA: ${(parseFloat(finalSellingPrice) - parseFloat(finalSellingPrice) / 1.19).toFixed(0)}
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           ) : (

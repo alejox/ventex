@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Fragment } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -87,6 +87,17 @@ export default function InventoryPage() {
     return true;
   });
 
+  const parentProducts = filteredProducts.filter((p) => !p.parent_product_id);
+  const productGroups = parentProducts.map((parent) => {
+    const variants = (parent.variants ?? []).filter((v) => {
+      if (stockFilter === "Agotado" && v.stock_level !== 0) return false;
+      if (stockFilter === "Stock Bajo" && (v.stock_level <= 0 || v.stock_level > 5)) return false;
+      if (stockFilter === "Óptimo" && v.stock_level <= 5) return false;
+      return true;
+    });
+    return { parent, variants };
+  });
+
   useEffect(() => {
     fetchInventory();
   }, [fetchInventory]);
@@ -111,6 +122,15 @@ export default function InventoryPage() {
           </p>
         </div>
         <div className="flex gap-3">
+          <Link
+            href="/dashboard/inventory/movements"
+            className="h-11 bg-surface-container hover:bg-surface-container-high border border-outline-variant/20 text-on-surface text-sm font-semibold px-5 rounded-xl transition-colors flex items-center justify-center gap-2"
+          >
+            <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-4 h-4">
+              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+            </svg>
+            Movimientos
+          </Link>
           <button
             onClick={() => setIsCategoryModalOpen(true)}
             className="h-11 bg-surface-container hover:bg-surface-container-high border border-outline-variant/20 text-on-surface text-sm font-semibold px-5 rounded-xl transition-colors flex items-center justify-center gap-2"
@@ -233,7 +253,7 @@ export default function InventoryPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-outline-variant/5 text-sm">
-              {filteredProducts.length === 0 ? (
+              {productGroups.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="p-16 text-center text-on-surface-variant text-sm">
                     {products.length === 0 ? (
@@ -253,70 +273,125 @@ export default function InventoryPage() {
                   </td>
                 </tr>
               ) : (
-                filteredProducts.map((item) => {
+                productGroups.map((group) => {
+                  const { parent: item, variants } = group;
                   const stockStatus = item.stock_level === 0 ? 'out' : item.stock_level <= 5 ? 'low' : 'optimal';
                   const stockLabel = item.stock_level === 0 ? 'Agotado' : item.stock_level <= 5 ? `Stock Bajo (${item.stock_level})` : `\u00D3ptimo (${item.stock_level})`;
                   return (
-                    <tr key={item.id} className="hover:bg-surface-container-lowest transition-colors group">
-                      <td className="px-7 py-4">
-                        <div className="flex items-center gap-4">
-                          <div className="relative w-11 h-11 rounded-xl bg-surface-container border border-outline-variant/10 flex items-center justify-center text-on-surface-variant/30 overflow-hidden shrink-0">
-                            {item.image_url ? (
-                              <Image
-                                src={item.image_url}
-                                alt={item.name}
-                                fill
-                                sizes="44px"
-                                unoptimized
-                                className="object-cover"
-                              />
-                            ) : (
-                              <IconImagePlaceholder className="w-5 h-5" />
-                            )}
+                    <Fragment key={item.id}>
+                      <tr className="hover:bg-surface-container-lowest transition-colors group">
+                        <td className="px-7 py-4">
+                          <div className="flex items-center gap-4">
+                            <div className="relative w-11 h-11 rounded-xl bg-surface-container border border-outline-variant/10 flex items-center justify-center text-on-surface-variant/30 overflow-hidden shrink-0">
+                              {item.image_url ? (
+                                <Image
+                                  src={item.image_url}
+                                  alt={item.name}
+                                  fill
+                                  sizes="44px"
+                                  unoptimized
+                                  className="object-cover"
+                                />
+                              ) : (
+                                <IconImagePlaceholder className="w-5 h-5" />
+                              )}
+                            </div>
+                            <span className="font-medium text-on-surface">{item.name}</span>
                           </div>
-                          <span className="font-medium text-on-surface">{item.name}</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-4 text-on-surface-variant">{item.categories?.name ?? "\u2014"}</td>
-                      <td className="px-4 py-4">
-                        <span className="inline-block bg-surface-container-lowest border border-outline-variant/10 rounded-lg px-2.5 py-1 font-mono text-xs text-on-surface-variant">
-                          {item.sku}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4 text-on-surface-variant font-mono text-sm">${(item.purchase_price ?? 0).toFixed(2)}</td>
-                      <td className="px-4 py-4 text-on-surface font-semibold text-sm">${item.price.toFixed(2)}</td>
-                      <td className="px-4 py-4">
-                        <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-bold ${
-                          stockStatus === 'optimal' ? 'bg-[#10b981]/10 text-[#10b981] border border-[#10b981]/20' :
-                          stockStatus === 'low' ? 'bg-[#f59e0b]/10 text-[#f59e0b] border border-[#f59e0b]/20' :
-                          'bg-error-container/20 text-error-dim border border-error-container/30'
-                        }`}>
-                          <span className={`w-2 h-2 rounded-full ${
-                            stockStatus === 'optimal' ? 'bg-[#10b981]' :
-                            stockStatus === 'low' ? 'bg-[#f59e0b]' :
-                            'bg-error'
-                          }`} />
-                          {stockLabel}
-                        </span>
-                      </td>
-                      <td className="px-7 py-4 text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          <Link
-                            href={`/dashboard/inventory/product?id=${item.id}`}
-                            className="w-9 h-9 flex items-center justify-center rounded-xl text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
-                            title="Editar producto"
-                          >
-                            <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-4 h-4">
-                              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                            </svg>
-                          </Link>
-                          <button className="w-9 h-9 flex items-center justify-center rounded-xl text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors">
-                            <IconMoreHorizontal className="w-5 h-5" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
+                        </td>
+                        <td className="px-4 py-4 text-on-surface-variant">{item.categories?.name ?? "\u2014"}</td>
+                        <td className="px-4 py-4">
+                          <span className="inline-block bg-surface-container-lowest border border-outline-variant/10 rounded-lg px-2.5 py-1 font-mono text-xs text-on-surface-variant">
+                            {item.sku}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4 text-on-surface-variant font-mono text-sm">${(item.purchase_price ?? 0).toFixed(2)}</td>
+                        <td className="px-4 py-4 text-on-surface font-semibold text-sm">${item.price.toFixed(2)}</td>
+                        <td className="px-4 py-4">
+                          <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-bold ${
+                            stockStatus === 'optimal' ? 'bg-[#10b981]/10 text-[#10b981] border border-[#10b981]/20' :
+                            stockStatus === 'low' ? 'bg-[#f59e0b]/10 text-[#f59e0b] border border-[#f59e0b]/20' :
+                            'bg-error-container/20 text-error-dim border border-error-container/30'
+                          }`}>
+                            <span className={`w-2 h-2 rounded-full ${
+                              stockStatus === 'optimal' ? 'bg-[#10b981]' :
+                              stockStatus === 'low' ? 'bg-[#f59e0b]' :
+                              'bg-error'
+                            }`} />
+                            {stockLabel}
+                          </span>
+                        </td>
+                        <td className="px-7 py-4 text-center">
+                          <div className="flex items-center justify-center gap-1">
+                            <Link
+                              href={`/dashboard/inventory/product?id=${item.id}`}
+                              className="w-9 h-9 flex items-center justify-center rounded-xl text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
+                              title="Editar producto"
+                            >
+                              <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-4 h-4">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                              </svg>
+                            </Link>
+                            <Link
+                              href={`/dashboard/inventory/product?parent_id=${item.id}`}
+                              className="w-9 h-9 flex items-center justify-center rounded-xl text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
+                              title="Agregar variante"
+                            >
+                              <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-4 h-4">
+                                <line x1="12" y1="5" x2="12" y2="19" />
+                                <line x1="5" y1="12" x2="19" y2="12" />
+                              </svg>
+                            </Link>
+                          </div>
+                        </td>
+                      </tr>
+                      {variants.map((v) => {
+                        const vStockStatus = v.stock_level === 0 ? 'out' : v.stock_level <= 5 ? 'low' : 'optimal';
+                        const vStockLabel = v.stock_level === 0 ? 'Agotado' : v.stock_level <= 5 ? `Stock Bajo (${v.stock_level})` : `\u00D3ptimo (${v.stock_level})`;
+                        return (
+                          <tr key={v.id} className="hover:bg-surface-container-lowest transition-colors group bg-surface-container-low/30">
+                            <td className="px-7 py-3 pl-14">
+                              <div className="flex items-center gap-3">
+                                <svg fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24" className="w-3.5 h-3.5 text-on-surface-variant/40 shrink-0">
+                                  <polyline points="9 18 15 12 9 6" />
+                                </svg>
+                                <span className="text-sm text-on-surface">{v.name}</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-xs text-on-surface-variant">{v.categories?.name ?? "\u2014"}</td>
+                            <td className="px-4 py-3">
+                              <span className="inline-block bg-surface-container-lowest border border-outline-variant/10 rounded-lg px-2 py-0.5 font-mono text-[11px] text-on-surface-variant">
+                                {v.sku}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-on-surface-variant font-mono text-xs">${(v.purchase_price ?? 0).toFixed(2)}</td>
+                            <td className="px-4 py-3 text-on-surface font-semibold text-xs">${v.price.toFixed(2)}</td>
+                            <td className="px-4 py-3">
+                              <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold ${
+                                vStockStatus === 'optimal' ? 'bg-[#10b981]/10 text-[#10b981] border border-[#10b981]/20' :
+                                vStockStatus === 'low' ? 'bg-[#f59e0b]/10 text-[#f59e0b] border border-[#f59e0b]/20' :
+                                'bg-error-container/20 text-error-dim border border-error-container/30'
+                              }`}>
+                                {vStockLabel}
+                              </span>
+                            </td>
+                            <td className="px-7 py-3 text-center">
+                              <Link
+                                href={`/dashboard/inventory/product?id=${v.id}`}
+                                className="w-8 h-8 inline-flex items-center justify-center rounded-lg text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
+                                title="Editar variante"
+                              >
+                                <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-3.5 h-3.5">
+                                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                                </svg>
+                              </Link>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </Fragment>
                   );
                 })
               )}
@@ -325,10 +400,12 @@ export default function InventoryPage() {
         </div>
 
         {/* Footer & Pagination */}
-        {filteredProducts.length > 0 && (
+        {productGroups.length > 0 && (
         <div className="px-7 py-4 border-t border-outline-variant/10 flex flex-col sm:flex-row items-center justify-between gap-4 bg-surface-container-lowest">
           <p className="text-xs text-on-surface-variant font-medium">
-            Mostrando {filteredProducts.length} de {products.length} registro{products.length !== 1 ? "s" : ""}
+          <p className="text-xs text-on-surface-variant font-medium">
+            Mostrando {productGroups.reduce((acc, g) => acc + 1 + g.variants.length, 0)} de {products.length} registro{products.length !== 1 ? "s" : ""}
+          </p>
           </p>
           <div className="flex gap-1.5 items-center">
             <button className="px-3.5 py-2 rounded-lg text-xs font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors border border-transparent hover:border-outline-variant/10">

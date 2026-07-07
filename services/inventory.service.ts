@@ -16,6 +16,7 @@ export interface Product {
   name: string;
   category_id: string | null;
   distributor_id: string | null;
+  parent_product_id: string | null;
   sku: string;
   unit: string;
   purchase_price?: number;
@@ -30,6 +31,8 @@ export interface Product {
   created_at: string;
   categories: { name: string } | null;
   distributors: { business_name: string } | null;
+  parent_products?: { name: string } | null;
+  variants?: Product[];
 }
 
 /** Datos del formulario de producto (campos en string tal como llegan del form). */
@@ -37,11 +40,12 @@ export interface NewProductInput {
   name: string;
   category_id: string;
   distributor_id: string;
+  parent_product_id?: string;
   sku: string;
   unit: string;
   purchase_price: string;
   price: string;
-  stock_level: string;
+  stock_level?: string;
   image_url: string;
   has_commission: boolean;
   commission_type: string;
@@ -56,7 +60,7 @@ export interface NewCategoryInput {
   description: string;
 }
 
-const PRODUCT_SELECT = "*, categories(name), distributors(business_name)";
+const PRODUCT_SELECT = "*, categories(name), distributors(business_name), parent_products!products_parent_product_id_fkey(name)";
 
 const PRODUCT_IMAGES_BUCKET = "product-images";
 
@@ -112,7 +116,20 @@ export async function fetchProducts(): Promise<Product[]> {
     .select(PRODUCT_SELECT)
     .order("created_at", { ascending: false });
   if (error) throw error;
-  return (data ?? []) as unknown as Product[];
+  const all = (data ?? []) as unknown as Product[];
+
+  const variantsMap: Record<string, Product[]> = {};
+  for (const p of all) {
+    if (p.parent_product_id) {
+      if (!variantsMap[p.parent_product_id]) variantsMap[p.parent_product_id] = [];
+      variantsMap[p.parent_product_id].push(p);
+    }
+  }
+
+  return all.map((p) => ({
+    ...p,
+    variants: variantsMap[p.id] ?? [],
+  }));
 }
 
 export async function createProduct(input: NewProductInput): Promise<Product> {
@@ -123,11 +140,12 @@ export async function createProduct(input: NewProductInput): Promise<Product> {
       name: input.name,
       category_id: input.category_id || null,
       distributor_id: input.distributor_id || null,
+      parent_product_id: input.parent_product_id || null,
       sku: input.sku,
       unit: input.unit,
       purchase_price: parseFloat(input.purchase_price),
       price: parseFloat(input.price),
-      stock_level: parseInt(input.stock_level),
+      stock_level: parseInt(input.stock_level || "0"),
       image_url: input.image_url || null,
       has_commission: input.has_commission,
       commission_type: input.has_commission ? input.commission_type : null,
@@ -148,11 +166,12 @@ export async function updateProduct(id: string, input: NewProductInput): Promise
       name: input.name,
       category_id: input.category_id || null,
       distributor_id: input.distributor_id || null,
+      parent_product_id: input.parent_product_id || null,
       sku: input.sku,
       unit: input.unit,
       purchase_price: parseFloat(input.purchase_price),
       price: parseFloat(input.price),
-      stock_level: parseInt(input.stock_level),
+      stock_level: parseInt(input.stock_level || "0"),
       image_url: input.image_url || null,
       has_commission: input.has_commission,
       commission_type: input.has_commission ? input.commission_type : null,

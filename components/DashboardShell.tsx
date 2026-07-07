@@ -46,6 +46,7 @@ const NAV_ICONS: Record<string, IconType> = {
   customers: IconUsers,
   distributors: IconBox,
   purchases: IconRefreshCw,
+  movements: IconBox,
   calendar: IconCalendar,
 };
 

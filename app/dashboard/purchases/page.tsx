@@ -10,6 +10,7 @@ import { useInventoryStore } from "@/stores/inventory.store";
 import { DistributorQuickModal } from "@/components/DistributorQuickModal";
 import { CategoryQuickModal } from "@/components/CategoryQuickModal";
 import { PurchaseInvoiceDetailModal } from "@/components/PurchaseInvoiceDetailModal";
+import { ProductModal } from "@/components/ProductModal";
 
 const money = (n: number) =>
   "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -41,6 +42,7 @@ export default function PurchasesPage() {
   const createInvoice = usePurchasesStore((s) => s.createInvoice);
   const updateStatus = usePurchasesStore((s) => s.updateStatus);
   const updateInvoice = usePurchasesStore((s) => s.updateInvoice);
+  const cancelInvoice = usePurchasesStore((s) => s.cancelInvoice);
 
   const distributors = useDistributorsStore((s) => s.distributors);
   const fetchDistributors = useDistributorsStore((s) => s.fetchDistributors);
@@ -53,6 +55,8 @@ export default function PurchasesPage() {
   const [issueDate, setIssueDate] = useState(today());
   const [supplierInvoiceNumber, setSupplierInvoiceNumber] = useState("");
   const [status, setStatus] = useState("paid");
+  const [taxRate, setTaxRate] = useState("Ninguno");
+  const [discountAmount, setDiscountAmount] = useState("0");
   const [lines, setLines] = useState<LineForm[]>([emptyLine()]);
   const [productSearch, setProductSearch] = useState("");
   const [showDropdown, setShowDropdown] = useState<number | null>(null);
@@ -61,7 +65,11 @@ export default function PurchasesPage() {
   const [detailInvoice, setDetailInvoice] = useState<PurchaseInvoice | null>(null);
   const [editingInvoice, setEditingInvoice] = useState<PurchaseInvoice | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [productModalLineIdx, setProductModalLineIdx] = useState<number | null>(null);
   const searchInputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const [cancelConfirmId, setCancelConfirmId] = useState<string | null>(null);
+  const [loadingLastPurchase, setLoadingLastPurchase] = useState(false);
+  const [filterDistributorId, setFilterDistributorId] = useState("");
 
   useEffect(() => {
     fetchInvoices();
@@ -75,6 +83,8 @@ export default function PurchasesPage() {
     setIssueDate(today());
     setSupplierInvoiceNumber("");
     setStatus("paid");
+    setTaxRate("Ninguno");
+    setDiscountAmount("0");
     setLines([emptyLine()]);
     setProductSearch("");
     setModalOpen(true);
@@ -86,6 +96,8 @@ export default function PurchasesPage() {
     setIssueDate(invoice.issue_date);
     setSupplierInvoiceNumber(invoice.supplier_invoice_number ?? "");
     setStatus(invoice.status);
+    setTaxRate(invoice.tax_rate > 0 ? "19%" : "Ninguno");
+    setDiscountAmount(String(invoice.discount_amount));
     try {
       const items = await purchasesService.fetchPurchaseInvoiceItems(invoice.id);
       setLines(
@@ -148,20 +160,33 @@ export default function PurchasesPage() {
     setProductSearch("");
   }, []);
 
-  const total = useMemo(
+  const taxMultiplier = taxRate === "Ninguno" ? 0 : 0.19;
+  const subtotal = useMemo(
     () => lines.reduce((s, l) => s + l.quantity * l.unit_price, 0),
     [lines]
   );
+  const taxAmount = useMemo(
+    () => Math.round(subtotal * taxMultiplier * 100) / 100,
+    [subtotal, taxMultiplier]
+  );
+  const discount = parseFloat(discountAmount || "0");
+  const total = subtotal + taxAmount - discount;
 
   const filteredInvoices = useMemo(
-    () =>
-      !searchQuery
-        ? invoices
-        : invoices.filter(
-            (inv) =>
-              inv.supplier_invoice_number?.toLowerCase().includes(searchQuery.toLowerCase())
-          ),
-    [invoices, searchQuery]
+    () => {
+      let result = invoices;
+      if (searchQuery) {
+        result = result.filter(
+          (inv) =>
+            inv.supplier_invoice_number?.toLowerCase().includes(searchQuery.toLowerCase())
+        );
+      }
+      if (filterDistributorId) {
+        result = result.filter((inv) => inv.distributor_id === filterDistributorId);
+      }
+      return result;
+    },
+    [invoices, searchQuery, filterDistributorId]
   );
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -175,6 +200,8 @@ export default function PurchasesPage() {
       supplier_invoice_number: supplierInvoiceNumber,
       status,
       items: validLines,
+      tax_rate: taxRate === "Ninguno" ? 0 : 0.19,
+      discount_amount: discount,
     };
 
     const ok = editingInvoice
@@ -186,6 +213,41 @@ export default function PurchasesPage() {
 
   const handleDistributorCreated = (_id: string, _name: string) => {
     fetchDistributors();
+  };
+
+  const handleCancelInvoice = async (invoice: PurchaseInvoice) => {
+    try {
+      const items = await purchasesService.fetchPurchaseInvoiceItems(invoice.id);
+      const ok = await cancelInvoice(
+        invoice.id,
+        items.map((i) => ({ product_id: i.product_id ?? "", quantity: i.quantity }))
+      );
+      if (ok) setCancelConfirmId(null);
+    } catch {
+      // error handled by store
+    }
+  };
+
+  const handleLoadLastPurchase = async () => {
+    if (!distributorId) return;
+    setLoadingLastPurchase(true);
+    try {
+      const last = await purchasesService.fetchLastPurchaseFromDistributor(distributorId);
+      if (last && last.items.length > 0) {
+        setLines(
+          last.items.map((i) => ({
+            product_id: i.product_id,
+            product_name: i.product_name,
+            description: `Compra: ${i.product_name}`,
+            quantity: i.quantity,
+            unit_price: i.unit_price,
+          }))
+        );
+      }
+    } catch {
+      // ignore
+    }
+    setLoadingLastPurchase(false);
   };
 
   return (
@@ -244,6 +306,16 @@ export default function PurchasesPage() {
                 <path d="m21 21-4.35-4.35" />
               </svg>
             </div>
+            <select
+              value={filterDistributorId}
+              onChange={(e) => setFilterDistributorId(e.target.value)}
+              className="bg-surface-container-lowest border border-outline-variant/20 rounded-xl py-2 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
+            >
+              <option value="">Todos los proveedores</option>
+              {distributors.map((d) => (
+                <option key={d.id} value={d.id}>{d.business_name}</option>
+              ))}
+            </select>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse min-w-[800px]">
@@ -253,6 +325,7 @@ export default function PurchasesPage() {
                   <th className="p-4">Proveedor</th>
                   <th className="p-4">Factura Proveedor</th>
                   <th className="p-4">Fecha</th>
+                  <th className="p-4">Recibido</th>
                   <th className="p-4 text-right">Total</th>
                   <th className="p-4 text-center">Estado</th>
                   <th className="p-4 text-center w-16">Acción</th>
@@ -272,6 +345,9 @@ export default function PurchasesPage() {
                     </td>
                     <td className="p-4 text-on-surface-variant">
                       {new Date(inv.issue_date).toLocaleDateString("es-ES")}
+                    </td>
+                    <td className="p-4 text-xs text-on-surface-variant">
+                      {"created_at" in inv && inv.created_at ? new Date((inv as any).created_at).toLocaleDateString("es-ES") : "—"}
                     </td>
                     <td className="p-4 text-right font-semibold text-on-surface font-mono">
                       {money(Number(inv.total))}
@@ -317,6 +393,19 @@ export default function PurchasesPage() {
                             <circle cx="12" cy="12" r="3" />
                           </svg>
                         </button>
+                        {inv.status !== "cancelled" && (
+                          <button
+                            type="button"
+                            onClick={() => setCancelConfirmId(inv.id)}
+                            className="w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:text-error hover:bg-error/10 transition-colors"
+                            title="Anular y devolver stock"
+                          >
+                            <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-4 h-4">
+                              <polyline points="1 4 1 10 7 10" />
+                              <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+                            </svg>
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -377,6 +466,19 @@ export default function PurchasesPage() {
                     >
                       <IconPlus className="w-4 h-4" />
                     </button>
+                    <button
+                      type="button"
+                      onClick={handleLoadLastPurchase}
+                      disabled={!distributorId || loadingLastPurchase}
+                      className="shrink-0 px-3 h-10 flex items-center gap-1.5 rounded-xl text-xs font-semibold bg-surface-container-low border border-outline-variant/20 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      title="Cargar productos de la última compra de este proveedor"
+                    >
+                      <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-3.5 h-3.5">
+                        <polyline points="23 4 23 10 17 10" />
+                        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+                      </svg>
+                      {loadingLastPurchase ? "Cargando…" : "Última compra"}
+                    </button>
                   </div>
                 </div>
                 <div className="space-y-1.5">
@@ -410,6 +512,29 @@ export default function PurchasesPage() {
                     <option value="pending">Pendiente</option>
                     <option value="cancelled">Anulada</option>
                   </select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[13px] font-semibold text-on-surface block">IVA</label>
+                  <select
+                    value={taxRate}
+                    onChange={(e) => setTaxRate(e.target.value)}
+                    className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all appearance-none"
+                  >
+                    <option value="Ninguno">Ninguno</option>
+                    <option value="19%">19%</option>
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[13px] font-semibold text-on-surface block">Descuento ($)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={discountAmount}
+                    onChange={(e) => setDiscountAmount(e.target.value)}
+                    className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
+                    placeholder="0.00"
+                  />
                 </div>
               </div>
 
@@ -457,7 +582,7 @@ export default function PurchasesPage() {
                         />
                         <button
                           type="button"
-                          onClick={() => window.location.href = "/dashboard/inventory/product"}
+                          onClick={() => setProductModalLineIdx(idx)}
                           className="shrink-0 w-9 h-9 flex items-center justify-center rounded-lg bg-primary/10 text-primary hover:bg-primary hover:text-white transition-colors"
                           title="Crear nuevo producto"
                         >
@@ -474,16 +599,31 @@ export default function PurchasesPage() {
                                 key={p.id}
                                 type="button"
                                 onMouseDown={() => selectProduct(idx, p)}
-                                className="w-full text-left px-3 py-2 text-sm text-on-surface hover:bg-surface-container-highest transition-colors flex items-center justify-between gap-2"
+                                className="w-full text-left px-3 py-2 text-sm text-on-surface hover:bg-surface-container-highest transition-colors"
                               >
-                                <span>{p.name}</span>
-                                <span className="text-xs text-on-surface-variant font-mono">{p.sku}</span>
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="font-medium">{p.name}</span>
+                                  <span className="text-xs text-on-surface-variant font-mono">{p.sku}</span>
+                                </div>
+                                <div className="flex items-center gap-3 mt-0.5 text-xs text-on-surface-variant">
+                                  <span>Stock: <strong className={p.stock_level <= (p.minimum_stock ?? 0) ? "text-error" : "text-on-surface"}>{p.stock_level}</strong></span>
+                                  <span>Compra: <strong className="text-on-surface">${Number(p.purchase_price ?? 0).toLocaleString("en-US")}</strong></span>
+                                  <span>Venta: <strong className="text-on-surface">${Number(p.price).toLocaleString("en-US")}</strong></span>
+                                </div>
                               </button>
                             ))
                           )}
                         </div>
                       )}
                     </div>
+                    {line.product_id && (() => {
+                      const p = products.find((pr) => pr.id === line.product_id);
+                      return p && (p.units_per_package ?? 1) > 1 ? (
+                        <p className="text-[10px] text-on-surface-variant mt-1">
+                          1 paquete = {p.units_per_package} {p.unit}(es) | Precio x paquete: <strong>${(line.unit_price * (p.units_per_package ?? 1)).toLocaleString("en-US")}</strong>
+                        </p>
+                      ) : null;
+                    })()}
                     <div className="w-20 shrink-0 space-y-1.5">
                       <input
                         type="number"
@@ -527,9 +667,27 @@ export default function PurchasesPage() {
                 ))}
               </div>
 
-              <div className="flex justify-end items-center gap-2 pt-2 border-t border-outline-variant/10">
-                <span className="text-sm text-on-surface-variant">Total compra:</span>
-                <span className="text-xl font-bold text-on-surface font-mono">{money(total)}</span>
+              <div className="flex flex-col items-end gap-1 pt-2 border-t border-outline-variant/10">
+                <div className="flex items-center gap-4 text-sm text-on-surface-variant">
+                  <span>Subtotal:</span>
+                  <span className="font-mono w-28 text-right">{money(subtotal)}</span>
+                </div>
+                {taxMultiplier > 0 && (
+                  <div className="flex items-center gap-4 text-sm text-on-surface-variant">
+                    <span>IVA (19%):</span>
+                    <span className="font-mono w-28 text-right">{money(taxAmount)}</span>
+                  </div>
+                )}
+                {discount > 0 && (
+                  <div className="flex items-center gap-4 text-sm text-error">
+                    <span>Descuento:</span>
+                    <span className="font-mono w-28 text-right">-{money(discount)}</span>
+                  </div>
+                )}
+                <div className="flex items-center gap-4 pt-1 border-t border-outline-variant/10">
+                  <span className="text-sm font-semibold text-on-surface">Total:</span>
+                  <span className="text-xl font-bold text-on-surface font-mono w-28 text-right">{money(total)}</span>
+                </div>
               </div>
 
               <div className="flex flex-col-reverse sm:flex-row gap-3 pt-2">
@@ -569,6 +727,59 @@ export default function PurchasesPage() {
           invoice={detailInvoice}
           onClose={() => setDetailInvoice(null)}
         />
+      )}
+
+      {productModalLineIdx !== null && (
+        <ProductModal
+          onClose={() => setProductModalLineIdx(null)}
+          onCreated={(productId, productName) => {
+            setLines((prev) =>
+              prev.map((line, i) =>
+                i === productModalLineIdx
+                  ? {
+                      ...line,
+                      product_id: productId,
+                      product_name: productName,
+                      description: `Compra: ${productName}`,
+                    }
+                  : line
+              )
+            );
+            fetchInventory();
+            setProductModalLineIdx(null);
+          }}
+        />
+      )}
+
+      {cancelConfirmId && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-surface-container-lowest rounded-3xl w-full max-w-sm border border-outline-variant/10 shadow-2xl p-6 animate-in zoom-in-95 duration-200">
+            <h3 className="text-lg font-bold text-on-surface mb-2">Anular compra</h3>
+            <p className="text-sm text-on-surface-variant mb-6">
+              Se devolverá el stock de todos los productos al inventario. ¿Estás seguro?
+            </p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setCancelConfirmId(null)}
+                className="flex-1 px-5 py-2.5 rounded-xl text-sm font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const inv = invoices.find((i) => i.id === cancelConfirmId);
+                  if (inv) handleCancelInvoice(inv);
+                }}
+                disabled={submitting}
+                className="flex-1 px-5 py-2.5 rounded-xl text-sm font-semibold bg-error text-white hover:bg-error/90 transition-colors disabled:opacity-50"
+              >
+                {submitting ? "Anulando…" : "Sí, anular"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

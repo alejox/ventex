@@ -12,6 +12,7 @@ function ProductForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const editId = searchParams.get("id");
+  const parentId = searchParams.get("parent_id");
 
   const products = useInventoryStore((s) => s.products);
   const categories = useInventoryStore((s) => s.categories);
@@ -25,11 +26,11 @@ function ProductForm() {
     name: "",
     category_id: "",
     distributor_id: "",
+    parent_product_id: "",
     sku: "",
     unit: "Unidad",
     purchase_price: "",
     price: "",
-    stock_level: "",
     image_url: "",
     has_commission: false,
     commission_type: "percentage",
@@ -47,10 +48,11 @@ function ProductForm() {
   const [distributorModalOpen, setDistributorModalOpen] = useState(false);
   const [purchasePriceBase, setPurchasePriceBase] = useState("0");
   const [purchasePriceTax, setPurchasePriceTax] = useState("19%");
-  const [priceMode, setPriceMode] = useState<"manual" | "percentage">("manual");
+  const [priceMode, setPriceMode] = useState<"manual" | "percentage" | "final">("manual");
   const [sellingPriceBase, setSellingPriceBase] = useState("0");
   const [sellingPriceTax, setSellingPriceTax] = useState("19%");
   const [priceMargin, setPriceMargin] = useState("0");
+  const [finalSellingPrice, setFinalSellingPrice] = useState("0");
 
   const taxMultiplier = purchasePriceTax === "Ninguno" ? 1 : 1.19;
   const purchasePriceTotal = (parseFloat(purchasePriceBase || "0") * taxMultiplier).toFixed(0);
@@ -58,11 +60,19 @@ function ProductForm() {
   const sellingTaxMultiplier = sellingPriceTax === "Ninguno" ? 1 : 1.19;
   const sellingPriceTotal = priceMode === "manual"
     ? (parseFloat(sellingPriceBase || "0") * sellingTaxMultiplier).toFixed(0)
-    : (parseFloat(purchasePriceTotal || "0") * (1 + parseFloat(priceMargin || "0") / 100)).toFixed(0);
+    : priceMode === "percentage"
+    ? (parseFloat(purchasePriceTotal || "0") * (1 + parseFloat(priceMargin || "0") / 100)).toFixed(0)
+    : (parseFloat(finalSellingPrice || "0")).toFixed(0);
 
   useEffect(() => {
     fetchInventory();
   }, [fetchInventory]);
+
+  useEffect(() => {
+    if (parentId && !editId) {
+      setForm((prev) => ({ ...prev, parent_product_id: parentId }));
+    }
+  }, [parentId, editId]);
 
   useEffect(() => {
     if (!editId || products.length === 0) return;
@@ -75,6 +85,7 @@ function ProductForm() {
       name: product.name,
       category_id: product.category_id ?? "",
       distributor_id: product.distributor_id ?? "",
+      parent_product_id: product.parent_product_id ?? "",
       sku: product.sku,
       unit: product.unit,
       purchase_price: String(product.purchase_price ?? ""),
@@ -86,6 +97,9 @@ function ProductForm() {
       commission_value: product.commission_value ? String(product.commission_value) : "",
       units_per_package: product.units_per_package ? String(product.units_per_package) : "1",
     });
+    if (editId) {
+      setForm((prev) => ({ ...prev, stock_level: String(product.stock_level) }));
+    }
     setPurchasePriceBase(String(product.purchase_price ?? "0"));
     setSellingPriceBase(String(product.price ?? "0"));
     if (product.image_url) setImagePreview(product.image_url);
@@ -136,12 +150,14 @@ function ProductForm() {
       ...form,
       purchase_price: purchasePriceTotal,
       price: sellingPriceTotal,
+      stock_level: editId ? String(form.stock_level || "0") : "0",
     };
     const ok = editId
       ? await updateProduct(editId, payload, imageFile)
       : await addProduct(payload, imageFile);
+    const success = typeof ok === "string" || ok === true;
     setSaving(false);
-    if (ok) router.push("/dashboard/inventory");
+    if (success) router.push("/dashboard/inventory");
   };
 
   if (loadingProduct) {
@@ -190,7 +206,7 @@ function ProductForm() {
             />
           </div>
 
-          <div className="grid grid-cols-3 gap-5">
+          <div className="grid grid-cols-4 gap-5">
             <div className="space-y-1.5">
               <label className="text-[13px] font-semibold text-on-surface block">Categor&iacute;a</label>
               <div className="relative">
@@ -268,6 +284,26 @@ function ProductForm() {
                 </svg>
               </div>
             </div>
+            <div className="space-y-1.5">
+              <label className="text-[13px] font-semibold text-on-surface block">Producto padre <span className="text-on-surface-variant font-normal">(opcional)</span></label>
+              <div className="relative">
+                <select
+                  value={form.parent_product_id}
+                  onChange={(e) => setForm({ ...form, parent_product_id: e.target.value })}
+                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all appearance-none"
+                >
+                  <option value="">Es producto principal</option>
+                  {products
+                    .filter((p) => !p.parent_product_id && p.id !== editId)
+                    .map((p) => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                </select>
+                <svg className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant pointer-events-none" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </div>
+            </div>
           </div>
 
           <div className="grid grid-cols-3 gap-5">
@@ -333,7 +369,7 @@ function ProductForm() {
             </div>
             <div className="space-y-4">
               <div className="flex gap-4">
-                {(["manual", "percentage"] as const).map((mode) => (
+                {(["manual", "percentage", "final"] as const).map((mode) => (
                   <button
                     key={mode}
                     type="button"
@@ -344,7 +380,7 @@ function ProductForm() {
                         : "border-outline-variant/30 text-on-surface hover:bg-surface-container-low"
                     }`}
                   >
-                    {mode === "manual" ? "Manual" : "% Margen"}
+                    {mode === "manual" ? "Manual" : mode === "percentage" ? "% Margen" : "Precio Final"}
                   </button>
                 ))}
               </div>
@@ -387,7 +423,7 @@ function ProductForm() {
                     />
                   </div>
                 </div>
-              ) : (
+              ) : priceMode === "percentage" ? (
                 <div className="max-w-xs space-y-1.5">
                   <label className="text-[13px] font-semibold text-on-surface block">Margen de ganancia (%)</label>
                   <div className="flex gap-3 items-end">
@@ -407,20 +443,45 @@ function ProductForm() {
                     Precio de venta sugerido: <strong className="text-on-surface font-mono">${Number(sellingPriceTotal).toLocaleString("en-US")}</strong> (costo {priceMargin || "0"}% sobre total de compra)
                   </p>
                 </div>
+              ) : (
+                <div className="flex flex-col sm:flex-row items-end gap-3">
+                  <div className="space-y-1.5 flex-1">
+                    <label className="text-[13px] font-semibold text-on-surface block">Precio de venta final</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={finalSellingPrice}
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => setFinalSellingPrice(e.target.value)}
+                      className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+                      placeholder="Ej. 500"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1.5 flex-1">
+                    <label className="text-[13px] font-semibold text-on-surface block">IVA</label>
+                    <select
+                      value={sellingPriceTax}
+                      onChange={(e) => setSellingPriceTax(e.target.value)}
+                      className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all appearance-none"
+                    >
+                      <option value="Ninguno">Ninguno</option>
+                      <option value="19%">19%</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1.5 flex-1">
+                    <label className="text-[13px] font-semibold text-on-surface block">Base calculada</label>
+                    <input
+                      type="number"
+                      value={sellingPriceTax === "Ninguno" ? finalSellingPrice : (parseFloat(finalSellingPrice || "0") / 1.19).toFixed(0)}
+                      readOnly
+                      className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all opacity-80 cursor-not-allowed"
+                    />
+                  </div>
+                </div>
               )}
             </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-[13px] font-semibold text-on-surface block">Nivel de Stock</label>
-            <input
-              type="number"
-              value={form.stock_level}
-              onChange={(e) => setForm({ ...form, stock_level: e.target.value })}
-              className="w-full max-w-xs bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-on-surface-variant/50"
-              placeholder="Ej. 120"
-              required
-            />
           </div>
 
           <div className="space-y-1.5">
@@ -434,6 +495,54 @@ function ProductForm() {
               placeholder="Ej. 24"
             />
           </div>
+
+          {editId && (
+            <div className="flex items-center gap-4 px-1">
+              <div className="text-sm text-on-surface-variant">
+                Stock actual: <strong className="text-on-surface">{form.stock_level || "0"}</strong>
+              </div>
+              <a
+                href={`/dashboard/inventory/movements?product_id=${editId}`}
+                className="text-xs font-semibold text-primary hover:text-primary-dim transition-colors"
+              >
+                Ver movimientos →
+              </a>
+            </div>
+          )}
+
+          {editId && (() => {
+            const currentProduct = products.find((p) => p.id === editId);
+            const variantList = currentProduct?.variants ?? [];
+            if (variantList.length === 0) return null;
+            return (
+              <div className="pt-4 border-t border-outline-variant/10">
+                <h3 className="text-sm font-bold text-on-surface mb-3">Variantes</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {variantList.map((v) => (
+                    <a
+                      key={v.id}
+                      href={`/dashboard/inventory/product?id=${v.id}`}
+                      className="flex items-center justify-between p-3 rounded-xl bg-surface-container-lowest border border-outline-variant/10 hover:border-primary/30 transition-colors"
+                    >
+                      <div>
+                        <p className="text-sm font-medium text-on-surface">{v.name}</p>
+                        <p className="text-xs text-on-surface-variant">
+                          {v.unit} — Stock: {v.stock_level}
+                        </p>
+                      </div>
+                      <span className="text-xs font-semibold text-primary">Editar →</span>
+                    </a>
+                  ))}
+                </div>
+                <a
+                  href={`/dashboard/inventory/product?parent_id=${editId}`}
+                  className="inline-flex items-center gap-1 mt-3 text-xs font-semibold text-primary hover:text-primary-dim transition-colors"
+                >
+                  + Agregar variante
+                </a>
+              </div>
+            );
+          })()}
 
           {/* Comisión */}
           <div className="pt-4 border-t border-outline-variant/10">

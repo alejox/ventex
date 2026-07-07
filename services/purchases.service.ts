@@ -37,6 +37,16 @@ export interface PurchaseLineInput {
   unit_price: number;
 }
 
+export interface PurchaseInvoiceParams {
+  distributor_id: string;
+  issue_date: string;
+  supplier_invoice_number: string;
+  status: string;
+  items: PurchaseLineInput[];
+  tax_rate?: number;
+  discount_amount?: number;
+}
+
 const INVOICE_SELECT = `
   id, invoice_number, supplier_invoice_number, distributor_id, type, status, issue_date,
   subtotal, discount_amount, tax_rate, tax_amount, total, notes, created_at,
@@ -96,16 +106,14 @@ export async function fetchPurchaseInvoiceItems(invoiceId: string): Promise<Purc
   return (data ?? []) as unknown as PurchaseInvoiceItem[];
 }
 
-export async function createPurchaseInvoice(params: {
-  distributor_id: string;
-  issue_date: string;
-  supplier_invoice_number: string;
-  status: string;
-  items: PurchaseLineInput[];
-}): Promise<PurchaseInvoice> {
+export async function createPurchaseInvoice(params: PurchaseInvoiceParams): Promise<PurchaseInvoice> {
   const supabase = createClient();
 
+  const taxRate = params.tax_rate ?? 0;
+  const discountAmount = params.discount_amount ?? 0;
   const subtotal = params.items.reduce((s, i) => s + i.quantity * i.unit_price, 0);
+  const taxAmount = Math.round(subtotal * taxRate * 100) / 100;
+  const total = subtotal + taxAmount - discountAmount;
 
   const { data: invoice, error: invErr } = await supabase
     .from("invoices")
@@ -116,10 +124,10 @@ export async function createPurchaseInvoice(params: {
       status: params.status,
       issue_date: params.issue_date,
       subtotal,
-      discount_amount: 0,
-      tax_rate: 0,
-      tax_amount: 0,
-      total: subtotal,
+      discount_amount: discountAmount,
+      tax_rate: taxRate,
+      tax_amount: taxAmount,
+      total,
     })
     .select(INVOICE_SELECT)
     .single();
@@ -151,6 +159,17 @@ export async function createPurchaseInvoice(params: {
     });
   }
 
+  const invoiceNumber = raw.invoice_number as number;
+  const movements = params.items.map((item) => ({
+    product_id: item.product_id,
+    type: "in" as const,
+    quantity: item.quantity,
+    reference_type: "purchase",
+    reference_id: invoiceId,
+    notes: `Compra #${invoiceNumber}`,
+  }));
+  await supabase.from("inventory_movements" as never).insert(movements as never);
+
   return toInvoice(raw);
 }
 
@@ -162,17 +181,15 @@ export async function updateInvoiceStatus(id: string, status: string): Promise<v
 
 export async function updatePurchaseInvoice(
   id: string,
-  params: {
-    distributor_id: string;
-    issue_date: string;
-    supplier_invoice_number: string;
-    status: string;
-    items: PurchaseLineInput[];
-  }
+  params: PurchaseInvoiceParams
 ): Promise<PurchaseInvoice> {
   const supabase = createClient();
 
+  const taxRate = params.tax_rate ?? 0;
+  const discountAmount = params.discount_amount ?? 0;
   const subtotal = params.items.reduce((s, i) => s + i.quantity * i.unit_price, 0);
+  const taxAmount = Math.round(subtotal * taxRate * 100) / 100;
+  const total = subtotal + taxAmount - discountAmount;
 
   const { data: invoice, error: invErr } = await supabase
     .from("invoices")
@@ -182,10 +199,10 @@ export async function updatePurchaseInvoice(
       issue_date: params.issue_date,
       status: params.status,
       subtotal,
-      discount_amount: 0,
-      tax_rate: 0,
-      tax_amount: 0,
-      total: subtotal,
+      discount_amount: discountAmount,
+      tax_rate: taxRate,
+      tax_amount: taxAmount,
+      total,
     })
     .eq("id", id)
     .select(INVOICE_SELECT)
@@ -218,4 +235,62 @@ export async function updatePurchaseInvoice(
   }
 
   return toInvoice(raw);
+}
+
+export async function cancelPurchaseInvoice(id: string, items: { product_id: string; quantity: number }[]): Promise<void> {
+  const supabase = createClient();
+
+  const { error } = await supabase.from("invoices").update({ status: "cancelled" }).eq("id", id);
+  if (error) throw error;
+
+  for (const item of items) {
+    await supabase.rpc("increment_stock", {
+      p_product_id: item.product_id,
+      p_quantity: -item.quantity,
+    });
+  }
+
+  const movements = items.map((item) => ({
+    product_id: item.product_id,
+    type: "out" as const,
+    quantity: item.quantity,
+    reference_type: "cancellation",
+    reference_id: id,
+    notes: `Anulación de compra #${id.slice(0, 8)}`,
+  }));
+  await supabase.from("inventory_movements" as never).insert(movements as never);
+}
+
+export async function fetchLastPurchaseFromDistributor(distributorId: string): Promise<{ items: { product_id: string; product_name: string; quantity: number; unit_price: number }[] } | null> {
+  const supabase = createClient();
+
+  const { data: invoices, error } = await supabase
+    .from("invoices")
+    .select(`id, invoice_number`)
+    .eq("distributor_id", distributorId)
+    .eq("type", "compra")
+    .neq("status", "cancelled")
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  if (error) throw error;
+  if (!invoices || invoices.length === 0) return null;
+
+  const invoice = invoices[0] as { id: string; invoice_number: number };
+
+  const { data: items, error: itemsErr } = await supabase
+    .from("invoice_items")
+    .select(`product_id, description, quantity, unit_price, products(name)`)
+    .eq("invoice_id", invoice.id);
+
+  if (itemsErr) throw itemsErr;
+
+  return {
+    items: (items ?? []).map((i: Record<string, unknown>) => ({
+      product_id: i.product_id as string,
+      product_name: ((i.products as Record<string, unknown>)?.["name"] as string) ?? i.description as string,
+      quantity: i.quantity as number,
+      unit_price: i.unit_price as number,
+    })),
+  };
 }
