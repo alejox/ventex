@@ -15,7 +15,7 @@ export async function fetchProfileServer(): Promise<Profile | null> {
 
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, full_name, business_type, modules")
+    .select("id, full_name, business_type, modules, is_super_admin")
     .eq("id", user.id)
     .maybeSingle();
   if (error) throw error;
@@ -27,5 +27,6 @@ export async function fetchProfileServer(): Promise<Profile | null> {
     email,
     businessType: (data?.business_type as BusinessType) || null,
     modules: (data?.modules as Modules) || {},
+    isSuperAdmin: Boolean(data?.is_super_admin),
   };
 }

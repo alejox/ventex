@@ -31,6 +31,16 @@ import { visibleNavItems } from "@/config/business";
 
 type IconType = typeof IconHome;
 
+// Icono de escudo para el acceso al panel super admin (no existe en el set base).
+function IconShield({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6l7-3z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9.5 12l1.8 1.8L15 10" />
+    </svg>
+  );
+}
+
 // Mapa id de nav -> icono (la presentación; el modelo lógico vive en config/business.ts).
 const NAV_ICONS: Record<string, IconType> = {
   panel: IconHome,
@@ -48,6 +58,7 @@ const NAV_ICONS: Record<string, IconType> = {
   purchases: IconRefreshCw,
   movements: IconBox,
   calendar: IconCalendar,
+  subscription: IconCreditCard,
 };
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
@@ -59,6 +70,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const navigation = visibleNavItems(profile?.businessType ?? null, profile?.modules ?? null);
+  const isSuperAdmin = profile?.isSuperAdmin ?? false;
   const userName = profile?.fullName ?? "Admin";
   const userEmail = profile?.email ?? "";
 
@@ -114,7 +126,19 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           </nav>
         </div>
 
-        <div className="p-4 border-t border-outline-variant/10">
+        <div className="p-4 border-t border-outline-variant/10 space-y-1">
+          {isSuperAdmin && (
+            <Link
+              href="/admin"
+              className={`flex items-center gap-3 py-3 rounded-xl transition-all text-sm font-medium text-primary hover:bg-primary/10 overflow-hidden ${
+                sidebarCollapsed ? "justify-center px-0" : "px-4"
+              }`}
+              title={sidebarCollapsed ? "Panel Admin" : undefined}
+            >
+              <IconShield className="w-5 h-5 shrink-0" />
+              {!sidebarCollapsed && <span className="whitespace-nowrap">Panel Admin</span>}
+            </Link>
+          )}
           <Link
             href="/dashboard/settings"
             className={`flex items-center gap-3 py-3 rounded-xl transition-all text-sm font-medium text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low overflow-hidden ${
@@ -286,9 +310,20 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                 })}
               </nav>
             </div>
-            <div className="p-4 border-t border-outline-variant/10">
+            <div className="p-4 border-t border-outline-variant/10 space-y-1">
+              {isSuperAdmin && (
+                <Link
+                  href="/admin"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-sm font-medium text-primary hover:bg-primary/10"
+                >
+                  <IconShield className="w-5 h-5" />
+                  Panel Admin
+                </Link>
+              )}
               <Link
                 href="/dashboard/settings"
+                onClick={() => setMobileMenuOpen(false)}
                 className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-sm font-medium text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
               >
                 <IconSettings className="w-5 h-5" />

@@ -3,7 +3,13 @@ import type { BusinessType, Modules, Profile } from "@/config/business";
 
 /** Mapea la fila de `profiles` (+ datos de auth) al tipo de dominio. */
 function toProfile(
-  row: { id: string; full_name: string | null; business_type: string | null; modules: unknown } | null,
+  row: {
+    id: string;
+    full_name: string | null;
+    business_type: string | null;
+    modules: unknown;
+    is_super_admin?: boolean | null;
+  } | null,
   email: string,
 ): Profile | null {
   if (!row) return null;
@@ -13,6 +19,7 @@ function toProfile(
     email,
     businessType: (row.business_type as BusinessType) || null,
     modules: (row.modules as Modules) || {},
+    isSuperAdmin: Boolean(row.is_super_admin),
   };
 }
 
@@ -26,7 +33,7 @@ export async function fetchProfile(): Promise<Profile | null> {
 
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, full_name, business_type, modules")
+    .select("id, full_name, business_type, modules, is_super_admin")
     .eq("id", user.id)
     .maybeSingle();
   if (error) throw error;
@@ -57,7 +64,7 @@ export async function updateProfile(patch: ProfileUpdate): Promise<Profile> {
     .from("profiles")
     .update(row)
     .eq("id", user.id)
-    .select("id, full_name, business_type, modules")
+    .select("id, full_name, business_type, modules, is_super_admin")
     .single();
   if (error) throw error;
 

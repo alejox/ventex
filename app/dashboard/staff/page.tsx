@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import { IconUserBadge, IconPlus } from "@/app/assets/icons/DashboardIcons";
 import { useStaffStore } from "@/stores/staff.store";
+import { useSubscriptionStore } from "@/stores/subscription.store";
 import { fetchStaffSales } from "@/services/staff.service";
 import type { NewStaffInput, StaffMember, StaffSaleItem } from "@/services/staff.service";
 
@@ -33,6 +35,10 @@ export default function StaffPage() {
   const commissionsLoading = useStaffStore((s) => s.commissionsLoading);
   const fetchCommissions = useStaffStore((s) => s.fetchCommissions);
 
+  const subscription = useSubscriptionStore((s) => s.subscription);
+  const fetchSubscription = useSubscriptionStore((s) => s.fetchAll);
+  const refreshUsage = useSubscriptionStore((s) => s.refreshUsage);
+
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<NewStaffInput>(EMPTY_STAFF);
@@ -60,9 +66,15 @@ export default function StaffPage() {
   useEffect(() => {
     fetchStaff();
     fetchCommissions();
-  }, [fetchStaff, fetchCommissions]);
+    fetchSubscription();
+  }, [fetchStaff, fetchCommissions, fetchSubscription]);
+
+  const activeCount = staff.filter((m) => m.status === "active").length;
+  const maxCollaborators = subscription?.max_collaborators ?? Infinity;
+  const atCollaboratorLimit = activeCount >= maxCollaborators;
 
   const openCreate = () => {
+    if (atCollaboratorLimit) return;
     setEditingId(null);
     setForm(EMPTY_STAFF);
     setModalOpen(true);
@@ -93,7 +105,10 @@ export default function StaffPage() {
     const ok = editingId
       ? await updateStaff(editingId, form)
       : await addStaff(form);
-    if (ok) handleClose();
+    if (ok) {
+      handleClose();
+      refreshUsage();
+    }
   };
 
   const initials = (name: string) =>
@@ -116,12 +131,38 @@ export default function StaffPage() {
         </div>
         <button
           onClick={openCreate}
-          className="bg-[#6063ee] hover:bg-[#c0c1ff] text-white hover:text-[#0b0664] text-sm font-semibold py-2.5 px-4 rounded-xl shadow-lg shadow-[#6063ee]/20 transition-colors flex items-center justify-center gap-2"
+          disabled={atCollaboratorLimit}
+          title={atCollaboratorLimit ? "Alcanzaste el límite de colaboradores de tu plan" : undefined}
+          className="bg-[#6063ee] hover:bg-[#c0c1ff] text-white hover:text-[#0b0664] text-sm font-semibold py-2.5 px-4 rounded-xl shadow-lg shadow-[#6063ee]/20 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-[#6063ee] disabled:hover:text-white"
         >
           <IconPlus className="w-4 h-4" />
           <span>Añadir Personal</span>
         </button>
       </div>
+
+      {subscription && (
+        <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+          <span className="text-on-surface-variant">
+            Colaboradores:{" "}
+            <strong className="text-on-surface tabular-nums">
+              {activeCount}
+              {Number.isFinite(maxCollaborators) ? ` / ${maxCollaborators}` : ""}
+            </strong>{" "}
+            <span className="text-on-surface-variant/70">· Plan {subscription.plan_name}</span>
+          </span>
+        </div>
+      )}
+
+      {atCollaboratorLimit && (
+        <div className="rounded-xl bg-amber-500/10 border border-amber-500/30 px-4 py-3 text-sm text-amber-600 dark:text-amber-400 flex flex-wrap items-center justify-between gap-2">
+          <span>
+            Alcanzaste el máximo de colaboradores del plan <strong>{subscription?.plan_name}</strong>.
+          </span>
+          <Link href="/dashboard/subscription" className="font-semibold underline whitespace-nowrap">
+            Ver planes
+          </Link>
+        </div>
+      )}
 
       {error && (
         <div className="rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim">

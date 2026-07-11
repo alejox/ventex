@@ -7,6 +7,8 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
@@ -239,6 +241,50 @@ export type Database = {
         }
         Relationships: []
       }
+      inventory_movements: {
+        Row: {
+          created_at: string
+          id: string
+          notes: string | null
+          product_id: string
+          quantity: number
+          reference_id: string | null
+          reference_type: string | null
+          type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          product_id: string
+          quantity: number
+          reference_id?: string | null
+          reference_type?: string | null
+          type: string
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          product_id?: string
+          quantity?: number
+          reference_id?: string | null
+          reference_type?: string | null
+          type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_movements_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invoice_items: {
         Row: {
           created_at: string
@@ -375,6 +421,42 @@ export type Database = {
           },
         ]
       }
+      plans: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          max_collaborators: number
+          max_monthly_sales: number | null
+          name: string
+          price: number
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id: string
+          is_active?: boolean
+          max_collaborators?: number
+          max_monthly_sales?: number | null
+          name: string
+          price?: number
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          max_collaborators?: number
+          max_monthly_sales?: number | null
+          name?: string
+          price?: number
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       products: {
         Row: {
           category_id: string | null
@@ -388,6 +470,7 @@ export type Database = {
           image_url: string | null
           minimum_stock: number
           name: string
+          parent_product_id: string | null
           price: number
           purchase_price: number
           sku: string
@@ -410,6 +493,7 @@ export type Database = {
           image_url?: string | null
           minimum_stock?: number
           name: string
+          parent_product_id?: string | null
           price?: number
           purchase_price?: number
           sku: string
@@ -432,6 +516,7 @@ export type Database = {
           image_url?: string | null
           minimum_stock?: number
           name?: string
+          parent_product_id?: string | null
           price?: number
           purchase_price?: number
           sku?: string
@@ -457,6 +542,13 @@ export type Database = {
             referencedRelation: "distributors"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "products_parent_product_id_fkey"
+            columns: ["parent_product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
         ]
       }
       profiles: {
@@ -466,6 +558,7 @@ export type Database = {
           created_at: string
           full_name: string | null
           id: string
+          is_super_admin: boolean
           modules: Json
           updated_at: string
         }
@@ -475,6 +568,7 @@ export type Database = {
           created_at?: string
           full_name?: string | null
           id: string
+          is_super_admin?: boolean
           modules?: Json
           updated_at?: string
         }
@@ -484,6 +578,7 @@ export type Database = {
           created_at?: string
           full_name?: string | null
           id?: string
+          is_super_admin?: boolean
           modules?: Json
           updated_at?: string
         }
@@ -740,6 +835,47 @@ export type Database = {
         }
         Relationships: []
       }
+      subscriptions: {
+        Row: {
+          created_at: string
+          current_period_end: string | null
+          id: string
+          plan_id: string
+          started_at: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          current_period_end?: string | null
+          id?: string
+          plan_id?: string
+          started_at?: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          current_period_end?: string | null
+          id?: string
+          plan_id?: string
+          started_at?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscriptions_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vehicles: {
         Row: {
           color: string | null
@@ -786,6 +922,42 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_companies: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          business_name: string
+          created_at: string
+          email: string
+          full_name: string
+          is_super_admin: boolean
+          monthly_sales: number
+          plan_id: string
+          plan_name: string
+          staff_count: number
+          status: string
+          total_sales: number
+          user_id: string
+        }[]
+      }
+      admin_set_plan: {
+        Args: { p_plan_id: string; p_status: string; p_user_id: string }
+        Returns: undefined
+      }
+      admin_stats: { Args: Record<PropertyKey, never>; Returns: Json }
+      admin_update_plan: {
+        Args: {
+          p_id: string
+          p_max_collaborators: number
+          p_max_monthly_sales: number
+          p_name: string
+          p_price: number
+        }
+        Returns: undefined
+      }
+      assert_monthly_sales_limit: {
+        Args: { p_add: number; p_uid: string }
+        Returns: undefined
+      }
       create_sale: {
         Args: {
           p_customer_id: string
@@ -800,6 +972,8 @@ export type Database = {
         Args: { p_product_id: string; p_quantity: number }
         Returns: undefined
       }
+      is_super_admin: { Args: Record<PropertyKey, never>; Returns: boolean }
+      my_subscription: { Args: Record<PropertyKey, never>; Returns: Json }
     }
     Enums: {
       [_ in never]: never

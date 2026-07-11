@@ -27,6 +27,8 @@ export interface Profile {
   email: string;
   businessType: BusinessType | null;
   modules: Modules;
+  /** Super administrador de la plataforma (acceso al panel /admin). */
+  isSuperAdmin: boolean;
 }
 
 // ---- Catálogo de tipos de negocio (paso 1 del registro) ----
@@ -101,6 +103,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: "purchases", name: "Compras", href: "/dashboard/purchases", modules: ["inventory"] },
   { id: "movements", name: "Movimientos", href: "/dashboard/inventory/movements", modules: ["inventory"] },
   { id: "calendar", name: "Calendario", href: "/dashboard/calendar", modules: ["appointments"] },
+  { id: "subscription", name: "Mi Plan", href: "/dashboard/subscription", modules: [] },
 ];
 
 // ---- Acciones rápidas del dashboard. Iconos se mapean por id. ----
@@ -132,7 +135,7 @@ export const QUICK_ACTIONS: QuickAction[] = [
 
 /** Secciones que ve cualquier cuenta, sea cual sea su tipo. */
 // POS y Ventas son universales: los 4 rubros pueden cobrar (productos y/o servicios).
-const UNIVERSAL_NAV_IDS = ["panel", "pos", "sales", "finance", "customers"];
+const UNIVERSAL_NAV_IDS = ["panel", "pos", "sales", "finance", "customers", "subscription"];
 
 /** Menú base por tipo de negocio (además de las universales). */
 const BASE_NAV_BY_TYPE: Record<BusinessType, string[]> = {
