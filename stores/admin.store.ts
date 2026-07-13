@@ -7,7 +7,7 @@ import type {
   AdminStats,
   CreditPack,
   CreditPackInput,
-  PlanUpdateInput,
+  PlanSaveInput,
 } from "@/services/admin.service";
 import type { Plan } from "@/services/subscription.service";
 
@@ -27,7 +27,9 @@ interface AdminState {
   fetchPlans: () => Promise<void>;
   fetchResellers: () => Promise<void>;
   setCompanyPlan: (userId: string, planId: string, status: string) => Promise<boolean>;
-  updatePlan: (id: string, input: PlanUpdateInput) => Promise<boolean>;
+  /** Recarga meses a una empresa; devuelve el nuevo vencimiento o null si falla. */
+  rechargeCompany: (userId: string, months: number) => Promise<string | null>;
+  savePlan: (id: string | null, input: PlanSaveInput) => Promise<boolean>;
   promoteReseller: (email: string) => Promise<boolean>;
   demoteReseller: (email: string) => Promise<boolean>;
   grantCredits: (
@@ -235,18 +237,31 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     }
   },
 
-  updatePlan: async (id, input) => {
+  savePlan: async (id, input) => {
     set({ submitting: true, error: null });
     try {
-      await adminService.updatePlan(id, input);
-      set((s) => ({
-        submitting: false,
-        plans: s.plans.map((p) => (p.id === id ? { ...p, ...input } : p)),
-      }));
+      await adminService.savePlan(id, input);
+      // Un plan nuevo no está en memoria: recargamos el catálogo completo.
+      const plans = await adminService.fetchPlans();
+      set({ plans, submitting: false });
       return true;
     } catch (e) {
       set({ error: toMessage(e), submitting: false });
       return false;
+    }
+  },
+
+  rechargeCompany: async (userId, months) => {
+    set({ submitting: true, error: null });
+    try {
+      const result = await adminService.rechargeCompany(userId, months);
+      // La recarga puede reactivar la suscripción: refrescamos el listado.
+      const companies = await adminService.fetchCompanies();
+      set({ companies, submitting: false });
+      return result.period_end;
+    } catch (e) {
+      set({ error: toMessage(e), submitting: false });
+      return null;
     }
   },
 }));

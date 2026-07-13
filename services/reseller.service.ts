@@ -98,6 +98,35 @@ export async function createClientAccount(input: NewClientInput): Promise<void> 
   if (data?.error) throw new Error(data.error);
 }
 
+/** Modalidad de recarga: 1 mes o 12 meses (pagando solo los meses cobrados). */
+export type RechargePeriod = "monthly" | "annual";
+
+/** Resultado de una recarga (RPC reseller_recharge_client). */
+export interface RechargeResult {
+  period_end: string;
+  credits_used: number;
+  months: number;
+  plan_id: string;
+}
+
+/**
+ * Recarga la licencia de un cliente propio consumiendo créditos del bolsillo de
+ * SU plan: mensual = 1 crédito (+1 mes), anual = los meses cobrados del plan
+ * (+12 meses). Si la licencia sigue vigente, los meses se suman al vencimiento.
+ */
+export async function rechargeClient(
+  userId: string,
+  period: RechargePeriod,
+): Promise<RechargeResult> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("reseller_recharge_client", {
+    p_user_id: userId,
+    p_period: period,
+  });
+  if (error) throw error;
+  return data as unknown as RechargeResult;
+}
+
 /** Suspende o reactiva un cliente propio. */
 export async function setClientStatus(
   userId: string,

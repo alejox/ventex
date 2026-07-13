@@ -27,13 +27,17 @@ export interface AdminStats {
   by_plan: Record<string, number>;
 }
 
-/** Cambios parametrizables de un plan. */
-export interface PlanUpdateInput {
+/** Alta/edición de un plan. `id` null en saveePlan() => se crea. */
+export interface PlanSaveInput {
   name: string;
   max_collaborators: number;
   /** null = ilimitado. */
   max_monthly_sales: number | null;
   price: number;
+  /** Meses cobrados en la modalidad anual (0 = el plan no ofrece anual). */
+  annual_charged_months: number;
+  sort_order: number;
+  is_active: boolean;
 }
 
 export async function fetchCompanies(): Promise<AdminCompany[]> {
@@ -65,17 +69,50 @@ export async function setCompanyPlan(
   if (error) throw error;
 }
 
-/** Parametriza los límites de un plan. */
-export async function updatePlan(id: string, input: PlanUpdateInput): Promise<void> {
+/**
+ * Crea (id = null) o actualiza un plan. El id es el slug de la tabla `plans`,
+ * inmutable una vez creado.
+ */
+export async function savePlan(id: string | null, input: PlanSaveInput): Promise<string> {
   const supabase = createClient();
-  const { error } = await supabase.rpc("admin_update_plan", {
+  const { data, error } = await supabase.rpc("admin_save_plan", {
     p_id: id,
     p_name: input.name,
     p_max_collaborators: input.max_collaborators,
     p_max_monthly_sales: input.max_monthly_sales as unknown as number,
     p_price: input.price,
+    p_annual_charged_months: input.annual_charged_months,
+    p_sort_order: input.sort_order,
+    p_is_active: input.is_active,
   });
   if (error) throw error;
+  return data as unknown as string;
+}
+
+/** Resultado de una recarga hecha por el super admin. */
+export interface AdminRechargeResult {
+  period_end: string;
+  months: number;
+  /** true si la empresa es cliente de un revendedor (se extendió su licencia). */
+  managed: boolean;
+}
+
+/**
+ * Recarga meses a una empresa sin consumir créditos (el admin es la fuente).
+ * Extiende la licencia si es cliente de revendedor, o el periodo de su
+ * suscripción si es cuenta directa. El plan gratis no se recarga.
+ */
+export async function rechargeCompany(
+  userId: string,
+  months: number,
+): Promise<AdminRechargeResult> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("admin_recharge_company", {
+    p_user_id: userId,
+    p_months: months,
+  });
+  if (error) throw error;
+  return data as unknown as AdminRechargeResult;
 }
 
 // ---- Revendedores ----
