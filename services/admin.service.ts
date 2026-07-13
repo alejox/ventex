@@ -12,6 +12,12 @@ export interface AdminCompany {
   plan_name: string | null;
   status: string;
   is_super_admin: boolean;
+  /** La cuenta es un revendedor (sus créditos se gestionan desde aquí o /admin/resellers). */
+  is_reseller: boolean;
+  /** Estado de la licencia mensual si es cliente de revendedor; null si es cuenta directa. */
+  license_status: string | null;
+  /** Nombre del revendedor dueño de este cliente; null si es cuenta directa. */
+  reseller_name: string | null;
   staff_count: number;
   monthly_sales: number;
   total_sales: number;
@@ -33,7 +39,12 @@ export interface PlanUpdateInput {
   max_collaborators: number;
   /** null = ilimitado. */
   max_monthly_sales: number | null;
+  /** Precio por mes. */
   price: number;
+  /** Precio por año completo; 0 = no se ofrece anual. */
+  price_yearly: number;
+  /** Descuento promocional vigente (0-100). */
+  discount_percent: number;
 }
 
 export async function fetchCompanies(): Promise<AdminCompany[]> {
@@ -74,6 +85,8 @@ export async function updatePlan(id: string, input: PlanUpdateInput): Promise<vo
     p_max_collaborators: input.max_collaborators,
     p_max_monthly_sales: input.max_monthly_sales as unknown as number,
     p_price: input.price,
+    p_price_yearly: input.price_yearly,
+    p_discount_percent: input.discount_percent,
   });
   if (error) throw error;
 }

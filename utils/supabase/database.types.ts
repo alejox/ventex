@@ -519,34 +519,40 @@ export type Database = {
       plans: {
         Row: {
           created_at: string
+          discount_percent: number
           id: string
           is_active: boolean
           max_collaborators: number
           max_monthly_sales: number | null
           name: string
           price: number
+          price_yearly: number
           sort_order: number
           updated_at: string
         }
         Insert: {
           created_at?: string
+          discount_percent?: number
           id: string
           is_active?: boolean
           max_collaborators?: number
           max_monthly_sales?: number | null
           name: string
           price?: number
+          price_yearly?: number
           sort_order?: number
           updated_at?: string
         }
         Update: {
           created_at?: string
+          discount_percent?: number
           id?: string
           is_active?: boolean
           max_collaborators?: number
           max_monthly_sales?: number | null
           name?: string
           price?: number
+          price_yearly?: number
           sort_order?: number
           updated_at?: string
         }
@@ -1096,10 +1102,13 @@ export type Database = {
           created_at: string
           email: string
           full_name: string
+          is_reseller: boolean
           is_super_admin: boolean
+          license_status: string
           monthly_sales: number
           plan_id: string
           plan_name: string
+          reseller_name: string
           staff_count: number
           status: string
           total_sales: number
@@ -1171,11 +1180,13 @@ export type Database = {
       admin_stats: { Args: never; Returns: Json }
       admin_update_plan: {
         Args: {
+          p_discount_percent: number
           p_id: string
           p_max_collaborators: number
           p_max_monthly_sales: number
           p_name: string
           p_price: number
+          p_price_yearly: number
         }
         Returns: undefined
       }

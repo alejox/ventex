@@ -73,11 +73,14 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   fetchCompanies: async () => {
     set({ loading: true, error: null });
     try {
-      const [companies, plans] = await Promise.all([
+      // Revendedores y promos también: desde Empresas se pueden recargar créditos.
+      const [companies, plans, resellers, packs] = await Promise.all([
         adminService.fetchCompanies(),
         adminService.fetchPlans(),
+        adminService.fetchResellers(),
+        adminService.fetchCreditPacks(),
       ]);
-      set({ companies, plans, loading: false });
+      set({ companies, plans, resellers, packs, loading: false });
     } catch (e) {
       set({ error: toMessage(e), loading: false });
     }

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useAdminStore } from "@/stores/admin.store";
 import type { Plan } from "@/services/subscription.service";
-import { planAccent } from "@/config/plans";
+import { formatMoney, planAccent } from "@/config/plans";
 
 export default function AdminPlansPage() {
   const plans = useAdminStore((s) => s.plans);
@@ -55,9 +55,18 @@ function PlanEditor({ plan }: { plan: Plan }) {
     plan.max_monthly_sales == null ? "" : String(plan.max_monthly_sales),
   );
   const [price, setPrice] = useState(String(plan.price));
+  const [priceYearly, setPriceYearly] = useState(String(plan.price_yearly));
+  const [discount, setDiscount] = useState(String(plan.discount_percent));
   const [saved, setSaved] = useState(false);
 
   const markDirty = () => setSaved(false);
+
+  // Vista previa del precio efectivo con el descuento aplicado.
+  const discountNum = Math.min(100, Math.max(0, parseFloat(discount) || 0));
+  const effective = (v: string) => {
+    const n = Math.max(0, parseFloat(v) || 0);
+    return n > 0 && discountNum > 0 ? n * (1 - discountNum / 100) : null;
+  };
 
   const handleSave = async () => {
     setSaved(false);
@@ -66,6 +75,8 @@ function PlanEditor({ plan }: { plan: Plan }) {
       max_collaborators: Math.max(0, parseInt(maxCollaborators, 10) || 0),
       max_monthly_sales: unlimited ? null : Math.max(0, parseFloat(maxSales) || 0),
       price: Math.max(0, parseFloat(price) || 0),
+      price_yearly: Math.max(0, parseFloat(priceYearly) || 0),
+      discount_percent: discountNum,
     });
     if (ok) setSaved(true);
   };
@@ -93,13 +104,56 @@ function PlanEditor({ plan }: { plan: Plan }) {
         </Field>
 
         <Field label="Precio / mes">
+          <div className="space-y-1">
+            <input
+              type="number"
+              min="0"
+              step="1"
+              value={price}
+              onChange={(e) => {
+                setPrice(e.target.value);
+                markDirty();
+              }}
+              className={inputCls}
+            />
+            {effective(price) != null && (
+              <p className="text-xs text-on-surface-variant">
+                Con descuento: <span className="font-semibold text-primary">{formatMoney(effective(price)!)}</span>
+              </p>
+            )}
+          </div>
+        </Field>
+
+        <Field label="Precio / año (0 = no se ofrece)">
+          <div className="space-y-1">
+            <input
+              type="number"
+              min="0"
+              step="1"
+              value={priceYearly}
+              onChange={(e) => {
+                setPriceYearly(e.target.value);
+                markDirty();
+              }}
+              className={inputCls}
+            />
+            {effective(priceYearly) != null && (
+              <p className="text-xs text-on-surface-variant">
+                Con descuento: <span className="font-semibold text-primary">{formatMoney(effective(priceYearly)!)}</span>
+              </p>
+            )}
+          </div>
+        </Field>
+
+        <Field label="Descuento (%)">
           <input
             type="number"
             min="0"
+            max="100"
             step="1"
-            value={price}
+            value={discount}
             onChange={(e) => {
-              setPrice(e.target.value);
+              setDiscount(e.target.value);
               markDirty();
             }}
             className={inputCls}

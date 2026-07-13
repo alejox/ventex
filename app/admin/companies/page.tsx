@@ -3,19 +3,30 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAdminStore } from "@/stores/admin.store";
 import type { AdminCompany } from "@/services/admin.service";
-import { formatMoney, planAccent, SUBSCRIPTION_STATUS_LABELS } from "@/config/plans";
+import {
+  formatMoney,
+  planAccent,
+  licenseAccent,
+  LICENSE_STATUS_LABELS,
+  SUBSCRIPTION_STATUS_LABELS,
+} from "@/config/plans";
+import { GrantCreditsModal } from "@/components/GrantCreditsModal";
 
 const STATUSES = ["active", "past_due", "cancelled"] as const;
 
 export default function AdminCompaniesPage() {
   const companies = useAdminStore((s) => s.companies);
   const plans = useAdminStore((s) => s.plans);
+  const resellers = useAdminStore((s) => s.resellers);
   const loading = useAdminStore((s) => s.loading);
   const error = useAdminStore((s) => s.error);
   const fetchCompanies = useAdminStore((s) => s.fetchCompanies);
 
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<AdminCompany | null>(null);
+  /** user_id del revendedor al que se le recargan créditos desde esta vista. */
+  const [grantingId, setGrantingId] = useState<string | null>(null);
+  const granting = resellers.find((r) => r.user_id === grantingId) ?? null;
 
   useEffect(() => {
     fetchCompanies();
@@ -101,8 +112,18 @@ export default function AdminCompaniesPage() {
                               ADMIN
                             </span>
                           )}
+                          {c.is_reseller && (
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500">
+                              REVENDEDOR
+                            </span>
+                          )}
                         </div>
                         <span className="text-xs text-on-surface-variant">{c.email}</span>
+                        {c.reseller_name && (
+                          <span className="block text-[11px] text-on-surface-variant mt-0.5">
+                            Cliente de: {c.reseller_name}
+                          </span>
+                        )}
                       </td>
                       <td className="px-5 py-4">
                         <span className={`text-xs font-bold px-2.5 py-1 rounded-full ring-1 ${accent.bg} ${accent.text} ${accent.ring}`}>
@@ -111,6 +132,13 @@ export default function AdminCompaniesPage() {
                         <span className="block text-[11px] text-on-surface-variant mt-1">
                           {SUBSCRIPTION_STATUS_LABELS[c.status] ?? c.status}
                         </span>
+                        {c.license_status && (
+                          <span
+                            className={`inline-block mt-1 text-[11px] font-bold px-2 py-0.5 rounded-full ring-1 ${licenseAccent(c.license_status).bg} ${licenseAccent(c.license_status).text} ${licenseAccent(c.license_status).ring}`}
+                          >
+                            Licencia: {LICENSE_STATUS_LABELS[c.license_status] ?? c.license_status}
+                          </span>
+                        )}
                       </td>
                       <td className="px-5 py-4 text-right tabular-nums text-on-surface">{c.staff_count}</td>
                       <td className="px-5 py-4 text-right tabular-nums text-on-surface">
@@ -120,12 +148,22 @@ export default function AdminCompaniesPage() {
                         {formatMoney(c.total_sales)}
                       </td>
                       <td className="px-5 py-4 text-right">
-                        <button
-                          onClick={() => setEditing(c)}
-                          className="text-sm font-semibold text-primary hover:underline whitespace-nowrap"
-                        >
-                          Gestionar
-                        </button>
+                        <div className="flex items-center justify-end gap-4">
+                          {c.is_reseller && (
+                            <button
+                              onClick={() => setGrantingId(c.user_id)}
+                              className="text-sm font-semibold text-amber-500 hover:underline whitespace-nowrap"
+                            >
+                              Créditos
+                            </button>
+                          )}
+                          <button
+                            onClick={() => setEditing(c)}
+                            className="text-sm font-semibold text-primary hover:underline whitespace-nowrap"
+                          >
+                            Gestionar
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -142,6 +180,10 @@ export default function AdminCompaniesPage() {
           plans={plans}
           onClose={() => setEditing(null)}
         />
+      )}
+
+      {granting && (
+        <GrantCreditsModal reseller={granting} onClose={() => setGrantingId(null)} />
       )}
     </div>
   );

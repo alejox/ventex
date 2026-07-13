@@ -11,7 +11,12 @@ export interface Plan {
   max_collaborators: number;
   /** null = ilimitado. */
   max_monthly_sales: number | null;
+  /** Precio por mes. */
   price: number;
+  /** Precio por año completo; 0 = no se ofrece anual. */
+  price_yearly: number;
+  /** Descuento promocional vigente (0-100). */
+  discount_percent: number;
   sort_order: number;
   is_active: boolean;
 }
@@ -34,7 +39,7 @@ export async function fetchPlans(): Promise<Plan[]> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("plans")
-    .select("id, name, max_collaborators, max_monthly_sales, price, sort_order, is_active")
+    .select("id, name, max_collaborators, max_monthly_sales, price, price_yearly, discount_percent, sort_order, is_active")
     .order("sort_order");
   if (error) throw error;
   return (data ?? []) as Plan[];

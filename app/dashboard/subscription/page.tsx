@@ -189,10 +189,30 @@ function PlanCard({ plan, currency, current }: { plan: Plan; currency: string; c
           </span>
         )}
       </div>
-      <p className="text-2xl font-bold text-on-surface mb-6">
-        {plan.price > 0 ? formatMoney(plan.price, currency) : "Gratis"}
-        {plan.price > 0 && <span className="text-sm font-medium text-on-surface-variant">/mes</span>}
-      </p>
+      <div className="mb-6">
+        {plan.discount_percent > 0 && plan.price > 0 && (
+          <p className="text-sm text-on-surface-variant line-through">
+            {formatMoney(plan.price, currency)}/mes
+          </p>
+        )}
+        <p className="text-2xl font-bold text-on-surface">
+          {plan.price > 0
+            ? formatMoney(plan.price * (1 - (plan.discount_percent || 0) / 100), currency)
+            : "Gratis"}
+          {plan.price > 0 && <span className="text-sm font-medium text-on-surface-variant">/mes</span>}
+          {plan.discount_percent > 0 && plan.price > 0 && (
+            <span className="ml-2 text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#10b981]/15 text-[#10b981] align-middle">
+              -{plan.discount_percent}%
+            </span>
+          )}
+        </p>
+        {plan.price_yearly > 0 && (
+          <p className="text-sm text-on-surface-variant mt-1">
+            o {formatMoney(plan.price_yearly * (1 - (plan.discount_percent || 0) / 100), currency)}
+            /año
+          </p>
+        )}
+      </div>
       <ul className="space-y-3 text-sm">
         <li className="flex items-center gap-2 text-on-surface-variant">
           <Check /> Hasta <strong className="text-on-surface">{plan.max_collaborators}</strong>{" "}
