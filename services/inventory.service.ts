@@ -31,7 +31,7 @@ export interface Product {
   created_at: string;
   categories: { name: string } | null;
   distributors: { business_name: string } | null;
-  parent_products?: { name: string } | null;
+  parent_product?: { name: string } | null;
   variants?: Product[];
 }
 
@@ -60,7 +60,13 @@ export interface NewCategoryInput {
   description: string;
 }
 
-const PRODUCT_SELECT = "*, categories(name), distributors(business_name), parent_products!products_parent_product_id_fkey(name)";
+/**
+ * El producto padre es una auto-relación de `products`, así que el embed apunta
+ * a la propia tabla con alias y se desambigua con la COLUMNA (`!parent_product_id`):
+ * en auto-relaciones PostgREST no resuelve la pista por nombre de constraint.
+ */
+const PRODUCT_SELECT =
+  "*, categories(name), distributors(business_name), parent_product:products!parent_product_id(name)";
 
 const PRODUCT_IMAGES_BUCKET = "product-images";
 

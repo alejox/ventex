@@ -403,9 +403,7 @@ export default function InventoryPage() {
         {productGroups.length > 0 && (
         <div className="px-7 py-4 border-t border-outline-variant/10 flex flex-col sm:flex-row items-center justify-between gap-4 bg-surface-container-lowest">
           <p className="text-xs text-on-surface-variant font-medium">
-          <p className="text-xs text-on-surface-variant font-medium">
             Mostrando {productGroups.reduce((acc, g) => acc + 1 + g.variants.length, 0)} de {products.length} registro{products.length !== 1 ? "s" : ""}
-          </p>
           </p>
           <div className="flex gap-1.5 items-center">
             <button className="px-3.5 py-2 rounded-lg text-xs font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors border border-transparent hover:border-outline-variant/10">

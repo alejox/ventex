@@ -326,22 +326,42 @@ function ManageClientModal({
   const stats = useResellerStore((s) => s.stats);
 
   const [recharged, setRecharged] = useState<string | null>(null);
+  const [period, setPeriod] = useState<RechargePeriod>("monthly");
 
   const suspended = client.license_status === "suspended";
   const plan = plans.find((p) => p.id === client.plan_id);
   // El plan gratis no se gestiona: la regla es el precio, no el id.
   const chargeable = Boolean(plan && plan.price > 0);
   const balance = stats?.balances?.[client.plan_id] ?? 0;
-  const annualCost = plan?.annual_charged_months ?? 0;
-  const annualOffered = Boolean(plan && hasAnnual(plan));
+
+  /** Modalidades que el plan ofrece, con su costo en créditos. */
+  const options = useMemo(() => {
+    if (!plan) return [];
+    const list: { period: RechargePeriod; label: string; detail: string; cost: number }[] = [
+      { period: "monthly", label: "Mensual", detail: "+1 mes", cost: 1 },
+    ];
+    if (hasAnnual(plan)) {
+      list.push({
+        period: "annual",
+        label: "Anual",
+        detail: `+12 meses · ${annualFreeMonths(plan)} de regalo`,
+        cost: plan.annual_charged_months,
+      });
+    }
+    return list;
+  }, [plan]);
+
+  const selected = options.find((o) => o.period === period) ?? options[0];
+  const affordable = Boolean(selected && balance >= selected.cost);
 
   const handleToggle = async () => {
     const ok = await setClientStatus(client.user_id, suspended ? "reactivate" : "suspend");
     if (ok) onClose();
   };
 
-  const handleRecharge = async (period: RechargePeriod) => {
-    const periodEnd = await rechargeClient(client.user_id, period);
+  const handleRecharge = async () => {
+    if (!selected || !affordable) return;
+    const periodEnd = await rechargeClient(client.user_id, selected.period);
     if (periodEnd) setRecharged(periodEnd);
   };
 
@@ -393,27 +413,39 @@ function ManageClientModal({
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <RechargeOption
-                  title="Mensual"
-                  detail="+1 mes"
-                  cost={1}
-                  balance={balance}
-                  disabled={submitting}
-                  onClick={() => handleRecharge("monthly")}
-                />
-                {annualOffered && (
-                  <RechargeOption
-                    title="Anual"
-                    detail={`+12 meses · ${annualFreeMonths(plan!)} de regalo`}
-                    cost={annualCost}
-                    balance={balance}
-                    highlight
-                    disabled={submitting}
-                    onClick={() => handleRecharge("annual")}
-                  />
-                )}
+              <label className="block text-xs font-semibold text-on-surface-variant mb-2">
+                Modalidad
+              </label>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <select
+                  value={period}
+                  onChange={(e) => setPeriod(e.target.value as RechargePeriod)}
+                  className="flex-1 px-4 py-3 bg-surface-container-low border border-outline-variant/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 text-on-surface transition-shadow appearance-none"
+                >
+                  {options.map((o) => (
+                    <option key={o.period} value={o.period} disabled={balance < o.cost}>
+                      {o.label} — {o.detail} · {o.cost} crédito{o.cost === 1 ? "" : "s"}
+                      {balance < o.cost ? " (saldo insuficiente)" : ""}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={handleRecharge}
+                  disabled={submitting || !affordable}
+                  className="py-3 px-5 rounded-xl bg-[#6063ee] text-white hover:bg-[#c0c1ff] hover:text-[#0b0664] text-sm font-bold shadow-lg shadow-[#6063ee]/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                >
+                  {submitting ? "Recargando…" : "Recargar"}
+                </button>
               </div>
+
+              {selected && !affordable && (
+                <p className="text-xs text-error-dim mt-2">
+                  No tienes créditos suficientes para esta modalidad ({selected.cost}{" "}
+                  crédito{selected.cost === 1 ? "" : "s"}). Solicita una recarga al
+                  administrador.
+                </p>
+              )}
 
               <p className="text-xs text-on-surface-variant mt-3">
                 Si la licencia sigue vigente, los meses se suman a la fecha de
@@ -455,56 +487,6 @@ function ManageClientModal({
         </div>
       </div>
     </div>
-  );
-}
-
-/** Tarjeta de una modalidad de recarga; se deshabilita si no alcanza el saldo. */
-function RechargeOption({
-  title,
-  detail,
-  cost,
-  balance,
-  highlight = false,
-  disabled,
-  onClick,
-}: {
-  title: string;
-  detail: string;
-  cost: number;
-  balance: number;
-  highlight?: boolean;
-  disabled: boolean;
-  onClick: () => void;
-}) {
-  const affordable = balance >= cost;
-
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled || !affordable}
-      className={`text-left p-4 rounded-2xl border transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
-        highlight
-          ? "border-primary/40 bg-primary/5 hover:bg-primary/10"
-          : "border-outline-variant/20 bg-surface-container-low hover:bg-surface-container-high"
-      }`}
-    >
-      <div className="flex items-center gap-2 mb-1">
-        <span className="text-sm font-bold text-on-surface">{title}</span>
-        {highlight && (
-          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-primary/15 text-primary">
-            AHORRO
-          </span>
-        )}
-      </div>
-      <p className="text-xs text-on-surface-variant">{detail}</p>
-      <p className="text-xs font-semibold text-on-surface mt-2">
-        {cost} crédito{cost === 1 ? "" : "s"}
-      </p>
-      {!affordable && (
-        <p className="text-[11px] text-error-dim mt-1">Saldo insuficiente</p>
-      )}
-    </button>
   );
 }
 

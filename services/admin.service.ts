@@ -18,6 +18,12 @@ export interface AdminCompany {
   license_status: string | null;
   /** Nombre del revendedor dueño de este cliente; null si es cuenta directa. */
   reseller_name: string | null;
+  /**
+   * Vencimiento del plan: la licencia si es cliente de revendedor, o el periodo
+   * de la suscripción si es cuenta directa. null = sin vencimiento (plan gratis
+   * o cuenta que nunca se ha recargado).
+   */
+  period_end: string | null;
   staff_count: number;
   monthly_sales: number;
   total_sales: number;

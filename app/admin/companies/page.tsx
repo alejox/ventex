@@ -14,6 +14,67 @@ import { GrantCreditsModal } from "@/components/GrantCreditsModal";
 
 const STATUSES = ["active", "past_due", "cancelled"] as const;
 
+const MS_PER_DAY = 86_400_000;
+
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("es-CO", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+/** Días que faltan para el vencimiento (negativo = ya venció). */
+function daysLeft(iso: string): number {
+  return Math.ceil((new Date(iso).getTime() - Date.now()) / MS_PER_DAY);
+}
+
+/** Vencimiento del plan: fecha + días restantes, en rojo si venció o está por vencer. */
+function ExpiryCell({ periodEnd }: { periodEnd: string | null }) {
+  if (!periodEnd) {
+    return <span className="text-on-surface-variant">Sin vencimiento</span>;
+  }
+
+  const days = daysLeft(periodEnd);
+  const expired = days < 0;
+  const soon = !expired && days <= 7;
+
+  return (
+    <>
+      <span
+        className={`block tabular-nums ${
+          expired ? "text-error-dim font-semibold" : "text-on-surface"
+        }`}
+      >
+        {formatDate(periodEnd)}
+      </span>
+      <span
+        className={`block text-[11px] mt-0.5 ${
+          expired
+            ? "text-error-dim"
+            : soon
+              ? "text-amber-500 font-semibold"
+              : "text-on-surface-variant"
+        }`}
+      >
+        {expired
+          ? `Vencido hace ${Math.abs(days)} día${Math.abs(days) === 1 ? "" : "s"}`
+          : days === 0
+            ? "Vence hoy"
+            : `Faltan ${days} día${days === 1 ? "" : "s"}`}
+      </span>
+    </>
+  );
+}
+
+/** Duraciones frecuentes de recarga; "Personalizado" abre el campo de meses. */
+const RECHARGE_OPTIONS = [
+  { value: "1", label: "+1 mes" },
+  { value: "3", label: "+3 meses (trimestre)" },
+  { value: "6", label: "+6 meses (semestre)" },
+  { value: "12", label: "+12 meses (año)" },
+] as const;
+
 export default function AdminCompaniesPage() {
   const companies = useAdminStore((s) => s.companies);
   const plans = useAdminStore((s) => s.plans);
@@ -75,6 +136,7 @@ export default function AdminCompaniesPage() {
               <tr className="border-b border-outline-variant/10 text-left text-on-surface-variant">
                 <th className="font-semibold px-5 py-4">Empresa</th>
                 <th className="font-semibold px-5 py-4">Plan</th>
+                <th className="font-semibold px-5 py-4">Vence</th>
                 <th className="font-semibold px-5 py-4 text-right">Colaboradores</th>
                 <th className="font-semibold px-5 py-4 text-right">Ventas (mes)</th>
                 <th className="font-semibold px-5 py-4 text-right">Ventas (total)</th>
@@ -84,13 +146,13 @@ export default function AdminCompaniesPage() {
             <tbody>
               {loading && companies.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-5 py-10 text-center text-on-surface-variant">
+                  <td colSpan={7} className="px-5 py-10 text-center text-on-surface-variant">
                     Cargando empresas…
                   </td>
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-5 py-10 text-center text-on-surface-variant">
+                  <td colSpan={7} className="px-5 py-10 text-center text-on-surface-variant">
                     No hay empresas que coincidan.
                   </td>
                 </tr>
@@ -139,6 +201,9 @@ export default function AdminCompaniesPage() {
                             Licencia: {LICENSE_STATUS_LABELS[c.license_status] ?? c.license_status}
                           </span>
                         )}
+                      </td>
+                      <td className="px-5 py-4">
+                        <ExpiryCell periodEnd={c.period_end} />
                       </td>
                       <td className="px-5 py-4 text-right tabular-nums text-on-surface">{c.staff_count}</td>
                       <td className="px-5 py-4 text-right tabular-nums text-on-surface">
@@ -205,21 +270,39 @@ function ManagePlanModal({
 
   const [planId, setPlanId] = useState(company.plan_id);
   const [status, setStatus] = useState(company.status);
-  const [months, setMonths] = useState("1");
-  const [recharged, setRecharged] = useState<string | null>(null);
+  /** Meses a recargar: "none" (no tocar el vencimiento), un número, o "custom". */
+  const [option, setOption] = useState<string>("none");
+  const [customMonths, setCustomMonths] = useState("1");
 
-  // El plan gratis no se gestiona: la regla es el precio, no el id.
-  const currentPlan = plans.find((p) => p.id === company.plan_id);
-  const chargeable = Boolean(currentPlan && currentPlan.price > 0);
+  // El plan gratis no tiene vigencia: la regla es el precio, no el id. Se mira
+  // el plan SELECCIONADO, no el actual: al pasar a uno de pago hay que fijarle
+  // vencimiento en el mismo paso, o quedaría activo para siempre.
+  const selectedPlan = plans.find((p) => p.id === planId);
+  const chargeable = Boolean(selectedPlan && selectedPlan.price > 0);
+
+  const custom = option === "custom";
+  const months = custom
+    ? Math.min(60, Math.max(1, parseInt(customMonths, 10) || 1))
+    : parseInt(option, 10);
+
+  /** Al elegir un plan de pago distinto, proponemos +1 mes en vez de "sin recarga". */
+  const handlePlanChange = (id: string) => {
+    setPlanId(id);
+    const plan = plans.find((p) => p.id === id);
+    const paid = Boolean(plan && plan.price > 0);
+    setOption(paid && id !== company.plan_id ? "1" : "none");
+  };
 
   const handleSave = async () => {
     const ok = await setCompanyPlan(company.user_id, planId, status);
-    if (ok) onClose();
-  };
-
-  const handleRecharge = async (value: number) => {
-    const periodEnd = await rechargeCompany(company.user_id, value);
-    if (periodEnd) setRecharged(periodEnd);
+    if (!ok) return;
+    // El plan debe estar guardado antes de recargar: la RPC lee el plan vigente
+    // en la base para validar que no sea el gratis.
+    if (chargeable && option !== "none") {
+      const periodEnd = await rechargeCompany(company.user_id, months);
+      if (!periodEnd) return;
+    }
+    onClose();
   };
 
   return (
@@ -249,7 +332,7 @@ function ManagePlanModal({
             <label className="block text-sm font-semibold text-on-surface mb-2">Plan</label>
             <select
               value={planId}
-              onChange={(e) => setPlanId(e.target.value)}
+              onChange={(e) => handlePlanChange(e.target.value)}
               className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 text-on-surface transition-shadow appearance-none"
             >
               {plans.map((p) => (
@@ -275,64 +358,55 @@ function ManagePlanModal({
             </select>
           </div>
 
-          {/* Recarga directa: el admin no consume créditos, él es la fuente. */}
+          {/* Vigencia: el admin no consume créditos, él es la fuente de los meses. */}
           {chargeable && (
             <div className="pt-5 border-t border-outline-variant/10">
               <label className="block text-sm font-semibold text-on-surface mb-1">
-                Recargar meses
+                Vigencia
               </label>
               <p className="text-xs text-on-surface-variant mb-3">
-                Extiende el vencimiento sin consumir créditos. Se suma al periodo
-                vigente; si ya venció, cuenta desde hoy.
+                Vence actualmente:{" "}
+                <strong className="text-on-surface">
+                  {company.period_end ? formatDate(company.period_end) : "sin vencimiento"}
+                </strong>
+                . Los meses se suman al periodo vigente; si ya venció, cuentan desde
+                hoy. Se aplican al guardar.
               </p>
 
-              {recharged && (
-                <div className="rounded-xl bg-[#10b981]/10 border border-[#10b981]/30 px-4 py-3 text-sm text-[#10b981] mb-3">
-                  Recarga aplicada. Vence el{" "}
-                  <strong>
-                    {new Date(recharged).toLocaleDateString("es-CO", {
-                      day: "numeric",
-                      month: "long",
-                      year: "numeric",
-                    })}
-                  </strong>
-                  .
-                </div>
-              )}
-
-              <div className="flex flex-wrap gap-2 mb-3">
-                {[1, 3, 6, 12].map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => handleRecharge(m)}
-                    disabled={submitting}
-                    className="px-3 py-2 rounded-xl border border-outline-variant/20 bg-surface-container-low hover:bg-surface-container-high text-sm font-semibold text-on-surface transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    +{m} {m === 1 ? "mes" : "meses"}
-                    {m === 12 && <span className="text-primary"> · año</span>}
-                  </button>
-                ))}
-              </div>
-
-              <div className="flex gap-2">
-                <input
-                  type="number"
-                  min="1"
-                  max="60"
-                  value={months}
-                  onChange={(e) => setMonths(e.target.value)}
-                  className="w-24 px-4 py-2.5 bg-surface-container-low border border-outline-variant/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 text-on-surface transition-shadow"
-                />
-                <button
-                  type="button"
-                  onClick={() => handleRecharge(Math.min(60, Math.max(1, parseInt(months, 10) || 1)))}
-                  disabled={submitting}
-                  className="py-2.5 px-4 rounded-xl border border-outline-variant/20 text-sm font-semibold text-on-surface hover:bg-surface-container-high transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              <div className="flex flex-col sm:flex-row gap-2">
+                <select
+                  value={option}
+                  onChange={(e) => setOption(e.target.value)}
+                  className="flex-1 px-4 py-3 bg-surface-container-low border border-outline-variant/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 text-on-surface transition-shadow appearance-none"
                 >
-                  {submitting ? "Recargando…" : "Recargar"}
-                </button>
+                  <option value="none">Sin recarga (no cambiar el vencimiento)</option>
+                  {RECHARGE_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                  <option value="custom">Personalizado…</option>
+                </select>
+
+                {custom && (
+                  <input
+                    type="number"
+                    min="1"
+                    max="60"
+                    value={customMonths}
+                    onChange={(e) => setCustomMonths(e.target.value)}
+                    aria-label="Meses a recargar"
+                    className="w-full sm:w-24 px-4 py-3 bg-surface-container-low border border-outline-variant/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 text-on-surface transition-shadow tabular-nums"
+                  />
+                )}
               </div>
+
+              {option === "none" && !company.period_end && (
+                <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
+                  Sin meses, el plan {selectedPlan?.name} queda activo sin fecha de
+                  vencimiento. Elige cuántos meses le asignas.
+                </p>
+              )}
             </div>
           )}
         </div>
@@ -349,7 +423,11 @@ function ManagePlanModal({
             disabled={submitting}
             className="py-2.5 px-5 rounded-xl bg-[#6063ee] text-white hover:bg-[#c0c1ff] hover:text-[#0b0664] text-sm font-bold shadow-lg shadow-[#6063ee]/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {submitting ? "Guardando…" : "Guardar"}
+            {submitting
+              ? "Guardando…"
+              : chargeable && option !== "none"
+                ? `Guardar y recargar ${months} ${months === 1 ? "mes" : "meses"}`
+                : "Guardar"}
           </button>
         </div>
       </div>

@@ -7,6 +7,7 @@ import {
   formatSalesLimit,
   hasAnnual,
 } from "@/config/plans";
+import { whatsappUrl } from "@/config/contact";
 
 /**
  * Precios de la landing. Server Component: los planes vienen de la tabla
@@ -90,16 +91,23 @@ function PlanCard({ plan }: { plan: Plan }) {
         <Feature>POS, inventario, finanzas y clientes</Feature>
       </ul>
 
-      <Link
-        href="/register"
-        className={`mt-8 block text-center px-6 py-3 rounded-xl font-bold transition-colors ${
-          annual
-            ? "bg-primary text-on-primary shadow-lg shadow-primary/25 hover:bg-primary-dim"
-            : "bg-surface-container-high border border-outline-variant/20 text-on-surface hover:bg-surface-container-highest"
-        }`}
-      >
-        {free ? "Empieza gratis" : `Elegir ${plan.name}`}
-      </Link>
+      {free ? (
+        <Link
+          href="/register"
+          className="mt-8 block text-center px-6 py-3 rounded-xl font-bold transition-colors bg-surface-container-high border border-outline-variant/20 text-on-surface hover:bg-surface-container-highest"
+        >
+          Empieza gratis
+        </Link>
+      ) : (
+        <a
+          href={whatsappUrl(`Hola, estoy interesado en comprar el plan ${plan.name}`)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-8 block text-center px-6 py-3 rounded-xl font-bold transition-colors bg-primary text-on-primary shadow-lg shadow-primary/25 hover:bg-primary-dim"
+        >
+          Comprar {plan.name}
+        </a>
+      )}
     </div>
   );
 }

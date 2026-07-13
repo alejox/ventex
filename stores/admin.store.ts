@@ -47,7 +47,7 @@ interface AdminState {
 const toMessage = (e: unknown) =>
   e instanceof Error ? e.message : "Ocurrió un error inesperado";
 
-export const useAdminStore = create<AdminState>((set, get) => ({
+export const useAdminStore = create<AdminState>((set) => ({
   companies: [],
   resellers: [],
   packs: [],
@@ -102,14 +102,10 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     set({ submitting: true, error: null });
     try {
       await adminService.setCompanyPlan(userId, planId, status);
-      // Refleja el cambio en memoria sin recargar todo.
-      const planName = get().plans.find((p) => p.id === planId)?.name ?? planId;
-      set((s) => ({
-        submitting: false,
-        companies: s.companies.map((c) =>
-          c.user_id === userId ? { ...c, plan_id: planId, plan_name: planName, status } : c,
-        ),
-      }));
+      // Refrescamos el listado: el cambio de plan puede mover el vencimiento,
+      // que no se puede derivar en memoria.
+      const companies = await adminService.fetchCompanies();
+      set({ companies, submitting: false });
       return true;
     } catch (e) {
       set({ error: toMessage(e), submitting: false });
