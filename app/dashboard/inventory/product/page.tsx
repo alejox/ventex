@@ -14,6 +14,15 @@ function ProductForm() {
   const editId = searchParams.get("id");
   const parentId = searchParams.get("parent_id");
 
+  /**
+   * Vista desde la que se abrió el formulario: al volver (o al guardar) se
+   * regresa ahí, no siempre a inventario. Se acotan las rutas internas del
+   * dashboard para que un `from` manipulado no redirija fuera de la app.
+   */
+  const from = searchParams.get("from");
+  const backTo =
+    from && /^\/dashboard\/[a-z0-9/-]*$/i.test(from) ? from : "/dashboard/inventory";
+
   const products = useInventoryStore((s) => s.products);
   const categories = useInventoryStore((s) => s.categories);
   const distributors = useInventoryStore((s) => s.distributors);
@@ -157,7 +166,7 @@ function ProductForm() {
       : await addProduct(payload, imageFile);
     const success = typeof ok === "string" || ok === true;
     setSaving(false);
-    if (success) router.push("/dashboard/inventory");
+    if (success) router.push(backTo);
   };
 
   if (loadingProduct) {
@@ -169,18 +178,22 @@ function ProductForm() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto py-8 px-6">
-      <div className="flex items-center gap-4 mb-8">
+    /* El layout del dashboard ya aporta el padding de página: aquí solo el ancho. */
+    <div className="max-w-5xl mx-auto">
+      <div className="flex items-center gap-3 sm:gap-4 mb-6 sm:mb-8">
         <Link
-          href="/dashboard/inventory"
-          className="w-10 h-10 flex items-center justify-center rounded-xl text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors"
+          href={backTo}
+          aria-label="Volver"
+          className="w-10 h-10 shrink-0 flex items-center justify-center rounded-xl text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors"
         >
           <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-5 h-5">
             <polyline points="15 18 9 12 15 6" />
           </svg>
         </Link>
-        <div>
-          <h1 className="text-3xl font-bold text-on-surface tracking-tight">{editId ? "Editar Producto" : "Nuevo Producto"}</h1>
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold text-on-surface tracking-tight">
+            {editId ? "Editar Producto" : "Nuevo Producto"}
+          </h1>
           <p className="text-sm text-on-surface-variant mt-1">
             {editId ? "Actualiza los datos del producto" : "Registra un nuevo producto en tu inventario"}
           </p>
@@ -188,7 +201,7 @@ function ProductForm() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="bg-surface-container rounded-3xl border border-outline-variant/10 shadow-sm p-8 space-y-6">
+        <div className="bg-surface-container rounded-2xl sm:rounded-3xl border border-outline-variant/10 shadow-sm p-4 sm:p-8 space-y-6">
           <div>
             <h2 className="text-lg font-bold text-on-surface mb-1">Informaci&oacute;n General</h2>
             <p className="text-sm text-on-surface-variant">Datos b&aacute;sicos del producto</p>
@@ -206,7 +219,7 @@ function ProductForm() {
             />
           </div>
 
-          <div className="grid grid-cols-4 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
             <div className="space-y-1.5">
               <label className="text-[13px] font-semibold text-on-surface block">Categor&iacute;a</label>
               <div className="relative">
@@ -306,7 +319,7 @@ function ProductForm() {
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-5">
             <div className="space-y-1.5">
               <label className="text-[13px] font-semibold text-on-surface block">SKU</label>
               <input
@@ -368,7 +381,7 @@ function ProductForm() {
               <h3 className="text-base font-bold text-on-surface">Precio de Venta (Unidad)</h3>
             </div>
             <div className="space-y-4">
-              <div className="flex gap-4">
+              <div className="flex flex-wrap gap-2 sm:gap-4">
                 {(["manual", "percentage", "final"] as const).map((mode) => (
                   <button
                     key={mode}
@@ -565,7 +578,7 @@ function ProductForm() {
             </div>
 
             {form.has_commission && (
-              <div className="grid grid-cols-2 gap-5 pl-14">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5 pl-0 sm:pl-14">
                 <div className="space-y-1.5">
                   <label className="text-[13px] font-semibold text-on-surface block">Tipo de comisión</label>
                   <div className="relative">
@@ -602,7 +615,7 @@ function ProductForm() {
           </div>
         </div>
 
-        <div className="bg-surface-container rounded-3xl border border-outline-variant/10 shadow-sm p-8 space-y-5">
+        <div className="bg-surface-container rounded-2xl sm:rounded-3xl border border-outline-variant/10 shadow-sm p-4 sm:p-8 space-y-5">
           <div>
             <h2 className="text-lg font-bold text-on-surface mb-1">Imagen del Producto</h2>
             <p className="text-sm text-on-surface-variant">Sube una foto para identificar el producto visualmente</p>

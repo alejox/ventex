@@ -287,7 +287,8 @@ export default function POSPage() {
       <div className="flex-1 flex flex-col min-w-0 px-6 lg:pl-10 lg:pr-6 border-r border-outline-variant/10">
         
         <div className="flex items-center gap-3 mb-6 pt-4">
-          <div className="relative flex-1">
+          {/* min-w-0: sin esto el botón de la derecha aplasta el buscador en móvil. */}
+          <div className="relative flex-1 min-w-0">
             <div className="absolute left-0 top-0 bottom-0 w-12 bg-primary rounded-l-2xl flex items-center justify-center">
               <IconSearch className="w-5 h-5 text-white" />
             </div>
@@ -343,12 +344,15 @@ export default function POSPage() {
               </svg>
             )}
           </button>
+          {/* En móvil se reduce a "+": el texto completo no cabe junto al buscador. */}
           <button
-            onClick={() => router.push("/dashboard/inventory/product")}
-            className="whitespace-nowrap px-5 py-3.5 rounded-2xl bg-transparent border border-primary/50 text-primary text-sm font-semibold hover:bg-primary/10 transition-colors flex items-center gap-2"
+            onClick={() => router.push("/dashboard/inventory/product?from=/dashboard/pos")}
+            aria-label="Nuevo producto"
+            title="Nuevo producto"
+            className="shrink-0 whitespace-nowrap w-12 h-12 sm:w-auto sm:h-auto sm:px-5 sm:py-3.5 rounded-2xl bg-transparent border border-primary/50 text-primary text-sm font-semibold hover:bg-primary/10 transition-colors flex items-center justify-center gap-2"
           >
-            Nuevo producto
-            <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-4 h-4">
+            <span className="hidden sm:inline">Nuevo producto</span>
+            <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-5 h-5 sm:w-4 sm:h-4">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" />
             </svg>
           </button>
@@ -427,13 +431,18 @@ export default function POSPage() {
                     <h3 className="text-sm font-medium text-on-surface mb-2 line-clamp-2 leading-tight flex-1 group-hover:text-primary transition-colors">
                       {item.name}
                     </h3>
-                    <div className="flex items-center justify-between mt-auto">
-                      <span className="text-on-surface font-bold">${money(item.price)}</span>
+                    {/* Precio y stock envuelven: en tarjetas angostas no caben en una línea. */}
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5 mt-auto">
+                      <span className="text-sm sm:text-base text-on-surface font-bold tabular-nums">
+                        ${money(item.price)}
+                      </span>
                       {item.kind === "service" ? (
-                        <span className="text-[10px] font-bold text-on-surface-variant">Servicio</span>
+                        <span className="text-[10px] font-bold text-on-surface-variant shrink-0">
+                          Servicio
+                        </span>
                       ) : (
                         <span
-                          className={`text-[10px] font-bold ${
+                          className={`text-[10px] font-bold shrink-0 ${
                             (item.stock_level ?? 0) <= 0
                               ? "text-error"
                               : (item.stock_level ?? 0) <= 5

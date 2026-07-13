@@ -7,14 +7,19 @@ import {
   formatMoney,
   planAccent,
   licenseAccent,
+  hasAnnual,
+  annualPrice,
+  annualFreeMonths,
   LICENSE_STATUS_LABELS,
   SUBSCRIPTION_STATUS_LABELS,
 } from "@/config/plans";
 import { GrantCreditsModal } from "@/components/GrantCreditsModal";
+import type { Plan } from "@/services/subscription.service";
 
 const STATUSES = ["active", "past_due", "cancelled"] as const;
 
 const MS_PER_DAY = 86_400_000;
+const MONTHS_PER_YEAR = 12;
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("es-CO", {
@@ -27,6 +32,29 @@ function formatDate(iso: string): string {
 /** Días que faltan para el vencimiento (negativo = ya venció). */
 function daysLeft(iso: string): number {
   return Math.ceil((new Date(iso).getTime() - Date.now()) / MS_PER_DAY);
+}
+
+/**
+ * Vencimiento que quedará tras sumar `months`, replicando lo que hace la RPC:
+ * si la licencia sigue vigente los meses se apilan sobre su fin; si ya venció
+ * (o nunca tuvo), cuentan desde hoy.
+ */
+function projectedEnd(periodEnd: string | null, months: number): Date {
+  const now = new Date();
+  const base = periodEnd && new Date(periodEnd) > now ? new Date(periodEnd) : now;
+  const end = new Date(base);
+  end.setMonth(end.getMonth() + months);
+  return end;
+}
+
+/**
+ * Valor del periodo que se activa. El año completo se cobra al precio anual del
+ * plan (con sus meses de regalo); cualquier otra duración va a precio de mes.
+ */
+function periodValue(plan: Plan, months: number): number {
+  return months === MONTHS_PER_YEAR && hasAnnual(plan)
+    ? annualPrice(plan)
+    : plan.price * months;
 }
 
 /** Vencimiento del plan: fecha + días restantes, en rojo si venció o está por vencer. */
@@ -67,13 +95,23 @@ function ExpiryCell({ periodEnd }: { periodEnd: string | null }) {
   );
 }
 
-/** Duraciones frecuentes de recarga; "Personalizado" abre el campo de meses. */
-const RECHARGE_OPTIONS = [
-  { value: "1", label: "+1 mes" },
-  { value: "3", label: "+3 meses (trimestre)" },
-  { value: "6", label: "+6 meses (semestre)" },
-  { value: "12", label: "+12 meses (año)" },
-] as const;
+/**
+ * Modalidades que ofrece el plan, tal como están configuradas en /admin/plans:
+ * mensual siempre, anual solo si el plan la vende (annual_charged_months > 0).
+ * "Personalizado" queda aparte para casos sueltos (cortesías, ajustes).
+ */
+function rechargeOptions(plan: Plan | undefined) {
+  if (!plan || plan.price <= 0) return [];
+  const list = [{ value: "1", label: `Mensual — +1 mes (${formatMoney(plan.price)})` }];
+  if (hasAnnual(plan)) {
+    const free = annualFreeMonths(plan);
+    list.push({
+      value: String(MONTHS_PER_YEAR),
+      label: `Anual — +12 meses (${formatMoney(annualPrice(plan))}${free > 0 ? `, ${free} de regalo` : ""})`,
+    });
+  }
+  return list;
+}
 
 export default function AdminCompaniesPage() {
   const companies = useAdminStore((s) => s.companies);
@@ -129,7 +167,27 @@ export default function AdminCompaniesPage() {
         </div>
       )}
 
-      <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-3xl shadow-sm overflow-hidden">
+      {/* Móvil: tarjetas. La tabla de 7 columnas es ilegible a 390px. */}
+      <div className="lg:hidden space-y-3">
+        {loading && companies.length === 0 ? (
+          <p className="py-10 text-center text-sm text-on-surface-variant">Cargando empresas…</p>
+        ) : filtered.length === 0 ? (
+          <p className="py-10 text-center text-sm text-on-surface-variant">
+            No hay empresas que coincidan.
+          </p>
+        ) : (
+          filtered.map((c) => (
+            <CompanyCard
+              key={c.user_id}
+              company={c}
+              onManage={() => setEditing(c)}
+              onGrant={() => setGrantingId(c.user_id)}
+            />
+          ))
+        )}
+      </div>
+
+      <div className="hidden lg:block bg-surface-container-lowest border border-outline-variant/10 rounded-3xl shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -254,6 +312,105 @@ export default function AdminCompaniesPage() {
   );
 }
 
+/** Fila de la tabla convertida en tarjeta para móvil. */
+function CompanyCard({
+  company: c,
+  onManage,
+  onGrant,
+}: {
+  company: AdminCompany;
+  onManage: () => void;
+  onGrant: () => void;
+}) {
+  const accent = planAccent(c.plan_id);
+
+  return (
+    <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-2xl p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-semibold text-on-surface">
+              {c.business_name || c.full_name || "Sin nombre"}
+            </span>
+            {c.is_super_admin && (
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-primary/15 text-primary">
+                ADMIN
+              </span>
+            )}
+            {c.is_reseller && (
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500">
+                REVENDEDOR
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-on-surface-variant truncate">{c.email}</p>
+          {c.reseller_name && (
+            <p className="text-[11px] text-on-surface-variant mt-0.5">
+              Cliente de: {c.reseller_name}
+            </p>
+          )}
+        </div>
+        <span
+          className={`shrink-0 text-xs font-bold px-2.5 py-1 rounded-full ring-1 ${accent.bg} ${accent.text} ${accent.ring}`}
+        >
+          {c.plan_name ?? c.plan_id}
+        </span>
+      </div>
+
+      <div className="flex items-center gap-2 flex-wrap mt-3">
+        <span className="text-[11px] text-on-surface-variant">
+          {SUBSCRIPTION_STATUS_LABELS[c.status] ?? c.status}
+        </span>
+        {c.license_status && (
+          <span
+            className={`text-[11px] font-bold px-2 py-0.5 rounded-full ring-1 ${licenseAccent(c.license_status).bg} ${licenseAccent(c.license_status).text} ${licenseAccent(c.license_status).ring}`}
+          >
+            Licencia: {LICENSE_STATUS_LABELS[c.license_status] ?? c.license_status}
+          </span>
+        )}
+      </div>
+
+      <div className="mt-3 pt-3 border-t border-outline-variant/10 grid grid-cols-2 gap-3 text-xs">
+        <div>
+          <p className="text-on-surface-variant">Vence</p>
+          <div className="mt-0.5">
+            <ExpiryCell periodEnd={c.period_end} />
+          </div>
+        </div>
+        <div>
+          <p className="text-on-surface-variant">Colaboradores</p>
+          <p className="text-on-surface tabular-nums mt-0.5">{c.staff_count}</p>
+        </div>
+        <div>
+          <p className="text-on-surface-variant">Ventas (mes)</p>
+          <p className="text-on-surface tabular-nums mt-0.5">{formatMoney(c.monthly_sales)}</p>
+        </div>
+        <div>
+          <p className="text-on-surface-variant">Ventas (total)</p>
+          <p className="text-on-surface tabular-nums mt-0.5">{formatMoney(c.total_sales)}</p>
+        </div>
+      </div>
+
+      <div className="mt-4 flex gap-2">
+        {c.is_reseller && (
+          <button
+            onClick={onGrant}
+            className="flex-1 h-10 rounded-xl border border-amber-500/40 text-amber-500 text-sm font-semibold hover:bg-amber-500/10 transition-colors"
+          >
+            Créditos
+          </button>
+        )}
+        <button
+          onClick={onManage}
+          className="flex-1 h-10 rounded-xl bg-[#6063ee] text-white text-sm font-bold hover:bg-[#c0c1ff] hover:text-[#0b0664] transition-colors"
+        >
+          Gestionar
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function ManagePlanModal({
   company,
   plans,
@@ -279,6 +436,7 @@ function ManagePlanModal({
   // vencimiento en el mismo paso, o quedaría activo para siempre.
   const selectedPlan = plans.find((p) => p.id === planId);
   const chargeable = Boolean(selectedPlan && selectedPlan.price > 0);
+  const options = rechargeOptions(selectedPlan);
 
   const custom = option === "custom";
   const months = custom
@@ -335,11 +493,15 @@ function ManagePlanModal({
               onChange={(e) => handlePlanChange(e.target.value)}
               className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 text-on-surface transition-shadow appearance-none"
             >
-              {plans.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
+              {/* Solo planes vigentes; se conserva el actual aunque se haya desactivado. */}
+              {plans
+                .filter((p) => p.is_active || p.id === company.plan_id)
+                .map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                    {p.price > 0 ? ` — ${formatMoney(p.price)}/mes` : " — Gratis"}
+                  </option>
+                ))}
             </select>
           </div>
 
@@ -380,7 +542,7 @@ function ManagePlanModal({
                   className="flex-1 px-4 py-3 bg-surface-container-low border border-outline-variant/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 text-on-surface transition-shadow appearance-none"
                 >
                   <option value="none">Sin recarga (no cambiar el vencimiento)</option>
-                  {RECHARGE_OPTIONS.map((o) => (
+                  {options.map((o) => (
                     <option key={o.value} value={o.value}>
                       {o.label}
                     </option>
@@ -400,6 +562,41 @@ function ManagePlanModal({
                   />
                 )}
               </div>
+
+              {option !== "none" && selectedPlan && (
+                <div className="mt-3 rounded-xl bg-surface-container-low border border-outline-variant/20 px-4 py-3 text-xs text-on-surface-variant space-y-1">
+                  <p>
+                    Activa{" "}
+                    <strong className="text-on-surface">
+                      {months} {months === 1 ? "mes" : "meses"}
+                    </strong>{" "}
+                    del plan{" "}
+                    <strong className="text-on-surface">{selectedPlan.name}</strong>
+                  </p>
+                  <p>
+                    Vence:{" "}
+                    <span className="text-on-surface-variant">
+                      {company.period_end ? formatDate(company.period_end) : "sin vencimiento"}
+                    </span>{" "}
+                    →{" "}
+                    <strong className="text-on-surface tabular-nums">
+                      {formatDate(projectedEnd(company.period_end, months).toISOString())}
+                    </strong>
+                  </p>
+                  <p>
+                    Valor del periodo:{" "}
+                    <strong className="text-on-surface">
+                      {formatMoney(periodValue(selectedPlan, months))}
+                    </strong>
+                    {months === MONTHS_PER_YEAR && hasAnnual(selectedPlan) && annualFreeMonths(selectedPlan) > 0 && (
+                      <span className="text-primary font-semibold">
+                        {" "}
+                        · {annualFreeMonths(selectedPlan)} meses de regalo
+                      </span>
+                    )}
+                  </p>
+                </div>
+              )}
 
               {option === "none" && !company.period_end && (
                 <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">

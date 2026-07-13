@@ -121,7 +121,67 @@ export default function AdminCreditsPage() {
 
       {/* ---- Movimientos globales ---- */}
       <h2 className="text-lg font-bold text-on-surface mb-4">Últimos movimientos</h2>
-      <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-3xl shadow-sm overflow-hidden">
+
+      {/* Móvil: tarjetas. La tabla de 6 columnas se corta a 390px. */}
+      <div className="lg:hidden space-y-3">
+        {loading && movements.length === 0 ? (
+          <p className="py-10 text-center text-sm text-on-surface-variant">
+            Cargando movimientos…
+          </p>
+        ) : movements.length === 0 ? (
+          <p className="py-10 text-center text-sm text-on-surface-variant">
+            Aún no hay movimientos de créditos.
+          </p>
+        ) : (
+          movements.map((m) => (
+            <div
+              key={m.id}
+              className="bg-surface-container-lowest border border-outline-variant/10 rounded-2xl p-4 shadow-sm"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-semibold text-on-surface truncate">
+                    {m.reseller_name || "Sin nombre"}
+                  </p>
+                  <p className="text-xs text-on-surface-variant truncate">{m.reseller_email}</p>
+                </div>
+                <span
+                  className={`shrink-0 text-base font-bold tabular-nums ${
+                    m.delta > 0 ? "text-primary" : "text-on-surface-variant"
+                  }`}
+                >
+                  {m.delta > 0 ? `+${m.delta}` : m.delta}
+                </span>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-2 text-xs text-on-surface-variant">
+                <span className="text-on-surface font-medium">
+                  {REASON_LABELS[m.reason] ?? m.reason}
+                </span>
+                <span>·</span>
+                <span>{planName(m.plan_id)}</span>
+                <span>·</span>
+                <span className="tabular-nums">
+                  {new Date(m.created_at).toLocaleDateString("es-CO", {
+                    day: "2-digit",
+                    month: "short",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </span>
+              </div>
+
+              <p className="text-xs text-on-surface-variant mt-1.5">
+                {m.reason === "consume" && m.client_name
+                  ? `${m.client_name}${m.note ? ` · ${m.note}` : ""}`
+                  : m.note || "—"}
+              </p>
+            </div>
+          ))
+        )}
+      </div>
+
+      <div className="hidden lg:block bg-surface-container-lowest border border-outline-variant/10 rounded-3xl shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>

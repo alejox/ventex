@@ -16,6 +16,9 @@ export default function AdminResellersPage() {
   const [promoting, setPromoting] = useState(false);
   const [granting, setGranting] = useState<AdminReseller | null>(null);
 
+  // Los créditos existen solo para planes de pago: la regla es el precio, no el id.
+  const creditPlans = plans.filter((p) => p.is_active && p.price > 0);
+
   useEffect(() => {
     fetchResellers();
   }, [fetchResellers]);
@@ -43,7 +46,65 @@ export default function AdminResellersPage() {
         </div>
       )}
 
-      <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-3xl shadow-sm overflow-hidden">
+      {/* Móvil: tarjetas. En la tabla, el botón de créditos quedaba fuera de pantalla. */}
+      <div className="lg:hidden space-y-3">
+        {loading && resellers.length === 0 ? (
+          <p className="py-10 text-center text-sm text-on-surface-variant">
+            Cargando revendedores…
+          </p>
+        ) : resellers.length === 0 ? (
+          <p className="py-10 text-center text-sm text-on-surface-variant">
+            No hay revendedores. Promueve una cuenta existente con “Nuevo revendedor”.
+          </p>
+        ) : (
+          resellers.map((r) => (
+            <div
+              key={r.user_id}
+              className="bg-surface-container-lowest border border-outline-variant/10 rounded-2xl p-4 shadow-sm"
+            >
+              <p className="font-semibold text-on-surface">
+                {r.business_name || r.full_name || "Sin nombre"}
+              </p>
+              <p className="text-xs text-on-surface-variant truncate">{r.email}</p>
+
+              <div className="flex flex-wrap gap-1.5 mt-3">
+                {creditPlans.map((p) => {
+                  const accent = planAccent(p.id);
+                  const bal = r.balances?.[p.id] ?? 0;
+                  return (
+                    <span
+                      key={p.id}
+                      className={`text-xs font-bold tabular-nums px-2.5 py-1 rounded-full ring-1 whitespace-nowrap ${
+                        bal > 0
+                          ? `${accent.bg} ${accent.text} ${accent.ring}`
+                          : "bg-surface-container-high text-on-surface-variant ring-outline-variant/30"
+                      }`}
+                    >
+                      {p.name}: {bal}
+                    </span>
+                  );
+                })}
+              </div>
+
+              <p className="text-xs text-on-surface-variant mt-3">
+                <strong className="text-on-surface tabular-nums">{r.clients_total}</strong>{" "}
+                cliente{r.clients_total === 1 ? "" : "s"} ·{" "}
+                <strong className="text-on-surface tabular-nums">{r.clients_active}</strong>{" "}
+                activo{r.clients_active === 1 ? "" : "s"}
+              </p>
+
+              <button
+                onClick={() => setGranting(r)}
+                className="mt-4 w-full h-10 rounded-xl bg-[#6063ee] text-white text-sm font-bold hover:bg-[#c0c1ff] hover:text-[#0b0664] transition-colors"
+              >
+                Otorgar créditos
+              </button>
+            </div>
+          ))
+        )}
+      </div>
+
+      <div className="hidden lg:block bg-surface-container-lowest border border-outline-variant/10 rounded-3xl shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -82,7 +143,7 @@ export default function AdminResellersPage() {
                     </td>
                     <td className="px-5 py-4 text-right">
                       <div className="flex flex-wrap gap-1.5 justify-end">
-                        {plans.filter((p) => p.is_active && p.id !== "gratis").map((p) => {
+                        {creditPlans.map((p) => {
                           const accent = planAccent(p.id);
                           const bal = r.balances?.[p.id] ?? 0;
                           return (

@@ -14,6 +14,7 @@ import { BUSINESS_OPTIONS } from "@/config/business";
 export default function ResellerClientsPage() {
   const clients = useResellerStore((s) => s.clients);
   const stats = useResellerStore((s) => s.stats);
+  const plans = useResellerStore((s) => s.plans);
   const loading = useResellerStore((s) => s.loading);
   const error = useResellerStore((s) => s.error);
   const fetchOverview = useResellerStore((s) => s.fetchOverview);
@@ -37,6 +38,15 @@ export default function ResellerClientsPage() {
     );
   }, [clients, query]);
 
+  /** Saldos con el nombre del plan, no su id ("Básica: 38", no "basica 38"). */
+  const balancesLabel = useMemo(() => {
+    const entries = Object.entries(stats?.balances ?? {});
+    if (entries.length === 0) return "sin saldo";
+    return entries
+      .map(([id, bal]) => `${plans.find((p) => p.id === id)?.name ?? id}: ${bal}`)
+      .join(" · ");
+  }, [stats, plans]);
+
   return (
     <div className="w-full max-w-6xl mx-auto animate-in fade-in duration-300">
       <div className="flex flex-wrap items-end justify-between gap-4 mb-6">
@@ -44,14 +54,11 @@ export default function ResellerClientsPage() {
           <h1 className="text-2xl font-bold text-on-surface">Mis clientes</h1>
           <p className="text-sm text-on-surface-variant mt-1">
             {clients.length} cliente{clients.length === 1 ? "" : "s"}
-            {stats
-              ? ` · créditos: ${Object.entries(stats.balances ?? {})
-                  .map(([id, bal]) => `${id} ${bal}`)
-                  .join(", ") || "sin saldo"}`
-              : ""}
+            {stats ? ` · créditos: ${balancesLabel}` : ""}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        {/* Móvil: buscador a ancho completo y el botón debajo; en fila desde sm. */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full sm:w-auto">
           <input
             type="text"
             value={query}
@@ -74,7 +81,65 @@ export default function ResellerClientsPage() {
         </div>
       )}
 
-      <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-3xl shadow-sm overflow-hidden">
+      {/* Móvil: tarjetas. En la tabla, el botón "Gestionar" quedaba fuera de pantalla. */}
+      <div className="lg:hidden space-y-3">
+        {loading && clients.length === 0 ? (
+          <p className="py-10 text-center text-sm text-on-surface-variant">Cargando clientes…</p>
+        ) : filtered.length === 0 ? (
+          <p className="py-10 text-center text-sm text-on-surface-variant">
+            {clients.length === 0
+              ? "Aún no tienes clientes. Crea el primero con “Nuevo cliente”."
+              : "No hay clientes que coincidan."}
+          </p>
+        ) : (
+          filtered.map((c) => {
+            const accent = licenseAccent(c.license_status);
+            return (
+              <div
+                key={c.user_id}
+                className="bg-surface-container-lowest border border-outline-variant/10 rounded-2xl p-4 shadow-sm"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-on-surface truncate">
+                      {c.business_name || c.full_name || "Sin nombre"}
+                    </p>
+                    <p className="text-xs text-on-surface-variant truncate">{c.email}</p>
+                  </div>
+                  <span
+                    className={`shrink-0 text-xs font-bold px-2.5 py-1 rounded-full ring-1 ${accent.bg} ${accent.text} ${accent.ring}`}
+                  >
+                    {LICENSE_STATUS_LABELS[c.license_status] ?? c.license_status}
+                  </span>
+                </div>
+
+                <p className="text-xs text-on-surface-variant mt-3">
+                  Plan <strong className="text-on-surface">{c.plan_name ?? c.plan_id}</strong> ·
+                  Vence{" "}
+                  <strong className="text-on-surface tabular-nums">
+                    {c.period_end
+                      ? new Date(c.period_end).toLocaleDateString("es-CO", {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                        })
+                      : "—"}
+                  </strong>
+                </p>
+
+                <button
+                  onClick={() => setManaging(c)}
+                  className="mt-4 w-full h-10 rounded-xl bg-[#6063ee] text-white text-sm font-bold hover:bg-[#c0c1ff] hover:text-[#0b0664] transition-colors"
+                >
+                  Gestionar
+                </button>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      <div className="hidden lg:block bg-surface-container-lowest border border-outline-variant/10 rounded-3xl shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -162,8 +227,9 @@ function CreateClientModal({ onClose }: { onClose: () => void }) {
   const plans = useResellerStore((s) => s.plans);
   const stats = useResellerStore((s) => s.stats);
 
-  // Solo planes con créditos posibles (los créditos son por plan; gratis no aplica).
-  const creditPlans = plans.filter((p) => p.is_active && p.id !== "gratis");
+  // Solo planes de pago activos: los créditos son por plan y el gratis no
+  // consume ninguno. La regla es el precio, no el id.
+  const creditPlans = plans.filter((p) => p.is_active && p.price > 0);
   const balanceOf = (id: string) => stats?.balances?.[id] ?? 0;
   const firstWithBalance = creditPlans.find((p) => balanceOf(p.id) > 0);
 
@@ -435,16 +501,43 @@ function ManageClientModal({
                   disabled={submitting || !affordable}
                   className="py-3 px-5 rounded-xl bg-[#6063ee] text-white hover:bg-[#c0c1ff] hover:text-[#0b0664] text-sm font-bold shadow-lg shadow-[#6063ee]/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
                 >
-                  {submitting ? "Recargando…" : "Recargar"}
+                  {submitting
+                    ? "Recargando…"
+                    : `Recargar (${selected?.cost ?? 0} crédito${selected?.cost === 1 ? "" : "s"})`}
                 </button>
               </div>
 
-              {selected && !affordable && (
-                <p className="text-xs text-error-dim mt-2">
-                  No tienes créditos suficientes para esta modalidad ({selected.cost}{" "}
-                  crédito{selected.cost === 1 ? "" : "s"}). Solicita una recarga al
-                  administrador.
-                </p>
+              {/* Costo explícito: cuántos créditos se van y con cuántos quedas. */}
+              {selected && (
+                <div
+                  className={`mt-3 rounded-xl px-4 py-3 text-xs border ${
+                    affordable
+                      ? "bg-surface-container-low border-outline-variant/20 text-on-surface-variant"
+                      : "bg-error-container/20 border-error-container/30 text-error-dim"
+                  }`}
+                >
+                  {affordable ? (
+                    <>
+                      Consume{" "}
+                      <strong className="text-on-surface">
+                        {selected.cost} crédito{selected.cost === 1 ? "" : "s"}
+                      </strong>{" "}
+                      del plan {plan?.name} y suma{" "}
+                      <strong className="text-on-surface">
+                        {selected.period === "annual" ? 12 : 1}{" "}
+                        {selected.period === "annual" ? "meses" : "mes"}
+                      </strong>
+                      . Saldo: <strong className="text-on-surface">{balance}</strong> →{" "}
+                      <strong className="text-on-surface">{balance - selected.cost}</strong>
+                    </>
+                  ) : (
+                    <>
+                      Esta modalidad cuesta {selected.cost} crédito
+                      {selected.cost === 1 ? "" : "s"} y solo tienes {balance} del plan{" "}
+                      {plan?.name}. Solicita una recarga al administrador.
+                    </>
+                  )}
+                </div>
               )}
 
               <p className="text-xs text-on-surface-variant mt-3">
