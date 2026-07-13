@@ -518,6 +518,7 @@ export type Database = {
       }
       plans: {
         Row: {
+          annual_charged_months: number
           created_at: string
           discount_percent: number
           id: string
@@ -531,6 +532,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          annual_charged_months?: number
           created_at?: string
           discount_percent?: number
           id: string
@@ -544,6 +546,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          annual_charged_months?: number
           created_at?: string
           discount_percent?: number
           id?: string
@@ -1169,6 +1172,23 @@ export type Database = {
         }
         Returns: string
       }
+      admin_recharge_company: {
+        Args: { p_months: number; p_user_id: string }
+        Returns: Json
+      }
+      admin_save_plan: {
+        Args: {
+          p_annual_charged_months: number
+          p_id: string | null
+          p_is_active: boolean
+          p_max_collaborators: number
+          p_max_monthly_sales: number
+          p_name: string
+          p_price: number
+          p_sort_order: number
+        }
+        Returns: string
+      }
       admin_set_plan: {
         Args: { p_plan_id: string; p_status: string; p_user_id: string }
         Returns: undefined
@@ -1232,6 +1252,10 @@ export type Database = {
         Returns: number
       }
       reseller_credit_balances: { Args: { p_reseller: string }; Returns: Json }
+      reseller_recharge_client: {
+        Args: { p_period: string; p_user_id: string }
+        Returns: Json
+      }
       reseller_set_client_status: {
         Args: { p_action: string; p_user_id: string }
         Returns: undefined

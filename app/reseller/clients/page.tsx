@@ -2,8 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useResellerStore } from "@/stores/reseller.store";
-import type { ResellerClient } from "@/services/reseller.service";
-import { LICENSE_STATUS_LABELS, licenseAccent } from "@/config/plans";
+import type { RechargePeriod, ResellerClient } from "@/services/reseller.service";
+import {
+  LICENSE_STATUS_LABELS,
+  annualFreeMonths,
+  hasAnnual,
+  licenseAccent,
+} from "@/config/plans";
 import { BUSINESS_OPTIONS } from "@/config/business";
 
 export default function ResellerClientsPage() {
@@ -314,14 +319,30 @@ function ManageClientModal({
   onClose: () => void;
 }) {
   const setClientStatus = useResellerStore((s) => s.setClientStatus);
+  const rechargeClient = useResellerStore((s) => s.rechargeClient);
   const submitting = useResellerStore((s) => s.submitting);
   const error = useResellerStore((s) => s.error);
+  const plans = useResellerStore((s) => s.plans);
+  const stats = useResellerStore((s) => s.stats);
+
+  const [recharged, setRecharged] = useState<string | null>(null);
 
   const suspended = client.license_status === "suspended";
+  const plan = plans.find((p) => p.id === client.plan_id);
+  // El plan gratis no se gestiona: la regla es el precio, no el id.
+  const chargeable = Boolean(plan && plan.price > 0);
+  const balance = stats?.balances?.[client.plan_id] ?? 0;
+  const annualCost = plan?.annual_charged_months ?? 0;
+  const annualOffered = Boolean(plan && hasAnnual(plan));
 
   const handleToggle = async () => {
     const ok = await setClientStatus(client.user_id, suspended ? "reactivate" : "suspend");
     if (ok) onClose();
+  };
+
+  const handleRecharge = async (period: RechargePeriod) => {
+    const periodEnd = await rechargeClient(client.user_id, period);
+    if (periodEnd) setRecharged(periodEnd);
   };
 
   return (
@@ -330,7 +351,7 @@ function ManageClientModal({
       onClick={onClose}
     >
       <div
-        className="bg-surface-container rounded-3xl w-full max-w-md border border-outline-variant/10 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
+        className="bg-surface-container rounded-3xl w-full max-w-md border border-outline-variant/10 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-6 border-b border-outline-variant/10">
@@ -340,17 +361,77 @@ function ManageClientModal({
           </p>
         </div>
 
-        <div className="p-6 space-y-4">
+        <div className="p-6 space-y-5">
           {error && (
             <div className="rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim">
               {error}
             </div>
           )}
-          <p className="text-sm text-on-surface-variant">
-            {suspended
-              ? "La licencia está suspendida: el cliente no puede acceder. Al reactivarla, si su mes sigue vigente vuelve a entrar de inmediato; si venció, su próximo login intentará renovar con tus créditos."
-              : "Suspender bloquea el acceso del cliente de inmediato (por ejemplo, si dejó de pagarte). Podrás reactivarlo cuando quieras."}
-          </p>
+
+          {recharged && (
+            <div className="rounded-xl bg-[#10b981]/10 border border-[#10b981]/30 px-4 py-3 text-sm text-[#10b981]">
+              Recarga aplicada. La licencia vence el{" "}
+              <strong>
+                {new Date(recharged).toLocaleDateString("es-CO", {
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
+                })}
+              </strong>
+              .
+            </div>
+          )}
+
+          {/* Recargar: solo para planes de pago (el gratis no se gestiona). */}
+          {chargeable && (
+            <section>
+              <div className="flex items-baseline justify-between mb-3">
+                <h3 className="text-sm font-bold text-on-surface">Recargar licencia</h3>
+                <span className="text-xs text-on-surface-variant">
+                  Saldo {plan?.name}: <strong className="text-on-surface">{balance}</strong>{" "}
+                  crédito{balance === 1 ? "" : "s"}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <RechargeOption
+                  title="Mensual"
+                  detail="+1 mes"
+                  cost={1}
+                  balance={balance}
+                  disabled={submitting}
+                  onClick={() => handleRecharge("monthly")}
+                />
+                {annualOffered && (
+                  <RechargeOption
+                    title="Anual"
+                    detail={`+12 meses · ${annualFreeMonths(plan!)} de regalo`}
+                    cost={annualCost}
+                    balance={balance}
+                    highlight
+                    disabled={submitting}
+                    onClick={() => handleRecharge("annual")}
+                  />
+                )}
+              </div>
+
+              <p className="text-xs text-on-surface-variant mt-3">
+                Si la licencia sigue vigente, los meses se suman a la fecha de
+                vencimiento actual. Si ya venció, cuentan desde hoy.
+              </p>
+            </section>
+          )}
+
+          <section className="pt-1 border-t border-outline-variant/10">
+            <h3 className="text-sm font-bold text-on-surface mb-2 pt-4">
+              {suspended ? "Reactivar acceso" : "Suspender acceso"}
+            </h3>
+            <p className="text-sm text-on-surface-variant">
+              {suspended
+                ? "La licencia está suspendida: el cliente no puede acceder. Al reactivarla, si su mes sigue vigente vuelve a entrar de inmediato; si venció, su próximo login intentará renovar con tus créditos."
+                : "Suspender bloquea el acceso del cliente de inmediato (por ejemplo, si dejó de pagarte). Podrás reactivarlo cuando quieras."}
+            </p>
+          </section>
         </div>
 
         <div className="p-6 pt-0 flex justify-end gap-3">
@@ -374,6 +455,56 @@ function ManageClientModal({
         </div>
       </div>
     </div>
+  );
+}
+
+/** Tarjeta de una modalidad de recarga; se deshabilita si no alcanza el saldo. */
+function RechargeOption({
+  title,
+  detail,
+  cost,
+  balance,
+  highlight = false,
+  disabled,
+  onClick,
+}: {
+  title: string;
+  detail: string;
+  cost: number;
+  balance: number;
+  highlight?: boolean;
+  disabled: boolean;
+  onClick: () => void;
+}) {
+  const affordable = balance >= cost;
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled || !affordable}
+      className={`text-left p-4 rounded-2xl border transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+        highlight
+          ? "border-primary/40 bg-primary/5 hover:bg-primary/10"
+          : "border-outline-variant/20 bg-surface-container-low hover:bg-surface-container-high"
+      }`}
+    >
+      <div className="flex items-center gap-2 mb-1">
+        <span className="text-sm font-bold text-on-surface">{title}</span>
+        {highlight && (
+          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-primary/15 text-primary">
+            AHORRO
+          </span>
+        )}
+      </div>
+      <p className="text-xs text-on-surface-variant">{detail}</p>
+      <p className="text-xs font-semibold text-on-surface mt-2">
+        {cost} crédito{cost === 1 ? "" : "s"}
+      </p>
+      {!affordable && (
+        <p className="text-[11px] text-error-dim mt-1">Saldo insuficiente</p>
+      )}
+    </button>
   );
 }
 

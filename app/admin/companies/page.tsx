@@ -199,15 +199,27 @@ function ManagePlanModal({
   onClose: () => void;
 }) {
   const setCompanyPlan = useAdminStore((s) => s.setCompanyPlan);
+  const rechargeCompany = useAdminStore((s) => s.rechargeCompany);
   const submitting = useAdminStore((s) => s.submitting);
   const error = useAdminStore((s) => s.error);
 
   const [planId, setPlanId] = useState(company.plan_id);
   const [status, setStatus] = useState(company.status);
+  const [months, setMonths] = useState("1");
+  const [recharged, setRecharged] = useState<string | null>(null);
+
+  // El plan gratis no se gestiona: la regla es el precio, no el id.
+  const currentPlan = plans.find((p) => p.id === company.plan_id);
+  const chargeable = Boolean(currentPlan && currentPlan.price > 0);
 
   const handleSave = async () => {
     const ok = await setCompanyPlan(company.user_id, planId, status);
     if (ok) onClose();
+  };
+
+  const handleRecharge = async (value: number) => {
+    const periodEnd = await rechargeCompany(company.user_id, value);
+    if (periodEnd) setRecharged(periodEnd);
   };
 
   return (
@@ -262,6 +274,67 @@ function ManagePlanModal({
               ))}
             </select>
           </div>
+
+          {/* Recarga directa: el admin no consume créditos, él es la fuente. */}
+          {chargeable && (
+            <div className="pt-5 border-t border-outline-variant/10">
+              <label className="block text-sm font-semibold text-on-surface mb-1">
+                Recargar meses
+              </label>
+              <p className="text-xs text-on-surface-variant mb-3">
+                Extiende el vencimiento sin consumir créditos. Se suma al periodo
+                vigente; si ya venció, cuenta desde hoy.
+              </p>
+
+              {recharged && (
+                <div className="rounded-xl bg-[#10b981]/10 border border-[#10b981]/30 px-4 py-3 text-sm text-[#10b981] mb-3">
+                  Recarga aplicada. Vence el{" "}
+                  <strong>
+                    {new Date(recharged).toLocaleDateString("es-CO", {
+                      day: "numeric",
+                      month: "long",
+                      year: "numeric",
+                    })}
+                  </strong>
+                  .
+                </div>
+              )}
+
+              <div className="flex flex-wrap gap-2 mb-3">
+                {[1, 3, 6, 12].map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => handleRecharge(m)}
+                    disabled={submitting}
+                    className="px-3 py-2 rounded-xl border border-outline-variant/20 bg-surface-container-low hover:bg-surface-container-high text-sm font-semibold text-on-surface transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    +{m} {m === 1 ? "mes" : "meses"}
+                    {m === 12 && <span className="text-primary"> · año</span>}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  min="1"
+                  max="60"
+                  value={months}
+                  onChange={(e) => setMonths(e.target.value)}
+                  className="w-24 px-4 py-2.5 bg-surface-container-low border border-outline-variant/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 text-on-surface transition-shadow"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleRecharge(Math.min(60, Math.max(1, parseInt(months, 10) || 1)))}
+                  disabled={submitting}
+                  className="py-2.5 px-4 rounded-xl border border-outline-variant/20 text-sm font-semibold text-on-surface hover:bg-surface-container-high transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {submitting ? "Recargando…" : "Recargar"}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="p-6 pt-0 flex justify-end gap-3">

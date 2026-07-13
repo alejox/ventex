@@ -3,6 +3,7 @@ import * as resellerService from "@/services/reseller.service";
 import type {
   CreditMovement,
   NewClientInput,
+  RechargePeriod,
   ResellerClient,
   ResellerStats,
 } from "@/services/reseller.service";
@@ -20,6 +21,8 @@ interface ResellerState {
   fetchOverview: () => Promise<void>;
   fetchClients: () => Promise<void>;
   createClient: (input: NewClientInput) => Promise<boolean>;
+  /** Recarga la licencia de un cliente; devuelve el nuevo vencimiento o null si falla. */
+  rechargeClient: (userId: string, period: RechargePeriod) => Promise<string | null>;
   setClientStatus: (userId: string, action: "suspend" | "reactivate") => Promise<boolean>;
 }
 
@@ -77,6 +80,24 @@ export const useResellerStore = create<ResellerState>((set) => ({
     } catch (e) {
       set({ error: toMessage(e), submitting: false });
       return false;
+    }
+  },
+
+  rechargeClient: async (userId, period) => {
+    set({ submitting: true, error: null });
+    try {
+      const result = await resellerService.rechargeClient(userId, period);
+      // La recarga consume créditos y mueve el vencimiento: refresca todo.
+      const [clients, stats, history] = await Promise.all([
+        resellerService.fetchClients(),
+        resellerService.fetchStats(),
+        resellerService.fetchCreditHistory(),
+      ]);
+      set({ clients, stats, history, submitting: false });
+      return result.period_end;
+    } catch (e) {
+      set({ error: toMessage(e), submitting: false });
+      return null;
     }
   },
 

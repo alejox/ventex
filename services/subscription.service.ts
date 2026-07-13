@@ -13,10 +13,12 @@ export interface Plan {
   max_monthly_sales: number | null;
   /** Precio por mes. */
   price: number;
-  /** Precio por año completo; 0 = no se ofrece anual. */
-  price_yearly: number;
-  /** Descuento promocional vigente (0-100). */
-  discount_percent: number;
+  /**
+   * Meses que se cobran en la modalidad anual (de los 12 que se entregan).
+   * 10 = paga 10, recibe 12 (2 de regalo). 0 = el plan no ofrece anual.
+   * El precio anual NO se almacena: se deriva de `price` (ver config/plans.ts).
+   */
+  annual_charged_months: number;
   sort_order: number;
   is_active: boolean;
 }
@@ -34,12 +36,15 @@ export interface MySubscription {
   monthly_sales: number;
 }
 
+export const PLAN_SELECT =
+  "id, name, max_collaborators, max_monthly_sales, price, annual_charged_months, sort_order, is_active";
+
 /** Catálogo de planes (visible para cualquier usuario autenticado). */
 export async function fetchPlans(): Promise<Plan[]> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("plans")
-    .select("id, name, max_collaborators, max_monthly_sales, price, price_yearly, discount_percent, sort_order, is_active")
+    .select(PLAN_SELECT)
     .order("sort_order");
   if (error) throw error;
   return (data ?? []) as Plan[];
