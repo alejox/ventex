@@ -15,7 +15,7 @@ export async function fetchProfileServer(): Promise<Profile | null> {
 
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, full_name, business_type, modules, is_super_admin")
+    .select("id, full_name, business_type, modules, is_super_admin, is_reseller")
     .eq("id", user.id)
     .maybeSingle();
   if (error) throw error;
@@ -28,5 +28,27 @@ export async function fetchProfileServer(): Promise<Profile | null> {
     businessType: (data?.business_type as BusinessType) || null,
     modules: (data?.modules as Modules) || {},
     isSuperAdmin: Boolean(data?.is_super_admin),
+    isReseller: Boolean(data?.is_reseller),
   };
+}
+
+/** Resultado del chequeo de licencia mensual (RPC ensure_license_current). */
+export interface LicenseCheck {
+  managed: boolean;
+  blocked: boolean;
+  status?: "pending" | "active" | "expired" | "suspended";
+  period_end?: string;
+}
+
+/**
+ * Activa/renueva la licencia mensual de un cliente de revendedor (consume
+ * créditos en el primer login y al vencer cada mes) y dice si debe bloquearse
+ * el acceso. Cuentas directas (sin revendedor) devuelven managed=false.
+ * Autoritativo en BD: el layout del dashboard lo llama en el servidor.
+ */
+export async function ensureLicenseCurrent(): Promise<LicenseCheck> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("ensure_license_current");
+  if (error) throw error;
+  return data as unknown as LicenseCheck;
 }

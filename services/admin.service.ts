@@ -78,6 +78,140 @@ export async function updatePlan(id: string, input: PlanUpdateInput): Promise<vo
   if (error) throw error;
 }
 
+// ---- Revendedores ----
+/** Revendedor con saldos por plan y clientes (RPC admin_resellers). */
+export interface AdminReseller {
+  user_id: string;
+  full_name: string | null;
+  business_name: string | null;
+  email: string | null;
+  /** Saldo por plan, ej: { basica: 3, oro: 1 }. */
+  balances: Record<string, number>;
+  clients_total: number;
+  clients_active: number;
+  created_at: string;
+}
+
+export async function fetchResellers(): Promise<AdminReseller[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("admin_resellers");
+  if (error) throw error;
+  return (data ?? []) as unknown as AdminReseller[];
+}
+
+/** Promueve (o degrada) una cuenta existente a revendedor, por email. */
+export async function setResellerByEmail(email: string, value: boolean): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase.rpc("admin_set_reseller_by_email", {
+    p_email: email,
+    p_value: value,
+  });
+  if (error) throw error;
+}
+
+/** Recarga créditos de UN PLAN a un revendedor (1 crédito = 1 mes; negativo = corrección). */
+export async function grantCredits(
+  resellerId: string,
+  planId: string,
+  amount: number,
+  note: string,
+): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase.rpc("admin_grant_credits", {
+    p_reseller_id: resellerId,
+    p_plan_id: planId,
+    p_amount: amount,
+    p_note: note || "",
+  });
+  if (error) throw error;
+}
+
+// ---- Promociones de créditos (packs) ----
+/** Pack de recarga parametrizable (tabla credit_packs). Precio de referencia. */
+export interface CreditPack {
+  id: string;
+  name: string;
+  plan_id: string;
+  credits: number;
+  bonus_credits: number;
+  price: number;
+  is_active: boolean;
+}
+
+export interface CreditPackInput {
+  name: string;
+  plan_id: string;
+  credits: number;
+  bonus_credits: number;
+  price: number;
+  is_active: boolean;
+}
+
+/** Movimiento global del ledger (RPC admin_credit_movements). */
+export interface AdminCreditMovement {
+  id: string;
+  reseller_id: string;
+  reseller_name: string | null;
+  reseller_email: string | null;
+  client_name: string | null;
+  plan_id: string;
+  delta: number;
+  reason: string;
+  note: string | null;
+  created_at: string;
+}
+
+export async function fetchCreditPacks(): Promise<CreditPack[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("credit_packs")
+    .select("id, name, plan_id, credits, bonus_credits, price, is_active")
+    .order("sort_order")
+    .order("created_at");
+  if (error) throw error;
+  return (data ?? []) as CreditPack[];
+}
+
+export async function saveCreditPack(
+  id: string | null,
+  input: CreditPackInput,
+): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase.rpc("admin_save_credit_pack", {
+    p_id: id,
+    p_name: input.name,
+    p_plan_id: input.plan_id,
+    p_credits: input.credits,
+    p_bonus_credits: input.bonus_credits,
+    p_price: input.price,
+    p_is_active: input.is_active,
+  });
+  if (error) throw error;
+}
+
+export async function deleteCreditPack(id: string): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase.rpc("admin_delete_credit_pack", { p_id: id });
+  if (error) throw error;
+}
+
+/** Aplica una promoción a un revendedor (créditos + bonus en un solo grant). */
+export async function applyCreditPack(resellerId: string, packId: string): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase.rpc("admin_apply_credit_pack", {
+    p_reseller_id: resellerId,
+    p_pack_id: packId,
+  });
+  if (error) throw error;
+}
+
+export async function fetchCreditMovements(limit = 100): Promise<AdminCreditMovement[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("admin_credit_movements", { p_limit: limit });
+  if (error) throw error;
+  return (data ?? []) as unknown as AdminCreditMovement[];
+}
+
 /** Reutiliza el catálogo de planes del servicio de suscripciones. */
 export type { Plan };
 export { fetchPlans } from "@/services/subscription.service";

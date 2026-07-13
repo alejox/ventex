@@ -127,6 +127,101 @@ export type Database = {
         }
         Relationships: []
       }
+      client_licenses: {
+        Row: {
+          activated_at: string | null
+          created_at: string
+          period_end: string | null
+          period_start: string | null
+          reseller_id: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          activated_at?: string | null
+          created_at?: string
+          period_end?: string | null
+          period_start?: string | null
+          reseller_id: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          activated_at?: string | null
+          created_at?: string
+          period_end?: string | null
+          period_start?: string | null
+          reseller_id?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_licenses_reseller_id_fkey"
+            columns: ["reseller_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_licenses_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      credit_packs: {
+        Row: {
+          bonus_credits: number
+          created_at: string
+          credits: number
+          id: string
+          is_active: boolean
+          name: string
+          plan_id: string
+          price: number
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          bonus_credits?: number
+          created_at?: string
+          credits: number
+          id?: string
+          is_active?: boolean
+          name: string
+          plan_id: string
+          price?: number
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          bonus_credits?: number
+          created_at?: string
+          credits?: number
+          id?: string
+          is_active?: boolean
+          name?: string
+          plan_id?: string
+          price?: number
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credit_packs_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customers: {
         Row: {
           created_at: string | null
@@ -558,8 +653,10 @@ export type Database = {
           created_at: string
           full_name: string | null
           id: string
+          is_reseller: boolean
           is_super_admin: boolean
           modules: Json
+          reseller_id: string | null
           updated_at: string
         }
         Insert: {
@@ -568,8 +665,10 @@ export type Database = {
           created_at?: string
           full_name?: string | null
           id: string
+          is_reseller?: boolean
           is_super_admin?: boolean
           modules?: Json
+          reseller_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -578,11 +677,79 @@ export type Database = {
           created_at?: string
           full_name?: string | null
           id?: string
+          is_reseller?: boolean
           is_super_admin?: boolean
           modules?: Json
+          reseller_id?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_reseller_id_fkey"
+            columns: ["reseller_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reseller_credits: {
+        Row: {
+          client_id: string | null
+          created_at: string
+          created_by: string | null
+          delta: number
+          id: string
+          note: string | null
+          plan_id: string
+          reason: string
+          reseller_id: string
+        }
+        Insert: {
+          client_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          delta: number
+          id?: string
+          note?: string | null
+          plan_id: string
+          reason: string
+          reseller_id: string
+        }
+        Update: {
+          client_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          delta?: number
+          id?: string
+          note?: string | null
+          plan_id?: string
+          reason?: string
+          reseller_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reseller_credits_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reseller_credits_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reseller_credits_reseller_id_fkey"
+            columns: ["reseller_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       sale_items: {
         Row: {
@@ -923,7 +1090,7 @@ export type Database = {
     }
     Functions: {
       admin_companies: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           business_name: string
           created_at: string
@@ -939,11 +1106,69 @@ export type Database = {
           user_id: string
         }[]
       }
+      admin_grant_credits: {
+        Args: {
+          p_amount: number
+          p_note: string
+          p_plan_id: string
+          p_reseller_id: string
+        }
+        Returns: undefined
+      }
+      admin_resellers: {
+        Args: never
+        Returns: {
+          balances: Json
+          business_name: string
+          clients_active: number
+          clients_total: number
+          created_at: string
+          email: string
+          full_name: string
+          user_id: string
+        }[]
+      }
+      admin_apply_credit_pack: {
+        Args: { p_pack_id: string; p_reseller_id: string }
+        Returns: undefined
+      }
+      admin_credit_movements: {
+        Args: { p_limit?: number }
+        Returns: {
+          client_name: string
+          created_at: string
+          delta: number
+          id: string
+          note: string
+          plan_id: string
+          reason: string
+          reseller_email: string
+          reseller_id: string
+          reseller_name: string
+        }[]
+      }
+      admin_delete_credit_pack: { Args: { p_id: string }; Returns: undefined }
+      admin_save_credit_pack: {
+        Args: {
+          p_bonus_credits: number
+          p_credits: number
+          p_id: string | null
+          p_is_active: boolean
+          p_name: string
+          p_plan_id: string
+          p_price: number
+        }
+        Returns: string
+      }
       admin_set_plan: {
         Args: { p_plan_id: string; p_status: string; p_user_id: string }
         Returns: undefined
       }
-      admin_stats: { Args: Record<PropertyKey, never>; Returns: Json }
+      admin_set_reseller_by_email: {
+        Args: { p_email: string; p_value: boolean }
+        Returns: string
+      }
+      admin_stats: { Args: never; Returns: Json }
       admin_update_plan: {
         Args: {
           p_id: string
@@ -968,12 +1193,39 @@ export type Database = {
         }
         Returns: string
       }
+      ensure_license_current: { Args: never; Returns: Json }
       increment_stock: {
         Args: { p_product_id: string; p_quantity: number }
         Returns: undefined
       }
-      is_super_admin: { Args: Record<PropertyKey, never>; Returns: boolean }
-      my_subscription: { Args: Record<PropertyKey, never>; Returns: Json }
+      is_reseller: { Args: never; Returns: boolean }
+      is_super_admin: { Args: never; Returns: boolean }
+      my_subscription: { Args: never; Returns: Json }
+      reseller_clients: {
+        Args: never
+        Returns: {
+          activated_at: string
+          business_name: string
+          created_at: string
+          email: string
+          full_name: string
+          license_status: string
+          period_end: string
+          plan_id: string
+          plan_name: string
+          user_id: string
+        }[]
+      }
+      reseller_credit_balance: {
+        Args: { p_plan: string; p_reseller: string }
+        Returns: number
+      }
+      reseller_credit_balances: { Args: { p_reseller: string }; Returns: Json }
+      reseller_set_client_status: {
+        Args: { p_action: string; p_user_id: string }
+        Returns: undefined
+      }
+      reseller_stats: { Args: never; Returns: Json }
     }
     Enums: {
       [_ in never]: never

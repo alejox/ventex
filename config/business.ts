@@ -29,6 +29,8 @@ export interface Profile {
   modules: Modules;
   /** Super administrador de la plataforma (acceso al panel /admin). */
   isSuperAdmin: boolean;
+  /** Revendedor de la plataforma (acceso al panel /reseller). */
+  isReseller: boolean;
 }
 
 // ---- Catálogo de tipos de negocio (paso 1 del registro) ----

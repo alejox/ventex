@@ -9,6 +9,7 @@ function toProfile(
     business_type: string | null;
     modules: unknown;
     is_super_admin?: boolean | null;
+    is_reseller?: boolean | null;
   } | null,
   email: string,
 ): Profile | null {
@@ -20,6 +21,7 @@ function toProfile(
     businessType: (row.business_type as BusinessType) || null,
     modules: (row.modules as Modules) || {},
     isSuperAdmin: Boolean(row.is_super_admin),
+    isReseller: Boolean(row.is_reseller),
   };
 }
 
@@ -33,7 +35,7 @@ export async function fetchProfile(): Promise<Profile | null> {
 
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, full_name, business_type, modules, is_super_admin")
+    .select("id, full_name, business_type, modules, is_super_admin, is_reseller")
     .eq("id", user.id)
     .maybeSingle();
   if (error) throw error;
@@ -64,7 +66,7 @@ export async function updateProfile(patch: ProfileUpdate): Promise<Profile> {
     .from("profiles")
     .update(row)
     .eq("id", user.id)
-    .select("id, full_name, business_type, modules, is_super_admin")
+    .select("id, full_name, business_type, modules, is_super_admin, is_reseller")
     .single();
   if (error) throw error;
 

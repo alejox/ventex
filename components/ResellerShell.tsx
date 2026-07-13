@@ -5,17 +5,20 @@ import { usePathname } from "next/navigation";
 import { LogoHorizontal } from "@/components/Logo";
 import { signout } from "@/utils/supabase/actions";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { IconHome, IconUsers, IconCreditCard, IconLogOut, IconUserBadge, IconDollar } from "@/app/assets/icons/DashboardIcons";
+import { IconHome, IconUsers, IconLogOut } from "@/app/assets/icons/DashboardIcons";
 
-const ADMIN_NAV = [
-  { id: "overview", name: "Resumen", href: "/admin", icon: IconHome },
-  { id: "companies", name: "Empresas", href: "/admin/companies", icon: IconUsers },
-  { id: "resellers", name: "Revendedores", href: "/admin/resellers", icon: IconUserBadge },
-  { id: "credits", name: "Créditos", href: "/admin/credits", icon: IconDollar },
-  { id: "plans", name: "Planes", href: "/admin/plans", icon: IconCreditCard },
+const RESELLER_NAV = [
+  { id: "overview", name: "Resumen", href: "/reseller", icon: IconHome },
+  { id: "clients", name: "Mis clientes", href: "/reseller/clients", icon: IconUsers },
 ];
 
-export function AdminShell({ children, adminName }: { children: React.ReactNode; adminName: string }) {
+export function ResellerShell({
+  children,
+  resellerName,
+}: {
+  children: React.ReactNode;
+  resellerName: string;
+}) {
   const pathname = usePathname();
 
   return (
@@ -27,14 +30,14 @@ export function AdminShell({ children, adminName }: { children: React.ReactNode;
           </div>
           <div className="px-4 pt-6">
             <span className="text-[11px] font-bold text-primary uppercase tracking-[0.2em] px-4">
-              Super Admin
+              Revendedor
             </span>
           </div>
           <nav className="p-4 space-y-1">
-            {ADMIN_NAV.map((item) => {
+            {RESELLER_NAV.map((item) => {
               const Icon = item.icon;
               const isActive =
-                item.href === "/admin" ? pathname === "/admin" : pathname.startsWith(item.href);
+                item.href === "/reseller" ? pathname === "/reseller" : pathname.startsWith(item.href);
               return (
                 <Link
                   key={item.id}
@@ -78,17 +81,17 @@ export function AdminShell({ children, adminName }: { children: React.ReactNode;
             <span className="lg:hidden">
               <LogoHorizontal className="w-[90px] h-[24px]" />
             </span>
-            <h1 className="hidden lg:block text-lg font-bold text-on-surface">Panel de administración</h1>
+            <h1 className="hidden lg:block text-lg font-bold text-on-surface">Panel de revendedor</h1>
           </div>
           <div className="flex items-center gap-4">
             <ThemeToggle />
-            <span className="text-sm font-medium text-on-surface hidden sm:block">{adminName}</span>
+            <span className="text-sm font-medium text-on-surface hidden sm:block">{resellerName}</span>
           </div>
         </header>
 
         {/* Nav móvil */}
         <div className="lg:hidden flex gap-2 px-4 py-3 border-b border-outline-variant/10 bg-surface-container-lowest overflow-x-auto">
-          {ADMIN_NAV.map((item) => (
+          {RESELLER_NAV.map((item) => (
             <Link
               key={item.id}
               href={item.href}

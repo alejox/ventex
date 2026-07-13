@@ -71,6 +71,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
   const navigation = visibleNavItems(profile?.businessType ?? null, profile?.modules ?? null);
   const isSuperAdmin = profile?.isSuperAdmin ?? false;
+  const isReseller = profile?.isReseller ?? false;
   const userName = profile?.fullName ?? "Admin";
   const userEmail = profile?.email ?? "";
 
@@ -137,6 +138,18 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             >
               <IconShield className="w-5 h-5 shrink-0" />
               {!sidebarCollapsed && <span className="whitespace-nowrap">Panel Admin</span>}
+            </Link>
+          )}
+          {isReseller && (
+            <Link
+              href="/reseller"
+              className={`flex items-center gap-3 py-3 rounded-xl transition-all text-sm font-medium text-primary hover:bg-primary/10 overflow-hidden ${
+                sidebarCollapsed ? "justify-center px-0" : "px-4"
+              }`}
+              title={sidebarCollapsed ? "Panel Revendedor" : undefined}
+            >
+              <IconUserBadge className="w-5 h-5 shrink-0" />
+              {!sidebarCollapsed && <span className="whitespace-nowrap">Panel Revendedor</span>}
             </Link>
           )}
           <Link
@@ -319,6 +332,16 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                 >
                   <IconShield className="w-5 h-5" />
                   Panel Admin
+                </Link>
+              )}
+              {isReseller && (
+                <Link
+                  href="/reseller"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-sm font-medium text-primary hover:bg-primary/10"
+                >
+                  <IconUserBadge className="w-5 h-5" />
+                  Panel Revendedor
                 </Link>
               )}
               <Link
