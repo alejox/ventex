@@ -281,7 +281,9 @@ export default function POSPage() {
 
   return (
     <>
-      <div className="flex flex-col lg:flex-row h-[calc(100vh-5rem)] -m-6 lg:-m-10 bg-background relative overflow-hidden print:hidden">
+      {/* Alto fijo (con columnas que scrollean por dentro) solo en escritorio: en
+          móvil las columnas se apilan, así que la página crece y scrollea normal. */}
+      <div className="flex flex-col lg:flex-row lg:h-[calc(100vh-5rem)] -m-6 lg:-m-10 bg-background relative lg:overflow-hidden print:hidden">
       
       {/* Columna Izquierda: Catálogo + Tabs */}
       <div className="flex-1 flex flex-col min-w-0 px-6 lg:pl-10 lg:pr-6 border-r border-outline-variant/10">
@@ -376,7 +378,7 @@ export default function POSPage() {
         </div>
 
         {/* Grid de productos */}
-        <div className="flex-1 overflow-y-auto pb-6 pr-2">
+        <div className="flex-1 lg:overflow-y-auto pb-6 pr-2">
           {error && (
             <div className="mb-4 rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim">
               {error}
@@ -554,7 +556,7 @@ export default function POSPage() {
       </div>
 
       {/* Orden actual / Factura de Venta */}
-      <div className="w-full lg:w-[420px] bg-surface-container-lowest flex flex-col h-full shrink-0 border-l border-outline-variant/10">
+      <div className="w-full lg:w-[420px] bg-surface-container-lowest flex flex-col lg:h-full shrink-0 border-l border-outline-variant/10">
         
         {/* Top bar de Factura */}
         <div className="p-5 border-b border-outline-variant/10 space-y-4 pt-6">
@@ -645,7 +647,7 @@ export default function POSPage() {
         </div>
 
         {/* Líneas */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+        <div className="flex-1 lg:overflow-y-auto p-5 space-y-4">
           {cart.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center px-4">
               <div className="w-12 h-12 rounded bg-surface-container flex items-center justify-center text-on-surface-variant/50 mb-3">

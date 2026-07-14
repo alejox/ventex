@@ -1,20 +1,20 @@
 import Link from "next/link";
-import type { Plan } from "@/services/subscription.service";
-import {
-  annualFreeMonths,
-  annualPrice,
-  formatMoney,
-  formatSalesLimit,
-  hasAnnual,
-} from "@/config/plans";
+import type { Plan, PlanPeriod } from "@/services/subscription.service";
+import { formatMoney, formatSalesLimit } from "@/config/plans";
 import { whatsappUrl } from "@/config/contact";
 
 /**
- * Precios de la landing. Server Component: los planes vienen de la tabla
- * `plans`, así que lo que el super admin publica en /admin/plans es lo que ve
- * el visitante, sin tocar código.
+ * Precios de la landing. Server Component: planes y tiempos vienen de la base,
+ * así que lo que el super admin publica en /admin/plans es lo que ve el
+ * visitante, sin tocar código.
  */
-export function PricingSection({ plans }: { plans: Plan[] }) {
+export function PricingSection({
+  plans,
+  periods,
+}: {
+  plans: Plan[];
+  periods: PlanPeriod[];
+}) {
   if (plans.length === 0) return null;
 
   return (
@@ -25,29 +25,32 @@ export function PricingSection({ plans }: { plans: Plan[] }) {
           Un plan para cada etapa
         </h2>
         <p className="mt-4 text-on-surface-variant">
-          Empieza gratis y crece cuando lo necesites. Paga el año y llévate meses
-          de regalo.
+          Empieza gratis y crece cuando lo necesites. Paga por más tiempo y ahorra.
         </p>
       </div>
 
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {plans.map((plan) => (
-          <PlanCard key={plan.id} plan={plan} />
+          <PlanCard
+            key={plan.id}
+            plan={plan}
+            periods={periods.filter((p) => p.plan_id === plan.id)}
+          />
         ))}
       </div>
     </section>
   );
 }
 
-function PlanCard({ plan }: { plan: Plan }) {
+function PlanCard({ plan, periods }: { plan: Plan; periods: PlanPeriod[] }) {
   const free = plan.price <= 0;
-  const annual = hasAnnual(plan);
-  const freeMonths = annualFreeMonths(plan);
+  /** Tiempos más largos que el mes: son la oferta de ahorro del plan. */
+  const longer = periods.filter((p) => p.months > 1);
 
   return (
     <div
       className={`relative flex flex-col rounded-3xl border p-8 ${
-        annual
+        longer.length > 0
           ? "border-primary/40 bg-surface-container shadow-lg shadow-primary/5"
           : "border-outline-variant/10 bg-surface-container-low"
       }`}
@@ -61,17 +64,14 @@ function PlanCard({ plan }: { plan: Plan }) {
         {!free && <span className="text-sm text-on-surface-variant"> /mes</span>}
       </div>
 
-      {annual ? (
-        <div className="mt-3 rounded-xl bg-primary/10 border border-primary/20 px-3 py-2">
-          <p className="text-sm font-semibold text-primary">
-            {formatMoney(annualPrice(plan))} al año
-          </p>
-          <p className="text-xs text-on-surface-variant mt-0.5">
-            Pagas {plan.annual_charged_months} meses ·{" "}
-            <strong className="text-on-surface">
-              {freeMonths} {freeMonths === 1 ? "mes" : "meses"} de regalo
-            </strong>
-          </p>
+      {longer.length > 0 ? (
+        <div className="mt-3 rounded-xl bg-primary/10 border border-primary/20 px-3 py-2 space-y-1">
+          {longer.map((p) => (
+            <p key={p.id} className="text-sm text-on-surface-variant">
+              <strong className="text-primary font-semibold">{p.name}</strong>:{" "}
+              {formatMoney(p.price)} por {p.months} meses
+            </p>
+          ))}
         </div>
       ) : (
         <p className="mt-3 text-sm text-on-surface-variant">

@@ -27,6 +27,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { ShellUserMenu } from "@/components/ShellUserMenu";
 import { useProfile } from "@/components/ProfileProvider";
 import { visibleNavItems } from "@/config/business";
+import { backdropProps } from "@/components/modal";
 
 type IconType = typeof IconHome;
 
@@ -236,7 +237,8 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             className="fixed inset-0 bg-black/60 backdrop-blur-sm"
             onClick={() => setMobileMenuOpen(false)}
           ></div>
-          <aside className="relative w-64 bg-surface-container-lowest flex flex-col justify-between h-full shadow-2xl">
+          {/* overflow-y-auto: con muchos módulos el menú no cabía y no se podía desplazar. */}
+          <aside className="relative w-64 bg-surface-container-lowest flex flex-col justify-between h-full overflow-y-auto overscroll-contain shadow-2xl">
             <div>
               <div className="h-20 flex items-center px-8 border-b border-outline-variant/10">
                 <LogoHorizontal className="w-[100px] h-[28px]" />
@@ -423,7 +425,7 @@ function CalculatorModal({ onClose }: { onClose: () => void }) {
   );
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose}>
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" {...backdropProps(onClose)}>
       <div
         className="bg-surface-container rounded-3xl w-full max-w-xs border border-outline-variant/10 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}

@@ -1,10 +1,12 @@
 import { create } from "zustand";
 import * as subscriptionService from "@/services/subscription.service";
-import type { MySubscription, Plan } from "@/services/subscription.service";
+import type { MySubscription, Plan, PlanPeriod } from "@/services/subscription.service";
 
 interface SubscriptionState {
   subscription: MySubscription | null;
   plans: Plan[];
+  /** Tiempos vendibles de cada plan (mensual, trimestral, …). */
+  periods: PlanPeriod[];
   loading: boolean;
   error: string | null;
 
@@ -19,17 +21,19 @@ const toMessage = (e: unknown) =>
 export const useSubscriptionStore = create<SubscriptionState>((set) => ({
   subscription: null,
   plans: [],
+  periods: [],
   loading: false,
   error: null,
 
   fetchAll: async () => {
     set({ loading: true, error: null });
     try {
-      const [subscription, plans] = await Promise.all([
+      const [subscription, plans, periods] = await Promise.all([
         subscriptionService.fetchMySubscription(),
         subscriptionService.fetchPlans(),
+        subscriptionService.fetchPlanPeriods(),
       ]);
-      set({ subscription, plans, loading: false });
+      set({ subscription, plans, periods, loading: false });
     } catch (e) {
       set({ error: toMessage(e), loading: false });
     }

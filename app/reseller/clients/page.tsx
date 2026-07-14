@@ -2,14 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useResellerStore } from "@/stores/reseller.store";
-import type { RechargePeriod, ResellerClient } from "@/services/reseller.service";
-import {
-  LICENSE_STATUS_LABELS,
-  annualFreeMonths,
-  hasAnnual,
-  licenseAccent,
-} from "@/config/plans";
+import type { ResellerClient } from "@/services/reseller.service";
+import { LICENSE_STATUS_LABELS, licenseAccent } from "@/config/plans";
 import { BUSINESS_OPTIONS } from "@/config/business";
+import { backdropProps } from "@/components/modal";
 
 export default function ResellerClientsPage() {
   const clients = useResellerStore((s) => s.clients);
@@ -258,7 +254,7 @@ function CreateClientModal({ onClose }: { onClose: () => void }) {
   return (
     <div
       className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
-      onClick={onClose}
+      {...backdropProps(onClose)}
     >
       <div
         className="bg-surface-container rounded-3xl w-full max-w-md border border-outline-variant/10 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto"
@@ -389,10 +385,11 @@ function ManageClientModal({
   const submitting = useResellerStore((s) => s.submitting);
   const error = useResellerStore((s) => s.error);
   const plans = useResellerStore((s) => s.plans);
+  const periods = useResellerStore((s) => s.periods);
   const stats = useResellerStore((s) => s.stats);
 
   const [recharged, setRecharged] = useState<string | null>(null);
-  const [period, setPeriod] = useState<RechargePeriod>("monthly");
+  const [periodId, setPeriodId] = useState("");
 
   const suspended = client.license_status === "suspended";
   const plan = plans.find((p) => p.id === client.plan_id);
@@ -400,25 +397,14 @@ function ManageClientModal({
   const chargeable = Boolean(plan && plan.price > 0);
   const balance = stats?.balances?.[client.plan_id] ?? 0;
 
-  /** Modalidades que el plan ofrece, con su costo en créditos. */
-  const options = useMemo(() => {
-    if (!plan) return [];
-    const list: { period: RechargePeriod; label: string; detail: string; cost: number }[] = [
-      { period: "monthly", label: "Mensual", detail: "+1 mes", cost: 1 },
-    ];
-    if (hasAnnual(plan)) {
-      list.push({
-        period: "annual",
-        label: "Anual",
-        detail: `+12 meses · ${annualFreeMonths(plan)} de regalo`,
-        cost: plan.annual_charged_months,
-      });
-    }
-    return list;
-  }, [plan]);
+  /** Tiempos que el super admin habilitó para el plan de este cliente. */
+  const options = useMemo(
+    () => periods.filter((p) => p.plan_id === client.plan_id && p.is_active),
+    [periods, client.plan_id],
+  );
 
-  const selected = options.find((o) => o.period === period) ?? options[0];
-  const affordable = Boolean(selected && balance >= selected.cost);
+  const selected = options.find((o) => o.id === periodId) ?? options[0];
+  const affordable = Boolean(selected && balance >= selected.credits);
 
   const handleToggle = async () => {
     const ok = await setClientStatus(client.user_id, suspended ? "reactivate" : "suspend");
@@ -427,14 +413,14 @@ function ManageClientModal({
 
   const handleRecharge = async () => {
     if (!selected || !affordable) return;
-    const periodEnd = await rechargeClient(client.user_id, selected.period);
+    const periodEnd = await rechargeClient(client.user_id, selected.id);
     if (periodEnd) setRecharged(periodEnd);
   };
 
   return (
     <div
       className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
-      onClick={onClose}
+      {...backdropProps(onClose)}
     >
       <div
         className="bg-surface-container rounded-3xl w-full max-w-md border border-outline-variant/10 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto"
@@ -480,64 +466,74 @@ function ManageClientModal({
               </div>
 
               <label className="block text-xs font-semibold text-on-surface-variant mb-2">
-                Modalidad
+                Tiempo
               </label>
-              <div className="flex flex-col sm:flex-row gap-2">
-                <select
-                  value={period}
-                  onChange={(e) => setPeriod(e.target.value as RechargePeriod)}
-                  className="flex-1 px-4 py-3 bg-surface-container-low border border-outline-variant/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 text-on-surface transition-shadow appearance-none"
-                >
-                  {options.map((o) => (
-                    <option key={o.period} value={o.period} disabled={balance < o.cost}>
-                      {o.label} — {o.detail} · {o.cost} crédito{o.cost === 1 ? "" : "s"}
-                      {balance < o.cost ? " (saldo insuficiente)" : ""}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  onClick={handleRecharge}
-                  disabled={submitting || !affordable}
-                  className="py-3 px-5 rounded-xl bg-[#6063ee] text-white hover:bg-[#c0c1ff] hover:text-[#0b0664] text-sm font-bold shadow-lg shadow-[#6063ee]/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-                >
-                  {submitting
-                    ? "Recargando…"
-                    : `Recargar (${selected?.cost ?? 0} crédito${selected?.cost === 1 ? "" : "s"})`}
-                </button>
-              </div>
 
-              {/* Costo explícito: cuántos créditos se van y con cuántos quedas. */}
-              {selected && (
-                <div
-                  className={`mt-3 rounded-xl px-4 py-3 text-xs border ${
-                    affordable
-                      ? "bg-surface-container-low border-outline-variant/20 text-on-surface-variant"
-                      : "bg-error-container/20 border-error-container/30 text-error-dim"
-                  }`}
-                >
-                  {affordable ? (
-                    <>
-                      Consume{" "}
-                      <strong className="text-on-surface">
-                        {selected.cost} crédito{selected.cost === 1 ? "" : "s"}
-                      </strong>{" "}
-                      del plan {plan?.name} y suma{" "}
-                      <strong className="text-on-surface">
-                        {selected.period === "annual" ? 12 : 1}{" "}
-                        {selected.period === "annual" ? "meses" : "mes"}
-                      </strong>
-                      . Saldo: <strong className="text-on-surface">{balance}</strong> →{" "}
-                      <strong className="text-on-surface">{balance - selected.cost}</strong>
-                    </>
-                  ) : (
-                    <>
-                      Esta modalidad cuesta {selected.cost} crédito
-                      {selected.cost === 1 ? "" : "s"} y solo tienes {balance} del plan{" "}
-                      {plan?.name}. Solicita una recarga al administrador.
-                    </>
+              {options.length === 0 ? (
+                <p className="text-xs text-amber-600 dark:text-amber-400 py-2">
+                  El plan {plan?.name} no tiene tiempos disponibles. Pídele al
+                  administrador que le configure al menos uno.
+                </p>
+              ) : (
+                <>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <select
+                      value={selected?.id ?? ""}
+                      onChange={(e) => setPeriodId(e.target.value)}
+                      className="flex-1 px-4 py-3 bg-surface-container-low border border-outline-variant/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 text-on-surface transition-shadow appearance-none"
+                    >
+                      {options.map((o) => (
+                        <option key={o.id} value={o.id} disabled={balance < o.credits}>
+                          {o.name} — {o.months} {o.months === 1 ? "mes" : "meses"} ·{" "}
+                          {o.credits} crédito{o.credits === 1 ? "" : "s"}
+                          {balance < o.credits ? " (saldo insuficiente)" : ""}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={handleRecharge}
+                      disabled={submitting || !affordable}
+                      className="py-3 px-5 rounded-xl bg-[#6063ee] text-white hover:bg-[#c0c1ff] hover:text-[#0b0664] text-sm font-bold shadow-lg shadow-[#6063ee]/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                    >
+                      {submitting
+                        ? "Recargando…"
+                        : `Recargar (${selected?.credits ?? 0} crédito${selected?.credits === 1 ? "" : "s"})`}
+                    </button>
+                  </div>
+
+                  {/* Costo explícito: cuántos créditos se van y con cuántos quedas. */}
+                  {selected && (
+                    <div
+                      className={`mt-3 rounded-xl px-4 py-3 text-xs border ${
+                        affordable
+                          ? "bg-surface-container-low border-outline-variant/20 text-on-surface-variant"
+                          : "bg-error-container/20 border-error-container/30 text-error-dim"
+                      }`}
+                    >
+                      {affordable ? (
+                        <>
+                          Consume{" "}
+                          <strong className="text-on-surface">
+                            {selected.credits} crédito{selected.credits === 1 ? "" : "s"}
+                          </strong>{" "}
+                          del plan {plan?.name} y suma{" "}
+                          <strong className="text-on-surface">
+                            {selected.months} {selected.months === 1 ? "mes" : "meses"}
+                          </strong>
+                          . Saldo: <strong className="text-on-surface">{balance}</strong> →{" "}
+                          <strong className="text-on-surface">{balance - selected.credits}</strong>
+                        </>
+                      ) : (
+                        <>
+                          Este tiempo cuesta {selected.credits} crédito
+                          {selected.credits === 1 ? "" : "s"} y solo tienes {balance} del plan{" "}
+                          {plan?.name}. Solicita una recarga al administrador.
+                        </>
+                      )}
+                    </div>
                   )}
-                </div>
+                </>
               )}
 
               <p className="text-xs text-on-surface-variant mt-3">

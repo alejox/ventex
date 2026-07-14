@@ -7,19 +7,14 @@ import {
   formatMoney,
   planAccent,
   licenseAccent,
-  hasAnnual,
-  annualPrice,
-  annualFreeMonths,
   LICENSE_STATUS_LABELS,
   SUBSCRIPTION_STATUS_LABELS,
 } from "@/config/plans";
 import { GrantCreditsModal } from "@/components/GrantCreditsModal";
-import type { Plan } from "@/services/subscription.service";
-
+import { backdropProps } from "@/components/modal";
 const STATUSES = ["active", "past_due", "cancelled"] as const;
 
 const MS_PER_DAY = 86_400_000;
-const MONTHS_PER_YEAR = 12;
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("es-CO", {
@@ -47,15 +42,6 @@ function projectedEnd(periodEnd: string | null, months: number): Date {
   return end;
 }
 
-/**
- * Valor del periodo que se activa. El año completo se cobra al precio anual del
- * plan (con sus meses de regalo); cualquier otra duración va a precio de mes.
- */
-function periodValue(plan: Plan, months: number): number {
-  return months === MONTHS_PER_YEAR && hasAnnual(plan)
-    ? annualPrice(plan)
-    : plan.price * months;
-}
 
 /** Vencimiento del plan: fecha + días restantes, en rojo si venció o está por vencer. */
 function ExpiryCell({ periodEnd }: { periodEnd: string | null }) {
@@ -93,24 +79,6 @@ function ExpiryCell({ periodEnd }: { periodEnd: string | null }) {
       </span>
     </>
   );
-}
-
-/**
- * Modalidades que ofrece el plan, tal como están configuradas en /admin/plans:
- * mensual siempre, anual solo si el plan la vende (annual_charged_months > 0).
- * "Personalizado" queda aparte para casos sueltos (cortesías, ajustes).
- */
-function rechargeOptions(plan: Plan | undefined) {
-  if (!plan || plan.price <= 0) return [];
-  const list = [{ value: "1", label: `Mensual — +1 mes (${formatMoney(plan.price)})` }];
-  if (hasAnnual(plan)) {
-    const free = annualFreeMonths(plan);
-    list.push({
-      value: String(MONTHS_PER_YEAR),
-      label: `Anual — +12 meses (${formatMoney(annualPrice(plan))}${free > 0 ? `, ${free} de regalo` : ""})`,
-    });
-  }
-  return list;
 }
 
 export default function AdminCompaniesPage() {
@@ -422,12 +390,13 @@ function ManagePlanModal({
 }) {
   const setCompanyPlan = useAdminStore((s) => s.setCompanyPlan);
   const rechargeCompany = useAdminStore((s) => s.rechargeCompany);
+  const periods = useAdminStore((s) => s.periods);
   const submitting = useAdminStore((s) => s.submitting);
   const error = useAdminStore((s) => s.error);
 
   const [planId, setPlanId] = useState(company.plan_id);
   const [status, setStatus] = useState(company.status);
-  /** Meses a recargar: "none" (no tocar el vencimiento), un número, o "custom". */
+  /** "none" (no tocar el vencimiento), el id de un tiempo del plan, o "custom". */
   const [option, setOption] = useState<string>("none");
   const [customMonths, setCustomMonths] = useState("1");
 
@@ -436,19 +405,22 @@ function ManagePlanModal({
   // vencimiento en el mismo paso, o quedaría activo para siempre.
   const selectedPlan = plans.find((p) => p.id === planId);
   const chargeable = Boolean(selectedPlan && selectedPlan.price > 0);
-  const options = rechargeOptions(selectedPlan);
+  /** Los tiempos que el plan vende, tal como se configuran en /admin/plans. */
+  const options = periods.filter((p) => p.plan_id === planId && p.is_active);
+  const selectedPeriod = options.find((p) => p.id === option) ?? null;
 
   const custom = option === "custom";
   const months = custom
     ? Math.min(60, Math.max(1, parseInt(customMonths, 10) || 1))
-    : parseInt(option, 10);
+    : (selectedPeriod?.months ?? 0);
 
-  /** Al elegir un plan de pago distinto, proponemos +1 mes en vez de "sin recarga". */
+  /** Al pasar a un plan de pago distinto, proponemos su primer tiempo. */
   const handlePlanChange = (id: string) => {
     setPlanId(id);
     const plan = plans.find((p) => p.id === id);
     const paid = Boolean(plan && plan.price > 0);
-    setOption(paid && id !== company.plan_id ? "1" : "none");
+    const first = periods.find((p) => p.plan_id === id && p.is_active);
+    setOption(paid && id !== company.plan_id && first ? first.id : "none");
   };
 
   const handleSave = async () => {
@@ -466,7 +438,7 @@ function ManagePlanModal({
   return (
     <div
       className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
-      onClick={onClose}
+      {...backdropProps(onClose)}
     >
       <div
         className="bg-surface-container rounded-3xl w-full max-w-md border border-outline-variant/10 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
@@ -543,8 +515,9 @@ function ManagePlanModal({
                 >
                   <option value="none">Sin recarga (no cambiar el vencimiento)</option>
                   {options.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
+                    <option key={o.id} value={o.id}>
+                      {o.name} — +{o.months} {o.months === 1 ? "mes" : "meses"} (
+                      {formatMoney(o.price)})
                     </option>
                   ))}
                   <option value="custom">Personalizado…</option>
@@ -586,14 +559,12 @@ function ManagePlanModal({
                   <p>
                     Valor del periodo:{" "}
                     <strong className="text-on-surface">
-                      {formatMoney(periodValue(selectedPlan, months))}
+                      {formatMoney(
+                        // Un tiempo lleva su precio; un ajuste "personalizado" se
+                        // valora al precio de mes del plan.
+                        selectedPeriod ? selectedPeriod.price : selectedPlan.price * months,
+                      )}
                     </strong>
-                    {months === MONTHS_PER_YEAR && hasAnnual(selectedPlan) && annualFreeMonths(selectedPlan) > 0 && (
-                      <span className="text-primary font-semibold">
-                        {" "}
-                        · {annualFreeMonths(selectedPlan)} meses de regalo
-                      </span>
-                    )}
                   </p>
                 </div>
               )}

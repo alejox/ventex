@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { usePosStore } from "@/stores/pos.store";
 import { notifySuccess } from "@/lib/notifications";
+import { backdropProps } from "@/components/modal";
 
 interface CustomerModalProps {
   onClose: () => void;
@@ -40,7 +41,7 @@ export function CustomerModal({ onClose }: CustomerModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose}>
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200" {...backdropProps(onClose)}>
       <div
         className="bg-surface-container-lowest rounded-[24px] w-full max-w-md border border-outline-variant/10 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col"
         onClick={(e) => e.stopPropagation()}

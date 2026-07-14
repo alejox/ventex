@@ -516,6 +516,53 @@ export type Database = {
           },
         ]
       }
+      plan_periods: {
+        Row: {
+          created_at: string
+          credits: number
+          id: string
+          is_active: boolean
+          months: number
+          name: string
+          plan_id: string
+          price: number
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          credits: number
+          id?: string
+          is_active?: boolean
+          months: number
+          name: string
+          plan_id: string
+          price?: number
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          credits?: number
+          id?: string
+          is_active?: boolean
+          months?: number
+          name?: string
+          plan_id?: string
+          price?: number
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plan_periods_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       plans: {
         Row: {
           annual_charged_months: number
@@ -1160,6 +1207,20 @@ export type Database = {
         }[]
       }
       admin_delete_credit_pack: { Args: { p_id: string }; Returns: undefined }
+      admin_delete_plan_period: { Args: { p_id: string }; Returns: undefined }
+      admin_save_plan_period: {
+        Args: {
+          p_credits: number
+          p_id: string | null
+          p_is_active: boolean
+          p_months: number
+          p_name: string
+          p_plan_id: string
+          p_price: number
+          p_sort_order: number
+        }
+        Returns: string
+      }
       admin_save_credit_pack: {
         Args: {
           p_bonus_credits: number
@@ -1253,7 +1314,7 @@ export type Database = {
       }
       reseller_credit_balances: { Args: { p_reseller: string }; Returns: Json }
       reseller_recharge_client: {
-        Args: { p_period: string; p_user_id: string }
+        Args: { p_period_id: string; p_user_id: string }
         Returns: Json
       }
       reseller_set_client_status: {

@@ -1,5 +1,4 @@
 import { createClient } from "@/utils/supabase/client";
-import type { Plan } from "@/services/subscription.service";
 
 // ---- Tipos del dominio del panel super admin ----
 /** Empresa (tenant) con su plan, uso y ventas (RPC admin_companies). */
@@ -262,6 +261,46 @@ export async function fetchCreditMovements(limit = 100): Promise<AdminCreditMove
   return (data ?? []) as unknown as AdminCreditMovement[];
 }
 
+// ---- Tiempos de plan (duraciones vendibles) ----
+export interface PlanPeriodInput {
+  plan_id: string;
+  name: string;
+  /** Meses que ENTREGA (pueden incluir los de regalo). */
+  months: number;
+  /** Precio total del periodo (libre, no se deriva del mensual). */
+  price: number;
+  /** Créditos que le cuesta al revendedor recargar este tiempo. */
+  credits: number;
+  is_active: boolean;
+  sort_order: number;
+}
+
+/** Crea (id = null) o actualiza un tiempo de plan. */
+export async function savePlanPeriod(
+  id: string | null,
+  input: PlanPeriodInput,
+): Promise<string> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("admin_save_plan_period", {
+    p_id: id,
+    p_plan_id: input.plan_id,
+    p_name: input.name,
+    p_months: input.months,
+    p_price: input.price,
+    p_credits: input.credits,
+    p_is_active: input.is_active,
+    p_sort_order: input.sort_order,
+  });
+  if (error) throw error;
+  return data as unknown as string;
+}
+
+export async function deletePlanPeriod(id: string): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase.rpc("admin_delete_plan_period", { p_id: id });
+  if (error) throw error;
+}
+
 /** Reutiliza el catálogo de planes del servicio de suscripciones. */
-export type { Plan };
-export { fetchPlans } from "@/services/subscription.service";
+export type { Plan, PlanPeriod } from "@/services/subscription.service";
+export { fetchPlans, fetchPlanPeriods } from "@/services/subscription.service";

@@ -3,17 +3,18 @@ import * as resellerService from "@/services/reseller.service";
 import type {
   CreditMovement,
   NewClientInput,
-  RechargePeriod,
   ResellerClient,
   ResellerStats,
 } from "@/services/reseller.service";
-import type { Plan } from "@/services/subscription.service";
+import type { Plan, PlanPeriod } from "@/services/subscription.service";
 
 interface ResellerState {
   clients: ResellerClient[];
   stats: ResellerStats | null;
   history: CreditMovement[];
   plans: Plan[];
+  /** Tiempos vendibles de cada plan (mensual, trimestral, …). */
+  periods: PlanPeriod[];
   loading: boolean;
   submitting: boolean;
   error: string | null;
@@ -21,8 +22,8 @@ interface ResellerState {
   fetchOverview: () => Promise<void>;
   fetchClients: () => Promise<void>;
   createClient: (input: NewClientInput) => Promise<boolean>;
-  /** Recarga la licencia de un cliente; devuelve el nuevo vencimiento o null si falla. */
-  rechargeClient: (userId: string, period: RechargePeriod) => Promise<string | null>;
+  /** Recarga la licencia con un tiempo del plan; devuelve el nuevo vencimiento o null. */
+  rechargeClient: (userId: string, periodId: string) => Promise<string | null>;
   setClientStatus: (userId: string, action: "suspend" | "reactivate") => Promise<boolean>;
 }
 
@@ -34,6 +35,7 @@ export const useResellerStore = create<ResellerState>((set) => ({
   stats: null,
   history: [],
   plans: [],
+  periods: [],
   loading: false,
   submitting: false,
   error: null,
@@ -41,13 +43,14 @@ export const useResellerStore = create<ResellerState>((set) => ({
   fetchOverview: async () => {
     set({ loading: true, error: null });
     try {
-      const [stats, clients, history, plans] = await Promise.all([
+      const [stats, clients, history, plans, periods] = await Promise.all([
         resellerService.fetchStats(),
         resellerService.fetchClients(),
         resellerService.fetchCreditHistory(),
         resellerService.fetchPlans(),
+        resellerService.fetchPlanPeriods(),
       ]);
-      set({ stats, clients, history, plans, loading: false });
+      set({ stats, clients, history, plans, periods, loading: false });
     } catch (e) {
       set({ error: toMessage(e), loading: false });
     }
@@ -56,11 +59,12 @@ export const useResellerStore = create<ResellerState>((set) => ({
   fetchClients: async () => {
     set({ loading: true, error: null });
     try {
-      const [clients, plans] = await Promise.all([
+      const [clients, plans, periods] = await Promise.all([
         resellerService.fetchClients(),
         resellerService.fetchPlans(),
+        resellerService.fetchPlanPeriods(),
       ]);
-      set({ clients, plans, loading: false });
+      set({ clients, plans, periods, loading: false });
     } catch (e) {
       set({ error: toMessage(e), loading: false });
     }
@@ -83,10 +87,10 @@ export const useResellerStore = create<ResellerState>((set) => ({
     }
   },
 
-  rechargeClient: async (userId, period) => {
+  rechargeClient: async (userId, periodId) => {
     set({ submitting: true, error: null });
     try {
-      const result = await resellerService.rechargeClient(userId, period);
+      const result = await resellerService.rechargeClient(userId, periodId);
       // La recarga consume créditos y mueve el vencimiento: refresca todo.
       const [clients, stats, history] = await Promise.all([
         resellerService.fetchClients(),

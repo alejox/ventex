@@ -60,30 +60,6 @@ export function licenseAccent(status: string) {
   return LICENSE_STATUS_ACCENTS[status] ?? LICENSE_STATUS_ACCENTS.pending;
 }
 
-// ---- Modalidad anual ----
-/**
- * Los 12 meses de un año se entregan siempre; `annual_charged_months` dice
- * cuántos se cobran. El precio anual se DERIVA del mensual (nunca se almacena),
- * de modo que cambiar el precio del mes ajusta el año automáticamente.
- */
-export const MONTHS_PER_YEAR = 12;
-
-interface AnnualPlan {
-  price: number;
-  annual_charged_months: number;
-}
-
-/** ¿El plan ofrece modalidad anual? (gratis o sin meses cobrados = no). */
-export function hasAnnual(plan: AnnualPlan): boolean {
-  return plan.price > 0 && plan.annual_charged_months > 0;
-}
-
-/** Precio del año completo: mensual x meses cobrados (29.000 x 10 = 290.000). */
-export function annualPrice(plan: AnnualPlan): number {
-  return plan.price * plan.annual_charged_months;
-}
-
-/** Meses de regalo: los 12 entregados menos los cobrados. */
-export function annualFreeMonths(plan: AnnualPlan): number {
-  return Math.max(0, MONTHS_PER_YEAR - plan.annual_charged_months);
-}
+// Las duraciones (mensual, trimestral, semestral, anual…) ya no se derivan de
+// `annual_charged_months`: cada plan define sus tiempos en la tabla
+// `plan_periods`, con precio y créditos propios (ver /admin/plans).

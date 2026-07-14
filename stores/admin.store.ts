@@ -8,8 +8,9 @@ import type {
   CreditPack,
   CreditPackInput,
   PlanSaveInput,
+  PlanPeriodInput,
 } from "@/services/admin.service";
-import type { Plan } from "@/services/subscription.service";
+import type { Plan, PlanPeriod } from "@/services/subscription.service";
 
 interface AdminState {
   companies: AdminCompany[];
@@ -18,6 +19,8 @@ interface AdminState {
   movements: AdminCreditMovement[];
   stats: AdminStats | null;
   plans: Plan[];
+  /** Tiempos vendibles de cada plan (mensual, trimestral, …). */
+  periods: PlanPeriod[];
   loading: boolean;
   submitting: boolean;
   error: string | null;
@@ -30,6 +33,8 @@ interface AdminState {
   /** Recarga meses a una empresa; devuelve el nuevo vencimiento o null si falla. */
   rechargeCompany: (userId: string, months: number) => Promise<string | null>;
   savePlan: (id: string | null, input: PlanSaveInput) => Promise<boolean>;
+  savePlanPeriod: (id: string | null, input: PlanPeriodInput) => Promise<boolean>;
+  deletePlanPeriod: (id: string) => Promise<boolean>;
   promoteReseller: (email: string) => Promise<boolean>;
   demoteReseller: (email: string) => Promise<boolean>;
   grantCredits: (
@@ -54,6 +59,7 @@ export const useAdminStore = create<AdminState>((set) => ({
   movements: [],
   stats: null,
   plans: [],
+  periods: [],
   loading: false,
   submitting: false,
   error: null,
@@ -76,13 +82,14 @@ export const useAdminStore = create<AdminState>((set) => ({
     set({ loading: true, error: null });
     try {
       // Revendedores y promos también: desde Empresas se pueden recargar créditos.
-      const [companies, plans, resellers, packs] = await Promise.all([
+      const [companies, plans, periods, resellers, packs] = await Promise.all([
         adminService.fetchCompanies(),
         adminService.fetchPlans(),
+        adminService.fetchPlanPeriods(),
         adminService.fetchResellers(),
         adminService.fetchCreditPacks(),
       ]);
-      set({ companies, plans, resellers, packs, loading: false });
+      set({ companies, plans, periods, resellers, packs, loading: false });
     } catch (e) {
       set({ error: toMessage(e), loading: false });
     }
@@ -91,10 +98,38 @@ export const useAdminStore = create<AdminState>((set) => ({
   fetchPlans: async () => {
     set({ loading: true, error: null });
     try {
-      const plans = await adminService.fetchPlans();
-      set({ plans, loading: false });
+      const [plans, periods] = await Promise.all([
+        adminService.fetchPlans(),
+        adminService.fetchPlanPeriods(),
+      ]);
+      set({ plans, periods, loading: false });
     } catch (e) {
       set({ error: toMessage(e), loading: false });
+    }
+  },
+
+  savePlanPeriod: async (id, input) => {
+    set({ submitting: true, error: null });
+    try {
+      await adminService.savePlanPeriod(id, input);
+      const periods = await adminService.fetchPlanPeriods();
+      set({ periods, submitting: false });
+      return true;
+    } catch (e) {
+      set({ error: toMessage(e), submitting: false });
+      return false;
+    }
+  },
+
+  deletePlanPeriod: async (id) => {
+    set({ submitting: true, error: null });
+    try {
+      await adminService.deletePlanPeriod(id);
+      set((s) => ({ periods: s.periods.filter((p) => p.id !== id), submitting: false }));
+      return true;
+    } catch (e) {
+      set({ error: toMessage(e), submitting: false });
+      return false;
     }
   },
 

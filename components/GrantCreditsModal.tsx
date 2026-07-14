@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useAdminStore } from "@/stores/admin.store";
 import type { AdminReseller } from "@/services/admin.service";
+import { backdropProps } from "@/components/modal";
 
 /**
  * Modal de recarga de créditos a un revendedor (solo panel super admin).
@@ -58,7 +59,7 @@ export function GrantCreditsModal({
   return (
     <div
       className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
-      onClick={onClose}
+      {...backdropProps(onClose)}
     >
       <div
         className="bg-surface-container rounded-3xl w-full max-w-md border border-outline-variant/10 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"

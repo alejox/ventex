@@ -1,5 +1,10 @@
 import { createClient } from "@supabase/supabase-js";
-import { PLAN_SELECT, type Plan } from "@/services/subscription.service";
+import {
+  PLAN_SELECT,
+  PLAN_PERIOD_SELECT,
+  type Plan,
+  type PlanPeriod,
+} from "@/services/subscription.service";
 import type { Database } from "@/utils/supabase/database.types";
 
 /**
@@ -30,4 +35,25 @@ export async function fetchPublicPlans(): Promise<Plan[]> {
     return [];
   }
   return (data ?? []) as Plan[];
+}
+
+/** Tiempos vendibles de los planes (mismo criterio fail-soft que arriba). */
+export async function fetchPublicPlanPeriods(): Promise<PlanPeriod[]> {
+  const supabase = createClient<Database>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  );
+
+  const { data, error } = await supabase
+    .from("plan_periods")
+    .select(PLAN_PERIOD_SELECT)
+    .eq("is_active", true)
+    .order("sort_order")
+    .order("months");
+
+  if (error) {
+    console.error("No se pudieron cargar los tiempos de plan:", error.message);
+    return [];
+  }
+  return (data ?? []) as PlanPeriod[];
 }

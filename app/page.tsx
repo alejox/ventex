@@ -11,7 +11,7 @@ import {
 } from "@/app/assets/icons/DashboardIcons";
 import styles from "./page.module.css";
 import { PricingSection } from "@/components/PricingSection";
-import { fetchPublicPlans } from "@/services/plans.server";
+import { fetchPublicPlans, fetchPublicPlanPeriods } from "@/services/plans.server";
 
 export const metadata: Metadata = {
   title: "Ventex — El sistema operativo de tu negocio",
@@ -316,7 +316,10 @@ const FEATURES = [
 export const revalidate = 300;
 
 export default async function LandingPage() {
-  const plans = await fetchPublicPlans();
+  const [plans, periods] = await Promise.all([
+    fetchPublicPlans(),
+    fetchPublicPlanPeriods(),
+  ]);
 
   return (
     <div className="min-h-screen bg-background text-on-background font-sans">
@@ -501,7 +504,7 @@ export default async function LandingPage() {
       </section>
 
       {/* Precios (catálogo real de la tabla plans) */}
-      <PricingSection plans={plans} />
+      <PricingSection plans={plans} periods={periods} />
 
       {/* CTA final */}
       <section id="cta" className="max-w-6xl mx-auto px-6 pb-28">

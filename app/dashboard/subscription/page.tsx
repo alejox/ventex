@@ -3,13 +3,10 @@
 import { useEffect } from "react";
 import { useSubscriptionStore } from "@/stores/subscription.store";
 import { useSettingsStore } from "@/stores/settings.store";
-import type { Plan } from "@/services/subscription.service";
+import type { Plan, PlanPeriod } from "@/services/subscription.service";
 import {
-  annualFreeMonths,
-  annualPrice,
   formatMoney,
   formatSalesLimit,
-  hasAnnual,
   usagePercent,
   planAccent,
   SUBSCRIPTION_STATUS_LABELS,
@@ -19,6 +16,7 @@ import { whatsappUrl } from "@/config/contact";
 export default function SubscriptionPage() {
   const subscription = useSubscriptionStore((s) => s.subscription);
   const plans = useSubscriptionStore((s) => s.plans);
+  const periods = useSubscriptionStore((s) => s.periods);
   const loading = useSubscriptionStore((s) => s.loading);
   const error = useSubscriptionStore((s) => s.error);
   const fetchAll = useSubscriptionStore((s) => s.fetchAll);
@@ -69,6 +67,7 @@ export default function SubscriptionPage() {
                 <PlanCard
                   key={p.id}
                   plan={p}
+                  periods={periods.filter((x) => x.plan_id === p.id && x.is_active)}
                   currency={currency}
                   current={p.id === subscription.plan_id}
                   signature={signature}
@@ -247,16 +246,20 @@ function UsageBar({
 
 function PlanCard({
   plan,
+  periods,
   currency,
   current,
   signature,
 }: {
   plan: Plan;
+  periods: PlanPeriod[];
   currency: string;
   current: boolean;
   signature: string;
 }) {
   const accent = planAccent(plan.id);
+  /** Tiempos de más de un mes: son la oferta de ahorro del plan. */
+  const longer = periods.filter((p) => p.months > 1);
   return (
     <div
       className={`flex flex-col rounded-3xl p-6 border transition-colors ${
@@ -280,13 +283,12 @@ function PlanCard({
           {plan.price > 0 ? formatMoney(plan.price, currency) : "Gratis"}
           {plan.price > 0 && <span className="text-sm font-medium text-on-surface-variant">/mes</span>}
         </p>
-        {hasAnnual(plan) && (
-          <p className="text-sm text-on-surface-variant mt-1">
-            o {formatMoney(annualPrice(plan), currency)}/año
-            {" · "}
-            <span className="text-primary font-semibold">{annualFreeMonths(plan)} meses de regalo</span>
+        {longer.map((p) => (
+          <p key={p.id} className="text-sm text-on-surface-variant mt-1">
+            o <span className="text-primary font-semibold">{p.name}</span>:{" "}
+            {formatMoney(p.price, currency)} por {p.months} meses
           </p>
-        )}
+        ))}
       </div>
       <ul className="space-y-3 text-sm flex-1">
         <li className="flex items-center gap-2 text-on-surface-variant">
@@ -311,14 +313,16 @@ function PlanCard({
           >
             {current ? "Renovar" : `Quiero el plan ${plan.name}`}
           </WhatsAppButton>
-          {hasAnnual(plan) && (
+          {/* Un botón por tiempo largo: el mensaje ya lleva el precio acordado. */}
+          {longer.map((p) => (
             <WhatsAppButton
+              key={p.id}
               variant="ghost"
-              message={`Hola, quiero el plan ${plan.name} en modalidad anual (${formatMoney(annualPrice(plan), currency)} con ${annualFreeMonths(plan)} meses de regalo).${signature}`}
+              message={`Hola, quiero el plan ${plan.name} en modalidad ${p.name} (${formatMoney(p.price, currency)} por ${p.months} meses).${signature}`}
             >
-              Contratar el año
+              Contratar {p.name.toLowerCase()}
             </WhatsAppButton>
-          )}
+          ))}
         </div>
       )}
     </div>
