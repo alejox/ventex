@@ -16,7 +16,6 @@ import {
   IconBell,
   IconHelpCircle,
   IconMenu,
-  IconLogOut,
   IconShoppingCart,
   IconScissors,
   IconUserBadge,
@@ -25,9 +24,10 @@ import {
   IconRefreshCw,
 } from "@/app/assets/icons/DashboardIcons";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { signout } from "@/utils/supabase/actions";
+import { ShellUserMenu } from "@/components/ShellUserMenu";
 import { useProfile } from "@/components/ProfileProvider";
 import { visibleNavItems } from "@/config/business";
+import { backdropProps } from "@/components/modal";
 
 type IconType = typeof IconHome;
 
@@ -65,7 +65,6 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const profile = useProfile();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [calculatorOpen, setCalculatorOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
@@ -100,14 +99,6 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const isReseller = !isWorker && (profile?.isReseller ?? false);
   const userName = profile?.fullName ?? "Admin";
   const userEmail = profile?.email ?? "";
-
-  const initials = userName
-    .split(" ")
-    .map((n) => n[0])
-    .filter(Boolean)
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
 
   return (
     <div className="flex h-screen bg-background text-on-background font-sans">
@@ -250,54 +241,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
               <IconHelpCircle className="w-5 h-5" />
             </button>
             <div className="w-px h-6 bg-outline-variant/20 hidden sm:block"></div>
-            <div className="relative">
-              <button
-                onClick={() => setProfileMenuOpen(!profileMenuOpen)}
-                className="flex items-center gap-3 group focus:outline-none"
-              >
-                <div className="w-9 h-9 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center overflow-hidden transition-colors group-hover:border-primary/60">
-                  <span className="text-xs font-bold text-primary">{initials}</span>
-                </div>
-                <span className="hidden sm:block text-sm font-medium text-on-surface group-hover:text-primary transition-colors">
-                  {userName.split(" ")[0]}
-                </span>
-              </button>
-
-              {/* Profile Dropdown Menu */}
-              {profileMenuOpen && (
-                <>
-                  <div
-                    className="fixed inset-0 z-40"
-                    onClick={() => setProfileMenuOpen(false)}
-                  ></div>
-                  <div className="absolute right-0 mt-3 w-56 rounded-xl bg-surface-container-high border border-outline-variant/10 shadow-2xl overflow-hidden z-50 py-2 animate-in fade-in slide-in-from-top-2 duration-200">
-                    <div className="px-4 py-3 border-b border-outline-variant/10 mb-1">
-                      <p className="text-sm font-bold text-on-surface">{userName}</p>
-                      <p className="text-xs text-on-surface-variant truncate">{userEmail}</p>
-                    </div>
-
-                    <Link
-                      href="/dashboard/settings"
-                      className="flex items-center gap-3 px-4 py-2 text-sm font-medium text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-colors w-full text-left"
-                      onClick={() => setProfileMenuOpen(false)}
-                    >
-                      <IconSettings className="w-4 h-4" />
-                      Ajustes de Perfil
-                    </Link>
-
-                    <form action={signout}>
-                      <button
-                        type="submit"
-                        className="flex items-center gap-3 px-4 py-2 mt-1 text-sm font-medium text-error hover:text-error-dim hover:bg-error/10 transition-colors w-full text-left"
-                      >
-                        <IconLogOut className="w-4 h-4" />
-                        Cerrar Sesión
-                      </button>
-                    </form>
-                  </div>
-                </>
-              )}
-            </div>
+            <ShellUserMenu name={userName} email={userEmail} />
           </div>
         </header>
 
@@ -319,7 +263,8 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             className="fixed inset-0 bg-black/60 backdrop-blur-sm"
             onClick={() => setMobileMenuOpen(false)}
           ></div>
-          <aside className="relative w-64 bg-surface-container-lowest flex flex-col justify-between h-full shadow-2xl">
+          {/* overflow-y-auto: con muchos módulos el menú no cabía y no se podía desplazar. */}
+          <aside className="relative w-64 bg-surface-container-lowest flex flex-col justify-between h-full overflow-y-auto overscroll-contain shadow-2xl">
             <div>
               <div className="h-20 flex items-center px-8 border-b border-outline-variant/10">
                 <LogoHorizontal className="w-[100px] h-[28px]" />
@@ -506,7 +451,7 @@ function CalculatorModal({ onClose }: { onClose: () => void }) {
   );
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose}>
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" {...backdropProps(onClose)}>
       <div
         className="bg-surface-container rounded-3xl w-full max-w-xs border border-outline-variant/10 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}

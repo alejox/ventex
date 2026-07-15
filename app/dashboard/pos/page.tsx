@@ -281,13 +281,16 @@ export default function POSPage() {
 
   return (
     <>
-      <div className="flex flex-col lg:flex-row h-[calc(100vh-5rem)] -m-6 lg:-m-10 bg-background relative overflow-hidden print:hidden">
+      {/* Alto fijo (con columnas que scrollean por dentro) solo en escritorio: en
+          móvil las columnas se apilan, así que la página crece y scrollea normal. */}
+      <div className="flex flex-col lg:flex-row lg:h-[calc(100vh-5rem)] -m-6 lg:-m-10 bg-background relative lg:overflow-hidden print:hidden">
       
       {/* Columna Izquierda: Catálogo + Tabs */}
       <div className="flex-1 flex flex-col min-w-0 px-6 lg:pl-10 lg:pr-6 border-r border-outline-variant/10">
         
         <div className="flex items-center gap-3 mb-6 pt-4">
-          <div className="relative flex-1">
+          {/* min-w-0: sin esto el botón de la derecha aplasta el buscador en móvil. */}
+          <div className="relative flex-1 min-w-0">
             <div className="absolute left-0 top-0 bottom-0 w-12 bg-primary rounded-l-2xl flex items-center justify-center">
               <IconSearch className="w-5 h-5 text-white" />
             </div>
@@ -343,12 +346,15 @@ export default function POSPage() {
               </svg>
             )}
           </button>
+          {/* En móvil se reduce a "+": el texto completo no cabe junto al buscador. */}
           <button
-            onClick={() => router.push("/dashboard/inventory/product")}
-            className="whitespace-nowrap px-5 py-3.5 rounded-2xl bg-transparent border border-primary/50 text-primary text-sm font-semibold hover:bg-primary/10 transition-colors flex items-center gap-2"
+            onClick={() => router.push("/dashboard/inventory/product?from=/dashboard/pos")}
+            aria-label="Nuevo producto"
+            title="Nuevo producto"
+            className="shrink-0 whitespace-nowrap w-12 h-12 sm:w-auto sm:h-auto sm:px-5 sm:py-3.5 rounded-2xl bg-transparent border border-primary/50 text-primary text-sm font-semibold hover:bg-primary/10 transition-colors flex items-center justify-center gap-2"
           >
-            Nuevo producto
-            <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-4 h-4">
+            <span className="hidden sm:inline">Nuevo producto</span>
+            <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-5 h-5 sm:w-4 sm:h-4">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" />
             </svg>
           </button>
@@ -372,7 +378,7 @@ export default function POSPage() {
         </div>
 
         {/* Grid de productos */}
-        <div className="flex-1 overflow-y-auto pb-6 pr-2">
+        <div className="flex-1 lg:overflow-y-auto pb-6 pr-2">
           {error && (
             <div className="mb-4 rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim">
               {error}
@@ -427,13 +433,18 @@ export default function POSPage() {
                     <h3 className="text-sm font-medium text-on-surface mb-2 line-clamp-2 leading-tight flex-1 group-hover:text-primary transition-colors">
                       {item.name}
                     </h3>
-                    <div className="flex items-center justify-between mt-auto">
-                      <span className="text-on-surface font-bold">${money(item.price)}</span>
+                    {/* Precio y stock envuelven: en tarjetas angostas no caben en una línea. */}
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5 mt-auto">
+                      <span className="text-sm sm:text-base text-on-surface font-bold tabular-nums">
+                        ${money(item.price)}
+                      </span>
                       {item.kind === "service" ? (
-                        <span className="text-[10px] font-bold text-on-surface-variant">Servicio</span>
+                        <span className="text-[10px] font-bold text-on-surface-variant shrink-0">
+                          Servicio
+                        </span>
                       ) : (
                         <span
-                          className={`text-[10px] font-bold ${
+                          className={`text-[10px] font-bold shrink-0 ${
                             (item.stock_level ?? 0) <= 0
                               ? "text-error"
                               : (item.stock_level ?? 0) <= 5
@@ -545,7 +556,7 @@ export default function POSPage() {
       </div>
 
       {/* Orden actual / Factura de Venta */}
-      <div className="w-full lg:w-[420px] bg-surface-container-lowest flex flex-col h-full shrink-0 border-l border-outline-variant/10">
+      <div className="w-full lg:w-[420px] bg-surface-container-lowest flex flex-col lg:h-full shrink-0 border-l border-outline-variant/10">
         
         {/* Top bar de Factura */}
         <div className="p-5 border-b border-outline-variant/10 space-y-4 pt-6">
@@ -636,7 +647,7 @@ export default function POSPage() {
         </div>
 
         {/* Líneas */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+        <div className="flex-1 lg:overflow-y-auto p-5 space-y-4">
           {cart.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center px-4">
               <div className="w-12 h-12 rounded bg-surface-container flex items-center justify-center text-on-surface-variant/50 mb-3">

@@ -1,5 +1,4 @@
 import { createClient } from "@/utils/supabase/client";
-import type { Plan } from "@/services/subscription.service";
 
 // ---- Tipos del dominio del panel super admin ----
 /** Empresa (tenant) con su plan, uso y ventas (RPC admin_companies). */
@@ -18,6 +17,12 @@ export interface AdminCompany {
   license_status: string | null;
   /** Nombre del revendedor dueño de este cliente; null si es cuenta directa. */
   reseller_name: string | null;
+  /**
+   * Vencimiento del plan: la licencia si es cliente de revendedor, o el periodo
+   * de la suscripción si es cuenta directa. null = sin vencimiento (plan gratis
+   * o cuenta que nunca se ha recargado).
+   */
+  period_end: string | null;
   staff_count: number;
   monthly_sales: number;
   total_sales: number;
@@ -33,18 +38,18 @@ export interface AdminStats {
   by_plan: Record<string, number>;
 }
 
-/** Cambios parametrizables de un plan. */
-export interface PlanUpdateInput {
+/** Alta/edición de un plan. `id` null en saveePlan() => se crea. */
+export interface PlanSaveInput {
   name: string;
   max_collaborators: number;
   /** null = ilimitado. */
   max_monthly_sales: number | null;
   /** Precio por mes. */
   price: number;
-  /** Precio por año completo; 0 = no se ofrece anual. */
-  price_yearly: number;
-  /** Descuento promocional vigente (0-100). */
-  discount_percent: number;
+  /** Meses cobrados en la modalidad anual (0 = el plan no ofrece anual). */
+  annual_charged_months: number;
+  sort_order: number;
+  is_active: boolean;
 }
 
 export async function fetchCompanies(): Promise<AdminCompany[]> {
@@ -76,19 +81,50 @@ export async function setCompanyPlan(
   if (error) throw error;
 }
 
-/** Parametriza los límites de un plan. */
-export async function updatePlan(id: string, input: PlanUpdateInput): Promise<void> {
+/**
+ * Crea (id = null) o actualiza un plan. El id es el slug de la tabla `plans`,
+ * inmutable una vez creado.
+ */
+export async function savePlan(id: string | null, input: PlanSaveInput): Promise<string> {
   const supabase = createClient();
-  const { error } = await supabase.rpc("admin_update_plan", {
+  const { data, error } = await supabase.rpc("admin_save_plan", {
     p_id: id,
     p_name: input.name,
     p_max_collaborators: input.max_collaborators,
     p_max_monthly_sales: input.max_monthly_sales as unknown as number,
     p_price: input.price,
-    p_price_yearly: input.price_yearly,
-    p_discount_percent: input.discount_percent,
+    p_annual_charged_months: input.annual_charged_months,
+    p_sort_order: input.sort_order,
+    p_is_active: input.is_active,
   });
   if (error) throw error;
+  return data as unknown as string;
+}
+
+/** Resultado de una recarga hecha por el super admin. */
+export interface AdminRechargeResult {
+  period_end: string;
+  months: number;
+  /** true si la empresa es cliente de un revendedor (se extendió su licencia). */
+  managed: boolean;
+}
+
+/**
+ * Recarga meses a una empresa sin consumir créditos (el admin es la fuente).
+ * Extiende la licencia si es cliente de revendedor, o el periodo de su
+ * suscripción si es cuenta directa. El plan gratis no se recarga.
+ */
+export async function rechargeCompany(
+  userId: string,
+  months: number,
+): Promise<AdminRechargeResult> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("admin_recharge_company", {
+    p_user_id: userId,
+    p_months: months,
+  });
+  if (error) throw error;
+  return data as unknown as AdminRechargeResult;
 }
 
 // ---- Revendedores ----
@@ -225,6 +261,46 @@ export async function fetchCreditMovements(limit = 100): Promise<AdminCreditMove
   return (data ?? []) as unknown as AdminCreditMovement[];
 }
 
+// ---- Tiempos de plan (duraciones vendibles) ----
+export interface PlanPeriodInput {
+  plan_id: string;
+  name: string;
+  /** Meses que ENTREGA (pueden incluir los de regalo). */
+  months: number;
+  /** Precio total del periodo (libre, no se deriva del mensual). */
+  price: number;
+  /** Créditos que le cuesta al revendedor recargar este tiempo. */
+  credits: number;
+  is_active: boolean;
+  sort_order: number;
+}
+
+/** Crea (id = null) o actualiza un tiempo de plan. */
+export async function savePlanPeriod(
+  id: string | null,
+  input: PlanPeriodInput,
+): Promise<string> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("admin_save_plan_period", {
+    p_id: id,
+    p_plan_id: input.plan_id,
+    p_name: input.name,
+    p_months: input.months,
+    p_price: input.price,
+    p_credits: input.credits,
+    p_is_active: input.is_active,
+    p_sort_order: input.sort_order,
+  });
+  if (error) throw error;
+  return data as unknown as string;
+}
+
+export async function deletePlanPeriod(id: string): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase.rpc("admin_delete_plan_period", { p_id: id });
+  if (error) throw error;
+}
+
 /** Reutiliza el catálogo de planes del servicio de suscripciones. */
-export type { Plan };
-export { fetchPlans } from "@/services/subscription.service";
+export type { Plan, PlanPeriod } from "@/services/subscription.service";
+export { fetchPlans, fetchPlanPeriods } from "@/services/subscription.service";

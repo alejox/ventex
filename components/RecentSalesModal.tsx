@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { fetchSales, SaleListItem } from "@/services/sales.service";
 import Link from "next/link";
+import { backdropProps } from "@/components/modal";
 
 function IconReceipt(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -39,7 +40,7 @@ export function RecentSalesModal({ onClose }: RecentSalesModalProps) {
   const money = (val: number) => val.toLocaleString("es-CO");
 
   return (
-    <div className="fixed inset-0 z-[200] flex justify-end bg-black/20 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose}>
+    <div className="fixed inset-0 z-[200] flex justify-end bg-black/20 backdrop-blur-sm animate-in fade-in duration-200" {...backdropProps(onClose)}>
       <div
         className="w-full max-w-md bg-surface-container-lowest h-full flex flex-col shadow-2xl animate-in slide-in-from-right duration-300"
         onClick={(e) => e.stopPropagation()}

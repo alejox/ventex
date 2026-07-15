@@ -98,6 +98,33 @@ export async function createClientAccount(input: NewClientInput): Promise<void> 
   if (data?.error) throw new Error(data.error);
 }
 
+/** Resultado de una recarga (RPC reseller_recharge_client). */
+export interface RechargeResult {
+  period_end: string;
+  credits_used: number;
+  months: number;
+  plan_id: string;
+}
+
+/**
+ * Recarga la licencia de un cliente propio con uno de los tiempos que el super
+ * admin definió para SU plan (plan_periods): los meses que suma y los créditos
+ * que consume salen de ese tiempo. Si la licencia sigue vigente, los meses se
+ * suman al vencimiento actual.
+ */
+export async function rechargeClient(
+  userId: string,
+  periodId: string,
+): Promise<RechargeResult> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("reseller_recharge_client", {
+    p_user_id: userId,
+    p_period_id: periodId,
+  });
+  if (error) throw error;
+  return data as unknown as RechargeResult;
+}
+
 /** Suspende o reactiva un cliente propio. */
 export async function setClientStatus(
   userId: string,
@@ -112,5 +139,5 @@ export async function setClientStatus(
 }
 
 /** Reutiliza el catálogo de planes del servicio de suscripciones. */
-export { fetchPlans } from "@/services/subscription.service";
+export { fetchPlans, fetchPlanPeriods } from "@/services/subscription.service";
 export type { Plan } from "@/services/subscription.service";

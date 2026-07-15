@@ -121,10 +121,11 @@ export default function InventoryPage() {
             {products.length} producto{products.length !== 1 ? "s" : ""} registrado{products.length !== 1 ? "s" : ""}
           </p>
         </div>
-        <div className="flex gap-3">
+        {/* Móvil: secundarios a dos columnas y el primario debajo, a ancho completo. */}
+        <div className="grid grid-cols-2 gap-3 w-full lg:flex lg:w-auto">
           <Link
             href="/dashboard/inventory/movements"
-            className="h-11 bg-surface-container hover:bg-surface-container-high border border-outline-variant/20 text-on-surface text-sm font-semibold px-5 rounded-xl transition-colors flex items-center justify-center gap-2"
+            className="h-11 whitespace-nowrap bg-surface-container hover:bg-surface-container-high border border-outline-variant/20 text-on-surface text-sm font-semibold px-3 lg:px-5 rounded-xl transition-colors flex items-center justify-center gap-2"
           >
             <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-4 h-4">
               <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
@@ -133,7 +134,7 @@ export default function InventoryPage() {
           </Link>
           <button
             onClick={() => setIsCategoryModalOpen(true)}
-            className="h-11 bg-surface-container hover:bg-surface-container-high border border-outline-variant/20 text-on-surface text-sm font-semibold px-5 rounded-xl transition-colors flex items-center justify-center gap-2"
+            className="h-11 whitespace-nowrap bg-surface-container hover:bg-surface-container-high border border-outline-variant/20 text-on-surface text-sm font-semibold px-3 lg:px-5 rounded-xl transition-colors flex items-center justify-center gap-2"
           >
             <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-4 h-4">
               <path d="M12 5v14M5 12h14" />
@@ -142,7 +143,7 @@ export default function InventoryPage() {
           </button>
           <button
             onClick={() => window.location.href = "/dashboard/inventory/product"}
-            className="h-11 bg-primary hover:bg-primary-dim text-on-primary text-sm font-semibold px-5 rounded-xl shadow-[0_0_20px_rgba(96,99,238,0.25)] transition-all flex items-center justify-center gap-2 hover:shadow-[0_0_25px_rgba(96,99,238,0.35)]"
+            className="h-11 col-span-2 lg:col-span-1 whitespace-nowrap bg-primary hover:bg-primary-dim text-on-primary text-sm font-semibold px-5 rounded-xl shadow-[0_0_20px_rgba(96,99,238,0.25)] transition-all flex items-center justify-center gap-2 hover:shadow-[0_0_25px_rgba(96,99,238,0.35)]"
           >
             <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-4 h-4">
               <path d="M12 5v14M5 12h14" />
@@ -159,19 +160,20 @@ export default function InventoryPage() {
             <p className="text-on-surface-variant text-sm font-medium mb-1.5">Total Productos</p>
             <h3 className="text-4xl font-bold text-on-surface tracking-tight">{products.length}</h3>
           </div>
-          <div className="w-14 h-14 rounded-xl bg-primary/10 text-primary flex items-center justify-center group-hover:scale-110 transition-transform">
+          <div className="w-14 h-14 shrink-0 rounded-xl bg-primary/10 text-primary flex items-center justify-center group-hover:scale-110 transition-transform">
             <IconBox className="w-7 h-7" />
           </div>
         </div>
 
-        <div className="bg-surface-container rounded-2xl p-6 border border-outline-variant/10 shadow-sm flex justify-between items-center group hover:border-outline-variant/20 transition-colors">
-          <div>
+        <div className="bg-surface-container rounded-2xl p-6 border border-outline-variant/10 shadow-sm flex justify-between items-center gap-4 group hover:border-outline-variant/20 transition-colors">
+          <div className="min-w-0">
             <p className="text-on-surface-variant text-sm font-medium mb-1.5">Valor del Inventario</p>
-            <h3 className="text-4xl font-bold text-on-surface tracking-tight">
+            {/* Cifra larga: en móvil baja de tamaño en vez de comerse el ícono. */}
+            <h3 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-on-surface tracking-tight truncate">
               ${products.reduce((sum, p) => sum + (p.purchase_price ?? 0) * p.stock_level, 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}
             </h3>
           </div>
-          <div className="w-14 h-14 rounded-xl bg-[#8b5cf6]/10 text-[#8b5cf6] flex items-center justify-center group-hover:scale-110 transition-transform">
+          <div className="w-14 h-14 shrink-0 rounded-xl bg-[#8b5cf6]/10 text-[#8b5cf6] flex items-center justify-center group-hover:scale-110 transition-transform">
             <IconLayers className="w-7 h-7" />
           </div>
         </div>
@@ -181,7 +183,7 @@ export default function InventoryPage() {
             <p className="text-on-surface-variant text-sm font-medium mb-1.5">Stock Bajo</p>
             <h3 className="text-4xl font-bold text-on-surface tracking-tight">{products.filter(p => p.stock_level > 0 && p.stock_level <= 5).length}</h3>
           </div>
-          <div className="w-14 h-14 rounded-xl bg-error/10 text-error flex items-center justify-center group-hover:scale-110 transition-transform">
+          <div className="w-14 h-14 shrink-0 rounded-xl bg-error/10 text-error flex items-center justify-center group-hover:scale-110 transition-transform">
             <IconAlertTriangle className="w-7 h-7" />
           </div>
         </div>
@@ -403,9 +405,7 @@ export default function InventoryPage() {
         {productGroups.length > 0 && (
         <div className="px-7 py-4 border-t border-outline-variant/10 flex flex-col sm:flex-row items-center justify-between gap-4 bg-surface-container-lowest">
           <p className="text-xs text-on-surface-variant font-medium">
-          <p className="text-xs text-on-surface-variant font-medium">
             Mostrando {productGroups.reduce((acc, g) => acc + 1 + g.variants.length, 0)} de {products.length} registro{products.length !== 1 ? "s" : ""}
-          </p>
           </p>
           <div className="flex gap-1.5 items-center">
             <button className="px-3.5 py-2 rounded-lg text-xs font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors border border-transparent hover:border-outline-variant/10">

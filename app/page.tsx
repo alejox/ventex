@@ -10,6 +10,8 @@ import {
   IconWallet,
 } from "@/app/assets/icons/DashboardIcons";
 import styles from "./page.module.css";
+import { PricingSection } from "@/components/PricingSection";
+import { fetchPublicPlans, fetchPublicPlanPeriods } from "@/services/plans.server";
 
 export const metadata: Metadata = {
   title: "Ventex — El sistema operativo de tu negocio",
@@ -306,7 +308,19 @@ const FEATURES = [
   },
 ];
 
-export default function LandingPage() {
+/**
+ * Los precios salen de la tabla `plans`: revalidamos cada 5 minutos para que un
+ * cambio en /admin/plans se publique sin redeploy, sin volver dinámica la
+ * página.
+ */
+export const revalidate = 300;
+
+export default async function LandingPage() {
+  const [plans, periods] = await Promise.all([
+    fetchPublicPlans(),
+    fetchPublicPlanPeriods(),
+  ]);
+
   return (
     <div className="min-h-screen bg-background text-on-background font-sans">
       <div className={styles.progress} aria-hidden />
@@ -318,7 +332,7 @@ export default function LandingPage() {
           <div className="hidden md:flex items-center gap-8 text-sm font-medium text-on-surface-variant">
             <a href="#producto" className="hover:text-on-surface transition-colors">Producto</a>
             <a href="#como-funciona" className="hover:text-on-surface transition-colors">Cómo funciona</a>
-            <a href="#cta" className="hover:text-on-surface transition-colors">Precios</a>
+            <a href="#precios" className="hover:text-on-surface transition-colors">Precios</a>
           </div>
           <div className="flex items-center gap-3">
             <Link href="/login" className="text-sm font-semibold text-on-surface-variant hover:text-on-surface transition-colors">
@@ -488,6 +502,9 @@ export default function LandingPage() {
           ))}
         </div>
       </section>
+
+      {/* Precios (catálogo real de la tabla plans) */}
+      <PricingSection plans={plans} periods={periods} />
 
       {/* CTA final */}
       <section id="cta" className="max-w-6xl mx-auto px-6 pb-28">

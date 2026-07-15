@@ -12,5 +12,9 @@ export default async function ResellerLayout({ children }: { children: React.Rea
   if (!profile) redirect("/login");
   if (!profile.isReseller) redirect("/dashboard");
 
-  return <ResellerShell resellerName={profile.fullName}>{children}</ResellerShell>;
+  return (
+    <ResellerShell resellerName={profile.fullName} resellerEmail={profile.email}>
+      {children}
+    </ResellerShell>
+  );
 }

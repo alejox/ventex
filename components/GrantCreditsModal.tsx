@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useAdminStore } from "@/stores/admin.store";
 import type { AdminReseller } from "@/services/admin.service";
+import { backdropProps } from "@/components/modal";
 
 /**
  * Modal de recarga de créditos a un revendedor (solo panel super admin).
@@ -23,15 +24,25 @@ export function GrantCreditsModal({
   const plans = useAdminStore((s) => s.plans);
   const packs = useAdminStore((s) => s.packs);
 
-  const grantablePlans = plans.filter((p) => p.is_active && p.id !== "gratis");
-  const activePacks = packs.filter((p) => p.is_active);
+  // Solo planes de pago activos: el gratis no lleva créditos. La regla es el
+  // precio, no el id.
+  const grantablePlans = plans.filter((p) => p.is_active && p.price > 0);
+  // Y solo promociones de planes que sigan existiendo y activos.
+  const activePacks = packs.filter(
+    (p) => p.is_active && grantablePlans.some((pl) => pl.id === p.plan_id),
+  );
   const [planId, setPlanId] = useState(grantablePlans[0]?.id ?? "");
   const [amount, setAmount] = useState(1);
   const [note, setNote] = useState("");
   /** "" = recarga manual; un id = aplicar esa promoción. */
   const [packId, setPackId] = useState("");
 
-  const currentBalance = reseller.balances?.[planId] ?? 0;
+  const pack = activePacks.find((p) => p.id === packId) ?? null;
+  /** Plan y créditos que realmente se moverán (la promoción manda sobre el form). */
+  const targetPlanId = pack ? pack.plan_id : planId;
+  const credits = pack ? pack.credits + pack.bonus_credits : amount;
+  const currentBalance = reseller.balances?.[targetPlanId] ?? 0;
+  const planName = plans.find((p) => p.id === targetPlanId)?.name ?? targetPlanId;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,7 +59,7 @@ export function GrantCreditsModal({
   return (
     <div
       className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
-      onClick={onClose}
+      {...backdropProps(onClose)}
     >
       <div
         className="bg-surface-container rounded-3xl w-full max-w-md border border-outline-variant/10 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
@@ -57,8 +68,7 @@ export function GrantCreditsModal({
         <div className="p-6 border-b border-outline-variant/10">
           <h2 className="text-lg font-bold text-on-surface">Recargar créditos</h2>
           <p className="text-sm text-on-surface-variant mt-0.5">
-            {reseller.business_name || reseller.full_name || reseller.email} · saldo
-            del plan seleccionado: <strong>{currentBalance}</strong>
+            {reseller.business_name || reseller.full_name || reseller.email}
           </p>
         </div>
 
@@ -132,6 +142,31 @@ export function GrantCreditsModal({
                 </div>
               </>
             )}
+
+            {/* Resumen del movimiento: cuántos créditos entran y con cuántos queda. */}
+            <div className="rounded-xl bg-surface-container-low border border-outline-variant/20 px-4 py-3 text-xs text-on-surface-variant">
+              {pack ? (
+                <>
+                  Entrega{" "}
+                  <strong className="text-on-surface">
+                    {pack.credits}
+                    {pack.bonus_credits > 0 ? ` + ${pack.bonus_credits} de regalo` : ""}
+                  </strong>{" "}
+                  = <strong className="text-on-surface">{credits} créditos</strong> del plan{" "}
+                  {planName}.
+                </>
+              ) : (
+                <>
+                  {credits >= 0 ? "Suma" : "Descuenta"}{" "}
+                  <strong className="text-on-surface">
+                    {Math.abs(credits)} crédito{Math.abs(credits) === 1 ? "" : "s"}
+                  </strong>{" "}
+                  del plan {planName}.
+                </>
+              )}{" "}
+              Saldo: <strong className="text-on-surface">{currentBalance}</strong> →{" "}
+              <strong className="text-on-surface">{currentBalance + credits}</strong>
+            </div>
           </div>
 
           <div className="p-6 pt-0 flex justify-end gap-3">

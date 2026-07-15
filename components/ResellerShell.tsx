@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LogoHorizontal } from "@/components/Logo";
-import { signout } from "@/utils/supabase/actions";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { IconHome, IconUsers, IconLogOut } from "@/app/assets/icons/DashboardIcons";
+import { ShellUserMenu } from "@/components/ShellUserMenu";
+import { IconHome, IconUsers } from "@/app/assets/icons/DashboardIcons";
 
 const RESELLER_NAV = [
   { id: "overview", name: "Resumen", href: "/reseller", icon: IconHome },
@@ -15,9 +15,11 @@ const RESELLER_NAV = [
 export function ResellerShell({
   children,
   resellerName,
+  resellerEmail,
 }: {
   children: React.ReactNode;
   resellerName: string;
+  resellerEmail: string;
 }) {
   const pathname = usePathname();
 
@@ -55,7 +57,8 @@ export function ResellerShell({
             })}
           </nav>
         </div>
-        <div className="p-4 border-t border-outline-variant/10 space-y-1">
+        {/* Cerrar sesión vive en el menú de usuario del header, no aquí. */}
+        <div className="p-4 border-t border-outline-variant/10">
           <Link
             href="/dashboard"
             className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-sm font-medium text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
@@ -63,15 +66,6 @@ export function ResellerShell({
             <IconHome className="w-5 h-5 shrink-0" />
             <span>Volver al panel</span>
           </Link>
-          <form action={signout}>
-            <button
-              type="submit"
-              className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-sm font-medium text-error hover:text-error-dim hover:bg-error/10 w-full text-left"
-            >
-              <IconLogOut className="w-5 h-5 shrink-0" />
-              <span>Cerrar sesión</span>
-            </button>
-          </form>
         </div>
       </aside>
 
@@ -85,21 +79,38 @@ export function ResellerShell({
           </div>
           <div className="flex items-center gap-4">
             <ThemeToggle />
-            <span className="text-sm font-medium text-on-surface hidden sm:block">{resellerName}</span>
+            <div className="w-px h-6 bg-outline-variant/20 hidden sm:block" />
+            <ShellUserMenu name={resellerName} email={resellerEmail} />
           </div>
         </header>
 
-        {/* Nav móvil */}
-        <div className="lg:hidden flex gap-2 px-4 py-3 border-b border-outline-variant/10 bg-surface-container-lowest overflow-x-auto">
-          {RESELLER_NAV.map((item) => (
-            <Link
-              key={item.id}
-              href={item.href}
-              className="whitespace-nowrap text-sm font-medium px-3 py-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container-low"
-            >
-              {item.name}
-            </Link>
-          ))}
+        {/* Nav móvil: el sidebar está oculto, así que aquí van también sus enlaces. */}
+        <div className="lg:hidden flex items-center gap-2 px-4 py-3 border-b border-outline-variant/10 bg-surface-container-lowest overflow-x-auto">
+          {RESELLER_NAV.map((item) => {
+            const isActive =
+              item.href === "/reseller" ? pathname === "/reseller" : pathname.startsWith(item.href);
+            return (
+              <Link
+                key={item.id}
+                href={item.href}
+                className={`whitespace-nowrap text-sm font-medium px-3 py-1.5 rounded-lg transition-colors ${
+                  isActive
+                    ? "bg-primary/10 text-primary"
+                    : "text-on-surface-variant hover:bg-surface-container-low"
+                }`}
+              >
+                {item.name}
+              </Link>
+            );
+          })}
+          <span className="w-px h-5 shrink-0 bg-outline-variant/20" />
+          <Link
+            href="/dashboard"
+            className="flex items-center gap-1.5 whitespace-nowrap text-sm font-medium px-3 py-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container-low transition-colors"
+          >
+            <IconHome className="w-4 h-4 shrink-0" />
+            Volver al panel
+          </Link>
         </div>
 
         <main className="flex-1 overflow-auto bg-background p-6 lg:p-10">{children}</main>

@@ -7,9 +7,10 @@ import type {
   AdminStats,
   CreditPack,
   CreditPackInput,
-  PlanUpdateInput,
+  PlanSaveInput,
+  PlanPeriodInput,
 } from "@/services/admin.service";
-import type { Plan } from "@/services/subscription.service";
+import type { Plan, PlanPeriod } from "@/services/subscription.service";
 
 interface AdminState {
   companies: AdminCompany[];
@@ -18,6 +19,8 @@ interface AdminState {
   movements: AdminCreditMovement[];
   stats: AdminStats | null;
   plans: Plan[];
+  /** Tiempos vendibles de cada plan (mensual, trimestral, …). */
+  periods: PlanPeriod[];
   loading: boolean;
   submitting: boolean;
   error: string | null;
@@ -27,7 +30,11 @@ interface AdminState {
   fetchPlans: () => Promise<void>;
   fetchResellers: () => Promise<void>;
   setCompanyPlan: (userId: string, planId: string, status: string) => Promise<boolean>;
-  updatePlan: (id: string, input: PlanUpdateInput) => Promise<boolean>;
+  /** Recarga meses a una empresa; devuelve el nuevo vencimiento o null si falla. */
+  rechargeCompany: (userId: string, months: number) => Promise<string | null>;
+  savePlan: (id: string | null, input: PlanSaveInput) => Promise<boolean>;
+  savePlanPeriod: (id: string | null, input: PlanPeriodInput) => Promise<boolean>;
+  deletePlanPeriod: (id: string) => Promise<boolean>;
   promoteReseller: (email: string) => Promise<boolean>;
   demoteReseller: (email: string) => Promise<boolean>;
   grantCredits: (
@@ -45,13 +52,14 @@ interface AdminState {
 const toMessage = (e: unknown) =>
   e instanceof Error ? e.message : "Ocurrió un error inesperado";
 
-export const useAdminStore = create<AdminState>((set, get) => ({
+export const useAdminStore = create<AdminState>((set) => ({
   companies: [],
   resellers: [],
   packs: [],
   movements: [],
   stats: null,
   plans: [],
+  periods: [],
   loading: false,
   submitting: false,
   error: null,
@@ -74,13 +82,14 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     set({ loading: true, error: null });
     try {
       // Revendedores y promos también: desde Empresas se pueden recargar créditos.
-      const [companies, plans, resellers, packs] = await Promise.all([
+      const [companies, plans, periods, resellers, packs] = await Promise.all([
         adminService.fetchCompanies(),
         adminService.fetchPlans(),
+        adminService.fetchPlanPeriods(),
         adminService.fetchResellers(),
         adminService.fetchCreditPacks(),
       ]);
-      set({ companies, plans, resellers, packs, loading: false });
+      set({ companies, plans, periods, resellers, packs, loading: false });
     } catch (e) {
       set({ error: toMessage(e), loading: false });
     }
@@ -89,10 +98,38 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   fetchPlans: async () => {
     set({ loading: true, error: null });
     try {
-      const plans = await adminService.fetchPlans();
-      set({ plans, loading: false });
+      const [plans, periods] = await Promise.all([
+        adminService.fetchPlans(),
+        adminService.fetchPlanPeriods(),
+      ]);
+      set({ plans, periods, loading: false });
     } catch (e) {
       set({ error: toMessage(e), loading: false });
+    }
+  },
+
+  savePlanPeriod: async (id, input) => {
+    set({ submitting: true, error: null });
+    try {
+      await adminService.savePlanPeriod(id, input);
+      const periods = await adminService.fetchPlanPeriods();
+      set({ periods, submitting: false });
+      return true;
+    } catch (e) {
+      set({ error: toMessage(e), submitting: false });
+      return false;
+    }
+  },
+
+  deletePlanPeriod: async (id) => {
+    set({ submitting: true, error: null });
+    try {
+      await adminService.deletePlanPeriod(id);
+      set((s) => ({ periods: s.periods.filter((p) => p.id !== id), submitting: false }));
+      return true;
+    } catch (e) {
+      set({ error: toMessage(e), submitting: false });
+      return false;
     }
   },
 
@@ -100,14 +137,10 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     set({ submitting: true, error: null });
     try {
       await adminService.setCompanyPlan(userId, planId, status);
-      // Refleja el cambio en memoria sin recargar todo.
-      const planName = get().plans.find((p) => p.id === planId)?.name ?? planId;
-      set((s) => ({
-        submitting: false,
-        companies: s.companies.map((c) =>
-          c.user_id === userId ? { ...c, plan_id: planId, plan_name: planName, status } : c,
-        ),
-      }));
+      // Refrescamos el listado: el cambio de plan puede mover el vencimiento,
+      // que no se puede derivar en memoria.
+      const companies = await adminService.fetchCompanies();
+      set({ companies, submitting: false });
       return true;
     } catch (e) {
       set({ error: toMessage(e), submitting: false });
@@ -238,18 +271,31 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     }
   },
 
-  updatePlan: async (id, input) => {
+  savePlan: async (id, input) => {
     set({ submitting: true, error: null });
     try {
-      await adminService.updatePlan(id, input);
-      set((s) => ({
-        submitting: false,
-        plans: s.plans.map((p) => (p.id === id ? { ...p, ...input } : p)),
-      }));
+      await adminService.savePlan(id, input);
+      // Un plan nuevo no está en memoria: recargamos el catálogo completo.
+      const plans = await adminService.fetchPlans();
+      set({ plans, submitting: false });
       return true;
     } catch (e) {
       set({ error: toMessage(e), submitting: false });
       return false;
+    }
+  },
+
+  rechargeCompany: async (userId, months) => {
+    set({ submitting: true, error: null });
+    try {
+      const result = await adminService.rechargeCompany(userId, months);
+      // La recarga puede reactivar la suscripción: refrescamos el listado.
+      const companies = await adminService.fetchCompanies();
+      set({ companies, submitting: false });
+      return result.period_end;
+    } catch (e) {
+      set({ error: toMessage(e), submitting: false });
+      return null;
     }
   },
 }));

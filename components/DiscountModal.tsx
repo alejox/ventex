@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { usePosStore } from "@/stores/pos.store";
+import { backdropProps } from "@/components/modal";
 
 interface DiscountModalProps {
   onClose: () => void;
@@ -61,7 +62,7 @@ export function DiscountModal({ onClose }: DiscountModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-[200] flex justify-end bg-black/20 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose}>
+    <div className="fixed inset-0 z-[200] flex justify-end bg-black/20 backdrop-blur-sm animate-in fade-in duration-200" {...backdropProps(onClose)}>
       <div
         className="bg-surface-container-lowest h-full w-[400px] max-w-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-200"
         onClick={(e) => e.stopPropagation()}

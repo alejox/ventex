@@ -43,9 +43,9 @@ export default function AdminOverviewPage() {
           </div>
 
           <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-3xl p-6 md:p-8 shadow-sm mt-6">
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 mb-6">
               <h2 className="text-lg font-bold text-on-surface">Distribución por plan</h2>
-              <Link href="/admin/companies" className="text-sm font-semibold text-primary hover:underline">
+              <Link href="/admin/companies" className="text-sm font-semibold text-primary hover:underline whitespace-nowrap">
                 Ver empresas →
               </Link>
             </div>
@@ -77,7 +77,10 @@ function StatCard({ label, value }: { label: string; value: string }) {
   return (
     <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-3xl p-5 shadow-sm">
       <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">{label}</p>
-      <p className="text-2xl font-bold text-on-surface mt-2 tabular-nums break-words">{value}</p>
+      {/* En móvil las tarjetas son media pantalla: un monto largo se parte a la mitad. */}
+      <p className="text-lg sm:text-2xl font-bold text-on-surface mt-2 tabular-nums break-words">
+        {value}
+      </p>
     </div>
   );
 }

@@ -3,8 +3,6 @@
 import Link from "next/link";
 import { LogoVertical } from "@/components/Logo";
 import { useState } from "react";
-import { GoogleIcon } from "@/app/assets/icons/GoogleIcon";
-import { FacebookIcon } from "@/app/assets/icons/FacebookIcon";
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
@@ -49,26 +47,6 @@ export default function LoginPage() {
         <p className="text-on-surface-variant text-sm">
           Introduce tus credenciales para continuar.
         </p>
-      </div>
-
-      {/* Social Logins */}
-      <div className="flex gap-4 mb-8 flex-col sm:flex-row">
-        <button className="flex-1 flex items-center justify-center gap-3 py-2.5 rounded-xl bg-surface-container hover:bg-surface-container-high transition-colors text-sm font-medium border border-outline-variant/20 text-on-surface">
-          <GoogleIcon />
-          Google
-        </button>
-        <button className="flex-1 flex items-center justify-center gap-3 py-2.5 rounded-xl bg-surface-container hover:bg-surface-container-high transition-colors text-sm font-medium border border-outline-variant/20 text-on-surface">
-          <FacebookIcon />
-          Facebook
-        </button>
-      </div>
-
-      <div className="relative flex items-center py-2 mb-8">
-        <div className="flex-grow border-t border-outline-variant/20"></div>
-        <span className="flex-shrink-0 mx-4 text-[10px] text-on-surface-variant font-bold tracking-[0.15em] uppercase">
-          O continúa con email
-        </span>
-        <div className="flex-grow border-t border-outline-variant/20"></div>
       </div>
 
       <form className="space-y-5" onSubmit={handleLogin}>

@@ -59,3 +59,7 @@ export const LICENSE_STATUS_ACCENTS: Record<string, { bg: string; text: string; 
 export function licenseAccent(status: string) {
   return LICENSE_STATUS_ACCENTS[status] ?? LICENSE_STATUS_ACCENTS.pending;
 }
+
+// Las duraciones (mensual, trimestral, semestral, anual…) ya no se derivan de
+// `annual_charged_months`: cada plan define sus tiempos en la tabla
+// `plan_periods`, con precio y créditos propios (ver /admin/plans).

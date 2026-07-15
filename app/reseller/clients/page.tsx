@@ -5,10 +5,12 @@ import { useResellerStore } from "@/stores/reseller.store";
 import type { ResellerClient } from "@/services/reseller.service";
 import { LICENSE_STATUS_LABELS, licenseAccent } from "@/config/plans";
 import { BUSINESS_OPTIONS } from "@/config/business";
+import { backdropProps } from "@/components/modal";
 
 export default function ResellerClientsPage() {
   const clients = useResellerStore((s) => s.clients);
   const stats = useResellerStore((s) => s.stats);
+  const plans = useResellerStore((s) => s.plans);
   const loading = useResellerStore((s) => s.loading);
   const error = useResellerStore((s) => s.error);
   const fetchOverview = useResellerStore((s) => s.fetchOverview);
@@ -32,6 +34,15 @@ export default function ResellerClientsPage() {
     );
   }, [clients, query]);
 
+  /** Saldos con el nombre del plan, no su id ("Básica: 38", no "basica 38"). */
+  const balancesLabel = useMemo(() => {
+    const entries = Object.entries(stats?.balances ?? {});
+    if (entries.length === 0) return "sin saldo";
+    return entries
+      .map(([id, bal]) => `${plans.find((p) => p.id === id)?.name ?? id}: ${bal}`)
+      .join(" · ");
+  }, [stats, plans]);
+
   return (
     <div className="w-full max-w-6xl mx-auto animate-in fade-in duration-300">
       <div className="flex flex-wrap items-end justify-between gap-4 mb-6">
@@ -39,14 +50,11 @@ export default function ResellerClientsPage() {
           <h1 className="text-2xl font-bold text-on-surface">Mis clientes</h1>
           <p className="text-sm text-on-surface-variant mt-1">
             {clients.length} cliente{clients.length === 1 ? "" : "s"}
-            {stats
-              ? ` · créditos: ${Object.entries(stats.balances ?? {})
-                  .map(([id, bal]) => `${id} ${bal}`)
-                  .join(", ") || "sin saldo"}`
-              : ""}
+            {stats ? ` · créditos: ${balancesLabel}` : ""}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        {/* Móvil: buscador a ancho completo y el botón debajo; en fila desde sm. */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full sm:w-auto">
           <input
             type="text"
             value={query}
@@ -69,7 +77,65 @@ export default function ResellerClientsPage() {
         </div>
       )}
 
-      <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-3xl shadow-sm overflow-hidden">
+      {/* Móvil: tarjetas. En la tabla, el botón "Gestionar" quedaba fuera de pantalla. */}
+      <div className="lg:hidden space-y-3">
+        {loading && clients.length === 0 ? (
+          <p className="py-10 text-center text-sm text-on-surface-variant">Cargando clientes…</p>
+        ) : filtered.length === 0 ? (
+          <p className="py-10 text-center text-sm text-on-surface-variant">
+            {clients.length === 0
+              ? "Aún no tienes clientes. Crea el primero con “Nuevo cliente”."
+              : "No hay clientes que coincidan."}
+          </p>
+        ) : (
+          filtered.map((c) => {
+            const accent = licenseAccent(c.license_status);
+            return (
+              <div
+                key={c.user_id}
+                className="bg-surface-container-lowest border border-outline-variant/10 rounded-2xl p-4 shadow-sm"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-on-surface truncate">
+                      {c.business_name || c.full_name || "Sin nombre"}
+                    </p>
+                    <p className="text-xs text-on-surface-variant truncate">{c.email}</p>
+                  </div>
+                  <span
+                    className={`shrink-0 text-xs font-bold px-2.5 py-1 rounded-full ring-1 ${accent.bg} ${accent.text} ${accent.ring}`}
+                  >
+                    {LICENSE_STATUS_LABELS[c.license_status] ?? c.license_status}
+                  </span>
+                </div>
+
+                <p className="text-xs text-on-surface-variant mt-3">
+                  Plan <strong className="text-on-surface">{c.plan_name ?? c.plan_id}</strong> ·
+                  Vence{" "}
+                  <strong className="text-on-surface tabular-nums">
+                    {c.period_end
+                      ? new Date(c.period_end).toLocaleDateString("es-CO", {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                        })
+                      : "—"}
+                  </strong>
+                </p>
+
+                <button
+                  onClick={() => setManaging(c)}
+                  className="mt-4 w-full h-10 rounded-xl bg-[#6063ee] text-white text-sm font-bold hover:bg-[#c0c1ff] hover:text-[#0b0664] transition-colors"
+                >
+                  Gestionar
+                </button>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      <div className="hidden lg:block bg-surface-container-lowest border border-outline-variant/10 rounded-3xl shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -157,8 +223,9 @@ function CreateClientModal({ onClose }: { onClose: () => void }) {
   const plans = useResellerStore((s) => s.plans);
   const stats = useResellerStore((s) => s.stats);
 
-  // Solo planes con créditos posibles (los créditos son por plan; gratis no aplica).
-  const creditPlans = plans.filter((p) => p.is_active && p.id !== "gratis");
+  // Solo planes de pago activos: los créditos son por plan y el gratis no
+  // consume ninguno. La regla es el precio, no el id.
+  const creditPlans = plans.filter((p) => p.is_active && p.price > 0);
   const balanceOf = (id: string) => stats?.balances?.[id] ?? 0;
   const firstWithBalance = creditPlans.find((p) => balanceOf(p.id) > 0);
 
@@ -187,7 +254,7 @@ function CreateClientModal({ onClose }: { onClose: () => void }) {
   return (
     <div
       className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
-      onClick={onClose}
+      {...backdropProps(onClose)}
     >
       <div
         className="bg-surface-container rounded-3xl w-full max-w-md border border-outline-variant/10 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto"
@@ -314,23 +381,49 @@ function ManageClientModal({
   onClose: () => void;
 }) {
   const setClientStatus = useResellerStore((s) => s.setClientStatus);
+  const rechargeClient = useResellerStore((s) => s.rechargeClient);
   const submitting = useResellerStore((s) => s.submitting);
   const error = useResellerStore((s) => s.error);
+  const plans = useResellerStore((s) => s.plans);
+  const periods = useResellerStore((s) => s.periods);
+  const stats = useResellerStore((s) => s.stats);
+
+  const [recharged, setRecharged] = useState<string | null>(null);
+  const [periodId, setPeriodId] = useState("");
 
   const suspended = client.license_status === "suspended";
+  const plan = plans.find((p) => p.id === client.plan_id);
+  // El plan gratis no se gestiona: la regla es el precio, no el id.
+  const chargeable = Boolean(plan && plan.price > 0);
+  const balance = stats?.balances?.[client.plan_id] ?? 0;
+
+  /** Tiempos que el super admin habilitó para el plan de este cliente. */
+  const options = useMemo(
+    () => periods.filter((p) => p.plan_id === client.plan_id && p.is_active),
+    [periods, client.plan_id],
+  );
+
+  const selected = options.find((o) => o.id === periodId) ?? options[0];
+  const affordable = Boolean(selected && balance >= selected.credits);
 
   const handleToggle = async () => {
     const ok = await setClientStatus(client.user_id, suspended ? "reactivate" : "suspend");
     if (ok) onClose();
   };
 
+  const handleRecharge = async () => {
+    if (!selected || !affordable) return;
+    const periodEnd = await rechargeClient(client.user_id, selected.id);
+    if (periodEnd) setRecharged(periodEnd);
+  };
+
   return (
     <div
       className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
-      onClick={onClose}
+      {...backdropProps(onClose)}
     >
       <div
-        className="bg-surface-container rounded-3xl w-full max-w-md border border-outline-variant/10 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
+        className="bg-surface-container rounded-3xl w-full max-w-md border border-outline-variant/10 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-6 border-b border-outline-variant/10">
@@ -340,17 +433,126 @@ function ManageClientModal({
           </p>
         </div>
 
-        <div className="p-6 space-y-4">
+        <div className="p-6 space-y-5">
           {error && (
             <div className="rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim">
               {error}
             </div>
           )}
-          <p className="text-sm text-on-surface-variant">
-            {suspended
-              ? "La licencia está suspendida: el cliente no puede acceder. Al reactivarla, si su mes sigue vigente vuelve a entrar de inmediato; si venció, su próximo login intentará renovar con tus créditos."
-              : "Suspender bloquea el acceso del cliente de inmediato (por ejemplo, si dejó de pagarte). Podrás reactivarlo cuando quieras."}
-          </p>
+
+          {recharged && (
+            <div className="rounded-xl bg-[#10b981]/10 border border-[#10b981]/30 px-4 py-3 text-sm text-[#10b981]">
+              Recarga aplicada. La licencia vence el{" "}
+              <strong>
+                {new Date(recharged).toLocaleDateString("es-CO", {
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
+                })}
+              </strong>
+              .
+            </div>
+          )}
+
+          {/* Recargar: solo para planes de pago (el gratis no se gestiona). */}
+          {chargeable && (
+            <section>
+              <div className="flex items-baseline justify-between mb-3">
+                <h3 className="text-sm font-bold text-on-surface">Recargar licencia</h3>
+                <span className="text-xs text-on-surface-variant">
+                  Saldo {plan?.name}: <strong className="text-on-surface">{balance}</strong>{" "}
+                  crédito{balance === 1 ? "" : "s"}
+                </span>
+              </div>
+
+              <label className="block text-xs font-semibold text-on-surface-variant mb-2">
+                Tiempo
+              </label>
+
+              {options.length === 0 ? (
+                <p className="text-xs text-amber-600 dark:text-amber-400 py-2">
+                  El plan {plan?.name} no tiene tiempos disponibles. Pídele al
+                  administrador que le configure al menos uno.
+                </p>
+              ) : (
+                <>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <select
+                      value={selected?.id ?? ""}
+                      onChange={(e) => setPeriodId(e.target.value)}
+                      className="flex-1 px-4 py-3 bg-surface-container-low border border-outline-variant/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 text-on-surface transition-shadow appearance-none"
+                    >
+                      {options.map((o) => (
+                        <option key={o.id} value={o.id} disabled={balance < o.credits}>
+                          {o.name} — {o.months} {o.months === 1 ? "mes" : "meses"} ·{" "}
+                          {o.credits} crédito{o.credits === 1 ? "" : "s"}
+                          {balance < o.credits ? " (saldo insuficiente)" : ""}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={handleRecharge}
+                      disabled={submitting || !affordable}
+                      className="py-3 px-5 rounded-xl bg-[#6063ee] text-white hover:bg-[#c0c1ff] hover:text-[#0b0664] text-sm font-bold shadow-lg shadow-[#6063ee]/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                    >
+                      {submitting
+                        ? "Recargando…"
+                        : `Recargar (${selected?.credits ?? 0} crédito${selected?.credits === 1 ? "" : "s"})`}
+                    </button>
+                  </div>
+
+                  {/* Costo explícito: cuántos créditos se van y con cuántos quedas. */}
+                  {selected && (
+                    <div
+                      className={`mt-3 rounded-xl px-4 py-3 text-xs border ${
+                        affordable
+                          ? "bg-surface-container-low border-outline-variant/20 text-on-surface-variant"
+                          : "bg-error-container/20 border-error-container/30 text-error-dim"
+                      }`}
+                    >
+                      {affordable ? (
+                        <>
+                          Consume{" "}
+                          <strong className="text-on-surface">
+                            {selected.credits} crédito{selected.credits === 1 ? "" : "s"}
+                          </strong>{" "}
+                          del plan {plan?.name} y suma{" "}
+                          <strong className="text-on-surface">
+                            {selected.months} {selected.months === 1 ? "mes" : "meses"}
+                          </strong>
+                          . Saldo: <strong className="text-on-surface">{balance}</strong> →{" "}
+                          <strong className="text-on-surface">{balance - selected.credits}</strong>
+                        </>
+                      ) : (
+                        <>
+                          Este tiempo cuesta {selected.credits} crédito
+                          {selected.credits === 1 ? "" : "s"} y solo tienes {balance} del plan{" "}
+                          {plan?.name}. Solicita una recarga al administrador.
+                        </>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+
+              <p className="text-xs text-on-surface-variant mt-3">
+                Si la licencia sigue vigente, los meses se suman a la fecha de
+                vencimiento actual. Si ya venció, cuentan desde hoy.
+              </p>
+            </section>
+          )}
+
+          <section className="pt-1 border-t border-outline-variant/10">
+            <h3 className="text-sm font-bold text-on-surface mb-2 pt-4">
+              {suspended ? "Reactivar acceso" : "Suspender acceso"}
+            </h3>
+            <p className="text-sm text-on-surface-variant">
+              {suspended
+                ? "La licencia está suspendida: el cliente no puede acceder. Al reactivarla, si su mes sigue vigente vuelve a entrar de inmediato; si venció, su próximo login intentará renovar con tus créditos."
+                : "Suspender bloquea el acceso del cliente de inmediato (por ejemplo, si dejó de pagarte). Podrás reactivarlo cuando quieras."}
+            </p>
+          </section>
         </div>
 
         <div className="p-6 pt-0 flex justify-end gap-3">
