@@ -69,9 +69,35 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const [calculatorOpen, setCalculatorOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
-  const navigation = visibleNavItems(profile?.businessType ?? null, profile?.modules ?? null);
-  const isSuperAdmin = profile?.isSuperAdmin ?? false;
-  const isReseller = profile?.isReseller ?? false;
+  const isWorker = profile?.isWorker ?? false;
+
+  // Para workers, la navegación se filtra por sus permisos granulares
+  const workerPerms = profile?.workerPermissions ?? {};
+  const WORKER_NAV_MAP: Record<string, string> = {
+    pos: "pos",
+    calendar: "calendar",
+    customers: "customers",
+    sales: "sales",
+    inventory: "inventory",
+    services: "services",
+    vehicles: "vehicles",
+    billing: "billing",
+  };
+
+  const navigation = isWorker
+    ? (["panel"] as string[])
+        .concat(
+          Object.entries(workerPerms)
+            .filter(([, v]) => v)
+            .map(([k]) => WORKER_NAV_MAP[k]!)
+            .filter(Boolean),
+        )
+        .map((id) => NAV_ITEMS.find((i) => i.id === id)!)
+        .filter(Boolean)
+    : visibleNavItems(profile?.businessType ?? null, profile?.modules ?? null);
+
+  const isSuperAdmin = !isWorker && (profile?.isSuperAdmin ?? false);
+  const isReseller = !isWorker && (profile?.isReseller ?? false);
   const userName = profile?.fullName ?? "Admin";
   const userEmail = profile?.email ?? "";
 

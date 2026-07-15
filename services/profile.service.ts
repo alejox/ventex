@@ -1,5 +1,5 @@
 import { createClient } from "@/utils/supabase/client";
-import type { BusinessType, Modules, Profile } from "@/config/business";
+import type { BusinessType, Modules, Profile, WorkerPermissions } from "@/config/business";
 
 /** Mapea la fila de `profiles` (+ datos de auth) al tipo de dominio. */
 function toProfile(
@@ -10,6 +10,10 @@ function toProfile(
     modules: unknown;
     is_super_admin?: boolean | null;
     is_reseller?: boolean | null;
+    is_worker?: boolean | null;
+    workspace_id?: string | null;
+    staff_id?: string | null;
+    worker_permissions?: unknown;
   } | null,
   email: string,
 ): Profile | null {
@@ -22,6 +26,10 @@ function toProfile(
     modules: (row.modules as Modules) || {},
     isSuperAdmin: Boolean(row.is_super_admin),
     isReseller: Boolean(row.is_reseller),
+    isWorker: Boolean(row.is_worker),
+    workspaceId: row.workspace_id ?? null,
+    staffId: row.staff_id ?? null,
+    workerPermissions: (row.worker_permissions ?? {}) as WorkerPermissions,
   };
 }
 
@@ -35,7 +43,7 @@ export async function fetchProfile(): Promise<Profile | null> {
 
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, full_name, business_type, modules, is_super_admin, is_reseller")
+    .select("id, full_name, business_type, modules, is_super_admin, is_reseller, is_worker, workspace_id, staff_id, worker_permissions")
     .eq("id", user.id)
     .maybeSingle();
   if (error) throw error;
@@ -66,7 +74,7 @@ export async function updateProfile(patch: ProfileUpdate): Promise<Profile> {
     .from("profiles")
     .update(row)
     .eq("id", user.id)
-    .select("id, full_name, business_type, modules, is_super_admin, is_reseller")
+    .select("id, full_name, business_type, modules, is_super_admin, is_reseller, is_worker, workspace_id, staff_id, worker_permissions")
     .single();
   if (error) throw error;
 

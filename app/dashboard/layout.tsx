@@ -11,6 +11,7 @@ import { LicenseBlocked } from "@/components/LicenseBlocked";
 // dashboard valida/renueva su licencia mensual en la BD (el primer login
 // activa el mes y consume 1 crédito del revendedor). Sin licencia vigente,
 // se bloquea el acceso. Cuentas directas no se ven afectadas (managed=false).
+// Los workers (empleados) no pasan por el gate de licencia.
 export default async function DashboardLayout({
   children,
 }: {
@@ -18,7 +19,7 @@ export default async function DashboardLayout({
 }) {
   const profile = await fetchProfileServer();
 
-  if (profile) {
+  if (profile && !profile.isWorker) {
     const license = await ensureLicenseCurrent();
     if (license.managed && license.blocked) {
       return <LicenseBlocked status={license.status ?? "expired"} />;

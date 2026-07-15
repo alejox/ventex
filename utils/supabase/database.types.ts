@@ -661,9 +661,13 @@ export type Database = {
           id: string
           is_reseller: boolean
           is_super_admin: boolean
+          is_worker: boolean
           modules: Json
           reseller_id: string | null
+          staff_id: string | null
           updated_at: string
+          worker_permissions: Json
+          workspace_id: string | null
         }
         Insert: {
           business_name?: string | null
@@ -673,9 +677,13 @@ export type Database = {
           id: string
           is_reseller?: boolean
           is_super_admin?: boolean
+          is_worker?: boolean
           modules?: Json
           reseller_id?: string | null
+          staff_id?: string | null
           updated_at?: string
+          worker_permissions?: Json
+          workspace_id?: string | null
         }
         Update: {
           business_name?: string | null
@@ -685,14 +693,32 @@ export type Database = {
           id?: string
           is_reseller?: boolean
           is_super_admin?: boolean
+          is_worker?: boolean
           modules?: Json
           reseller_id?: string | null
+          staff_id?: string | null
           updated_at?: string
+          worker_permissions?: Json
+          workspace_id?: string | null
         }
         Relationships: [
           {
             foreignKeyName: "profiles_reseller_id_fkey"
             columns: ["reseller_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_workspace_id_fkey"
+            columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -1204,7 +1230,9 @@ export type Database = {
         }
         Returns: string
       }
+      deactivate_worker: { Args: { p_worker_id: string }; Returns: undefined }
       ensure_license_current: { Args: never; Returns: Json }
+      get_effective_user_id: { Args: never; Returns: string }
       increment_stock: {
         Args: { p_product_id: string; p_quantity: number }
         Returns: undefined

@@ -20,6 +20,29 @@ export type ModuleId =
   | "vehicles";
 export type Modules = Partial<Record<ModuleId, boolean>>;
 
+export type WorkerPermission =
+  | "pos"
+  | "calendar"
+  | "customers"
+  | "sales"
+  | "inventory"
+  | "services"
+  | "vehicles"
+  | "billing";
+
+export type WorkerPermissions = Partial<Record<WorkerPermission, boolean>>;
+
+export const WORKER_PERMISSION_LABELS: Record<WorkerPermission, string> = {
+  pos: "Punto de Venta",
+  calendar: "Calendario / Citas",
+  customers: "Clientes",
+  sales: "Ventas",
+  inventory: "Inventario",
+  services: "Servicios",
+  vehicles: "Vehículos",
+  billing: "Facturación",
+};
+
 /** Datos del perfil de cuenta (tabla public.profiles). */
 export interface Profile {
   id: string;
@@ -31,6 +54,14 @@ export interface Profile {
   isSuperAdmin: boolean;
   /** Revendedor de la plataforma (acceso al panel /reseller). */
   isReseller: boolean;
+  /** Trabajador (empleado con acceso limitado). */
+  isWorker: boolean;
+  /** ID del perfil del dueño del negocio (solo para workers). */
+  workspaceId: string | null;
+  /** ID del registro en staff al que está vinculado. */
+  staffId: string | null;
+  /** Permisos granulares del worker. */
+  workerPermissions: WorkerPermissions;
 }
 
 // ---- Catálogo de tipos de negocio (paso 1 del registro) ----
