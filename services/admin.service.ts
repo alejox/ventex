@@ -88,7 +88,7 @@ export async function setCompanyPlan(
 export async function savePlan(id: string | null, input: PlanSaveInput): Promise<string> {
   const supabase = createClient();
   const { data, error } = await supabase.rpc("admin_save_plan", {
-    p_id: id,
+    p_id: id as unknown as string,
     p_name: input.name,
     p_max_collaborators: input.max_collaborators,
     p_max_monthly_sales: input.max_monthly_sales as unknown as number,
@@ -227,7 +227,7 @@ export async function saveCreditPack(
 ): Promise<void> {
   const supabase = createClient();
   const { error } = await supabase.rpc("admin_save_credit_pack", {
-    p_id: id,
+    p_id: id as unknown as string,
     p_name: input.name,
     p_plan_id: input.plan_id,
     p_credits: input.credits,
@@ -282,7 +282,7 @@ export async function savePlanPeriod(
 ): Promise<string> {
   const supabase = createClient();
   const { data, error } = await supabase.rpc("admin_save_plan_period", {
-    p_id: id,
+    p_id: id as unknown as string,
     p_plan_id: input.plan_id,
     p_name: input.name,
     p_months: input.months,

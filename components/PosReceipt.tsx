@@ -29,6 +29,8 @@ interface ReceiptData {
   totals: ReceiptTotals;
   paymentMethod: string;
   date: Date;
+  businessName?: string | null;
+  logoUrl?: string | null;
 }
 
 interface Props {
@@ -68,7 +70,14 @@ export function PosReceipt({ data }: Props) {
           <>
             {/* Header */}
             <div className="text-center space-y-1 mb-4">
-              <h1 className="font-bold text-xl">Alejox</h1>
+              {data.logoUrl && (
+                <img
+                  src={data.logoUrl}
+                  alt="Logo"
+                  className="mx-auto mb-2 max-h-20 w-auto object-contain"
+                />
+              )}
+              <h1 className="font-bold text-xl">{data.businessName || "Alejox"}</h1>
               <p>Bogot&aacute;</p>
               <p>
                 <span className="font-bold">Tel&eacute;fono:</span> 3148956814

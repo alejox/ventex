@@ -77,6 +77,23 @@ export const BUSINESS_OPTIONS: BusinessOption[] = [
   { id: "servicios", label: "Servicios Profesionales" },
 ];
 
+// ---- Roles/cargos sugeridos para el personal, según el tipo de negocio ----
+/** Roles ofrecidos al invitar un trabajador. Se usa para poblar el selector de "Rol / Cargo". */
+export const STAFF_ROLES_BY_TYPE: Record<BusinessType, string[]> = {
+  salon: ["Barbero", "Estilista", "Peluquero", "Manicurista", "Recepcionista", "Cajero"],
+  tienda: ["Vendedor", "Cajero", "Bodeguero", "Encargado de tienda", "Administrador"],
+  lavaautos: ["Lavador", "Detailer", "Recepcionista", "Cajero", "Encargado"],
+  servicios: ["Profesional", "Consultor", "Asesor", "Recepcionista", "Asistente"],
+};
+
+/** Roles genéricos cuando el negocio aún no tiene un tipo definido. */
+export const DEFAULT_STAFF_ROLES = ["Vendedor", "Cajero", "Administrador", "Asistente"];
+
+/** Devuelve la lista de roles a mostrar para un tipo de negocio (o los genéricos). */
+export function staffRolesForType(businessType: BusinessType | null): string[] {
+  return businessType ? STAFF_ROLES_BY_TYPE[businessType] : DEFAULT_STAFF_ROLES;
+}
+
 // ---- Módulos ofrecidos por tipo de negocio (paso 2 del registro) ----
 export interface ModuleOption {
   id: ModuleId;

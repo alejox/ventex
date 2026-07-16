@@ -5,6 +5,11 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { IconSearch } from "@/app/assets/icons/DashboardIcons";
 import { usePosStore } from "@/stores/pos.store";
+import { useSettingsStore } from "@/stores/settings.store";
+import { useShiftsStore } from "@/stores/shifts.store";
+import { useProfile } from "@/components/ProfileProvider";
+import { OpenShiftModal } from "@/components/shift/OpenShiftModal";
+import { CloseShiftModal } from "@/components/shift/CloseShiftModal";
 import {
   computeTotals,
   type PaymentMethod,
@@ -92,6 +97,8 @@ interface ReceiptData {
   totals: SaleTotals;
   paymentMethod: PaymentMethod;
   date: Date;
+  businessName?: string | null;
+  logoUrl?: string | null;
 }
 
 export default function POSPage() {
@@ -109,6 +116,31 @@ export default function POSPage() {
 
   const stockAlert = usePosStore((s) => s.stockAlert);
   const clearStockAlert = usePosStore((s) => s.clearStockAlert);
+
+  const businessProfile = useSettingsStore((s) => s.settings?.business_profile);
+  const fetchSettings = useSettingsStore((s) => s.fetchSettings);
+
+  useEffect(() => {
+    fetchSettings();
+  }, [fetchSettings]);
+
+  // Turno de caja: los empleados no pueden cobrar sin turno abierto.
+  const profile = useProfile();
+  const isWorker = profile?.isWorker ?? false;
+  const currentShift = useShiftsStore((s) => s.currentShift);
+  const shiftLoading = useShiftsStore((s) => s.loading);
+  const fetchCurrentShift = useShiftsStore((s) => s.fetchCurrentShift);
+  const [isCloseShiftOpen, setIsCloseShiftOpen] = useState(false);
+
+  useEffect(() => {
+    if (isWorker) fetchCurrentShift();
+  }, [isWorker, fetchCurrentShift]);
+
+  const openCloseShift = () => {
+    // Refresca los acumulados antes de mostrar el arqueo.
+    fetchCurrentShift();
+    setIsCloseShiftOpen(true);
+  };
 
   useEffect(() => {
     if (stockAlert) {
@@ -264,6 +296,8 @@ export default function POSPage() {
       totals: realTotals,
       paymentMethod,
       date: new Date(),
+      businessName: businessProfile?.businessName ?? null,
+      logoUrl: businessProfile?.logoUrl ?? null,
     };
     setReceiptData(data);
     const ok = await checkout();
@@ -323,6 +357,16 @@ export default function POSPage() {
               className="w-full bg-surface-container-lowest rounded-2xl py-3.5 pl-14 pr-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant border border-outline-variant/30 shadow-sm"
             />
           </div>
+          {isWorker && currentShift && (
+            <button
+              onClick={openCloseShift}
+              className="h-12 px-4 rounded-2xl border border-outline-variant/30 text-sm font-semibold text-on-surface hover:bg-surface-container-low transition-colors shrink-0 flex items-center gap-2"
+              title={`Turno abierto desde ${new Date(currentShift.opened_at).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })}`}
+            >
+              <span className="w-2 h-2 rounded-full bg-[#10b981] animate-pulse" />
+              Cerrar turno
+            </button>
+          )}
           <button
             onClick={() => setViewMode(viewMode === "grid" ? "list" : "grid")}
             className="w-12 h-12 rounded-2xl border border-outline-variant/30 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low transition-colors flex items-center justify-center shrink-0"
@@ -841,6 +885,12 @@ export default function POSPage() {
       {isCustomerModalOpen && <CustomerModal onClose={() => setIsCustomerModalOpen(false)} />}
       {isDiscountModalOpen && <DiscountModal onClose={() => setIsDiscountModalOpen(false)} />}
       {isRecentSalesModalOpen && <RecentSalesModal onClose={() => setIsRecentSalesModalOpen(false)} />}
+
+      {/* Turno de caja: gate bloqueante para empleados sin turno abierto */}
+      {isWorker && !shiftLoading && !currentShift && !isCloseShiftOpen && <OpenShiftModal />}
+      {isWorker && isCloseShiftOpen && (
+        <CloseShiftModal live={currentShift} onClose={() => setIsCloseShiftOpen(false)} />
+      )}
       {isSaleConfigModalOpen && <SaleConfigModal onClose={() => setIsSaleConfigModalOpen(false)} />}
 
       {/* Modal Confirmación Pago en Efectivo */}

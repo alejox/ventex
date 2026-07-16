@@ -704,6 +704,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          business_key: string | null
           business_name: string | null
           business_type: string | null
           created_at: string
@@ -711,15 +712,19 @@ export type Database = {
           id: string
           is_reseller: boolean
           is_super_admin: boolean
-          is_worker: boolean
+          is_worker: boolean | null
           modules: Json
+          owner_id: string | null
           reseller_id: string | null
           staff_id: string | null
           updated_at: string
-          worker_permissions: Json
+          worker_permissions: Json | null
+          worker_role: string | null
+          worker_username: string | null
           workspace_id: string | null
         }
         Insert: {
+          business_key?: string | null
           business_name?: string | null
           business_type?: string | null
           created_at?: string
@@ -727,15 +732,19 @@ export type Database = {
           id: string
           is_reseller?: boolean
           is_super_admin?: boolean
-          is_worker?: boolean
+          is_worker?: boolean | null
           modules?: Json
+          owner_id?: string | null
           reseller_id?: string | null
           staff_id?: string | null
           updated_at?: string
-          worker_permissions?: Json
+          worker_permissions?: Json | null
+          worker_role?: string | null
+          worker_username?: string | null
           workspace_id?: string | null
         }
         Update: {
+          business_key?: string | null
           business_name?: string | null
           business_type?: string | null
           created_at?: string
@@ -743,15 +752,25 @@ export type Database = {
           id?: string
           is_reseller?: boolean
           is_super_admin?: boolean
-          is_worker?: boolean
+          is_worker?: boolean | null
           modules?: Json
+          owner_id?: string | null
           reseller_id?: string | null
           staff_id?: string | null
           updated_at?: string
-          worker_permissions?: Json
+          worker_permissions?: Json | null
+          worker_role?: string | null
+          worker_username?: string | null
           workspace_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "profiles_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "profiles_reseller_id_fkey"
             columns: ["reseller_id"]
@@ -915,6 +934,7 @@ export type Database = {
           id: string
           payment_method: string
           sale_number: number
+          shift_id: string | null
           staff_id: string | null
           status: string
           subtotal: number
@@ -930,6 +950,7 @@ export type Database = {
           id?: string
           payment_method?: string
           sale_number?: number
+          shift_id?: string | null
           staff_id?: string | null
           status?: string
           subtotal?: number
@@ -945,6 +966,7 @@ export type Database = {
           id?: string
           payment_method?: string
           sale_number?: number
+          shift_id?: string | null
           staff_id?: string | null
           status?: string
           subtotal?: number
@@ -962,6 +984,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "sales_shift_id_fkey"
+            columns: ["shift_id"]
+            isOneToOne: false
+            referencedRelation: "shifts"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "sales_staff_id_fkey"
             columns: ["staff_id"]
             isOneToOne: false
@@ -969,6 +998,57 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      shifts: {
+        Row: {
+          closed_at: string | null
+          closing_cash: number | null
+          difference: number | null
+          expected_cash: number | null
+          id: string
+          notes: string | null
+          opened_at: string
+          opening_cash: number
+          sales_count: number | null
+          sales_total: number | null
+          status: string
+          totals_by_method: Json | null
+          user_id: string
+          worker_id: string
+        }
+        Insert: {
+          closed_at?: string | null
+          closing_cash?: number | null
+          difference?: number | null
+          expected_cash?: number | null
+          id?: string
+          notes?: string | null
+          opened_at?: string
+          opening_cash?: number
+          sales_count?: number | null
+          sales_total?: number | null
+          status?: string
+          totals_by_method?: Json | null
+          user_id?: string
+          worker_id?: string
+        }
+        Update: {
+          closed_at?: string | null
+          closing_cash?: number | null
+          difference?: number | null
+          expected_cash?: number | null
+          id?: string
+          notes?: string | null
+          opened_at?: string
+          opening_cash?: number
+          sales_count?: number | null
+          sales_total?: number | null
+          status?: string
+          totals_by_method?: Json | null
+          user_id?: string
+          worker_id?: string
+        }
+        Relationships: []
       }
       services: {
         Row: {
@@ -1047,42 +1127,132 @@ export type Database = {
       }
       staff: {
         Row: {
+          allowed_branches: string[]
+          auth_user_id: string | null
+          can_login: boolean
+          commission_mode: string
           commission_rate: number
           commission_type: string
           created_at: string
           email: string | null
+          fixed_amount_commission: number | null
           full_name: string
           id: string
+          is_active: boolean
+          is_admin: boolean
+          is_login_blocked: boolean
+          permission_preset: string
+          permissions: Json
           phone: string | null
+          pos_pin_hash: string | null
+          primary_branch_id: string | null
+          product_rate_pct: number | null
           role: string | null
           status: string
           user_id: string
+          username: string | null
         }
         Insert: {
+          allowed_branches?: string[]
+          auth_user_id?: string | null
+          can_login?: boolean
+          commission_mode?: string
           commission_rate?: number
           commission_type?: string
           created_at?: string
           email?: string | null
+          fixed_amount_commission?: number | null
           full_name: string
           id?: string
+          is_active?: boolean
+          is_admin?: boolean
+          is_login_blocked?: boolean
+          permission_preset?: string
+          permissions?: Json
           phone?: string | null
+          pos_pin_hash?: string | null
+          primary_branch_id?: string | null
+          product_rate_pct?: number | null
           role?: string | null
           status?: string
           user_id?: string
+          username?: string | null
         }
         Update: {
+          allowed_branches?: string[]
+          auth_user_id?: string | null
+          can_login?: boolean
+          commission_mode?: string
           commission_rate?: number
           commission_type?: string
           created_at?: string
           email?: string | null
+          fixed_amount_commission?: number | null
           full_name?: string
           id?: string
+          is_active?: boolean
+          is_admin?: boolean
+          is_login_blocked?: boolean
+          permission_preset?: string
+          permissions?: Json
           phone?: string | null
+          pos_pin_hash?: string | null
+          primary_branch_id?: string | null
+          product_rate_pct?: number | null
           role?: string | null
           status?: string
           user_id?: string
+          username?: string | null
         }
         Relationships: []
+      }
+      staff_audit_log: {
+        Row: {
+          action: string
+          changed_by: string
+          created_at: string
+          id: string
+          new_values: Json | null
+          old_values: Json | null
+          staff_id: string | null
+          tenant_id: string
+        }
+        Insert: {
+          action: string
+          changed_by: string
+          created_at?: string
+          id?: string
+          new_values?: Json | null
+          old_values?: Json | null
+          staff_id?: string | null
+          tenant_id: string
+        }
+        Update: {
+          action?: string
+          changed_by?: string
+          created_at?: string
+          id?: string
+          new_values?: Json | null
+          old_values?: Json | null
+          staff_id?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_audit_log_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_audit_log_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       subscriptions: {
         Row: {
@@ -1171,6 +1341,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_apply_credit_pack: {
+        Args: { p_pack_id: string; p_reseller_id: string }
+        Returns: undefined
+      }
       admin_companies: {
         Args: never
         Returns: {
@@ -1182,6 +1356,7 @@ export type Database = {
           is_super_admin: boolean
           license_status: string
           monthly_sales: number
+          period_end: string
           plan_id: string
           plan_name: string
           reseller_name: string
@@ -1190,32 +1365,6 @@ export type Database = {
           total_sales: number
           user_id: string
         }[]
-      }
-      admin_grant_credits: {
-        Args: {
-          p_amount: number
-          p_note: string
-          p_plan_id: string
-          p_reseller_id: string
-        }
-        Returns: undefined
-      }
-      admin_resellers: {
-        Args: never
-        Returns: {
-          balances: Json
-          business_name: string
-          clients_active: number
-          clients_total: number
-          created_at: string
-          email: string
-          full_name: string
-          user_id: string
-        }[]
-      }
-      admin_apply_credit_pack: {
-        Args: { p_pack_id: string; p_reseller_id: string }
-        Returns: undefined
       }
       admin_credit_movements: {
         Args: { p_limit?: number }
@@ -1234,43 +1383,65 @@ export type Database = {
       }
       admin_delete_credit_pack: { Args: { p_id: string }; Returns: undefined }
       admin_delete_plan_period: { Args: { p_id: string }; Returns: undefined }
-      admin_save_plan_period: {
+      admin_grant_credits: {
         Args: {
-          p_credits: number
-          p_id: string | null
-          p_is_active: boolean
-          p_months: number
-          p_name: string
+          p_amount: number
+          p_note: string
           p_plan_id: string
-          p_price: number
-          p_sort_order: number
+          p_reseller_id: string
         }
-        Returns: string
-      }
-      admin_save_credit_pack: {
-        Args: {
-          p_bonus_credits: number
-          p_credits: number
-          p_id: string | null
-          p_is_active: boolean
-          p_name: string
-          p_plan_id: string
-          p_price: number
-        }
-        Returns: string
+        Returns: undefined
       }
       admin_recharge_company: {
         Args: { p_months: number; p_user_id: string }
         Returns: Json
       }
+      admin_resellers: {
+        Args: never
+        Returns: {
+          balances: Json
+          business_name: string
+          clients_active: number
+          clients_total: number
+          created_at: string
+          email: string
+          full_name: string
+          user_id: string
+        }[]
+      }
+      admin_save_credit_pack: {
+        Args: {
+          p_bonus_credits: number
+          p_credits: number
+          p_id: string
+          p_is_active: boolean
+          p_name: string
+          p_plan_id: string
+          p_price: number
+        }
+        Returns: string
+      }
       admin_save_plan: {
         Args: {
           p_annual_charged_months: number
-          p_id: string | null
+          p_id: string
           p_is_active: boolean
           p_max_collaborators: number
           p_max_monthly_sales: number
           p_name: string
+          p_price: number
+          p_sort_order: number
+        }
+        Returns: string
+      }
+      admin_save_plan_period: {
+        Args: {
+          p_credits: number
+          p_id: string
+          p_is_active: boolean
+          p_months: number
+          p_name: string
+          p_plan_id: string
           p_price: number
           p_sort_order: number
         }
@@ -1301,6 +1472,12 @@ export type Database = {
         Args: { p_add: number; p_uid: string }
         Returns: undefined
       }
+      close_shift: {
+        Args: { p_closing_cash: number; p_notes?: string; p_shift_id?: string }
+        Returns: Json
+      }
+      current_shift: { Args: never; Returns: Json }
+      open_shift: { Args: { p_opening_cash: number }; Returns: Json }
       create_sale: {
         Args: {
           p_customer_id: string
@@ -1311,8 +1488,10 @@ export type Database = {
         }
         Returns: string
       }
+      current_tenant: { Args: never; Returns: string }
       deactivate_worker: { Args: { p_worker_id: string }; Returns: undefined }
       ensure_license_current: { Args: never; Returns: Json }
+      generate_business_key: { Args: never; Returns: string }
       get_effective_user_id: { Args: never; Returns: string }
       increment_stock: {
         Args: { p_product_id: string; p_quantity: number }
@@ -1320,6 +1499,7 @@ export type Database = {
       }
       is_reseller: { Args: never; Returns: boolean }
       is_super_admin: { Args: never; Returns: boolean }
+      is_tenant_owner: { Args: never; Returns: boolean }
       my_subscription: { Args: never; Returns: Json }
       reseller_clients: {
         Args: never
@@ -1350,6 +1530,24 @@ export type Database = {
         Returns: undefined
       }
       reseller_stats: { Args: never; Returns: Json }
+      staff_can: { Args: { section: string }; Returns: boolean }
+      staff_can_action: {
+        Args: { action?: string; section: string }
+        Returns: boolean
+      }
+      staff_login: {
+        Args: { p_business_key: string; p_username: string }
+        Returns: string
+      }
+      staff_login_email: {
+        Args: { p_business_email: string; p_username: string }
+        Returns: string
+      }
+      worker_login: {
+        Args: { p_business_key: string; p_username: string }
+        Returns: string
+      }
+      workspace_context: { Args: never; Returns: Json }
     }
     Enums: {
       [_ in never]: never

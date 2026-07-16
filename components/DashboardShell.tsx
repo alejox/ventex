@@ -26,7 +26,7 @@ import {
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ShellUserMenu } from "@/components/ShellUserMenu";
 import { useProfile } from "@/components/ProfileProvider";
-import { visibleNavItems } from "@/config/business";
+import { visibleNavItems, NAV_ITEMS } from "@/config/business";
 import { backdropProps } from "@/components/modal";
 
 type IconType = typeof IconHome;

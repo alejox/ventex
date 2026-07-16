@@ -5,6 +5,7 @@ import { IconFileText, IconPlus, IconXCircle } from "@/app/assets/icons/Dashboar
 import { useBillingStore } from "@/stores/billing.store";
 import { useCustomersStore } from "@/stores/customers.store";
 import { useServicesStore } from "@/stores/services.store";
+import { useSettingsStore } from "@/stores/settings.store";
 import { useProfile } from "@/components/ProfileProvider";
 import type { Invoice, InvoiceItem, InvoiceLineInput, NewInvoiceInput } from "@/services/billing.service";
 
@@ -58,6 +59,8 @@ export default function BillingPage() {
   const fetchCustomers = useCustomersStore((s) => s.fetchCustomers);
   const services = useServicesStore((s) => s.services);
   const fetchServices = useServicesStore((s) => s.fetchServices);
+  const businessProfile = useSettingsStore((s) => s.settings?.business_profile);
+  const fetchSettings = useSettingsStore((s) => s.fetchSettings);
   const profile = useProfile();
 
   const [formOpen, setFormOpen] = useState(false);
@@ -66,9 +69,10 @@ export default function BillingPage() {
 
   useEffect(() => {
     fetchInvoices();
+    fetchSettings();
     if (customers.length === 0) fetchCustomers();
     if (services.length === 0) fetchServices();
-  }, [fetchInvoices, customers.length, fetchCustomers, services.length, fetchServices]);
+  }, [fetchInvoices, fetchSettings, customers.length, fetchCustomers, services.length, fetchServices]);
 
   const activeServices = services.filter((s) => s.status === "active");
 
@@ -96,7 +100,10 @@ export default function BillingPage() {
 
   /** Abre una vista limpia del documento e invoca la impresión (permite Guardar como PDF). */
   const printInvoice = (inv: Invoice, lines: InvoiceItem[]) => {
-    const business = escapeHtml(profile?.fullName ?? "Ventex");
+    const business = escapeHtml(businessProfile?.businessName || profile?.fullName || "Ventex");
+    const logoUrl = businessProfile?.logoUrl
+      ? `<img src="${escapeHtml(businessProfile.logoUrl)}" alt="" style="max-height:64px;max-width:200px;object-fit:contain;display:block;margin-bottom:8px" />`
+      : "";
     const rows = lines
       .map(
         (it) =>
@@ -130,7 +137,7 @@ export default function BillingPage() {
   .notes { margin-top: 24px; font-size: 12px; color: #444; white-space: pre-wrap; }
 </style></head><body>
   <div class="head">
-    <div><div class="biz">${business}</div></div>
+    <div>${logoUrl}<div class="biz">${business}</div></div>
     <div class="doc">
       <h1>${TYPE_LABEL[inv.type] ?? inv.type} #${inv.invoice_number}</h1>
       <div class="muted">Emisión: ${formatDate(inv.issue_date)}</div>

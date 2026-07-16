@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useSettingsStore } from "@/stores/settings.store";
 import type { BusinessProfile } from "@/services/settings.service";
+import { notifySuccess } from "@/lib/notifications";
 
 function CameraIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -26,8 +27,12 @@ function Field({ label, required, children, className = "" }: { label: string; r
 
 export default function BusinessSettingsPage() {
   const { settings, loading, submitting, fetchSettings, saveSettings } = useSettingsStore();
+  const uploadLogo = useSettingsStore((s) => s.uploadLogo);
 
   const [form, setForm] = useState<BusinessProfile>({});
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [logoError, setLogoError] = useState<string | null>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetchSettings();
@@ -43,13 +48,40 @@ export default function BusinessSettingsPage() {
     setForm((prev) => ({ ...prev, [key]: value }));
   }, []);
 
+  const handleLogoChange = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      e.target.value = ""; // permite re-seleccionar el mismo archivo
+      if (!file) return;
+
+      if (file.size > 2 * 1024 * 1024) {
+        setLogoError("El logo no puede superar los 2 MB.");
+        return;
+      }
+
+      setLogoError(null);
+      setUploadingLogo(true);
+      const url = await uploadLogo(file);
+      setUploadingLogo(false);
+      if (url) {
+        setForm((prev) => ({ ...prev, logoUrl: url }));
+      } else {
+        setLogoError("No se pudo subir el logo. Inténtalo de nuevo.");
+      }
+    },
+    [uploadLogo],
+  );
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    await saveSettings({
+    const ok = await saveSettings({
       tax_rate: settings?.tax_rate ?? 0.19,
       currency: settings?.currency ?? "COP",
       business_profile: form,
     });
+    if (ok) {
+      notifySuccess("Ajustes guardados", "Los datos de tu negocio se actualizaron correctamente.");
+    }
   };
 
   if (loading) {
@@ -78,19 +110,35 @@ export default function BusinessSettingsPage() {
             <div className="flex flex-col md:flex-row items-center gap-8">
               <div className="relative">
                 <div className="w-64 h-32 rounded-xl border-2 border-primary overflow-hidden bg-surface-container flex items-center justify-center">
-                  {form.logoUrl ? (
+                  {uploadingLogo ? (
+                    <div className="text-on-surface-variant font-medium text-sm">Subiendo…</div>
+                  ) : form.logoUrl ? (
                     <img src={form.logoUrl} alt="Logo" className="w-full h-full object-contain" />
                   ) : (
                     <div className="text-on-surface-variant font-medium">Logo</div>
                   )}
                 </div>
-                <button type="button" className="absolute -bottom-3 -right-3 w-10 h-10 bg-surface-container-lowest border border-outline-variant/20 rounded-full flex items-center justify-center text-on-surface shadow-sm hover:bg-surface-container transition-colors">
+                <input
+                  ref={logoInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+                  className="hidden"
+                  onChange={handleLogoChange}
+                />
+                <button
+                  type="button"
+                  onClick={() => logoInputRef.current?.click()}
+                  disabled={uploadingLogo}
+                  className="absolute -bottom-3 -right-3 w-10 h-10 bg-surface-container-lowest border border-outline-variant/20 rounded-full flex items-center justify-center text-on-surface shadow-sm hover:bg-surface-container transition-colors disabled:opacity-50"
+                  aria-label="Subir logo"
+                >
                   <CameraIcon className="w-5 h-5" />
                 </button>
               </div>
               <div className="flex-1">
                 <p className="text-sm font-semibold text-on-surface">Se mostrará en la parte superior de tus facturas de venta.</p>
-                <p className="text-sm text-on-surface-variant mt-1">Si necesitas ayuda, puedes conocer <a href="#" className="text-primary hover:underline">cómo agregar tu logo</a>.</p>
+                <p className="text-sm text-on-surface-variant mt-1">Sube una imagen PNG, JPG, WEBP o SVG de hasta 2 MB. Recuerda pulsar <span className="font-semibold">Guardar</span> para conservar los cambios.</p>
+                {logoError && <p className="text-sm text-error mt-1">{logoError}</p>}
               </div>
             </div>
 

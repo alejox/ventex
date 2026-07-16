@@ -3,6 +3,7 @@ import * as workerService from "@/services/worker.service";
 import type {
   WorkerMember,
   InviteWorkerInput,
+  UpdateWorkerInput,
 } from "@/services/worker.service";
 import type { WorkerPermissions } from "@/config/business";
 
@@ -14,6 +15,7 @@ interface WorkerState {
 
   fetchWorkers: () => Promise<void>;
   inviteWorker: (input: InviteWorkerInput) => Promise<boolean>;
+  updateWorker: (workerId: string, input: UpdateWorkerInput) => Promise<boolean>;
   updatePermissions: (workerId: string, permissions: WorkerPermissions) => Promise<boolean>;
   deactivateWorker: (workerId: string) => Promise<boolean>;
 }
@@ -42,6 +44,25 @@ export const useWorkerStore = create<WorkerState>((set) => ({
     try {
       await workerService.inviteWorkerViaApi(input);
       set({ submitting: false });
+      return true;
+    } catch (e) {
+      set({ error: toMessage(e), submitting: false });
+      return false;
+    }
+  },
+
+  updateWorker: async (workerId, input) => {
+    set({ submitting: true, error: null });
+    try {
+      await workerService.updateWorker(workerId, input);
+      set((s) => ({
+        workers: s.workers.map((w) =>
+          w.id === workerId
+            ? { ...w, full_name: input.fullName, username: input.username, role: input.role || null }
+            : w,
+        ),
+        submitting: false,
+      }));
       return true;
     } catch (e) {
       set({ error: toMessage(e), submitting: false });

@@ -4,12 +4,22 @@ import Link from "next/link";
 import { LogoVertical } from "@/components/Logo";
 import { useState } from "react";
 
+type LoginMode = "owner" | "staff";
+
 export default function LoginPage() {
+  const [mode, setMode] = useState<LoginMode>("owner");
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
+  const [businessKey, setBusinessKey] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const switchMode = (next: LoginMode) => {
+    setMode(next);
+    setError("");
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,15 +29,36 @@ export default function LoginPage() {
     const { createClient } = await import("@/utils/supabase/client");
     const supabase = createClient();
 
+    // En modo empleado resolvemos primero el correo de la cuenta a partir de la
+    // llave del negocio + usuario mediante la función worker_login.
+    let loginEmail = email;
+    if (mode === "staff") {
+      const { data, error: rpcError } = await supabase.rpc("worker_login", {
+        p_business_key: businessKey,
+        p_username: username,
+      });
+      if (rpcError) {
+        setLoading(false);
+        setError(rpcError.message);
+        return;
+      }
+      if (!data) {
+        setLoading(false);
+        setError("Llave o usuario incorrectos.");
+        return;
+      }
+      loginEmail = data;
+    }
+
     const { error } = await supabase.auth.signInWithPassword({
-      email,
+      email: loginEmail,
       password,
     });
 
     setLoading(false);
 
     if (error) {
-      setError(error.message);
+      setError(mode === "staff" ? "Llave, usuario o contraseña incorrectos." : error.message);
     } else {
       window.location.href = "/dashboard/pos";
     }
@@ -40,7 +71,7 @@ export default function LoginPage() {
         <LogoVertical className="w-[120px] h-[32px]" />
       </div>
 
-      <div className="text-center lg:text-left mb-8">
+      <div className="text-center lg:text-left mb-6">
         <h2 className="text-[28px] font-bold text-on-surface mb-2">
           Bienvenido de nuevo
         </h2>
@@ -49,50 +80,109 @@ export default function LoginPage() {
         </p>
       </div>
 
+      {/* Selector de tipo de acceso */}
+      <div className="grid grid-cols-2 gap-1 p-1 mb-6 rounded-xl bg-surface-container border border-outline-variant/20">
+        {(
+          [
+            { id: "owner", label: "Dueño" },
+            { id: "staff", label: "Empleado" },
+          ] as const
+        ).map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => switchMode(t.id)}
+            className={`py-2 rounded-lg text-sm font-semibold transition-colors ${
+              mode === t.id
+                ? "bg-surface-container-lowest text-on-surface shadow-sm"
+                : "text-on-surface-variant hover:text-on-surface"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
       <form className="space-y-5" onSubmit={handleLogin}>
         {error && (
           <div className="bg-error-container/20 text-error-dim text-[13px] px-4 py-3 rounded-lg border border-error-container/30">
             {error}
           </div>
         )}
-        <div className="space-y-1.5">
-          <label className="text-[13px] font-semibold text-on-surface block">
-            Correo electrónico
-          </label>
-          <div className="relative">
-            <input
-              type="email"
-              placeholder="nombre@ejemplo.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-10 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50"
-              required
-            />
-            <svg
-              className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-on-surface-variant/70"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              viewBox="0 0 24 24"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <rect x="3" y="5" width="18" height="14" rx="2" ry="2" />
-              <polyline points="3 7 12 13 21 7" />
-            </svg>
+
+        {mode === "owner" ? (
+          <div className="space-y-1.5">
+            <label className="text-[13px] font-semibold text-on-surface block">
+              Correo electrónico
+            </label>
+            <div className="relative">
+              <input
+                type="email"
+                placeholder="nombre@ejemplo.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-10 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50"
+                required
+              />
+              <svg
+                className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-on-surface-variant/70"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                viewBox="0 0 24 24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <rect x="3" y="5" width="18" height="14" rx="2" ry="2" />
+                <polyline points="3 7 12 13 21 7" />
+              </svg>
+            </div>
           </div>
-        </div>
+        ) : (
+          <>
+            <div className="space-y-1.5">
+              <label className="text-[13px] font-semibold text-on-surface block">
+                Llave de la tienda
+              </label>
+              <input
+                type="text"
+                autoCapitalize="characters"
+                placeholder="Ej: A1B2C3D4"
+                value={businessKey}
+                onChange={(e) => setBusinessKey(e.target.value.toUpperCase())}
+                className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-sm text-on-surface font-mono tracking-[0.15em] focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50 placeholder:font-sans placeholder:tracking-normal"
+                required
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[13px] font-semibold text-on-surface block">
+                Usuario
+              </label>
+              <input
+                type="text"
+                autoCapitalize="none"
+                placeholder="tu-usuario"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50"
+                required
+              />
+            </div>
+          </>
+        )}
 
         <div className="space-y-1.5">
           <div className="flex justify-between items-center">
             <label className="text-[13px] font-semibold text-on-surface block">
               Contraseña
             </label>
-            <Link
-              href="/reset-password"
-              className="text-xs text-primary hover:text-primary-dim font-medium transition-colors"
-            >
-              ¿Olvidaste tu contraseña?
-            </Link>
+            {mode === "owner" && (
+              <Link
+                href="/reset-password"
+                className="text-xs text-primary hover:text-primary-dim font-medium transition-colors"
+              >
+                ¿Olvidaste tu contraseña?
+              </Link>
+            )}
           </div>
           <div className="relative">
             <input
