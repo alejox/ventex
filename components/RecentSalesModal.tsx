@@ -28,8 +28,10 @@ export function RecentSalesModal({ onClose }: RecentSalesModalProps) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchSales().then((data) => {
-      setSales(data.slice(0, 5)); // Fetch only recent 5
+    // Sin rango y con página de 5: antes pedía TODO el histórico para
+    // quedarse con las primeras 5 filas.
+    fetchSales({ from: null, to: null }, 0, 5).then((data) => {
+      setSales(data.items);
       setLoading(false);
     }).catch((e) => {
       console.error(e);

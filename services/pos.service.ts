@@ -37,9 +37,14 @@ export interface CartLine {
 }
 
 export interface SaleTotals {
+  /** Suma de precios de vitrina (IVA incluido), antes de descuentos. */
+  gross: number;
+  /** Base gravable: el total sin IVA. */
   subtotal: number;
   taxAmount: number;
   discount: number;
+  /** Rebaja por cliente exento de IVA (0 si no aplica). */
+  exemptionDiscount: number;
   total: number;
 }
 
@@ -59,39 +64,63 @@ export interface CheckoutInput {
   paymentMethod: PaymentMethod;
   discount: number;
   items: CheckoutItem[];
+  /** Desglosar IVA en esta venta. Sin esto manda la configuración del negocio. */
+  includeTax?: boolean;
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 /**
- * Calcula los totales en el cliente para previsualización.
- * Los precios de los productos se almacenan como PRECIO BASE (sin IVA).
- * 
- * Para clientes NO exentos:
- *   - Subtotal = suma de los precios base
- *   - IVA = subtotal * taxRate
- *   - Total = subtotal + IVA
- * 
- * Para clientes exentos:
- *   - IVA = 0
- *   - Total = subtotal
+ * Totales de la venta para previsualización. Espejo de la matemática del RPC
+ * `create_sale`: si cambia una, tiene que cambiar la otra.
+ *
+ * Los precios del catálogo son PRECIO FINAL AL PÚBLICO (IVA incluido), así que
+ * el IVA se deriva hacia atrás: base = precio / (1 + tasa).
+ *
+ * El orden de los casos importa y es el mismo que el del RPC:
+ *
+ * - No responsable (`!includeTax`): no hay impuesto que reportar NI que eximir.
+ *   Va primero: sin IVA cobrado, un cliente exento no tiene nada que descontar.
+ * - Cliente exento: no paga IVA, así que paga la base. La diferencia contra el
+ *   precio de vitrina es el descuento por exención.
+ * - Responsable de IVA: el cliente paga el precio de vitrina y el recibo
+ *   desglosa base + IVA.
  */
 export function computeTotals(
   lines: CartLine[],
   taxRate: number,
-  taxExempt: boolean
+  taxExempt: boolean,
+  includeTax: boolean
 ): SaleTotals {
-  const subtotalBase = round2(lines.reduce((s, l) => s + l.item.price * l.quantity, 0));
-  const totalDiscount = round2(lines.reduce((s, l) => s + (l.discountAmount || 0), 0));
-  const subtotalNeto = Math.max(subtotalBase - totalDiscount, 0);
+  const gross = round2(lines.reduce((s, l) => s + l.item.price * l.quantity, 0));
+  const discount = round2(lines.reduce((s, l) => s + (l.discountAmount || 0), 0));
+  const neto = Math.max(round2(gross - discount), 0);
 
-  if (taxExempt) {
-    return { subtotal: subtotalNeto, taxAmount: 0, discount: totalDiscount, total: subtotalNeto };
+  if (!includeTax) {
+    return { gross, subtotal: neto, taxAmount: 0, discount, exemptionDiscount: 0, total: neto };
   }
 
-  const taxAmount = round2(subtotalNeto * taxRate);
-  const total = round2(subtotalNeto + taxAmount);
-  return { subtotal: subtotalNeto, taxAmount, discount: totalDiscount, total };
+  if (taxExempt) {
+    const total = round2(neto / (1 + taxRate));
+    return {
+      gross,
+      subtotal: total,
+      taxAmount: 0,
+      discount,
+      exemptionDiscount: round2(neto - total),
+      total,
+    };
+  }
+
+  const subtotal = round2(neto / (1 + taxRate));
+  return {
+    gross,
+    subtotal,
+    taxAmount: round2(neto - subtotal),
+    discount,
+    exemptionDiscount: 0,
+    total: neto,
+  };
 }
 
 /** Catálogo del POS: productos (con stock) + servicios activos (sin stock). */
@@ -175,12 +204,31 @@ export async function fetchCustomers(): Promise<CustomerOption[]> {
   }));
 }
 
-/** Tasa de IVA configurada en la cuenta (19% por defecto si no hay ajustes). */
-export async function fetchTaxRate(): Promise<number> {
+export interface PosConfig {
+  taxRate: number;
+  /** Si el negocio desglosa IVA. false = no responsable de IVA. */
+  includeTax: boolean;
+  /** Si el POS puede cobrar más unidades de las que hay en stock. */
+  allowOversell: boolean;
+}
+
+/**
+ * Ajustes del negocio que condicionan el cobro. Los defaults tienen que
+ * coincidir con los del RPC `create_sale` para un negocio sin fila en
+ * `settings`: 19%, desglose activo y sobreventa permitida.
+ */
+export async function fetchPosConfig(): Promise<PosConfig> {
   const supabase = createClient();
-  const { data, error } = await supabase.from("settings").select("tax_rate").maybeSingle();
+  const { data, error } = await supabase
+    .from("settings")
+    .select("tax_rate, include_tax, allow_oversell")
+    .maybeSingle();
   if (error) throw error;
-  return data?.tax_rate ?? 0.19;
+  return {
+    taxRate: data?.tax_rate ?? 0.19,
+    includeTax: data?.include_tax ?? true,
+    allowOversell: data?.allow_oversell ?? true,
+  };
 }
 
 /** Registra la venta de forma transaccional vía RPC y devuelve el id de la venta. */
@@ -194,6 +242,7 @@ export async function createSale(input: CheckoutInput): Promise<string> {
     // El parámetro jsonb acepta líneas con product_id o service_id.
     p_items: input.items as unknown as never,
     p_staff_id: input.staffId ?? undefined,
+    p_include_tax: input.includeTax,
   });
   if (error) throw error;
   return data as string;

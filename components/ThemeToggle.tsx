@@ -1,15 +1,18 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useSyncExternalStore } from "react";
 import { useTheme } from "@/components/ThemeProvider";
+
+// "¿Ya hidraté?" sin efecto ni setState. El tema real lo aplica el script inline
+// de app/layout.tsx antes de hidratar, así que el servidor no puede saber cuál
+// es: hasta hidratar se reserva el espacio y recién ahí se pinta el icono.
+const subscribeNever = () => () => {};
+const getClientSnapshot = () => true;
+const getServerSnapshot = () => false;
 
 export function ThemeToggle() {
   const { theme, toggleTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const mounted = useSyncExternalStore(subscribeNever, getClientSnapshot, getServerSnapshot);
 
   if (!mounted) {
     return (

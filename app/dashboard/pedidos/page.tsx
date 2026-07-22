@@ -1,6 +1,5 @@
 import { createClient } from "@/utils/supabase/server";
 import { buildSuggestedItems } from "@/services/abastecimiento.service";
-import type { SuggestedOrderItem } from "@/services/abastecimiento.service";
 import { PedidosClient } from "./PedidosClient";
 
 export default async function PedidosPage() {

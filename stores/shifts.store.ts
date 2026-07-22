@@ -11,11 +11,18 @@ interface ShiftsState {
   submitting: boolean;
   error: string | null;
 
+  /** El último cierre falló porque el descuadre necesita justificación. */
+  needsJustification: boolean;
+
   fetchCurrentShift: () => Promise<void>;
   /** Devuelve true si el turno quedó abierto. */
   openShift: (openingCash: number) => Promise<boolean>;
   /** Cierra el turno y devuelve el resumen del arqueo (null si falló). */
   closeShift: (closingCash: number, notes?: string, shiftId?: string) => Promise<ShiftSummary | null>;
+  /** Registra un retiro de caja contra el turno abierto. true si se guardó. */
+  registerWithdrawal: (amount: number, reason: string) => Promise<boolean>;
+  /** Baja la exigencia de justificación al volver a contar el efectivo. */
+  resetJustification: () => void;
   fetchShifts: () => Promise<void>;
 }
 
@@ -28,6 +35,7 @@ export const useShiftsStore = create<ShiftsState>((set) => ({
   loading: false,
   submitting: false,
   error: null,
+  needsJustification: false,
 
   fetchCurrentShift: async () => {
     set({ loading: true, error: null });
@@ -53,7 +61,7 @@ export const useShiftsStore = create<ShiftsState>((set) => ({
   },
 
   closeShift: async (closingCash, notes, shiftId) => {
-    set({ submitting: true, error: null });
+    set({ submitting: true, error: null, needsJustification: false });
     try {
       const summary = await shiftsService.closeShift(closingCash, notes, shiftId);
       set((s) => ({
@@ -70,6 +78,7 @@ export const useShiftsStore = create<ShiftsState>((set) => ({
                 difference: summary.difference,
                 sales_total: summary.sales_total,
                 sales_count: summary.sales_count,
+                withdrawals_total: summary.withdrawals_total,
                 totals_by_method: summary.totals_by_method,
               }
             : sh,
@@ -78,8 +87,30 @@ export const useShiftsStore = create<ShiftsState>((set) => ({
       }));
       return summary;
     } catch (e) {
+      // El descuadre sin nota no es un error a mostrar: es un paso más del
+      // cierre, así que la UI pide la justificación y reintenta.
+      if (shiftsService.isJustificationRequired(e)) {
+        set({ needsJustification: true, submitting: false, error: null });
+        return null;
+      }
       set({ error: toMessage(e), submitting: false });
       return null;
+    }
+  },
+
+  resetJustification: () => set({ needsJustification: false, error: null }),
+
+  registerWithdrawal: async (amount, reason) => {
+    set({ submitting: true, error: null });
+    try {
+      await shiftsService.registerWithdrawal(amount, reason);
+      // El retiro cambia el efectivo esperado: se recarga el turno en vivo.
+      const currentShift = await shiftsService.fetchCurrentShift();
+      set({ currentShift, submitting: false });
+      return true;
+    } catch (e) {
+      set({ error: toMessage(e), submitting: false });
+      return false;
     }
   },
 

@@ -35,6 +35,18 @@ export interface Product {
   variants?: Product[];
 }
 
+/**
+ * SKU autogenerado para productos que se crean sin uno propio.
+ *
+ * Vive acá y no en el componente porque generar identificadores es lógica de
+ * dominio, y además `Math.random` no puede llamarse dentro del cuerpo de un
+ * componente (regla `react-hooks/purity`: el compilador de React no distingue
+ * el handler del render).
+ */
+export function generateSku(): string {
+  return `PRD-${Math.floor(Math.random() * 100000)}`;
+}
+
 /** Datos del formulario de producto (campos en string tal como llegan del form). */
 export interface NewProductInput {
   name: string;

@@ -10,6 +10,7 @@ import { useShiftsStore } from "@/stores/shifts.store";
 import { useProfile } from "@/components/ProfileProvider";
 import { OpenShiftModal } from "@/components/shift/OpenShiftModal";
 import { CloseShiftModal } from "@/components/shift/CloseShiftModal";
+import { WithdrawalModal } from "@/components/shift/WithdrawalModal";
 import {
   computeTotals,
   type PaymentMethod,
@@ -22,7 +23,8 @@ import { PosReceipt } from "@/components/PosReceipt";
 import { RecentSalesModal } from "@/components/RecentSalesModal";
 import { DiscountModal } from "@/components/DiscountModal";
 import { SaleConfigModal } from "@/components/SaleConfigModal";
-import { notifySuccess, notifyError } from "@/lib/notifications";
+import { AlertTriangle } from "lucide-react";
+import { notifySuccess, notifyWarning, notifyError } from "@/lib/notifications";
 
 function IconDiscount(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -99,6 +101,7 @@ interface ReceiptData {
   date: Date;
   businessName?: string | null;
   logoUrl?: string | null;
+  includeTax: boolean;
 }
 
 export default function POSPage() {
@@ -113,6 +116,7 @@ export default function POSPage() {
   const activeTabId = usePosStore((s) => s.activeTabId);
   const submitting = usePosStore((s) => s.submitting);
   const includeTax = usePosStore((s) => s.includeTax);
+  const allowOversell = usePosStore((s) => s.allowOversell);
 
   const stockAlert = usePosStore((s) => s.stockAlert);
   const clearStockAlert = usePosStore((s) => s.clearStockAlert);
@@ -128,26 +132,49 @@ export default function POSPage() {
   const profile = useProfile();
   const isWorker = profile?.isWorker ?? false;
   const currentShift = useShiftsStore((s) => s.currentShift);
-  const shiftLoading = useShiftsStore((s) => s.loading);
   const fetchCurrentShift = useShiftsStore((s) => s.fetchCurrentShift);
   const [isCloseShiftOpen, setIsCloseShiftOpen] = useState(false);
+  const [isWithdrawalOpen, setIsWithdrawalOpen] = useState(false);
+  const [isOpenShiftOpen, setIsOpenShiftOpen] = useState(false);
+  // Lo que el empleado quiso hacer sin turno: se reintenta al abrirlo.
+  const pendingActionRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     if (isWorker) fetchCurrentShift();
   }, [isWorker, fetchCurrentShift]);
 
   const openCloseShift = () => {
-    // Refresca los acumulados antes de mostrar el arqueo.
+    // Refresca los acumulados antes de calcular el arqueo.
     fetchCurrentShift();
     setIsCloseShiftOpen(true);
   };
 
+  /**
+   * Cobrar e imprimir sí exigen turno abierto (`create_sale` lo rechaza sin él),
+   * así que el modal se pide aquí y no al entrar al POS: armar el carrito o
+   * consultar precios no lo necesita.
+   */
+  const requireShift = (action: () => void): void => {
+    if (isWorker && !currentShift) {
+      pendingActionRef.current = action;
+      setIsOpenShiftOpen(true);
+      return;
+    }
+    action();
+  };
+
   useEffect(() => {
     if (stockAlert) {
-      notifyError(stockAlert);
+      // Ámbar si la venta se hizo igual (aviso de inventario); rojo si el
+      // negocio no permite sobrevender, porque ahí la acción no ocurrió.
+      if (allowOversell) {
+        notifyWarning("Vendiendo sin stock", stockAlert);
+      } else {
+        notifyError("Sin stock", stockAlert);
+      }
       clearStockAlert();
     }
-  }, [stockAlert, clearStockAlert]);
+  }, [stockAlert, clearStockAlert, allowOversell]);
 
   const init = usePosStore((s) => s.init);
   const addTab = usePosStore((s) => s.addTab);
@@ -200,28 +227,22 @@ export default function POSPage() {
 
   const { cart, customerId, staffId, paymentMethod } = activeTab;
 
-  // Use refs for keyboard handler to avoid stale closures
-  const cartRef = useRef(cart);
-  cartRef.current = cart;
-  const submittingRef = useRef(submitting);
-  submittingRef.current = submitting;
-  const paymentMethodRef = useRef(paymentMethod);
-  paymentMethodRef.current = paymentMethod;
-  const amountTenderedRef = useRef(amountTendered);
-  amountTenderedRef.current = amountTendered;
-  const isCustomerModalOpenRef = useRef(isCustomerModalOpen);
-  isCustomerModalOpenRef.current = isCustomerModalOpen;
-  const isDiscountModalOpenRef = useRef(isDiscountModalOpen);
-  isDiscountModalOpenRef.current = isDiscountModalOpen;
-  const isRecentSalesModalOpenRef = useRef(isRecentSalesModalOpen);
-  isRecentSalesModalOpenRef.current = isRecentSalesModalOpen;
-  const isSaleConfigModalOpenRef = useRef(isSaleConfigModalOpen);
-  isSaleConfigModalOpenRef.current = isSaleConfigModalOpen;
-  const isSuccessModalOpenRef = useRef(isSuccessModalOpen);
-  isSuccessModalOpenRef.current = isSuccessModalOpen;
-  const isCashConfirmOpenRef = useRef(isCashConfirmOpen);
-  isCashConfirmOpenRef.current = isCashConfirmOpen;
-  const totalsRef = useRef<SaleTotals>(null!);
+  /** Lo único que el atajo de teclado necesita saber del render actual. */
+  interface KeyboardSnapshot {
+    cart: CartLine[];
+    submitting: boolean;
+    paymentMethod: PaymentMethod;
+    anyModalOpen: boolean;
+    requireShift: (action: () => void) => void;
+    checkout: () => void;
+  }
+
+  // El listener de teclado se registra una sola vez al montar, así que no puede
+  // cerrar sobre el estado. En vez de un ref espejo por cada valor (que había
+  // que asignar durante el render), se mantiene UN snapshot que se sincroniza
+  // en un efecto: después del render, y mucho antes de que alguien teclee.
+  // El efecto que lo llena vive más abajo, junto a `handleCheckout`.
+  const latest = useRef<KeyboardSnapshot>(null!);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -232,16 +253,20 @@ export default function POSPage() {
         setIsSaleConfigModalOpen(false);
         setIsSuccessModalOpen(false);
         setIsCashConfirmOpen(false);
+        setIsOpenShiftOpen(false);
       }
       if (e.key === "Enter" && !e.ctrlKey && !e.metaKey) {
-        const anyModal = isCustomerModalOpenRef.current || isDiscountModalOpenRef.current || isRecentSalesModalOpenRef.current || isSaleConfigModalOpenRef.current || isSuccessModalOpenRef.current || isCashConfirmOpenRef.current;
-        if (!anyModal && cartRef.current.length > 0 && !submittingRef.current) {
-          if (paymentMethodRef.current === "efectivo") {
-            setAmountTendered("");
-            setIsCashConfirmOpen(true);
-          } else {
-            handleCheckout();
-          }
+        const snapshot = latest.current;
+        if (!snapshot) return;
+        if (!snapshot.anyModalOpen && snapshot.cart.length > 0 && !snapshot.submitting) {
+          snapshot.requireShift(() => {
+            if (snapshot.paymentMethod === "efectivo") {
+              setAmountTendered("");
+              setIsCashConfirmOpen(true);
+            } else {
+              snapshot.checkout();
+            }
+          });
         }
       }
     };
@@ -276,14 +301,14 @@ export default function POSPage() {
     [customers, customerId],
   );
 
+  const isTaxExempt = selectedCustomer?.tax_exempt ?? false;
+
   const totals = useMemo(
-    () => computeTotals(cart, includeTax ? taxRate : 0, selectedCustomer?.tax_exempt ?? false),
-    [cart, taxRate, includeTax, selectedCustomer],
+    () => computeTotals(cart, taxRate, isTaxExempt, includeTax),
+    [cart, taxRate, includeTax, isTaxExempt],
   );
-  totalsRef.current = totals;
 
   const handleCheckout = async () => {
-    const realTotals = computeTotals(cart, taxRate, selectedCustomer?.tax_exempt ?? false);
     const data: ReceiptData = {
       items: cart.map((l) => ({
         name: l.item.name,
@@ -293,11 +318,12 @@ export default function POSPage() {
         total: l.item.price * l.quantity,
       })),
       customer: selectedCustomer,
-      totals: realTotals,
+      totals,
       paymentMethod,
       date: new Date(),
       businessName: businessProfile?.businessName ?? null,
       logoUrl: businessProfile?.logoUrl ?? null,
+      includeTax,
     };
     setReceiptData(data);
     const ok = await checkout();
@@ -312,6 +338,26 @@ export default function POSPage() {
       setIsSuccessModalOpen(true);
     }
   };
+
+  // Sincroniza el snapshot que lee el atajo de teclado. Va acá, después de
+  // `handleCheckout`, porque necesita su versión de este render.
+  useEffect(() => {
+    latest.current = {
+      cart,
+      submitting,
+      paymentMethod,
+      anyModalOpen:
+        isCustomerModalOpen ||
+        isDiscountModalOpen ||
+        isRecentSalesModalOpen ||
+        isSaleConfigModalOpen ||
+        isSuccessModalOpen ||
+        isCashConfirmOpen ||
+        isOpenShiftOpen,
+      requireShift,
+      checkout: handleCheckout,
+    };
+  });
 
   return (
     <>
@@ -340,12 +386,10 @@ export default function POSPage() {
                       (p) => p.sku?.toLowerCase() === q
                     );
                     if (match) {
-                      if (match.kind === "product" && (match.stock_level === null || match.stock_level <= 0)) {
-                        notifyError("Sin stock", `"${match.name}" no tiene unidades disponibles`);
-                      } else {
-                        addToCart(match);
-                        setSearch("");
-                      }
+                      // Sin freno por stock: el escaneo agrega siempre y, si
+                      // sobrevende, el store dispara el aviso ámbar.
+                      addToCart(match);
+                      setSearch("");
                     }
                   }
                   e.preventDefault();
@@ -357,15 +401,34 @@ export default function POSPage() {
               className="w-full bg-surface-container-lowest rounded-2xl py-3.5 pl-14 pr-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant border border-outline-variant/30 shadow-sm"
             />
           </div>
-          {isWorker && currentShift && (
+          {isWorker && !currentShift && (
             <button
-              onClick={openCloseShift}
-              className="h-12 px-4 rounded-2xl border border-outline-variant/30 text-sm font-semibold text-on-surface hover:bg-surface-container-low transition-colors shrink-0 flex items-center gap-2"
-              title={`Turno abierto desde ${new Date(currentShift.opened_at).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })}`}
+              onClick={() => setIsOpenShiftOpen(true)}
+              className="h-12 px-4 rounded-2xl border border-outline-variant/30 text-sm font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low transition-colors shrink-0 flex items-center gap-2"
+              title="Aún no has abierto la caja de este turno"
             >
-              <span className="w-2 h-2 rounded-full bg-[#10b981] animate-pulse" />
-              Cerrar turno
+              <span className="w-2 h-2 rounded-full bg-on-surface-variant/40" />
+              Abrir turno
             </button>
+          )}
+          {isWorker && currentShift && (
+            <>
+              <button
+                onClick={() => setIsWithdrawalOpen(true)}
+                className="h-12 px-4 rounded-2xl border border-outline-variant/30 text-sm font-semibold text-on-surface hover:bg-surface-container-low transition-colors shrink-0"
+                title="Registrar un retiro de efectivo de la caja"
+              >
+                Retiro
+              </button>
+              <button
+                onClick={openCloseShift}
+                className="h-12 px-4 rounded-2xl border border-outline-variant/30 text-sm font-semibold text-on-surface hover:bg-surface-container-low transition-colors shrink-0 flex items-center gap-2"
+                title={`Turno abierto desde ${new Date(currentShift.opened_at).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })}`}
+              >
+                <span className="w-2 h-2 rounded-full bg-[#10b981] animate-pulse" />
+                Cerrar turno
+              </button>
+            </>
           )}
           <button
             onClick={() => setViewMode(viewMode === "grid" ? "list" : "grid")}
@@ -443,19 +506,24 @@ export default function POSPage() {
                   <button
                     key={item.id}
                     onClick={() => addToCart(item)}
-                    disabled={item.kind === "product" && (item.stock_level ?? 0) <= 0}
-                    className={`text-left rounded-2xl p-3 border flex flex-col transition-colors group shadow-sm disabled:opacity-50 disabled:cursor-not-allowed relative ${
+                    disabled={!allowOversell && item.kind === "product" && (item.stock_level ?? 0) <= 0}
+                    className={`text-left rounded-2xl p-3 border flex flex-col transition-colors group shadow-sm relative disabled:opacity-50 disabled:cursor-not-allowed ${
                       item.kind === "service"
                         ? "bg-emerald-500/5 border-emerald-500/20 hover:border-emerald-400/40 disabled:hover:border-emerald-500/20"
                         : "bg-surface-container border-outline-variant/10 hover:border-primary/30 disabled:hover:border-outline-variant/10"
                     }`}
                   >
+                    {/* Con sobreventa: informa. Sin ella: el botón ya está frenado. */}
                     {item.kind === "product" && (item.stock_level ?? 0) <= 0 && (
-                      <div className="absolute inset-0 rounded-2xl bg-surface-container-lowest/60 flex items-center justify-center z-10">
-                        <span className="bg-error/10 text-error-dim text-xs font-bold px-3 py-1.5 rounded-lg border border-error/20">
-                          Sin Stock
-                        </span>
-                      </div>
+                      <span
+                        className={`absolute top-2 right-2 z-10 text-[10px] font-bold px-2 py-1 rounded-md border ${
+                          allowOversell
+                            ? "bg-amber-500/15 text-amber-600 border-amber-500/30"
+                            : "bg-error/10 text-error-dim border-error/20"
+                        }`}
+                      >
+                        Sin stock
+                      </span>
                     )}
                     <div className="aspect-square rounded-xl bg-surface-container-lowest flex items-center justify-center mb-3 group-hover:bg-surface-container-low transition-colors overflow-hidden">
                       {item.image_url ? (
@@ -490,7 +558,7 @@ export default function POSPage() {
                         <span
                           className={`text-[10px] font-bold shrink-0 ${
                             (item.stock_level ?? 0) <= 0
-                              ? "text-error"
+                              ? "text-amber-600"
                               : (item.stock_level ?? 0) <= 5
                                 ? "text-amber-500"
                                 : "text-on-surface-variant"
@@ -509,7 +577,7 @@ export default function POSPage() {
                   <button
                     key={item.id}
                     onClick={() => addToCart(item)}
-                    disabled={item.kind === "product" && (item.stock_level ?? 0) <= 0}
+                    disabled={!allowOversell && item.kind === "product" && (item.stock_level ?? 0) <= 0}
                     className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-colors text-left disabled:opacity-40 disabled:cursor-not-allowed ${
                       item.kind === "service"
                         ? "bg-emerald-500/5 border-emerald-500/20 hover:border-emerald-400/40"
@@ -542,7 +610,7 @@ export default function POSPage() {
                         <span
                           className={`text-[9px] font-bold ${
                             (item.stock_level ?? 0) <= 0
-                              ? "text-error"
+                              ? "text-amber-600"
                               : (item.stock_level ?? 0) <= 5
                                 ? "text-amber-500"
                                 : "text-on-surface-variant"
@@ -614,7 +682,7 @@ export default function POSPage() {
             <div className="flex items-center gap-3 text-on-surface-variant">
                {/* Iconos visuales superiores */}
                <button onClick={() => setIsDiscountModalOpen(true)} className="hover:text-primary" title="Descuentos globales"><IconDiscount className="w-5 h-5" /></button>
-               <button onClick={() => window.print()} className="hover:text-primary" title="Imprimir"><svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-5 h-5"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg></button>
+               <button onClick={() => requireShift(() => window.print())} className="hover:text-primary" title="Imprimir"><svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-5 h-5"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg></button>
                <button onClick={() => setIsSaleConfigModalOpen(true)} className="hover:text-primary" title="Configuración"><svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-5 h-5"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg></button>
             </div>
           </div>
@@ -730,6 +798,16 @@ export default function POSPage() {
                     </div>
                   </div>
                 </div>
+                {/* El toast dura 5s; esto queda mientras el ítem esté en el
+                    carrito, así el cajero lo ve al momento de cobrar. */}
+                {line.item.kind === "product" &&
+                  line.item.stock_level != null &&
+                  line.quantity > line.item.stock_level && (
+                    <p className="text-[10px] font-semibold text-amber-500 flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3 shrink-0" />
+                      Sin stock: quedan {line.item.stock_level} y se venden {line.quantity}.
+                    </p>
+                  )}
                 {(line.item.kind === "service" || line.item.has_commission) && staff.length > 0 && (
                   <select
                     value={line.staffId ?? ""}
@@ -753,7 +831,7 @@ export default function POSPage() {
                     <input
                       type="number"
                       min={1}
-                      max={line.item.stock_level ?? undefined}
+                      max={allowOversell ? undefined : line.item.stock_level ?? undefined}
                       value={line.quantity}
                       onChange={(e) => {
                         const v = parseInt(e.target.value, 10);
@@ -761,9 +839,11 @@ export default function POSPage() {
                       }}
                       className="w-12 text-center text-xs font-medium text-on-surface bg-transparent border-none outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     />
+                    {/* Con sobreventa no hay tope: avisa y sigue. Sin ella, frena. */}
                     <button
                       onClick={() => increment(line.item.id)}
                       disabled={
+                        !allowOversell &&
                         line.item.kind === "product" &&
                         line.item.stock_level != null &&
                         line.quantity >= line.item.stock_level
@@ -797,17 +877,46 @@ export default function POSPage() {
             </div>
           )}
 
-          {/* Resumen de totales */}
+          {/* Resumen de totales. Los precios son de vitrina (IVA incluido):
+              con IVA se desglosa la base, y el exento paga la base. */}
           {cart.length > 0 && (
             <div className="space-y-2 mb-4 bg-surface-container-lowest p-3 rounded-xl border border-outline-variant/10">
-              <div className="flex justify-between text-sm text-on-surface-variant">
-                <span>Subtotal (base)</span>
-                <span className="font-semibold text-on-surface">${money(totals.subtotal)}</span>
-              </div>
-              <div className="flex justify-between text-sm text-on-surface-variant">
-                <span>IVA ({includeTax ? (taxRate * 100).toFixed(0) : 0}%)</span>
-                <span className="font-semibold text-on-surface">${money(totals.taxAmount)}</span>
-              </div>
+              {isTaxExempt ? (
+                <>
+                  <div className="flex justify-between text-sm text-on-surface-variant">
+                    <span>Precio original</span>
+                    <span className="font-semibold text-on-surface">${money(totals.gross)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm text-[#10b981]">
+                    <span>Descuento por exención de IVA</span>
+                    <span className="font-semibold">-${money(totals.exemptionDiscount)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm text-on-surface-variant">
+                    <span>Subtotal (base)</span>
+                    <span className="font-semibold text-on-surface">${money(totals.subtotal)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm text-on-surface-variant">
+                    <span>IVA (exento)</span>
+                    <span className="font-semibold text-on-surface">$0.00</span>
+                  </div>
+                </>
+              ) : includeTax ? (
+                <>
+                  <div className="flex justify-between text-sm text-on-surface-variant">
+                    <span>Subtotal (base)</span>
+                    <span className="font-semibold text-on-surface">${money(totals.subtotal)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm text-on-surface-variant">
+                    <span>IVA ({(taxRate * 100).toFixed(0)}%)</span>
+                    <span className="font-semibold text-on-surface">${money(totals.taxAmount)}</span>
+                  </div>
+                </>
+              ) : (
+                <div className="flex justify-between text-sm text-on-surface-variant">
+                  <span>Subtotal</span>
+                  <span className="font-semibold text-on-surface">${money(totals.subtotal)}</span>
+                </div>
+              )}
               {totals.discount > 0 && (
                 <div className="flex justify-between text-sm text-on-surface-variant">
                   <span>Descuento</span>
@@ -815,7 +924,7 @@ export default function POSPage() {
                 </div>
               )}
               <div className="flex justify-between text-sm text-on-surface-variant border-t border-outline-variant/20 pt-2">
-                <span>Total</span>
+                <span>Total a pagar</span>
                 <span className="font-bold text-on-surface">${money(totals.total)}</span>
               </div>
             </div>
@@ -823,14 +932,16 @@ export default function POSPage() {
 
           <div className="flex gap-2">
             <button
-              onClick={() => {
-                if (paymentMethod === "efectivo") {
-                  setAmountTendered("");
-                  setIsCashConfirmOpen(true);
-                } else {
-                  handleCheckout();
-                }
-              }}
+              onClick={() =>
+                requireShift(() => {
+                  if (paymentMethod === "efectivo") {
+                    setAmountTendered("");
+                    setIsCashConfirmOpen(true);
+                  } else {
+                    handleCheckout();
+                  }
+                })
+              }
               disabled={cart.length === 0 || submitting}
               className={`flex-1 flex items-center justify-center gap-2 rounded-xl px-4 py-3 font-semibold transition-all ${
                 cart.length === 0
@@ -887,7 +998,20 @@ export default function POSPage() {
       {isRecentSalesModalOpen && <RecentSalesModal onClose={() => setIsRecentSalesModalOpen(false)} />}
 
       {/* Turno de caja: gate bloqueante para empleados sin turno abierto */}
-      {isWorker && !shiftLoading && !currentShift && !isCloseShiftOpen && <OpenShiftModal />}
+      {isWorker && isWithdrawalOpen && <WithdrawalModal onClose={() => setIsWithdrawalOpen(false)} />}
+      {isWorker && isOpenShiftOpen && (
+        <OpenShiftModal
+          onClose={() => {
+            pendingActionRef.current = null;
+            setIsOpenShiftOpen(false);
+          }}
+          onOpened={() => {
+            const action = pendingActionRef.current;
+            pendingActionRef.current = null;
+            action?.();
+          }}
+        />
+      )}
       {isWorker && isCloseShiftOpen && (
         <CloseShiftModal live={currentShift} onClose={() => setIsCloseShiftOpen(false)} />
       )}
@@ -939,24 +1063,30 @@ export default function POSPage() {
                   <button
                     key={amount}
                     type="button"
-                    onClick={() => setAmountTendered(String(amount))}
-                    className={`py-2.5 rounded-xl text-xs font-bold border transition-colors ${
-                      parseFloat(amountTendered) === amount
-                        ? "border-primary bg-primary/10 text-primary"
-                        : "border-outline-variant/20 text-on-surface-variant hover:border-primary/30 hover:text-on-surface"
-                    }`}
+                    onClick={() => setAmountTendered((prev) => String((parseFloat(prev) || 0) + amount))}
+                    className="py-2.5 rounded-xl text-xs font-bold border border-outline-variant/20 text-on-surface-variant hover:border-primary/30 hover:text-on-surface transition-colors"
                   >
                     ${money(amount)}
                   </button>
                 ))}
               </div>
-              <button
-                type="button"
-                onClick={() => setAmountTendered(String(totals.total))}
-                className="w-full py-2.5 rounded-xl text-xs font-bold border border-outline-variant/20 text-on-surface-variant hover:border-primary/30 hover:text-on-surface transition-colors"
-              >
-                Valor exacto
-              </button>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setAmountTendered(String(totals.total))}
+                  className="py-2.5 rounded-xl text-xs font-bold border border-outline-variant/20 text-on-surface-variant hover:border-primary/30 hover:text-on-surface transition-colors"
+                >
+                  Valor exacto
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAmountTendered("")}
+                  disabled={!amountTendered}
+                  className="py-2.5 rounded-xl text-xs font-bold border border-outline-variant/20 text-on-surface-variant hover:border-error/30 hover:text-error transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-outline-variant/20 disabled:hover:text-on-surface-variant"
+                >
+                  Limpiar
+                </button>
+              </div>
 
               {/* Cambio */}
               {(() => {

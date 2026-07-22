@@ -36,6 +36,8 @@ interface PosState {
   // Configuración
   includeTax: boolean;
   setIncludeTax: (val: boolean) => void;
+  /** Del negocio (`settings.allow_oversell`). false = no se cobra sin stock. */
+  allowOversell: boolean;
   defaultPaymentMethod: PaymentMethod;
   setDefaultPaymentMethod: (method: PaymentMethod) => void;
   defaultStaffId: string | null;
@@ -88,11 +90,25 @@ const createDefaultTab = (index: number, get?: () => PosState): SaleTab => {
 };
 
 /**
- * Productos tienen stock finito (no se puede vender más del disponible);
- * los servicios no llevan stock (stock_level === null) y no tienen tope.
+ * Un producto queda sobrevendido cuando la cantidad pedida supera su stock.
+ * Los servicios no llevan stock (`stock_level === null`) y nunca sobrevenden.
  */
-const atStockLimit = (item: CatalogItem, qty: number) =>
-  item.kind === "product" && item.stock_level != null && qty >= item.stock_level;
+const oversells = (item: CatalogItem, qty: number) =>
+  item.kind === "product" && item.stock_level != null && qty > item.stock_level;
+
+/**
+ * Qué hacer ante una sobreventa: lo decide el negocio en
+ * `settings.allow_oversell`, y el RPC `create_sale` lo vuelve a exigir.
+ *
+ * - Permitida: se avisa y la venta sigue. El inventario suele ir atrasado
+ *   respecto al mostrador, y frenar un cobro cuesta más que el descuadre; el
+ *   stock queda en negativo, que es la señal de que falta un ajuste.
+ * - No permitida: se frena acá para no llegar al servidor con un error.
+ */
+const oversellMessage = (item: CatalogItem, allowed: boolean) =>
+  allowed
+    ? `"${item.name}" — quedan ${item.stock_level} uds. La venta sigue y el stock quedará en negativo.`
+    : `"${item.name}" — solo quedan ${item.stock_level} uds. y tu negocio no permite vender sin stock.`;
 
 export const usePosStore = create<PosState>((set, get) => {
   return {
@@ -110,6 +126,7 @@ export const usePosStore = create<PosState>((set, get) => {
 
     includeTax: true,
     setIncludeTax: (val) => set({ includeTax: val }),
+    allowOversell: true,
     defaultPaymentMethod: "efectivo",
     setDefaultPaymentMethod: (method) => set({ defaultPaymentMethod: method }),
     defaultStaffId: null,
@@ -120,18 +137,22 @@ export const usePosStore = create<PosState>((set, get) => {
     init: async () => {
       set({ loading: true, error: null });
       try {
-        const [catalog, customers, staff, taxRate] = await Promise.all([
+        const [catalog, customers, staff, config] = await Promise.all([
           posService.fetchCatalog(),
           posService.fetchCustomers(),
           posService.fetchStaff(),
-          posService.fetchTaxRate(),
+          posService.fetchPosConfig(),
         ]);
+        // El desglose de IVA arranca según la configuración del negocio; el
+        // toggle del POS lo cambia solo para la venta en curso. `allowOversell`,
+        // en cambio, es política del negocio y el POS no la puede cambiar.
+        const { taxRate, includeTax, allowOversell } = config;
         const state = get();
         if (state.activeTabId === "") {
           const firstTab = createDefaultTab(0, get);
-          set({ catalog, customers, staff, taxRate, loading: false, tabs: [firstTab], activeTabId: firstTab.id });
+          set({ catalog, customers, staff, taxRate, includeTax, allowOversell, loading: false, tabs: [firstTab], activeTabId: firstTab.id });
         } else {
-          set({ catalog, customers, staff, taxRate, loading: false });
+          set({ catalog, customers, staff, taxRate, includeTax, allowOversell, loading: false });
         }
       } catch (e) {
         set({ error: toMessage(e), loading: false });
@@ -182,9 +203,9 @@ export const usePosStore = create<PosState>((set, get) => {
       const tab = s.tabs.find((t) => t.id === s.activeTabId);
       const existing = tab?.cart.find((l) => l.item.id === item.id);
       const currentQty = existing?.quantity ?? 0;
-      if (atStockLimit(item, currentQty)) {
-        set({ stockAlert: `"${item.name}" — Stock insuficiente (${item.stock_level} uds.)` });
-        return;
+      if (oversells(item, currentQty + 1)) {
+        set({ stockAlert: oversellMessage(item, s.allowOversell) });
+        if (!s.allowOversell) return;
       }
       set((s) => ({
         tabs: s.tabs.map((t) => {
@@ -207,9 +228,9 @@ export const usePosStore = create<PosState>((set, get) => {
       const tab = s.tabs.find((t) => t.id === tabId);
       const existing = tab?.cart.find((l) => l.item.id === item.id);
       const currentQty = existing?.quantity ?? 0;
-      if (atStockLimit(item, currentQty)) {
-        set({ stockAlert: `"${item.name}" — Stock insuficiente (${item.stock_level} uds.)` });
-        return;
+      if (oversells(item, currentQty + 1)) {
+        set({ stockAlert: oversellMessage(item, s.allowOversell) });
+        if (!s.allowOversell) return;
       }
       set((s) => ({
         tabs: s.tabs.map((t) => {
@@ -231,11 +252,10 @@ export const usePosStore = create<PosState>((set, get) => {
       const s = get();
       const tab = s.tabs.find((t) => t.id === s.activeTabId);
       const line = tab?.cart.find((l) => l.item.id === itemId);
-      if (!line || atStockLimit(line.item, line.quantity)) {
-        if (line) {
-          set({ stockAlert: `"${line.item.name}" — Stock insuficiente (${line.item.stock_level} uds.)` });
-        }
-        return;
+      if (!line) return;
+      if (oversells(line.item, line.quantity + 1)) {
+        set({ stockAlert: oversellMessage(line.item, s.allowOversell) });
+        if (!s.allowOversell) return;
       }
       set((s) => ({
         tabs: s.tabs.map((t) => {
@@ -269,13 +289,9 @@ export const usePosStore = create<PosState>((set, get) => {
       const s = get();
       const tab = s.tabs.find((t) => t.id === s.activeTabId);
       const line = tab?.cart.find((l) => l.item.id === itemId);
-      if (
-        line &&
-        line.item.kind === "product" &&
-        line.item.stock_level != null &&
-        quantity > line.item.stock_level
-      ) {
-        set({ stockAlert: `"${line.item.name}" — Stock insuficiente (${line.item.stock_level} uds.)` });
+      const oversold = !!line && oversells(line.item, quantity);
+      if (oversold && line) {
+        set({ stockAlert: oversellMessage(line.item, s.allowOversell) });
       }
       set((s) => ({
         tabs: s.tabs.map((t) => {
@@ -287,9 +303,11 @@ export const usePosStore = create<PosState>((set, get) => {
             ...t,
             cart: t.cart.map((l) => {
               if (l.item.id !== itemId) return l;
+              // Con la sobreventa apagada se capea al stock disponible; con ella
+              // encendida no hay tope y el cajero decide.
               const capped =
-                l.item.kind === "product" && l.item.stock_level != null
-                  ? Math.min(quantity, l.item.stock_level)
+                oversold && !s.allowOversell && l.item.stock_level != null
+                  ? l.item.stock_level
                   : quantity;
               return { ...l, quantity: capped };
             }),
@@ -382,6 +400,7 @@ export const usePosStore = create<PosState>((set, get) => {
           staffId,
           paymentMethod,
           discount: totalDiscount,
+          includeTax: state.includeTax,
           items: cart.map((l) => {
             const base = l.item.kind === "service"
               ? { service_id: l.item.id }

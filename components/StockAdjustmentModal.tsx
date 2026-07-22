@@ -24,12 +24,31 @@ export function StockAdjustmentModal({ preselectedProductId, onClose, onSuccess 
 
   const [productSearch, setProductSearch] = useState("");
   const [productId, setProductId] = useState(preselectedProductId ?? "");
-  const [productName, setProductName] = useState("");
   const [type, setType] = useState<"in" | "out" | "adjust">("in");
   const [quantity, setQuantity] = useState("1");
   const [notes, setNotes] = useState("");
 
   const selectedProduct = products.find((p) => p.id === productId);
+
+  // "Ajustar a" fija el stock absoluto (el servicio hace
+  // `update products set stock_level = quantity`), así que 0 es un valor
+  // legítimo: es como se registra un producto agotado. Entrada y salida son
+  // deltas y sí necesitan ser mayores a cero.
+  const minQuantity = type === "adjust" ? 0 : 1;
+  const parsedQuantity = parseInt(quantity);
+  const quantityInRange = Number.isInteger(parsedQuantity) && parsedQuantity >= minQuantity;
+
+  // `increment_stock` aplica el movimiento en unidades sueltas: multiplica la
+  // cantidad por `units_per_package`. Comparar la cantidad cruda contra el
+  // stock daba un aviso mal calibrado para productos que vienen por paquete.
+  const unitsPerPackage = selectedProduct?.units_per_package ?? 1;
+  const unitsMoved = quantityInRange ? parsedQuantity * unitsPerPackage : 0;
+  const exceedsStock =
+    type === "out" && !!selectedProduct && unitsMoved > selectedProduct.stock_level;
+
+  // El servidor rechaza dejar el stock en negativo (STOCK_INSUFICIENTE), así
+  // que la salida en exceso se bloquea acá en vez de dejar enviar y fallar.
+  const quantityValid = quantityInRange && !exceedsStock;
 
   const filteredProducts = useMemo(
     () =>
@@ -43,12 +62,12 @@ export function StockAdjustmentModal({ preselectedProductId, onClose, onSuccess 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!productId || !quantity || parseInt(quantity) <= 0) return;
+    if (!productId || !quantityValid) return;
 
     const ok = await addMovement({
       product_id: productId,
       type,
-      quantity: parseInt(quantity),
+      quantity: parsedQuantity,
       notes: notes || undefined,
     });
 
@@ -93,7 +112,6 @@ export function StockAdjustmentModal({ preselectedProductId, onClose, onSuccess 
                   onChange={(e) => {
                     setProductSearch(e.target.value);
                     setProductId("");
-                    setProductName("");
                   }}
                   placeholder="Buscar producto…"
                   className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
@@ -110,7 +128,6 @@ export function StockAdjustmentModal({ preselectedProductId, onClose, onSuccess 
                           type="button"
                           onMouseDown={() => {
                             setProductId(p.id);
-                            setProductName(p.name);
                             setProductSearch(p.name);
                           }}
                           className="w-full text-left px-3 py-2 text-sm text-on-surface hover:bg-surface-container-highest transition-colors flex items-center justify-between gap-2"
@@ -163,18 +180,30 @@ export function StockAdjustmentModal({ preselectedProductId, onClose, onSuccess 
             </label>
             <input
               type="number"
-              min="1"
+              min={minQuantity}
               step="1"
               value={quantity}
               onChange={(e) => setQuantity(e.target.value)}
               required
               className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
             />
+            {type === "adjust" && (
+              <p className="text-xs text-on-surface-variant">
+                El stock queda exactamente en este número. Usa 0 para marcar el producto como agotado.
+              </p>
+            )}
+            {type !== "adjust" && unitsPerPackage > 1 && quantityInRange && (
+              <p className="text-xs text-on-surface-variant">
+                {parsedQuantity} × {unitsPerPackage} unidades por paquete = {unitsMoved} unidades.
+              </p>
+            )}
           </div>
 
-          {type === "out" && selectedProduct && parseInt(quantity) > selectedProduct.stock_level && (
-            <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-700">
-              La cantidad de salida ({quantity}) supera el stock actual ({selectedProduct.stock_level}).
+          {exceedsStock && selectedProduct && (
+            <div className="rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim">
+              La salida de {unitsMoved} unidades supera el stock actual ({selectedProduct.stock_level}).
+              El stock no puede quedar en negativo: corrige la cantidad, o usa
+              «Ajustar a» si lo que buscas es fijar el conteo real.
             </div>
           )}
 
@@ -199,7 +228,7 @@ export function StockAdjustmentModal({ preselectedProductId, onClose, onSuccess 
             </button>
             <button
               type="submit"
-              disabled={submitting || !productId || !quantity || parseInt(quantity) <= 0}
+              disabled={submitting || !productId || !quantityValid}
               className="flex-1 px-5 py-2.5 rounded-xl text-sm font-semibold bg-primary hover:bg-primary-dim text-on-primary transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {submitting ? "Guardando…" : "Confirmar"}

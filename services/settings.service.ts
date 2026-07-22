@@ -27,12 +27,18 @@ export interface BusinessProfile {
 export interface Settings {
   id: string | null;
   tax_rate: number;
+  /** Si el negocio desglosa IVA (responsable de IVA). */
+  include_tax: boolean;
+  /** Si el POS puede cobrar más unidades de las que hay en stock. */
+  allow_oversell: boolean;
   currency: string;
   business_profile: BusinessProfile;
 }
 
 export interface SettingsInput {
   tax_rate: number;
+  include_tax: boolean;
+  allow_oversell: boolean;
   currency: string;
   business_profile?: BusinessProfile;
 }
@@ -40,6 +46,8 @@ export interface SettingsInput {
 const DEFAULTS: Settings = {
   id: null,
   tax_rate: 0.19,
+  include_tax: true,
+  allow_oversell: true,
   currency: "COP",
   business_profile: {},
 };
@@ -149,18 +157,23 @@ export async function regenerateBusinessKey(): Promise<string> {
   return key;
 }
 
+/** Una sola lista de columnas: las cuatro consultas de abajo deben coincidir. */
+const SETTINGS_SELECT = "id, tax_rate, include_tax, allow_oversell, currency, business_profile";
+
 /** Devuelve los ajustes de la cuenta (o valores por defecto si aún no existe la fila). */
 export async function fetchSettings(): Promise<Settings> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("settings")
-    .select("id, tax_rate, currency, business_profile")
+    .select(SETTINGS_SELECT)
     .maybeSingle();
   if (error) throw error;
   if (!data) return { ...DEFAULTS, business_profile: {} };
   return {
     id: data.id,
     tax_rate: data.tax_rate,
+    include_tax: data.include_tax ?? true,
+    allow_oversell: data.allow_oversell ?? true,
     currency: data.currency,
     business_profile: (data.business_profile ?? {}) as BusinessProfile,
   };
@@ -180,11 +193,13 @@ export async function saveSettings(input: SettingsInput): Promise<Settings> {
       .from("settings")
       .update({
         tax_rate: input.tax_rate,
+        include_tax: input.include_tax,
+        allow_oversell: input.allow_oversell,
         currency: input.currency,
         ...(input.business_profile ? { business_profile: input.business_profile as never } : {}),
       } as never)
       .eq("id", existing.id)
-      .select("id, tax_rate, currency, business_profile")
+      .select(SETTINGS_SELECT)
       .single();
     if (error) throw error;
     return data as unknown as Settings;
@@ -194,10 +209,12 @@ export async function saveSettings(input: SettingsInput): Promise<Settings> {
     .from("settings")
     .insert({
       tax_rate: input.tax_rate,
+      include_tax: input.include_tax,
+      allow_oversell: input.allow_oversell,
       currency: input.currency,
       ...(input.business_profile ? { business_profile: input.business_profile as never } : {}),
     } as never)
-    .select("id, tax_rate, currency, business_profile")
+    .select(SETTINGS_SELECT)
     .single();
   if (error) throw error;
   return data as unknown as Settings;

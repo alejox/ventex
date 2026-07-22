@@ -26,8 +26,8 @@ test.describe("Personal / Staff", () => {
     await page.getByRole("button", { name: "Añadir Personal" }).click();
     await page.waitForTimeout(500);
 
+    // TODO: el select de rol no está cubierto por este test.
     const nameInput = page.getByPlaceholder("Ej. Carlos Mendoza");
-    const roleSelect = page.getByRole("combobox").filter({ hasText: /Barbero|Estilista/i });
     const phoneInput = page.getByPlaceholder("+52 55 1234 5678");
 
     if (await nameInput.isVisible()) {

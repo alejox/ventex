@@ -17,9 +17,11 @@ interface ReceiptCustomer {
 }
 
 interface ReceiptTotals {
+  gross: number;
   subtotal: number;
   taxAmount: number;
   discount: number;
+  exemptionDiscount: number;
   total: number;
 }
 
@@ -31,6 +33,8 @@ interface ReceiptData {
   date: Date;
   businessName?: string | null;
   logoUrl?: string | null;
+  /** Si el negocio desglosa IVA (responsable de IVA). */
+  includeTax: boolean;
 }
 
 interface Props {
@@ -46,6 +50,9 @@ export function PosReceipt({ data }: Props) {
     tarjeta: "Tarjeta",
     transferencia: "Transferencia",
   };
+
+  // Solo el cliente exento tiene rebaja por exención.
+  const isExempt = (data?.totals.exemptionDiscount ?? 0) > 0;
 
   return (
     <>
@@ -71,6 +78,10 @@ export function PosReceipt({ data }: Props) {
             {/* Header */}
             <div className="text-center space-y-1 mb-4">
               {data.logoUrl && (
+                // El recibo se imprime: `next/image` haría lazy loading y
+                // serviría un placeholder, que en una impresión térmica sale
+                // vacío. Acá se quiere el archivo tal cual y ya cargado.
+                // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={data.logoUrl}
                   alt="Logo"
@@ -83,7 +94,8 @@ export function PosReceipt({ data }: Props) {
                 <span className="font-bold">Tel&eacute;fono:</span> 3148956814
               </p>
               <p>
-                <span className="font-bold">R&eacute;gimen:</span> Responsable de IVA
+                <span className="font-bold">R&eacute;gimen:</span>{" "}
+                {data.includeTax ? "Responsable de IVA" : "No responsable de IVA"}
               </p>
             </div>
 
@@ -141,16 +153,45 @@ export function PosReceipt({ data }: Props) {
 
             <hr className="border-t border-black mb-3 border-dashed" />
 
-            {/* Totales */}
+            {/* Totales. Los precios de los ítems son de vitrina (IVA incluido);
+                el desglose depende del régimen y de si el cliente es exento. */}
             <div className="space-y-1 mb-4">
-              <div className="flex justify-between">
-                <span className="font-bold">Subtotal:</span>
-                <span>{fmt(data.totals.subtotal)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="font-bold">IVA:</span>
-                <span>{fmt(data.totals.taxAmount)}</span>
-              </div>
+              {isExempt ? (
+                <>
+                  <div className="flex justify-between">
+                    <span className="font-bold">Precio original:</span>
+                    <span>{fmt(data.totals.gross)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-bold">Desc. exenci&oacute;n IVA:</span>
+                    <span className="text-red-600">-{fmt(data.totals.exemptionDiscount)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-bold">Subtotal:</span>
+                    <span>{fmt(data.totals.subtotal)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-bold">IVA:</span>
+                    <span>{fmt(0)}</span>
+                  </div>
+                </>
+              ) : data.includeTax ? (
+                <>
+                  <div className="flex justify-between">
+                    <span className="font-bold">Subtotal:</span>
+                    <span>{fmt(data.totals.subtotal)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-bold">IVA:</span>
+                    <span>{fmt(data.totals.taxAmount)}</span>
+                  </div>
+                </>
+              ) : (
+                <div className="flex justify-between">
+                  <span className="font-bold">Subtotal:</span>
+                  <span>{fmt(data.totals.subtotal)}</span>
+                </div>
+              )}
               {data.totals.discount > 0 && (
                 <div className="flex justify-between">
                   <span className="font-bold">Descuento:</span>

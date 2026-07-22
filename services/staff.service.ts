@@ -161,7 +161,24 @@ export async function fetchStaffSales(staffId: string): Promise<StaffSaleItem[]>
   const rate = (staffRes.data as { commission_rate: number; commission_type: string })?.commission_rate ?? 0;
   const type = (staffRes.data as { commission_rate: number; commission_type: string })?.commission_type ?? "percentage";
 
-  const result = ((dataRes.data ?? []) as unknown[]).map((r: any) => ({
+  // El embed anidado de PostgREST (sale_items → sales → customers) no queda bien
+  // tipado por el generador, así que se describe la forma que sí devuelve.
+  interface SaleItemRow {
+    id: string;
+    product_name: string;
+    sku: string | null;
+    unit_price: number;
+    quantity: number;
+    line_total: number;
+    sales: {
+      sale_number: number | null;
+      created_at: string | null;
+      payment_method: string | null;
+      customers: { full_name: string | null } | null;
+    } | null;
+  }
+
+  const result = ((dataRes.data ?? []) as unknown as SaleItemRow[]).map((r) => ({
     id: r.id,
     product_name: r.product_name,
     sku: r.sku,

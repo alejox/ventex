@@ -38,6 +38,37 @@ const addMinutes = (time: string, mins: number) => {
   return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
 };
 
+/** Estado inicial del formulario: la cita que se edita, o una nueva sembrada. */
+function buildInitialForm(
+  appointment: Appointment | null | undefined,
+  selectedDate: Date | undefined,
+  defaultStartTime: string | undefined,
+): NewAppointmentInput {
+  if (appointment) {
+    return {
+      customer_id: appointment.customer_id,
+      service_id: appointment.service_id,
+      staff_id: appointment.staff_id,
+      title: appointment.title,
+      description: appointment.description || "",
+      service_type: appointment.service_type || "",
+      vehicle_plate: appointment.vehicle_plate || "",
+      vehicle_model: appointment.vehicle_model || "",
+      appointment_date: appointment.appointment_date,
+      start_time: appointment.start_time.slice(0, 5),
+      end_time: appointment.end_time.slice(0, 5),
+      notes: appointment.notes || "",
+    };
+  }
+
+  return {
+    ...EMPTY_FORM,
+    appointment_date: (selectedDate ?? new Date()).toISOString().split("T")[0],
+    start_time: defaultStartTime || "09:00",
+    end_time: defaultStartTime ? addMinutes(defaultStartTime, 60) : "10:00",
+  };
+}
+
 const STATUS_OPTIONS = [
   { value: "pending", label: "Pendiente", color: "bg-amber-500/10 text-amber-600 border-amber-500/20" },
   { value: "confirmed", label: "Confirmada", color: "bg-[#6063ee]/10 text-[#6063ee] border-[#6063ee]/20" },
@@ -45,8 +76,15 @@ const STATUS_OPTIONS = [
   { value: "cancelled", label: "Cancelada", color: "bg-error-container/20 text-error-dim border-error-container/30" },
 ];
 
-export default function AppointmentModal({
-  open,
+export default function AppointmentModal(props: AppointmentModalProps) {
+  if (!props.open) return null;
+  // Cerrar desmonta el cuerpo, así que cada apertura arranca con estado limpio:
+  // el formulario se siembra en `useState` desde las props y no hace falta un
+  // efecto que lo copie (que además disparaba renders en cascada).
+  return <AppointmentModalBody {...props} />;
+}
+
+function AppointmentModalBody({
   onClose,
   selectedDate,
   appointment,
@@ -63,7 +101,9 @@ export default function AppointmentModal({
   const profile = useProfile();
   const isCarWash = profile?.businessType === "lavaautos";
 
-  const [form, setForm] = useState<NewAppointmentInput>(EMPTY_FORM);
+  const [form, setForm] = useState<NewAppointmentInput>(() =>
+    buildInitialForm(appointment, selectedDate, defaultStartTime),
+  );
   const [error, setError] = useState("");
   const isEditing = !!appointment;
 
@@ -75,46 +115,6 @@ export default function AppointmentModal({
     if (services.length === 0) fetchServices();
     if (staff.length === 0) fetchStaff();
   }, [customers.length, fetchCustomers, services.length, fetchServices, staff.length, fetchStaff]);
-
-  useEffect(() => {
-    if (open) {
-      if (appointment) {
-        setForm({
-          customer_id: appointment.customer_id,
-          service_id: appointment.service_id,
-          staff_id: appointment.staff_id,
-          title: appointment.title,
-          description: appointment.description || "",
-          service_type: appointment.service_type || "",
-          vehicle_plate: appointment.vehicle_plate || "",
-          vehicle_model: appointment.vehicle_model || "",
-          appointment_date: appointment.appointment_date,
-          start_time: appointment.start_time.slice(0, 5),
-          end_time: appointment.end_time.slice(0, 5),
-          notes: appointment.notes || "",
-        });
-      } else {
-        const dateStr = selectedDate
-          ? selectedDate.toISOString().split("T")[0]
-          : new Date().toISOString().split("T")[0];
-        setForm({
-          ...EMPTY_FORM,
-          appointment_date: dateStr,
-          start_time: defaultStartTime || "09:00",
-          end_time: defaultStartTime
-            ? incrementHour(defaultStartTime)
-            : "10:00",
-        });
-      }
-      setError("");
-    }
-  }, [open, appointment, selectedDate, defaultStartTime]);
-
-  const incrementHour = (time: string) => {
-    const [h, m] = time.split(":").map(Number);
-    const newH = Math.min(h + 1, 23);
-    return `${String(newH).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -172,8 +172,6 @@ export default function AppointmentModal({
       end_time: svc ? addMinutes(f.start_time, svc.duration_minutes) : f.end_time,
     }));
   };
-
-  if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">

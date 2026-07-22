@@ -103,6 +103,44 @@ export type Database = {
           },
         ]
       }
+      cash_movements: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          reason: string
+          shift_id: string
+          user_id: string
+          worker_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          id?: string
+          reason: string
+          shift_id: string
+          user_id?: string
+          worker_id?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          reason?: string
+          shift_id?: string
+          user_id?: string
+          worker_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cash_movements_shift_id_fkey"
+            columns: ["shift_id"]
+            isOneToOne: false
+            referencedRelation: "shifts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       categories: {
         Row: {
           created_at: string
@@ -515,6 +553,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      notifications: {
+        Row: {
+          body: string | null
+          created_at: string
+          data: Json
+          id: string
+          read_at: string | null
+          severity: string
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          data?: Json
+          id?: string
+          read_at?: string | null
+          severity?: string
+          title: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          data?: Json
+          id?: string
+          read_at?: string | null
+          severity?: string
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       plan_periods: {
         Row: {
@@ -999,6 +1073,87 @@ export type Database = {
           },
         ]
       }
+      services: {
+        Row: {
+          commission_type: string | null
+          commission_value: number | null
+          created_at: string
+          description: string | null
+          duration_minutes: number
+          has_commission: boolean
+          icon: string | null
+          id: string
+          name: string
+          price: number
+          status: string
+          user_id: string
+        }
+        Insert: {
+          commission_type?: string | null
+          commission_value?: number | null
+          created_at?: string
+          description?: string | null
+          duration_minutes?: number
+          has_commission?: boolean
+          icon?: string | null
+          id?: string
+          name: string
+          price?: number
+          status?: string
+          user_id?: string
+        }
+        Update: {
+          commission_type?: string | null
+          commission_value?: number | null
+          created_at?: string
+          description?: string | null
+          duration_minutes?: number
+          has_commission?: boolean
+          icon?: string | null
+          id?: string
+          name?: string
+          price?: number
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      settings: {
+        Row: {
+          allow_oversell: boolean
+          business_profile: Json | null
+          created_at: string
+          currency: string
+          id: string
+          include_tax: boolean
+          tax_rate: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          allow_oversell?: boolean
+          business_profile?: Json | null
+          created_at?: string
+          currency?: string
+          id?: string
+          include_tax?: boolean
+          tax_rate?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          allow_oversell?: boolean
+          business_profile?: Json | null
+          created_at?: string
+          currency?: string
+          id?: string
+          include_tax?: boolean
+          tax_rate?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       shifts: {
         Row: {
           closed_at: string | null
@@ -1047,81 +1202,6 @@ export type Database = {
           totals_by_method?: Json | null
           user_id?: string
           worker_id?: string
-        }
-        Relationships: []
-      }
-      services: {
-        Row: {
-          commission_type: string | null
-          commission_value: number | null
-          created_at: string
-          description: string | null
-          duration_minutes: number
-          has_commission: boolean
-          icon: string | null
-          id: string
-          name: string
-          price: number
-          status: string
-          user_id: string
-        }
-        Insert: {
-          commission_type?: string | null
-          commission_value?: number | null
-          created_at?: string
-          description?: string | null
-          duration_minutes?: number
-          has_commission?: boolean
-          icon?: string | null
-          id?: string
-          name: string
-          price?: number
-          status?: string
-          user_id?: string
-        }
-        Update: {
-          commission_type?: string | null
-          commission_value?: number | null
-          created_at?: string
-          description?: string | null
-          duration_minutes?: number
-          has_commission?: boolean
-          icon?: string | null
-          id?: string
-          name?: string
-          price?: number
-          status?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
-      settings: {
-        Row: {
-          business_profile: Json | null
-          created_at: string
-          currency: string
-          id: string
-          tax_rate: number
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          business_profile?: Json | null
-          created_at?: string
-          currency?: string
-          id?: string
-          tax_rate?: number
-          updated_at?: string
-          user_id?: string
-        }
-        Update: {
-          business_profile?: Json | null
-          created_at?: string
-          currency?: string
-          id?: string
-          tax_rate?: number
-          updated_at?: string
-          user_id?: string
         }
         Relationships: []
       }
@@ -1476,18 +1556,18 @@ export type Database = {
         Args: { p_closing_cash: number; p_notes?: string; p_shift_id?: string }
         Returns: Json
       }
-      current_shift: { Args: never; Returns: Json }
-      open_shift: { Args: { p_opening_cash: number }; Returns: Json }
       create_sale: {
         Args: {
           p_customer_id: string
           p_discount_amount: number
+          p_include_tax?: boolean
           p_items: Json
           p_payment_method: string
           p_staff_id?: string
         }
         Returns: string
       }
+      current_shift: { Args: never; Returns: Json }
       current_tenant: { Args: never; Returns: string }
       deactivate_worker: { Args: { p_worker_id: string }; Returns: undefined }
       ensure_license_current: { Args: never; Returns: Json }
@@ -1501,6 +1581,15 @@ export type Database = {
       is_super_admin: { Args: never; Returns: boolean }
       is_tenant_owner: { Args: never; Returns: boolean }
       my_subscription: { Args: never; Returns: Json }
+      open_shift: { Args: { p_opening_cash: number }; Returns: Json }
+      register_cash_withdrawal: {
+        Args: { p_amount: number; p_reason: string }
+        Returns: string
+      }
+      sales_summary: {
+        Args: { p_customer?: string; p_from?: string; p_to?: string }
+        Returns: Json
+      }
       reseller_clients: {
         Args: never
         Returns: {

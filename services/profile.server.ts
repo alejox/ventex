@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createClient } from "@/utils/supabase/server";
 import type { BusinessType, Modules, Profile, WorkerPermissions } from "@/config/business";
 
@@ -5,8 +6,11 @@ import type { BusinessType, Modules, Profile, WorkerPermissions } from "@/config
  * Perfil del usuario autenticado leído en el servidor (Server Components /
  * route handlers). Lo usa el layout del dashboard para gatear la navegación
  * antes de pintar y evitar el parpadeo de hidratación.
+ *
+ * Memoizado por request (`cache`): varios layouts anidados lo piden en el mismo
+ * render (dashboard + settings) y debe costar una sola consulta.
  */
-export async function fetchProfileServer(): Promise<Profile | null> {
+export const fetchProfileServer = cache(async function fetchProfileServer(): Promise<Profile | null> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -34,7 +38,7 @@ export async function fetchProfileServer(): Promise<Profile | null> {
     staffId: data?.staff_id ?? null,
     workerPermissions: (data?.worker_permissions ?? {}) as WorkerPermissions,
   };
-}
+});
 
 /** Resultado del chequeo de licencia mensual (RPC ensure_license_current). */
 export interface LicenseCheck {

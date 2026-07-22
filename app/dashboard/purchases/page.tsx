@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { IconPlus, IconBox } from "@/app/assets/icons/DashboardIcons";
 import { usePurchasesStore } from "@/stores/purchases.store";
-import type { PurchaseInvoice, PurchaseInvoiceItem } from "@/services/purchases.service";
+import type { PurchaseInvoice } from "@/services/purchases.service";
 import * as purchasesService from "@/services/purchases.service";
 import { useDistributorsStore } from "@/stores/distributors.store";
 import { useInventoryStore } from "@/stores/inventory.store";
@@ -211,7 +211,8 @@ export default function PurchasesPage() {
     if (ok) closeModal();
   };
 
-  const handleDistributorCreated = (_id: string, _name: string) => {
+  // El callback recibe (id, name), pero acá solo interesa recargar la lista.
+  const handleDistributorCreated = () => {
     fetchDistributors();
   };
 
@@ -347,7 +348,7 @@ export default function PurchasesPage() {
                       {new Date(inv.issue_date).toLocaleDateString("es-ES")}
                     </td>
                     <td className="p-4 text-xs text-on-surface-variant">
-                      {"created_at" in inv && inv.created_at ? new Date((inv as any).created_at).toLocaleDateString("es-ES") : "—"}
+                      {inv.created_at ? new Date(inv.created_at).toLocaleDateString("es-ES") : "—"}
                     </td>
                     <td className="p-4 text-right font-semibold text-on-surface font-mono">
                       {money(Number(inv.total))}

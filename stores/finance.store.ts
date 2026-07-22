@@ -1,14 +1,17 @@
 import { create } from "zustand";
 import * as financeService from "@/services/finance.service";
-import type { FinanceOverview, NewExpenseInput } from "@/services/finance.service";
+import type { FinanceOverview, NewExpenseInput, TodaySales } from "@/services/finance.service";
 
 interface FinanceState {
   overview: FinanceOverview | null;
+  /** null mientras no se resolvió: el panel distingue "cargando" de "cero ventas". */
+  todaySales: TodaySales | null;
   loading: boolean;
   error: string | null;
   submitting: boolean;
 
   fetchOverview: () => Promise<void>;
+  fetchTodaySales: () => Promise<void>;
   /** Devuelve true si el gasto se registró (para que el componente cierre el modal). */
   addExpense: (input: NewExpenseInput) => Promise<boolean>;
 }
@@ -18,6 +21,7 @@ const toMessage = (e: unknown) =>
 
 export const useFinanceStore = create<FinanceState>((set, get) => ({
   overview: null,
+  todaySales: null,
   loading: false,
   error: null,
   submitting: false,
@@ -29,6 +33,16 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
       set({ overview, loading: false });
     } catch (e) {
       set({ error: toMessage(e), loading: false });
+    }
+  },
+
+  fetchTodaySales: async () => {
+    try {
+      const todaySales = await financeService.fetchTodaySales();
+      set({ todaySales });
+    } catch (e) {
+      // No tumba el panel: es un KPI más, el resto del resumen sigue sirviendo.
+      set({ error: toMessage(e) });
     }
   },
 

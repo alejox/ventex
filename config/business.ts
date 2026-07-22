@@ -21,6 +21,7 @@ export type ModuleId =
 export type Modules = Partial<Record<ModuleId, boolean>>;
 
 export type WorkerPermission =
+  | "panel"
   | "pos"
   | "calendar"
   | "customers"
@@ -28,11 +29,13 @@ export type WorkerPermission =
   | "inventory"
   | "services"
   | "vehicles"
-  | "billing";
+  | "billing"
+  | "settings";
 
 export type WorkerPermissions = Partial<Record<WorkerPermission, boolean>>;
 
 export const WORKER_PERMISSION_LABELS: Record<WorkerPermission, string> = {
+  panel: "Panel (inicio)",
   pos: "Punto de Venta",
   calendar: "Calendario / Citas",
   customers: "Clientes",
@@ -41,6 +44,7 @@ export const WORKER_PERMISSION_LABELS: Record<WorkerPermission, string> = {
   services: "Servicios",
   vehicles: "Vehículos",
   billing: "Facturación",
+  settings: "Configuración del negocio",
 };
 
 /** Datos del perfil de cuenta (tabla public.profiles). */
@@ -245,6 +249,26 @@ export function visibleNavItems(
       base.includes(item.id) ||
       item.modules.some((m) => Boolean(active[m])),
   );
+}
+
+/**
+ * Permisos que no son un ítem del sidebar: `settings` abre la sección de
+ * Ajustes (engranaje), no una ruta de NAV_ITEMS. Se excluyen para que la
+ * navegación no intente resolverlos como ítem.
+ */
+const NON_NAV_PERMISSIONS: WorkerPermission[] = ["settings"];
+
+/**
+ * Ítems del sidebar para un trabajador, en el orden canónico de NAV_ITEMS.
+ * La única fuente de verdad son sus permisos: sin permiso no hay ítem.
+ */
+export function workerNavItems(permissions: WorkerPermissions): NavItem[] {
+  const granted = new Set(
+    (Object.keys(permissions) as WorkerPermission[]).filter(
+      (k) => permissions[k] && !NON_NAV_PERMISSIONS.includes(k),
+    ),
+  );
+  return NAV_ITEMS.filter((item) => granted.has(item.id as WorkerPermission));
 }
 
 export function visibleQuickActions(

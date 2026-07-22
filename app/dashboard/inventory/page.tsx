@@ -49,16 +49,6 @@ function IconFilter(props: React.SVGProps<SVGSVGElement>) {
   );
 }
 
-function IconMoreHorizontal(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" width="20" height="20" {...props}>
-      <circle cx="12" cy="12" r="1" />
-      <circle cx="19" cy="12" r="1" />
-      <circle cx="5" cy="12" r="1" />
-    </svg>
-  );
-}
-
 const EMPTY_CATEGORY: NewCategoryInput = { name: "", description: "" };
 
 export default function InventoryPage() {

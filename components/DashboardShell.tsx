@@ -13,7 +13,6 @@ import {
   IconCalendar,
   IconSettings,
   IconSearch,
-  IconBell,
   IconHelpCircle,
   IconMenu,
   IconShoppingCart,
@@ -25,8 +24,9 @@ import {
 } from "@/app/assets/icons/DashboardIcons";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ShellUserMenu } from "@/components/ShellUserMenu";
+import { NotificationsBell } from "@/components/NotificationsBell";
 import { useProfile } from "@/components/ProfileProvider";
-import { visibleNavItems, NAV_ITEMS } from "@/config/business";
+import { visibleNavItems, workerNavItems } from "@/config/business";
 import { backdropProps } from "@/components/modal";
 
 type IconType = typeof IconHome;
@@ -70,33 +70,18 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
   const isWorker = profile?.isWorker ?? false;
 
-  // Para workers, la navegación se filtra por sus permisos granulares
+  // Para workers, la navegación se filtra por sus permisos granulares.
   const workerPerms = profile?.workerPermissions ?? {};
-  const WORKER_NAV_MAP: Record<string, string> = {
-    pos: "pos",
-    calendar: "calendar",
-    customers: "customers",
-    sales: "sales",
-    inventory: "inventory",
-    services: "services",
-    vehicles: "vehicles",
-    billing: "billing",
-  };
 
   const navigation = isWorker
-    ? (["panel"] as string[])
-        .concat(
-          Object.entries(workerPerms)
-            .filter(([, v]) => v)
-            .map(([k]) => WORKER_NAV_MAP[k]!)
-            .filter(Boolean),
-        )
-        .map((id) => NAV_ITEMS.find((i) => i.id === id)!)
-        .filter(Boolean)
+    ? workerNavItems(workerPerms)
     : visibleNavItems(profile?.businessType ?? null, profile?.modules ?? null);
 
   const isSuperAdmin = !isWorker && (profile?.isSuperAdmin ?? false);
   const isReseller = !isWorker && (profile?.isReseller ?? false);
+  // Los Ajustes son del dueño; un trabajador solo los ve con permiso explícito.
+  const canSeeSettings = !isWorker || Boolean(workerPerms.settings);
+  const showAdminLinks = isSuperAdmin || isReseller || canSeeSettings;
   const userName = profile?.fullName ?? "Admin";
   const userEmail = profile?.email ?? "";
 
@@ -144,6 +129,9 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           </nav>
         </div>
 
+        {/* Accesos de administración. Si un trabajador no tiene ninguno, el
+            bloque entero (con su borde) desaparece en vez de quedar vacío. */}
+        {showAdminLinks && (
         <div className="p-4 border-t border-outline-variant/10 space-y-1">
           {isSuperAdmin && (
             <Link
@@ -169,17 +157,20 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
               {!sidebarCollapsed && <span className="whitespace-nowrap">Panel Revendedor</span>}
             </Link>
           )}
-          <Link
-            href="/dashboard/settings"
-            className={`flex items-center gap-3 py-3 rounded-xl transition-all text-sm font-medium text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low overflow-hidden ${
-              sidebarCollapsed ? "justify-center px-0" : "px-4"
-            }`}
-            title={sidebarCollapsed ? "Configuración" : undefined}
-          >
-            <IconSettings className="w-5 h-5 shrink-0" />
-            {!sidebarCollapsed && <span className="whitespace-nowrap">Configuración</span>}
-          </Link>
+          {canSeeSettings && (
+            <Link
+              href="/dashboard/settings"
+              className={`flex items-center gap-3 py-3 rounded-xl transition-all text-sm font-medium text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low overflow-hidden ${
+                sidebarCollapsed ? "justify-center px-0" : "px-4"
+              }`}
+              title={sidebarCollapsed ? "Configuración" : undefined}
+            >
+              <IconSettings className="w-5 h-5 shrink-0" />
+              {!sidebarCollapsed && <span className="whitespace-nowrap">Configuración</span>}
+            </Link>
+          )}
         </div>
+        )}
       </aside>
 
       {/* Main Content Area */}
@@ -233,15 +224,12 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
               </svg>
             </button>
             <ThemeToggle />
-            <button className="text-on-surface-variant hover:text-on-surface transition-colors relative">
-              <IconBell className="w-5 h-5" />
-              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-error border-2 border-surface-container-lowest"></span>
-            </button>
+            <NotificationsBell />
             <button className="hidden sm:block text-on-surface-variant hover:text-on-surface transition-colors">
               <IconHelpCircle className="w-5 h-5" />
             </button>
             <div className="w-px h-6 bg-outline-variant/20 hidden sm:block"></div>
-            <ShellUserMenu name={userName} email={userEmail} />
+            <ShellUserMenu name={userName} email={userEmail} showSettings={canSeeSettings} />
           </div>
         </header>
 
@@ -294,6 +282,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                 })}
               </nav>
             </div>
+            {showAdminLinks && (
             <div className="p-4 border-t border-outline-variant/10 space-y-1">
               {isSuperAdmin && (
                 <Link
@@ -315,15 +304,18 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                   Panel Revendedor
                 </Link>
               )}
-              <Link
-                href="/dashboard/settings"
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-sm font-medium text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
-              >
-                <IconSettings className="w-5 h-5" />
-                Configuración
-              </Link>
+              {canSeeSettings && (
+                <Link
+                  href="/dashboard/settings"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-sm font-medium text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
+                >
+                  <IconSettings className="w-5 h-5" />
+                  Configuración
+                </Link>
+              )}
             </div>
+            )}
           </aside>
         </div>
       )}

@@ -52,11 +52,7 @@ export async function createManualMovement(input: ManualMovementInput): Promise<
   } as never);
   if (movErr) throw movErr;
 
-  const delta =
-    input.type === "in" ? input.quantity
-    : input.type === "out" ? -input.quantity
-    : input.quantity;
-
+  // `adjust` fija el stock absoluto; `in`/`out` son deltas sobre el actual.
   if (input.type === "adjust") {
     const { error } = await supabase
       .from("products")
@@ -66,7 +62,7 @@ export async function createManualMovement(input: ManualMovementInput): Promise<
   } else {
     const { error } = await supabase.rpc("increment_stock" as never, {
       p_product_id: input.product_id,
-      p_quantity: delta,
+      p_quantity: input.type === "in" ? input.quantity : -input.quantity,
     } as never);
     if (error) throw error;
   }

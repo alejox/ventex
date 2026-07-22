@@ -130,7 +130,6 @@ export function ProductBrowser({ products, categories, addedIds, onAdd, onClose 
             <div className="space-y-2">
               {filtered.map((p) => {
                 const added = addedIds.has(p.id);
-                const ratio = p.stock_level / p.minimum_stock;
                 const isLow = p.stock_level < p.minimum_stock;
                 const badgeClass = p.stock_level === 0
                   ? "bg-error-container/20 text-error-dim border border-error-container/30"

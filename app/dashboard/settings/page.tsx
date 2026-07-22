@@ -2,7 +2,6 @@
 
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { IconSettings } from "@/app/assets/icons/DashboardIcons";
 import { useSettingsStore } from "@/stores/settings.store";
 import { useProfileStore } from "@/stores/profile.store";
 import { useProfile } from "@/components/ProfileProvider";
@@ -169,12 +168,47 @@ function BusinessModulesForm() {
   );
 }
 
+/** Fila de ajuste con interruptor: título, explicación y toggle a la derecha. */
+function ToggleSetting({
+  title,
+  description,
+  checked,
+  onChange,
+}: {
+  title: string;
+  description: React.ReactNode;
+  checked: boolean;
+  onChange: (value: boolean) => void;
+}) {
+  return (
+    <div className="rounded-2xl border border-outline-variant/20 p-4">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h3 className="text-sm font-semibold text-on-surface">{title}</h3>
+          <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">{description}</p>
+        </div>
+        <label className="relative inline-flex items-center cursor-pointer shrink-0">
+          <input
+            type="checkbox"
+            className="sr-only peer"
+            checked={checked}
+            onChange={(e) => onChange(e.target.checked)}
+          />
+          <div className="w-11 h-6 bg-surface-container-high peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+        </label>
+      </div>
+    </div>
+  );
+}
+
 function SettingsForm({ settings }: { settings: Settings }) {
   const saveSettings = useSettingsStore((s) => s.saveSettings);
   const submitting = useSettingsStore((s) => s.submitting);
   const error = useSettingsStore((s) => s.error);
 
   const [taxPercent, setTaxPercent] = useState(() => String(+(settings.tax_rate * 100).toFixed(2)));
+  const [includeTax, setIncludeTax] = useState(settings.include_tax);
+  const [allowOversell, setAllowOversell] = useState(settings.allow_oversell);
   const [currency, setCurrency] = useState(settings.currency);
   const [saved, setSaved] = useState(false);
 
@@ -183,7 +217,12 @@ function SettingsForm({ settings }: { settings: Settings }) {
     setSaved(false);
     const pct = parseFloat(taxPercent);
     const rate = Number.isFinite(pct) ? Math.min(Math.max(pct, 0), 100) / 100 : 0;
-    const ok = await saveSettings({ tax_rate: Math.round(rate * 10000) / 10000, currency });
+    const ok = await saveSettings({
+      tax_rate: Math.round(rate * 10000) / 10000,
+      include_tax: includeTax,
+      allow_oversell: allowOversell,
+      currency,
+    });
     if (ok) setSaved(true);
   };
 
@@ -195,29 +234,71 @@ function SettingsForm({ settings }: { settings: Settings }) {
         </div>
       )}
 
-      <div>
-        <label className="block text-sm font-semibold text-on-surface mb-2">Tasa de IVA (%)</label>
-        <div className="relative">
-          <input
-            type="number"
-            step="0.01"
-            min="0"
-            max="100"
-            required
-            value={taxPercent}
-            onChange={(e) => {
-              setTaxPercent(e.target.value);
-              setSaved(false);
-            }}
-            placeholder="16"
-            className="w-full px-4 py-3 pr-10 bg-surface-container-low border border-outline-variant/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 text-on-surface placeholder:text-on-surface-variant/50 transition-shadow"
-          />
-          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant text-sm">%</span>
+      <ToggleSetting
+        title="Desglosar IVA"
+        description="Actívalo si tu negocio es responsable de IVA. El precio que pagas en caja es el mismo en ambos casos: esto solo decide si la venta y el recibo separan la base y el IVA."
+        checked={includeTax}
+        onChange={(v) => {
+          setIncludeTax(v);
+          setSaved(false);
+        }}
+      />
+
+      {includeTax && (
+        <div>
+          <label className="block text-sm font-semibold text-on-surface mb-2">Tasa de IVA (%)</label>
+          <div className="relative">
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              max="100"
+              required
+              value={taxPercent}
+              onChange={(e) => {
+                setTaxPercent(e.target.value);
+                setSaved(false);
+              }}
+              placeholder="19"
+              className="w-full px-4 py-3 pr-10 bg-surface-container-low border border-outline-variant/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 text-on-surface placeholder:text-on-surface-variant/50 transition-shadow"
+            />
+            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant text-sm">%</span>
+          </div>
+          <p className="text-xs text-on-surface-variant mt-2">
+            Los precios de tu catálogo ya incluyen el IVA: esta tasa se usa para extraerlo del
+            precio y mostrarlo desglosado. Los clientes marcados como exentos pagan solo la base.
+          </p>
         </div>
-        <p className="text-xs text-on-surface-variant mt-2">
-          Se aplica a cada venta, salvo a clientes marcados como exentos.
-        </p>
-      </div>
+      )}
+
+      <ToggleSetting
+        title="Permitir vender sin stock"
+        description={
+          allowOversell ? (
+            <>
+              El punto de venta cobra aunque no queden unidades: avisa al cajero y el stock puede
+              quedar en negativo, que es la señal de que hay un conteo pendiente. Conviene cuando el
+              inventario del sistema suele ir atrasado respecto al mostrador.
+            </>
+          ) : (
+            <>
+              El punto de venta <strong className="text-on-surface">no deja cobrar</strong> un
+              producto sin unidades disponibles. Conviene cuando el inventario es confiable y una
+              venta sin stock es siempre un error.
+            </>
+          )
+        }
+        checked={allowOversell}
+        onChange={(v) => {
+          setAllowOversell(v);
+          setSaved(false);
+        }}
+      />
+
+      <p className="text-xs text-on-surface-variant -mt-3 px-1 leading-relaxed">
+        En cualquiera de los dos casos, los movimientos manuales de inventario nunca pueden dejar el
+        stock en negativo: para corregir un conteo usa «Ajustar a».
+      </p>
 
       <div>
         <label className="block text-sm font-semibold text-on-surface mb-2">Moneda</label>

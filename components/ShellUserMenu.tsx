@@ -9,8 +9,19 @@ import { IconSettings, IconLogOut } from "@/app/assets/icons/DashboardIcons";
  * Menú de usuario del header (avatar → nombre, correo, ajustes y cerrar sesión).
  * Único para los tres shells (dashboard, super admin y revendedor): el menú es
  * el mismo en todos, así que vive aquí y no se personaliza por panel.
+ *
+ * `showSettings` oculta el acceso a Ajustes: los trabajadores no administran la
+ * configuración del negocio (ver el gate en app/dashboard/settings/layout.tsx).
  */
-export function ShellUserMenu({ name, email }: { name: string; email: string }) {
+export function ShellUserMenu({
+  name,
+  email,
+  showSettings = true,
+}: {
+  name: string;
+  email: string;
+  showSettings?: boolean;
+}) {
   const [open, setOpen] = useState(false);
 
   const initials = name
@@ -47,14 +58,16 @@ export function ShellUserMenu({ name, email }: { name: string; email: string }) 
               <p className="text-xs text-on-surface-variant truncate">{email}</p>
             </div>
 
-            <Link
-              href="/dashboard/settings"
-              onClick={() => setOpen(false)}
-              className="flex items-center gap-3 px-4 py-2 text-sm font-medium text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-colors w-full text-left"
-            >
-              <IconSettings className="w-4 h-4" />
-              Ajustes de Perfil
-            </Link>
+            {showSettings && (
+              <Link
+                href="/dashboard/settings"
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-3 px-4 py-2 text-sm font-medium text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-colors w-full text-left"
+              >
+                <IconSettings className="w-4 h-4" />
+                Ajustes de Perfil
+              </Link>
+            )}
 
             <form action={signout}>
               <button

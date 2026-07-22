@@ -1,21 +1,18 @@
-"use client";
-
 import React from "react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { IconSettings, IconUsers } from "@/app/assets/icons/DashboardIcons";
-import { useProfile } from "@/components/ProfileProvider";
+import { redirect } from "next/navigation";
+import { IconSettings } from "@/app/assets/icons/DashboardIcons";
+import { fetchProfileServer } from "@/services/profile.server";
+import { SettingsTabs } from "./SettingsTabs";
 
-export default function SettingsLayout({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
-  const profile = useProfile();
+// Server Component: todo lo que cuelga de /dashboard/settings es configuración
+// del negocio (facturación, tipo de negocio y módulos, datos fiscales,
+// trabajadores). El dueño siempre entra; un trabajador solo con el permiso
+// `settings` que le asigne el dueño. Se gatea aquí, en el servidor, antes de
+// pintar nada, así también cubre la navegación directa por URL.
+export default async function SettingsLayout({ children }: { children: React.ReactNode }) {
+  const profile = await fetchProfileServer();
   const isWorker = profile?.isWorker ?? false;
-
-  const tabs = [
-    { name: "General", href: "/dashboard/settings" },
-    { name: "Datos de tu negocio", href: "/dashboard/settings/business" },
-    ...(isWorker ? [] : [{ name: "Trabajadores", href: "/dashboard/settings/trabajadores" }]),
-  ];
+  if (isWorker && !profile?.workerPermissions?.settings) redirect("/dashboard");
 
   return (
     <div className="w-full max-w-4xl mx-auto pb-20 animate-in fade-in duration-300">
@@ -30,24 +27,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
       </div>
 
       <div className="border-b border-outline-variant/20 mb-8">
-        <nav className="flex gap-6 -mb-px overflow-x-auto">
-          {tabs.map((tab) => {
-            const isActive = pathname === tab.href;
-            return (
-              <Link
-                key={tab.href}
-                href={tab.href}
-                className={`pb-3 text-sm font-semibold transition-colors border-b-2 shrink-0 ${
-                  isActive
-                    ? "border-primary text-primary"
-                    : "border-transparent text-on-surface-variant hover:text-on-surface hover:border-outline-variant/30"
-                }`}
-              >
-                {tab.name}
-              </Link>
-            );
-          })}
-        </nav>
+        <SettingsTabs showWorkers={!isWorker} />
       </div>
 
       {children}

@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
-import { IconShoppingCart, IconWallet, IconTrendingUp } from "@/app/assets/icons/DashboardIcons";
+import { useEffect, useState } from "react";
+import { IconShoppingCart, IconWallet, IconTrendingUp, IconSearch } from "@/app/assets/icons/DashboardIcons";
 import { useSalesStore } from "@/stores/sales.store";
+import { SALES_PERIODS, SALES_PAGE_SIZE } from "@/services/sales.service";
 
 const money = (n: number) =>
   n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -44,19 +45,35 @@ export default function SalesPage() {
   const openDetail = useSalesStore((s) => s.openDetail);
   const closeDetail = useSalesStore((s) => s.closeDetail);
 
+  const summary = useSalesStore((s) => s.summary);
+  const period = useSalesStore((s) => s.period);
+  const customFrom = useSalesStore((s) => s.customFrom);
+  const customTo = useSalesStore((s) => s.customTo);
+  const setPeriod = useSalesStore((s) => s.setPeriod);
+  const setCustomRange = useSalesStore((s) => s.setCustomRange);
+  const total = useSalesStore((s) => s.total);
+  const page = useSalesStore((s) => s.page);
+  const setPage = useSalesStore((s) => s.setPage);
+  const customerQuery = useSalesStore((s) => s.customerQuery);
+  const setCustomerQuery = useSalesStore((s) => s.setCustomerQuery);
+
+  // Lo que se está tecleando, que va por delante de la búsqueda aplicada.
+  const [searchInput, setSearchInput] = useState(customerQuery);
+
   useEffect(() => {
     fetchSales();
   }, [fetchSales]);
 
-  const stats = useMemo(() => {
-    const completed = sales.filter((s) => s.status === "completed");
-    const revenue = completed.reduce((sum, s) => sum + s.total, 0);
-    return {
-      count: sales.length,
-      revenue,
-      avgTicket: completed.length > 0 ? revenue / completed.length : 0,
-    };
-  }, [sales]);
+  // Debounce: cada tecla dispararía dos consultas (listado + resumen).
+  useEffect(() => {
+    if (searchInput === customerQuery) return;
+    const timer = setTimeout(() => setCustomerQuery(searchInput), 350);
+    return () => clearTimeout(timer);
+  }, [searchInput, customerQuery, setCustomerQuery]);
+
+  const pageCount = Math.max(1, Math.ceil(total / SALES_PAGE_SIZE));
+  const firstRow = total === 0 ? 0 : page * SALES_PAGE_SIZE + 1;
+  const lastRow = Math.min((page + 1) * SALES_PAGE_SIZE, total);
 
   return (
     <div className="space-y-6">
@@ -67,12 +84,76 @@ export default function SalesPage() {
         </div>
       </div>
 
+      {/* Búsqueda por cliente. Filtra en el servidor, no sobre la página
+          cargada: buscar solo entre 50 filas daría resultados que mienten. */}
+      <div className="relative max-w-sm">
+        <IconSearch className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none" />
+        <input
+          type="search"
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+          placeholder="Buscar por cliente…"
+          className="w-full pl-10 pr-4 py-2.5 bg-surface-container border border-outline-variant/20 rounded-xl text-sm text-on-surface placeholder:text-on-surface-variant focus:outline-none focus:ring-2 focus:ring-primary/50 transition-shadow"
+        />
+      </div>
+
+      {customerQuery && (
+        <p className="text-xs text-on-surface-variant -mt-3">
+          Mostrando solo ventas de clientes que coinciden con «{customerQuery}». Las ventas sin
+          cliente asignado (De Paso) quedan fuera.
+        </p>
+      )}
+
+      {/* Período. Manda sobre las tarjetas Y sobre la tabla: los totales salen
+          del servidor para el período completo, no de las filas visibles. */}
+      <div className="flex flex-wrap items-center gap-2">
+        {SALES_PERIODS.map((p) => (
+          <button
+            key={p.id}
+            onClick={() => setPeriod(p.id)}
+            className={`px-3.5 py-2 rounded-xl text-xs font-semibold border transition-colors ${
+              period === p.id
+                ? "bg-primary/10 border-primary/40 text-primary"
+                : "bg-surface-container border-outline-variant/10 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high"
+            }`}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+
+      {period === "custom" && (
+        <div className="flex flex-wrap items-end gap-3 bg-surface-container rounded-2xl border border-outline-variant/10 p-4">
+          <div>
+            <label className="block text-xs font-semibold text-on-surface-variant mb-1.5">Desde</label>
+            <input
+              type="date"
+              value={customFrom}
+              max={customTo || undefined}
+              onChange={(e) => setCustomRange(e.target.value, customTo)}
+              className="px-3 py-2 bg-surface-container-low border border-outline-variant/20 rounded-xl text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/50"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-on-surface-variant mb-1.5">Hasta</label>
+            <input
+              type="date"
+              value={customTo}
+              min={customFrom || undefined}
+              onChange={(e) => setCustomRange(customFrom, e.target.value)}
+              className="px-3 py-2 bg-surface-container-low border border-outline-variant/20 rounded-xl text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/50"
+            />
+          </div>
+          <p className="text-xs text-on-surface-variant pb-2.5">Ambos días quedan incluidos.</p>
+        </div>
+      )}
+
       {/* Resumen */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-surface-container rounded-2xl p-5 border border-outline-variant/10 shadow-sm flex justify-between items-center">
           <div>
             <p className="text-on-surface-variant text-sm font-medium mb-1">Ventas</p>
-            <h3 className="text-3xl font-bold text-on-surface">{stats.count}</h3>
+            <h3 className="text-3xl font-bold text-on-surface">{summary ? summary.sales_count : "—"}</h3>
           </div>
           <div className="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
             <IconShoppingCart className="w-6 h-6" />
@@ -81,7 +162,9 @@ export default function SalesPage() {
         <div className="bg-surface-container rounded-2xl p-5 border border-outline-variant/10 shadow-sm flex justify-between items-center">
           <div>
             <p className="text-on-surface-variant text-sm font-medium mb-1">Ingresos (completadas)</p>
-            <h3 className="text-3xl font-bold text-on-surface">${money(stats.revenue)}</h3>
+            <h3 className="text-3xl font-bold text-on-surface">
+              {summary ? `$${money(summary.revenue)}` : "—"}
+            </h3>
           </div>
           <div className="w-12 h-12 rounded-xl bg-[#10b981]/10 text-[#10b981] flex items-center justify-center">
             <IconWallet className="w-6 h-6" />
@@ -90,7 +173,9 @@ export default function SalesPage() {
         <div className="bg-surface-container rounded-2xl p-5 border border-outline-variant/10 shadow-sm flex justify-between items-center">
           <div>
             <p className="text-on-surface-variant text-sm font-medium mb-1">Ticket promedio</p>
-            <h3 className="text-3xl font-bold text-on-surface">${money(stats.avgTicket)}</h3>
+            <h3 className="text-3xl font-bold text-on-surface">
+              {summary ? `$${money(summary.avg_ticket)}` : "—"}
+            </h3>
           </div>
           <div className="w-12 h-12 rounded-xl bg-[#8b5cf6]/10 text-[#8b5cf6] flex items-center justify-center">
             <IconTrendingUp className="w-6 h-6" />
@@ -126,7 +211,11 @@ export default function SalesPage() {
               ) : sales.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="p-12 text-center text-on-surface-variant">
-                    Aún no hay ventas. Registra una desde el Punto de Venta.
+                    {customerQuery
+                      ? `Ninguna venta de este período es de un cliente que coincida con «${customerQuery}».`
+                      : period === "all"
+                        ? "Aún no hay ventas. Registra una desde el Punto de Venta."
+                        : "No hay ventas en este período. Prueba con otro rango de fechas."}
                   </td>
                 </tr>
               ) : (
@@ -153,6 +242,34 @@ export default function SalesPage() {
             </tbody>
           </table>
         </div>
+
+        {/* Paginación. Solo aparece si el período no entra en una página. */}
+        {total > SALES_PAGE_SIZE && (
+          <div className="flex items-center justify-between gap-4 px-6 py-4 border-t border-outline-variant/10">
+            <p className="text-xs text-on-surface-variant">
+              {firstRow}–{lastRow} de {total}
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPage(page - 1)}
+                disabled={page === 0 || loading}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-outline-variant/20 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Anterior
+              </button>
+              <span className="text-xs text-on-surface-variant tabular-nums">
+                {page + 1} / {pageCount}
+              </span>
+              <button
+                onClick={() => setPage(page + 1)}
+                disabled={page + 1 >= pageCount || loading}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-outline-variant/20 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Siguiente
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Modal de detalle */}

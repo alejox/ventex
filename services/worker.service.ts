@@ -17,6 +17,8 @@ export interface InviteWorkerInput {
   fullName: string;
   role: string;
   staffId?: string;
+  /** Permisos iniciales. Sin esto, el trabajador nace sin acceso a nada. */
+  permissions?: WorkerPermissions;
 }
 
 export interface UpdateWorkerInput {

@@ -25,6 +25,12 @@ export interface FinanceOverview {
   recent: FinanceTransaction[];
 }
 
+/** Corte del día en curso para el KPI "Ventas hoy" del panel. */
+export interface TodaySales {
+  count: number;
+  revenue: number;
+}
+
 export interface Expense {
   id: string;
   description: string;
@@ -57,6 +63,28 @@ function lastMonths(n: number): { key: string; label: string }[] {
 
 // created_at (ISO) y expense_date ("YYYY-MM-DD") comparten los primeros 7 chars.
 const monthKeyOf = (value: string) => value.slice(0, 7);
+
+/**
+ * Ventas completadas desde la medianoche local. La medianoche se calcula en el
+ * navegador y se manda en ISO: el corte del día es el del negocio, no UTC.
+ */
+export async function fetchTodaySales(): Promise<TodaySales> {
+  const supabase = createClient();
+  const midnight = new Date();
+  midnight.setHours(0, 0, 0, 0);
+
+  const { data, count, error } = await supabase
+    .from("sales")
+    .select("total", { count: "exact" })
+    .gte("created_at", midnight.toISOString())
+    .eq("status", "completed");
+  if (error) throw error;
+
+  return {
+    count: count ?? 0,
+    revenue: (data ?? []).reduce((s, r) => s + (r.total ?? 0), 0),
+  };
+}
 
 export async function fetchOverview(): Promise<FinanceOverview> {
   const supabase = createClient();

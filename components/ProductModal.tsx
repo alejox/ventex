@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useInventoryStore } from "@/stores/inventory.store";
+import { generateSku } from "@/services/inventory.service";
 import { CategoryQuickModal } from "@/components/CategoryQuickModal";
 import { notifySuccess } from "@/lib/notifications";
 
@@ -72,7 +73,7 @@ export function ProductModal({ onClose, onCreated }: ProductModalProps) {
       name,
       category_id: categoryId,
       distributor_id: "",
-      sku: `PRD-${Math.floor(Math.random() * 100000)}`,
+      sku: generateSku(),
       unit,
       purchase_price: isService ? "0" : packageTotal,
       price: sellingPrice,

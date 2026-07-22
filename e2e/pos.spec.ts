@@ -74,9 +74,8 @@ test.describe("Punto de Venta (POS)", () => {
   });
 
   test("abre el modal de nuevo cliente", async ({ page }) => {
-    const addCustomerBtn = page.locator("button").filter({ has: page.locator("svg") }).filter({ hasNot: page.getByText("Nuevo producto") }).first();
-    // Buscar el botón con IconUserPlus (al lado del select de cliente)
-    const customerPlusBtn = page.locator("button").filter({ has: page.locator("svg") }).nth(0);
+    // Se busca el botón con IconUserPlus (al lado del select de cliente) por su
+    // path del SVG: no tiene texto ni rol accesible con el que distinguirlo.
     const allButtons = page.locator("button");
     const count = await allButtons.count();
     let found = false;

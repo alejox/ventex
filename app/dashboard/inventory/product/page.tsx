@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useEffect, use } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
@@ -35,7 +35,9 @@ function ProductForm() {
     name: "",
     category_id: "",
     distributor_id: "",
-    parent_product_id: "",
+    // Viene del query param al crear una variante: se siembra acá y no en un
+    // efecto, que solo servía para copiar el mismo valor al estado.
+    parent_product_id: !editId && parentId ? parentId : "",
     sku: "",
     unit: "Unidad",
     purchase_price: "",
@@ -53,7 +55,7 @@ function ProductForm() {
   const [imagePreview, setImagePreview] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [loadingProduct, setLoadingProduct] = useState(!!editId);
+  const [seededId, setSeededId] = useState<string | null>(null);
   const [distributorModalOpen, setDistributorModalOpen] = useState(false);
   const [purchasePriceBase, setPurchasePriceBase] = useState("0");
   const [purchasePriceTax, setPurchasePriceTax] = useState("19%");
@@ -77,43 +79,44 @@ function ProductForm() {
     fetchInventory();
   }, [fetchInventory]);
 
-  useEffect(() => {
-    if (parentId && !editId) {
-      setForm((prev) => ({ ...prev, parent_product_id: parentId }));
-    }
-  }, [parentId, editId]);
+  const editingProduct = editId ? products.find((p) => p.id === editId) : undefined;
 
-  useEffect(() => {
-    if (!editId || products.length === 0) return;
-    const product = products.find((p) => p.id === editId);
-    if (!product) {
-      router.push("/dashboard/inventory");
-      return;
-    }
+  // Siembra del formulario en edición. Se hace DURANTE el render (patrón oficial
+  // de React para ajustar estado cuando cambia una entrada) y no en un efecto:
+  // copiar el producto al estado desde un efecto dispara renders en cascada.
+  // `seededId` garantiza que solo corra una vez por producto, así lo que el
+  // usuario escribe no se pisa cuando el store se refresca.
+  if (editingProduct && seededId !== editingProduct.id) {
+    setSeededId(editingProduct.id);
     setForm({
-      name: product.name,
-      category_id: product.category_id ?? "",
-      distributor_id: product.distributor_id ?? "",
-      parent_product_id: product.parent_product_id ?? "",
-      sku: product.sku,
-      unit: product.unit,
-      purchase_price: String(product.purchase_price ?? ""),
-      price: String(product.price),
-      stock_level: String(product.stock_level),
-      image_url: product.image_url ?? "",
-      has_commission: product.has_commission ?? false,
-      commission_type: product.commission_type ?? "percentage",
-      commission_value: product.commission_value ? String(product.commission_value) : "",
-      units_per_package: product.units_per_package ? String(product.units_per_package) : "1",
+      name: editingProduct.name,
+      category_id: editingProduct.category_id ?? "",
+      distributor_id: editingProduct.distributor_id ?? "",
+      parent_product_id: editingProduct.parent_product_id ?? "",
+      sku: editingProduct.sku,
+      unit: editingProduct.unit,
+      purchase_price: String(editingProduct.purchase_price ?? ""),
+      price: String(editingProduct.price),
+      stock_level: String(editingProduct.stock_level),
+      image_url: editingProduct.image_url ?? "",
+      has_commission: editingProduct.has_commission ?? false,
+      commission_type: editingProduct.commission_type ?? "percentage",
+      commission_value: editingProduct.commission_value ? String(editingProduct.commission_value) : "",
+      units_per_package: editingProduct.units_per_package ? String(editingProduct.units_per_package) : "1",
     });
-    if (editId) {
-      setForm((prev) => ({ ...prev, stock_level: String(product.stock_level) }));
+    setPurchasePriceBase(String(editingProduct.purchase_price ?? "0"));
+    setSellingPriceBase(String(editingProduct.price ?? "0"));
+    if (editingProduct.image_url) setImagePreview(editingProduct.image_url);
+  }
+
+  // El id no existe en el inventario del negocio: navegar es un efecto, no estado.
+  useEffect(() => {
+    if (editId && products.length > 0 && !editingProduct) {
+      router.push("/dashboard/inventory");
     }
-    setPurchasePriceBase(String(product.purchase_price ?? "0"));
-    setSellingPriceBase(String(product.price ?? "0"));
-    if (product.image_url) setImagePreview(product.image_url);
-    setLoadingProduct(false);
-  }, [editId, products, router]);
+  }, [editId, products.length, editingProduct, router]);
+
+  const loadingProduct = !!editId && seededId !== editId;
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] ?? null;

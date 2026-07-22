@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useSettingsStore } from "@/stores/settings.store";
-import type { BusinessProfile } from "@/services/settings.service";
+import type { BusinessProfile, Settings } from "@/services/settings.service";
 import { notifySuccess } from "@/lib/notifications";
 
 function CameraIcon(props: React.SVGProps<SVGSVGElement>) {
@@ -26,23 +26,33 @@ function Field({ label, required, children, className = "" }: { label: string; r
 }
 
 export default function BusinessSettingsPage() {
-  const { settings, loading, submitting, fetchSettings, saveSettings } = useSettingsStore();
-  const uploadLogo = useSettingsStore((s) => s.uploadLogo);
-
-  const [form, setForm] = useState<BusinessProfile>({});
-  const [uploadingLogo, setUploadingLogo] = useState(false);
-  const [logoError, setLogoError] = useState<string | null>(null);
-  const logoInputRef = useRef<HTMLInputElement>(null);
+  const settings = useSettingsStore((s) => s.settings);
+  const loading = useSettingsStore((s) => s.loading);
+  const fetchSettings = useSettingsStore((s) => s.fetchSettings);
 
   useEffect(() => {
     fetchSettings();
   }, [fetchSettings]);
 
-  useEffect(() => {
-    if (settings?.business_profile) {
-      setForm(settings.business_profile);
-    }
-  }, [settings]);
+  if (loading || !settings) {
+    return <div className="p-8 text-sm text-on-surface-variant">Cargando…</div>;
+  }
+
+  // El `key` remonta el formulario cuando llegan otros ajustes, así el estado
+  // inicial se siembra en `useState` y no hace falta un efecto que copie el
+  // store al state (que además disparaba renders en cascada).
+  return <BusinessProfileForm key={settings.id ?? "new"} settings={settings} />;
+}
+
+function BusinessProfileForm({ settings }: { settings: Settings }) {
+  const submitting = useSettingsStore((s) => s.submitting);
+  const saveSettings = useSettingsStore((s) => s.saveSettings);
+  const uploadLogo = useSettingsStore((s) => s.uploadLogo);
+
+  const [form, setForm] = useState<BusinessProfile>(() => settings.business_profile ?? {});
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [logoError, setLogoError] = useState<string | null>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
 
   const update = useCallback(<K extends keyof BusinessProfile>(key: K, value: BusinessProfile[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -75,18 +85,16 @@ export default function BusinessSettingsPage() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     const ok = await saveSettings({
-      tax_rate: settings?.tax_rate ?? 0.19,
-      currency: settings?.currency ?? "COP",
+      tax_rate: settings.tax_rate,
+      include_tax: settings.include_tax,
+      allow_oversell: settings.allow_oversell,
+      currency: settings.currency,
       business_profile: form,
     });
     if (ok) {
       notifySuccess("Ajustes guardados", "Los datos de tu negocio se actualizaron correctamente.");
     }
   };
-
-  if (loading) {
-    return <div className="p-8 text-sm text-on-surface-variant">Cargando…</div>;
-  }
 
   return (
     <form onSubmit={handleSave} className="w-full max-w-5xl mx-auto pb-24 animate-in fade-in duration-300">
@@ -113,6 +121,11 @@ export default function BusinessSettingsPage() {
                   {uploadingLogo ? (
                     <div className="text-on-surface-variant font-medium text-sm">Subiendo…</div>
                   ) : form.logoUrl ? (
+                    // Preview de 256x128 de un logo recién subido a Storage.
+                    // `next/image` exigiría declarar el host de Supabase en
+                    // remotePatterns para optimizar una miniatura que se ve una
+                    // vez: no compensa el acoplamiento.
+                    // eslint-disable-next-line @next/next/no-img-element
                     <img src={form.logoUrl} alt="Logo" className="w-full h-full object-contain" />
                   ) : (
                     <div className="text-on-surface-variant font-medium">Logo</div>

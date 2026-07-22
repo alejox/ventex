@@ -14,17 +14,20 @@ const METHOD_LABEL: Record<string, string> = {
   transferencia: "Transferencia",
 };
 
+/** Desglose completo del turno. Solo se muestra DESPUÉS de contar el efectivo. */
 function SummaryRows({
   byMethod,
   salesCount,
   salesTotal,
   openingCash,
+  withdrawals,
   expectedCash,
 }: {
   byMethod: Record<string, number>;
   salesCount: number;
   salesTotal: number;
   openingCash: number;
+  withdrawals: number;
   expectedCash: number;
 }) {
   return (
@@ -45,6 +48,12 @@ function SummaryRows({
         <span className="text-on-surface-variant">Base de caja</span>
         <span className="font-semibold text-on-surface tabular-nums">{money(openingCash)}</span>
       </div>
+      {withdrawals > 0 && (
+        <div className="flex justify-between px-4 py-2.5">
+          <span className="text-on-surface-variant">Retiros de caja</span>
+          <span className="font-semibold text-on-surface tabular-nums">-{money(withdrawals)}</span>
+        </div>
+      )}
       <div className="flex justify-between px-4 py-2.5">
         <span className="font-semibold text-on-surface">Efectivo esperado en caja</span>
         <span className="font-bold text-on-surface tabular-nums">{money(expectedCash)}</span>
@@ -54,9 +63,12 @@ function SummaryRows({
 }
 
 /**
- * Cierre de turno con arqueo. Para el empleado muestra el resumen en vivo
- * (`live`); para el dueño (`shiftId`) solo pide el efectivo contado. Tras
- * cerrar, muestra la diferencia del arqueo.
+ * Cierre de turno con arqueo a conteo ciego: primero el empleado declara el
+ * efectivo que contó, SIN ver ventas ni el esperado (si los viera, podría
+ * cuadrar la cifra en vez de contar). Recién ahí se revela la diferencia, y
+ * todo descuadre exige justificación (el servidor también la exige).
+ *
+ * Para el dueño (`shiftId`) el flujo es el mismo, pero cerrando un turno ajeno.
  */
 export function CloseShiftModal({
   live,
@@ -70,38 +82,67 @@ export function CloseShiftModal({
   const closeShift = useShiftsStore((s) => s.closeShift);
   const submitting = useShiftsStore((s) => s.submitting);
   const error = useShiftsStore((s) => s.error);
+  const needsJustification = useShiftsStore((s) => s.needsJustification);
+  const resetJustification = useShiftsStore((s) => s.resetJustification);
+  const fetchCurrentShift = useShiftsStore((s) => s.fetchCurrentShift);
 
+  const [step, setStep] = useState<"count" | "verdict">("count");
   const [closingCash, setClosingCash] = useState("");
   const [notes, setNotes] = useState("");
   const [summary, setSummary] = useState<ShiftSummary | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const amount = parseFloat(closingCash);
-    if (Number.isNaN(amount) || amount < 0) return;
-    const result = await closeShift(amount, notes || undefined, shiftId);
+  const counted = parseFloat(closingCash);
+  const countedValid = !Number.isNaN(counted) && counted >= 0;
+
+  // El dueño cierra un turno ajeno sin los acumulados en vivo, así que no hay
+  // veredicto que anticipar: el servidor lo calcula y, si descuadra, pide nota.
+  const expected = live?.expected_cash ?? null;
+  const difference = expected != null && countedValid ? Math.round((counted - expected) * 100) / 100 : null;
+  // Única fuente de verdad del paso 2: si se exige justificación, se muestra el
+  // campo. Antes el textarea dependía de `difference` y el botón de esta bandera,
+  // así que cuando el servidor contradecía al cliente (una venta entró mientras
+  // el empleado contaba) quedaba un botón deshabilitado sin campo donde escribir.
+  const showJustification = (difference != null && difference !== 0) || needsJustification;
+  const notesValid = !showJustification || notes.trim().length > 0;
+
+  const submit = async () => {
+    if (!countedValid) return;
+    const result = await closeShift(counted, notes.trim() || undefined, shiftId);
     if (result) {
       setSummary(result);
       notifySuccess("Turno cerrado", "El arqueo de caja quedó registrado.");
     }
   };
 
-  // Vista posterior al cierre: resultado del arqueo.
+  const handleCount = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!countedValid) return;
+    // Sin datos en vivo no hay veredicto local: se intenta cerrar y el servidor
+    // responde si falta justificación.
+    if (expected == null) {
+      submit();
+      return;
+    }
+    setStep("verdict");
+  };
+
+  // ---- Paso 3: resultado del arqueo (el turno ya está cerrado) ----
   if (summary) {
-    const ok = summary.difference >= 0;
+    const ok = summary.difference === 0;
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-        <div className="bg-surface-container rounded-3xl w-full max-w-md border border-outline-variant/10 shadow-2xl animate-in zoom-in-95 duration-200">
-          <div className="p-6 border-b border-outline-variant/10">
+        <div className="bg-surface-container rounded-3xl w-full max-w-md border border-outline-variant/10 shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
+          <div className="p-6 border-b border-outline-variant/10 shrink-0">
             <h2 className="text-lg font-bold text-on-surface">Arqueo de caja</h2>
             <p className="text-sm text-on-surface-variant mt-1">Resumen del turno cerrado.</p>
           </div>
-          <div className="p-6 space-y-4">
+          <div className="p-6 space-y-4 overflow-y-auto">
             <SummaryRows
               byMethod={summary.totals_by_method ?? {}}
               salesCount={summary.sales_count}
               salesTotal={summary.sales_total}
               openingCash={summary.opening_cash}
+              withdrawals={summary.withdrawals_total ?? 0}
               expectedCash={summary.expected_cash}
             />
             <div className="rounded-2xl bg-surface-container-low border border-outline-variant/10 divide-y divide-outline-variant/10 text-sm">
@@ -111,14 +152,22 @@ export function CloseShiftModal({
               </div>
               <div className="flex justify-between px-4 py-3">
                 <span className="font-bold text-on-surface">Diferencia</span>
-                <span className={`font-bold tabular-nums ${ok ? "text-[#10b981]" : "text-error"}`}>
+                <span className={`font-bold tabular-nums ${ok ? "text-[#10b981]" : summary.difference < 0 ? "text-error" : "text-amber-500"}`}>
                   {summary.difference > 0 ? "+" : ""}
                   {money(summary.difference)}
                 </span>
               </div>
             </div>
-            {!ok && (
-              <p className="text-xs text-error">Falta efectivo respecto a lo esperado en caja.</p>
+            {ok ? (
+              <p className="text-xs text-[#10b981] font-semibold">La caja cuadró exactamente.</p>
+            ) : summary.difference < 0 ? (
+              <p className="text-xs text-error">
+                Faltan {money(Math.abs(summary.difference))} respecto a lo esperado. Se notificó al dueño.
+              </p>
+            ) : (
+              <p className="text-xs text-amber-500">
+                Sobran {money(summary.difference)} respecto a lo esperado. Se notificó al dueño.
+              </p>
             )}
             <button
               onClick={onClose}
@@ -132,6 +181,123 @@ export function CloseShiftModal({
     );
   }
 
+  // ---- Paso 2: veredicto del descuadre + justificación ----
+  // `needsJustification` cubre el cierre del dueño: sin datos en vivo no se
+  // puede anticipar la diferencia, así que el veredicto llega del servidor.
+  if (step === "verdict" || needsJustification) {
+    const cuadrado = difference === 0 && !needsJustification;
+    const faltante = difference != null && difference < 0;
+    // El cliente creía que cuadraba y el servidor dijo que no: los acumulados
+    // se movieron entre el conteo y el envío.
+    const serverDisagrees = needsJustification && difference === 0;
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+        <div className="bg-surface-container rounded-3xl w-full max-w-md border border-outline-variant/10 shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
+          <div className="p-6 border-b border-outline-variant/10 shrink-0">
+            <h2 className="text-lg font-bold text-on-surface">
+              {difference == null || serverDisagrees
+                ? "Atención: la caja no cuadra"
+                : cuadrado
+                  ? "Turno cuadrado"
+                  : faltante
+                    ? "Atención: faltante en caja"
+                    : "Atención: sobrante en caja"}
+            </h2>
+          </div>
+
+          <div className="p-6 space-y-4 overflow-y-auto">
+            {error && (
+              <div className="rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim">
+                {error}
+              </div>
+            )}
+
+            <div
+              className={`rounded-2xl border p-4 text-center ${
+                cuadrado
+                  ? "bg-[#10b981]/5 border-[#10b981]/30"
+                  : faltante
+                    ? "bg-error/5 border-error/30"
+                    : "bg-amber-500/5 border-amber-500/30"
+              }`}
+            >
+              <p className="text-sm text-on-surface-variant">
+                {serverDisagrees
+                  ? "Los movimientos del turno cambiaron mientras contabas, así que el efectivo contado ya no coincide con lo esperado."
+                  : difference == null
+                    ? "El efectivo contado no coincide con lo esperado."
+                    : cuadrado
+                      ? "El efectivo contado coincide con lo esperado."
+                      : faltante
+                        ? "Faltan en caja"
+                        : "Sobran en caja"}
+              </p>
+              {difference != null && !cuadrado && !serverDisagrees && (
+                <p className={`text-3xl font-bold mt-1 tabular-nums ${faltante ? "text-error" : "text-amber-500"}`}>
+                  {money(Math.abs(difference))}
+                </p>
+              )}
+              <p className="text-xs text-on-surface-variant mt-2">
+                Contaste {money(counted)}.
+              </p>
+            </div>
+
+            {showJustification && (
+              <div>
+                <label className="block text-sm font-semibold text-on-surface mb-1.5">
+                  Justificación <span className="text-error">*</span>
+                </label>
+                <textarea
+                  required
+                  rows={3}
+                  autoFocus
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder={
+                    faltante
+                      ? "Ej: se pagó un domicilio en efectivo sin registrar el retiro"
+                      : "Ej: un cliente dejó una propina en la caja"
+                  }
+                  className="w-full px-4 py-2.5 bg-surface-container-low border border-outline-variant/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 text-on-surface placeholder:text-on-surface-variant/50 resize-none"
+                />
+                <p className="text-xs text-on-surface-variant mt-1">
+                  Obligatoria: el dueño recibirá una alerta con esta explicación.
+                </p>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  // Sin bajar la bandera del store, este mismo paso se volvería
+                  // a renderizar y el empleado quedaría encerrado en el modal.
+                  resetJustification();
+                  // Refresca los acumulados: si el servidor discrepó es porque
+                  // se movieron, y el próximo veredicto debe salir del dato nuevo.
+                  if (live) fetchCurrentShift();
+                  setStep("count");
+                }}
+                className="px-5 py-2.5 rounded-xl border border-outline-variant/20 text-on-surface font-semibold hover:bg-surface-container-low transition-colors"
+              >
+                Volver a contar
+              </button>
+              <button
+                type="button"
+                onClick={submit}
+                disabled={submitting || !notesValid}
+                className="px-5 py-2.5 rounded-xl bg-primary text-white font-semibold hover:bg-primary-dim transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {submitting ? "Cerrando…" : cuadrado ? "Cerrar turno" : "Justificar y cerrar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ---- Paso 1: conteo ciego ----
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
       <div
@@ -141,25 +307,15 @@ export function CloseShiftModal({
         <div className="p-6 border-b border-outline-variant/10">
           <h2 className="text-lg font-bold text-on-surface">Cerrar turno</h2>
           <p className="text-sm text-on-surface-variant mt-1">
-            Cuenta el efectivo de la caja y regístralo para el arqueo.
+            Cuenta todo el efectivo que hay físicamente en la caja e ingrésalo.
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleCount} className="p-6 space-y-4">
           {error && (
             <div className="rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim">
               {error}
             </div>
-          )}
-
-          {live && (
-            <SummaryRows
-              byMethod={live.totals_by_method ?? {}}
-              salesCount={live.sales_count}
-              salesTotal={live.sales_total}
-              openingCash={live.opening_cash}
-              expectedCash={live.expected_cash}
-            />
           )}
 
           <div>
@@ -176,17 +332,9 @@ export function CloseShiftModal({
               autoFocus
               className="w-full px-4 py-2.5 bg-surface-container-low border border-outline-variant/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 text-on-surface placeholder:text-on-surface-variant/50 text-lg font-semibold tabular-nums"
             />
-          </div>
-
-          <div>
-            <label className="block text-sm font-semibold text-on-surface mb-1.5">Notas (opcional)</label>
-            <input
-              type="text"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Ej: se pagó domicilio en efectivo"
-              className="w-full px-4 py-2.5 bg-surface-container-low border border-outline-variant/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 text-on-surface placeholder:text-on-surface-variant/50"
-            />
+            <p className="text-xs text-on-surface-variant mt-1.5">
+              Incluye la base con la que abriste. Al confirmar verás si la caja cuadra.
+            </p>
           </div>
 
           <div className="flex justify-end gap-3 pt-2">
@@ -199,10 +347,10 @@ export function CloseShiftModal({
             </button>
             <button
               type="submit"
-              disabled={submitting}
-              className="px-5 py-2.5 rounded-xl bg-primary text-white font-semibold hover:bg-primary-dim transition-colors disabled:opacity-50"
+              disabled={submitting || !countedValid}
+              className="px-5 py-2.5 rounded-xl bg-primary text-white font-semibold hover:bg-primary-dim transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {submitting ? "Cerrando…" : "Cerrar turno"}
+              {submitting ? "Cerrando…" : "Continuar"}
             </button>
           </div>
         </form>

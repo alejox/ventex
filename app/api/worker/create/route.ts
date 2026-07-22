@@ -1,8 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 import { createAdminClient } from "@/utils/supabase/admin";
+import { WORKER_PERMISSION_LABELS, type WorkerPermission, type WorkerPermissions } from "@/config/business";
 
 const USERNAME_PATTERN = /^[a-z0-9._-]{3,30}$/;
+
+/**
+ * Filtra los permisos del body a las claves conocidas y valores booleanos: el
+ * cliente admin escribe sin RLS, así que nada del JSON entra crudo al perfil.
+ */
+function sanitizePermissions(raw: unknown): WorkerPermissions {
+  if (!raw || typeof raw !== "object") return {};
+  const valid = Object.keys(WORKER_PERMISSION_LABELS) as WorkerPermission[];
+  const out: WorkerPermissions = {};
+  for (const key of valid) {
+    if ((raw as Record<string, unknown>)[key] === true) out[key] = true;
+  }
+  return out;
+}
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
@@ -12,6 +27,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const username = String(body.username ?? "").trim().toLowerCase();
   const { password, fullName, role, staffId } = body;
+  const permissions = sanitizePermissions(body.permissions);
 
   if (!username || !password || !fullName) {
     return NextResponse.json({ error: "Faltan campos requeridos" }, { status: 400 });
@@ -25,14 +41,25 @@ export async function POST(req: NextRequest) {
 
   const admin = createAdminClient();
 
-  // El trabajador inicia sesión con la llave del negocio: asegúrate de que el dueño
-  // tenga una, generándola si aún no existe.
+  // El cliente admin salta RLS y crea usuarios de Auth: hay que verificar a mano
+  // que quien llama sea el DUEÑO del negocio. Sin esto, cualquier sesión (un
+  // trabajador, o cualquier cuenta) podía acuñar usuarios sin límite, y el gate
+  // de app/dashboard/settings/trabajadores/layout.tsx no cubre la API.
   const { data: ownerProfile } = await admin
     .from("profiles")
-    .select("business_key")
+    .select("business_key, is_worker")
     .eq("id", user.id)
     .single();
-  if (!ownerProfile?.business_key) {
+  if (!ownerProfile || ownerProfile.is_worker) {
+    return NextResponse.json(
+      { error: "Solo el dueño del negocio puede crear trabajadores." },
+      { status: 403 },
+    );
+  }
+
+  // El trabajador inicia sesión con la llave del negocio: asegúrate de que el dueño
+  // tenga una, generándola si aún no existe.
+  if (!ownerProfile.business_key) {
     const { data: newKey } = await admin.rpc("generate_business_key");
     if (newKey) {
       await admin.from("profiles").update({ business_key: newKey }).eq("id", user.id);
@@ -56,7 +83,9 @@ export async function POST(req: NextRequest) {
   const staffIdToUse = staffId || null;
 
   // El trigger on_auth_user_created ya insertó un perfil (is_worker=false). Se actualiza
-  // con el cliente admin porque la RLS de `profiles` no deja al dueño escribir esa fila.
+  // con el cliente admin porque `is_worker`, `workspace_id`, `worker_username` y
+  // `worker_role` solo son escribibles por el service_role (ver la migración
+  // restrict_profiles_column_grants).
   const { error: profileError } = await admin.from("profiles").upsert({
     id: workerId,
     full_name: fullName,
@@ -65,7 +94,7 @@ export async function POST(req: NextRequest) {
     staff_id: staffIdToUse,
     worker_username: username,
     worker_role: role || null,
-    worker_permissions: {},
+    worker_permissions: permissions,
   });
 
   if (profileError) {
