@@ -12,6 +12,7 @@ import type { NewCategoryInput } from "@/services/inventory.service";
 import { stockStatusOf, stockLabelOf, STOCK_CHIP, STOCK_DOT } from "@/lib/stock";
 import { useProfile } from "@/components/ProfileProvider";
 import { can } from "@/lib/permissions";
+import { Select } from "@/components/ui/Select";
 
 
 function IconAlertTriangle(props: React.SVGProps<SVGSVGElement>) {
@@ -61,6 +62,17 @@ export default function InventoryPage() {
   const canSeeCosts = can(profile, "inventory_costs");
   const canEdit = can(profile, "inventory_edit");
   const canMoveStock = can(profile, "inventory_stock");
+
+  /**
+   * El VALOR TOTAL del inventario es solo del dueño, ni siquiera con
+   * `inventory_costs`.
+   *
+   * No es lo mismo saber cuánto costó un producto —que un encargado de compras
+   * necesita para reponer— que ver cuánto capital tiene el negocio parado en
+   * mercadería. Lo primero es operativo; lo segundo es una cifra financiera del
+   * dueño y no hace falta para ninguna tarea de mostrador.
+   */
+  const canSeeInventoryValue = !profile?.isWorker;
 
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
 
@@ -163,9 +175,9 @@ export default function InventoryPage() {
         )}
       </div>
 
-      {/* Stats. La tarjeta de valor del inventario es dato financiero: va detrás
-          de `inventory_costs`, no de tener acceso al módulo. */}
-      <div className={`grid grid-cols-1 gap-6 ${canSeeCosts ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
+      {/* Stats. La valorización del inventario es cifra financiera del negocio:
+          solo el dueño, ni siquiera un empleado con `inventory_costs`. */}
+      <div className={`grid grid-cols-1 gap-6 ${canSeeInventoryValue ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
         <div className="bg-surface-container rounded-2xl p-6 border border-outline-variant/10 shadow-sm flex justify-between items-center group hover:border-outline-variant/20 transition-colors">
           <div>
             <p className="text-on-surface-variant text-sm font-medium mb-1.5">Total Productos</p>
@@ -176,7 +188,7 @@ export default function InventoryPage() {
           </div>
         </div>
 
-        {canSeeCosts && (
+        {canSeeInventoryValue && (
         <div className="bg-surface-container rounded-2xl p-6 border border-outline-variant/10 shadow-sm flex justify-between items-center gap-4 group hover:border-outline-variant/20 transition-colors">
           <div className="min-w-0">
             <p className="text-on-surface-variant text-sm font-medium mb-1.5">Valor del Inventario</p>
@@ -220,38 +232,28 @@ export default function InventoryPage() {
           {/* Etiquetas cortas en móvil: "Todas las Categorías" se cortaba a
               "Todas las C" y dejaba de decir qué filtra. */}
           <div className="flex w-full md:w-auto gap-2 lg:gap-3">
-            <div className="relative flex-1 md:w-44">
-              <select
-                value={categoryFilter}
-                onChange={e => setCategoryFilter(e.target.value)}
-                aria-label="Filtrar por categoría"
-                className="w-full h-11 bg-surface-container border border-outline-variant/20 rounded-xl pl-3 lg:pl-4 pr-9 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 appearance-none truncate"
-              >
-                <option value="">Categor&iacute;a</option>
-                {categories.map(cat => (
-                  <option key={cat.id} value={cat.name}>{cat.name}</option>
-                ))}
-              </select>
-              <svg className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant pointer-events-none" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <polyline points="6 9 12 15 18 9" />
-              </svg>
-            </div>
-            <div className="relative flex-1 md:w-40">
-              <select
-                value={stockFilter}
-                onChange={e => setStockFilter(e.target.value)}
-                aria-label="Filtrar por estado de stock"
-                className="w-full h-11 bg-surface-container border border-outline-variant/20 rounded-xl pl-3 lg:pl-4 pr-9 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 appearance-none truncate"
-              >
-                <option value="">Stock</option>
-                <option value="Óptimo">&Oacute;ptimo</option>
-                <option value="Stock Bajo">Stock Bajo</option>
-                <option value="Agotado">Agotado</option>
-              </select>
-              <svg className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant pointer-events-none" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <polyline points="6 9 12 15 18 9" />
-              </svg>
-            </div>
+            <Select
+              aria-label="Filtrar por categoría"
+              containerClassName="flex-1 md:w-44"
+              value={categoryFilter}
+              onChange={e => setCategoryFilter(e.target.value)}
+            >
+              <option value="">Categor&iacute;a</option>
+              {categories.map(cat => (
+                <option key={cat.id} value={cat.name}>{cat.name}</option>
+              ))}
+            </Select>
+            <Select
+              aria-label="Filtrar por estado de stock"
+              containerClassName="flex-1 md:w-40"
+              value={stockFilter}
+              onChange={e => setStockFilter(e.target.value)}
+            >
+              <option value="">Stock</option>
+              <option value="Óptimo">&Oacute;ptimo</option>
+              <option value="Stock Bajo">Stock Bajo</option>
+              <option value="Agotado">Agotado</option>
+            </Select>
             <button
               aria-label="Más filtros"
               className="hidden lg:flex w-11 h-11 items-center justify-center rounded-xl bg-surface-container border border-outline-variant/20 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors shrink-0"

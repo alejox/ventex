@@ -53,7 +53,7 @@ test.describe("Autenticación", () => {
 
     test("redirige a /register desde link", async ({ page }) => {
       await page.goto("/login");
-      await page.getByText("Regístrate gratis").first().click();
+      await page.getByText("Registrarte").first().click();
       await expect(page).toHaveURL(/\/register/);
     });
   });

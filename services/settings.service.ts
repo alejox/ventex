@@ -32,6 +32,7 @@ export interface Settings {
   /** Si el POS puede cobrar más unidades de las que hay en stock. */
   allow_oversell: boolean;
   currency: string;
+  transfer_methods_enabled: string[];
   business_profile: BusinessProfile;
 }
 
@@ -40,6 +41,7 @@ export interface SettingsInput {
   include_tax: boolean;
   allow_oversell: boolean;
   currency: string;
+  transfer_methods_enabled?: string[];
   business_profile?: BusinessProfile;
 }
 
@@ -49,6 +51,7 @@ const DEFAULTS: Settings = {
   include_tax: true,
   allow_oversell: true,
   currency: "COP",
+  transfer_methods_enabled: ["nequi", "daviplata", "bancolombia"],
   business_profile: {},
 };
 
@@ -157,25 +160,29 @@ export async function regenerateBusinessKey(): Promise<string> {
   return key;
 }
 
-/** Una sola lista de columnas: las cuatro consultas de abajo deben coincidir. */
-const SETTINGS_SELECT = "id, tax_rate, include_tax, allow_oversell, currency, business_profile";
+/** Una sola lista de columnas para respuestas de persisencia. */
+const SETTINGS_SELECT = "*";
 
 /** Devuelve los ajustes de la cuenta (o valores por defecto si aún no existe la fila). */
 export async function fetchSettings(): Promise<Settings> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("settings")
-    .select(SETTINGS_SELECT)
+    .select("*")
     .maybeSingle();
+
   if (error) throw error;
   if (!data) return { ...DEFAULTS, business_profile: {} };
+
+  const raw = data as Record<string, unknown>;
   return {
-    id: data.id,
-    tax_rate: data.tax_rate,
-    include_tax: data.include_tax ?? true,
-    allow_oversell: data.allow_oversell ?? true,
-    currency: data.currency,
-    business_profile: (data.business_profile ?? {}) as BusinessProfile,
+    id: (raw.id as string) ?? null,
+    tax_rate: (raw.tax_rate as number) ?? DEFAULTS.tax_rate,
+    include_tax: (raw.include_tax as boolean) ?? true,
+    allow_oversell: (raw.allow_oversell as boolean) ?? true,
+    currency: (raw.currency as string) ?? "COP",
+    transfer_methods_enabled: (raw.transfer_methods_enabled as string[]) ?? DEFAULTS.transfer_methods_enabled,
+    business_profile: (raw.business_profile ?? {}) as BusinessProfile,
   };
 }
 
@@ -231,34 +238,82 @@ export async function saveSettings(input: SettingsInput): Promise<Settings> {
     .maybeSingle();
   if (readErr) throw readErr;
 
+  const payload: Record<string, unknown> = {
+    tax_rate: input.tax_rate,
+    include_tax: input.include_tax,
+    allow_oversell: input.allow_oversell,
+    currency: input.currency,
+    ...(input.transfer_methods_enabled ? { transfer_methods_enabled: input.transfer_methods_enabled } : {}),
+    ...(input.business_profile ? { business_profile: input.business_profile } : {}),
+  };
+
   if (existing?.id) {
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from("settings")
-      .update({
-        tax_rate: input.tax_rate,
-        include_tax: input.include_tax,
-        allow_oversell: input.allow_oversell,
-        currency: input.currency,
-        ...(input.business_profile ? { business_profile: input.business_profile as never } : {}),
-      } as never)
+      .update(payload as never)
       .eq("id", existing.id)
       .select(SETTINGS_SELECT)
       .single();
-    if (error) throw error;
-    return data as unknown as Settings;
+
+    if (error && input.transfer_methods_enabled) {
+      delete payload.transfer_methods_enabled;
+      const fallback = await supabase
+        .from("settings")
+        .update(payload as never)
+        .eq("id", existing.id)
+        .select(SETTINGS_SELECT)
+        .single();
+      if (fallback.error) throw fallback.error;
+      data = {
+        ...fallback.data,
+        transfer_methods_enabled: input.transfer_methods_enabled ?? DEFAULTS.transfer_methods_enabled,
+      } as never;
+    } else if (error) {
+      throw error;
+    }
+
+    const raw = data as Record<string, unknown>;
+    return {
+      id: (raw.id as string) ?? null,
+      tax_rate: (raw.tax_rate as number) ?? DEFAULTS.tax_rate,
+      include_tax: (raw.include_tax as boolean) ?? true,
+      allow_oversell: (raw.allow_oversell as boolean) ?? true,
+      currency: (raw.currency as string) ?? "COP",
+      transfer_methods_enabled: (raw.transfer_methods_enabled as string[]) ?? DEFAULTS.transfer_methods_enabled,
+      business_profile: (raw.business_profile ?? {}) as BusinessProfile,
+    };
   }
 
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from("settings")
-    .insert({
-      tax_rate: input.tax_rate,
-      include_tax: input.include_tax,
-      allow_oversell: input.allow_oversell,
-      currency: input.currency,
-      ...(input.business_profile ? { business_profile: input.business_profile as never } : {}),
-    } as never)
+    .insert(payload as never)
     .select(SETTINGS_SELECT)
     .single();
-  if (error) throw error;
-  return data as unknown as Settings;
+
+  if (error && input.transfer_methods_enabled) {
+    delete payload.transfer_methods_enabled;
+    const fallback = await supabase
+      .from("settings")
+      .insert(payload as never)
+      .select(SETTINGS_SELECT)
+      .single();
+    if (fallback.error) throw fallback.error;
+    data = {
+      ...fallback.data,
+      transfer_methods_enabled: input.transfer_methods_enabled ?? DEFAULTS.transfer_methods_enabled,
+    } as never;
+  } else if (error) {
+    throw error;
+  }
+
+  const raw = data as Record<string, unknown>;
+  return {
+    id: (raw.id as string) ?? null,
+    tax_rate: (raw.tax_rate as number) ?? DEFAULTS.tax_rate,
+    include_tax: (raw.include_tax as boolean) ?? true,
+    allow_oversell: (raw.allow_oversell as boolean) ?? true,
+    currency: (raw.currency as string) ?? "COP",
+    transfer_methods_enabled: (raw.transfer_methods_enabled as string[]) ?? DEFAULTS.transfer_methods_enabled,
+    business_profile: (raw.business_profile ?? {}) as BusinessProfile,
+  };
 }

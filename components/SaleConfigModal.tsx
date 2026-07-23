@@ -5,6 +5,7 @@ import { usePosStore } from "@/stores/pos.store";
 import { useProfile } from "@/components/ProfileProvider";
 import type { PaymentMethod } from "@/services/pos.service";
 import { backdropProps } from "@/components/modal";
+import { Select } from "@/components/ui/Select";
 import { notifySuccess, notifyError } from "@/lib/notifications";
 
 interface SaleConfigModalProps {
@@ -13,7 +14,7 @@ interface SaleConfigModalProps {
 
 const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
   { value: "efectivo", label: "Efectivo" },
-  { value: "tarjeta", label: "Tarjeta" },
+  { value: "tarjeta", label: "Datáfono" },
   { value: "transferencia", label: "Transferencia" },
 ];
 
@@ -50,52 +51,43 @@ export function SaleConfigModal({ onClose }: SaleConfigModalProps) {
         </div>
 
         <div className="p-6 flex-1 overflow-y-auto space-y-6">
-          <div className="space-y-1">
-            <label className="text-sm font-semibold text-on-surface">Método de pago predefinido</label>
-            <select
-              value={defaultPaymentMethod}
-              onChange={(e) => setDefaultPaymentMethod(e.target.value as PaymentMethod)}
-              className="w-full bg-transparent border border-outline-variant/30 rounded-xl px-4 py-3 text-sm text-on-surface focus:outline-none focus:border-primary appearance-none"
-            >
-              {PAYMENT_METHODS.map((m) => (
-                <option key={m.value} value={m.value}>{m.label}</option>
-              ))}
-            </select>
-          </div>
+          <Select
+            label="Método de pago predefinido"
+            value={defaultPaymentMethod}
+            onChange={(e) => setDefaultPaymentMethod(e.target.value as PaymentMethod)}
+          >
+            {PAYMENT_METHODS.map((m) => (
+              <option key={m.value} value={m.value}>{m.label}</option>
+            ))}
+          </Select>
 
           {staff.length > 0 && (
-            <div className="space-y-1">
-              <label className="text-sm font-semibold text-on-surface">Vendedor por defecto</label>
-              <select
-                value={defaultStaffId ?? ""}
-                onChange={(e) => setDefaultStaffId(e.target.value || null)}
-                className="w-full bg-transparent border border-outline-variant/30 rounded-xl px-4 py-3 text-sm text-on-surface focus:outline-none focus:border-primary appearance-none"
-              >
-                <option value="">—</option>
-                {staff.map((m) => (
-                  <option key={m.id} value={m.id}>{m.full_name}</option>
-                ))}
-              </select>
-            </div>
+            <Select
+              label="Vendedor por defecto"
+              value={defaultStaffId ?? ""}
+              onChange={(e) => setDefaultStaffId(e.target.value || null)}
+            >
+              <option value="">—</option>
+              {staff.map((m) => (
+                <option key={m.id} value={m.id}>{m.full_name}</option>
+              ))}
+            </Select>
           )}
 
           {customers.length > 0 && (
-            <div className="space-y-1">
-              <label className="text-sm font-semibold text-on-surface">Cliente por defecto</label>
-              <select
-                value={defaultCustomerId ?? ""}
-                onChange={(e) => setDefaultCustomerId(e.target.value || null)}
-                className="w-full bg-transparent border border-outline-variant/30 rounded-xl px-4 py-3 text-sm text-on-surface focus:outline-none focus:border-primary appearance-none"
-              >
-                <option value="">Consumidor final (22222222222)</option>
-                {customers.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.full_name}
-                    {c.tax_exempt ? " (exento)" : ""}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <Select
+              label="Cliente por defecto"
+              value={defaultCustomerId ?? ""}
+              onChange={(e) => setDefaultCustomerId(e.target.value || null)}
+            >
+              <option value="">Consumidor final (22222222222)</option>
+              {customers.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.full_name}
+                  {c.tax_exempt ? " (exento)" : ""}
+                </option>
+              ))}
+            </Select>
           )}
 
           {/* Desglosar IVA. Es configuración del NEGOCIO y queda guardada:

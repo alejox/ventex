@@ -169,7 +169,7 @@ export default function RegisterPage() {
     return (
       <div className="w-full max-w-[420px] mx-auto text-center">
         <div className="flex justify-center mb-8 lg:hidden">
-          <LogoVertical className="w-[120px] h-[32px]" />
+          <LogoVertical className="w-[180px] h-[48px]" />
         </div>
         <div className="w-16 h-16 rounded-full bg-primary/10 text-primary flex items-center justify-center mx-auto mb-6">
           <svg className="w-8 h-8" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -204,7 +204,37 @@ export default function RegisterPage() {
     <div className="w-full max-w-[420px] mx-auto">
       {/* Mobile Logo */}
       <div className="flex justify-center mb-8 lg:hidden">
-        <LogoVertical className="w-[120px] h-[32px]" />
+        <LogoVertical className="w-[180px] h-[48px]" />
+      </div>
+
+      {/* Volver.
+          En el primer paso sale al login; en los siguientes retrocede un paso.
+          Antes el asistente no tenía NINGUNA forma de volver: quien se
+          equivocaba de tipo de negocio en el paso 1 quedaba atrapado y tenía
+          que recargar y empezar de cero. */}
+      <div className="mb-6">
+        {step === 1 ? (
+          <Link
+            href="/login"
+            className="inline-flex items-center gap-2 h-10 -ml-2 px-2 rounded-lg text-sm font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors"
+          >
+            <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-4 h-4">
+              <path d="M19 12H5M12 19l-7-7 7-7" />
+            </svg>
+            Volver al inicio de sesi&oacute;n
+          </Link>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setStep(step - 1)}
+            className="inline-flex items-center gap-2 h-10 -ml-2 px-2 rounded-lg text-sm font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors"
+          >
+            <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-4 h-4">
+              <path d="M19 12H5M12 19l-7-7 7-7" />
+            </svg>
+            Atr&aacute;s
+          </button>
+        )}
       </div>
 
       {step === 1 && (

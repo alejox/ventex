@@ -25,11 +25,14 @@ interface ReceiptTotals {
   total: number;
 }
 
+import { getTransferMethodName } from "@/config/transferMethods";
+
 interface ReceiptData {
   items: ReceiptItem[];
   customer: ReceiptCustomer | null;
   totals: ReceiptTotals;
   paymentMethod: string;
+  transferMethod?: string | null;
   date: Date;
   businessName?: string | null;
   logoUrl?: string | null;
@@ -47,7 +50,7 @@ export function PosReceipt({ data }: Props) {
 
   const paymentLabel: Record<string, string> = {
     efectivo: "Efectivo",
-    tarjeta: "Tarjeta",
+    tarjeta: "Datáfono",
     transferencia: "Transferencia",
   };
 
@@ -122,7 +125,7 @@ export function PosReceipt({ data }: Props) {
                 })}
               </p>
               <p className="text-xs text-gray-500 capitalize">
-                Pago: {paymentLabel[data.paymentMethod] ?? data.paymentMethod}
+                Pago: {data.paymentMethod === "transferencia" && data.transferMethod ? `Transferencia (${getTransferMethodName(data.transferMethod)})` : (paymentLabel[data.paymentMethod] ?? data.paymentMethod)}
               </p>
             </div>
 

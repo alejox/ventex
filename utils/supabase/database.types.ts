@@ -1002,6 +1002,7 @@ export type Database = {
       }
       sales: {
         Row: {
+          card_method: string | null
           created_at: string
           customer_id: string | null
           discount_amount: number
@@ -1015,9 +1016,11 @@ export type Database = {
           tax_amount: number
           tax_rate: number
           total: number
+          transfer_method: string | null
           user_id: string
         }
         Insert: {
+          card_method?: string | null
           created_at?: string
           customer_id?: string | null
           discount_amount?: number
@@ -1031,9 +1034,11 @@ export type Database = {
           tax_amount?: number
           tax_rate?: number
           total?: number
+          transfer_method?: string | null
           user_id?: string
         }
         Update: {
+          card_method?: string | null
           created_at?: string
           customer_id?: string | null
           discount_amount?: number
@@ -1047,6 +1052,7 @@ export type Database = {
           tax_amount?: number
           tax_rate?: number
           total?: number
+          transfer_method?: string | null
           user_id?: string
         }
         Relationships: [
@@ -1127,6 +1133,7 @@ export type Database = {
           id: string
           include_tax: boolean
           tax_rate: number
+          transfer_methods_enabled: Json | null
           updated_at: string
           user_id: string
         }
@@ -1138,6 +1145,7 @@ export type Database = {
           id?: string
           include_tax?: boolean
           tax_rate?: number
+          transfer_methods_enabled?: Json | null
           updated_at?: string
           user_id?: string
         }
@@ -1149,6 +1157,7 @@ export type Database = {
           id?: string
           include_tax?: boolean
           tax_rate?: number
+          transfer_methods_enabled?: Json | null
           updated_at?: string
           user_id?: string
         }
@@ -1558,12 +1567,14 @@ export type Database = {
       }
       create_sale: {
         Args: {
+          p_card_method?: string
           p_customer_id: string
           p_discount_amount: number
           p_include_tax?: boolean
           p_items: Json
           p_payment_method: string
           p_staff_id?: string
+          p_transfer_method?: string
         }
         Returns: string
       }

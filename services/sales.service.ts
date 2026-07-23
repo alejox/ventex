@@ -7,6 +7,7 @@ export interface SaleListItem {
   created_at: string;
   customer_name: string | null;
   payment_method: string;
+  transfer_method: string | null;
   status: string;
   subtotal: number;
   discount_amount: number;
@@ -127,6 +128,8 @@ export interface SalesSummary {
 export async function fetchSalesSummary(
   range: DateRange,
   customerQuery = "",
+  paymentMethod = "",
+  transferMethod = "",
 ): Promise<SalesSummary> {
   const supabase = createClient();
   const { data, error } = await supabase.rpc("sales_summary", {
@@ -135,6 +138,8 @@ export async function fetchSalesSummary(
     // Los totales tienen que responder al mismo filtro que la tabla, si no las
     // tarjetas y las filas muestran números distintos.
     p_customer: customerQuery.trim() || undefined,
+    p_payment_method: paymentMethod || undefined,
+    p_transfer_method: transferMethod || undefined,
   });
   if (error) throw error;
   const raw = (data ?? {}) as Partial<SalesSummary>;
@@ -163,10 +168,10 @@ const one = <T,>(embed: unknown): T | null => {
  * template dinámico hace que el tipo colapse a `GenericStringError`.
  */
 const LIST_SELECT =
-  "id, sale_number, created_at, payment_method, status, subtotal, discount_amount, tax_amount, total, customers(full_name), sale_items(count)";
+  "id, sale_number, created_at, payment_method, transfer_method, status, subtotal, discount_amount, tax_amount, total, customers(full_name), sale_items(count)";
 
 const LIST_SELECT_WITH_CUSTOMER =
-  "id, sale_number, created_at, payment_method, status, subtotal, discount_amount, tax_amount, total, customers!inner(full_name), sale_items(count)";
+  "id, sale_number, created_at, payment_method, transfer_method, status, subtotal, discount_amount, tax_amount, total, customers!inner(full_name), sale_items(count)";
 
 /**
  * Neutraliza los comodines de LIKE. Buscar "50%" tiene que buscar ese texto y no
@@ -176,7 +181,7 @@ const likePattern = (raw: string) =>
   `%${raw.trim().replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_")}%`;
 
 const DETAIL_SELECT =
-  "id, sale_number, created_at, payment_method, status, subtotal, discount_amount, tax_rate, tax_amount, total, customers(full_name), sale_items(id, product_name, sku, unit_price, quantity, line_total)";
+  "id, sale_number, created_at, payment_method, transfer_method, status, subtotal, discount_amount, tax_rate, tax_amount, total, customers(full_name), sale_items(id, product_name, sku, unit_price, quantity, line_total)";
 
 export const SALES_PAGE_SIZE = 50;
 
@@ -196,6 +201,8 @@ export async function fetchSales(
   page = 0,
   pageSize = SALES_PAGE_SIZE,
   customerQuery = "",
+  paymentMethod = "",
+  transferMethod = "",
 ): Promise<SalesPage> {
   const supabase = createClient();
   const search = customerQuery.trim();
@@ -209,6 +216,8 @@ export async function fetchSales(
   // Exclusivo: `to` es el arranque del día siguiente al último incluido.
   if (range.to) query = query.lt("created_at", range.to);
   if (search) query = query.ilike("customers.full_name", likePattern(search));
+  if (paymentMethod) query = query.eq("payment_method", paymentMethod);
+  if (transferMethod) query = query.eq("transfer_method", transferMethod);
 
   const start = page * pageSize;
   const { data, error, count } = await query.range(start, start + pageSize - 1);
@@ -217,12 +226,14 @@ export async function fetchSales(
   const items = (data ?? []).map((s) => {
     const customer = one<{ full_name: string }>(s.customers);
     const items = one<{ count: number }>(s.sale_items);
+    const raw = s as Record<string, unknown>;
     return {
       id: s.id,
       sale_number: s.sale_number,
       created_at: s.created_at,
       customer_name: customer?.full_name ?? null,
       payment_method: s.payment_method,
+      transfer_method: (raw.transfer_method as string) ?? null,
       status: s.status,
       subtotal: s.subtotal,
       discount_amount: s.discount_amount,
@@ -245,12 +256,14 @@ export async function fetchSaleDetail(saleId: string): Promise<SaleDetail> {
   if (error) throw error;
   const customer = one<{ full_name: string }>(data.customers);
   const items = (Array.isArray(data.sale_items) ? data.sale_items : []) as SaleLine[];
+  const raw = data as Record<string, unknown>;
   return {
     id: data.id,
     sale_number: data.sale_number,
     created_at: data.created_at,
     customer_name: customer?.full_name ?? null,
     payment_method: data.payment_method,
+    transfer_method: (raw.transfer_method as string) ?? null,
     status: data.status,
     subtotal: data.subtotal,
     discount_amount: data.discount_amount,

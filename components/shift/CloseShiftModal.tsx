@@ -10,7 +10,7 @@ const money = (n: number) =>
 
 const METHOD_LABEL: Record<string, string> = {
   efectivo: "Efectivo",
-  tarjeta: "Tarjeta",
+  tarjeta: "Datáfono",
   transferencia: "Transferencia",
 };
 

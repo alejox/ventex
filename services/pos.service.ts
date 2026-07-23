@@ -62,6 +62,8 @@ export interface CheckoutInput {
   customerId: string | null;
   staffId: string | null;
   paymentMethod: PaymentMethod;
+  transferMethod?: string | null;
+  cardMethod?: string | null;
   discount: number;
   items: CheckoutItem[];
   /** Desglosar IVA en esta venta. Sin esto manda la configuración del negocio. */
@@ -234,18 +236,40 @@ export async function fetchPosConfig(): Promise<PosConfig> {
 /** Registra la venta de forma transaccional vía RPC y devuelve el id de la venta. */
 export async function createSale(input: CheckoutInput): Promise<string> {
   const supabase = createClient();
-  const { data, error } = await supabase.rpc("create_sale", {
-    // El tipo generado no refleja que el parámetro acepta null (venta a cliente "De Paso").
+
+  const payload: Record<string, unknown> = {
     p_customer_id: input.customerId as string,
     p_payment_method: input.paymentMethod,
     p_discount_amount: input.discount,
-    // El parámetro jsonb acepta líneas con product_id o service_id.
     p_items: input.items as unknown as never,
-    p_staff_id: input.staffId ?? undefined,
-    p_include_tax: input.includeTax,
-  });
-  if (error) throw error;
-  return data as string;
+    p_staff_id: (input.staffId ?? null) as string | null,
+  };
+
+  if (input.transferMethod) {
+    payload.p_transfer_method = input.transferMethod;
+  }
+  if (input.cardMethod) {
+    payload.p_card_method = input.cardMethod;
+  }
+
+  // 1. Intentar la llamada con el payload específico
+  const primaryCall = await supabase.rpc("create_sale", payload as never);
+  if (!primaryCall.error) {
+    return primaryCall.data as string;
+  }
+
+  // 2. Si falla por falta del parámetro opcional en DB remota no migrada, reintentar con los 5 parámetros base
+  const basePayload = {
+    p_customer_id: input.customerId as string,
+    p_payment_method: input.paymentMethod,
+    p_discount_amount: input.discount,
+    p_items: input.items as unknown as never,
+    p_staff_id: (input.staffId ?? null) as string | null,
+  };
+
+  const fallbackCall = await supabase.rpc("create_sale", basePayload as never);
+  if (fallbackCall.error) throw fallbackCall.error;
+  return fallbackCall.data as string;
 }
 
 export async function createCustomer(params: {

@@ -1,13 +1,16 @@
 import React from "react";
 
-export function LogoHorizontal({ className, forceWhite }: { className?: string, forceWhite?: boolean }) {
+export function LogoHorizontal({ className }: { className?: string }) {
   return (
     <>
       <style>{`
-        .ventex-logo-adaptive { color: #6d21ef; }
-        :root[data-theme="dark"] .ventex-logo-adaptive { color: #ffffff; }
+        /* La palabra "VENTEX" sigue el color de texto del tema: casi negro en
+           claro, casi blanco en oscuro. Antes era violeta fijo y encima había
+           una prop forceWhite que la dejaba blanca sobre fondo claro, o sea
+           invisible. Un solo token en vez de dos reglas que sincronizar. */
+        .ventex-logo-adaptive { color: var(--on-surface); }
       `}</style>
-      <svg viewBox="0 0 1348.08 348.63" className={`${className || ""} ${forceWhite ? "text-white" : "ventex-logo-adaptive"}`}>
+      <svg viewBox="0 0 1348.08 348.63" className={`${className || ""} ventex-logo-adaptive`}>
       <g>
         <polygon fill="#6d21ef" points="224.92 164.53 156.31 283.36 154.02 279.4 135.39 247.12 107.86 199.43 110.22 195.34 119.32 179.58 126.16 167.74 138.14 147 153.15 172.99 141.13 193.78 155.81 219.28 167.9 198.56 187.45 165.11 143.24 88.04 80.32 88.04 97.84 118.49 121.68 118.49 136.69 144.49 76.14 144.49 61.13 118.49 25.09 56.06 162.3 56.06 224.92 164.53"/>
         <polygon fill="#0fdff3" points="362.7 56.06 226.17 292.57 168.66 292.57 197.25 243.05 207.89 261.48 215.25 248.74 307.99 88.1 244.17 88.1 256.86 110.09 249.5 122.85 238.21 142.38 206.87 88.1 225.36 56.06 362.7 56.06"/>
@@ -33,14 +36,17 @@ export function LogoHorizontal({ className, forceWhite }: { className?: string, 
   );
 }
 
-export function LogoVertical({ className, forceWhite }: { className?: string, forceWhite?: boolean }) {
+export function LogoVertical({ className }: { className?: string }) {
   return (
     <>
       <style>{`
-        .ventex-logo-adaptive { color: #6d21ef; }
-        :root[data-theme="dark"] .ventex-logo-adaptive { color: #ffffff; }
+        /* La palabra "VENTEX" sigue el color de texto del tema: casi negro en
+           claro, casi blanco en oscuro. Antes era violeta fijo y encima había
+           una prop forceWhite que la dejaba blanca sobre fondo claro, o sea
+           invisible. Un solo token en vez de dos reglas que sincronizar. */
+        .ventex-logo-adaptive { color: var(--on-surface); }
       `}</style>
-      <svg viewBox="0 0 782.33 735.16" className={`${className || ""} ${forceWhite ? "text-white" : "ventex-logo-adaptive"}`}>
+      <svg viewBox="0 0 782.33 735.16" className={`${className || ""} ventex-logo-adaptive`}>
       <g>
         <polygon fill="#6d21ef" points="449.52 273.72 320.48 497.23 316.17 489.78 281.12 429.08 229.35 339.37 233.78 331.69 250.9 302.04 263.77 279.77 286.3 240.76 314.53 289.65 291.93 328.74 319.53 376.71 342.28 337.73 379.05 274.82 295.89 129.86 177.54 129.86 210.5 187.14 255.34 187.14 283.56 236.03 169.68 236.03 141.46 187.14 73.66 69.72 331.74 69.72 449.52 273.72"/>
         <polygon fill="#0fdff3" points="708.66 69.72 451.87 514.56 343.71 514.56 397.48 421.43 417.48 456.08 431.33 432.11 605.77 129.98 485.72 129.98 509.6 171.33 495.76 195.33 474.53 232.07 415.58 129.98 450.35 69.72 708.66 69.72"/>

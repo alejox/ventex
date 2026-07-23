@@ -19,11 +19,13 @@ import {
   type SaleTotals,
 } from "@/services/pos.service";
 import { BarcodeScannerModal } from "@/components/BarcodeScannerModal";
+import { Select } from "@/components/ui/Select";
 import { CustomerModal } from "@/components/CustomerModal";
 import { PosReceipt } from "@/components/PosReceipt";
 import { RecentSalesModal } from "@/components/RecentSalesModal";
 import { DiscountModal } from "@/components/DiscountModal";
 import { SaleConfigModal } from "@/components/SaleConfigModal";
+import { TransferMethodSelector } from "@/components/TransferMethodSelector";
 import { AlertTriangle } from "lucide-react";
 import { notifySuccess, notifyWarning, notifyError } from "@/lib/notifications";
 
@@ -87,7 +89,7 @@ function IconReceipt(props: React.SVGProps<SVGSVGElement>) {
 
 const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
   { value: "efectivo", label: "Efectivo" },
-  { value: "tarjeta", label: "Tarjeta" },
+  { value: "tarjeta", label: "Datáfono" },
   { value: "transferencia", label: "Transferencia" },
 ];
 
@@ -191,9 +193,12 @@ export default function POSPage() {
   const setCustomer = usePosStore((s) => s.setCustomer);
   const setStaff = usePosStore((s) => s.setStaff);
   const setPaymentMethod = usePosStore((s) => s.setPaymentMethod);
+  const setTransferMethod = usePosStore((s) => s.setTransferMethod);
+  const setCardMethod = usePosStore((s) => s.setCardMethod);
   const setLineStaff = usePosStore((s) => s.setLineStaff);
   const clearCart = usePosStore((s) => s.clearCart);
   const checkout = usePosStore((s) => s.checkout);
+  const transferMethodsEnabled = useSettingsStore((s) => s.settings?.transfer_methods_enabled);
 
   // Estado local
   const [search, setSearch] = useState("");
@@ -235,7 +240,7 @@ export default function POSPage() {
 
   const activeTab = useMemo(() => tabs.find(t => t.id === activeTabId) || tabs[0], [tabs, activeTabId]);
 
-  const { cart, customerId, staffId, paymentMethod } = activeTab;
+  const { cart, customerId, staffId, paymentMethod, transferMethod, cardMethod } = activeTab;
 
   /** Lo único que el atajo de teclado necesita saber del render actual. */
   interface KeyboardSnapshot {
@@ -668,7 +673,10 @@ export default function POSPage() {
             {/* Escritorio: se mantiene el conmutador grilla/lista. */}
             <div className="hidden lg:block">
             {viewMode === "grid" ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4">
+              /* Más columnas a más ancho: con 4 fijas, en un monitor grande
+                 quedaban tarjetas enormes y se veían menos productos que en el
+                 teléfono. Menos scroll = menos tiempo por venta. */
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3 xl:gap-4">
                 {filtered.map((item) => (
                   <button
                     key={item.id}
@@ -995,72 +1003,77 @@ export default function POSPage() {
 
           {/* Selectores maqueta */}
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-on-surface-variant">Lista de precio</label>
-              <select className="w-full bg-transparent border border-outline-variant/30 rounded-lg px-2 py-1.5 text-xs text-on-surface focus:outline-none focus:border-primary appearance-none">
-                <option>General</option>
-              </select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-on-surface-variant">Numeración</label>
-              <select className="w-full bg-transparent border border-outline-variant/30 rounded-lg px-2 py-1.5 text-xs text-on-surface focus:outline-none focus:border-primary appearance-none">
-                <option>Principal</option>
-              </select>
-            </div>
+            <Select label="Lista de precio" size="sm" defaultValue="general">
+              <option value="general">General</option>
+            </Select>
+            <Select label="Numeración" size="sm" defaultValue="principal">
+              <option value="principal">Principal</option>
+            </Select>
           </div>
 
-          <div className="space-y-1">
-            <label className="text-[11px] font-semibold text-on-surface-variant">Método de pago</label>
-            <select
-              value={paymentMethod}
-              onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
-              className="w-full bg-transparent border border-outline-variant/30 rounded-lg px-2 py-1.5 text-xs text-on-surface focus:outline-none focus:border-primary appearance-none"
-            >
-              {PAYMENT_METHODS.map((m) => (
-                <option key={m.value} value={m.value}>{m.label}</option>
-              ))}
-            </select>
-          </div>
+          <Select
+            label="Método de pago"
+            size="sm"
+            value={paymentMethod}
+            onChange={(e) => {
+              const newMethod = e.target.value as PaymentMethod;
+              setPaymentMethod(newMethod);
+              if (newMethod === "transferencia" && !transferMethod) {
+                const defaultMethod = transferMethodsEnabled?.[0] || "nequi";
+                setTransferMethod(defaultMethod);
+              }
+            }}
+          >
+            {PAYMENT_METHODS.map((m) => (
+              <option key={m.value} value={m.value}>{m.label}</option>
+            ))}
+          </Select>
+
+          {paymentMethod === "transferencia" && (
+            <TransferMethodSelector
+              enabledMethods={transferMethodsEnabled}
+              selectedMethod={transferMethod ?? transferMethodsEnabled?.[0] ?? "nequi"}
+              onSelect={(id) => setTransferMethod(id)}
+            />
+          )}
 
           <div className="flex gap-2 items-end">
-            <div className="space-y-1 flex-1">
-              <label className="text-[11px] font-semibold text-on-surface-variant">Cliente</label>
-              <select
-                value={customerId ?? ""}
-                onChange={(e) => setCustomer(e.target.value || null)}
-                className="w-full bg-transparent border border-outline-variant/30 rounded-lg px-2 py-1.5 text-xs text-on-surface focus:outline-none focus:border-primary appearance-none"
-              >
-                <option value="">Consumidor final (22222222222)</option>
-                {customers.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.full_name}
-                    {c.tax_exempt ? " (exento)" : ""}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <Select
+              label="Cliente"
+              size="sm"
+              containerClassName="flex-1 min-w-0"
+              value={customerId ?? ""}
+              onChange={(e) => setCustomer(e.target.value || null)}
+            >
+              <option value="">Consumidor final (22222222222)</option>
+              {customers.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.full_name}
+                  {c.tax_exempt ? " (exento)" : ""}
+                </option>
+              ))}
+            </Select>
             <button
               onClick={() => setIsCustomerModalOpen(true)}
-              className="h-[30px] w-10 flex items-center justify-center rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+              aria-label="Nuevo cliente"
+              className="h-9 w-10 shrink-0 flex items-center justify-center rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
             >
               <IconUserPlus className="w-4 h-4" />
             </button>
           </div>
 
           {staff.length > 0 && (
-            <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-on-surface-variant">Atendido por</label>
-              <select
-                value={staffId ?? ""}
-                onChange={(e) => setStaff(e.target.value || null)}
-                className="w-full bg-transparent border border-outline-variant/30 rounded-lg px-2 py-1.5 text-xs text-on-surface focus:outline-none focus:border-primary appearance-none"
-              >
-                <option value="">—</option>
-                {staff.map((m) => (
-                  <option key={m.id} value={m.id}>{m.full_name}</option>
-                ))}
-              </select>
-            </div>
+            <Select
+              label="Atendido por"
+              size="sm"
+              value={staffId ?? ""}
+              onChange={(e) => setStaff(e.target.value || null)}
+            >
+              <option value="">—</option>
+              {staff.map((m) => (
+                <option key={m.id} value={m.id}>{m.full_name}</option>
+              ))}
+            </Select>
           )}
         </div>
 
@@ -1115,16 +1128,16 @@ export default function POSPage() {
                     </p>
                   )}
                 {(line.item.kind === "service" || line.item.has_commission) && staff.length > 0 && (
-                  <select
+                  <Select
+                    size="sm"
                     value={line.staffId ?? ""}
                     onChange={(e) => setLineStaff(line.item.id, e.target.value || null)}
-                    className="w-full bg-transparent border border-outline-variant/20 rounded-lg px-2 py-1 text-[10px] text-on-surface focus:outline-none focus:border-primary appearance-none"
                   >
                     <option value="">Atendido por —</option>
                     {staff.map((m) => (
                       <option key={m.id} value={m.id}>{m.full_name}</option>
                     ))}
-                  </select>
+                  </Select>
                 )}
                 <div className="flex items-center justify-between mt-1">
                   <div className="flex items-center border border-outline-variant/20 rounded-lg overflow-hidden bg-surface-container-lowest">

@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useSettingsStore } from "@/stores/settings.store";
 import type { BusinessProfile, Settings } from "@/services/settings.service";
 import { notifySuccess } from "@/lib/notifications";
+import { Select } from "@/components/ui/Select";
 
 function CameraIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -177,26 +178,34 @@ function BusinessProfileForm({ settings }: { settings: Settings }) {
 
               {/* Row 1 */}
               <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
-                <Field label="Tipo de identificación" required className="sm:col-span-4">
-                  <select value={form.identificationType ?? ""} onChange={(e) => update("identificationType", e.target.value)} className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface">
+                <div className="sm:col-span-4">
+                  <Select
+                    label="Tipo de identificación *"
+                    value={form.identificationType ?? ""}
+                    onChange={(e) => update("identificationType", e.target.value)}
+                  >
                     <option value="">Seleccionar</option>
                     <option value="NIT">NIT - Número de identificación tributaria</option>
                     <option value="CC">CC - Cédula de ciudadanía</option>
-                  </select>
-                </Field>
+                  </Select>
+                </div>
                 <Field label="Número de identificación" required className="sm:col-span-3">
                   <input type="text" value={form.identificationNumber ?? ""} onChange={(e) => update("identificationNumber", e.target.value)} placeholder="9012345678" className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface" />
                 </Field>
                 <Field label="DV" required className="sm:col-span-2">
                   <input type="text" value={form.dv ?? ""} onChange={(e) => update("dv", e.target.value)} className="w-full h-[42px] px-3 bg-surface-container border border-outline-variant/10 rounded-lg text-sm text-on-surface-variant focus:outline-none" />
                 </Field>
-                <Field label="Tipo de persona según nacionalidad" required className="sm:col-span-3">
-                  <select value={form.nationalityType ?? ""} onChange={(e) => update("nationalityType", e.target.value)} className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface-variant">
+                <div className="sm:col-span-3">
+                  <Select
+                    label="Tipo de persona según nacionalidad *"
+                    value={form.nationalityType ?? ""}
+                    onChange={(e) => update("nationalityType", e.target.value)}
+                  >
                     <option value="">Seleccionar</option>
                     <option value="Nacional">Nacional</option>
                     <option value="Extranjero">Extranjero</option>
-                  </select>
-                </Field>
+                  </Select>
+                </div>
               </div>
 
               {/* Row 2 */}
@@ -217,13 +226,17 @@ function BusinessProfileForm({ settings }: { settings: Settings }) {
                 <Field label="Nombre comercial">
                   <input type="text" value={form.businessName ?? ""} onChange={(e) => update("businessName", e.target.value)} className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface" />
                 </Field>
-                <Field label="Responsabilidad tributaria" required>
-                  <select value={form.taxResponsibility ?? ""} onChange={(e) => update("taxResponsibility", e.target.value)} className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface">
+                <div>
+                  <Select
+                    label="Responsabilidad tributaria *"
+                    value={form.taxResponsibility ?? ""}
+                    onChange={(e) => update("taxResponsibility", e.target.value)}
+                  >
                     <option value="">Seleccionar</option>
                     <option value="Responsable de IVA">Responsable de IVA</option>
                     <option value="No responsable de IVA">No responsable de IVA</option>
-                  </select>
-                </Field>
+                  </Select>
+                </div>
                 <Field label="Municipio / Departamento">
                   <input type="text" value={form.municipality ?? ""} onChange={(e) => update("municipality", e.target.value)} className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface" />
                 </Field>
@@ -266,27 +279,39 @@ function BusinessProfileForm({ settings }: { settings: Settings }) {
 
           <div className="p-6 md:p-8">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <Field label="Sector">
-                <select value={form.sector ?? ""} onChange={(e) => update("sector", e.target.value)} className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface">
+              <div>
+                <Select
+                  label="Sector"
+                  value={form.sector ?? ""}
+                  onChange={(e) => update("sector", e.target.value)}
+                >
                   <option value="">Seleccionar</option>
                   <option value="Otros">Otros</option>
                   <option value="Tecnología">Tecnología</option>
                   <option value="Alimentación">Alimentación</option>
-                </select>
-              </Field>
-              <Field label="Precisión decimal" required>
-                <select value={form.decimalPrecision ?? "2"} onChange={(e) => update("decimalPrecision", e.target.value)} className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface">
+                </Select>
+              </div>
+              <div>
+                <Select
+                  label="Precisión decimal *"
+                  value={form.decimalPrecision ?? "2"}
+                  onChange={(e) => update("decimalPrecision", e.target.value)}
+                >
                   <option value="0">0</option>
                   <option value="1">1</option>
                   <option value="2">2</option>
-                </select>
-              </Field>
-              <Field label="Separador decimal" required>
-                <select value={form.decimalSeparator ?? ","} onChange={(e) => update("decimalSeparator", e.target.value)} className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface">
+                </Select>
+              </div>
+              <div>
+                <Select
+                  label="Separador decimal *"
+                  value={form.decimalSeparator ?? ","}
+                  onChange={(e) => update("decimalSeparator", e.target.value)}
+                >
                   <option value=",">,</option>
                   <option value=".">.</option>
-                </select>
-              </Field>
+                </Select>
+              </div>
             </div>
           </div>
         </div>

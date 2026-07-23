@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { IconShoppingCart, IconWallet, IconTrendingUp, IconSearch } from "@/app/assets/icons/DashboardIcons";
+import { useSettingsStore } from "@/stores/settings.store";
 import { useSalesStore } from "@/stores/sales.store";
 import { SALES_PERIODS, SALES_PAGE_SIZE, type SaleListItem } from "@/services/sales.service";
+import { COLOMBIA_TRANSFER_METHODS, getTransferMethodName } from "@/config/transferMethods";
 import { DataTable, type DataColumn } from "@/components/DataTable";
 
 const money = (n: number) =>
@@ -18,11 +20,18 @@ const formatDate = (iso: string) =>
     minute: "2-digit",
   });
 
-const PAYMENT_LABELS: Record<string, string> = {
+  const PAYMENT_LABELS: Record<string, string> = {
   efectivo: "Efectivo",
-  tarjeta: "Tarjeta",
+  tarjeta: "Datáfono",
   transferencia: "Transferencia",
 };
+
+const PAYMENT_FILTERS = [
+  { value: "", label: "Todos" },
+  { value: "efectivo", label: "Efectivo" },
+  { value: "tarjeta", label: "Datáfono" },
+  { value: "transferencia", label: "Transferencia" },
+] as const;
 
 const STATUS_STYLES: Record<string, string> = {
   completed: "bg-[#10b981]/10 text-[#10b981] border-[#10b981]/20",
@@ -80,7 +89,10 @@ const SALE_COLUMNS: DataColumn<SaleListItem>[] = [
   {
     header: "Pago",
     className: "text-on-surface-variant",
-    cell: (s) => PAYMENT_LABELS[s.payment_method] ?? s.payment_method,
+    cell: (s) =>
+      s.payment_method === "transferencia" && s.transfer_method
+        ? `Transferencia (${getTransferMethodName(s.transfer_method)})`
+        : PAYMENT_LABELS[s.payment_method] ?? s.payment_method,
   },
 ];
 
@@ -105,13 +117,21 @@ export default function SalesPage() {
   const setPage = useSalesStore((s) => s.setPage);
   const customerQuery = useSalesStore((s) => s.customerQuery);
   const setCustomerQuery = useSalesStore((s) => s.setCustomerQuery);
+  const settings = useSettingsStore((s) => s.settings);
+  const fetchSettings = useSettingsStore((s) => s.fetchSettings);
+  const transferMethodsEnabled = settings?.transfer_methods_enabled;
+  const paymentMethod = useSalesStore((s) => s.paymentMethod);
+  const setPaymentMethod = useSalesStore((s) => s.setPaymentMethod);
+  const transferMethod = useSalesStore((s) => s.transferMethod);
+  const setTransferMethod = useSalesStore((s) => s.setTransferMethod);
 
   // Lo que se está tecleando, que va por delante de la búsqueda aplicada.
   const [searchInput, setSearchInput] = useState(customerQuery);
 
   useEffect(() => {
+    if (!settings) fetchSettings();
     fetchSales();
-  }, [fetchSales]);
+  }, [fetchSales, fetchSettings, settings]);
 
   // Debounce: cada tecla dispararía dos consultas (listado + resumen).
   useEffect(() => {
@@ -171,6 +191,57 @@ export default function SalesPage() {
         ))}
       </div>
 
+      {/* Filtro por método de pago */}
+      <div className="flex flex-wrap items-center gap-2">
+        {PAYMENT_FILTERS.map((f) => (
+          <button
+            key={f.value}
+            onClick={() => setPaymentMethod(f.value)}
+            className={`px-3.5 py-2 rounded-xl text-xs font-semibold border transition-colors ${
+              paymentMethod === f.value
+                ? "bg-primary/10 border-primary/40 text-primary"
+                : "bg-surface-container border-outline-variant/10 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high"
+            }`}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Sub-filtro por método de transferencia (solo cuando se filtra por Transferencia) */}
+      {paymentMethod === "transferencia" && (
+        <div className="flex flex-wrap items-center gap-1.5 ml-1">
+          <span className="text-[11px] text-on-surface-variant font-semibold mr-1 uppercase tracking-wider">Canal:</span>
+          <button
+            onClick={() => setTransferMethod("")}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+              !transferMethod
+                ? "bg-primary/10 border-primary/40 text-primary"
+                : "bg-surface-container border-outline-variant/10 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high"
+            }`}
+          >
+            Todas
+          </button>
+          {(transferMethodsEnabled ?? ["nequi", "daviplata", "bancolombia"]).map((id) => {
+            const m = COLOMBIA_TRANSFER_METHODS.find((x) => x.id === id);
+            if (!m) return null;
+            return (
+            <button
+              key={m.id}
+              onClick={() => setTransferMethod(m.id)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                transferMethod === m.id
+                  ? "bg-primary/10 border-primary/40 text-primary"
+                  : "bg-surface-container border-outline-variant/10 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high"
+              }`}
+            >
+              {m.shortName}
+            </button>
+            );
+          })}
+        </div>
+      )}
+
       {period === "custom" && (
         <div className="flex flex-wrap items-end gap-3 bg-surface-container rounded-2xl border border-outline-variant/10 p-4">
           <div>
@@ -193,40 +264,47 @@ export default function SalesPage() {
               className="px-3 py-2 bg-surface-container-low border border-outline-variant/20 rounded-xl text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/50"
             />
           </div>
-          <p className="text-xs text-on-surface-variant pb-2.5">Ambos días quedan incluidos.</p>
         </div>
       )}
 
-      {/* Resumen */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-surface-container rounded-2xl p-5 border border-outline-variant/10 shadow-sm flex justify-between items-center">
+      {/* Tarjetas resumen */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-surface-container p-5 rounded-2xl border border-outline-variant/10 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-on-surface-variant text-sm font-medium mb-1">Ventas</p>
-            <h3 className="text-3xl font-bold text-on-surface">{summary ? summary.sales_count : "—"}</h3>
+            <p className="text-xs text-on-surface-variant font-medium">Ventas totales</p>
+            <p className="text-2xl font-black text-on-surface mt-1">{summary ? summary.sales_count : "—"}</p>
           </div>
-          <div className="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+          <div className="w-12 h-12 rounded-2xl bg-[#6063ee]/10 text-[#6063ee] flex items-center justify-center shrink-0">
             <IconShoppingCart className="w-6 h-6" />
           </div>
         </div>
-        <div className="bg-surface-container rounded-2xl p-5 border border-outline-variant/10 shadow-sm flex justify-between items-center">
+
+        <div className="bg-surface-container p-5 rounded-2xl border border-outline-variant/10 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-on-surface-variant text-sm font-medium mb-1">Ingresos (completadas)</p>
-            <h3 className="text-3xl font-bold text-on-surface">
-              {summary ? `$${money(summary.revenue)}` : "—"}
-            </h3>
+            <p className="text-xs text-on-surface-variant font-medium">Completadas</p>
+            <p className="text-2xl font-black text-on-surface mt-1">{summary ? summary.completed_count : "—"}</p>
           </div>
-          <div className="w-12 h-12 rounded-xl bg-[#10b981]/10 text-[#10b981] flex items-center justify-center">
+          <div className="w-12 h-12 rounded-2xl bg-[#10b981]/10 text-[#10b981] flex items-center justify-center shrink-0">
             <IconWallet className="w-6 h-6" />
           </div>
         </div>
-        <div className="bg-surface-container rounded-2xl p-5 border border-outline-variant/10 shadow-sm flex justify-between items-center">
+
+        <div className="bg-surface-container p-5 rounded-2xl border border-outline-variant/10 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-on-surface-variant text-sm font-medium mb-1">Ticket promedio</p>
-            <h3 className="text-3xl font-bold text-on-surface">
-              {summary ? `$${money(summary.avg_ticket)}` : "—"}
-            </h3>
+            <p className="text-xs text-on-surface-variant font-medium">Ingresos (completadas)</p>
+            <p className="text-2xl font-black text-on-surface mt-1">{summary ? `$${money(summary.revenue)}` : "—"}</p>
           </div>
-          <div className="w-12 h-12 rounded-xl bg-[#8b5cf6]/10 text-[#8b5cf6] flex items-center justify-center">
+          <div className="w-12 h-12 rounded-2xl bg-[#3b82f6]/10 text-[#3b82f6] flex items-center justify-center shrink-0">
+            <IconWallet className="w-6 h-6" />
+          </div>
+        </div>
+
+        <div className="bg-surface-container p-5 rounded-2xl border border-outline-variant/10 shadow-sm flex items-center justify-between">
+          <div>
+            <p className="text-xs text-on-surface-variant font-medium">Ticket promedio</p>
+            <p className="text-2xl font-black text-on-surface mt-1">{summary ? `$${money(summary.avg_ticket)}` : "—"}</p>
+          </div>
+          <div className="w-12 h-12 rounded-2xl bg-[#f59e0b]/10 text-[#f59e0b] flex items-center justify-center shrink-0">
             <IconTrendingUp className="w-6 h-6" />
           </div>
         </div>
@@ -260,7 +338,7 @@ export default function SalesPage() {
           />
         )}
 
-        {/* Paginación. Solo aparece si el período no entra en una página. */}
+        {/* Paginación */}
         {total > SALES_PAGE_SIZE && (
           <div className="flex items-center justify-between gap-4 px-6 py-4 border-t border-outline-variant/10">
             <p className="text-xs text-on-surface-variant">
@@ -274,12 +352,9 @@ export default function SalesPage() {
               >
                 Anterior
               </button>
-              <span className="text-xs text-on-surface-variant tabular-nums">
-                {page + 1} / {pageCount}
-              </span>
               <button
                 onClick={() => setPage(page + 1)}
-                disabled={page + 1 >= pageCount || loading}
+                disabled={lastRow >= total || loading}
                 className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-outline-variant/20 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Siguiente
@@ -290,13 +365,13 @@ export default function SalesPage() {
       </div>
 
       {/* Modal de detalle */}
-      {(detail || detailLoading) && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-surface-container rounded-3xl w-full max-w-lg border border-outline-variant/10 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="p-6 border-b border-outline-variant/10 flex justify-between items-center bg-surface-container-low">
+      {detail && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-surface-container w-full max-w-lg rounded-3xl border border-outline-variant/10 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-6 border-b border-outline-variant/10 flex justify-between items-start">
               <div>
-                <h2 className="text-xl font-bold text-on-surface">
-                  {detail ? `Venta #${detail.sale_number}` : "Cargando…"}
+                <h2 className="text-lg font-bold text-on-surface">
+                  Venta #{detail.sale_number}
                 </h2>
                 {detail && (
                   <p className="text-xs text-on-surface-variant mt-1">
@@ -306,16 +381,13 @@ export default function SalesPage() {
               </div>
               <button
                 onClick={closeDetail}
-                className="w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors"
-                aria-label="Cerrar"
+                className="text-on-surface-variant hover:text-on-surface"
               >
-                <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="20" height="20">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                ✕
               </button>
             </div>
 
-            {detailLoading || !detail ? (
+            {detailLoading ? (
               <div className="p-12 text-center text-sm text-on-surface-variant">Cargando detalle…</div>
             ) : (
               <div className="p-6 space-y-5">
@@ -356,7 +428,11 @@ export default function SalesPage() {
                 </div>
 
                 <div className="flex justify-between text-xs text-on-surface-variant">
-                  <span>Pago: {PAYMENT_LABELS[detail.payment_method] ?? detail.payment_method}</span>
+                  <span>
+                    Pago: {detail.payment_method === "transferencia" && detail.transfer_method
+                      ? `Transferencia (${getTransferMethodName(detail.transfer_method)})`
+                      : (PAYMENT_LABELS[detail.payment_method] ?? detail.payment_method)}
+                  </span>
                   <span>{STATUS_LABELS[detail.status] ?? detail.status}</span>
                 </div>
               </div>

@@ -13,6 +13,8 @@ import {
   type Modules,
 } from "@/config/business";
 import type { Settings } from "@/services/settings.service";
+import { COLOMBIA_TRANSFER_METHODS, DEFAULT_TRANSFER_METHODS } from "@/config/transferMethods";
+import { Select } from "@/components/ui/Select";
 
 const CURRENCIES = [
   { code: "MXN", label: "Peso mexicano (MXN)" },
@@ -102,23 +104,20 @@ function BusinessModulesForm() {
         </div>
       )}
 
-      <div>
-        <label className="block text-sm font-semibold text-on-surface mb-2">Tipo de negocio</label>
-        <select
-          value={businessType}
-          onChange={(e) => {
-            setBusinessType(e.target.value as BusinessType);
-            setSaved(false);
-          }}
-          className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 text-on-surface transition-shadow appearance-none"
-        >
-          {BUSINESS_OPTIONS.map((b) => (
-            <option key={b.id} value={b.id}>
-              {b.label}
-            </option>
-          ))}
-        </select>
-      </div>
+      <Select
+        label="Tipo de negocio"
+        value={businessType}
+        onChange={(e) => {
+          setBusinessType(e.target.value as BusinessType);
+          setSaved(false);
+        }}
+      >
+        {BUSINESS_OPTIONS.map((b) => (
+          <option key={b.id} value={b.id}>
+            {b.label}
+          </option>
+        ))}
+      </Select>
 
       <div className="space-y-3">
         <span className="block text-sm font-semibold text-on-surface">Módulos</span>
@@ -210,7 +209,17 @@ function SettingsForm({ settings }: { settings: Settings }) {
   const [includeTax, setIncludeTax] = useState(settings.include_tax);
   const [allowOversell, setAllowOversell] = useState(settings.allow_oversell);
   const [currency, setCurrency] = useState(settings.currency);
+  const [transferMethods, setTransferMethods] = useState<string[]>(
+    () => settings.transfer_methods_enabled ?? DEFAULT_TRANSFER_METHODS
+  );
   const [saved, setSaved] = useState(false);
+
+  const toggleTransferMethod = (id: string) => {
+    setSaved(false);
+    setTransferMethods((prev) =>
+      prev.includes(id) ? prev.filter((m) => m !== id) : [...prev, id]
+    );
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -222,6 +231,7 @@ function SettingsForm({ settings }: { settings: Settings }) {
       include_tax: includeTax,
       allow_oversell: allowOversell,
       currency,
+      transfer_methods_enabled: transferMethods,
     });
     if (ok) setSaved(true);
   };
@@ -300,22 +310,70 @@ function SettingsForm({ settings }: { settings: Settings }) {
         stock en negativo: para corregir un conteo usa «Ajustar a».
       </p>
 
-      <div>
-        <label className="block text-sm font-semibold text-on-surface mb-2">Moneda</label>
-        <select
-          value={currency}
-          onChange={(e) => {
-            setCurrency(e.target.value);
-            setSaved(false);
-          }}
-          className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 text-on-surface transition-shadow appearance-none"
-        >
-          {CURRENCIES.map((c) => (
-            <option key={c.code} value={c.code}>
-              {c.label}
-            </option>
-          ))}
-        </select>
+      <Select
+        label="Moneda"
+        value={currency}
+        onChange={(e) => {
+          setCurrency(e.target.value);
+          setSaved(false);
+        }}
+      >
+        {CURRENCIES.map((c) => (
+          <option key={c.code} value={c.code}>
+            {c.label}
+          </option>
+        ))}
+      </Select>
+
+      <div className="pt-4 border-t border-outline-variant/10 space-y-4">
+        <div>
+          <h3 className="text-sm font-bold text-on-surface mb-1">Medios de transferencia (Colombia)</h3>
+          <p className="text-xs text-on-surface-variant">
+            Selecciona los canales de transferencia habilitados para cobro en el POS.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {COLOMBIA_TRANSFER_METHODS.map((m) => {
+            const isEnabled = transferMethods.includes(m.id);
+            return (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => toggleTransferMethod(m.id)}
+                className={`p-3.5 rounded-2xl border text-left flex items-center justify-between gap-3 transition-all ${
+                  isEnabled
+                    ? "bg-primary/5 border-primary/40 shadow-sm"
+                    : "bg-surface-container-low border-outline-variant/15 opacity-60 hover:opacity-100"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 ${m.bgColor} ${m.borderColor} border`}
+                    style={{ color: m.color }}
+                  >
+                    {m.shortName.substring(0, 2).toUpperCase()}
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-on-surface">{m.name}</p>
+                  </div>
+                </div>
+
+                <span
+                  className={`w-10 h-5 rounded-full relative transition-colors ${
+                    isEnabled ? "bg-primary" : "bg-surface-container-highest border border-outline-variant/20"
+                  }`}
+                >
+                  <span
+                    className={`absolute top-[2px] w-4 h-4 bg-white rounded-full shadow-sm transition-all ${
+                      isEnabled ? "left-[22px]" : "left-[2px]"
+                    }`}
+                  ></span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       <div className="flex items-center justify-between gap-4 pt-6 mt-4 border-t border-outline-variant/10">

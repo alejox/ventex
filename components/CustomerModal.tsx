@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Select } from "@/components/ui/Select";
 import { usePosStore } from "@/stores/pos.store";
 import { notifySuccess } from "@/lib/notifications";
 import { backdropProps } from "@/components/modal";
@@ -75,20 +76,17 @@ export function CustomerModal({ onClose }: CustomerModalProps) {
           </div>
 
           <div className="grid grid-cols-[1fr_2fr] gap-3">
-            <div className="space-y-1.5">
-              <label className="text-sm font-semibold text-on-surface">Tipo</label>
-              <select
-                value={docType}
-                onChange={(e) => setDocType(e.target.value)}
-                className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-              >
-                {DOC_TYPES.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.value}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <Select
+              label="Tipo"
+              value={docType}
+              onChange={(e) => setDocType(e.target.value)}
+            >
+              {DOC_TYPES.map((t) => (
+                <option key={t.value} value={t.value}>
+                  {t.value}
+                </option>
+              ))}
+            </Select>
             <div className="space-y-1.5">
               <label className="text-sm font-semibold text-on-surface">Identificación</label>
               <input

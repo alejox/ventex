@@ -17,6 +17,8 @@ export interface SaleTab {
   customerId: string | null;
   staffId: string | null;
   paymentMethod: PaymentMethod;
+  transferMethod?: string | null;
+  cardMethod?: string | null;
 }
 
 interface PosState {
@@ -72,6 +74,8 @@ interface PosState {
   setLineDiscounts: (discounts: { itemId: string; discountAmount: number }[]) => void;
   setLineStaff: (itemId: string, staffId: string | null) => void;
   setPaymentMethod: (method: PaymentMethod) => void;
+  setTransferMethod: (method: string | null) => void;
+  setCardMethod: (method: string | null) => void;
   clearCart: () => void;
   /** Devuelve true si la venta se registró (para que el componente limpie la UI). */
   checkout: () => Promise<boolean>;
@@ -406,6 +410,20 @@ export const usePosStore = create<PosState>((set, get) => {
         ),
       })),
 
+    setTransferMethod: (transferMethod) =>
+      set((s) => ({
+        tabs: s.tabs.map((t) =>
+          t.id === s.activeTabId ? { ...t, transferMethod } : t,
+        ),
+      })),
+
+    setCardMethod: (cardMethod) =>
+      set((s) => ({
+        tabs: s.tabs.map((t) =>
+          t.id === s.activeTabId ? { ...t, cardMethod } : t,
+        ),
+      })),
+
     clearCart: () =>
       set((s) => {
         const defaultMethod = get().defaultPaymentMethod;
@@ -414,7 +432,7 @@ export const usePosStore = create<PosState>((set, get) => {
         return {
           tabs: s.tabs.map((t) =>
             t.id === s.activeTabId
-              ? { ...t, cart: [], customerId: defaultCustomer, staffId: defaultStaff, paymentMethod: defaultMethod }
+              ? { ...t, cart: [], customerId: defaultCustomer, staffId: defaultStaff, paymentMethod: defaultMethod, transferMethod: null, cardMethod: null }
               : t,
           ),
         };
@@ -425,7 +443,7 @@ export const usePosStore = create<PosState>((set, get) => {
       const activeTab = state.tabs.find((t) => t.id === state.activeTabId);
       if (!activeTab || activeTab.cart.length === 0) return false;
 
-      const { cart, customerId, staffId, paymentMethod } = activeTab;
+      const { cart, customerId, staffId, paymentMethod, transferMethod, cardMethod } = activeTab;
 
       set({ submitting: true, error: null });
       try {
@@ -434,6 +452,8 @@ export const usePosStore = create<PosState>((set, get) => {
           customerId,
           staffId,
           paymentMethod,
+          transferMethod,
+          cardMethod,
           discount: totalDiscount,
           includeTax: state.includeTax,
           items: cart.map((l) => {
@@ -456,7 +476,7 @@ export const usePosStore = create<PosState>((set, get) => {
             catalog,
             tabs: s.tabs.map((t) =>
               t.id === s.activeTabId
-                ? { ...t, cart: [], customerId: defaultCustomer, staffId: defaultStaff, paymentMethod: defaultMethod }
+                ? { ...t, cart: [], customerId: defaultCustomer, staffId: defaultStaff, paymentMethod: defaultMethod, transferMethod: null, cardMethod: null }
                 : t,
             ),
           };

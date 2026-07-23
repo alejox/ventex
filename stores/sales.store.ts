@@ -24,6 +24,10 @@ interface SalesState {
   customTo: string;
   /** Búsqueda por nombre de cliente. Vacío = sin filtrar. */
   customerQuery: string;
+  /** Filtro por método de pago. Vacío = todos. */
+  paymentMethod: string;
+  /** Filtro por método de transferencia. Vacío = todas. */
+  transferMethod: string;
 
   detail: SaleDetail | null;
   detailLoading: boolean;
@@ -33,6 +37,8 @@ interface SalesState {
   setPeriod: (period: SalesPeriodId) => Promise<void>;
   setCustomRange: (from: string, to: string) => Promise<void>;
   setCustomerQuery: (query: string) => Promise<void>;
+  setPaymentMethod: (method: string) => Promise<void>;
+  setTransferMethod: (method: string) => Promise<void>;
   setPage: (page: number) => Promise<void>;
   openDetail: (saleId: string) => Promise<void>;
   closeDetail: () => void;
@@ -52,18 +58,20 @@ export const useSalesStore = create<SalesState>((set, get) => ({
   customFrom: "",
   customTo: "",
   customerQuery: "",
+  paymentMethod: "",
+  transferMethod: "",
   detail: null,
   detailLoading: false,
 
   fetchSales: async () => {
-    const { period, customFrom, customTo, page, customerQuery } = get();
+    const { period, customFrom, customTo, page, customerQuery, paymentMethod, transferMethod } = get();
     set({ loading: true, error: null });
     try {
       const range = salesService.resolvePeriod(period, customFrom, customTo);
       // En paralelo: son consultas independientes y la página las necesita a las dos.
       const [pageResult, summary] = await Promise.all([
-        salesService.fetchSales(range, page, undefined, customerQuery),
-        salesService.fetchSalesSummary(range, customerQuery),
+        salesService.fetchSales(range, page, undefined, customerQuery, paymentMethod, transferMethod),
+        salesService.fetchSalesSummary(range, customerQuery, paymentMethod, transferMethod),
       ]);
       set({ sales: pageResult.items, total: pageResult.total, summary, loading: false });
     } catch (e) {
@@ -89,6 +97,17 @@ export const useSalesStore = create<SalesState>((set, get) => ({
   setCustomerQuery: async (query) => {
     // Volver a la página 1: la 3 de "todos" no tiene por qué existir filtrando.
     set({ customerQuery: query, page: 0 });
+    await get().fetchSales();
+  },
+
+  setPaymentMethod: async (method) => {
+    // Al cambiar el método de pago, resetea el sub-filtro de transferencia.
+    set({ paymentMethod: method, transferMethod: "", page: 0 });
+    await get().fetchSales();
+  },
+
+  setTransferMethod: async (method) => {
+    set({ transferMethod: method, page: 0 });
     await get().fetchSales();
   },
 

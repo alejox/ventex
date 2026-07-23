@@ -7,7 +7,8 @@ import { useState } from "react";
 type LoginMode = "owner" | "staff";
 
 export default function LoginPage() {
-  const [mode, setMode] = useState<LoginMode>("owner");
+
+  const [mode, setMode] = useState<LoginMode>("staff");
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [businessKey, setBusinessKey] = useState("");
@@ -29,8 +30,6 @@ export default function LoginPage() {
     const { createClient } = await import("@/utils/supabase/client");
     const supabase = createClient();
 
-    // En modo empleado resolvemos primero el correo de la cuenta a partir de la
-    // llave del negocio + usuario mediante la función worker_login.
     let loginEmail = email;
     if (mode === "staff") {
       const { data, error: rpcError } = await supabase.rpc("worker_login", {
@@ -65,10 +64,10 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="w-full max-w-[420px] mx-auto">
+    <div className="w-full max-w-[480px] mx-auto">
       {/* Mobile Logo */}
       <div className="flex justify-center mb-8 lg:hidden">
-        <LogoVertical className="w-[120px] h-[32px]" />
+        <LogoVertical className="w-70 h-19.5" />
       </div>
 
       <div className="text-center lg:text-left mb-6">
@@ -84,8 +83,8 @@ export default function LoginPage() {
       <div className="grid grid-cols-2 gap-1 p-1 mb-6 rounded-xl bg-surface-container border border-outline-variant/20">
         {(
           [
-            { id: "owner", label: "Dueño" },
             { id: "staff", label: "Empleado" },
+            { id: "owner", label: "Dueño" },
           ] as const
         ).map((t) => (
           <button
@@ -287,7 +286,7 @@ export default function LoginPage() {
           href="/register"
           className="text-primary font-semibold hover:text-primary-dim transition-colors"
         >
-          Regístrate gratis
+          Registrarte
         </Link>
       </div>
     </div>
