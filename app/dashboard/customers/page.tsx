@@ -3,9 +3,55 @@
 import { useEffect, useState } from "react";
 import { IconUsers, IconPlus } from "@/app/assets/icons/DashboardIcons";
 import { useCustomersStore } from "@/stores/customers.store";
-import type { NewCustomerInput } from "@/services/customers.service";
+import { DataTable, type DataColumn } from "@/components/DataTable";
+import type { Customer, NewCustomerInput } from "@/services/customers.service";
 
 const DOC_TYPES = ["CC", "NIT", "RUT", "RFC"];
+
+const CUSTOMER_COLUMNS: DataColumn<Customer>[] = [
+  {
+    header: "Nombre",
+    mobile: "title",
+    className: "pl-6 font-medium text-on-surface",
+    headerClassName: "pl-6",
+    cell: (c) => c.full_name,
+  },
+  {
+    header: "Contacto",
+    mobile: "subtitle",
+    className: "text-on-surface-variant",
+    cell: (c) => (
+      <>
+        <div>{c.email ?? "—"}</div>
+        <div className="text-xs text-on-surface-variant/70">{c.phone ?? ""}</div>
+      </>
+    ),
+  },
+  {
+    header: "Documento",
+    className: "text-on-surface-variant font-mono text-xs",
+    cell: (c) => (
+      <span className="font-mono text-xs">
+        {c.doc_type ? `${c.doc_type} ${c.identification}` : (c.identification ?? "—")}
+      </span>
+    ),
+  },
+  {
+    header: "Impuestos",
+    align: "center",
+    mobile: "badge",
+    cell: (c) =>
+      c.tax_exempt ? (
+        <span className="inline-flex px-2.5 py-1 rounded-md text-[11px] font-bold bg-[#f59e0b]/10 text-[#f59e0b] border border-[#f59e0b]/20">
+          Exento
+        </span>
+      ) : (
+        <span className="inline-flex px-2.5 py-1 rounded-md text-[11px] font-bold bg-surface-variant text-on-surface-variant">
+          Aplica IVA
+        </span>
+      ),
+  },
+];
 
 const EMPTY_CUSTOMER: NewCustomerInput = {
   full_name: "",
@@ -87,41 +133,13 @@ export default function CustomersPage() {
         </div>
       ) : (
         <div className="bg-surface-container rounded-3xl border border-outline-variant/10 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[700px]">
-              <thead>
-                <tr className="bg-surface-container-low border-b border-outline-variant/10 text-[10px] uppercase tracking-wider text-on-surface-variant font-bold">
-                  <th className="p-4 pl-6">Nombre</th>
-                  <th className="p-4">Contacto</th>
-                  <th className="p-4">Documento</th>
-                  <th className="p-4 text-center">Impuestos</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-outline-variant/5 text-sm">
-                {customers.map((c) => (
-                  <tr key={c.id} className="hover:bg-surface-container-lowest transition-colors">
-                    <td className="p-4 pl-6 font-medium text-on-surface">{c.full_name}</td>
-                    <td className="p-4 text-on-surface-variant">
-                      <div>{c.email ?? "—"}</div>
-                      <div className="text-xs text-on-surface-variant/70">{c.phone ?? ""}</div>
-                    </td>
-                    <td className="p-4 text-on-surface-variant font-mono text-xs">{c.doc_type ? `${c.doc_type} ${c.identification}` : (c.identification ?? "—")}</td>
-                    <td className="p-4 text-center">
-                      {c.tax_exempt ? (
-                        <span className="inline-flex px-2.5 py-1 rounded-md text-[11px] font-bold bg-[#f59e0b]/10 text-[#f59e0b] border border-[#f59e0b]/20">
-                          Exento
-                        </span>
-                      ) : (
-                        <span className="inline-flex px-2.5 py-1 rounded-md text-[11px] font-bold bg-surface-variant text-on-surface-variant">
-                          Aplica IVA
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            rows={customers}
+            rowKey={(c) => c.id}
+            minWidth={700}
+            caption="Directorio de clientes"
+            columns={CUSTOMER_COLUMNS}
+          />
         </div>
       )}
 

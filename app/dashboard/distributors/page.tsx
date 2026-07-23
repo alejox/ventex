@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { IconPlus } from "@/app/assets/icons/DashboardIcons";
 import { useDistributorsStore } from "@/stores/distributors.store";
-import type { NewDistributorInput } from "@/services/distributors.service";
+import { DataTable, type DataColumn } from "@/components/DataTable";
+import type { Distributor, NewDistributorInput } from "@/services/distributors.service";
 
 function IconTruck(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -87,6 +88,81 @@ export default function DistributorsPage() {
     setForm(EMPTY_DISTRIBUTOR);
   };
 
+  // Vive dentro del componente porque la acción de editar cierra sobre el estado.
+  const columns: DataColumn<Distributor>[] = [
+    {
+      header: "Negocio",
+      mobile: "title",
+      className: "pl-6 font-medium text-on-surface",
+      headerClassName: "pl-6",
+      cell: (d) => d.business_name,
+    },
+    {
+      header: "Contacto",
+      mobile: "subtitle",
+      className: "text-on-surface-variant",
+      cell: (d) => (
+        <>
+          <div>{d.contact_name ?? "—"}</div>
+          <div className="text-xs text-on-surface-variant/70">{d.email ?? ""}</div>
+        </>
+      ),
+    },
+    {
+      header: "Teléfono",
+      className: "text-on-surface-variant",
+      cell: (d) => d.phone ?? "—",
+    },
+    {
+      header: "WhatsApp",
+      className: "text-on-surface-variant",
+      cell: (d) => d.whatsapp ?? "—",
+    },
+    {
+      header: "Documento",
+      className: "text-on-surface-variant font-mono text-xs",
+      cell: (d) => (
+        <span className="font-mono text-xs">
+          {d.doc_type ? `${d.doc_type} ${d.rfc_rut}${d.dv ? `-${d.dv}` : ""}` : (d.rfc_rut ?? "—")}
+        </span>
+      ),
+    },
+    {
+      header: "Estado",
+      align: "center",
+      mobile: "badge",
+      cell: (d) => (
+        <span
+          className={`inline-flex px-2.5 py-1 rounded-md text-[11px] font-bold border ${
+            d.status === "active"
+              ? "bg-[#10b981]/10 text-[#10b981] border-[#10b981]/20"
+              : "bg-surface-variant text-on-surface-variant border-transparent"
+          }`}
+        >
+          {d.status === "active" ? "Activo" : d.status}
+        </span>
+      ),
+    },
+    {
+      header: "Acciones",
+      align: "center",
+      mobile: "actions",
+      cell: (d) => (
+        <button
+          onClick={() => openEditModal(d)}
+          className="w-11 h-11 lg:w-9 lg:h-9 inline-flex items-center justify-center rounded-xl text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
+          title="Editar proveedor"
+          aria-label={`Editar ${d.business_name}`}
+        >
+          <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-4 h-4">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+          </svg>
+        </button>
+      ),
+    },
+  ];
+
   return (
     <div className="flex flex-col gap-6 w-full animate-in fade-in duration-500">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -129,60 +205,13 @@ export default function DistributorsPage() {
         </div>
       ) : (
         <div className="bg-surface-container rounded-3xl border border-outline-variant/10 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[760px]">
-              <thead>
-                <tr className="bg-surface-container-low border-b border-outline-variant/10 text-[10px] uppercase tracking-wider text-on-surface-variant font-bold">
-                  <th className="p-4 pl-6">Negocio</th>
-                  <th className="p-4">Contacto</th>
-                  <th className="p-4">Teléfono</th>
-                  <th className="p-4">WhatsApp</th>
-                  <th className="p-4">Documento</th>
-                  <th className="p-4 text-center">Estado</th>
-                  <th className="p-4 text-center">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-outline-variant/5 text-sm">
-                {distributors.map((d) => (
-                  <tr key={d.id} className="hover:bg-surface-container-lowest transition-colors">
-                    <td className="p-4 pl-6 font-medium text-on-surface">{d.business_name}</td>
-                    <td className="p-4 text-on-surface-variant">
-                      <div>{d.contact_name ?? "—"}</div>
-                      <div className="text-xs text-on-surface-variant/70">{d.email ?? ""}</div>
-                    </td>
-                    <td className="p-4 text-on-surface-variant">{d.phone ?? "—"}</td>
-                    <td className="p-4 text-on-surface-variant">{d.whatsapp ?? "—"}</td>
-                    <td className="p-4 text-on-surface-variant font-mono text-xs">{d.doc_type ? `${d.doc_type} ${d.rfc_rut}${d.dv ? `-${d.dv}` : ""}` : (d.rfc_rut ?? "—")}</td>
-                    <td className="p-4 text-center">
-                      <span
-                        className={`inline-flex px-2.5 py-1 rounded-md text-[11px] font-bold border ${
-                          d.status === "active"
-                            ? "bg-[#10b981]/10 text-[#10b981] border-[#10b981]/20"
-                            : "bg-surface-variant text-on-surface-variant border-transparent"
-                        }`}
-                      >
-                        {d.status === "active" ? "Activo" : d.status}
-                      </span>
-                    </td>
-                    <td className="p-4 text-center">
-                      <div className="flex items-center justify-center gap-1">
-                        <button
-                          onClick={() => openEditModal(d)}
-                          className="w-9 h-9 flex items-center justify-center rounded-xl text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
-                          title="Editar proveedor"
-                        >
-                          <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-4 h-4">
-                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                          </svg>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            rows={distributors}
+            rowKey={(d) => d.id}
+            minWidth={760}
+            caption="Directorio de proveedores"
+            columns={columns}
+          />
         </div>
       )}
 

@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { IconShoppingCart, IconWallet, IconTrendingUp, IconSearch } from "@/app/assets/icons/DashboardIcons";
 import { useSalesStore } from "@/stores/sales.store";
-import { SALES_PERIODS, SALES_PAGE_SIZE } from "@/services/sales.service";
+import { SALES_PERIODS, SALES_PAGE_SIZE, type SaleListItem } from "@/services/sales.service";
+import { DataTable, type DataColumn } from "@/components/DataTable";
 
 const money = (n: number) =>
   n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -34,6 +35,54 @@ const STATUS_LABELS: Record<string, string> = {
   refunded: "Reembolsada",
   void: "Anulada",
 };
+
+const SALE_COLUMNS: DataColumn<SaleListItem>[] = [
+  {
+    header: "Cliente",
+    mobile: "title",
+    className: "font-medium text-on-surface",
+    cell: (s) => s.customer_name ?? "De Paso",
+  },
+  {
+    header: "Fecha",
+    mobile: "subtitle",
+    className: "text-on-surface-variant",
+    cell: (s) => formatDate(s.created_at),
+  },
+  {
+    header: "Total",
+    align: "right",
+    mobile: "trailing",
+    className: "font-bold text-on-surface",
+    cell: (s) => `$${money(s.total)}`,
+  },
+  {
+    header: "Estado",
+    mobile: "badge",
+    cell: (s) => (
+      <span className={`inline-flex px-2.5 py-1 rounded-md text-[11px] font-bold border ${STATUS_STYLES[s.status] ?? ""}`}>
+        {STATUS_LABELS[s.status] ?? s.status}
+      </span>
+    ),
+  },
+  {
+    header: "N.º",
+    className: "pl-6 font-mono text-xs text-on-surface-variant",
+    headerClassName: "pl-6",
+    cell: (s) => <span className="font-mono text-xs">#{s.sale_number}</span>,
+  },
+  {
+    header: "Artículos",
+    align: "center",
+    className: "text-on-surface-variant",
+    cell: (s) => s.item_count,
+  },
+  {
+    header: "Pago",
+    className: "text-on-surface-variant",
+    cell: (s) => PAYMENT_LABELS[s.payment_method] ?? s.payment_method,
+  },
+];
 
 export default function SalesPage() {
   const sales = useSalesStore((s) => s.sales);
@@ -190,58 +239,26 @@ export default function SalesPage() {
             {error}
           </div>
         )}
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[820px]">
-            <thead>
-              <tr className="bg-surface-container-low border-b border-outline-variant/10 text-[10px] uppercase tracking-wider text-on-surface-variant font-bold">
-                <th className="p-4 pl-6">N.º</th>
-                <th className="p-4">Fecha</th>
-                <th className="p-4">Cliente</th>
-                <th className="p-4 text-center">Artículos</th>
-                <th className="p-4">Pago</th>
-                <th className="p-4 text-right">Total</th>
-                <th className="p-4">Estado</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-outline-variant/5 text-sm">
-              {loading ? (
-                <tr>
-                  <td colSpan={7} className="p-12 text-center text-on-surface-variant">Cargando ventas…</td>
-                </tr>
-              ) : sales.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="p-12 text-center text-on-surface-variant">
-                    {customerQuery
-                      ? `Ninguna venta de este período es de un cliente que coincida con «${customerQuery}».`
-                      : period === "all"
-                        ? "Aún no hay ventas. Registra una desde el Punto de Venta."
-                        : "No hay ventas en este período. Prueba con otro rango de fechas."}
-                  </td>
-                </tr>
-              ) : (
-                sales.map((sale) => (
-                  <tr
-                    key={sale.id}
-                    onClick={() => openDetail(sale.id)}
-                    className="hover:bg-surface-container-lowest transition-colors cursor-pointer"
-                  >
-                    <td className="p-4 pl-6 font-mono text-xs text-on-surface-variant">#{sale.sale_number}</td>
-                    <td className="p-4 text-on-surface-variant">{formatDate(sale.created_at)}</td>
-                    <td className="p-4 font-medium text-on-surface">{sale.customer_name ?? "De Paso"}</td>
-                    <td className="p-4 text-center text-on-surface-variant">{sale.item_count}</td>
-                    <td className="p-4 text-on-surface-variant">{PAYMENT_LABELS[sale.payment_method] ?? sale.payment_method}</td>
-                    <td className="p-4 text-right font-bold text-on-surface">${money(sale.total)}</td>
-                    <td className="p-4">
-                      <span className={`inline-flex px-2.5 py-1 rounded-md text-[11px] font-bold border ${STATUS_STYLES[sale.status] ?? ""}`}>
-                        {STATUS_LABELS[sale.status] ?? sale.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+        {loading ? (
+          <p className="p-12 text-center text-sm text-on-surface-variant">Cargando ventas…</p>
+        ) : sales.length === 0 ? (
+          <p className="p-12 text-center text-sm text-on-surface-variant">
+            {customerQuery
+              ? `Ninguna venta de este período es de un cliente que coincida con «${customerQuery}».`
+              : period === "all"
+                ? "Aún no hay ventas. Registra una desde el Punto de Venta."
+                : "No hay ventas en este período. Prueba con otro rango de fechas."}
+          </p>
+        ) : (
+          <DataTable
+            rows={sales}
+            rowKey={(s) => s.id}
+            minWidth={820}
+            caption="Historial de ventas"
+            onRowClick={(s) => openDetail(s.id)}
+            columns={SALE_COLUMNS}
+          />
+        )}
 
         {/* Paginación. Solo aparece si el período no entra en una página. */}
         {total > SALES_PAGE_SIZE && (

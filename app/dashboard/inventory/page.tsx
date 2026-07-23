@@ -230,8 +230,116 @@ export default function InventoryPage() {
           </div>
         </div>
 
+        {/* Móvil: la tabla de 7 columnas no entra en un teléfono, así que cada
+            producto se dibuja como tarjeta con sus variantes anidadas debajo. */}
+        <ul className="lg:hidden divide-y divide-outline-variant/10">
+          {productGroups.length === 0 ? (
+            <li className="p-10 text-center text-sm text-on-surface-variant">
+              {products.length === 0 ? (
+                <span className="flex flex-col items-center gap-3">
+                  <IconBox className="w-10 h-10 text-on-surface-variant/30" />
+                  <span className="font-medium">No hay productos todav&iacute;a.</span>
+                  <Link
+                    href="/dashboard/inventory/product"
+                    className="text-primary hover:text-primary-dim font-semibold underline underline-offset-2"
+                  >
+                    Crear tu primer producto
+                  </Link>
+                </span>
+              ) : (
+                "Ningún producto coincide con los filtros."
+              )}
+            </li>
+          ) : (
+            productGroups.map(({ parent: item, variants }) => {
+              const stockStatus = item.stock_level === 0 ? "out" : item.stock_level <= 5 ? "low" : "optimal";
+              return (
+                <li key={item.id} className="p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="relative w-12 h-12 shrink-0 rounded-xl bg-surface-container-lowest border border-outline-variant/10 flex items-center justify-center text-on-surface-variant/30 overflow-hidden">
+                      {item.image_url ? (
+                        <Image src={item.image_url} alt={item.name} fill sizes="48px" unoptimized className="object-cover" />
+                      ) : (
+                        <IconImagePlaceholder className="w-5 h-5" />
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-on-surface break-words">{item.name}</p>
+                      <p className="text-xs text-on-surface-variant mt-0.5">
+                        <span className="font-mono">{item.sku}</span>
+                        {item.categories?.name ? ` · ${item.categories.name}` : ""}
+                      </p>
+                    </div>
+                    <Link
+                      href={`/dashboard/inventory/product?id=${item.id}`}
+                      className="w-11 h-11 shrink-0 flex items-center justify-center rounded-xl text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
+                      aria-label={`Editar ${item.name}`}
+                    >
+                      <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-4 h-4">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                      </svg>
+                    </Link>
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-between gap-2 mt-3">
+                    <span
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold ${
+                        stockStatus === "optimal"
+                          ? "bg-[#10b981]/10 text-[#10b981] border border-[#10b981]/20"
+                          : stockStatus === "low"
+                            ? "bg-[#f59e0b]/10 text-[#f59e0b] border border-[#f59e0b]/20"
+                            : "bg-error-container/20 text-error-dim border border-error-container/30"
+                      }`}
+                    >
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full ${
+                          stockStatus === "optimal" ? "bg-[#10b981]" : stockStatus === "low" ? "bg-[#f59e0b]" : "bg-error"
+                        }`}
+                      />
+                      {item.stock_level === 0 ? "Agotado" : `${item.stock_level} en stock`}
+                    </span>
+                    <span className="text-sm font-bold text-on-surface tabular-nums">
+                      ${item.price.toFixed(2)}
+                      <span className="ml-2 text-xs font-normal text-on-surface-variant">
+                        costo ${(item.purchase_price ?? 0).toFixed(2)}
+                      </span>
+                    </span>
+                  </div>
+
+                  {variants.length > 0 && (
+                    <ul className="mt-3 pl-3 border-l-2 border-outline-variant/20 space-y-2">
+                      {variants.map((v) => (
+                        <li key={v.id} className="flex items-center justify-between gap-2">
+                          <Link
+                            href={`/dashboard/inventory/product?id=${v.id}`}
+                            className="min-w-0 flex-1 text-xs text-on-surface hover:text-primary transition-colors"
+                          >
+                            <span className="block truncate">{v.name}</span>
+                            <span className="block font-mono text-[10px] text-on-surface-variant">{v.sku}</span>
+                          </Link>
+                          <span className="text-xs font-semibold text-on-surface tabular-nums shrink-0">
+                            ${v.price.toFixed(2)}
+                          </span>
+                          <span
+                            className={`text-[10px] font-bold shrink-0 ${
+                              v.stock_level === 0 ? "text-error-dim" : v.stock_level <= 5 ? "text-[#f59e0b]" : "text-on-surface-variant"
+                            }`}
+                          >
+                            {v.stock_level} uds.
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </li>
+              );
+            })
+          )}
+        </ul>
+
         {/* Table */}
-        <div className="overflow-x-auto">
+        <div className="hidden lg:block overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-surface-container-low border-b border-outline-variant/10 text-[11px] uppercase tracking-wider text-on-surface-variant font-bold">

@@ -7,6 +7,8 @@ import { IconBox, IconPlus } from "@/app/assets/icons/DashboardIcons";
 import { useMovementsStore } from "@/stores/inventory-movements.store";
 import { useInventoryStore } from "@/stores/inventory.store";
 import { StockAdjustmentModal } from "@/components/StockAdjustmentModal";
+import { DataTable, type DataColumn } from "@/components/DataTable";
+import type { InventoryMovement } from "@/services/inventory-movements.service";
 
 const typeLabel: Record<string, string> = {
   in: "Entrada",
@@ -19,6 +21,78 @@ const typeColor: Record<string, string> = {
   out: "bg-error/10 text-error",
   adjust: "bg-amber-100 text-amber-700",
 };
+
+const MOVEMENT_COLUMNS: DataColumn<InventoryMovement>[] = [
+  {
+    header: "Producto",
+    mobile: "title",
+    className: "font-medium text-on-surface",
+    cell: (mov) => (
+      <Link
+        href={`/dashboard/inventory/movements?product_id=${mov.product_id}`}
+        className="hover:text-primary transition-colors"
+      >
+        {mov.products?.name ?? "—"}
+      </Link>
+    ),
+  },
+  {
+    header: "Fecha",
+    mobile: "subtitle",
+    className: "pl-6 text-on-surface-variant whitespace-nowrap",
+    headerClassName: "pl-6",
+    cell: (mov) =>
+      new Date(mov.created_at).toLocaleDateString("es-ES", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+  },
+  {
+    header: "Cantidad",
+    align: "right",
+    mobile: "trailing",
+    className: "font-semibold font-mono",
+    cell: (mov) => (
+      <span className="font-mono">
+        {mov.type === "in" ? "+" : mov.type === "out" ? "-" : "→"}
+        {mov.quantity}
+      </span>
+    ),
+  },
+  {
+    header: "Tipo",
+    align: "center",
+    mobile: "badge",
+    cell: (mov) => (
+      <span className={`text-[11px] font-bold border rounded-md px-2.5 py-1 ${typeColor[mov.type] || ""}`}>
+        {typeLabel[mov.type] || mov.type}
+      </span>
+    ),
+  },
+  {
+    header: "SKU",
+    className: "text-on-surface-variant font-mono text-xs",
+    cell: (mov) => <span className="font-mono text-xs">{mov.products?.sku ?? "—"}</span>,
+  },
+  {
+    header: "Referencia",
+    className: "text-xs text-on-surface-variant font-mono",
+    cell: (mov) =>
+      mov.reference_type === "purchase"
+        ? "Compra"
+        : mov.reference_type === "manual"
+          ? "Manual"
+          : (mov.reference_type ?? "—"),
+  },
+  {
+    header: "Notas",
+    className: "text-xs text-on-surface-variant max-w-[200px] truncate",
+    cell: (mov) => mov.notes ?? "—",
+  },
+];
 
 function MovementsContent() {
   const searchParams = useSearchParams();
@@ -123,66 +197,13 @@ function MovementsContent() {
               </svg>
             </div>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[700px]">
-              <thead>
-                <tr className="bg-surface-container-low border-b border-outline-variant/10 text-[10px] uppercase tracking-wider text-on-surface-variant font-bold">
-                  <th className="p-4 pl-6">Fecha</th>
-                  <th className="p-4">Producto</th>
-                  <th className="p-4">SKU</th>
-                  <th className="p-4 text-center">Tipo</th>
-                  <th className="p-4 text-right">Cantidad</th>
-                  <th className="p-4">Referencia</th>
-                  <th className="p-4">Notas</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-outline-variant/5 text-sm">
-                {filteredMovements.map((mov) => (
-                  <tr key={mov.id} className="hover:bg-surface-container-lowest transition-colors">
-                    <td className="p-4 pl-6 text-on-surface-variant whitespace-nowrap">
-                      {new Date(mov.created_at).toLocaleDateString("es-ES", {
-                        day: "2-digit",
-                        month: "2-digit",
-                        year: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </td>
-                    <td className="p-4 font-medium text-on-surface">
-                      <Link
-                        href={`/dashboard/inventory/movements?product_id=${mov.product_id}`}
-                        className="hover:text-primary transition-colors"
-                      >
-                        {mov.products?.name ?? "—"}
-                      </Link>
-                    </td>
-                    <td className="p-4 text-on-surface-variant font-mono text-xs">
-                      {mov.products?.sku ?? "—"}
-                    </td>
-                    <td className="p-4 text-center">
-                      <span className={`text-[11px] font-bold border rounded-md px-2.5 py-1 ${typeColor[mov.type] || ""}`}>
-                        {typeLabel[mov.type] || mov.type}
-                      </span>
-                    </td>
-                    <td className="p-4 text-right font-semibold font-mono">
-                      {mov.type === "in" ? "+" : mov.type === "out" ? "-" : "→"}
-                      {mov.quantity}
-                    </td>
-                    <td className="p-4 text-xs text-on-surface-variant font-mono">
-                      {mov.reference_type === "purchase"
-                        ? `Compra`
-                        : mov.reference_type === "manual"
-                        ? "Manual"
-                        : mov.reference_type ?? "—"}
-                    </td>
-                    <td className="p-4 text-xs text-on-surface-variant max-w-[200px] truncate">
-                      {mov.notes ?? "—"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            rows={filteredMovements}
+            rowKey={(m) => m.id}
+            minWidth={700}
+            caption="Movimientos de inventario"
+            columns={MOVEMENT_COLUMNS}
+          />
         </div>
       )}
 

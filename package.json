@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "icons": "node scripts/generate-icons.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"
@@ -11,6 +12,7 @@
   "dependencies": {
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.108.2",
+    "@zxing/browser": "^0.2.1",
     "axios": "^1.18.0",
     "lucide-react": "^1.23.0",
     "next": "16.2.9",

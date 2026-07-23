@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { IconSearch } from "@/app/assets/icons/DashboardIcons";
@@ -18,6 +18,7 @@ import {
   type CustomerOption,
   type SaleTotals,
 } from "@/services/pos.service";
+import { BarcodeScannerModal } from "@/components/BarcodeScannerModal";
 import { CustomerModal } from "@/components/CustomerModal";
 import { PosReceipt } from "@/components/PosReceipt";
 import { RecentSalesModal } from "@/components/RecentSalesModal";
@@ -203,6 +204,9 @@ export default function POSPage() {
   const [isRecentSalesModalOpen, setIsRecentSalesModalOpen] = useState(false);
   const [isSaleConfigModalOpen, setIsSaleConfigModalOpen] = useState(false);
   const [isCashConfirmOpen, setIsCashConfirmOpen] = useState(false);
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
+  // En móvil la factura no cabe al lado del catálogo: se abre como panel lateral.
+  const [isCartOpen, setIsCartOpen] = useState(false);
   const [receiptData, setReceiptData] = useState<ReceiptData | null>(null);
   const [amountTendered, setAmountTendered] = useState("");
   const router = useRouter();
@@ -254,6 +258,8 @@ export default function POSPage() {
         setIsSuccessModalOpen(false);
         setIsCashConfirmOpen(false);
         setIsOpenShiftOpen(false);
+        setIsScannerOpen(false);
+        setIsCartOpen(false);
       }
       if (e.key === "Enter" && !e.ctrlKey && !e.metaKey) {
         const snapshot = latest.current;
@@ -296,6 +302,32 @@ export default function POSPage() {
       });
   }, [catalog, search, activeCategory]);
 
+  /**
+   * Un código escaneado es lo mismo que un SKU tecleado: se resuelve contra el
+   * catálogo ya cargado, sin ida al servidor, para que el escáner siga siendo
+   * instantáneo. El escáner queda abierto (modo continuo) porque escanear varios
+   * ítems seguidos es el caso normal en el mostrador.
+   */
+  const handleScannedCode = useCallback(
+    (code: string) => {
+      const q = code.trim().toLowerCase();
+      const match = catalog.find((p) => p.sku?.toLowerCase() === q);
+      if (!match) {
+        notifyError("Código no encontrado", `Ningún ítem tiene el SKU ${code}.`);
+        return;
+      }
+      if (!allowOversell && match.kind === "product" && (match.stock_level ?? 0) <= 0) {
+        notifyError("Sin stock", `${match.name} no tiene unidades disponibles.`);
+        return;
+      }
+      addToCart(match);
+      notifySuccess("Agregado a la venta", match.name);
+    },
+    [catalog, addToCart, allowOversell],
+  );
+
+  const cartUnits = useMemo(() => cart.reduce((sum, l) => sum + l.quantity, 0), [cart]);
+
   const selectedCustomer = useMemo(
     () => customers.find((c) => c.id === customerId) ?? null,
     [customers, customerId],
@@ -335,6 +367,7 @@ export default function POSPage() {
       setSearch("");
       setActiveCategory("Todos");
       setAmountTendered("");
+      setIsCartOpen(false);
       setIsSuccessModalOpen(true);
     }
   };
@@ -353,7 +386,8 @@ export default function POSPage() {
         isSaleConfigModalOpen ||
         isSuccessModalOpen ||
         isCashConfirmOpen ||
-        isOpenShiftOpen,
+        isOpenShiftOpen ||
+        isScannerOpen,
       requireShift,
       checkout: handleCheckout,
     };
@@ -363,14 +397,16 @@ export default function POSPage() {
     <>
       {/* Alto fijo (con columnas que scrollean por dentro) solo en escritorio: en
           móvil las columnas se apilan, así que la página crece y scrollea normal. */}
-      <div className="flex flex-col lg:flex-row lg:h-[calc(100vh-5rem)] -m-6 lg:-m-10 bg-background relative lg:overflow-hidden print:hidden">
+      <div className="flex flex-col lg:flex-row lg:h-[calc(100vh-5rem)] -m-6 lg:-m-10 pb-[calc(4.5rem+env(safe-area-inset-bottom))] lg:pb-0 bg-background relative lg:overflow-hidden print:hidden">
       
       {/* Columna Izquierda: Catálogo + Tabs */}
-      <div className="flex-1 flex flex-col min-w-0 px-6 lg:pl-10 lg:pr-6 border-r border-outline-variant/10">
+      <div className="flex-1 flex flex-col min-w-0 px-6 lg:pl-10 lg:pr-6 lg:border-r border-outline-variant/10">
         
-        <div className="flex items-center gap-3 mb-6 pt-4">
-          {/* min-w-0: sin esto el botón de la derecha aplasta el buscador en móvil. */}
-          <div className="relative flex-1 min-w-0">
+        {/* En móvil el buscador ocupa su propia fila y las acciones bajan a la
+            siguiente: con el turno abierto los botones dejaban el input en 48px. */}
+        <div className="flex flex-wrap items-center gap-2 lg:gap-3 mb-4 lg:mb-6 pt-4">
+          {/* min-w-0: sin esto el botón de la derecha aplasta el buscador. */}
+          <div className="relative w-full lg:w-auto lg:flex-1 min-w-0 order-1">
             <div className="absolute left-0 top-0 bottom-0 w-12 bg-primary rounded-l-2xl flex items-center justify-center">
               <IconSearch className="w-5 h-5 text-white" />
             </div>
@@ -396,11 +432,28 @@ export default function POSPage() {
                   e.stopPropagation();
                 }
               }}
-              placeholder="Buscar productos o escanear código"
+              placeholder="Buscar o escanear código"
               ref={(el) => { if (el) searchRef.current = el; }}
-              className="w-full bg-surface-container-lowest rounded-2xl py-3.5 pl-14 pr-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant border border-outline-variant/30 shadow-sm"
+              /* text-base en móvil: por debajo de 16px iOS hace zoom al enfocar. */
+              className="w-full h-12 bg-surface-container-lowest rounded-2xl pl-14 pr-14 text-base lg:text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant border border-outline-variant/30 shadow-sm"
             />
+            {/* Escaneo con la cámara: pegado al buscador porque resuelve lo mismo. */}
+            <button
+              type="button"
+              onClick={() => setIsScannerOpen(true)}
+              aria-label="Escanear código de barras"
+              title="Escanear código de barras"
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center rounded-xl text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
+            >
+              <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-5 h-5">
+                <path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2" />
+                <path d="M7 8v8M10.5 8v8M14 8v8M17 8v8" />
+              </svg>
+            </button>
           </div>
+
+          {/* Fila de acciones: en móvil va debajo del buscador y scrollea si hace falta. */}
+          <div className="order-2 flex items-center gap-2 lg:gap-3 w-full lg:w-auto overflow-x-auto scrollbar-hide">
           {isWorker && !currentShift && (
             <button
               onClick={() => setIsOpenShiftOpen(true)}
@@ -432,7 +485,7 @@ export default function POSPage() {
           )}
           <button
             onClick={() => setViewMode(viewMode === "grid" ? "list" : "grid")}
-            className="w-12 h-12 rounded-2xl border border-outline-variant/30 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low transition-colors flex items-center justify-center shrink-0"
+            className="w-12 h-12 rounded-2xl border border-outline-variant/30 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low transition-colors flex items-center justify-center shrink-0 ml-auto lg:ml-0"
             title={viewMode === "grid" ? "Vista lista" : "Vista cuadr\u00edcula"}
           >
             {viewMode === "grid" ? (
@@ -458,13 +511,14 @@ export default function POSPage() {
             onClick={() => router.push("/dashboard/inventory/product?from=/dashboard/pos")}
             aria-label="Nuevo producto"
             title="Nuevo producto"
-            className="shrink-0 whitespace-nowrap w-12 h-12 sm:w-auto sm:h-auto sm:px-5 sm:py-3.5 rounded-2xl bg-transparent border border-primary/50 text-primary text-sm font-semibold hover:bg-primary/10 transition-colors flex items-center justify-center gap-2"
+            className="shrink-0 whitespace-nowrap w-12 h-12 lg:w-auto lg:px-5 rounded-2xl bg-transparent border border-primary/50 text-primary text-sm font-semibold hover:bg-primary/10 transition-colors flex items-center justify-center gap-2"
           >
-            <span className="hidden sm:inline">Nuevo producto</span>
-            <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-5 h-5 sm:w-4 sm:h-4">
+            <span className="hidden lg:inline">Nuevo producto</span>
+            <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-5 h-5 lg:w-4 lg:h-4">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" />
             </svg>
           </button>
+          </div>
         </div>
 
         {/* Categorías */}
@@ -667,23 +721,69 @@ export default function POSPage() {
         </div>
       </div>
 
-      {/* Orden actual / Factura de Venta */}
-      <div className="w-full lg:w-[420px] bg-surface-container-lowest flex flex-col lg:h-full shrink-0 border-l border-outline-variant/10">
-        
+      {/* Barra inferior fija (solo móvil): el acceso al carrito sin scrollear
+          toda la grilla, y el total siempre visible mientras se arma la venta. */}
+      <button
+        type="button"
+        onClick={() => setIsCartOpen(true)}
+        className="lg:hidden fixed bottom-0 inset-x-0 z-40 flex items-center justify-between gap-3 bg-primary text-white px-5 pt-3.5 pb-[max(0.875rem,env(safe-area-inset-bottom))] shadow-[0_-4px_20px_rgba(0,0,0,0.18)]"
+      >
+        <span className="flex items-center gap-2.5 min-w-0">
+          <span className="relative shrink-0">
+            <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-6 h-6">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+            </svg>
+            {cartUnits > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-white text-primary text-[10px] font-bold flex items-center justify-center">
+                {cartUnits}
+              </span>
+            )}
+          </span>
+          <span className="text-sm font-semibold truncate">
+            {cart.length === 0 ? "Carrito vacío" : `Ver carrito (${cart.length})`}
+          </span>
+        </span>
+        <span className="text-base font-bold tabular-nums shrink-0">${money(totals.total)}</span>
+      </button>
+
+      {/* Backdrop del panel de factura en móvil. */}
+      {isCartOpen && (
+        <div
+          className="lg:hidden fixed inset-0 z-40 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={() => setIsCartOpen(false)}
+        />
+      )}
+
+      {/* Orden actual / Factura de Venta.
+          Móvil: panel lateral derecho sobre el catálogo. Escritorio: columna fija. */}
+      <div
+        className={`fixed inset-y-0 right-0 z-50 w-full max-w-[420px] shadow-2xl transition-transform duration-300 ease-out
+          lg:static lg:z-auto lg:w-[420px] lg:max-w-none lg:translate-x-0 lg:shadow-none lg:transition-none
+          bg-surface-container-lowest flex flex-col h-full shrink-0 border-l border-outline-variant/10
+          ${isCartOpen ? "translate-x-0" : "translate-x-full"}`}
+      >
+
         {/* Top bar de Factura */}
-        <div className="p-5 border-b border-outline-variant/10 space-y-4 pt-6">
-          <div className="flex justify-between items-center">
-            <h2 className="text-lg font-bold text-on-surface flex items-center gap-2">
-              Factura de venta
-              <div className="w-6 h-6 rounded-full bg-[#6063ee]/10 flex items-center justify-center text-[#6063ee]">
+        <div className="p-5 border-b border-outline-variant/10 space-y-4 pt-[max(1.5rem,env(safe-area-inset-top))] lg:pt-6">
+          <div className="flex justify-between items-center gap-2">
+            <h2 className="text-lg font-bold text-on-surface flex items-center gap-2 min-w-0">
+              <span className="truncate">Factura de venta</span>
+              <div className="w-6 h-6 shrink-0 rounded-full bg-[#6063ee]/10 flex items-center justify-center text-[#6063ee]">
                 <IconThunder className="w-3.5 h-3.5" />
               </div>
             </h2>
-            <div className="flex items-center gap-3 text-on-surface-variant">
+            <div className="flex items-center gap-3 text-on-surface-variant shrink-0">
                {/* Iconos visuales superiores */}
                <button onClick={() => setIsDiscountModalOpen(true)} className="hover:text-primary" title="Descuentos globales"><IconDiscount className="w-5 h-5" /></button>
                <button onClick={() => requireShift(() => window.print())} className="hover:text-primary" title="Imprimir"><svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-5 h-5"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg></button>
                <button onClick={() => setIsSaleConfigModalOpen(true)} className="hover:text-primary" title="Configuración"><svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-5 h-5"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg></button>
+               <button
+                 onClick={() => setIsCartOpen(false)}
+                 aria-label="Cerrar factura"
+                 className="lg:hidden -mr-1.5 w-9 h-9 flex items-center justify-center rounded-full hover:bg-surface-container-high hover:text-on-surface transition-colors"
+               >
+                 <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-5 h-5"><path d="M6 18L18 6M6 6l12 12" /></svg>
+               </button>
             </div>
           </div>
 
@@ -759,7 +859,7 @@ export default function POSPage() {
         </div>
 
         {/* Líneas */}
-        <div className="flex-1 lg:overflow-y-auto p-5 space-y-4">
+        <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-4">
           {cart.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center px-4">
               <div className="w-12 h-12 rounded bg-surface-container flex items-center justify-center text-on-surface-variant/50 mb-3">
@@ -867,7 +967,7 @@ export default function POSPage() {
         </div>
 
           {/* Area de checkout inferior */}
-        <div className="p-4 bg-surface-container-lowest mt-auto">
+        <div className="p-4 pb-[max(1rem,env(safe-area-inset-bottom))] bg-surface-container-lowest mt-auto shrink-0 border-t border-outline-variant/10 lg:border-t-0">
           {/* Contador de productos */}
           {cart.length > 0 && (
             <div className="flex items-center justify-between mb-3 px-1">
@@ -993,6 +1093,15 @@ export default function POSPage() {
       </div>
 
       {/* Modales */}
+      {isScannerOpen && (
+        <BarcodeScannerModal
+          continuous
+          title="Escanear producto"
+          hint="Se agrega solo a la venta."
+          onDetected={handleScannedCode}
+          onClose={() => setIsScannerOpen(false)}
+        />
+      )}
       {isCustomerModalOpen && <CustomerModal onClose={() => setIsCustomerModalOpen(false)} />}
       {isDiscountModalOpen && <DiscountModal onClose={() => setIsDiscountModalOpen(false)} />}
       {isRecentSalesModalOpen && <RecentSalesModal onClose={() => setIsRecentSalesModalOpen(false)} />}

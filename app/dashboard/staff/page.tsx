@@ -6,7 +6,8 @@ import { IconUserBadge, IconPlus } from "@/app/assets/icons/DashboardIcons";
 import { useStaffStore } from "@/stores/staff.store";
 import { useSubscriptionStore } from "@/stores/subscription.store";
 import { fetchStaffSales } from "@/services/staff.service";
-import type { NewStaffInput, StaffMember, StaffSaleItem } from "@/services/staff.service";
+import type { CommissionRow, NewStaffInput, StaffMember, StaffSaleItem } from "@/services/staff.service";
+import { DataTable, type DataColumn } from "@/components/DataTable";
 
 const ROLES = ["Barbero", "Estilista", "Colorista", "Manicurista", "Lavador", "Detailer", "Consultor", "Profesional", "Recepción", "Otro"];
 
@@ -22,6 +23,43 @@ const EMPTY_STAFF: NewStaffInput = {
 
 const money = (n: number) =>
   n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+const COMMISSION_COLUMNS: DataColumn<CommissionRow>[] = [
+  {
+    header: "Miembro",
+    mobile: "title",
+    className: "pl-6 font-medium text-on-surface",
+    headerClassName: "pl-6",
+    cell: (c) => c.full_name,
+  },
+  {
+    header: "Comisión",
+    align: "right",
+    mobile: "trailing",
+    className: "pr-6 font-bold text-on-surface tabular-nums",
+    headerClassName: "pr-6",
+    cell: (c) => `$${money(c.commission)}`,
+  },
+  {
+    header: "Ventas",
+    align: "center",
+    className: "text-on-surface-variant",
+    cell: (c) => c.salesCount,
+  },
+  {
+    header: "Servicios",
+    align: "right",
+    className: "text-on-surface-variant tabular-nums",
+    cell: (c) => `$${money(c.servicesTotal)}`,
+  },
+  {
+    header: "Tasa",
+    align: "center",
+    className: "text-on-surface-variant",
+    cell: (c) =>
+      c.commission_type === "fixed" ? `$${money(c.commission_rate)}/und` : `${c.commission_rate}%`,
+  },
+];
 
 export default function StaffPage() {
   const staff = useStaffStore((s) => s.staff);
@@ -249,32 +287,13 @@ export default function StaffPage() {
           {commissionsLoading ? (
             <p className="text-center text-sm text-on-surface-variant py-8">Calculando…</p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse min-w-[520px]">
-                <thead>
-                  <tr className="text-[10px] uppercase tracking-wider text-on-surface-variant font-bold border-b border-outline-variant/10">
-                    <th className="p-4 pl-6">Miembro</th>
-                    <th className="p-4 text-center">Ventas</th>
-                    <th className="p-4 text-right">Servicios</th>
-                    <th className="p-4 text-center">Tasa</th>
-                    <th className="p-4 pr-6 text-right">Comisión</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-outline-variant/5 text-sm">
-                  {commissions.map((c) => (
-                    <tr key={c.staff_id} className="hover:bg-surface-container-lowest transition-colors">
-                      <td className="p-4 pl-6 font-medium text-on-surface">{c.full_name}</td>
-                      <td className="p-4 text-center text-on-surface-variant">{c.salesCount}</td>
-                      <td className="p-4 text-right text-on-surface-variant tabular-nums">${money(c.servicesTotal)}</td>
-                      <td className="p-4 text-center text-on-surface-variant">
-                        {c.commission_type === "fixed" ? `$${money(c.commission_rate)}/und` : `${c.commission_rate}%`}
-                      </td>
-                      <td className="p-4 pr-6 text-right font-bold text-on-surface tabular-nums">${money(c.commission)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <DataTable
+              rows={commissions}
+              rowKey={(c) => c.staff_id}
+              minWidth={520}
+              caption="Comisiones por miembro"
+              columns={COMMISSION_COLUMNS}
+            />
           )}
         </div>
       )}

@@ -11,6 +11,7 @@ import { DistributorQuickModal } from "@/components/DistributorQuickModal";
 import { CategoryQuickModal } from "@/components/CategoryQuickModal";
 import { PurchaseInvoiceDetailModal } from "@/components/PurchaseInvoiceDetailModal";
 import { ProductModal } from "@/components/ProductModal";
+import { DataTable, type DataColumn } from "@/components/DataTable";
 
 const money = (n: number) =>
   "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -251,6 +252,115 @@ export default function PurchasesPage() {
     setLoadingLastPurchase(false);
   };
 
+  const purchaseColumns: DataColumn<PurchaseInvoice>[] = [
+    {
+      header: "Proveedor",
+      mobile: "title",
+      className: "font-medium text-on-surface",
+      cell: (inv) => inv.distributors?.business_name ?? "—",
+    },
+    {
+      header: "#",
+      mobile: "subtitle",
+      className: "pl-6 font-mono text-xs text-on-surface-variant",
+      headerClassName: "pl-6",
+      cell: (inv) => <span className="font-mono text-xs">#{inv.invoice_number}</span>,
+    },
+    {
+      header: "Total",
+      align: "right",
+      mobile: "trailing",
+      className: "font-semibold text-on-surface font-mono",
+      cell: (inv) => money(Number(inv.total)),
+    },
+    {
+      header: "Estado",
+      align: "center",
+      mobile: "badge",
+      cell: (inv) => (
+        <select
+          value={inv.status}
+          onChange={(e) => updateStatus(inv.id, e.target.value)}
+          aria-label={`Estado de la factura #${inv.invoice_number}`}
+          className={`text-[11px] font-bold border rounded-md px-2.5 py-1 appearance-none cursor-pointer focus:outline-none ${
+            inv.status === "paid"
+              ? "bg-[#10b981]/10 text-[#10b981] border-[#10b981]/20"
+              : inv.status === "pending"
+                ? "bg-amber-100 text-amber-700 border-amber-200"
+                : "bg-surface-variant text-on-surface-variant border-transparent"
+          }`}
+        >
+          <option value="paid">Pagada</option>
+          <option value="pending">Pendiente</option>
+          <option value="cancelled">Anulada</option>
+        </select>
+      ),
+    },
+    {
+      header: "Factura Proveedor",
+      className: "text-on-surface-variant font-mono text-xs",
+      cell: (inv) => <span className="font-mono text-xs">{inv.supplier_invoice_number || "—"}</span>,
+    },
+    {
+      header: "Fecha",
+      className: "text-on-surface-variant",
+      cell: (inv) => new Date(inv.issue_date).toLocaleDateString("es-ES"),
+    },
+    {
+      header: "Recibido",
+      className: "text-xs text-on-surface-variant",
+      cell: (inv) => (inv.created_at ? new Date(inv.created_at).toLocaleDateString("es-ES") : "—"),
+    },
+    {
+      header: "Acción",
+      align: "center",
+      mobile: "actions",
+      headerClassName: "w-16",
+      cell: (inv) => (
+        <div className="flex items-center justify-center gap-1">
+          <button
+            type="button"
+            onClick={() => openEdit(inv)}
+            className="w-11 h-11 lg:w-8 lg:h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
+            title="Editar factura"
+            aria-label={`Editar factura #${inv.invoice_number}`}
+          >
+            <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-4 h-4">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            onClick={() => setDetailInvoice(inv)}
+            className="w-11 h-11 lg:w-8 lg:h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
+            title="Ver detalles"
+            aria-label={`Ver detalles de la factura #${inv.invoice_number}`}
+          >
+            <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-4 h-4">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+          </button>
+          {inv.status !== "cancelled" && (
+            <button
+              type="button"
+              onClick={() => setCancelConfirmId(inv.id)}
+              className="w-11 h-11 lg:w-8 lg:h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:text-error hover:bg-error/10 transition-colors"
+              title="Anular y devolver stock"
+              aria-label={`Anular la factura #${inv.invoice_number}`}
+            >
+              <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-4 h-4">
+                <polyline points="1 4 1 10 7 10" />
+                <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+              </svg>
+            </button>
+          )}
+        </div>
+      ),
+    },
+  ];
+
   return (
     <div className="flex flex-col gap-6 w-full animate-in fade-in duration-500">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -318,102 +428,13 @@ export default function PurchasesPage() {
               ))}
             </select>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[800px]">
-              <thead>
-                <tr className="bg-surface-container-low border-b border-outline-variant/10 text-[10px] uppercase tracking-wider text-on-surface-variant font-bold">
-                  <th className="p-4 pl-6">#</th>
-                  <th className="p-4">Proveedor</th>
-                  <th className="p-4">Factura Proveedor</th>
-                  <th className="p-4">Fecha</th>
-                  <th className="p-4">Recibido</th>
-                  <th className="p-4 text-right">Total</th>
-                  <th className="p-4 text-center">Estado</th>
-                  <th className="p-4 text-center w-16">Acción</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-outline-variant/5 text-sm">
-                {filteredInvoices.map((inv) => (
-                  <tr key={inv.id} className="hover:bg-surface-container-lowest transition-colors">
-                    <td className="p-4 pl-6 font-mono text-xs text-on-surface-variant">
-                      #{inv.invoice_number}
-                    </td>
-                    <td className="p-4 font-medium text-on-surface">
-                      {inv.distributors?.business_name ?? "—"}
-                    </td>
-                    <td className="p-4 text-on-surface-variant font-mono text-xs">
-                      {inv.supplier_invoice_number || "—"}
-                    </td>
-                    <td className="p-4 text-on-surface-variant">
-                      {new Date(inv.issue_date).toLocaleDateString("es-ES")}
-                    </td>
-                    <td className="p-4 text-xs text-on-surface-variant">
-                      {inv.created_at ? new Date(inv.created_at).toLocaleDateString("es-ES") : "—"}
-                    </td>
-                    <td className="p-4 text-right font-semibold text-on-surface font-mono">
-                      {money(Number(inv.total))}
-                    </td>
-                    <td className="p-4 text-center">
-                      <select
-                        value={inv.status}
-                        onChange={(e) => updateStatus(inv.id, e.target.value)}
-                        className={`text-[11px] font-bold border rounded-md px-2.5 py-1 appearance-none cursor-pointer focus:outline-none ${
-                          inv.status === "paid"
-                            ? "bg-[#10b981]/10 text-[#10b981] border-[#10b981]/20"
-                            : inv.status === "pending"
-                            ? "bg-amber-100 text-amber-700 border-amber-200"
-                            : "bg-surface-variant text-on-surface-variant border-transparent"
-                        }`}
-                      >
-                        <option value="paid">Pagada</option>
-                        <option value="pending">Pendiente</option>
-                        <option value="cancelled">Anulada</option>
-                      </select>
-                    </td>
-                    <td className="p-4 text-center">
-                      <div className="flex items-center justify-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => openEdit(inv)}
-                          className="w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
-                          title="Editar factura"
-                        >
-                          <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-4 h-4">
-                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                          </svg>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setDetailInvoice(inv)}
-                          className="w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
-                          title="Ver detalles"
-                        >
-                          <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-4 h-4">
-                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                            <circle cx="12" cy="12" r="3" />
-                          </svg>
-                        </button>
-                        {inv.status !== "cancelled" && (
-                          <button
-                            type="button"
-                            onClick={() => setCancelConfirmId(inv.id)}
-                            className="w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:text-error hover:bg-error/10 transition-colors"
-                            title="Anular y devolver stock"
-                          >
-                            <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-4 h-4">
-                              <polyline points="1 4 1 10 7 10" />
-                              <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
-                            </svg>
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            rows={filteredInvoices}
+            rowKey={(inv) => inv.id}
+            minWidth={800}
+            caption="Facturas de compra"
+            columns={purchaseColumns}
+          />
         </div>
       )}
 

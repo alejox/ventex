@@ -25,6 +25,7 @@ import {
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ShellUserMenu } from "@/components/ShellUserMenu";
 import { NotificationsBell } from "@/components/NotificationsBell";
+import { InstallPrompt } from "@/components/InstallPrompt";
 import { useProfile } from "@/components/ProfileProvider";
 import { visibleNavItems, workerNavItems } from "@/config/business";
 import { backdropProps } from "@/components/modal";
@@ -235,6 +236,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
         {/* Page Content */}
         <main className="flex-1 overflow-auto bg-background p-6 lg:p-10 print:p-0 print:bg-white print:overflow-visible">
+          <InstallPrompt />
           {children}
         </main>
       </div>

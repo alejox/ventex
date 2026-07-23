@@ -8,6 +8,7 @@ import { useServicesStore } from "@/stores/services.store";
 import { useSettingsStore } from "@/stores/settings.store";
 import { useProfile } from "@/components/ProfileProvider";
 import type { Invoice, InvoiceItem, InvoiceLineInput, NewInvoiceInput } from "@/services/billing.service";
+import { DataTable, type DataColumn } from "@/components/DataTable";
 
 const escapeHtml = (s: string) =>
   s.replace(/[&<>"']/g, (c) =>
@@ -42,6 +43,52 @@ const STATUS: Record<string, { label: string; cls: string }> = {
   paid: { label: "Pagada", cls: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" },
   cancelled: { label: "Cancelada", cls: "bg-error-container/20 text-error-dim border-error-container/30" },
 };
+
+const INVOICE_COLUMNS: DataColumn<Invoice>[] = [
+  {
+    header: "Documento",
+    mobile: "title",
+    className: "pl-6 font-medium text-on-surface",
+    headerClassName: "pl-6",
+    cell: (inv) => (
+      <>
+        <span className="text-on-surface-variant">{TYPE_LABEL[inv.type] ?? inv.type}</span>{" "}
+        <span className="font-mono">#{inv.invoice_number}</span>
+      </>
+    ),
+  },
+  {
+    header: "Cliente",
+    mobile: "subtitle",
+    className: "text-on-surface-variant",
+    cell: (inv) => inv.customers?.full_name ?? "—",
+  },
+  {
+    header: "Total",
+    align: "right",
+    mobile: "trailing",
+    className: "font-bold text-on-surface tabular-nums",
+    cell: (inv) => `$${money(inv.total)}`,
+  },
+  {
+    header: "Estado",
+    align: "center",
+    mobile: "badge",
+    cell: (inv) => {
+      const st = STATUS[inv.status] ?? STATUS.pending;
+      return (
+        <span className={`inline-flex px-2.5 py-1 rounded-md text-[11px] font-bold border ${st.cls}`}>
+          {st.label}
+        </span>
+      );
+    },
+  },
+  {
+    header: "Fecha",
+    className: "text-on-surface-variant",
+    cell: (inv) => formatDate(inv.issue_date),
+  },
+];
 
 export default function BillingPage() {
   const invoices = useBillingStore((s) => s.invoices);
@@ -229,44 +276,14 @@ export default function BillingPage() {
         </div>
       ) : (
         <div className="bg-surface-container rounded-3xl border border-outline-variant/10 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[720px]">
-              <thead>
-                <tr className="bg-surface-container-low border-b border-outline-variant/10 text-[10px] uppercase tracking-wider text-on-surface-variant font-bold">
-                  <th className="p-4 pl-6">Documento</th>
-                  <th className="p-4">Cliente</th>
-                  <th className="p-4">Fecha</th>
-                  <th className="p-4 text-right">Total</th>
-                  <th className="p-4 text-center">Estado</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-outline-variant/5 text-sm">
-                {invoices.map((inv) => {
-                  const st = STATUS[inv.status] ?? STATUS.pending;
-                  return (
-                    <tr
-                      key={inv.id}
-                      onClick={() => openDetail(inv)}
-                      className="hover:bg-surface-container-lowest transition-colors cursor-pointer"
-                    >
-                      <td className="p-4 pl-6 font-medium text-on-surface">
-                        <span className="text-on-surface-variant">{TYPE_LABEL[inv.type] ?? inv.type}</span>{" "}
-                        <span className="font-mono">#{inv.invoice_number}</span>
-                      </td>
-                      <td className="p-4 text-on-surface-variant">{inv.customers?.full_name ?? "—"}</td>
-                      <td className="p-4 text-on-surface-variant">{formatDate(inv.issue_date)}</td>
-                      <td className="p-4 text-right font-bold text-on-surface tabular-nums">${money(inv.total)}</td>
-                      <td className="p-4 text-center">
-                        <span className={`inline-flex px-2.5 py-1 rounded-md text-[11px] font-bold border ${st.cls}`}>
-                          {st.label}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            rows={invoices}
+            rowKey={(inv) => inv.id}
+            minWidth={720}
+            caption="Facturas y cotizaciones"
+            onRowClick={openDetail}
+            columns={INVOICE_COLUMNS}
+          />
         </div>
       )}
 
