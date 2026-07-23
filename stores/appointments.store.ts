@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { toMessage } from "@/lib/errors";
 import * as appointmentsService from "@/services/appointments.service";
 import type {
   Appointment,
@@ -25,8 +26,6 @@ interface AppointmentsState {
   setSelectedDate: (date: Date) => void;
 }
 
-const toMessage = (e: unknown) =>
-  e instanceof Error ? e.message : "Ocurrió un error inesperado";
 
 export const useAppointmentsStore = create<AppointmentsState>((set) => ({
   appointments: [],

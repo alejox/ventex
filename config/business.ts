@@ -27,6 +27,9 @@ export type WorkerPermission =
   | "customers"
   | "sales"
   | "inventory"
+  | "inventory_costs"
+  | "inventory_edit"
+  | "inventory_stock"
   | "services"
   | "vehicles"
   | "billing"
@@ -41,10 +44,37 @@ export const WORKER_PERMISSION_LABELS: Record<WorkerPermission, string> = {
   customers: "Clientes",
   sales: "Ventas",
   inventory: "Inventario",
+  inventory_costs: "Ver costos y márgenes",
+  inventory_edit: "Crear y editar productos",
+  inventory_stock: "Ajustar stock y ver movimientos",
   services: "Servicios",
   vehicles: "Vehículos",
   billing: "Facturación",
   settings: "Configuración del negocio",
+};
+
+/**
+ * Permisos que afinan a otro en vez de abrir un módulo propio.
+ *
+ * Ver el catálogo no es lo mismo que ver cuánto costó cada cosa, ni que poder
+ * cambiar precios, ni que poder mover el conteo: son cuatro decisiones
+ * distintas y el dueño las toma por separado. Es el modelo que usan los POS
+ * del mercado (Lightspeed tiene "Show product costs" como permiso aparte,
+ * apagado por defecto para cajeros).
+ *
+ * Un hijo sin su padre no sirve: la UI los deshabilita cuando `inventory`
+ * está apagado, y los apaga al apagarlo.
+ */
+export const WORKER_PERMISSION_PARENT: Partial<Record<WorkerPermission, WorkerPermission>> = {
+  inventory_costs: "inventory",
+  inventory_edit: "inventory",
+  inventory_stock: "inventory",
+};
+
+export const WORKER_PERMISSION_HINTS: Partial<Record<WorkerPermission, string>> = {
+  inventory_costs: "Precio de compra, margen y valor total del inventario.",
+  inventory_edit: "Alta y edición de productos, variantes y categorías.",
+  inventory_stock: "Ajustes de stock, historial de movimientos y recepción de compras.",
 };
 
 /** Datos del perfil de cuenta (tabla public.profiles). */

@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { toMessage } from "@/lib/errors";
 import * as profileService from "@/services/profile.service";
 import type { ProfileUpdate } from "@/services/profile.service";
 
@@ -9,8 +10,6 @@ interface ProfileState {
   saveProfile: (patch: ProfileUpdate) => Promise<boolean>;
 }
 
-const toMessage = (e: unknown) =>
-  e instanceof Error ? e.message : "Ocurrió un error inesperado";
 
 export const useProfileStore = create<ProfileState>((set) => ({
   submitting: false,

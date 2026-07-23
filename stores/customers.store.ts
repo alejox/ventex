@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { toMessage } from "@/lib/errors";
 import * as customersService from "@/services/customers.service";
 import type { Customer, NewCustomerInput } from "@/services/customers.service";
 
@@ -13,8 +14,6 @@ interface CustomersState {
   addCustomer: (input: NewCustomerInput) => Promise<boolean>;
 }
 
-const toMessage = (e: unknown) =>
-  e instanceof Error ? e.message : "Ocurrió un error inesperado";
 
 export const useCustomersStore = create<CustomersState>((set) => ({
   customers: [],

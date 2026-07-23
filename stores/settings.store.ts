@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { toMessage } from "@/lib/errors";
 import * as settingsService from "@/services/settings.service";
 import type { Settings, SettingsInput } from "@/services/settings.service";
 
@@ -29,8 +30,6 @@ interface SettingsState {
   regenerateBusinessKey: () => Promise<string | null>;
 }
 
-const toMessage = (e: unknown) =>
-  e instanceof Error ? e.message : "Ocurrió un error inesperado";
 
 export const useSettingsStore = create<SettingsState>((set) => ({
   settings: null,

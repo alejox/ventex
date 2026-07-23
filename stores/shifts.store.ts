@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { toMessage } from "@/lib/errors";
 import * as shiftsService from "@/services/shifts.service";
 import type { CurrentShift, Shift, ShiftSummary } from "@/services/shifts.service";
 
@@ -26,8 +27,6 @@ interface ShiftsState {
   fetchShifts: () => Promise<void>;
 }
 
-const toMessage = (e: unknown) =>
-  e instanceof Error ? e.message : "Ocurrió un error inesperado";
 
 export const useShiftsStore = create<ShiftsState>((set) => ({
   currentShift: null,

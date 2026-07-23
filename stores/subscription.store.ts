@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { toMessage } from "@/lib/errors";
 import * as subscriptionService from "@/services/subscription.service";
 import type { MySubscription, Plan, PlanPeriod } from "@/services/subscription.service";
 
@@ -15,8 +16,6 @@ interface SubscriptionState {
   refreshUsage: () => Promise<void>;
 }
 
-const toMessage = (e: unknown) =>
-  e instanceof Error ? e.message : "Ocurrió un error inesperado";
 
 export const useSubscriptionStore = create<SubscriptionState>((set) => ({
   subscription: null,

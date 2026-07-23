@@ -1,8 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import { usePosStore } from "@/stores/pos.store";
+import { useProfile } from "@/components/ProfileProvider";
 import type { PaymentMethod } from "@/services/pos.service";
 import { backdropProps } from "@/components/modal";
+import { notifySuccess, notifyError } from "@/lib/notifications";
 
 interface SaleConfigModalProps {
   onClose: () => void;
@@ -25,6 +28,13 @@ export function SaleConfigModal({ onClose }: SaleConfigModalProps) {
   const setDefaultStaffId = usePosStore((s) => s.setDefaultStaffId);
   const defaultCustomerId = usePosStore((s) => s.defaultCustomerId);
   const setDefaultCustomerId = usePosStore((s) => s.setDefaultCustomerId);
+
+  const [saving, setSaving] = useState(false);
+  // Espejo de la RLS de `settings`: el dueño siempre, el empleado solo con el
+  // permiso `settings`. Acá es UX (deshabilitar y explicar); quien manda es la
+  // policy, que devuelve 0 filas si no corresponde.
+  const profile = useProfile();
+  const canEditTax = !profile?.isWorker || Boolean(profile?.workerPermissions?.settings);
 
   return (
     <div className="fixed inset-0 z-[200] flex justify-end bg-black/20 backdrop-blur-sm animate-in fade-in duration-200" {...backdropProps(onClose)}>
@@ -88,22 +98,43 @@ export function SaleConfigModal({ onClose }: SaleConfigModalProps) {
             </div>
           )}
 
-          {/* Incluir IVA */}
+          {/* Desglosar IVA. Es configuración del NEGOCIO y queda guardada:
+              la misma columna `settings.include_tax` que edita Configuración. */}
           <div className="space-y-2 pt-4 border-t border-outline-variant/10">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-on-surface">Incluir IVA</h3>
-              <label className="relative inline-flex items-center cursor-pointer">
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-sm font-semibold text-on-surface">Desglosar IVA</h3>
+              <label
+                className={`relative inline-flex items-center ${canEditTax ? "cursor-pointer" : "cursor-not-allowed opacity-50"}`}
+              >
                 <input
                   type="checkbox"
                   className="sr-only peer"
                   checked={includeTax}
-                  onChange={(e) => setIncludeTax(e.target.checked)}
+                  disabled={!canEditTax || saving}
+                  onChange={async (e) => {
+                    setSaving(true);
+                    const ok = await setIncludeTax(e.target.checked);
+                    setSaving(false);
+                    if (ok) {
+                      notifySuccess(
+                        e.target.checked ? "IVA desglosado" : "IVA sin desglosar",
+                        "Queda guardado para las próximas ventas.",
+                      );
+                    } else {
+                      notifyError(
+                        "No se pudo guardar",
+                        "No tenés permiso para cambiar la configuración del negocio.",
+                      );
+                    }
+                  }}
                 />
                 <div className="w-11 h-6 bg-surface-container-high peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
               </label>
             </div>
             <p className="text-xs text-on-surface-variant leading-relaxed">
-              Si desactivas esta opción, el cálculo de impuestos se omitirá en el total de la venta actual.
+              {canEditTax
+                ? "Se guarda en la configuración del negocio y vale para todas las ventas, no solo para esta. Los precios del catálogo ya incluyen el IVA: esto decide si la venta y el recibo separan la base del impuesto."
+                : "Solo el dueño (o un empleado con permiso de configuración) puede cambiar el desglose de IVA."}
             </p>
           </div>
         </div>

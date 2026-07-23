@@ -77,8 +77,49 @@ export interface NewCategoryInput {
  * a la propia tabla con alias y se desambigua con la COLUMNA (`!parent_product_id`):
  * en auto-relaciones PostgREST no resuelve la pista por nombre de constraint.
  */
+/**
+ * Columnas de `products` legibles con la clave pública.
+ *
+ * NO puede ser `*`: a `authenticated` se le revocó el SELECT sobre
+ * `purchase_price`, así que un `select *` devuelve "permission denied for table
+ * products". El costo se pide aparte con `attachCosts`, vía el RPC
+ * `get_product_costs`, que es quien evalúa el permiso `inventory_costs`.
+ *
+ * Si agregás una columna a la tabla, agregala también acá y al GRANT.
+ */
+const PRODUCT_COLUMNS =
+  "id, created_at, updated_at, user_id, name, sku, price, stock_level, image_url, status, " +
+  "category_id, unit, distributor_id, minimum_stock, icon, has_commission, commission_type, " +
+  "commission_value, units_per_package, parent_product_id";
+
 const PRODUCT_SELECT =
-  "*, categories(name), distributors(business_name), parent_product:products!parent_product_id(name)";
+  `${PRODUCT_COLUMNS}, categories(name), distributors(business_name), parent_product:products!parent_product_id(name)`;
+
+/**
+ * Completa los productos con su costo de compra.
+ *
+ * El RPC devuelve vacío cuando quien pregunta no tiene `inventory_costs`, así
+ * que se puede llamar siempre: los productos simplemente quedan sin costo y la
+ * UI no muestra la columna. La decisión de permiso vive en la base, en un solo
+ * lugar, y no hay que duplicarla en cada pantalla que lea inventario.
+ */
+async function attachCosts<T extends { id: string; purchase_price?: number }>(
+  supabase: ReturnType<typeof createClient>,
+  rows: T[],
+): Promise<T[]> {
+  if (rows.length === 0) return rows;
+  const { data, error } = await supabase.rpc("get_product_costs" as never, {
+    p_ids: rows.map((r) => r.id),
+  } as never);
+  // Un fallo acá no puede tumbar el inventario: se muestra sin costos.
+  if (error) return rows;
+
+  const costs = new Map<string, number>();
+  for (const row of (data ?? []) as { product_id: string; purchase_price: number }[]) {
+    costs.set(row.product_id, Number(row.purchase_price));
+  }
+  return rows.map((r) => (costs.has(r.id) ? { ...r, purchase_price: costs.get(r.id) } : r));
+}
 
 const PRODUCT_IMAGES_BUCKET = "product-images";
 
@@ -134,7 +175,7 @@ export async function fetchProducts(): Promise<Product[]> {
     .select(PRODUCT_SELECT)
     .order("created_at", { ascending: false });
   if (error) throw error;
-  const all = (data ?? []) as unknown as Product[];
+  const all = await attachCosts(supabase, (data ?? []) as unknown as Product[]);
 
   const variantsMap: Record<string, Product[]> = {};
   for (const p of all) {
@@ -150,6 +191,19 @@ export async function fetchProducts(): Promise<Product[]> {
   }));
 }
 
+/**
+ * El costo solo viaja si el formulario lo trae.
+ *
+ * Quien puede editar productos pero no ver costos recibe el campo vacío: si se
+ * mandara igual, guardar un cambio de nombre le borraría el costo real al
+ * dueño. Omitirlo deja la columna intacta (y el trigger de la base rechaza el
+ * cambio si alguien lo fuerza igual).
+ */
+function costPatch(raw: string): { purchase_price?: number } {
+  const value = parseFloat(raw);
+  return raw.trim() !== "" && Number.isFinite(value) ? { purchase_price: value } : {};
+}
+
 export async function createProduct(input: NewProductInput): Promise<Product> {
   const supabase = createClient();
   const { data, error } = await supabase
@@ -161,7 +215,7 @@ export async function createProduct(input: NewProductInput): Promise<Product> {
       parent_product_id: input.parent_product_id || null,
       sku: input.sku,
       unit: input.unit,
-      purchase_price: parseFloat(input.purchase_price),
+      ...costPatch(input.purchase_price),
       price: parseFloat(input.price),
       stock_level: parseInt(input.stock_level || "0"),
       image_url: input.image_url || null,
@@ -173,7 +227,10 @@ export async function createProduct(input: NewProductInput): Promise<Product> {
     .select(PRODUCT_SELECT)
     .single();
   if (error) throw error;
-  return data as unknown as Product;
+  // El producto vuelve sin costo (la columna no es legible): se recupera por RPC
+  // para que el store no quede con una fila a medias hasta el próximo refetch.
+  const [withCost] = await attachCosts(supabase, [data as unknown as Product]);
+  return withCost;
 }
 
 export async function updateProduct(id: string, input: NewProductInput): Promise<Product> {
@@ -187,7 +244,7 @@ export async function updateProduct(id: string, input: NewProductInput): Promise
       parent_product_id: input.parent_product_id || null,
       sku: input.sku,
       unit: input.unit,
-      purchase_price: parseFloat(input.purchase_price),
+      ...costPatch(input.purchase_price),
       price: parseFloat(input.price),
       stock_level: parseInt(input.stock_level || "0"),
       image_url: input.image_url || null,
@@ -200,7 +257,10 @@ export async function updateProduct(id: string, input: NewProductInput): Promise
     .select(PRODUCT_SELECT)
     .single();
   if (error) throw error;
-  return data as unknown as Product;
+  // El producto vuelve sin costo (la columna no es legible): se recupera por RPC
+  // para que el store no quede con una fila a medias hasta el próximo refetch.
+  const [withCost] = await attachCosts(supabase, [data as unknown as Product]);
+  return withCost;
 }
 
 export async function createCategory(input: NewCategoryInput): Promise<Category> {

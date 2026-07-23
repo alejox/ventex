@@ -179,6 +179,49 @@ export async function fetchSettings(): Promise<Settings> {
   };
 }
 
+/**
+ * Persiste solo el desglose de IVA.
+ *
+ * Vive aparte de `saveSettings` porque el POS únicamente conoce este campo:
+ * mandar el objeto completo pisaría la tasa, la moneda o el perfil del negocio
+ * que el dueño haya cambiado desde otra pestaña.
+ *
+ * La RLS de `settings` solo deja escribir al dueño o al empleado con el permiso
+ * `settings`, así que un empleado sin permiso recibe 0 filas afectadas. Eso NO
+ * es un error de red: se devuelve `false` para que el llamador revierta.
+ */
+export async function updateIncludeTax(includeTax: boolean): Promise<boolean> {
+  const supabase = createClient();
+  const { data: existing, error: readErr } = await supabase
+    .from("settings")
+    .select("id")
+    .maybeSingle();
+  if (readErr) throw readErr;
+
+  if (existing?.id) {
+    const { data, error } = await supabase
+      .from("settings")
+      .update({ include_tax: includeTax } as never)
+      .eq("id", existing.id)
+      .select("id");
+    if (error) throw error;
+    return (data?.length ?? 0) > 0;
+  }
+
+  // Todavía no hay fila de ajustes: se crea con los valores por defecto.
+  const { data, error } = await supabase
+    .from("settings")
+    .insert({
+      tax_rate: DEFAULTS.tax_rate,
+      include_tax: includeTax,
+      allow_oversell: DEFAULTS.allow_oversell,
+      currency: DEFAULTS.currency,
+    } as never)
+    .select("id");
+  if (error) throw error;
+  return (data?.length ?? 0) > 0;
+}
+
 /** Crea o actualiza la (única) fila de ajustes del usuario. */
 export async function saveSettings(input: SettingsInput): Promise<Settings> {
   const supabase = createClient();

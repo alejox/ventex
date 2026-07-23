@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { toMessage } from "@/lib/errors";
 import * as servicesService from "@/services/services.service";
 import type { Service, NewServiceInput } from "@/services/services.service";
 
@@ -14,8 +15,6 @@ interface ServicesState {
   updateService: (id: string, input: NewServiceInput) => Promise<boolean>;
 }
 
-const toMessage = (e: unknown) =>
-  e instanceof Error ? e.message : "Ocurrió un error inesperado";
 
 export const useServicesStore = create<ServicesState>((set) => ({
   services: [],

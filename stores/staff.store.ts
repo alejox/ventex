@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { toMessage } from "@/lib/errors";
 import * as staffService from "@/services/staff.service";
 import type { StaffMember, NewStaffInput, CommissionRow } from "@/services/staff.service";
 
@@ -18,8 +19,6 @@ interface StaffState {
   updateStaff: (id: string, input: NewStaffInput) => Promise<boolean>;
 }
 
-const toMessage = (e: unknown) =>
-  e instanceof Error ? e.message : "Ocurrió un error inesperado";
 
 export const useStaffStore = create<StaffState>((set) => ({
   staff: [],

@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { toMessage } from "@/lib/errors";
 import * as resellerService from "@/services/reseller.service";
 import type {
   CreditMovement,
@@ -27,8 +28,6 @@ interface ResellerState {
   setClientStatus: (userId: string, action: "suspend" | "reactivate") => Promise<boolean>;
 }
 
-const toMessage = (e: unknown) =>
-  e instanceof Error ? e.message : "Ocurrió un error inesperado";
 
 export const useResellerStore = create<ResellerState>((set) => ({
   clients: [],

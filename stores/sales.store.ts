@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { toMessage } from "@/lib/errors";
 import * as salesService from "@/services/sales.service";
 import type {
   SaleListItem,
@@ -37,8 +38,6 @@ interface SalesState {
   closeDetail: () => void;
 }
 
-const toMessage = (e: unknown) =>
-  e instanceof Error ? e.message : "Ocurrió un error inesperado";
 
 export const useSalesStore = create<SalesState>((set, get) => ({
   sales: [],

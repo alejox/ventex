@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { toMessage } from "@/lib/errors";
 import * as workerService from "@/services/worker.service";
 import type {
   WorkerMember,
@@ -20,8 +21,6 @@ interface WorkerState {
   deactivateWorker: (workerId: string) => Promise<boolean>;
 }
 
-const toMessage = (e: unknown) =>
-  e instanceof Error ? e.message : "Ocurrió un error inesperado";
 
 export const useWorkerStore = create<WorkerState>((set) => ({
   workers: [],

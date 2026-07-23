@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { toMessage } from "@/lib/errors";
 import * as financeService from "@/services/finance.service";
 import type { FinanceOverview, NewExpenseInput, TodaySales } from "@/services/finance.service";
 
@@ -16,8 +17,6 @@ interface FinanceState {
   addExpense: (input: NewExpenseInput) => Promise<boolean>;
 }
 
-const toMessage = (e: unknown) =>
-  e instanceof Error ? e.message : "Ocurrió un error inesperado";
 
 export const useFinanceStore = create<FinanceState>((set, get) => ({
   overview: null,

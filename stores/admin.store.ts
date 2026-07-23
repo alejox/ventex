@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { toMessage } from "@/lib/errors";
 import * as adminService from "@/services/admin.service";
 import type {
   AdminCompany,
@@ -49,8 +50,6 @@ interface AdminState {
   applyPack: (resellerId: string, packId: string) => Promise<boolean>;
 }
 
-const toMessage = (e: unknown) =>
-  e instanceof Error ? e.message : "Ocurrió un error inesperado";
 
 export const useAdminStore = create<AdminState>((set) => ({
   companies: [],

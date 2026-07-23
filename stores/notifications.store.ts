@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { toMessage } from "@/lib/errors";
 import * as notificationsService from "@/services/notifications.service";
 import type { AppNotification } from "@/services/notifications.service";
 
@@ -14,8 +15,6 @@ interface NotificationsState {
   markAllRead: () => Promise<void>;
 }
 
-const toMessage = (e: unknown) =>
-  e instanceof Error ? e.message : "Ocurrió un error inesperado";
 
 export const useNotificationsStore = create<NotificationsState>((set) => ({
   notifications: [],

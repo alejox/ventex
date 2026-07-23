@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { toMessage } from "@/lib/errors";
 import * as vehiclesService from "@/services/vehicles.service";
 import type {
   Vehicle,
@@ -22,8 +23,6 @@ interface VehiclesState {
   clearHistory: () => void;
 }
 
-const toMessage = (e: unknown) =>
-  e instanceof Error ? e.message : "Ocurrió un error inesperado";
 
 export const useVehiclesStore = create<VehiclesState>((set) => ({
   vehicles: [],

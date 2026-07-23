@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { toMessage } from "@/lib/errors";
 import * as inventoryService from "@/services/inventory.service";
 import type {
   Product,
@@ -25,8 +26,6 @@ interface InventoryState {
   addCategory: (input: NewCategoryInput) => Promise<boolean>;
 }
 
-const toMessage = (e: unknown) =>
-  e instanceof Error ? e.message : "Ocurrió un error inesperado";
 
 export const useInventoryStore = create<InventoryState>((set) => ({
   products: [],

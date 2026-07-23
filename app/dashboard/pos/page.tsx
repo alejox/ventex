@@ -181,6 +181,7 @@ export default function POSPage() {
   const addTab = usePosStore((s) => s.addTab);
   const setActiveTab = usePosStore((s) => s.setActiveTab);
   const removeTab = usePosStore((s) => s.removeTab);
+  const renameTab = usePosStore((s) => s.renameTab);
 
   const addToCart = usePosStore((s) => s.addToCart);
   const increment = usePosStore((s) => s.increment);
@@ -205,6 +206,11 @@ export default function POSPage() {
   const [isSaleConfigModalOpen, setIsSaleConfigModalOpen] = useState(false);
   const [isCashConfirmOpen, setIsCashConfirmOpen] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
+  // Menú ⋮ de la pestaña activa, y los dos flujos que abre.
+  const [tabMenuId, setTabMenuId] = useState<string | null>(null);
+  const [renamingTabId, setRenamingTabId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [closingTabId, setClosingTabId] = useState<string | null>(null);
   // En móvil la factura no cabe al lado del catálogo: se abre como panel lateral.
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [receiptData, setReceiptData] = useState<ReceiptData | null>(null);
@@ -260,6 +266,9 @@ export default function POSPage() {
         setIsOpenShiftOpen(false);
         setIsScannerOpen(false);
         setIsCartOpen(false);
+        setTabMenuId(null);
+        setRenamingTabId(null);
+        setClosingTabId(null);
       }
       if (e.key === "Enter" && !e.ctrlKey && !e.metaKey) {
         const snapshot = latest.current;
@@ -328,6 +337,13 @@ export default function POSPage() {
 
   const cartUnits = useMemo(() => cart.reduce((sum, l) => sum + l.quantity, 0), [cart]);
 
+  /** Cantidad en carrito por ítem: la fila del catálogo dibuja su contador. */
+  const cartQty = useMemo(() => {
+    const byId = new Map<string, number>();
+    for (const line of cart) byId.set(line.item.id, line.quantity);
+    return byId;
+  }, [cart]);
+
   const selectedCustomer = useMemo(
     () => customers.find((c) => c.id === customerId) ?? null,
     [customers, customerId],
@@ -387,7 +403,10 @@ export default function POSPage() {
         isSuccessModalOpen ||
         isCashConfirmOpen ||
         isOpenShiftOpen ||
-        isScannerOpen,
+        isScannerOpen ||
+        // Enter dentro del campo de renombrar guarda el nombre, no cobra.
+        renamingTabId !== null ||
+        closingTabId !== null,
       requireShift,
       checkout: handleCheckout,
     };
@@ -397,7 +416,7 @@ export default function POSPage() {
     <>
       {/* Alto fijo (con columnas que scrollean por dentro) solo en escritorio: en
           móvil las columnas se apilan, así que la página crece y scrollea normal. */}
-      <div className="flex flex-col lg:flex-row lg:h-[calc(100vh-5rem)] -m-6 lg:-m-10 pb-[calc(4.5rem+env(safe-area-inset-bottom))] lg:pb-0 bg-background relative lg:overflow-hidden print:hidden">
+      <div className="flex flex-col lg:flex-row lg:h-[calc(100vh-5rem)] -m-6 lg:-m-10 pb-[calc(7rem+env(safe-area-inset-bottom))] lg:pb-0 bg-background relative lg:overflow-hidden print:hidden">
       
       {/* Columna Izquierda: Catálogo + Tabs */}
       <div className="flex-1 flex flex-col min-w-0 px-6 lg:pl-10 lg:pr-6 lg:border-r border-outline-variant/10">
@@ -485,7 +504,8 @@ export default function POSPage() {
           )}
           <button
             onClick={() => setViewMode(viewMode === "grid" ? "list" : "grid")}
-            className="w-12 h-12 rounded-2xl border border-outline-variant/30 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low transition-colors flex items-center justify-center shrink-0 ml-auto lg:ml-0"
+            /* En móvil el catálogo siempre es lista: el conmutador no aplica. */
+            className="hidden lg:flex w-12 h-12 rounded-2xl border border-outline-variant/30 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low transition-colors items-center justify-center shrink-0"
             title={viewMode === "grid" ? "Vista lista" : "Vista cuadr\u00edcula"}
           >
             {viewMode === "grid" ? (
@@ -511,7 +531,7 @@ export default function POSPage() {
             onClick={() => router.push("/dashboard/inventory/product?from=/dashboard/pos")}
             aria-label="Nuevo producto"
             title="Nuevo producto"
-            className="shrink-0 whitespace-nowrap w-12 h-12 lg:w-auto lg:px-5 rounded-2xl bg-transparent border border-primary/50 text-primary text-sm font-semibold hover:bg-primary/10 transition-colors flex items-center justify-center gap-2"
+            className="shrink-0 whitespace-nowrap w-12 h-12 lg:w-auto lg:px-5 ml-auto lg:ml-0 rounded-2xl bg-transparent border border-primary/50 text-primary text-sm font-semibold hover:bg-primary/10 transition-colors flex items-center justify-center gap-2"
           >
             <span className="hidden lg:inline">Nuevo producto</span>
             <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-5 h-5 lg:w-4 lg:h-4">
@@ -554,7 +574,100 @@ export default function POSPage() {
                 ? "No hay productos ni servicios. Agrégalos en Inventario o Servicios."
                 : "Ningún ítem coincide con el filtro."}
             </p>
-          ) : viewMode === "grid" ? (
+          ) : (
+            <>
+            {/* Móvil: fila por ítem con contador en línea. Poder subir y bajar
+                cantidades sin abrir la factura es lo que hace que armar una
+                venta con una mano sea viable. */}
+            <ul className="lg:hidden space-y-1.5">
+              {filtered.map((item) => {
+                const qty = cartQty.get(item.id) ?? 0;
+                const outOfStock = item.kind === "product" && (item.stock_level ?? 0) <= 0;
+                const blocked = !allowOversell && outOfStock;
+                const atStockCap =
+                  !allowOversell &&
+                  item.kind === "product" &&
+                  item.stock_level != null &&
+                  qty >= item.stock_level;
+                return (
+                  <li key={item.id}>
+                    <div
+                      className={`flex items-center gap-2.5 p-2 rounded-xl border transition-colors ${
+                        qty > 0
+                          ? "border-primary bg-primary/5"
+                          : item.kind === "service"
+                            ? "border-emerald-500/20 bg-emerald-500/5"
+                            : "border-outline-variant/10 bg-surface-container"
+                      } ${blocked && qty === 0 ? "opacity-50" : ""}`}
+                    >
+                      <div className="w-12 h-12 shrink-0 rounded-lg bg-surface-container-lowest flex items-center justify-center overflow-hidden">
+                        {item.image_url ? (
+                          <Image src={item.image_url} alt="" width={48} height={48} unoptimized className="w-full h-full object-cover" />
+                        ) : (
+                          <IconImagePlaceholder className="w-5 h-5 text-on-surface-variant/30" />
+                        )}
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[13px] font-medium text-on-surface leading-snug line-clamp-2">
+                          {item.name}
+                        </p>
+                        <p className="text-[15px] font-bold text-on-surface tabular-nums">
+                          ${money(item.price)}
+                        </p>
+                        <p className="text-[10px] font-semibold text-on-surface-variant uppercase tracking-wider">
+                          {item.kind === "service" ? (
+                            <span className="text-emerald-500">Servicio</span>
+                          ) : outOfStock ? (
+                            <span className={allowOversell ? "text-amber-600" : "text-error"}>Sin stock</span>
+                          ) : (
+                            `Stock: ${item.stock_level}`
+                          )}
+                        </p>
+                      </div>
+
+                      {qty > 0 ? (
+                        <div className="flex items-center gap-1 shrink-0 rounded-xl border border-outline-variant/20 bg-surface-container-lowest">
+                          <button
+                            onClick={() => decrement(item.id)}
+                            aria-label={`Quitar una unidad de ${item.name}`}
+                            className="w-10 h-10 flex items-center justify-center text-lg text-on-surface-variant active:bg-on-surface/10 rounded-l-xl"
+                          >
+                            −
+                          </button>
+                          <span className="w-6 text-center text-sm font-bold text-on-surface tabular-nums">
+                            {qty}
+                          </span>
+                          <button
+                            onClick={() => increment(item.id)}
+                            disabled={atStockCap}
+                            aria-label={`Agregar una unidad de ${item.name}`}
+                            className="w-10 h-10 flex items-center justify-center text-lg text-on-surface-variant active:bg-on-surface/10 rounded-r-xl disabled:opacity-30"
+                          >
+                            +
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => addToCart(item)}
+                          disabled={blocked}
+                          aria-label={`Agregar ${item.name} a la venta`}
+                          className="w-11 h-11 shrink-0 flex items-center justify-center rounded-xl bg-primary text-white active:bg-primary-dim transition-colors disabled:opacity-30"
+                        >
+                          <svg fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" viewBox="0 0 24 24" className="w-5 h-5">
+                            <path d="M12 5v14M5 12h14" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+
+            {/* Escritorio: se mantiene el conmutador grilla/lista. */}
+            <div className="hidden lg:block">
+            {viewMode === "grid" ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4">
                 {filtered.map((item) => (
                   <button
@@ -678,73 +791,166 @@ export default function POSPage() {
                 ))}
               </div>
             )}
+            </div>
+            </>
+          )}
         </div>
 
-        {/* Tab Bar Inferior (Nuevas Vistas/Ventas Concurrentes) */}
-        <div className="bg-surface-container-low mt-auto -mx-6 lg:-ml-10 lg:-mr-6 px-6 lg:pl-10 lg:pr-6 py-2 flex items-end gap-1 border-t border-outline-variant/20 overflow-x-auto scrollbar-hide">
-          {tabs.map((t) => (
-            <div
-              key={t.id}
-              onClick={() => setActiveTab(t.id)}
-              className={`group flex items-center gap-3 px-4 py-2.5 min-w-[140px] max-w-[200px] cursor-pointer transition-all border-b-2 ${
-                t.id === activeTabId 
-                  ? "bg-surface-container-lowest border-primary text-primary font-semibold" 
-                  : "bg-transparent border-transparent text-on-surface-variant hover:bg-surface-container-high/50"
-              }`}
-            >
-              <div className="w-5 h-5 rounded bg-surface-container flex items-center justify-center shrink-0">
-                <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-3 h-3">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                </svg>
-              </div>
-              <span className="text-xs truncate flex-1">{t.name}</span>
-              {tabs.length > 1 && (
-                <button 
-                  onClick={(e) => { e.stopPropagation(); removeTab(t.id); }}
-                  className="w-4 h-4 flex items-center justify-center rounded-full opacity-0 group-hover:opacity-100 hover:bg-error/10 hover:text-error transition-all"
+        {/* Barra de ventas concurrentes.
+            El cierre estaba en una X con `opacity-0 group-hover:opacity-100`:
+            en un teléfono no hay hover, así que la ventana NO se podía cerrar.
+            Ahora la pestaña activa lleva un menú ⋮ con Renombrar y Eliminar,
+            que funciona igual con el dedo que con el mouse. */}
+        {/* El wrapper NO scrollea: el menú desplegable vive acá afuera porque
+            `overflow-x-auto` recorta también en vertical y se lo comía. */}
+        {/* El z-index sube SOLO mientras el menú está abierto.
+            El botón de cobro es hermano y también z-40, pero va después en el
+            DOM: a igual z gana el último, y le tapaba "Eliminar". Y como esta
+            barra tiene z-index propio, el z-50 del menú queda encerrado en su
+            contexto de apilamiento y no alcanza para escaparse.
+            Permanente no puede ser: el panel de factura es z-50 y la barra
+            quedaría pintada encima cuando se abre. */}
+        <div className={`fixed bottom-0 inset-x-0 pb-[env(safe-area-inset-bottom)] lg:relative lg:z-auto lg:pb-0 lg:mt-auto lg:-ml-10 lg:-mr-6 bg-surface-container-low border-t border-outline-variant/20 ${
+          tabMenuId ? "z-[60]" : "z-40"
+        }`}>
+        <div className="px-2 lg:pl-10 lg:pr-6 flex items-stretch gap-0.5 overflow-x-auto scrollbar-hide">
+          {tabs.map((t) => {
+            const isActive = t.id === activeTabId;
+            return (
+            <div key={t.id} className="shrink-0">
+              <div
+                className={`h-11 flex items-center gap-1.5 pl-2.5 pr-0.5 min-w-[124px] max-w-[190px] transition-all border-b-2 ${
+                  isActive
+                    ? "bg-surface-container-lowest border-primary text-primary font-semibold"
+                    : "bg-transparent border-transparent text-on-surface-variant hover:bg-surface-container-high/50"
+                }`}
+              >
+                <button
+                  type="button"
+                  onClick={() => setActiveTab(t.id)}
+                  className="flex items-center gap-1.5 min-w-0 flex-1 h-full text-left"
                 >
-                  <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-3 h-3">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-3.5 h-3.5 shrink-0">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
                   </svg>
+                  <span className="text-xs truncate">{t.name}</span>
                 </button>
-              )}
+
+                {/* Solo en la activa: el menú actúa sobre la venta que se ve. */}
+                {isActive && (
+                  <button
+                    type="button"
+                    onClick={() => setTabMenuId(tabMenuId === t.id ? null : t.id)}
+                    aria-label={`Opciones de ${t.name}`}
+                    aria-haspopup="menu"
+                    aria-expanded={tabMenuId === t.id}
+                    className="w-8 h-8 shrink-0 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors"
+                  >
+                    <svg fill="currentColor" viewBox="0 0 24 24" className="w-3.5 h-3.5">
+                      <circle cx="12" cy="5" r="1.6" />
+                      <circle cx="12" cy="12" r="1.6" />
+                      <circle cx="12" cy="19" r="1.6" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+
             </div>
-          ))}
-          <button 
+            );
+          })}
+          <button
             onClick={addTab}
-            className="w-10 h-10 ml-2 flex flex-col items-center justify-center text-on-surface-variant hover:text-primary hover:bg-surface-container-high transition-colors"
+            aria-label="Nueva venta"
+            className="w-10 h-11 ml-0.5 shrink-0 flex items-center justify-center text-on-surface-variant hover:text-primary hover:bg-surface-container-high transition-colors"
           >
-            <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-5 h-5">
+            <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-4 h-4">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" />
             </svg>
           </button>
+        </div>
+
+        {/* Menú de la pestaña activa. Uno solo: nunca hay dos abiertos. */}
+        {tabMenuId && (
+          <>
+            {/* Capa de cierre: en móvil no existe el "click afuera" sin esto. */}
+            <div className="fixed inset-0 z-40" onClick={() => setTabMenuId(null)} />
+            <div
+              role="menu"
+              className="absolute bottom-full right-4 lg:right-6 mb-1 z-50 min-w-[180px] rounded-xl bg-surface-container-lowest border border-outline-variant/20 shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-1 duration-150"
+            >
+              <button
+                role="menuitem"
+                onClick={() => {
+                  const target = tabs.find((t) => t.id === tabMenuId);
+                  setRenameValue(target?.name ?? "");
+                  setRenamingTabId(tabMenuId);
+                  setTabMenuId(null);
+                }}
+                className="w-full text-left px-4 py-3.5 text-sm text-on-surface hover:bg-surface-container-high transition-colors"
+              >
+                Renombrar
+              </button>
+              <button
+                role="menuitem"
+                disabled={tabs.length === 1}
+                onClick={() => {
+                  const target = tabs.find((t) => t.id === tabMenuId);
+                  setTabMenuId(null);
+                  if (!target) return;
+                  // Cerrar una venta con ítems cargados es perder trabajo: se
+                  // pregunta. Vacía, se cierra sin fricción.
+                  if (target.cart.length > 0) setClosingTabId(target.id);
+                  else removeTab(target.id);
+                }}
+                className="w-full text-left px-4 py-3.5 text-sm text-error hover:bg-error/10 transition-colors border-t border-outline-variant/10 disabled:opacity-40 disabled:hover:bg-transparent"
+                title={tabs.length === 1 ? "Es la única venta abierta" : undefined}
+              >
+                Eliminar
+              </button>
+            </div>
+          </>
+        )}
         </div>
       </div>
 
       {/* Barra inferior fija (solo móvil): el acceso al carrito sin scrollear
           toda la grilla, y el total siempre visible mientras se arma la venta. */}
-      <button
-        type="button"
-        onClick={() => setIsCartOpen(true)}
-        className="lg:hidden fixed bottom-0 inset-x-0 z-40 flex items-center justify-between gap-3 bg-primary text-white px-5 pt-3.5 pb-[max(0.875rem,env(safe-area-inset-bottom))] shadow-[0_-4px_20px_rgba(0,0,0,0.18)]"
-      >
-        <span className="flex items-center gap-2.5 min-w-0">
-          <span className="relative shrink-0">
-            <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-6 h-6">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+      {/* Botón de cobro. Va JUSTO encima de la barra de ventanas, que es la que
+          toca el borde inferior. El desplazamiento (`bottom`) tiene que seguir
+          a la altura de esa barra: si cambia el `h-11` de las pestañas, cambia
+          acá también. */}
+      <div className="lg:hidden fixed bottom-[calc(2.75rem+env(safe-area-inset-bottom))] inset-x-0 z-40 px-3 pt-3 pb-2 bg-gradient-to-t from-background via-background to-transparent">
+        <button
+          type="button"
+          onClick={() => setIsCartOpen(true)}
+          disabled={cart.length === 0}
+          className="w-full h-12 flex items-center justify-between gap-3 rounded-xl bg-primary text-white px-3.5 shadow-lg shadow-primary/25 active:bg-primary-dim transition-colors disabled:opacity-40"
+        >
+          <span className="flex items-center gap-2.5 min-w-0">
+            <span className="relative shrink-0">
+              <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-5 h-5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+              </svg>
+              {cartUnits > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-white text-primary text-[10px] font-bold flex items-center justify-center">
+                  {cartUnits}
+                </span>
+              )}
+            </span>
+            <span className="text-[13px] font-semibold truncate">
+              {cart.length === 0
+                ? "Agregá ítems para cobrar"
+                : `${cart.length} ítem${cart.length !== 1 ? "s" : ""} · cobrar`}
+            </span>
+          </span>
+          <span className="flex items-center gap-1.5 shrink-0">
+            <span className="text-sm font-bold tabular-nums">${money(totals.total)}</span>
+            <svg fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-3.5 h-3.5">
+              <path d="M5 12h14M13 6l6 6-6 6" />
             </svg>
-            {cartUnits > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-white text-primary text-[10px] font-bold flex items-center justify-center">
-                {cartUnits}
-              </span>
-            )}
           </span>
-          <span className="text-sm font-semibold truncate">
-            {cart.length === 0 ? "Carrito vacío" : `Ver carrito (${cart.length})`}
-          </span>
-        </span>
-        <span className="text-base font-bold tabular-nums shrink-0">${money(totals.total)}</span>
-      </button>
+        </button>
+      </div>
 
       {/* Backdrop del panel de factura en móvil. */}
       {isCartOpen && (
@@ -980,7 +1186,8 @@ export default function POSPage() {
           {/* Resumen de totales. Los precios son de vitrina (IVA incluido):
               con IVA se desglosa la base, y el exento paga la base. */}
           {cart.length > 0 && (
-            <div className="space-y-2 mb-4 bg-surface-container-lowest p-3 rounded-xl border border-outline-variant/10">
+            <div className="space-y-2 mb-4 bg-surface-container p-4 rounded-2xl border border-outline-variant/10">
+              <p className="text-sm font-bold text-on-surface mb-1">Detalle</p>
               {isTaxExempt ? (
                 <>
                   <div className="flex justify-between text-sm text-on-surface-variant">
@@ -1023,9 +1230,9 @@ export default function POSPage() {
                   <span className="font-semibold">-${money(totals.discount)}</span>
                 </div>
               )}
-              <div className="flex justify-between text-sm text-on-surface-variant border-t border-outline-variant/20 pt-2">
-                <span>Total a pagar</span>
-                <span className="font-bold text-on-surface">${money(totals.total)}</span>
+              <div className="flex justify-between items-baseline border-t border-outline-variant/20 pt-2.5 mt-1">
+                <span className="text-sm font-semibold text-on-surface">Total a pagar</span>
+                <span className="text-lg font-bold text-on-surface tabular-nums">${money(totals.total)}</span>
               </div>
             </div>
           )}
@@ -1062,7 +1269,12 @@ export default function POSPage() {
               )}
             </button>
             <button
-              onClick={clearCart}
+              onClick={() => {
+                clearCart();
+                // Sin ítems el panel no tiene nada que mostrar: se cierra y
+                // devuelve al catálogo, que es donde sigue el trabajo.
+                setIsCartOpen(false);
+              }}
               disabled={cart.length === 0 || submitting}
               className="w-[52px] flex-shrink-0 flex items-center justify-center rounded-xl bg-surface-container border border-outline-variant/10 text-error hover:bg-error/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed py-3"
               aria-label="Limpiar venta"
@@ -1091,6 +1303,96 @@ export default function POSPage() {
           </div>
         </div>
       </div>
+
+      {/* Renombrar la venta */}
+      {renamingTabId && (
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={() => setRenamingTabId(null)}
+        >
+          <form
+            onClick={(e) => e.stopPropagation()}
+            onSubmit={(e) => {
+              e.preventDefault();
+              renameTab(renamingTabId, renameValue);
+              setRenamingTabId(null);
+            }}
+            className="bg-surface-container-lowest rounded-3xl w-full max-w-sm border border-outline-variant/10 shadow-2xl p-6 space-y-5 animate-in zoom-in-95 duration-200"
+          >
+            <h2 className="text-lg font-bold text-on-surface">Renombrar venta</h2>
+            <input
+              autoFocus
+              type="text"
+              value={renameValue}
+              maxLength={40}
+              onChange={(e) => setRenameValue(e.target.value)}
+              placeholder="Ej. Mesa 4, Juan, Pedido 12"
+              /* text-base: por debajo de 16px iOS hace zoom al enfocar. */
+              className="w-full h-12 bg-surface-container border border-outline-variant/20 rounded-xl px-4 text-base text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+            />
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setRenamingTabId(null)}
+                className="flex-1 h-12 rounded-xl border border-outline-variant/30 text-sm font-semibold text-on-surface hover:bg-surface-container-low transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={!renameValue.trim()}
+                className="flex-1 h-12 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary-dim transition-colors disabled:opacity-40"
+              >
+                Guardar
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Confirmación de cierre: la venta tiene ítems cargados. */}
+      {closingTabId && (
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={() => setClosingTabId(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-surface-container-lowest rounded-3xl w-full max-w-sm border border-outline-variant/10 shadow-2xl p-6 space-y-5 animate-in zoom-in-95 duration-200"
+          >
+            <div className="w-12 h-12 rounded-full bg-error/10 text-error flex items-center justify-center">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-on-surface">Eliminar esta venta</h2>
+              <p className="text-sm text-on-surface-variant mt-1">
+                {(() => {
+                  const target = tabs.find((t) => t.id === closingTabId);
+                  const units = target?.cart.reduce((s, l) => s + l.quantity, 0) ?? 0;
+                  return `«${target?.name}» tiene ${units} unidad${units !== 1 ? "es" : ""} cargada${units !== 1 ? "s" : ""}. Se pierden al eliminarla.`;
+                })()}
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setClosingTabId(null)}
+                className="flex-1 h-12 rounded-xl border border-outline-variant/30 text-sm font-semibold text-on-surface hover:bg-surface-container-low transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  removeTab(closingTabId);
+                  setClosingTabId(null);
+                }}
+                className="flex-1 h-12 rounded-xl bg-error text-white text-sm font-semibold hover:bg-error/90 transition-colors"
+              >
+                Eliminar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modales */}
       {isScannerOpen && (

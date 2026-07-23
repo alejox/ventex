@@ -12,6 +12,8 @@ import { CategoryQuickModal } from "@/components/CategoryQuickModal";
 import { PurchaseInvoiceDetailModal } from "@/components/PurchaseInvoiceDetailModal";
 import { ProductModal } from "@/components/ProductModal";
 import { DataTable, type DataColumn } from "@/components/DataTable";
+import { useProfile } from "@/components/ProfileProvider";
+import { can } from "@/lib/permissions";
 
 const money = (n: number) =>
   "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -251,6 +253,9 @@ export default function PurchasesPage() {
     }
     setLoadingLastPurchase(false);
   };
+
+  const profile = useProfile();
+  const canSeeCosts = can(profile, "inventory_costs");
 
   const purchaseColumns: DataColumn<PurchaseInvoice>[] = [
     {
@@ -629,7 +634,11 @@ export default function PurchasesPage() {
                                 </div>
                                 <div className="flex items-center gap-3 mt-0.5 text-xs text-on-surface-variant">
                                   <span>Stock: <strong className={p.stock_level <= (p.minimum_stock ?? 0) ? "text-error" : "text-on-surface"}>{p.stock_level}</strong></span>
-                                  <span>Compra: <strong className="text-on-surface">${Number(p.purchase_price ?? 0).toLocaleString("en-US")}</strong></span>
+                                  {/* Sin `inventory_costs` el costo llega vacío del
+                                      RPC: mostrar "$0" haría pensar que es gratis. */}
+                                  {canSeeCosts && (
+                                    <span>Compra: <strong className="text-on-surface">${Number(p.purchase_price ?? 0).toLocaleString("en-US")}</strong></span>
+                                  )}
                                   <span>Venta: <strong className="text-on-surface">${Number(p.price).toLocaleString("en-US")}</strong></span>
                                 </div>
                               </button>

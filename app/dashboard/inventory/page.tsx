@@ -9,6 +9,9 @@ import {
 } from "@/app/assets/icons/DashboardIcons";
 import { useInventoryStore } from "@/stores/inventory.store";
 import type { NewCategoryInput } from "@/services/inventory.service";
+import { stockStatusOf, stockLabelOf, STOCK_CHIP, STOCK_DOT } from "@/lib/stock";
+import { useProfile } from "@/components/ProfileProvider";
+import { can } from "@/lib/permissions";
 
 
 function IconAlertTriangle(props: React.SVGProps<SVGSVGElement>) {
@@ -52,6 +55,13 @@ function IconFilter(props: React.SVGProps<SVGSVGElement>) {
 const EMPTY_CATEGORY: NewCategoryInput = { name: "", description: "" };
 
 export default function InventoryPage() {
+  // Espejo de la RLS: acá se esconde lo que la persona no puede usar, pero
+  // quien corta de verdad es la base (policies, trigger y RPC).
+  const profile = useProfile();
+  const canSeeCosts = can(profile, "inventory_costs");
+  const canEdit = can(profile, "inventory_edit");
+  const canMoveStock = can(profile, "inventory_stock");
+
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
 
   const [newCategory, setNewCategory] = useState<NewCategoryInput>(EMPTY_CATEGORY);
@@ -111,8 +121,12 @@ export default function InventoryPage() {
             {products.length} producto{products.length !== 1 ? "s" : ""} registrado{products.length !== 1 ? "s" : ""}
           </p>
         </div>
-        {/* Móvil: secundarios a dos columnas y el primario debajo, a ancho completo. */}
+        {/* Móvil: secundarios a dos columnas y el primario debajo, a ancho completo.
+            Cada acción se muestra solo si la persona puede ejecutarla: un botón
+            que siempre falla es peor que un botón ausente. */}
+        {(canMoveStock || canEdit) && (
         <div className="grid grid-cols-2 gap-3 w-full lg:flex lg:w-auto">
+          {canMoveStock && (
           <Link
             href="/dashboard/inventory/movements"
             className="h-11 whitespace-nowrap bg-surface-container hover:bg-surface-container-high border border-outline-variant/20 text-on-surface text-sm font-semibold px-3 lg:px-5 rounded-xl transition-colors flex items-center justify-center gap-2"
@@ -122,6 +136,9 @@ export default function InventoryPage() {
             </svg>
             Movimientos
           </Link>
+          )}
+          {canEdit && (
+          <>
           <button
             onClick={() => setIsCategoryModalOpen(true)}
             className="h-11 whitespace-nowrap bg-surface-container hover:bg-surface-container-high border border-outline-variant/20 text-on-surface text-sm font-semibold px-3 lg:px-5 rounded-xl transition-colors flex items-center justify-center gap-2"
@@ -131,20 +148,24 @@ export default function InventoryPage() {
             </svg>
             Nueva Categor&iacute;a
           </button>
-          <button
-            onClick={() => window.location.href = "/dashboard/inventory/product"}
-            className="h-11 col-span-2 lg:col-span-1 whitespace-nowrap bg-primary hover:bg-primary-dim text-on-primary text-sm font-semibold px-5 rounded-xl shadow-[0_0_20px_rgba(96,99,238,0.25)] transition-all flex items-center justify-center gap-2 hover:shadow-[0_0_25px_rgba(96,99,238,0.35)]"
+          <Link
+            href="/dashboard/inventory/product"
+            className={`h-11 ${canMoveStock ? "col-span-2" : ""} lg:col-span-1 whitespace-nowrap bg-primary hover:bg-primary-dim text-on-primary text-sm font-semibold px-5 rounded-xl shadow-[0_0_20px_rgba(96,99,238,0.25)] transition-all flex items-center justify-center gap-2 hover:shadow-[0_0_25px_rgba(96,99,238,0.35)]`}
           >
             <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-4 h-4">
               <path d="M12 5v14M5 12h14" />
             </svg>
             Nuevo Producto
-          </button>
+          </Link>
+          </>
+          )}
         </div>
+        )}
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {/* Stats. La tarjeta de valor del inventario es dato financiero: va detrás
+          de `inventory_costs`, no de tener acceso al módulo. */}
+      <div className={`grid grid-cols-1 gap-6 ${canSeeCosts ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
         <div className="bg-surface-container rounded-2xl p-6 border border-outline-variant/10 shadow-sm flex justify-between items-center group hover:border-outline-variant/20 transition-colors">
           <div>
             <p className="text-on-surface-variant text-sm font-medium mb-1.5">Total Productos</p>
@@ -155,6 +176,7 @@ export default function InventoryPage() {
           </div>
         </div>
 
+        {canSeeCosts && (
         <div className="bg-surface-container rounded-2xl p-6 border border-outline-variant/10 shadow-sm flex justify-between items-center gap-4 group hover:border-outline-variant/20 transition-colors">
           <div className="min-w-0">
             <p className="text-on-surface-variant text-sm font-medium mb-1.5">Valor del Inventario</p>
@@ -167,6 +189,7 @@ export default function InventoryPage() {
             <IconLayers className="w-7 h-7" />
           </div>
         </div>
+        )}
 
         <div className="bg-surface-container rounded-2xl p-6 border border-outline-variant/10 shadow-sm flex justify-between items-center group hover:border-outline-variant/20 transition-colors">
           <div>
@@ -182,7 +205,7 @@ export default function InventoryPage() {
       {/* Main Table Container */}
       <div className="bg-surface-container rounded-3xl border border-outline-variant/10 shadow-sm overflow-hidden flex flex-col">
         {/* Filters */}
-        <div className="px-7 py-5 border-b border-outline-variant/10 flex flex-col md:flex-row gap-4 items-center justify-between bg-surface-container-lowest">
+        <div className="px-4 lg:px-7 py-4 lg:py-5 border-b border-outline-variant/10 flex flex-col md:flex-row gap-3 lg:gap-4 items-center justify-between bg-surface-container-lowest">
           <div className="relative w-full md:w-96">
             <IconSearch className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant" />
             <input
@@ -190,22 +213,26 @@ export default function InventoryPage() {
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               placeholder="Buscar productos o SKU..."
-              className="w-full bg-surface-container border border-outline-variant/20 rounded-xl py-2.5 pl-11 pr-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-on-surface-variant/50"
+              /* text-base en móvil: por debajo de 16px iOS hace zoom al enfocar. */
+              className="w-full h-11 bg-surface-container border border-outline-variant/20 rounded-xl pl-11 pr-4 text-base lg:text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-on-surface-variant/50"
             />
           </div>
-          <div className="flex w-full md:w-auto gap-3">
+          {/* Etiquetas cortas en móvil: "Todas las Categorías" se cortaba a
+              "Todas las C" y dejaba de decir qué filtra. */}
+          <div className="flex w-full md:w-auto gap-2 lg:gap-3">
             <div className="relative flex-1 md:w-44">
               <select
                 value={categoryFilter}
                 onChange={e => setCategoryFilter(e.target.value)}
-                className="w-full bg-surface-container border border-outline-variant/20 rounded-xl px-4 py-2.5 pr-10 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 appearance-none"
+                aria-label="Filtrar por categoría"
+                className="w-full h-11 bg-surface-container border border-outline-variant/20 rounded-xl pl-3 lg:pl-4 pr-9 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 appearance-none truncate"
               >
-                <option value="">Todas las Categor&iacute;as</option>
+                <option value="">Categor&iacute;a</option>
                 {categories.map(cat => (
                   <option key={cat.id} value={cat.name}>{cat.name}</option>
                 ))}
               </select>
-              <svg className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant pointer-events-none" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <svg className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant pointer-events-none" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                 <polyline points="6 9 12 15 18 9" />
               </svg>
             </div>
@@ -213,26 +240,32 @@ export default function InventoryPage() {
               <select
                 value={stockFilter}
                 onChange={e => setStockFilter(e.target.value)}
-                className="w-full bg-surface-container border border-outline-variant/20 rounded-xl px-4 py-2.5 pr-10 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 appearance-none"
+                aria-label="Filtrar por estado de stock"
+                className="w-full h-11 bg-surface-container border border-outline-variant/20 rounded-xl pl-3 lg:pl-4 pr-9 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 appearance-none truncate"
               >
-                <option value="">Estado de Stock</option>
+                <option value="">Stock</option>
                 <option value="Óptimo">&Oacute;ptimo</option>
                 <option value="Stock Bajo">Stock Bajo</option>
                 <option value="Agotado">Agotado</option>
               </select>
-              <svg className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant pointer-events-none" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <svg className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant pointer-events-none" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                 <polyline points="6 9 12 15 18 9" />
               </svg>
             </div>
-            <button className="w-11 h-11 flex items-center justify-center rounded-xl bg-surface-container border border-outline-variant/20 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors shrink-0">
+            <button
+              aria-label="Más filtros"
+              className="hidden lg:flex w-11 h-11 items-center justify-center rounded-xl bg-surface-container border border-outline-variant/20 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors shrink-0"
+            >
               <IconFilter className="w-4 h-4" />
             </button>
           </div>
         </div>
 
         {/* Móvil: la tabla de 7 columnas no entra en un teléfono, así que cada
-            producto se dibuja como tarjeta con sus variantes anidadas debajo. */}
-        <ul className="lg:hidden divide-y divide-outline-variant/10">
+            producto se dibuja como tarjeta con sus variantes anidadas debajo.
+            El fondo alterno es lo que separa un producto del siguiente: la
+            ficha ocupa tres líneas y una divisoria de 1px no da la señal. */}
+        <ul className="lg:hidden divide-y divide-outline-variant/20">
           {productGroups.length === 0 ? (
             <li className="p-10 text-center text-sm text-on-surface-variant">
               {products.length === 0 ? (
@@ -252,84 +285,109 @@ export default function InventoryPage() {
             </li>
           ) : (
             productGroups.map(({ parent: item, variants }) => {
-              const stockStatus = item.stock_level === 0 ? "out" : item.stock_level <= 5 ? "low" : "optimal";
-              return (
-                <li key={item.id} className="p-4">
+              const status = stockStatusOf(item.stock_level);
+              // El bandeado va en el <li> para que cada producto arrastre sus
+              // variantes: el bloque entero se lee como una sola unidad.
+              // La tarjeta entera es el objetivo táctil, no un ícono de 16px en
+              // la esquina: en el teléfono se toca con el pulgar. Sin permiso de
+              // edición se dibuja igual pero no navega: un enlace que lleva a un
+              // formulario que no se puede guardar es peor que no tenerlo.
+              const cardBody = (
+                <>
                   <div className="flex items-start gap-3">
-                    <div className="relative w-12 h-12 shrink-0 rounded-xl bg-surface-container-lowest border border-outline-variant/10 flex items-center justify-center text-on-surface-variant/30 overflow-hidden">
-                      {item.image_url ? (
-                        <Image src={item.image_url} alt={item.name} fill sizes="48px" unoptimized className="object-cover" />
-                      ) : (
-                        <IconImagePlaceholder className="w-5 h-5" />
-                      )}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold text-on-surface break-words">{item.name}</p>
-                      <p className="text-xs text-on-surface-variant mt-0.5">
-                        <span className="font-mono">{item.sku}</span>
-                        {item.categories?.name ? ` · ${item.categories.name}` : ""}
+                      <div className="relative w-11 h-11 shrink-0 rounded-xl bg-surface-container-lowest border border-outline-variant/10 flex items-center justify-center text-on-surface-variant/30 overflow-hidden">
+                        {item.image_url ? (
+                          <Image src={item.image_url} alt="" fill sizes="44px" unoptimized className="object-cover" />
+                        ) : (
+                          <IconImagePlaceholder className="w-5 h-5" />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[15px] leading-snug font-semibold text-on-surface break-words">
+                          {item.name}
+                        </p>
+                        <p className="text-xs text-on-surface-variant mt-0.5 truncate">
+                          <span className="font-mono">{item.sku}</span>
+                          {item.categories?.name ? ` · ${item.categories.name}` : ""}
+                        </p>
+                      </div>
+                      {/* El precio de venta acompaña al nombre; el costo baja a
+                          la línea del stock. Así lo primario no compite con lo
+                          secundario y el nombre gana el ancho que necesita. */}
+                      <p className="shrink-0 text-base font-bold text-on-surface tabular-nums leading-snug">
+                        ${item.price.toFixed(2)}
                       </p>
                     </div>
+
+                    <div className="mt-2.5 flex items-center justify-between gap-3">
+                      <span
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold border ${STOCK_CHIP[status]}`}
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full ${STOCK_DOT[status]}`} />
+                        {stockLabelOf(item.stock_level)}
+                      </span>
+                      {canSeeCosts && (
+                        <span className="text-[11px] text-on-surface-variant/70 tabular-nums shrink-0">
+                          costo ${(item.purchase_price ?? 0).toFixed(2)}
+                        </span>
+                      )}
+                    </div>
+                </>
+              );
+
+              return (
+                <li key={item.id} className="even:bg-on-surface/[0.05]">
+                  {canEdit ? (
                     <Link
                       href={`/dashboard/inventory/product?id=${item.id}`}
-                      className="w-11 h-11 shrink-0 flex items-center justify-center rounded-xl text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
-                      aria-label={`Editar ${item.name}`}
+                      className="block px-4 py-3.5 active:bg-on-surface/10 transition-colors"
                     >
-                      <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-4 h-4">
-                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                      </svg>
+                      {cardBody}
                     </Link>
-                  </div>
-
-                  <div className="flex flex-wrap items-center justify-between gap-2 mt-3">
-                    <span
-                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold ${
-                        stockStatus === "optimal"
-                          ? "bg-[#10b981]/10 text-[#10b981] border border-[#10b981]/20"
-                          : stockStatus === "low"
-                            ? "bg-[#f59e0b]/10 text-[#f59e0b] border border-[#f59e0b]/20"
-                            : "bg-error-container/20 text-error-dim border border-error-container/30"
-                      }`}
-                    >
-                      <span
-                        className={`w-1.5 h-1.5 rounded-full ${
-                          stockStatus === "optimal" ? "bg-[#10b981]" : stockStatus === "low" ? "bg-[#f59e0b]" : "bg-error"
-                        }`}
-                      />
-                      {item.stock_level === 0 ? "Agotado" : `${item.stock_level} en stock`}
-                    </span>
-                    <span className="text-sm font-bold text-on-surface tabular-nums">
-                      ${item.price.toFixed(2)}
-                      <span className="ml-2 text-xs font-normal text-on-surface-variant">
-                        costo ${(item.purchase_price ?? 0).toFixed(2)}
-                      </span>
-                    </span>
-                  </div>
+                  ) : (
+                    <div className="px-4 py-3.5">{cardBody}</div>
+                  )}
 
                   {variants.length > 0 && (
-                    <ul className="mt-3 pl-3 border-l-2 border-outline-variant/20 space-y-2">
-                      {variants.map((v) => (
-                        <li key={v.id} className="flex items-center justify-between gap-2">
-                          <Link
-                            href={`/dashboard/inventory/product?id=${v.id}`}
-                            className="min-w-0 flex-1 text-xs text-on-surface hover:text-primary transition-colors"
-                          >
-                            <span className="block truncate">{v.name}</span>
-                            <span className="block font-mono text-[10px] text-on-surface-variant">{v.sku}</span>
-                          </Link>
-                          <span className="text-xs font-semibold text-on-surface tabular-nums shrink-0">
-                            ${v.price.toFixed(2)}
-                          </span>
-                          <span
-                            className={`text-[10px] font-bold shrink-0 ${
-                              v.stock_level === 0 ? "text-error-dim" : v.stock_level <= 5 ? "text-[#f59e0b]" : "text-on-surface-variant"
-                            }`}
-                          >
-                            {v.stock_level} uds.
-                          </span>
-                        </li>
-                      ))}
+                    <ul className="ml-8 mr-4 pb-2 border-l-2 border-outline-variant/20">
+                      {variants.map((v) => {
+                        const variantBody = (
+                          <>
+                            <span className="min-w-0 flex-1">
+                              <span className="block text-xs text-on-surface truncate">{v.name}</span>
+                              <span className="block font-mono text-[10px] text-on-surface-variant">{v.sku}</span>
+                            </span>
+                            <span className="text-xs font-semibold text-on-surface tabular-nums shrink-0">
+                              ${v.price.toFixed(2)}
+                            </span>
+                            <span
+                              className={`text-[10px] font-bold shrink-0 tabular-nums ${
+                                v.stock_level <= 0
+                                  ? "text-error"
+                                  : v.stock_level <= 5
+                                    ? "text-[#f59e0b]"
+                                    : "text-on-surface-variant"
+                              }`}
+                            >
+                              {v.stock_level} uds.
+                            </span>
+                          </>
+                        );
+                        return (
+                          <li key={v.id}>
+                            {canEdit ? (
+                              <Link
+                                href={`/dashboard/inventory/product?id=${v.id}`}
+                                className="flex items-center gap-2 pl-3 pr-1 py-2 active:bg-on-surface/10 transition-colors"
+                              >
+                                {variantBody}
+                              </Link>
+                            ) : (
+                              <div className="flex items-center gap-2 pl-3 pr-1 py-2">{variantBody}</div>
+                            )}
+                          </li>
+                        );
+                      })}
                     </ul>
                   )}
                 </li>
@@ -346,16 +404,16 @@ export default function InventoryPage() {
                 <th className="px-7 py-4 font-bold">Producto</th>
                 <th className="px-4 py-4 font-bold">Categor&iacute;a</th>
                 <th className="px-4 py-4 font-bold">SKU</th>
-                <th className="px-4 py-4 font-bold">Costo</th>
+                {canSeeCosts && <th className="px-4 py-4 font-bold">Costo</th>}
                 <th className="px-4 py-4 font-bold">Precio</th>
                 <th className="px-4 py-4 font-bold">Stock</th>
-                <th className="px-7 py-4 text-center font-bold">Acciones</th>
+                {canEdit && <th className="px-7 py-4 text-center font-bold">Acciones</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-outline-variant/5 text-sm">
               {productGroups.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="p-16 text-center text-on-surface-variant text-sm">
+                  <td colSpan={5 + (canSeeCosts ? 1 : 0) + (canEdit ? 1 : 0)} className="p-16 text-center text-on-surface-variant text-sm">
                     {products.length === 0 ? (
                       <div className="flex flex-col items-center gap-3">
                         <IconBox className="w-10 h-10 text-on-surface-variant/30" />
@@ -375,8 +433,8 @@ export default function InventoryPage() {
               ) : (
                 productGroups.map((group) => {
                   const { parent: item, variants } = group;
-                  const stockStatus = item.stock_level === 0 ? 'out' : item.stock_level <= 5 ? 'low' : 'optimal';
-                  const stockLabel = item.stock_level === 0 ? 'Agotado' : item.stock_level <= 5 ? `Stock Bajo (${item.stock_level})` : `\u00D3ptimo (${item.stock_level})`;
+                  const stockStatus = stockStatusOf(item.stock_level);
+                  const stockLabel = stockLabelOf(item.stock_level);
                   return (
                     <Fragment key={item.id}>
                       <tr className="hover:bg-surface-container-lowest transition-colors group">
@@ -405,22 +463,15 @@ export default function InventoryPage() {
                             {item.sku}
                           </span>
                         </td>
-                        <td className="px-4 py-4 text-on-surface-variant font-mono text-sm">${(item.purchase_price ?? 0).toFixed(2)}</td>
+                        {canSeeCosts && <td className="px-4 py-4 text-on-surface-variant font-mono text-sm">${(item.purchase_price ?? 0).toFixed(2)}</td>}
                         <td className="px-4 py-4 text-on-surface font-semibold text-sm">${item.price.toFixed(2)}</td>
                         <td className="px-4 py-4">
-                          <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-bold ${
-                            stockStatus === 'optimal' ? 'bg-[#10b981]/10 text-[#10b981] border border-[#10b981]/20' :
-                            stockStatus === 'low' ? 'bg-[#f59e0b]/10 text-[#f59e0b] border border-[#f59e0b]/20' :
-                            'bg-error-container/20 text-error-dim border border-error-container/30'
-                          }`}>
-                            <span className={`w-2 h-2 rounded-full ${
-                              stockStatus === 'optimal' ? 'bg-[#10b981]' :
-                              stockStatus === 'low' ? 'bg-[#f59e0b]' :
-                              'bg-error'
-                            }`} />
+                          <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-bold border ${STOCK_CHIP[stockStatus]}`}>
+                            <span className={`w-2 h-2 rounded-full ${STOCK_DOT[stockStatus]}`} />
                             {stockLabel}
                           </span>
                         </td>
+                        {canEdit && (
                         <td className="px-7 py-4 text-center">
                           <div className="flex items-center justify-center gap-1">
                             <Link
@@ -445,10 +496,11 @@ export default function InventoryPage() {
                             </Link>
                           </div>
                         </td>
+                        )}
                       </tr>
                       {variants.map((v) => {
-                        const vStockStatus = v.stock_level === 0 ? 'out' : v.stock_level <= 5 ? 'low' : 'optimal';
-                        const vStockLabel = v.stock_level === 0 ? 'Agotado' : v.stock_level <= 5 ? `Stock Bajo (${v.stock_level})` : `\u00D3ptimo (${v.stock_level})`;
+                        const vStockStatus = stockStatusOf(v.stock_level);
+                        const vStockLabel = stockLabelOf(v.stock_level);
                         return (
                           <tr key={v.id} className="hover:bg-surface-container-lowest transition-colors group bg-surface-container-low/30">
                             <td className="px-7 py-3 pl-14">
@@ -465,17 +517,14 @@ export default function InventoryPage() {
                                 {v.sku}
                               </span>
                             </td>
-                            <td className="px-4 py-3 text-on-surface-variant font-mono text-xs">${(v.purchase_price ?? 0).toFixed(2)}</td>
+                            {canSeeCosts && <td className="px-4 py-3 text-on-surface-variant font-mono text-xs">${(v.purchase_price ?? 0).toFixed(2)}</td>}
                             <td className="px-4 py-3 text-on-surface font-semibold text-xs">${v.price.toFixed(2)}</td>
                             <td className="px-4 py-3">
-                              <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold ${
-                                vStockStatus === 'optimal' ? 'bg-[#10b981]/10 text-[#10b981] border border-[#10b981]/20' :
-                                vStockStatus === 'low' ? 'bg-[#f59e0b]/10 text-[#f59e0b] border border-[#f59e0b]/20' :
-                                'bg-error-container/20 text-error-dim border border-error-container/30'
-                              }`}>
+                              <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold border ${STOCK_CHIP[vStockStatus]}`}>
                                 {vStockLabel}
                               </span>
                             </td>
+                            {canEdit && (
                             <td className="px-7 py-3 text-center">
                               <Link
                                 href={`/dashboard/inventory/product?id=${v.id}`}
@@ -488,6 +537,7 @@ export default function InventoryPage() {
                                 </svg>
                               </Link>
                             </td>
+                            )}
                           </tr>
                         );
                       })}

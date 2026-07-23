@@ -1,5 +1,7 @@
 import { create } from "zustand";
+import { toMessage } from "@/lib/errors";
 import * as posService from "@/services/pos.service";
+import * as settingsService from "@/services/settings.service";
 import type {
   CatalogItem,
   CustomerOption,
@@ -34,8 +36,10 @@ interface PosState {
   clearStockAlert: () => void;
 
   // Configuración
+  /** Del negocio (`settings.include_tax`). Persiste: no es por venta. */
   includeTax: boolean;
-  setIncludeTax: (val: boolean) => void;
+  /** Devuelve false si la RLS rechazó la escritura (empleado sin permiso). */
+  setIncludeTax: (val: boolean) => Promise<boolean>;
   /** Del negocio (`settings.allow_oversell`). false = no se cobra sin stock. */
   allowOversell: boolean;
   defaultPaymentMethod: PaymentMethod;
@@ -51,6 +55,7 @@ interface PosState {
   addTab: () => void;
   setActiveTab: (id: string) => void;
   removeTab: (id: string) => void;
+  renameTab: (id: string, name: string) => void;
 
   // Gestión de clientes
   addCustomer: (params: { name: string; doc_type?: string; identification?: string }) => Promise<boolean>;
@@ -72,8 +77,6 @@ interface PosState {
   checkout: () => Promise<boolean>;
 }
 
-const toMessage = (e: unknown) =>
-  e instanceof Error ? e.message : "Ocurrió un error inesperado";
 
 const createDefaultTab = (index: number, get?: () => PosState): SaleTab => {
   const defaultMethod = get?.()?.defaultPaymentMethod ?? "efectivo";
@@ -125,7 +128,27 @@ export const usePosStore = create<PosState>((set, get) => {
     stockAlert: null,
 
     includeTax: true,
-    setIncludeTax: (val) => set({ includeTax: val }),
+    /**
+     * Antes esto solo tocaba memoria: apagabas el IVA, recargabas y volvía a
+     * estar encendido, porque `init()` relee `settings.include_tax` del
+     * backend. Ahora escribe la columna y el POS refleja lo persistido.
+     *
+     * La actualización es optimista —el toggle tiene que responder al toque—
+     * y se revierte si la RLS rechaza la escritura o si falla la red.
+     */
+    setIncludeTax: async (val) => {
+      const previous = get().includeTax;
+      if (previous === val) return true;
+      set({ includeTax: val });
+      try {
+        const ok = await settingsService.updateIncludeTax(val);
+        if (!ok) set({ includeTax: previous });
+        return ok;
+      } catch {
+        set({ includeTax: previous });
+        return false;
+      }
+    },
     allowOversell: true,
     defaultPaymentMethod: "efectivo",
     setDefaultPaymentMethod: (method) => set({ defaultPaymentMethod: method }),
@@ -143,9 +166,9 @@ export const usePosStore = create<PosState>((set, get) => {
           posService.fetchStaff(),
           posService.fetchPosConfig(),
         ]);
-        // El desglose de IVA arranca según la configuración del negocio; el
-        // toggle del POS lo cambia solo para la venta en curso. `allowOversell`,
-        // en cambio, es política del negocio y el POS no la puede cambiar.
+        // Desglose de IVA y sobreventa son política del negocio y viven en
+        // `settings`. El toggle del POS escribe `include_tax` (ver
+        // `setIncludeTax`); `allowOversell` solo se configura en Ajustes.
         const { taxRate, includeTax, allowOversell } = config;
         const state = get();
         if (state.activeTabId === "") {
@@ -166,6 +189,18 @@ export const usePosStore = create<PosState>((set, get) => {
       }),
 
     setActiveTab: (id) => set({ activeTabId: id }),
+
+    /**
+     * Renombrar la venta. Un nombre en blanco no se acepta: una pestaña sin
+     * etiqueta es imposible de distinguir de las otras cuando hay varias
+     * abiertas, que es justo para lo que sirven las pestañas.
+     */
+    renameTab: (id, name) =>
+      set((s) => {
+        const clean = name.trim().slice(0, 40);
+        if (!clean) return s;
+        return { tabs: s.tabs.map((t) => (t.id === id ? { ...t, name: clean } : t)) };
+      }),
 
     removeTab: (id) =>
       set((s) => {

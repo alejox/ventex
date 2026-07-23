@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { toMessage } from "@/lib/errors";
 import * as billingService from "@/services/billing.service";
 import type {
   Invoice,
@@ -22,8 +23,6 @@ interface BillingState {
   fetchItems: (invoiceId: string) => Promise<void>;
 }
 
-const toMessage = (e: unknown) =>
-  e instanceof Error ? e.message : "Ocurrió un error inesperado";
 
 export const useBillingStore = create<BillingState>((set) => ({
   invoices: [],

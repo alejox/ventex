@@ -40,30 +40,24 @@ export async function fetchMovements(productId?: string): Promise<InventoryMovem
   return (data ?? []) as unknown as InventoryMovement[];
 }
 
+/**
+ * Ajuste manual de stock.
+ *
+ * Una sola llamada al RPC `register_manual_movement`, que escribe el movimiento
+ * y el conteo dentro de la misma transacción. Antes eran dos llamadas sueltas
+ * desde el cliente: si la segunda fallaba quedaba un movimiento registrado que
+ * no correspondía a ningún cambio real de inventario.
+ *
+ * El RPC también es donde vive el permiso `inventory_stock`: es SECURITY
+ * DEFINER, así que la RLS no lo cubre.
+ */
 export async function createManualMovement(input: ManualMovementInput): Promise<void> {
   const supabase = createClient();
-
-  const { error: movErr } = await supabase.from("inventory_movements" as never).insert({
-    product_id: input.product_id,
-    type: input.type,
-    quantity: input.quantity,
-    reference_type: "manual",
-    notes: input.notes || null,
+  const { error } = await supabase.rpc("register_manual_movement" as never, {
+    p_product_id: input.product_id,
+    p_type: input.type,
+    p_quantity: input.quantity,
+    p_notes: input.notes || null,
   } as never);
-  if (movErr) throw movErr;
-
-  // `adjust` fija el stock absoluto; `in`/`out` son deltas sobre el actual.
-  if (input.type === "adjust") {
-    const { error } = await supabase
-      .from("products")
-      .update({ stock_level: input.quantity } as never)
-      .eq("id", input.product_id);
-    if (error) throw error;
-  } else {
-    const { error } = await supabase.rpc("increment_stock" as never, {
-      p_product_id: input.product_id,
-      p_quantity: input.type === "in" ? input.quantity : -input.quantity,
-    } as never);
-    if (error) throw error;
-  }
+  if (error) throw error;
 }

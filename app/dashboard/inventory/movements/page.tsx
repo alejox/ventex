@@ -8,6 +8,8 @@ import { useMovementsStore } from "@/stores/inventory-movements.store";
 import { useInventoryStore } from "@/stores/inventory.store";
 import { StockAdjustmentModal } from "@/components/StockAdjustmentModal";
 import { DataTable, type DataColumn } from "@/components/DataTable";
+import { useProfile } from "@/components/ProfileProvider";
+import { can } from "@/lib/permissions";
 import type { InventoryMovement } from "@/services/inventory-movements.service";
 
 const typeLabel: Record<string, string> = {
@@ -98,6 +100,9 @@ function MovementsContent() {
   const searchParams = useSearchParams();
   const filterProductId = searchParams.get("product_id");
 
+  const profile = useProfile();
+  const canMoveStock = can(profile, "inventory_stock");
+
   const movements = useMovementsStore((s) => s.movements);
   const loading = useMovementsStore((s) => s.loading);
   const error = useMovementsStore((s) => s.error);
@@ -109,9 +114,12 @@ function MovementsContent() {
   const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
+    // Sin permiso la RLS devolvería cero filas igual; no se pide para no
+    // disparar una consulta que ya sabemos que no corresponde.
+    if (!canMoveStock) return;
     fetchMovements(filterProductId ?? undefined);
     fetchInventory();
-  }, [fetchMovements, fetchInventory, filterProductId]);
+  }, [canMoveStock, fetchMovements, fetchInventory, filterProductId]);
 
   const filteredMovements = useMemo(
     () =>
@@ -122,6 +130,31 @@ function MovementsContent() {
           ),
     [movements, searchQuery]
   );
+
+  // La página entera es historial de stock: sin el permiso no hay nada que
+  // mostrar, y mostrar una tabla vacía haría pensar que no hubo movimientos.
+  if (!canMoveStock) {
+    return (
+      <div className="flex flex-col items-center justify-center text-center gap-4 py-20 px-6">
+        <div className="w-16 h-16 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant">
+          <IconBox className="w-8 h-8" />
+        </div>
+        <div>
+          <h1 className="text-lg font-bold text-on-surface">Sin acceso a movimientos</h1>
+          <p className="text-sm text-on-surface-variant mt-1 max-w-sm">
+            Tu cuenta no tiene el permiso para ver el historial de stock. Pedíselo al dueño del
+            negocio si lo necesitás para tu trabajo.
+          </p>
+        </div>
+        <Link
+          href="/dashboard/inventory"
+          className="h-11 px-5 inline-flex items-center rounded-xl border border-outline-variant/30 text-sm font-semibold text-on-surface hover:bg-surface-container-low transition-colors"
+        >
+          Volver a inventario
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6 w-full animate-in fade-in duration-500">
