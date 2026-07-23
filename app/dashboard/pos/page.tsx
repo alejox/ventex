@@ -977,8 +977,14 @@ export default function POSPage() {
           ${isCartOpen ? "translate-x-0" : "translate-x-full"}`}
       >
 
+        {/* Cuerpo desplazable. En móvil la cabecera de la factura y las líneas
+            comparten un solo scroll: por separado, la cabecera y el checkout no
+            dejan alto para las líneas y el panel queda sin desplazamiento.
+            En escritorio vuelve a ser columna con la cabecera fija. */}
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain lg:overflow-hidden lg:flex lg:flex-col">
+
         {/* Top bar de Factura */}
-        <div className="p-5 border-b border-outline-variant/10 space-y-4 pt-[max(1.5rem,env(safe-area-inset-top))] lg:pt-6">
+        <div className="shrink-0 p-5 border-b border-outline-variant/10 space-y-4 pt-[max(1.5rem,env(safe-area-inset-top))] lg:pt-6">
           <div className="flex justify-between items-center gap-2">
             <h2 className="text-lg font-bold text-on-surface flex items-center gap-2 min-w-0">
               <span className="truncate">Factura de venta</span>
@@ -1078,7 +1084,7 @@ export default function POSPage() {
         </div>
 
         {/* Líneas */}
-        <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-4">
+        <div className="min-h-[9rem] lg:flex-1 lg:min-h-0 lg:overflow-y-auto p-5 space-y-4">
           {cart.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center px-4">
               <div className="w-12 h-12 rounded bg-surface-container flex items-center justify-center text-on-surface-variant/50 mb-3">
@@ -1183,6 +1189,8 @@ export default function POSPage() {
               </div>
             ))
           )}
+        </div>
+
         </div>
 
           {/* Area de checkout inferior */}
