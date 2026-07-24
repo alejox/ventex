@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { fetchProfileServer, ensureLicenseCurrent } from "@/services/profile.server";
 import { ProfileProvider } from "@/components/ProfileProvider";
 import { DashboardShell } from "@/components/DashboardShell";
@@ -18,6 +19,19 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }) {
   const profile = await fetchProfileServer();
+
+  // Perfil de dueño sin tipo de negocio = entró por OAuth (Google) y todavía no
+  // completó el onboarding. Los workers heredan el negocio del dueño; los
+  // super admins y revendedores tienen sus propios paneles y no necesitan tipo.
+  if (
+    profile &&
+    !profile.isWorker &&
+    !profile.isSuperAdmin &&
+    !profile.isReseller &&
+    !profile.businessType
+  ) {
+    redirect("/onboarding");
+  }
 
   if (profile && !profile.isWorker) {
     const license = await ensureLicenseCurrent();

@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useState } from "react";
 import { LogoVertical } from "@/components/Logo";
+import { GoogleButton } from "@/components/GoogleButton";
 import {
-  BUSINESS_OPTIONS,
+  REGISTER_BUSINESS_OPTIONS,
   MODULES_BY_TYPE,
   type BusinessType,
   type ModuleId,
@@ -61,6 +62,14 @@ const CartIcon = () => (
   </svg>
 );
 
+const GlobeIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10" />
+    <line x1="2" y1="12" x2="22" y2="12" />
+    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+  </svg>
+);
+
 const CalendarIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
     <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
@@ -100,12 +109,17 @@ const UsersIcon = () => (
 // --- Component ---
 export default function RegisterPage() {
   const [step, setStep] = useState(1);
-  const [businessType, setBusinessType] = useState("");
+  // Con un único rubro habilitado no tiene sentido obligar a elegirlo: viene
+  // preseleccionado y el paso 1 queda a un clic de continuar.
+  const [businessType, setBusinessType] = useState(
+    REGISTER_BUSINESS_OPTIONS.length === 1 ? REGISTER_BUSINESS_OPTIONS[0].id : "",
+  );
   const [modules, setModules] = useState<Record<string, boolean>>({});
   
   // Step 3 state
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
@@ -117,6 +131,14 @@ export default function RegisterPage() {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // La confirmación se valida antes de tocar la red: si no coinciden, no
+    // tiene sentido crear la cuenta.
+    if (password !== confirmPassword) {
+      setError("Las contraseñas no coinciden.");
+      return;
+    }
+
     setLoading(true);
     setError("");
 
@@ -128,7 +150,10 @@ export default function RegisterPage() {
       email,
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        // Pasa por /auth/confirm (verifica el token en el servidor) igual que el
+        // reset de contraseña. Acepta el ?code= actual y también el token_hash
+        // si la plantilla "Confirm signup" se migra a ese formato.
+        emailRedirectTo: `${window.location.origin}/auth/confirm?next=/dashboard/pos`,
         data: {
           full_name: name,
           business_name: businessName,
@@ -157,6 +182,7 @@ export default function RegisterPage() {
 
   const MODULE_ICONS: Record<ModuleId, React.ReactNode> = {
     ecommerce: <CartIcon />,
+    website: <GlobeIcon />,
     appointments: <CalendarIcon />,
     inventory: <BoxIcon />,
     billing: <FileIcon />,
@@ -249,7 +275,7 @@ export default function RegisterPage() {
           </div>
 
           <div className="space-y-3 mb-8">
-            {BUSINESS_OPTIONS.map((option) => (
+            {REGISTER_BUSINESS_OPTIONS.map((option) => (
               <button
                 key={option.id}
                 onClick={() => setBusinessType(option.id)}
@@ -309,25 +335,35 @@ export default function RegisterPage() {
           </div>
 
           <div className="space-y-4 mb-8">
-            {(MODULES_BY_TYPE[businessType as BusinessType] || []).map((mod) => (
-              <div key={mod.id} className={`p-5 rounded-[24px] border transition-all duration-300 ${modules[mod.id] ? 'bg-primary/5 border-primary/40' : 'bg-surface-container-low border-outline-variant/10 hover:bg-surface-container'}`}>
+            {(MODULES_BY_TYPE[businessType as BusinessType] || []).map((mod) => {
+              const isOn = !mod.comingSoon && !!modules[mod.id];
+              return (
+              <div key={mod.id} className={`p-5 rounded-[24px] border transition-all duration-300 ${mod.comingSoon ? 'bg-surface-container-low/50 border-outline-variant/10 opacity-70' : isOn ? 'bg-primary/5 border-primary/40' : 'bg-surface-container-low border-outline-variant/10 hover:bg-surface-container'}`}>
                  <div className="flex justify-between items-start mb-3">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center border transition-colors ${modules[mod.id] ? 'bg-primary text-on-primary border-primary' : 'bg-surface-container-highest border-outline-variant/20 text-on-surface-variant'}`}>
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center border transition-colors ${isOn ? 'bg-primary text-on-primary border-primary' : 'bg-surface-container-highest border-outline-variant/20 text-on-surface-variant'}`}>
                        {MODULE_ICONS[mod.id]}
                     </div>
-                    <button 
-                       onClick={() => setModules({...modules, [mod.id]: !modules[mod.id]})}
-                       className={`w-11 h-6 rounded-full relative transition-colors duration-300 focus:outline-none ${modules[mod.id] ? 'bg-primary' : 'bg-surface-container-highest border border-outline-variant/20'}`}
-                    >
-                       <span className={`absolute top-[2px] w-5 h-5 bg-white rounded-full shadow-sm transition-all duration-300 ${modules[mod.id] ? 'left-[22px]' : 'left-[2px]'}`}></span>
-                    </button>
+                    {mod.comingSoon ? (
+                       <span className="text-[11px] font-bold uppercase tracking-wide text-on-surface-variant bg-surface-container-highest border border-outline-variant/20 px-2.5 py-1 rounded-full">
+                          Próximamente
+                       </span>
+                    ) : (
+                       <button
+                          type="button"
+                          onClick={() => setModules({...modules, [mod.id]: !modules[mod.id]})}
+                          className={`w-11 h-6 rounded-full relative transition-colors duration-300 focus:outline-none ${isOn ? 'bg-primary' : 'bg-surface-container-highest border border-outline-variant/20'}`}
+                       >
+                          <span className={`absolute top-[2px] w-5 h-5 bg-white rounded-full shadow-sm transition-all duration-300 ${isOn ? 'left-[22px]' : 'left-[2px]'}`}></span>
+                       </button>
+                    )}
                  </div>
                  <h3 className="text-[17px] font-bold text-on-surface mb-2">{mod.label}</h3>
                  <p className="text-[13px] text-on-surface-variant leading-relaxed">
                     {mod.description}
                  </p>
               </div>
-            ))}
+              );
+            })}
           </div>
 
           <button
@@ -357,6 +393,15 @@ export default function RegisterPage() {
             <p className="text-on-surface-variant text-[15px]">
               Ingresa tus datos para finalizar el registro.
             </p>
+          </div>
+
+          <div className="mb-6">
+            <GoogleButton label="Registrarme con Google" />
+            <div className="flex items-center gap-3 mt-6">
+              <div className="h-px flex-1 bg-outline-variant/20" />
+              <span className="text-[12px] text-on-surface-variant">o con tu correo</span>
+              <div className="h-px flex-1 bg-outline-variant/20" />
+            </div>
           </div>
 
           <form className="space-y-5" onSubmit={handleRegister}>
@@ -479,6 +524,34 @@ export default function RegisterPage() {
               </div>
             </div>
 
+            <div className="space-y-1.5">
+              <label className="text-[13px] font-semibold text-on-surface block">
+                Confirmar contraseña
+              </label>
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  placeholder="••••••••"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className={`w-full bg-surface-container-lowest border rounded-xl py-3 px-10 text-sm text-on-surface focus:outline-none focus:ring-1 transition-all placeholder:text-on-surface-variant/50 ${
+                    confirmPassword && confirmPassword !== password
+                      ? "border-error/60 focus:border-error focus:ring-error"
+                      : "border-outline-variant/30 focus:border-primary focus:ring-primary"
+                  }`}
+                  required
+                  minLength={6}
+                />
+                <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-on-surface-variant/70" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                  <path d="M7 11V7a5 5 0 0110 0v4" />
+                </svg>
+              </div>
+              {confirmPassword && confirmPassword !== password && (
+                <p className="text-[12px] text-error pl-1">Las contraseñas no coinciden.</p>
+              )}
+            </div>
+
             <div className="flex items-center gap-3 pt-1 pb-2">
               <div className="relative flex items-center">
                 <input
@@ -498,7 +571,7 @@ export default function RegisterPage() {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !password || password !== confirmPassword}
               className="w-full bg-primary hover:bg-primary-dim disabled:bg-primary/50 disabled:cursor-not-allowed text-on-primary font-semibold py-3.5 rounded-xl transition-all text-[15px] shadow-[0_0_15px_rgba(96,99,238,0.15)] flex justify-center items-center gap-2"
             >
               {loading ? (

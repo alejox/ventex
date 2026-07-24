@@ -12,6 +12,7 @@
 export type BusinessType = "salon" | "tienda" | "lavaautos" | "servicios";
 export type ModuleId =
   | "ecommerce"
+  | "website"
   | "appointments"
   | "inventory"
   | "billing"
@@ -111,6 +112,19 @@ export const BUSINESS_OPTIONS: BusinessOption[] = [
   { id: "servicios", label: "Servicios Profesionales" },
 ];
 
+/**
+ * Tipos de negocio ABIERTOS al registro público hoy. El modelo completo
+ * (`BUSINESS_OPTIONS`, tipos, gating) sigue intacto para las cuentas que ya
+ * existen y para el panel de reseller/ajustes; esto solo acota lo que puede
+ * elegir alguien que se registra ahora. Enfoque actual: modelo de tienda.
+ * Ampliar esta lista reabre los demás rubros sin más cambios.
+ */
+export const REGISTRABLE_BUSINESS_TYPES: BusinessType[] = ["tienda"];
+
+export const REGISTER_BUSINESS_OPTIONS: BusinessOption[] = BUSINESS_OPTIONS.filter(
+  (o) => REGISTRABLE_BUSINESS_TYPES.includes(o.id),
+);
+
 // ---- Roles/cargos sugeridos para el personal, según el tipo de negocio ----
 /** Roles ofrecidos al invitar un trabajador. Se usa para poblar el selector de "Rol / Cargo". */
 export const STAFF_ROLES_BY_TYPE: Record<BusinessType, string[]> = {
@@ -133,6 +147,8 @@ export interface ModuleOption {
   id: ModuleId;
   label: string;
   description: string;
+  /** Se muestra en el registro pero aún no está disponible (no seleccionable). */
+  comingSoon?: boolean;
 }
 
 export const MODULES_BY_TYPE: Record<BusinessType, ModuleOption[]> = {
@@ -143,9 +159,12 @@ export const MODULES_BY_TYPE: Record<BusinessType, ModuleOption[]> = {
     { id: "inventory", label: "Inventario", description: "Controla stock de productos, pomadas, ceras, shampoos y más." },
     { id: "ecommerce", label: "E-commerce", description: "Vende productos de grooming y belleza online 24/7." },
   ],
+  // Inventario NO es un extra opcional de la tienda: es parte del núcleo y ya
+  // viene en el menú base (ver BASE_NAV_BY_TYPE.tienda). Los dos extras son
+  // E-commerce y Página web, ambos aún en construcción.
   tienda: [
-    { id: "ecommerce", label: "E-commerce", description: "Vende tus productos online con carrito de compras y pagos seguros." },
-    { id: "inventory", label: "Inventario", description: "Gestiona tu stock, categorías y códigos de barras." },
+    { id: "ecommerce", label: "E-commerce", description: "Vende tus productos online con carrito de compras y pagos seguros.", comingSoon: true },
+    { id: "website", label: "Página web", description: "Tu sitio de presencia: catálogo, información del negocio y contacto.", comingSoon: true },
   ],
   lavaautos: [
     { id: "appointments", label: "Citas", description: "Agenda turnos de lavado, detailing y mantenimiento." },

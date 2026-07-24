@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { LogoVertical } from "@/components/Logo";
+import { GoogleButton } from "@/components/GoogleButton";
 import { useState } from "react";
 
 type LoginMode = "owner" | "staff";
@@ -279,6 +280,17 @@ export default function LoginPage() {
           )}
         </button>
       </form>
+
+      {mode === "owner" && (
+        <div className="mt-6">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="h-px flex-1 bg-outline-variant/20" />
+            <span className="text-[12px] text-on-surface-variant">o continúa con</span>
+            <div className="h-px flex-1 bg-outline-variant/20" />
+          </div>
+          <GoogleButton />
+        </div>
+      )}
 
       <div className="mt-8 text-center text-[13px] text-on-surface-variant">
         ¿No tienes una cuenta?{" "}

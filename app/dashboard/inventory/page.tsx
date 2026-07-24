@@ -486,16 +486,6 @@ export default function InventoryPage() {
                                 <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                               </svg>
                             </Link>
-                            <Link
-                              href={`/dashboard/inventory/product?parent_id=${item.id}`}
-                              className="w-9 h-9 flex items-center justify-center rounded-xl text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
-                              title="Agregar variante"
-                            >
-                              <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-4 h-4">
-                                <line x1="12" y1="5" x2="12" y2="19" />
-                                <line x1="5" y1="12" x2="19" y2="12" />
-                              </svg>
-                            </Link>
                           </div>
                         </td>
                         )}
