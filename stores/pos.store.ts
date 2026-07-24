@@ -2,12 +2,14 @@ import { create } from "zustand";
 import { toMessage } from "@/lib/errors";
 import * as posService from "@/services/pos.service";
 import * as settingsService from "@/services/settings.service";
+import { lineKey, cartLineKey as keyOf } from "@/services/pos.service";
 import type {
   CatalogItem,
   CustomerOption,
   StaffOption,
   CartLine,
   PaymentMethod,
+  SaleUnitKind,
 } from "@/services/pos.service";
 
 export interface SaleTab {
@@ -63,16 +65,22 @@ interface PosState {
   addCustomer: (params: { name: string; doc_type?: string; identification?: string }) => Promise<boolean>;
 
   // Acciones sobre la pestaña activa
-  addToCart: (item: CatalogItem) => void;
-  addToTab: (item: CatalogItem, tabId: string) => void;
-  increment: (itemId: string) => void;
-  decrement: (itemId: string) => void;
-  setQuantity: (itemId: string, quantity: number) => void;
-  removeFromCart: (itemId: string) => void;
+  /**
+   * El mismo producto suelto y por caja son DOS líneas distintas del carrito,
+   * así que las acciones de línea reciben la clave `lineKey(itemId, unitKind)`
+   * y no el id del producto: con el id solo, vender 2 cajas y 3 unidades de la
+   * misma gaseosa se pisaba en una sola línea.
+   */
+  addToCart: (item: CatalogItem, unitKind?: SaleUnitKind) => void;
+  addToTab: (item: CatalogItem, tabId: string, unitKind?: SaleUnitKind) => void;
+  increment: (key: string) => void;
+  decrement: (key: string) => void;
+  setQuantity: (key: string, quantity: number) => void;
+  removeFromCart: (key: string) => void;
   setCustomer: (customerId: string | null) => void;
   setStaff: (staffId: string | null) => void;
-  setLineDiscounts: (discounts: { itemId: string; discountAmount: number }[]) => void;
-  setLineStaff: (itemId: string, staffId: string | null) => void;
+  setLineDiscounts: (discounts: { key: string; discountAmount: number }[]) => void;
+  setLineStaff: (key: string, staffId: string | null) => void;
   setPaymentMethod: (method: PaymentMethod) => void;
   setTransferMethod: (method: string | null) => void;
   setCardMethod: (method: string | null) => void;
@@ -100,8 +108,17 @@ const createDefaultTab = (index: number, get?: () => PosState): SaleTab => {
  * Un producto queda sobrevendido cuando la cantidad pedida supera su stock.
  * Los servicios no llevan stock (`stock_level === null`) y nunca sobrevenden.
  */
-const oversells = (item: CatalogItem, qty: number) =>
-  item.kind === "product" && item.stock_level != null && qty > item.stock_level;
+/**
+ * Una caja consume N unidades del stock, así que la comparación se hace SIEMPRE
+ * en unidades sueltas: 3 cajas de 24 son 72 unidades, no 3.
+ */
+const unitsFor = (item: CatalogItem, unitKind: SaleUnitKind, qty: number) =>
+  qty * (unitKind === "package" ? Math.max(item.units_per_package || 1, 1) : 1);
+
+const oversells = (item: CatalogItem, unitKind: SaleUnitKind, qty: number) =>
+  item.kind === "product" &&
+  item.stock_level != null &&
+  unitsFor(item, unitKind, qty) > item.stock_level;
 
 /**
  * Qué hacer ante una sobreventa: lo decide el negocio en
@@ -237,12 +254,13 @@ export const usePosStore = create<PosState>((set, get) => {
       }
     },
 
-    addToCart: (item) => {
+    addToCart: (item, unitKind = "unit") => {
       const s = get();
+      const key = lineKey(item.id, unitKind);
       const tab = s.tabs.find((t) => t.id === s.activeTabId);
-      const existing = tab?.cart.find((l) => l.item.id === item.id);
+      const existing = tab?.cart.find((l) => keyOf(l) === key);
       const currentQty = existing?.quantity ?? 0;
-      if (oversells(item, currentQty + 1)) {
+      if (oversells(item, unitKind, currentQty + 1)) {
         set({ stockAlert: oversellMessage(item, s.allowOversell) });
         if (!s.allowOversell) return;
       }
@@ -253,21 +271,22 @@ export const usePosStore = create<PosState>((set, get) => {
             return {
               ...t,
               cart: t.cart.map((l) =>
-                l.item.id === item.id ? { ...l, quantity: l.quantity + 1 } : l,
+                keyOf(l) === key ? { ...l, quantity: l.quantity + 1 } : l,
               ),
             };
           }
-          return { ...t, cart: [...t.cart, { item, quantity: 1 }] };
+          return { ...t, cart: [...t.cart, { item, unitKind, quantity: 1 }] };
         }),
       }));
     },
 
-    addToTab: (item, tabId) => {
+    addToTab: (item, tabId, unitKind = "unit") => {
       const s = get();
+      const key = lineKey(item.id, unitKind);
       const tab = s.tabs.find((t) => t.id === tabId);
-      const existing = tab?.cart.find((l) => l.item.id === item.id);
+      const existing = tab?.cart.find((l) => keyOf(l) === key);
       const currentQty = existing?.quantity ?? 0;
-      if (oversells(item, currentQty + 1)) {
+      if (oversells(item, unitKind, currentQty + 1)) {
         set({ stockAlert: oversellMessage(item, s.allowOversell) });
         if (!s.allowOversell) return;
       }
@@ -278,21 +297,21 @@ export const usePosStore = create<PosState>((set, get) => {
             return {
               ...t,
               cart: t.cart.map((l) =>
-                l.item.id === item.id ? { ...l, quantity: l.quantity + 1 } : l,
+                keyOf(l) === key ? { ...l, quantity: l.quantity + 1 } : l,
               ),
             };
           }
-          return { ...t, cart: [...t.cart, { item, quantity: 1 }] };
+          return { ...t, cart: [...t.cart, { item, unitKind, quantity: 1 }] };
         }),
       }));
     },
 
-    increment: (itemId) => {
+    increment: (key) => {
       const s = get();
       const tab = s.tabs.find((t) => t.id === s.activeTabId);
-      const line = tab?.cart.find((l) => l.item.id === itemId);
+      const line = tab?.cart.find((l) => keyOf(l) === key);
       if (!line) return;
-      if (oversells(line.item, line.quantity + 1)) {
+      if (oversells(line.item, line.unitKind ?? "unit", line.quantity + 1)) {
         set({ stockAlert: oversellMessage(line.item, s.allowOversell) });
         if (!s.allowOversell) return;
       }
@@ -302,14 +321,14 @@ export const usePosStore = create<PosState>((set, get) => {
           return {
             ...t,
             cart: t.cart.map((l) =>
-              l.item.id === itemId ? { ...l, quantity: l.quantity + 1 } : l,
+              keyOf(l) === key ? { ...l, quantity: l.quantity + 1 } : l,
             ),
           };
         }),
       }));
     },
 
-    decrement: (itemId) =>
+    decrement: (key) =>
       set((s) => ({
         tabs: s.tabs.map((t) => {
           if (t.id !== s.activeTabId) return t;
@@ -317,18 +336,18 @@ export const usePosStore = create<PosState>((set, get) => {
             ...t,
             cart: t.cart
               .map((l) =>
-                l.item.id === itemId ? { ...l, quantity: l.quantity - 1 } : l,
+                keyOf(l) === key ? { ...l, quantity: l.quantity - 1 } : l,
               )
               .filter((l) => l.quantity > 0),
           };
         }),
       })),
 
-    setQuantity: (itemId, quantity) => {
+    setQuantity: (key, quantity) => {
       const s = get();
       const tab = s.tabs.find((t) => t.id === s.activeTabId);
-      const line = tab?.cart.find((l) => l.item.id === itemId);
-      const oversold = !!line && oversells(line.item, quantity);
+      const line = tab?.cart.find((l) => keyOf(l) === key);
+      const oversold = !!line && oversells(line.item, line.unitKind ?? "unit", quantity);
       if (oversold && line) {
         set({ stockAlert: oversellMessage(line.item, s.allowOversell) });
       }
@@ -336,17 +355,18 @@ export const usePosStore = create<PosState>((set, get) => {
         tabs: s.tabs.map((t) => {
           if (t.id !== s.activeTabId) return t;
           if (quantity < 1) {
-            return { ...t, cart: t.cart.filter((l) => l.item.id !== itemId) };
+            return { ...t, cart: t.cart.filter((l) => keyOf(l) !== key) };
           }
           return {
             ...t,
             cart: t.cart.map((l) => {
-              if (l.item.id !== itemId) return l;
+              if (keyOf(l) !== key) return l;
               // Con la sobreventa apagada se capea al stock disponible; con ella
               // encendida no hay tope y el cajero decide.
+              const perItem = l.unitKind === "package" ? Math.max(l.item.units_per_package || 1, 1) : 1;
               const capped =
                 oversold && !s.allowOversell && l.item.stock_level != null
-                  ? l.item.stock_level
+                  ? Math.floor(l.item.stock_level / perItem)
                   : quantity;
               return { ...l, quantity: capped };
             }),
@@ -355,11 +375,11 @@ export const usePosStore = create<PosState>((set, get) => {
       }));
     },
 
-    removeFromCart: (itemId) =>
+    removeFromCart: (key) =>
       set((s) => ({
         tabs: s.tabs.map((t) =>
           t.id === s.activeTabId
-            ? { ...t, cart: t.cart.filter((l) => l.item.id !== itemId) }
+            ? { ...t, cart: t.cart.filter((l) => keyOf(l) !== key) }
             : t,
         ),
       })),
@@ -383,21 +403,21 @@ export const usePosStore = create<PosState>((set, get) => {
           return {
             ...t,
             cart: t.cart.map((line) => {
-              const d = discounts.find((x) => x.itemId === line.item.id);
+              const d = discounts.find((x) => x.key === keyOf(line));
               return d ? { ...line, discountAmount: d.discountAmount } : line;
             }),
           };
         }),
       })),
 
-    setLineStaff: (itemId, staffId) =>
+    setLineStaff: (key, staffId) =>
       set((s) => ({
         tabs: s.tabs.map((t) => {
           if (t.id !== s.activeTabId) return t;
           return {
             ...t,
             cart: t.cart.map((line) =>
-              line.item.id === itemId ? { ...line, staffId: staffId ?? null } : line,
+              keyOf(line) === key ? { ...line, staffId: staffId ?? null } : line,
             ),
           };
         }),
@@ -460,7 +480,12 @@ export const usePosStore = create<PosState>((set, get) => {
             const base = l.item.kind === "service"
               ? { service_id: l.item.id }
               : { product_id: l.item.id };
-            return { ...base, quantity: l.quantity, staff_id: l.staffId ?? null };
+            return {
+              ...base,
+              quantity: l.quantity,
+              staff_id: l.staffId ?? null,
+              kind: l.unitKind ?? "unit",
+            };
           }),
         });
 

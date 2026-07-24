@@ -8,6 +8,7 @@ import { useSubscriptionStore } from "@/stores/subscription.store";
 import { fetchStaffSales } from "@/services/staff.service";
 import type { CommissionRow, NewStaffInput, StaffMember, StaffSaleItem } from "@/services/staff.service";
 import { DataTable, type DataColumn } from "@/components/DataTable";
+import { Select } from "@/components/ui/Select";
 
 const ROLES = ["Barbero", "Estilista", "Colorista", "Manicurista", "Lavador", "Detailer", "Consultor", "Profesional", "Recepción", "Otro"];
 
@@ -416,29 +417,23 @@ export default function StaffPage() {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-on-surface block">Rol</label>
-                  <select
-                    value={form.role}
-                    onChange={(e) => setForm({ ...form, role: e.target.value })}
-                    className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all appearance-none"
-                  >
-                    {ROLES.map((r) => (
-                      <option key={r} value={r}>{r}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-on-surface block">Tipo</label>
-                  <select
-                    value={form.commission_type}
-                    onChange={(e) => setForm({ ...form, commission_type: e.target.value })}
-                    className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all appearance-none"
-                  >
-                    <option value="percentage">Porcentaje (%)</option>
-                    <option value="fixed">Valor fijo por unidad ($)</option>
-                  </select>
-                </div>
+                <Select
+                  label="Rol"
+                  value={form.role}
+                  onChange={(e) => setForm({ ...form, role: e.target.value })}
+                >
+                  {ROLES.map((r) => (
+                    <option key={r} value={r}>{r}</option>
+                  ))}
+                </Select>
+                <Select
+                  label="Tipo"
+                  value={form.commission_type}
+                  onChange={(e) => setForm({ ...form, commission_type: e.target.value })}
+                >
+                  <option value="percentage">Porcentaje (%)</option>
+                  <option value="fixed">Valor fijo por unidad ($)</option>
+                </Select>
                 <div className="space-y-1.5">
                   <label className="text-[13px] font-semibold text-on-surface block">
                     {form.commission_type === "fixed" ? "Valor por unidad ($)" : "Comisión (%)"}

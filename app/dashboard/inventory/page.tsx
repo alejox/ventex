@@ -13,7 +13,22 @@ import { stockStatusOf, stockLabelOf, STOCK_CHIP, STOCK_DOT } from "@/lib/stock"
 import { useProfile } from "@/components/ProfileProvider";
 import { can } from "@/lib/permissions";
 import { Select } from "@/components/ui/Select";
+import { BarcodeScannerModal } from "@/components/BarcodeScannerModal";
+import { ProductModal } from "@/components/ProductModal";
+import { notifyError } from "@/lib/notifications";
 
+
+function IconScanLine(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" {...props}>
+      <path d="M3 7V5a2 2 0 0 1 2-2h2" />
+      <path d="M17 3h2a2 2 0 0 1 2 2v2" />
+      <path d="M21 17v2a2 2 0 0 1-2 2h-2" />
+      <path d="M7 21H5a2 2 0 0 1-2-2v-2" />
+      <line x1="7" y1="12" x2="17" y2="12" />
+    </svg>
+  );
+}
 
 function IconAlertTriangle(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -86,11 +101,49 @@ export default function InventoryPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [stockFilter, setStockFilter] = useState("");
+  const [scannerOpen, setScannerOpen] = useState(false);
+  /** Código escaneado que no existe en el catálogo: abre el alta con él puesto. */
+  const [newProductBarcode, setNewProductBarcode] = useState<string | null>(null);
+
+  /**
+   * Un escaneo desde el inventario responde una de dos cosas: "acá está" o
+   * "no lo tenés". Antes solo hacía lo primero y, si el código no existía, el
+   * buscador quedaba vacío sin decir nada. Ahora la segunda respuesta abre el
+   * alta rápida con el código ya cargado: escanear el empaque ES la forma de
+   * dar de alta un producto desde el celular.
+   */
+  const handleScannedCode = (code: string) => {
+    const value = code.trim();
+    const q = value.toLowerCase();
+    const match = products.find(
+      (p) => p.barcode?.toLowerCase() === q || p.sku.toLowerCase() === q,
+    );
+
+    if (match) {
+      setSearchQuery(value);
+      return;
+    }
+
+    if (!canEdit) {
+      setSearchQuery(value);
+      notifyError("Producto no encontrado", `Ningún producto tiene el código ${value}.`);
+      return;
+    }
+
+    setNewProductBarcode(value);
+  };
 
   const filteredProducts = products.filter((p) => {
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      if (!p.name.toLowerCase().includes(q) && !p.sku.toLowerCase().includes(q)) return false;
+      // También por código de barras: lo que llega del escáner cae en este mismo
+      // campo, y ese código no es el SKU.
+      if (
+        !p.name.toLowerCase().includes(q) &&
+        !p.sku.toLowerCase().includes(q) &&
+        !(p.barcode ?? "").toLowerCase().includes(q)
+      )
+        return false;
     }
     if (categoryFilter && p.categories?.name !== categoryFilter) return false;
     if (stockFilter === "Agotado" && p.stock_level !== 0) return false;
@@ -218,16 +271,29 @@ export default function InventoryPage() {
       <div className="bg-surface-container rounded-3xl border border-outline-variant/10 shadow-sm overflow-hidden flex flex-col">
         {/* Filters */}
         <div className="px-4 lg:px-7 py-4 lg:py-5 border-b border-outline-variant/10 flex flex-col md:flex-row gap-3 lg:gap-4 items-center justify-between bg-surface-container-lowest">
-          <div className="relative w-full md:w-96">
-            <IconSearch className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              placeholder="Buscar productos o SKU..."
-              /* text-base en móvil: por debajo de 16px iOS hace zoom al enfocar. */
-              className="w-full h-11 bg-surface-container border border-outline-variant/20 rounded-xl pl-11 pr-4 text-base lg:text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-on-surface-variant/50"
-            />
+          <div className="flex w-full md:w-96 gap-2">
+            <div className="relative flex-1 min-w-0">
+              <IconSearch className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Buscar nombre, SKU o código..."
+                /* text-base en móvil: por debajo de 16px iOS hace zoom al enfocar. */
+                className="w-full h-11 bg-surface-container border border-outline-variant/20 rounded-xl pl-11 pr-4 text-base lg:text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-on-surface-variant/50"
+              />
+            </div>
+            {/* Escaneo con la cámara: el código detectado va al mismo buscador,
+                porque buscar por código es buscar. */}
+            <button
+              type="button"
+              onClick={() => setScannerOpen(true)}
+              aria-label="Escanear código de barras"
+              title="Escanear código de barras"
+              className="shrink-0 w-11 h-11 flex items-center justify-center rounded-xl bg-primary/10 text-primary hover:bg-primary hover:text-on-primary transition-colors"
+            >
+              <IconScanLine className="w-5 h-5" />
+            </button>
           </div>
           {/* Etiquetas cortas en móvil: "Todas las Categorías" se cortaba a
               "Todas las C" y dejaba de decir qué filtra. */}
@@ -619,6 +685,26 @@ export default function InventoryPage() {
             </form>
           </div>
         </div>
+      )}
+
+      {scannerOpen && (
+        <BarcodeScannerModal
+          title="Escanear producto"
+          hint="Si el código no está en tu catálogo, se abre el alta con él cargado."
+          onDetected={handleScannedCode}
+          onClose={() => setScannerOpen(false)}
+        />
+      )}
+
+      {newProductBarcode !== null && (
+        <ProductModal
+          initialBarcode={newProductBarcode}
+          onClose={() => setNewProductBarcode(null)}
+          onCreated={() => {
+            setNewProductBarcode(null);
+            fetchInventory();
+          }}
+        />
       )}
 
     </div>

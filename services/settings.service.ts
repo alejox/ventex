@@ -33,6 +33,8 @@ export interface Settings {
   allow_oversell: boolean;
   currency: string;
   transfer_methods_enabled: string[];
+  /** Medios de tarjeta habilitados (Bold, Credibanco, Redeban…). */
+  card_methods_enabled: string[];
   business_profile: BusinessProfile;
 }
 
@@ -42,6 +44,7 @@ export interface SettingsInput {
   allow_oversell: boolean;
   currency: string;
   transfer_methods_enabled?: string[];
+  card_methods_enabled?: string[];
   business_profile?: BusinessProfile;
 }
 
@@ -52,6 +55,7 @@ const DEFAULTS: Settings = {
   allow_oversell: true,
   currency: "COP",
   transfer_methods_enabled: ["nequi", "daviplata", "bancolombia"],
+  card_methods_enabled: ["bold", "credibanco", "redeban"],
   business_profile: {},
 };
 
@@ -163,6 +167,27 @@ export async function regenerateBusinessKey(): Promise<string> {
 /** Una sola lista de columnas para respuestas de persisencia. */
 const SETTINGS_SELECT = "*";
 
+/**
+ * Fila cruda de `settings` -> `Settings`.
+ *
+ * Una sola copia: el mapeo estaba repetido en `fetchSettings` y en las dos ramas
+ * de `saveSettings`, así que agregar una columna obligaba a acordarse de tres
+ * lugares, y olvidarse de uno devolvía el valor por defecto en silencio.
+ */
+function mapSettings(raw: Record<string, unknown>): Settings {
+  return {
+    id: (raw.id as string) ?? null,
+    tax_rate: (raw.tax_rate as number) ?? DEFAULTS.tax_rate,
+    include_tax: (raw.include_tax as boolean) ?? true,
+    allow_oversell: (raw.allow_oversell as boolean) ?? true,
+    currency: (raw.currency as string) ?? "COP",
+    transfer_methods_enabled:
+      (raw.transfer_methods_enabled as string[]) ?? DEFAULTS.transfer_methods_enabled,
+    card_methods_enabled: (raw.card_methods_enabled as string[]) ?? DEFAULTS.card_methods_enabled,
+    business_profile: (raw.business_profile ?? {}) as BusinessProfile,
+  };
+}
+
 /** Devuelve los ajustes de la cuenta (o valores por defecto si aún no existe la fila). */
 export async function fetchSettings(): Promise<Settings> {
   const supabase = createClient();
@@ -174,16 +199,7 @@ export async function fetchSettings(): Promise<Settings> {
   if (error) throw error;
   if (!data) return { ...DEFAULTS, business_profile: {} };
 
-  const raw = data as Record<string, unknown>;
-  return {
-    id: (raw.id as string) ?? null,
-    tax_rate: (raw.tax_rate as number) ?? DEFAULTS.tax_rate,
-    include_tax: (raw.include_tax as boolean) ?? true,
-    allow_oversell: (raw.allow_oversell as boolean) ?? true,
-    currency: (raw.currency as string) ?? "COP",
-    transfer_methods_enabled: (raw.transfer_methods_enabled as string[]) ?? DEFAULTS.transfer_methods_enabled,
-    business_profile: (raw.business_profile ?? {}) as BusinessProfile,
-  };
+  return mapSettings(data as Record<string, unknown>);
 }
 
 /**
@@ -238,82 +254,35 @@ export async function saveSettings(input: SettingsInput): Promise<Settings> {
     .maybeSingle();
   if (readErr) throw readErr;
 
+  // Los medios (transferencia y tarjeta) solo viajan si el llamador los trae:
+  // la pantalla de ajustes manda todo, pero otros llamadores mandan un subconjunto
+  // y no tienen por qué pisar listas que no editaron.
   const payload: Record<string, unknown> = {
     tax_rate: input.tax_rate,
     include_tax: input.include_tax,
     allow_oversell: input.allow_oversell,
     currency: input.currency,
     ...(input.transfer_methods_enabled ? { transfer_methods_enabled: input.transfer_methods_enabled } : {}),
+    ...(input.card_methods_enabled ? { card_methods_enabled: input.card_methods_enabled } : {}),
     ...(input.business_profile ? { business_profile: input.business_profile } : {}),
   };
 
   if (existing?.id) {
-    let { data, error } = await supabase
+    const { data, error } = await supabase
       .from("settings")
       .update(payload as never)
       .eq("id", existing.id)
       .select(SETTINGS_SELECT)
       .single();
-
-    if (error && input.transfer_methods_enabled) {
-      delete payload.transfer_methods_enabled;
-      const fallback = await supabase
-        .from("settings")
-        .update(payload as never)
-        .eq("id", existing.id)
-        .select(SETTINGS_SELECT)
-        .single();
-      if (fallback.error) throw fallback.error;
-      data = {
-        ...fallback.data,
-        transfer_methods_enabled: input.transfer_methods_enabled ?? DEFAULTS.transfer_methods_enabled,
-      } as never;
-    } else if (error) {
-      throw error;
-    }
-
-    const raw = data as Record<string, unknown>;
-    return {
-      id: (raw.id as string) ?? null,
-      tax_rate: (raw.tax_rate as number) ?? DEFAULTS.tax_rate,
-      include_tax: (raw.include_tax as boolean) ?? true,
-      allow_oversell: (raw.allow_oversell as boolean) ?? true,
-      currency: (raw.currency as string) ?? "COP",
-      transfer_methods_enabled: (raw.transfer_methods_enabled as string[]) ?? DEFAULTS.transfer_methods_enabled,
-      business_profile: (raw.business_profile ?? {}) as BusinessProfile,
-    };
+    if (error) throw error;
+    return mapSettings(data as Record<string, unknown>);
   }
 
-  let { data, error } = await supabase
+  const { data, error } = await supabase
     .from("settings")
     .insert(payload as never)
     .select(SETTINGS_SELECT)
     .single();
-
-  if (error && input.transfer_methods_enabled) {
-    delete payload.transfer_methods_enabled;
-    const fallback = await supabase
-      .from("settings")
-      .insert(payload as never)
-      .select(SETTINGS_SELECT)
-      .single();
-    if (fallback.error) throw fallback.error;
-    data = {
-      ...fallback.data,
-      transfer_methods_enabled: input.transfer_methods_enabled ?? DEFAULTS.transfer_methods_enabled,
-    } as never;
-  } else if (error) {
-    throw error;
-  }
-
-  const raw = data as Record<string, unknown>;
-  return {
-    id: (raw.id as string) ?? null,
-    tax_rate: (raw.tax_rate as number) ?? DEFAULTS.tax_rate,
-    include_tax: (raw.include_tax as boolean) ?? true,
-    allow_oversell: (raw.allow_oversell as boolean) ?? true,
-    currency: (raw.currency as string) ?? "COP",
-    transfer_methods_enabled: (raw.transfer_methods_enabled as string[]) ?? DEFAULTS.transfer_methods_enabled,
-    business_profile: (raw.business_profile ?? {}) as BusinessProfile,
-  };
+  if (error) throw error;
+  return mapSettings(data as Record<string, unknown>);
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { COLOMBIA_TRANSFER_METHODS, type TransferMethodOption } from "@/config/transferMethods";
+import { COLOMBIA_TRANSFER_METHODS } from "@/config/transferMethods";
 
 interface TransferMethodSelectorProps {
   enabledMethods?: string[];

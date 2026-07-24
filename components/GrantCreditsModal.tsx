@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useAdminStore } from "@/stores/admin.store";
 import type { AdminReseller } from "@/services/admin.service";
 import { backdropProps } from "@/components/modal";
+import { Select } from "@/components/ui/Select";
 
 /**
  * Modal de recarga de créditos a un revendedor (solo panel super admin).
@@ -80,15 +81,11 @@ export function GrantCreditsModal({
               </div>
             )}
             {activePacks.length > 0 && (
-              <div>
-                <label className="block text-sm font-semibold text-on-surface mb-2">
-                  Promoción
-                </label>
-                <select
-                  value={packId}
-                  onChange={(e) => setPackId(e.target.value)}
-                  className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 text-on-surface transition-shadow appearance-none"
-                >
+              <Select
+                label="Promoción"
+                value={packId}
+                onChange={(e) => setPackId(e.target.value)}
+              >
                   <option value="">Sin promoción (recarga manual)</option>
                   {activePacks.map((p) => (
                     <option key={p.id} value={p.id}>
@@ -96,26 +93,22 @@ export function GrantCreditsModal({
                       {p.bonus_credits > 0 ? ` +${p.bonus_credits}` : ""} créditos
                     </option>
                   ))}
-                </select>
-              </div>
+                </Select>
             )}
 
             {!packId && (
               <>
-                <div>
-                  <label className="block text-sm font-semibold text-on-surface mb-2">Plan</label>
-                  <select
-                    value={planId}
-                    onChange={(e) => setPlanId(e.target.value)}
-                    className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 text-on-surface transition-shadow appearance-none"
-                  >
-                    {grantablePlans.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} (saldo: {reseller.balances?.[p.id] ?? 0})
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <Select
+                  label="Plan"
+                  value={planId}
+                  onChange={(e) => setPlanId(e.target.value)}
+                >
+                  {grantablePlans.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} (saldo: {reseller.balances?.[p.id] ?? 0})
+                    </option>
+                  ))}
+                </Select>
                 <div>
                   <label className="block text-sm font-semibold text-on-surface mb-2">
                     Cantidad (negativa para corregir)

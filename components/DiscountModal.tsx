@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { usePosStore } from "@/stores/pos.store";
+import { cartLineKey as keyOf, linePrice } from "@/services/pos.service";
 import { backdropProps } from "@/components/modal";
 
 interface DiscountModalProps {
@@ -21,20 +22,20 @@ export function DiscountModal({ onClose }: DiscountModalProps) {
     if (!activeTab) return new Set();
     const withDiscount = activeTab.cart.filter(l => (l.discountAmount || 0) > 0);
     if (withDiscount.length > 0) {
-      return new Set(withDiscount.map(l => l.item.id));
+      return new Set(withDiscount.map(keyOf));
     }
-    return new Set(activeTab.cart.map(l => l.item.id));
+    return new Set(activeTab.cart.map(keyOf));
   });
 
   const handleApply = () => {
     const p = parseFloat(percentage);
     if (!Number.isNaN(p) && p >= 0 && activeTab) {
       const discounts = activeTab.cart.map(line => {
-        if (selectedItems.has(line.item.id)) {
-          const discountAmount = (line.item.price * line.quantity * p) / 100;
-          return { itemId: line.item.id, discountAmount };
+        if (selectedItems.has(keyOf(line))) {
+          const discountAmount = (linePrice(line) * line.quantity * p) / 100;
+          return { key: keyOf(line), discountAmount };
         }
-        return { itemId: line.item.id, discountAmount: line.discountAmount || 0 };
+        return { key: keyOf(line), discountAmount: line.discountAmount || 0 };
       });
       setLineDiscounts(discounts);
     }
@@ -47,7 +48,7 @@ export function DiscountModal({ onClose }: DiscountModalProps) {
     if (allSelected) {
       setSelectedItems(new Set());
     } else {
-      setSelectedItems(new Set(activeTab?.cart.map(l => l.item.id) || []));
+      setSelectedItems(new Set(activeTab?.cart.map(keyOf) || []));
     }
   };
 
@@ -115,17 +116,17 @@ export function DiscountModal({ onClose }: DiscountModalProps) {
           <div className="space-y-1">
             {activeTab?.cart.map(line => {
               const hasExistingDiscount = (line.discountAmount || 0) > 0;
-              const isSelected = selectedItems.has(line.item.id);
+              const isSelected = selectedItems.has(keyOf(line));
               const p = parseFloat(percentage);
-              const newDiscountAmount = (!Number.isNaN(p) && p >= 0) ? (line.item.price * line.quantity * p) / 100 : 0;
+              const newDiscountAmount = (!Number.isNaN(p) && p >= 0) ? (linePrice(line) * line.quantity * p) / 100 : 0;
               
               return (
-                <label key={line.item.id} className="flex items-center justify-between p-3 hover:bg-surface-container-lowest cursor-pointer transition-colors rounded-lg">
+                <label key={keyOf(line)} className="flex items-center justify-between p-3 hover:bg-surface-container-lowest cursor-pointer transition-colors rounded-lg">
                   <div className="flex items-center gap-3">
                     <input 
                       type="checkbox"
                       checked={isSelected}
-                      onChange={() => toggleItem(line.item.id)}
+                      onChange={() => toggleItem(keyOf(line))}
                       className="w-5 h-5 accent-primary rounded border-outline-variant/30"
                     />
                     <div>

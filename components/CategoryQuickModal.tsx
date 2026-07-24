@@ -6,9 +6,11 @@ import { notifySuccess } from "@/lib/notifications";
 
 interface CategoryQuickModalProps {
   onClose: () => void;
+  /** Recibe la categoría recién creada para dejarla seleccionada en el formulario. */
+  onCreated?: (categoryId: string) => void;
 }
 
-export function CategoryQuickModal({ onClose }: CategoryQuickModalProps) {
+export function CategoryQuickModal({ onClose, onCreated }: CategoryQuickModalProps) {
   const addCategory = useInventoryStore((s) => s.addCategory);
   const storeError = useInventoryStore((s) => s.error);
 
@@ -17,12 +19,13 @@ export function CategoryQuickModal({ onClose }: CategoryQuickModalProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const ok = await addCategory({ name, description });
-    if (ok) {
+    const categoryId = await addCategory({ name, description });
+    if (categoryId) {
       notifySuccess(
         "¡Categoría creada con éxito! 🎉",
         "La categoría ya está disponible para que clasifiques tus productos."
       );
+      onCreated?.(categoryId);
       onClose();
     }
   };

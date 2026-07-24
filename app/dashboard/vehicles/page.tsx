@@ -5,6 +5,7 @@ import { IconCar, IconPlus, IconClock } from "@/app/assets/icons/DashboardIcons"
 import { useVehiclesStore } from "@/stores/vehicles.store";
 import { useCustomersStore } from "@/stores/customers.store";
 import type { NewVehicleInput, Vehicle } from "@/services/vehicles.service";
+import { Select } from "@/components/ui/Select";
 
 const EMPTY_VEHICLE: NewVehicleInput = {
   plate: "",
@@ -219,19 +220,16 @@ export default function VehiclesPage() {
                 />
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-[13px] font-semibold text-on-surface block">Dueño</label>
-                <select
-                  value={form.customer_id || ""}
-                  onChange={(e) => setForm({ ...form, customer_id: e.target.value || null })}
-                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
-                >
-                  <option value="">Sin dueño</option>
-                  {customers.map((c) => (
-                    <option key={c.id} value={c.id}>{c.full_name}</option>
-                  ))}
-                </select>
-              </div>
+              <Select
+                label="Dueño"
+                value={form.customer_id || ""}
+                onChange={(e) => setForm({ ...form, customer_id: e.target.value || null })}
+              >
+                <option value="">Sin dueño</option>
+                {customers.map((c) => (
+                  <option key={c.id} value={c.id}>{c.full_name}</option>
+                ))}
+              </Select>
 
               <div className="space-y-1.5">
                 <label className="text-[13px] font-semibold text-on-surface block">Notas</label>

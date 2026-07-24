@@ -90,6 +90,13 @@ const MOVEMENT_COLUMNS: DataColumn<InventoryMovement>[] = [
           : (mov.reference_type ?? "—"),
   },
   {
+    header: "Responsable",
+    className: "text-xs text-on-surface-variant",
+    // Los movimientos anteriores a la columna `created_by` no tienen actor: se
+    // muestran como "—" en vez de atribuirlos a alguien que quizá no fue.
+    cell: (mov) => mov.author?.full_name ?? (mov.created_by ? "Otro usuario" : "—"),
+  },
+  {
     header: "Notas",
     className: "text-xs text-on-surface-variant max-w-[200px] truncate",
     cell: (mov) => mov.notes ?? "—",

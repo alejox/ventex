@@ -7,6 +7,7 @@ import { buildSuggestedItems } from "@/services/abastecimiento.service";
 import type { SuggestedOrderItem } from "@/services/abastecimiento.service";
 import { useDistributorsStore } from "@/stores/distributors.store";
 import { ProductBrowser } from "./ProductBrowser";
+import { Select } from "@/components/ui/Select";
 
 function IconZap(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -431,26 +432,21 @@ export function PedidosClient({
           </div>
 
           <div className="p-7 space-y-5">
-            <div className="space-y-1.5">
-              <label className="text-[13px] font-semibold text-on-surface block">
-                Seleccionar proveedor
-              </label>
-              <select
-                value={selectedDistributorId}
-                onChange={(e) => {
-                  setSelectedDistributorId(e.target.value);
-                  setManualWhatsApp("");
-                }}
-                className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all appearance-none"
-              >
+            <Select
+              label="Seleccionar proveedor"
+              value={selectedDistributorId}
+              onChange={(e) => {
+                setSelectedDistributorId(e.target.value);
+                setManualWhatsApp("");
+              }}
+            >
                 <option value="">Seleccionar proveedor...</option>
                 {distributors.map((d) => (
                   <option key={d.id} value={d.id}>
                     {d.business_name}{d.whatsapp ? ` (${d.whatsapp})` : ""}
                   </option>
                 ))}
-              </select>
-            </div>
+              </Select>
 
             <div className="flex items-center gap-3">
               <div className="flex-1 h-px bg-outline-variant/20" />

@@ -1,3 +1,11 @@
+-- OBSOLETA — NUNCA SE APLICÓ AL PROYECTO REMOTO.
+--
+-- Su `create_sale` quedó vieja: suma el IVA sobre el precio de vitrina (que ya
+-- lo incluye), no conoce `include_tax` ni `allow_oversell`, no toma el candado
+-- `for update` y no es SECURITY DEFINER. La versión buena de estos medios de
+-- tarjeta es `20260724133500_add_card_methods_on_current_create_sale.sql`, que
+-- corre después y deja la definición correcta.
+--
 -- Medios de tarjeta (Colombia: Bold, Credibanco, Redeban, SumUp, Mercado Pago, etc.)
 alter table public.settings
   add column if not exists card_methods_enabled jsonb not null default '["bold", "credibanco", "redeban"]'::jsonb;

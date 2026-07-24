@@ -7,7 +7,13 @@ export interface CatalogItem {
   kind: "product" | "service";
   name: string;
   sku: string | null;
+  /** Código del fabricante (EAN-13 / UPC). Los servicios no tienen. */
+  barcode: string | null;
   price: number;
+  /** Precio de la CAJA (IVA incluido). null = este ítem no se vende por caja. */
+  package_price: number | null;
+  /** Unidades sueltas que trae una caja. */
+  units_per_package: number;
   stock_level: number | null;
   category_name: string | null;
   image_url: string | null;
@@ -29,11 +35,50 @@ export interface StaffOption {
   full_name: string;
 }
 
+/** Qué se está vendiendo en la línea: la unidad suelta o la caja entera. */
+export type SaleUnitKind = "unit" | "package";
+
 export interface CartLine {
   item: CatalogItem;
+  /**
+   * Unidad o caja. Ausente = unidad (líneas viejas y servicios).
+   * OJO: no confundir con `CatalogItem.kind`, que dice producto vs. servicio.
+   */
+  unitKind?: SaleUnitKind;
   quantity: number;
   discountAmount?: number;
   staffId?: string | null;
+}
+
+/**
+ * Precio de la línea según lo que se esté vendiendo.
+ *
+ * Toda la app tiene que preguntar por acá y nunca leer `item.price` directo: si
+ * un lugar se olvida, una caja se cobra a precio de unidad. El servidor igual
+ * resuelve el precio por su cuenta en `create_sale` — esto es solo lo que ve el
+ * cajero antes de cobrar.
+ */
+export function linePrice(line: CartLine): number {
+  if (line.unitKind === "package" && line.item.package_price != null) {
+    return line.item.package_price;
+  }
+  return line.item.price;
+}
+
+/** Unidades sueltas que consume una línea: una caja son N. */
+export function lineUnits(line: CartLine): number {
+  if (line.unitKind === "package") return Math.max(line.item.units_per_package || 1, 1);
+  return 1;
+}
+
+/** Clave de la línea en el carrito: el MISMO producto suelto y por caja son dos líneas. */
+export function lineKey(itemId: string, kind: SaleUnitKind = "unit"): string {
+  return `${itemId}:${kind}`;
+}
+
+/** La clave de una línea que ya está en el carrito. */
+export function cartLineKey(line: CartLine): string {
+  return lineKey(line.item.id, line.unitKind ?? "unit");
 }
 
 export interface SaleTotals {
@@ -56,6 +101,8 @@ export interface CheckoutItem {
   service_id?: string;
   quantity: number;
   staff_id?: string | null;
+  /** "package" cobra el precio de caja y descuenta sus unidades. */
+  kind?: SaleUnitKind;
 }
 
 export interface CheckoutInput {
@@ -94,7 +141,7 @@ export function computeTotals(
   taxExempt: boolean,
   includeTax: boolean
 ): SaleTotals {
-  const gross = round2(lines.reduce((s, l) => s + l.item.price * l.quantity, 0));
+  const gross = round2(lines.reduce((s, l) => s + linePrice(l) * l.quantity, 0));
   const discount = round2(lines.reduce((s, l) => s + (l.discountAmount || 0), 0));
   const neto = Math.max(round2(gross - discount), 0);
 
@@ -131,7 +178,7 @@ export async function fetchCatalog(): Promise<CatalogItem[]> {
   const [productsRes, servicesRes] = await Promise.all([
     supabase
       .from("products")
-      .select("id, name, sku, price, stock_level, image_url, has_commission, commission_type, commission_value, categories(name)")
+      .select("id, name, sku, barcode, price, package_price, units_per_package, stock_level, image_url, has_commission, commission_type, commission_value, categories(name)")
       .order("name"),
     supabase
       .from("services")
@@ -151,7 +198,10 @@ export async function fetchCatalog(): Promise<CatalogItem[]> {
       kind: "product" as const,
       name: p.name,
       sku: p.sku,
+      barcode: p.barcode ?? null,
       price: p.price,
+      package_price: p.package_price ?? null,
+      units_per_package: p.units_per_package ?? 1,
       stock_level: p.stock_level,
       category_name,
       image_url: p.image_url ?? null,
@@ -166,7 +216,10 @@ export async function fetchCatalog(): Promise<CatalogItem[]> {
     kind: "service" as const,
     name: s.name,
     sku: null,
+    barcode: null,
     price: s.price,
+    package_price: null,
+    units_per_package: 1,
     stock_level: null,
     category_name: "Servicios",
     image_url: null,

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { IconScissors, IconPlus, IconClock } from "@/app/assets/icons/DashboardIcons";
 import { useServicesStore } from "@/stores/services.store";
 import type { NewServiceInput, Service } from "@/services/services.service";
+import { Select } from "@/components/ui/Select";
 
 const EMPTY_SERVICE: NewServiceInput = {
   name: "",
@@ -248,17 +249,14 @@ export default function ServicesPage() {
                 </div>
                 {form.has_commission && (
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-[13px] font-semibold text-on-surface block">Tipo</label>
-                      <select
-                        value={form.commission_type}
-                        onChange={(e) => setForm({ ...form, commission_type: e.target.value })}
-                        className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all appearance-none"
-                      >
-                        <option value="percentage">Porcentaje (%)</option>
-                        <option value="fixed">Valor fijo ($)</option>
-                      </select>
-                    </div>
+                    <Select
+                      label="Tipo"
+                      value={form.commission_type}
+                      onChange={(e) => setForm({ ...form, commission_type: e.target.value })}
+                    >
+                      <option value="percentage">Porcentaje (%)</option>
+                      <option value="fixed">Valor fijo ($)</option>
+                    </Select>
                     <div className="space-y-1.5">
                       <label className="text-[13px] font-semibold text-on-surface block">
                         {form.commission_type === "fixed" ? "Valor por unidad ($)" : "Porcentaje (%)"}

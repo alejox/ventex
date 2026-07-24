@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { IconPlus } from "@/app/assets/icons/DashboardIcons";
 import { useDistributorsStore } from "@/stores/distributors.store";
 import { DataTable, type DataColumn } from "@/components/DataTable";
+import { Select } from "@/components/ui/Select";
 import type { Distributor, NewDistributorInput } from "@/services/distributors.service";
 
 function IconTruck(props: React.SVGProps<SVGSVGElement>) {
@@ -304,15 +305,16 @@ export default function DistributorsPage() {
               <div className="space-y-1.5">
                 <label className="text-[13px] font-semibold text-on-surface block">Documento</label>
                 <div className="flex gap-2">
-                  <select
+                  <Select
+                    aria-label="Tipo de documento"
+                    containerClassName="w-24 shrink-0"
                     value={form.doc_type}
                     onChange={(e) => setForm({ ...form, doc_type: e.target.value })}
-                    className="w-24 shrink-0 bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all appearance-none"
                   >
                     {DOC_TYPES.map((t) => (
                       <option key={t} value={t}>{t}</option>
                     ))}
-                  </select>
+                  </Select>
                   <input
                     type="text"
                     value={form.rfc_rut}

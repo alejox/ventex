@@ -9,6 +9,7 @@ import { useSettingsStore } from "@/stores/settings.store";
 import { useProfile } from "@/components/ProfileProvider";
 import type { Invoice, InvoiceItem, InvoiceLineInput, NewInvoiceInput } from "@/services/billing.service";
 import { DataTable, type DataColumn } from "@/components/DataTable";
+import { Select } from "@/components/ui/Select";
 
 const escapeHtml = (s: string) =>
   s.replace(/[&<>"']/g, (c) =>
@@ -331,19 +332,17 @@ export default function BillingPage() {
 
               {/* Cliente + fechas */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="space-y-1.5 sm:col-span-1">
-                  <label className="text-[13px] font-semibold text-on-surface block">Cliente</label>
-                  <select
-                    value={form.customer_id || ""}
-                    onChange={(e) => setForm({ ...form, customer_id: e.target.value || null })}
-                    className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
-                  >
-                    <option value="">Sin cliente</option>
-                    {customers.map((c) => (
-                      <option key={c.id} value={c.id}>{c.full_name}</option>
-                    ))}
-                  </select>
-                </div>
+                <Select
+                  label="Cliente"
+                  containerClassName="sm:col-span-1"
+                  value={form.customer_id || ""}
+                  onChange={(e) => setForm({ ...form, customer_id: e.target.value || null })}
+                >
+                  <option value="">Sin cliente</option>
+                  {customers.map((c) => (
+                    <option key={c.id} value={c.id}>{c.full_name}</option>
+                  ))}
+                </Select>
                 <div className="space-y-1.5">
                   <label className="text-[13px] font-semibold text-on-surface block">Emisión</label>
                   <input
@@ -373,17 +372,18 @@ export default function BillingPage() {
                     <div className="flex-1 w-full space-y-2">
                       <div className="flex gap-2">
                         {activeServices.length > 0 && (
-                          <select
+                          <Select
+                            size="sm"
+                            aria-label="Prellenar desde un servicio"
+                            containerClassName="w-32 shrink-0"
                             value={line.service_id || ""}
                             onChange={(e) => onLineService(idx, e.target.value)}
-                            className="w-32 shrink-0 bg-surface-container border border-outline-variant/20 rounded-lg py-2 px-2 text-xs text-on-surface focus:outline-none focus:border-primary transition-all"
-                            title="Prellenar desde un servicio"
                           >
                             <option value="">Servicio…</option>
                             {activeServices.map((s) => (
                               <option key={s.id} value={s.id}>{s.name}</option>
                             ))}
-                          </select>
+                          </Select>
                         )}
                         <input
                           type="text"

@@ -5,6 +5,7 @@ import { useAdminStore } from "@/stores/admin.store";
 import type { CreditPack } from "@/services/admin.service";
 import { formatMoney, planAccent } from "@/config/plans";
 import { backdropProps } from "@/components/modal";
+import { Select } from "@/components/ui/Select";
 
 const REASON_LABELS: Record<string, string> = {
   grant: "Recarga",
@@ -332,20 +333,17 @@ function PackModal({ pack, onClose }: { pack: CreditPack | null; onClose: () => 
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-semibold text-on-surface mb-2">Plan</label>
-              <select
-                value={planId}
-                onChange={(e) => setPlanId(e.target.value)}
-                className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 text-on-surface transition-shadow appearance-none"
-              >
+            <Select
+              label="Plan"
+              value={planId}
+              onChange={(e) => setPlanId(e.target.value)}
+            >
                 {grantablePlans.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}
                   </option>
                 ))}
-              </select>
-            </div>
+              </Select>
 
             <div className="grid grid-cols-2 gap-4">
               <div>

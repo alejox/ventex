@@ -1,6 +1,6 @@
 "use client";
 
-import { COLOMBIA_CARD_METHODS, type CardMethodOption } from "@/config/cardMethods";
+import { COLOMBIA_CARD_METHODS } from "@/config/cardMethods";
 
 interface CardMethodSelectorProps {
   enabledMethods?: string[];

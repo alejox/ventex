@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import Image from "next/image";
+import { Select } from "@/components/ui/Select";
 
 interface ProductItem {
   id: string;
@@ -82,36 +83,28 @@ export function ProductBrowser({ products, categories, addedIds, onAdd, onClose 
           </div>
 
           <div className="flex gap-3">
-            <div className="relative flex-1">
-              <select
-                value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value)}
-                className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl px-4 py-2.5 pr-10 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary appearance-none"
-              >
-                <option value="">Todas las categor&iacute;as</option>
-                {categories.map((cat) => (
-                  <option key={cat.id} value={cat.name}>{cat.name}</option>
-                ))}
-              </select>
-              <svg className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant pointer-events-none" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <polyline points="6 9 12 15 18 9" />
-              </svg>
-            </div>
-            <div className="relative flex-1">
-              <select
-                value={stockFilter}
-                onChange={(e) => setStockFilter(e.target.value)}
-                className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl px-4 py-2.5 pr-10 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary appearance-none"
-              >
-                <option value="">Todos los stocks</option>
-                <option value="low">Stock bajo</option>
-                <option value="out">Agotado</option>
-                <option value="ok">Stock &oacute;ptimo</option>
-              </select>
-              <svg className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant pointer-events-none" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <polyline points="6 9 12 15 18 9" />
-              </svg>
-            </div>
+            <Select
+              aria-label="Filtrar por categoría"
+              containerClassName="flex-1 min-w-0"
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+            >
+              <option value="">Todas las categor&iacute;as</option>
+              {categories.map((cat) => (
+                <option key={cat.id} value={cat.name}>{cat.name}</option>
+              ))}
+            </Select>
+            <Select
+              aria-label="Filtrar por estado de stock"
+              containerClassName="flex-1 min-w-0"
+              value={stockFilter}
+              onChange={(e) => setStockFilter(e.target.value)}
+            >
+              <option value="">Todos los stocks</option>
+              <option value="low">Stock bajo</option>
+              <option value="out">Agotado</option>
+              <option value="ok">Stock &oacute;ptimo</option>
+            </Select>
           </div>
         </div>
 

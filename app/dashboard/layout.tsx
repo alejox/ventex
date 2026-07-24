@@ -1,8 +1,8 @@
-import { redirect } from "next/navigation";
 import { fetchProfileServer, ensureLicenseCurrent } from "@/services/profile.server";
 import { ProfileProvider } from "@/components/ProfileProvider";
 import { DashboardShell } from "@/components/DashboardShell";
 import { LicenseBlocked } from "@/components/LicenseBlocked";
+import { OnboardingModal } from "@/components/onboarding/OnboardingModal";
 
 // Server Component: el perfil se lee en el servidor y se inyecta por context,
 // de modo que la navegación se gatea antes de pintar (sin parpadeo). El shell
@@ -23,6 +23,11 @@ export default async function DashboardLayout({
   // Perfil de dueño sin tipo de negocio = entró por OAuth (Google) y todavía no
   // completó el onboarding. Los workers heredan el negocio del dueño; los
   // super admins y revendedores tienen sus propios paneles y no necesitan tipo.
+  //
+  // Se muestra un modal bloqueante sobre el shell en lugar de renderizar la
+  // página pedida: sin tipo de negocio el gating de navegación no tiene de dónde
+  // agarrarse, y así ninguna página corre sus consultas hasta que el perfil esté
+  // completo.
   if (
     profile &&
     !profile.isWorker &&
@@ -30,7 +35,13 @@ export default async function DashboardLayout({
     !profile.isReseller &&
     !profile.businessType
   ) {
-    redirect("/onboarding");
+    return (
+      <ProfileProvider profile={profile}>
+        <DashboardShell>
+          <OnboardingModal defaultName={profile.fullName} />
+        </DashboardShell>
+      </ProfileProvider>
+    );
   }
 
   if (profile && !profile.isWorker) {

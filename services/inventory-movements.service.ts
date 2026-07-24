@@ -9,7 +9,11 @@ export interface InventoryMovement {
   reference_id: string | null;
   notes: string | null;
   created_at: string;
+  /** Persona que hizo el movimiento (null en los históricos). */
+  created_by: string | null;
   products?: { name: string; sku: string } | null;
+  /** Nombre del responsable. Llega null si la RLS de profiles no deja verlo. */
+  author?: { full_name: string | null } | null;
 }
 
 export interface ManualMovementInput {
@@ -19,9 +23,16 @@ export interface ManualMovementInput {
   notes?: string;
 }
 
+/**
+ * El responsable se resuelve con un embed sobre `profiles` (por eso `created_by`
+ * referencia a profiles y no a auth.users). La RLS de profiles decide qué
+ * nombres se ven: el dueño ve los de su equipo, un empleado solo el suyo, y el
+ * resto vuelve en null.
+ */
 const MOVEMENT_SELECT = `
-  id, product_id, type, quantity, reference_type, reference_id, notes, created_at,
-  products(name, sku)
+  id, product_id, type, quantity, reference_type, reference_id, notes, created_at, created_by,
+  products(name, sku),
+  author:profiles!created_by(full_name)
 `;
 
 export async function fetchMovements(productId?: string): Promise<InventoryMovement[]> {

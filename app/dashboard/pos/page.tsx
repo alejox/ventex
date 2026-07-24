@@ -13,6 +13,10 @@ import { CloseShiftModal } from "@/components/shift/CloseShiftModal";
 import { WithdrawalModal } from "@/components/shift/WithdrawalModal";
 import {
   computeTotals,
+  lineKey,
+  cartLineKey,
+  linePrice,
+  lineUnits,
   type PaymentMethod,
   type CartLine,
   type CustomerOption,
@@ -26,6 +30,7 @@ import { RecentSalesModal } from "@/components/RecentSalesModal";
 import { DiscountModal } from "@/components/DiscountModal";
 import { SaleConfigModal } from "@/components/SaleConfigModal";
 import { TransferMethodSelector } from "@/components/TransferMethodSelector";
+import { CardMethodSelector } from "@/components/CardMethodSelector";
 import { AlertTriangle } from "lucide-react";
 import { notifySuccess, notifyWarning, notifyError } from "@/lib/notifications";
 
@@ -199,6 +204,7 @@ export default function POSPage() {
   const clearCart = usePosStore((s) => s.clearCart);
   const checkout = usePosStore((s) => s.checkout);
   const transferMethodsEnabled = useSettingsStore((s) => s.settings?.transfer_methods_enabled);
+  const cardMethodsEnabled = useSettingsStore((s) => s.settings?.card_methods_enabled);
 
   // Estado local
   const [search, setSearch] = useState("");
@@ -306,7 +312,10 @@ export default function POSPage() {
       .filter((p) => {
         const matchesCategory = activeCategory === "Todos" || p.category_name === activeCategory;
         const matchesSearch =
-          !q || p.name.toLowerCase().includes(q) || (p.sku ?? "").toLowerCase().includes(q);
+          !q ||
+          p.name.toLowerCase().includes(q) ||
+          (p.sku ?? "").toLowerCase().includes(q) ||
+          (p.barcode ?? "").toLowerCase().includes(q);
         return matchesCategory && matchesSearch;
       })
       .sort((a, b) => {
@@ -317,17 +326,23 @@ export default function POSPage() {
   }, [catalog, search, activeCategory]);
 
   /**
-   * Un código escaneado es lo mismo que un SKU tecleado: se resuelve contra el
-   * catálogo ya cargado, sin ida al servidor, para que el escáner siga siendo
-   * instantáneo. El escáner queda abierto (modo continuo) porque escanear varios
-   * ítems seguidos es el caso normal en el mostrador.
+   * Un código escaneado se resuelve contra el catálogo ya cargado, sin ida al
+   * servidor, para que el escáner siga siendo instantáneo. El escáner queda
+   * abierto (modo continuo) porque escanear varios ítems seguidos es el caso
+   * normal en el mostrador.
+   *
+   * Primero por código de barras (lo que trae impreso el empaque) y después por
+   * SKU: el SKU es el código interno del negocio y muchos productos lo tienen
+   * autogenerado, así que el del fabricante manda.
    */
   const handleScannedCode = useCallback(
     (code: string) => {
       const q = code.trim().toLowerCase();
-      const match = catalog.find((p) => p.sku?.toLowerCase() === q);
+      const match =
+        catalog.find((p) => p.barcode?.toLowerCase() === q) ??
+        catalog.find((p) => p.sku?.toLowerCase() === q);
       if (!match) {
-        notifyError("Código no encontrado", `Ningún ítem tiene el SKU ${code}.`);
+        notifyError("Código no encontrado", `Ningún ítem tiene el código ${code}.`);
         return;
       }
       if (!allowOversell && match.kind === "product" && (match.stock_level ?? 0) <= 0) {
@@ -342,10 +357,16 @@ export default function POSPage() {
 
   const cartUnits = useMemo(() => cart.reduce((sum, l) => sum + l.quantity, 0), [cart]);
 
-  /** Cantidad en carrito por ítem: la fila del catálogo dibuja su contador. */
+  /**
+   * Cantidad en carrito por PRODUCTO: la tarjeta del catálogo dibuja su
+   * contador. Suma las dos presentaciones (2 cajas + 3 sueltas = 5), porque la
+   * tarjeta es del producto, no de la línea.
+   */
   const cartQty = useMemo(() => {
     const byId = new Map<string, number>();
-    for (const line of cart) byId.set(line.item.id, line.quantity);
+    for (const line of cart) {
+      byId.set(line.item.id, (byId.get(line.item.id) ?? 0) + line.quantity);
+    }
     return byId;
   }, [cart]);
 
@@ -367,8 +388,12 @@ export default function POSPage() {
         name: l.item.name,
         sku: l.item.sku,
         quantity: l.quantity,
-        price: l.item.price,
-        total: l.item.price * l.quantity,
+        // El recibo tiene que decir qué se entregó: "2" de una caja de 24 son
+        // 48 unidades, y el cliente cuenta lo que se lleva.
+        packageLabel:
+          l.unitKind === "package" ? `Caja x${l.item.units_per_package} u.` : null,
+        price: linePrice(l),
+        total: linePrice(l) * l.quantity,
       })),
       customer: selectedCustomer,
       totals,
@@ -629,12 +654,24 @@ export default function POSPage() {
                             `Stock: ${item.stock_level}`
                           )}
                         </p>
+                        {/* Vender la caja entera. Solo aparece si el producto
+                            tiene precio de caja: sin precio no hay caja que
+                            vender, y el servidor rechazaría la línea. */}
+                        {item.package_price != null && (
+                          <button
+                            type="button"
+                            onClick={() => addToCart(item, "package")}
+                            className="mt-1 inline-flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/5 px-2 py-1 text-[11px] font-bold text-primary active:bg-primary/15 transition-colors"
+                          >
+                            Caja &times;{item.units_per_package} &middot; ${money(item.package_price)}
+                          </button>
+                        )}
                       </div>
 
                       {qty > 0 ? (
                         <div className="flex items-center gap-1 shrink-0 rounded-xl border border-outline-variant/20 bg-surface-container-lowest">
                           <button
-                            onClick={() => decrement(item.id)}
+                            onClick={() => decrement(lineKey(item.id))}
                             aria-label={`Quitar una unidad de ${item.name}`}
                             className="w-10 h-10 flex items-center justify-center text-lg text-on-surface-variant active:bg-on-surface/10 rounded-l-xl"
                           >
@@ -644,7 +681,7 @@ export default function POSPage() {
                             {qty}
                           </span>
                           <button
-                            onClick={() => increment(item.id)}
+                            onClick={() => increment(lineKey(item.id))}
                             disabled={atStockCap}
                             aria-label={`Agregar una unidad de ${item.name}`}
                             className="w-10 h-10 flex items-center justify-center text-lg text-on-surface-variant active:bg-on-surface/10 rounded-r-xl disabled:opacity-30"
@@ -678,16 +715,23 @@ export default function POSPage() {
                  teléfono. Menos scroll = menos tiempo por venta. */
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3 xl:gap-4">
                 {filtered.map((item) => (
-                  <button
+                  /* La tarjeta dejó de ser un <button> porque necesita DOS
+                     acciones (unidad y caja) y un botón no puede anidar otro.
+                     El contenedor conserva el borde y el `group` del hover. */
+                  <div
                     key={item.id}
-                    onClick={() => addToCart(item)}
-                    disabled={!allowOversell && item.kind === "product" && (item.stock_level ?? 0) <= 0}
-                    className={`text-left rounded-2xl p-3 border flex flex-col transition-colors group shadow-sm relative disabled:opacity-50 disabled:cursor-not-allowed ${
+                    className={`rounded-2xl p-3 border flex flex-col transition-colors group shadow-sm relative ${
                       item.kind === "service"
-                        ? "bg-emerald-500/5 border-emerald-500/20 hover:border-emerald-400/40 disabled:hover:border-emerald-500/20"
-                        : "bg-surface-container border-outline-variant/10 hover:border-primary/30 disabled:hover:border-outline-variant/10"
+                        ? "bg-emerald-500/5 border-emerald-500/20 hover:border-emerald-400/40"
+                        : "bg-surface-container border-outline-variant/10 hover:border-primary/30"
                     }`}
                   >
+                    <button
+                      type="button"
+                      onClick={() => addToCart(item)}
+                      disabled={!allowOversell && item.kind === "product" && (item.stock_level ?? 0) <= 0}
+                      className="text-left flex flex-col flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
                     {/* Con sobreventa: informa. Sin ella: el botón ya está frenado. */}
                     {item.kind === "product" && (item.stock_level ?? 0) <= 0 && (
                       <span
@@ -743,7 +787,18 @@ export default function POSPage() {
                         </span>
                       )}
                     </div>
-                  </button>
+                    </button>
+
+                    {item.package_price != null && (
+                      <button
+                        type="button"
+                        onClick={() => addToCart(item, "package")}
+                        className="mt-2 w-full rounded-lg border border-primary/30 bg-primary/5 px-2 py-1.5 text-[11px] font-bold text-primary hover:bg-primary/15 transition-colors"
+                      >
+                        Caja &times;{item.units_per_package} &middot; ${money(item.package_price)}
+                      </button>
+                    )}
+                  </div>
                 ))}
               </div>
             ) : (
@@ -1025,8 +1080,10 @@ export default function POSPage() {
               const newMethod = e.target.value as PaymentMethod;
               setPaymentMethod(newMethod);
               if (newMethod === "transferencia" && !transferMethod) {
-                const defaultMethod = transferMethodsEnabled?.[0] || "nequi";
-                setTransferMethod(defaultMethod);
+                setTransferMethod(transferMethodsEnabled?.[0] || "nequi");
+              }
+              if (newMethod === "tarjeta" && !cardMethod) {
+                setCardMethod(cardMethodsEnabled?.[0] || "bold");
               }
             }}
           >
@@ -1040,6 +1097,14 @@ export default function POSPage() {
               enabledMethods={transferMethodsEnabled}
               selectedMethod={transferMethod ?? transferMethodsEnabled?.[0] ?? "nequi"}
               onSelect={(id) => setTransferMethod(id)}
+            />
+          )}
+
+          {paymentMethod === "tarjeta" && (
+            <CardMethodSelector
+              enabledMethods={cardMethodsEnabled}
+              selectedMethod={cardMethod ?? cardMethodsEnabled?.[0] ?? "bold"}
+              onSelect={(id) => setCardMethod(id)}
             />
           )}
 
@@ -1098,7 +1163,7 @@ export default function POSPage() {
             </div>
           ) : (
             cart.map((line) => (
-              <div key={line.item.id} className={`flex flex-col gap-2 rounded-xl p-2 ${line.item.kind === "service" ? "bg-emerald-500/5 border border-emerald-500/10" : ""}`}>
+              <div key={cartLineKey(line)} className={`flex flex-col gap-2 rounded-xl p-2 ${line.item.kind === "service" ? "bg-emerald-500/5 border border-emerald-500/10" : ""}`}>
                 <div className="flex justify-between items-start gap-2">
                   <div className="flex-1 flex justify-between items-start">
                     <div>
@@ -1106,6 +1171,10 @@ export default function POSPage() {
                       <p className="text-[10px] mt-0.5 uppercase tracking-wide font-semibold">
                         {line.item.kind === "service" ? (
                           <span className="text-emerald-500">Servicio</span>
+                        ) : line.unitKind === "package" ? (
+                          <span className="text-primary">
+                            Caja &times; {line.item.units_per_package} u.
+                          </span>
                         ) : (
                           <span className="text-on-surface-variant">SKU: {line.item.sku}</span>
                         )}
@@ -1113,7 +1182,7 @@ export default function POSPage() {
                     </div>
                     <div className="text-right">
                       <p className="text-sm font-bold text-on-surface">
-                        ${money(line.item.price * line.quantity)}
+                        ${money(linePrice(line) * line.quantity)}
                       </p>
                       {(line.discountAmount ?? 0) > 0 && (
                         <p className="text-xs font-medium text-error">
@@ -1127,17 +1196,18 @@ export default function POSPage() {
                     carrito, así el cajero lo ve al momento de cobrar. */}
                 {line.item.kind === "product" &&
                   line.item.stock_level != null &&
-                  line.quantity > line.item.stock_level && (
+                  line.quantity * lineUnits(line) > line.item.stock_level && (
                     <p className="text-[10px] font-semibold text-amber-500 flex items-center gap-1">
                       <AlertTriangle className="w-3 h-3 shrink-0" />
-                      Sin stock: quedan {line.item.stock_level} y se venden {line.quantity}.
+                      Sin stock: quedan {line.item.stock_level} y se venden{" "}
+                      {line.quantity * lineUnits(line)}.
                     </p>
                   )}
                 {(line.item.kind === "service" || line.item.has_commission) && staff.length > 0 && (
                   <Select
                     size="sm"
                     value={line.staffId ?? ""}
-                    onChange={(e) => setLineStaff(line.item.id, e.target.value || null)}
+                    onChange={(e) => setLineStaff(cartLineKey(line), e.target.value || null)}
                   >
                     <option value="">Atendido por —</option>
                     {staff.map((m) => (
@@ -1148,7 +1218,7 @@ export default function POSPage() {
                 <div className="flex items-center justify-between mt-1">
                   <div className="flex items-center border border-outline-variant/20 rounded-lg overflow-hidden bg-surface-container-lowest">
                     <button
-                      onClick={() => decrement(line.item.id)}
+                      onClick={() => decrement(cartLineKey(line))}
                       className="w-11 h-11 flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors text-lg"
                     >
                       −
@@ -1160,13 +1230,13 @@ export default function POSPage() {
                       value={line.quantity}
                       onChange={(e) => {
                         const v = parseInt(e.target.value, 10);
-                        if (Number.isFinite(v)) setQuantity(line.item.id, v);
+                        if (Number.isFinite(v)) setQuantity(cartLineKey(line), v);
                       }}
                       className="w-12 text-center text-xs font-medium text-on-surface bg-transparent border-none outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     />
                     {/* Con sobreventa no hay tope: avisa y sigue. Sin ella, frena. */}
                     <button
-                      onClick={() => increment(line.item.id)}
+                      onClick={() => increment(cartLineKey(line))}
                       disabled={
                         !allowOversell &&
                         line.item.kind === "product" &&
@@ -1179,7 +1249,7 @@ export default function POSPage() {
                     </button>
                   </div>
                   <button
-                    onClick={() => removeFromCart(line.item.id)}
+                    onClick={() => removeFromCart(cartLineKey(line))}
                     className="text-error/70 hover:text-error transition-colors p-1"
                     aria-label="Quitar ítem"
                   >

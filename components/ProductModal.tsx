@@ -5,11 +5,18 @@ import { useRouter } from "next/navigation";
 import { useInventoryStore } from "@/stores/inventory.store";
 import { generateSku } from "@/services/inventory.service";
 import { CategoryQuickModal } from "@/components/CategoryQuickModal";
+import { BarcodeField } from "@/components/BarcodeField";
+import { useBusinessTax } from "@/lib/useBusinessTax";
+import { usePricePair } from "@/lib/usePricePair";
+import { MoneyInput } from "@/components/ui/MoneyInput";
+import { Select } from "@/components/ui/Select";
 import { notifySuccess } from "@/lib/notifications";
 
 interface ProductModalProps {
   onClose: () => void;
   onCreated?: (productId: string, productName: string) => void;
+  /** Código ya escaneado: el modal abre con el campo lleno. */
+  initialBarcode?: string;
 }
 
 function IconInfo(props: React.SVGProps<SVGSVGElement>) {
@@ -32,7 +39,7 @@ function IconExternalLink(props: React.SVGProps<SVGSVGElement>) {
   );
 }
 
-export function ProductModal({ onClose, onCreated }: ProductModalProps) {
+export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModalProps) {
   const router = useRouter();
   const categories = useInventoryStore((s) => s.categories);
   const fetchInventory = useInventoryStore((s) => s.fetchInventory);
@@ -42,22 +49,32 @@ export function ProductModal({ onClose, onCreated }: ProductModalProps) {
     if (categories.length === 0) fetchInventory();
   }, [categories.length, fetchInventory]);
 
+  // La tasa sale de los ajustes del negocio, no de un 19% escrito a mano.
+  //
+  // COMPRA y VENTA usan tasas distintas a propósito: un negocio no responsable
+  // de IVA igual se lo paga al proveedor (`rawRate`), pero no lo cobra en sus
+  // propios precios (`rate`, que en ese caso vale 0).
+  const { rate: taxRate, rawRate, includeTax, percentLabel, rawPercentLabel } = useBusinessTax();
+
   const [type, setType] = useState("Producto");
   const [name, setName] = useState("");
+  const [barcode, setBarcode] = useState(initialBarcode ?? "");
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [categoryModalOpen, setCategoryModalOpen] = useState(false);
   const [unit, setUnit] = useState("Unidad");
   const [bodega, setBodega] = useState("Principal");
   const [quantity, setQuantity] = useState("0");
   const [unitsPerPackage, setUnitsPerPackage] = useState("24");
-  const [packageBasePrice, setPackageBasePrice] = useState("0");
-  const [tax, setTax] = useState("19%");
-  const [sellingPriceMode, setSellingPriceMode] = useState<"manual" | "final">("manual");
-  const [unitSellingPrice, setUnitSellingPrice] = useState("0");
-  const [finalSellingPrice, setFinalSellingPrice] = useState("0");
+  const [tax, setTax] = useState("IVA");
+  const [packageSellingPrice, setPackageSellingPrice] = useState("");
 
-  const taxMultiplier = tax === "Ninguno" ? 1 : 1.19;
-  const packageTotal = (parseFloat(packageBasePrice || "0") * taxMultiplier).toFixed(0);
+  // Base y total, editables por los dos lados: escribir uno recalcula el otro.
+  const purchaseMultiplier = tax === "Ninguno" ? 1 : 1 + rawRate;
+  const taxMultiplier = tax === "Ninguno" ? 1 : 1 + taxRate;
+  const [packagePrice, setPackagePrice] = usePricePair(purchaseMultiplier);
+  const [unitPrice, setUnitPrice] = usePricePair(taxMultiplier);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,25 +82,32 @@ export function ProductModal({ onClose, onCreated }: ProductModalProps) {
 
     const isService = type === "Servicio";
 
-    const sellingPrice = type === "Producto"
-      ? (sellingPriceMode === "final" ? finalSellingPrice : (parseFloat(unitSellingPrice || "0") * (tax === "Ninguno" ? 1 : 1.19)).toFixed(0))
-      : finalPriceValue;
+    // Lo que se guarda es SIEMPRE el precio final de vitrina (IVA incluido).
+    const sellingPrice = type === "Producto" ? unitPrice.total : finalPriceValue;
 
-    const result = await addProduct({
-      name,
-      category_id: categoryId,
-      distributor_id: "",
-      sku: generateSku(),
-      unit,
-      purchase_price: isService ? "0" : packageTotal,
-      price: sellingPrice,
-      stock_level: isService ? "0" : String(parseInt(quantity || "0") * parseInt(unitsPerPackage || "1")),
-      image_url: "",
-      has_commission: false,
-      commission_type: "percentage",
-      commission_value: "",
-      units_per_package: isService ? "1" : (unitsPerPackage || "1"),
-    });
+    const result = await addProduct(
+      {
+        name,
+        category_id: categoryId,
+        distributor_id: "",
+        sku: generateSku(),
+        // Un servicio no tiene empaque, así que no lleva código de barras.
+        barcode: isService ? "" : barcode,
+        // Vacío = este producto no se vende por caja.
+        package_price: isService ? "" : packageSellingPrice,
+        unit,
+        purchase_price: isService ? "0" : packagePrice.total,
+        price: sellingPrice,
+        stock_level: isService ? "0" : String(parseInt(quantity || "0") * parseInt(unitsPerPackage || "1")),
+        image_url: "",
+        has_commission: false,
+        commission_type: "percentage",
+        commission_value: "",
+        units_per_package: isService ? "1" : (unitsPerPackage || "1"),
+      },
+      // El store sube la foto y guarda su URL; el servicio la convierte a WebP.
+      isService ? null : imageFile,
+    );
     if (result) {
       notifySuccess(
         type === "Servicio" ? "¡Servicio creado con éxito!" : "¡Producto creado con éxito!",
@@ -97,17 +121,17 @@ export function ProductModal({ onClose, onCreated }: ProductModalProps) {
   };
 
   // For services, keep the old price logic
-  const [basePrice, setBasePrice] = useState("0");
   const [serviceTax, setServiceTax] = useState("Ninguno");
-  const serviceTaxMultiplier = serviceTax === "Ninguno" ? 1 : 1.19;
-  const finalPriceValue = (parseFloat(basePrice || "0") * serviceTaxMultiplier).toFixed(2);
+  const serviceTaxMultiplier = serviceTax === "Ninguno" ? 1 : 1 + taxRate;
+  const [servicePrice, setServicePrice] = usePricePair(serviceTaxMultiplier);
+  const finalPriceValue = servicePrice.total;
 
   return (
     <div
-      className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
+      className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
     >
       <div
-        className="bg-surface-container-lowest rounded-[24px] w-full max-w-2xl border border-outline-variant/10 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col"
+        className="bg-surface-container-lowest rounded-t-[24px] sm:rounded-[24px] w-full max-w-2xl max-h-[92dvh] sm:max-h-[88dvh] border border-outline-variant/10 shadow-2xl overflow-hidden animate-in slide-in-from-bottom sm:zoom-in-95 duration-200 flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-6 pb-4 flex justify-between items-center">
@@ -123,6 +147,43 @@ export function ProductModal({ onClose, onCreated }: ProductModalProps) {
         </div>
 
         <form onSubmit={handleSubmit} onKeyDown={(e) => { if (e.key === "Enter") e.preventDefault(); }} className="p-6 pt-0 space-y-6 flex-1 overflow-y-auto">
+          {/* Foto. `capture="environment"` hace que el celular abra la cámara
+              trasera directo; en escritorio el mismo input abre el explorador. */}
+          {type !== "Servicio" && (
+            <label className="flex items-center gap-4 p-3 rounded-2xl border border-dashed border-outline-variant/40 cursor-pointer hover:bg-surface-container-low transition-colors">
+              <div className="w-16 h-16 shrink-0 rounded-xl bg-surface-container-high overflow-hidden flex items-center justify-center text-on-surface-variant">
+                {imagePreview ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- blob local, no pasa por el optimizador
+                  <img src={imagePreview} alt="Vista previa del producto" className="w-full h-full object-cover" />
+                ) : (
+                  <svg fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24" className="w-7 h-7">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 0 1 2-2h1.5l1-2h7l1 2H18a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                    <circle cx="12" cy="13" r="3.5" />
+                  </svg>
+                )}
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-on-surface">
+                  {imageFile ? "Cambiar foto" : "Tomar foto del producto"}
+                </p>
+                <p className="text-xs text-on-surface-variant truncate">
+                  {imageFile ? imageFile.name : "Opcional. Se optimiza a WebP antes de subirla."}
+                </p>
+              </div>
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0] ?? null;
+                  setImageFile(file);
+                  setImagePreview(file ? URL.createObjectURL(file) : "");
+                }}
+              />
+            </label>
+          )}
+
           {/* Tipo de producto */}
           <div className="space-y-3">
             <label className="flex items-center gap-1 text-sm font-semibold text-on-surface">
@@ -165,27 +226,41 @@ export function ProductModal({ onClose, onCreated }: ProductModalProps) {
               />
             </div>
 
+            {/* Código de barras: se escanea con la cámara del celular o se
+                escribe (los lectores láser de mostrador teclean en el campo). */}
+            {type === "Producto" && (
+              <div className="space-y-1.5">
+                <label htmlFor="product-barcode" className="flex items-center gap-1 text-sm font-semibold text-on-surface">
+                  Código de barras
+                  <span className="text-xs text-on-surface-variant font-normal">(opcional)</span>
+                </label>
+                <BarcodeField id="product-barcode" value={barcode} onChange={setBarcode} />
+              </div>
+            )}
+
             {/* Categoría */}
             <div className="space-y-1.5">
-              <label className="flex items-center gap-1 text-sm font-semibold text-on-surface">
+              <label htmlFor="quick-product-category" className="flex items-center gap-1 text-sm font-semibold text-on-surface">
                 Categoría <IconInfo className="w-4 h-4 text-primary" />
               </label>
-              <div className="flex gap-2">
-                <select
+              <div className="flex gap-2 items-center">
+                <Select
+                  id="quick-product-category"
+                  containerClassName="flex-1 min-w-0"
                   value={categoryId}
                   onChange={(e) => setCategoryId(e.target.value)}
-                  className="flex-1 bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary appearance-none"
                 >
                   <option value="">Seleccionar</option>
                   {categories.map((cat) => (
                     <option key={cat.id} value={cat.id}>{cat.name}</option>
                   ))}
-                </select>
+                </Select>
                 <button
                   type="button"
                   onClick={() => setCategoryModalOpen(true)}
-                  className="shrink-0 w-10 h-10 flex items-center justify-center rounded-xl bg-primary/10 text-primary hover:bg-primary hover:text-white transition-colors"
+                  className="shrink-0 w-11 h-11 flex items-center justify-center rounded-xl bg-primary/10 text-primary hover:bg-primary hover:text-white transition-colors"
                   title="Crear nueva categoría"
+                  aria-label="Crear nueva categoría"
                 >
                   <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-4 h-4">
                     <line x1="12" y1="5" x2="12" y2="19" />
@@ -196,37 +271,26 @@ export function ProductModal({ onClose, onCreated }: ProductModalProps) {
             </div>
 
             {/* Unidad de medida */}
-            <div className="space-y-1.5">
-              <label className="flex items-center gap-1 text-sm font-semibold text-on-surface">
-                Unidad de medida <span className="text-primary">*</span>
-              </label>
-              <select
-                value={unit}
-                onChange={(e) => setUnit(e.target.value)}
-                className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary appearance-none"
-              >
-                <option value="Unidad">Unidad</option>
-                <option value="Kg">Kg</option>
-                <option value="Litro">Litro</option>
-              </select>
-            </div>
+            <Select
+              label="Unidad de medida"
+              value={unit}
+              onChange={(e) => setUnit(e.target.value)}
+            >
+              <option value="Unidad">Unidad</option>
+              <option value="Kg">Kg</option>
+              <option value="Litro">Litro</option>
+            </Select>
 
             {type === "Producto" && (
               <>
                 {/* Bodega */}
-                <div className="space-y-1.5">
-                  <label className="flex items-center gap-1 text-sm font-semibold text-on-surface">
-                    Bodega <span className="text-primary">*</span>
-                    <IconInfo className="w-4 h-4 text-primary" />
-                  </label>
-                  <select
-                    value={bodega}
-                    onChange={(e) => setBodega(e.target.value)}
-                    className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary appearance-none"
-                  >
-                    <option value="Principal">Principal</option>
-                  </select>
-                </div>
+                <Select
+                  label="Bodega"
+                  value={bodega}
+                  onChange={(e) => setBodega(e.target.value)}
+                >
+                  <option value="Principal">Principal</option>
+                </Select>
 
                 {/* Cantidad de paquetes */}
                 <div className="space-y-1.5">
@@ -265,164 +329,142 @@ export function ProductModal({ onClose, onCreated }: ProductModalProps) {
           {/* Sección de precios */}
           {type === "Producto" ? (
             <div className="space-y-4">
-              <h3 className="text-sm font-bold text-on-surface">Precio del paquete</h3>
-              <div className="flex flex-col sm:flex-row items-end gap-3">
+              <div>
+                <h3 className="text-sm font-bold text-on-surface">Precio del paquete (compra)</h3>
+                <p className="text-xs text-on-surface-variant mt-0.5">
+                  Escribe en cualquiera de los dos: el otro se calcula solo.
+                </p>
+              </div>
+              <div className="flex flex-col sm:flex-row sm:items-end gap-3">
                 <div className="space-y-1.5 flex-1 w-full">
                   <label className="flex items-center gap-1 text-sm font-semibold text-on-surface">
                     Precio base <span className="text-primary">*</span>
                   </label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={packageBasePrice}
-                    onChange={(e) => setPackageBasePrice(e.target.value)}
+                  <MoneyInput
+                    aria-label="Precio base del paquete"
+                    value={packagePrice.base}
+                    onChange={setPackagePrice.fromBase}
                     required
-                    className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
                   />
                 </div>
                 <div className="pb-3 text-primary font-bold text-lg hidden sm:block">+</div>
-                <div className="space-y-1.5 flex-1 w-full">
-                  <label className="flex items-center gap-1 text-sm font-semibold text-on-surface">
-                    Impuestos
-                  </label>
-                  <select
-                    value={tax}
-                    onChange={(e) => setTax(e.target.value)}
-                    className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary appearance-none"
-                  >
-                    <option value="Ninguno">Ninguno</option>
-                    <option value="19%">IVA 19%</option>
-                  </select>
-                </div>
+                <Select
+                  label="Impuestos"
+                  containerClassName="flex-1 w-full"
+                  value={tax}
+                  onChange={(e) => setTax(e.target.value)}
+                >
+                  <option value="Ninguno">Ninguno</option>
+                  <option value="IVA">IVA {rawPercentLabel}</option>
+                </Select>
                 <div className="pb-3 text-primary font-bold text-lg hidden sm:block">=</div>
                 <div className="space-y-1.5 flex-1 w-full">
                   <label className="flex items-center gap-1 text-sm font-semibold text-on-surface">
                     Total del paquete <span className="text-primary">*</span>
                   </label>
-                  <input
-                    type="number"
-                    value={packageTotal}
-                    readOnly
-                    className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary opacity-80 cursor-not-allowed"
+                  <MoneyInput
+                    aria-label="Total del paquete con impuestos"
+                    value={packagePrice.total}
+                    onChange={setPackagePrice.fromTotal}
                   />
                 </div>
               </div>
 
-              <div className="pt-2 border-t border-outline-variant/10 space-y-3">
-                <div className="flex gap-3">
-                  {(["manual", "final"] as const).map((mode) => (
-                    <button
-                      key={mode}
-                      type="button"
-                      onClick={() => setSellingPriceMode(mode)}
-                      className={`flex-1 py-2 rounded-lg text-xs font-medium border transition-colors ${
-                        sellingPriceMode === mode
-                          ? "border-primary text-primary bg-primary/5"
-                          : "border-outline-variant/30 text-on-surface-variant hover:bg-surface-container-low"
-                      }`}
-                    >
-                      {mode === "manual" ? "Base + IVA" : "Precio final"}
-                    </button>
-                  ))}
+              <div className="pt-3 border-t border-outline-variant/10 space-y-3">
+                <div>
+                  <h3 className="text-sm font-bold text-on-surface">Precio de venta (unidad)</h3>
+                  <p className="text-xs text-on-surface-variant mt-0.5">
+                    {includeTax
+                      ? "El Total es el precio de vitrina: el IVA se desglosa hacia atrás."
+                      : "Tu negocio no factura IVA: el precio de venta no lo suma, aunque sí lo pagues al proveedor."}
+                  </p>
                 </div>
-                {sellingPriceMode === "manual" ? (
-                  <div className="flex items-end gap-2">
-                    <div className="space-y-1 flex-1">
-                      <label className="flex items-center gap-1 text-xs font-semibold text-on-surface">
-                        Precio base <span className="text-primary">*</span>
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="1"
-                        value={unitSellingPrice}
-                        onChange={(e) => setUnitSellingPrice(e.target.value)}
-                        required
-                        className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-                      />
-                    </div>
-                    <div className="pb-3 text-primary font-bold text-lg hidden sm:block">+</div>
-                    <div className="space-y-1 flex-1">
-                      <label className="flex items-center gap-1 text-xs font-semibold text-on-surface">IVA</label>
-                      <div className="pt-1 text-xs text-on-surface-variant">
-                        {tax === "Ninguno" ? "Sin IVA" : `19% → $${(parseFloat(unitSellingPrice || "0") * 0.19).toFixed(0)}`}
-                      </div>
-                    </div>
-                    <div className="pb-3 text-primary font-bold text-lg hidden sm:block">=</div>
-                    <div className="space-y-1 flex-1">
-                      <label className="flex items-center gap-1 text-xs font-semibold text-on-surface">Total</label>
-                      <div className="text-sm font-bold text-on-surface font-mono pt-1">
-                        ${(parseFloat(unitSellingPrice || "0") * (tax === "Ninguno" ? 1 : 1.19)).toFixed(0)}
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-1">
+                <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+                  <div className="space-y-1 flex-1 w-full">
                     <label className="flex items-center gap-1 text-xs font-semibold text-on-surface">
-                      Precio de venta final (IVA{" "}
-                      {tax === "Ninguno" ? "no incluido" : "incluido"}){" "}
-                      <span className="text-primary">*</span>
+                      Precio base
                     </label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="1"
-                      value={finalSellingPrice}
-                      onChange={(e) => setFinalSellingPrice(e.target.value)}
-                      required
-                      className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                    <MoneyInput
+                      aria-label="Precio base de venta por unidad"
+                      value={unitPrice.base}
+                      onChange={setUnitPrice.fromBase}
                     />
-                    {tax !== "Ninguno" && finalSellingPrice && parseFloat(finalSellingPrice) > 0 && (
-                      <p className="text-xs text-on-surface-variant mt-1">
-                        Base: ${(parseFloat(finalSellingPrice) / 1.19).toFixed(0)} | IVA: ${(parseFloat(finalSellingPrice) - parseFloat(finalSellingPrice) / 1.19).toFixed(0)}
-                      </p>
-                    )}
                   </div>
-                )}
+                  <div className="pb-3 text-primary font-bold text-lg hidden sm:block">+</div>
+                  <div className="space-y-1 flex-1 w-full">
+                    <label className="flex items-center gap-1 text-xs font-semibold text-on-surface">IVA</label>
+                    <div className="pt-3 text-xs text-on-surface-variant">
+                      {tax === "Ninguno"
+                        ? "Sin IVA"
+                        : `${percentLabel} → $${(
+                            parseFloat(unitPrice.total || "0") - parseFloat(unitPrice.base || "0")
+                          ).toLocaleString("en-US", { maximumFractionDigits: 0 })}`}
+                    </div>
+                  </div>
+                  <div className="pb-3 text-primary font-bold text-lg hidden sm:block">=</div>
+                  <div className="space-y-1 flex-1 w-full">
+                    <label className="flex items-center gap-1 text-xs font-semibold text-on-surface">
+                      Total <span className="text-primary">*</span>
+                    </label>
+                    <MoneyInput
+                      aria-label="Precio final de venta por unidad"
+                      value={unitPrice.total}
+                      onChange={setUnitPrice.fromTotal}
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* Vender también por caja. El stock se sigue contando en
+                    unidades: vender una caja descuenta las que trae. */}
+                <div className="space-y-1 pt-3 border-t border-outline-variant/10">
+                  <label htmlFor="package-price" className="flex items-center gap-1 text-xs font-semibold text-on-surface">
+                    Precio de venta por caja de {unitsPerPackage || "1"}
+                    <span className="text-on-surface-variant font-normal">(opcional)</span>
+                  </label>
+                  <MoneyInput
+                    id="package-price"
+                    aria-label="Precio de venta por caja"
+                    value={packageSellingPrice}
+                    onChange={setPackageSellingPrice}
+                    placeholder="Vacío = no se vende por caja"
+                  />
+                </div>
               </div>
             </div>
           ) : (
             /* Servicios: precio base + impuesto = precio final */
-            <div className="flex flex-col sm:flex-row items-end gap-3 pt-2">
+            <div className="flex flex-col sm:flex-row sm:items-end gap-3 pt-2">
               <div className="space-y-1.5 flex-1 w-full">
                 <label className="flex items-center gap-1 text-sm font-semibold text-on-surface">
                   Precio base <span className="text-primary">*</span>
                 </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={basePrice}
-                  onChange={(e) => setBasePrice(e.target.value)}
+                <MoneyInput
+                  aria-label="Precio base del servicio"
+                  value={servicePrice.base}
+                  onChange={setServicePrice.fromBase}
                   required
-                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
                 />
               </div>
               <div className="pb-3 text-primary font-bold text-lg hidden sm:block">+</div>
-              <div className="space-y-1.5 flex-1 w-full">
-                <label className="flex items-center gap-1 text-sm font-semibold text-on-surface">
-                  Impuestos
-                </label>
-                <select
-                  value={serviceTax}
-                  onChange={(e) => setServiceTax(e.target.value)}
-                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary appearance-none"
-                >
-                  <option value="Ninguno">Ninguno</option>
-                  <option value="19%">IVA 19%</option>
-                </select>
-              </div>
+              <Select
+                label="Impuestos"
+                containerClassName="flex-1 w-full"
+                value={serviceTax}
+                onChange={(e) => setServiceTax(e.target.value)}
+              >
+                <option value="Ninguno">Ninguno</option>
+                {includeTax && <option value="IVA">IVA {percentLabel}</option>}
+              </Select>
               <div className="pb-3 text-primary font-bold text-lg hidden sm:block">=</div>
               <div className="space-y-1.5 flex-1 w-full">
                 <label className="flex items-center gap-1 text-sm font-semibold text-on-surface">
                   Precio final <span className="text-primary">*</span>
                 </label>
-                <input
-                  type="number"
-                  value={finalPriceValue}
-                  readOnly
-                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary opacity-80 cursor-not-allowed"
+                <MoneyInput
+                  aria-label="Precio final del servicio"
+                  value={servicePrice.total}
+                  onChange={setServicePrice.fromTotal}
                 />
               </div>
             </div>
@@ -468,7 +510,10 @@ export function ProductModal({ onClose, onCreated }: ProductModalProps) {
       </div>
 
       {categoryModalOpen && (
-        <CategoryQuickModal onClose={() => setCategoryModalOpen(false)} />
+        <CategoryQuickModal
+          onClose={() => setCategoryModalOpen(false)}
+          onCreated={(id) => setCategoryId(id)}
+        />
       )}
     </div>
   );

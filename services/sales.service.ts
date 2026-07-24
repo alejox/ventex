@@ -8,6 +8,8 @@ export interface SaleListItem {
   customer_name: string | null;
   payment_method: string;
   transfer_method: string | null;
+  /** Datáfono/pasarela usado, solo en ventas con tarjeta. */
+  card_method: string | null;
   status: string;
   subtotal: number;
   discount_amount: number;
@@ -23,6 +25,10 @@ export interface SaleLine {
   unit_price: number;
   quantity: number;
   line_total: number;
+  /** "package" = se vendió la caja. Congelado al momento de la venta. */
+  unit_kind: "unit" | "package";
+  /** Unidades sueltas que representaba cada ítem vendido. */
+  units_per_item: number;
 }
 
 export interface SaleDetail extends Omit<SaleListItem, "item_count"> {
@@ -168,10 +174,10 @@ const one = <T,>(embed: unknown): T | null => {
  * template dinámico hace que el tipo colapse a `GenericStringError`.
  */
 const LIST_SELECT =
-  "id, sale_number, created_at, payment_method, transfer_method, status, subtotal, discount_amount, tax_amount, total, customers(full_name), sale_items(count)";
+  "id, sale_number, created_at, payment_method, transfer_method, card_method, status, subtotal, discount_amount, tax_amount, total, customers(full_name), sale_items(count)";
 
 const LIST_SELECT_WITH_CUSTOMER =
-  "id, sale_number, created_at, payment_method, transfer_method, status, subtotal, discount_amount, tax_amount, total, customers!inner(full_name), sale_items(count)";
+  "id, sale_number, created_at, payment_method, transfer_method, card_method, status, subtotal, discount_amount, tax_amount, total, customers!inner(full_name), sale_items(count)";
 
 /**
  * Neutraliza los comodines de LIKE. Buscar "50%" tiene que buscar ese texto y no
@@ -181,7 +187,7 @@ const likePattern = (raw: string) =>
   `%${raw.trim().replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_")}%`;
 
 const DETAIL_SELECT =
-  "id, sale_number, created_at, payment_method, transfer_method, status, subtotal, discount_amount, tax_rate, tax_amount, total, customers(full_name), sale_items(id, product_name, sku, unit_price, quantity, line_total)";
+  "id, sale_number, created_at, payment_method, transfer_method, card_method, status, subtotal, discount_amount, tax_rate, tax_amount, total, customers(full_name), sale_items(id, product_name, sku, unit_price, quantity, line_total, unit_kind, units_per_item)";
 
 export const SALES_PAGE_SIZE = 50;
 
@@ -234,6 +240,7 @@ export async function fetchSales(
       customer_name: customer?.full_name ?? null,
       payment_method: s.payment_method,
       transfer_method: (raw.transfer_method as string) ?? null,
+      card_method: (raw.card_method as string) ?? null,
       status: s.status,
       subtotal: s.subtotal,
       discount_amount: s.discount_amount,
@@ -264,6 +271,7 @@ export async function fetchSaleDetail(saleId: string): Promise<SaleDetail> {
     customer_name: customer?.full_name ?? null,
     payment_method: data.payment_method,
     transfer_method: (raw.transfer_method as string) ?? null,
+    card_method: (raw.card_method as string) ?? null,
     status: data.status,
     subtotal: data.subtotal,
     discount_amount: data.discount_amount,

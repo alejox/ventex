@@ -14,6 +14,7 @@ import {
 } from "@/config/business";
 import type { Settings } from "@/services/settings.service";
 import { COLOMBIA_TRANSFER_METHODS, DEFAULT_TRANSFER_METHODS } from "@/config/transferMethods";
+import { COLOMBIA_CARD_METHODS, DEFAULT_CARD_METHODS } from "@/config/cardMethods";
 import { Select } from "@/components/ui/Select";
 
 const CURRENCIES = [
@@ -212,11 +213,21 @@ function SettingsForm({ settings }: { settings: Settings }) {
   const [transferMethods, setTransferMethods] = useState<string[]>(
     () => settings.transfer_methods_enabled ?? DEFAULT_TRANSFER_METHODS
   );
+  const [cardMethods, setCardMethods] = useState<string[]>(
+    () => settings.card_methods_enabled ?? DEFAULT_CARD_METHODS
+  );
   const [saved, setSaved] = useState(false);
 
   const toggleTransferMethod = (id: string) => {
     setSaved(false);
     setTransferMethods((prev) =>
+      prev.includes(id) ? prev.filter((m) => m !== id) : [...prev, id]
+    );
+  };
+
+  const toggleCardMethod = (id: string) => {
+    setSaved(false);
+    setCardMethods((prev) =>
       prev.includes(id) ? prev.filter((m) => m !== id) : [...prev, id]
     );
   };
@@ -232,6 +243,7 @@ function SettingsForm({ settings }: { settings: Settings }) {
       allow_oversell: allowOversell,
       currency,
       transfer_methods_enabled: transferMethods,
+      card_methods_enabled: cardMethods,
     });
     if (ok) setSaved(true);
   };
@@ -341,6 +353,57 @@ function SettingsForm({ settings }: { settings: Settings }) {
                 key={m.id}
                 type="button"
                 onClick={() => toggleTransferMethod(m.id)}
+                className={`p-3.5 rounded-2xl border text-left flex items-center justify-between gap-3 transition-all ${
+                  isEnabled
+                    ? "bg-primary/5 border-primary/40 shadow-sm"
+                    : "bg-surface-container-low border-outline-variant/15 opacity-60 hover:opacity-100"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 ${m.bgColor} ${m.borderColor} border`}
+                    style={{ color: m.color }}
+                  >
+                    {m.shortName.substring(0, 2).toUpperCase()}
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-on-surface">{m.name}</p>
+                  </div>
+                </div>
+
+                <span
+                  className={`w-10 h-5 rounded-full relative transition-colors ${
+                    isEnabled ? "bg-primary" : "bg-surface-container-highest border border-outline-variant/20"
+                  }`}
+                >
+                  <span
+                    className={`absolute top-[2px] w-4 h-4 bg-white rounded-full shadow-sm transition-all ${
+                      isEnabled ? "left-[22px]" : "left-[2px]"
+                    }`}
+                  ></span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="pt-4 border-t border-outline-variant/10 space-y-4">
+        <div>
+          <h3 className="text-sm font-bold text-on-surface mb-1">Medios de tarjeta (Colombia)</h3>
+          <p className="text-xs text-on-surface-variant">
+            Selecciona los datáfonos y pasarelas habilitados para cobro con tarjeta en el POS.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {COLOMBIA_CARD_METHODS.map((m) => {
+            const isEnabled = cardMethods.includes(m.id);
+            return (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => toggleCardMethod(m.id)}
                 className={`p-3.5 rounded-2xl border text-left flex items-center justify-between gap-3 transition-all ${
                   isEnabled
                     ? "bg-primary/5 border-primary/40 shadow-sm"

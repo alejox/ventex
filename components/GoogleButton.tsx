@@ -9,8 +9,8 @@ import { authMessage } from "@/lib/errors";
  *
  * Aterriza en `/auth/confirm` (verifica del lado del servidor, igual que el
  * reset y la confirmación de correo). Un usuario nuevo de Google llega sin
- * `business_type`, así que el layout del dashboard lo desvía a `/onboarding`
- * para completar el tipo y nombre del negocio.
+ * `business_type`, así que el layout del dashboard le muestra el modal de
+ * onboarding para completar el tipo, los módulos y el nombre del negocio.
  */
 export function GoogleButton({ label = "Continuar con Google" }: { label?: string }) {
   const [loading, setLoading] = useState(false);

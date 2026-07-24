@@ -12,6 +12,7 @@ import {
 } from "@/config/plans";
 import { GrantCreditsModal } from "@/components/GrantCreditsModal";
 import { backdropProps } from "@/components/modal";
+import { Select } from "@/components/ui/Select";
 const STATUSES = ["active", "past_due", "cancelled"] as const;
 
 const MS_PER_DAY = 86_400_000;
@@ -458,13 +459,11 @@ function ManagePlanModal({
             </div>
           )}
 
-          <div>
-            <label className="block text-sm font-semibold text-on-surface mb-2">Plan</label>
-            <select
-              value={planId}
-              onChange={(e) => handlePlanChange(e.target.value)}
-              className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 text-on-surface transition-shadow appearance-none"
-            >
+          <Select
+            label="Plan"
+            value={planId}
+            onChange={(e) => handlePlanChange(e.target.value)}
+          >
               {/* Solo planes vigentes; se conserva el actual aunque se haya desactivado. */}
               {plans
                 .filter((p) => p.is_active || p.id === company.plan_id)
@@ -474,23 +473,19 @@ function ManagePlanModal({
                     {p.price > 0 ? ` — ${formatMoney(p.price)}/mes` : " — Gratis"}
                   </option>
                 ))}
-            </select>
-          </div>
+            </Select>
 
-          <div>
-            <label className="block text-sm font-semibold text-on-surface mb-2">Estado</label>
-            <select
-              value={status}
-              onChange={(e) => setStatus(e.target.value)}
-              className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 text-on-surface transition-shadow appearance-none"
-            >
-              {STATUSES.map((s) => (
-                <option key={s} value={s}>
-                  {SUBSCRIPTION_STATUS_LABELS[s]}
-                </option>
-              ))}
-            </select>
-          </div>
+          <Select
+            label="Estado"
+            value={status}
+            onChange={(e) => setStatus(e.target.value)}
+          >
+            {STATUSES.map((s) => (
+              <option key={s} value={s}>
+                {SUBSCRIPTION_STATUS_LABELS[s]}
+              </option>
+            ))}
+          </Select>
 
           {/* Vigencia: el admin no consume créditos, él es la fuente de los meses. */}
           {chargeable && (
@@ -508,10 +503,11 @@ function ManagePlanModal({
               </p>
 
               <div className="flex flex-col sm:flex-row gap-2">
-                <select
+                <Select
+                  aria-label="Recarga a aplicar"
+                  containerClassName="flex-1 min-w-0"
                   value={option}
                   onChange={(e) => setOption(e.target.value)}
-                  className="flex-1 px-4 py-3 bg-surface-container-low border border-outline-variant/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 text-on-surface transition-shadow appearance-none"
                 >
                   <option value="none">Sin recarga (no cambiar el vencimiento)</option>
                   {options.map((o) => (
@@ -521,7 +517,7 @@ function ManagePlanModal({
                     </option>
                   ))}
                   <option value="custom">Personalizado…</option>
-                </select>
+                </Select>
 
                 {custom && (
                   <input

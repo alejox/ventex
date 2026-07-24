@@ -8,6 +8,7 @@ import type { WorkerMember } from "@/services/worker.service";
 import { useProfile } from "@/components/ProfileProvider";
 import { BusinessKeyCard } from "@/components/BusinessKeyCard";
 import { CloseShiftModal } from "@/components/shift/CloseShiftModal";
+import { Select } from "@/components/ui/Select";
 import { DataTable, type DataColumn } from "@/components/DataTable";
 import type { Shift } from "@/services/shifts.service";
 import { notifySuccess } from "@/lib/notifications";
@@ -216,21 +217,18 @@ function InviteModal({ onClose }: { onClose: () => void }) {
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-semibold text-on-surface mb-1.5">Rol / Cargo</label>
-            <select
-              value={role}
-              onChange={(e) => setRole(e.target.value)}
-              className="w-full px-4 py-2.5 bg-surface-container-low border border-outline-variant/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 text-on-surface"
-            >
-              <option value="">Seleccionar cargo</option>
-              {roleOptions.map((r) => (
-                <option key={r} value={r}>
-                  {r}
-                </option>
-              ))}
-            </select>
-          </div>
+          <Select
+            label="Rol / Cargo"
+            value={role}
+            onChange={(e) => setRole(e.target.value)}
+          >
+            <option value="">Seleccionar cargo</option>
+            {roleOptions.map((r) => (
+              <option key={r} value={r}>
+                {r}
+              </option>
+            ))}
+          </Select>
 
           <div className="pt-2 border-t border-outline-variant/10">
             <label className="block text-sm font-semibold text-on-surface mb-1.5">Permisos</label>
@@ -405,21 +403,18 @@ function EditWorkerModal({ worker, onClose }: { worker: WorkerMember; onClose: (
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-semibold text-on-surface mb-1.5">Rol / Cargo</label>
-            <select
-              value={role}
-              onChange={(e) => setRole(e.target.value)}
-              className="w-full px-4 py-2.5 bg-surface-container-low border border-outline-variant/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 text-on-surface"
-            >
-              <option value="">Seleccionar cargo</option>
-              {options.map((r) => (
-                <option key={r} value={r}>
-                  {r}
-                </option>
-              ))}
-            </select>
-          </div>
+          <Select
+            label="Rol / Cargo"
+            value={role}
+            onChange={(e) => setRole(e.target.value)}
+          >
+            <option value="">Seleccionar cargo</option>
+            {options.map((r) => (
+              <option key={r} value={r}>
+                {r}
+              </option>
+            ))}
+          </Select>
 
           <div>
             <label className="block text-sm font-semibold text-on-surface mb-1.5">Nueva contraseña</label>

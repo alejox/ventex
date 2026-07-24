@@ -6,6 +6,7 @@ import type { ResellerClient } from "@/services/reseller.service";
 import { LICENSE_STATUS_LABELS, licenseAccent } from "@/config/plans";
 import { BUSINESS_OPTIONS } from "@/config/business";
 import { backdropProps } from "@/components/modal";
+import { Select } from "@/components/ui/Select";
 
 export default function ResellerClientsPage() {
   const clients = useResellerStore((s) => s.clients);
@@ -323,31 +324,31 @@ function CreateClientModal({ onClose }: { onClose: () => void }) {
             </Field>
 
             <Field label="Tipo de negocio">
-              <select
+              <Select
+                aria-label="Tipo de negocio"
                 value={businessType}
                 onChange={(e) => setBusinessType(e.target.value as typeof businessType)}
-                className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 text-on-surface transition-shadow appearance-none"
               >
                 {BUSINESS_OPTIONS.map((b) => (
                   <option key={b.id} value={b.id}>
                     {b.label}
                   </option>
                 ))}
-              </select>
+              </Select>
             </Field>
 
             <Field label="Plan (consume 1 crédito de ese plan al primer login)">
-              <select
+              <Select
+                aria-label="Plan del cliente"
                 value={planId}
                 onChange={(e) => setPlanId(e.target.value)}
-                className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 text-on-surface transition-shadow appearance-none"
               >
                 {creditPlans.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name} — {balanceOf(p.id)} crédito{balanceOf(p.id) === 1 ? "" : "s"}
                   </option>
                 ))}
-              </select>
+              </Select>
             </Field>
           </div>
 
@@ -477,10 +478,11 @@ function ManageClientModal({
               ) : (
                 <>
                   <div className="flex flex-col sm:flex-row gap-2">
-                    <select
+                    <Select
+                      aria-label="Período a recargar"
+                      containerClassName="flex-1 min-w-0"
                       value={selected?.id ?? ""}
                       onChange={(e) => setPeriodId(e.target.value)}
-                      className="flex-1 px-4 py-3 bg-surface-container-low border border-outline-variant/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 text-on-surface transition-shadow appearance-none"
                     >
                       {options.map((o) => (
                         <option key={o.id} value={o.id} disabled={balance < o.credits}>
@@ -489,7 +491,7 @@ function ManageClientModal({
                           {balance < o.credits ? " (saldo insuficiente)" : ""}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                     <button
                       type="button"
                       onClick={handleRecharge}

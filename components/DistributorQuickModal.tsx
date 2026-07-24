@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useDistributorsStore } from "@/stores/distributors.store";
+import { Select } from "@/components/ui/Select";
 import { notifySuccess } from "@/lib/notifications";
 
 interface DistributorQuickModalProps {
@@ -112,15 +113,16 @@ export function DistributorQuickModal({ onClose, onCreated }: DistributorQuickMo
           <div className="space-y-1.5">
             <label className="text-[13px] font-semibold text-on-surface block">Documento</label>
             <div className="flex gap-2">
-              <select
+              <Select
+                aria-label="Tipo de documento"
+                containerClassName="w-24 shrink-0"
                 value={docType}
                 onChange={(e) => setDocType(e.target.value)}
-                className="w-24 shrink-0 bg-surface-container-low border border-outline-variant/20 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all appearance-none"
               >
                 {DOC_TYPES.map((t) => (
                   <option key={t} value={t}>{t}</option>
                 ))}
-              </select>
+              </Select>
               <input
                 type="text"
                 value={rfcRut}

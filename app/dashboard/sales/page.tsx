@@ -6,6 +6,7 @@ import { useSettingsStore } from "@/stores/settings.store";
 import { useSalesStore } from "@/stores/sales.store";
 import { SALES_PERIODS, SALES_PAGE_SIZE, type SaleListItem } from "@/services/sales.service";
 import { COLOMBIA_TRANSFER_METHODS, getTransferMethodName } from "@/config/transferMethods";
+import { getCardMethodName } from "@/config/cardMethods";
 import { DataTable, type DataColumn } from "@/components/DataTable";
 
 const money = (n: number) =>
@@ -25,6 +26,26 @@ const formatDate = (iso: string) =>
   tarjeta: "Datáfono",
   transferencia: "Transferencia",
 };
+
+/**
+ * Etiqueta del medio de pago con su detalle: "Transferencia (Nequi)",
+ * "Datáfono (Bold)". Una sola definición para la tabla y para el detalle de la
+ * venta, que antes repetían la misma expresión ternaria.
+ */
+function paymentLabelOf(
+  paymentMethod: string,
+  transferMethod: string | null,
+  cardMethod: string | null,
+): string {
+  const label = PAYMENT_LABELS[paymentMethod] ?? paymentMethod;
+  if (paymentMethod === "transferencia" && transferMethod) {
+    return `${label} (${getTransferMethodName(transferMethod)})`;
+  }
+  if (paymentMethod === "tarjeta" && cardMethod) {
+    return `${label} (${getCardMethodName(cardMethod)})`;
+  }
+  return label;
+}
 
 const PAYMENT_FILTERS = [
   { value: "", label: "Todos" },
@@ -89,10 +110,7 @@ const SALE_COLUMNS: DataColumn<SaleListItem>[] = [
   {
     header: "Pago",
     className: "text-on-surface-variant",
-    cell: (s) =>
-      s.payment_method === "transferencia" && s.transfer_method
-        ? `Transferencia (${getTransferMethodName(s.transfer_method)})`
-        : PAYMENT_LABELS[s.payment_method] ?? s.payment_method,
+    cell: (s) => paymentLabelOf(s.payment_method, s.transfer_method, s.card_method),
   },
 ];
 
@@ -140,7 +158,6 @@ export default function SalesPage() {
     return () => clearTimeout(timer);
   }, [searchInput, customerQuery, setCustomerQuery]);
 
-  const pageCount = Math.max(1, Math.ceil(total / SALES_PAGE_SIZE));
   const firstRow = total === 0 ? 0 : page * SALES_PAGE_SIZE + 1;
   const lastRow = Math.min((page + 1) * SALES_PAGE_SIZE, total);
 
@@ -398,7 +415,11 @@ export default function SalesPage() {
                         <p className="text-sm font-medium text-on-surface">{item.product_name}</p>
                         <p className="text-[11px] text-on-surface-variant mt-0.5">
                           {item.quantity} × ${money(item.unit_price)}
-                          {item.sku ? ` · ${item.sku}` : ""}
+                          {item.unit_kind === "package"
+                            ? ` · Caja x${item.units_per_item} u. (${item.quantity * item.units_per_item} uds.)`
+                            : item.sku
+                              ? ` · ${item.sku}`
+                              : ""}
                         </p>
                       </div>
                       <span className="text-sm font-bold text-on-surface shrink-0">${money(item.line_total)}</span>
@@ -429,9 +450,7 @@ export default function SalesPage() {
 
                 <div className="flex justify-between text-xs text-on-surface-variant">
                   <span>
-                    Pago: {detail.payment_method === "transferencia" && detail.transfer_method
-                      ? `Transferencia (${getTransferMethodName(detail.transfer_method)})`
-                      : (PAYMENT_LABELS[detail.payment_method] ?? detail.payment_method)}
+                    Pago: {paymentLabelOf(detail.payment_method, detail.transfer_method, detail.card_method)}
                   </span>
                   <span>{STATUS_LABELS[detail.status] ?? detail.status}</span>
                 </div>

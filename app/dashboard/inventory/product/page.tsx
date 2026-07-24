@@ -7,6 +7,12 @@ import Link from "next/link";
 import { useInventoryStore } from "@/stores/inventory.store";
 import type { NewProductInput } from "@/services/inventory.service";
 import { DistributorQuickModal } from "@/components/DistributorQuickModal";
+import { CategoryQuickModal } from "@/components/CategoryQuickModal";
+import { BarcodeField } from "@/components/BarcodeField";
+import { MoneyInput } from "@/components/ui/MoneyInput";
+import { Select } from "@/components/ui/Select";
+import { usePricePair } from "@/lib/usePricePair";
+import { useBusinessTax } from "@/lib/useBusinessTax";
 
 function ProductForm() {
   const router = useRouter();
@@ -39,6 +45,8 @@ function ProductForm() {
     // efecto, que solo servía para copiar el mismo valor al estado.
     parent_product_id: !editId && parentId ? parentId : "",
     sku: "",
+    barcode: "",
+    package_price: "",
     unit: "Unidad",
     purchase_price: "",
     price: "",
@@ -57,27 +65,58 @@ function ProductForm() {
   const [saving, setSaving] = useState(false);
   const [seededId, setSeededId] = useState<string | null>(null);
   const [distributorModalOpen, setDistributorModalOpen] = useState(false);
-  const [purchasePriceBase, setPurchasePriceBase] = useState("0");
-  const [purchasePriceTax, setPurchasePriceTax] = useState("19%");
-  const [priceMode, setPriceMode] = useState<"manual" | "percentage" | "final">("manual");
-  const [sellingPriceBase, setSellingPriceBase] = useState("0");
-  const [sellingPriceTax, setSellingPriceTax] = useState("19%");
-  const [priceMargin, setPriceMargin] = useState("0");
-  const [finalSellingPrice, setFinalSellingPrice] = useState("0");
+  const [categoryModalOpen, setCategoryModalOpen] = useState(false);
+  const [purchasePriceTax, setPurchasePriceTax] = useState("IVA");
+  const [sellingPriceTax, setSellingPriceTax] = useState("IVA");
 
-  const taxMultiplier = purchasePriceTax === "Ninguno" ? 1 : 1.19;
-  const purchasePriceTotal = (parseFloat(purchasePriceBase || "0") * taxMultiplier).toFixed(0);
+  // La tasa sale de los ajustes del negocio, no de un 19% escrito a mano.
+  //
+  // COMPRA y VENTA usan tasas distintas a propósito: un negocio no responsable
+  // de IVA igual se lo paga al proveedor (`rawRate`), pero no lo cobra en sus
+  // propios precios (`rate`, que en ese caso vale 0).
+  const { rate: taxRate, rawRate, includeTax, percentLabel, rawPercentLabel } = useBusinessTax();
+  const purchaseMultiplier = purchasePriceTax === "Ninguno" ? 1 : 1 + rawRate;
+  const sellingMultiplier = sellingPriceTax === "Ninguno" ? 1 : 1 + taxRate;
 
-  const sellingTaxMultiplier = sellingPriceTax === "Ninguno" ? 1 : 1.19;
-  const sellingPriceTotal = priceMode === "manual"
-    ? (parseFloat(sellingPriceBase || "0") * sellingTaxMultiplier).toFixed(0)
-    : priceMode === "percentage"
-    ? (parseFloat(purchasePriceTotal || "0") * (1 + parseFloat(priceMargin || "0") / 100)).toFixed(0)
-    : (parseFloat(finalSellingPrice || "0")).toFixed(0);
+  /**
+   * Base y total son los DOS editables, y cada uno recalcula el otro. Por eso
+   * se guardan ambos strings en vez de derivar uno del otro: si el total se
+   * recalculara desde la base en cada tecla, escribir "50000" en el total lo
+   * reescribiría a mitad de camino y no se podría teclear.
+   */
+  const [purchase, setPurchase] = usePricePair(purchaseMultiplier);
+  const [selling, setSelling] = usePricePair(sellingMultiplier);
+  const purchasePriceTotal = purchase.total;
+  const sellingPriceTotal = selling.total;
+
+  /** Margen real que queda, para que el precio no se ponga a ciegas. */
+  const margin = (() => {
+    const cost = parseFloat(purchase.total || "0");
+    const price = parseFloat(selling.total || "0");
+    if (!(cost > 0) || !(price > 0)) return null;
+    const units = Math.max(parseInt(form.units_per_package || "1") || 1, 1);
+    const costPerUnit = cost / units;
+    return { pct: ((price - costPerUnit) / costPerUnit) * 100, costPerUnit };
+  })();
 
   useEffect(() => {
     fetchInventory();
   }, [fetchInventory]);
+
+  const packageHint = (() => {
+    const boxPrice = parseFloat(form.package_price ?? "");
+    const units = parseInt(form.units_per_package || "1");
+    const unitPrice = parseFloat(sellingPriceTotal || "0");
+    if (!Number.isFinite(boxPrice) || boxPrice <= 0 || !Number.isFinite(unitPrice) || unitPrice <= 0) {
+      return "";
+    }
+    if (units <= 1) return "Define primero cuántas unidades trae la caja.";
+    const perUnit = boxPrice / units;
+    const label = `Sale a $${perUnit.toLocaleString("en-US", { maximumFractionDigits: 0 })} por unidad`;
+    return perUnit > unitPrice
+      ? `${label}: MÁS CARA que vender suelto ($${unitPrice.toLocaleString("en-US", { maximumFractionDigits: 0 })}).`
+      : `${label}, contra $${unitPrice.toLocaleString("en-US", { maximumFractionDigits: 0 })} suelto.`;
+  })();
 
   const editingProduct = editId ? products.find((p) => p.id === editId) : undefined;
 
@@ -94,6 +133,8 @@ function ProductForm() {
       distributor_id: editingProduct.distributor_id ?? "",
       parent_product_id: editingProduct.parent_product_id ?? "",
       sku: editingProduct.sku,
+      barcode: editingProduct.barcode ?? "",
+      package_price: editingProduct.package_price != null ? String(editingProduct.package_price) : "",
       unit: editingProduct.unit,
       purchase_price: String(editingProduct.purchase_price ?? ""),
       price: String(editingProduct.price),
@@ -104,8 +145,8 @@ function ProductForm() {
       commission_value: editingProduct.commission_value ? String(editingProduct.commission_value) : "",
       units_per_package: editingProduct.units_per_package ? String(editingProduct.units_per_package) : "1",
     });
-    setPurchasePriceBase(String(editingProduct.purchase_price ?? "0"));
-    setSellingPriceBase(String(editingProduct.price ?? "0"));
+    setPurchase.fromTotal(String(editingProduct.purchase_price ?? "0"));
+    setSelling.fromTotal(String(editingProduct.price ?? "0"));
     if (editingProduct.image_url) setImagePreview(editingProduct.image_url);
   }
 
@@ -204,6 +245,50 @@ function ProductForm() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="bg-surface-container rounded-2xl sm:rounded-3xl border border-outline-variant/10 shadow-sm p-4 sm:p-8 space-y-5">
+          <div>
+            <h2 className="text-lg font-bold text-on-surface mb-1">Imagen del Producto</h2>
+            <p className="text-sm text-on-surface-variant">Sube una foto para identificar el producto visualmente</p>
+          </div>
+
+          {imagePreview ? (
+            <div className="flex items-center gap-6">
+              <div className="relative w-28 h-28 rounded-2xl overflow-hidden border border-outline-variant/20 bg-surface-container-lowest shrink-0">
+                <Image src={imagePreview} alt="Vista previa" fill sizes="112px" unoptimized className="object-cover" />
+              </div>
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-on-surface">Imagen cargada</p>
+                <button type="button" onClick={resetImage} className="text-sm font-medium text-error hover:text-error-dim transition-colors">
+                  Quitar imagen
+                </button>
+              </div>
+            </div>
+          ) : (
+            <label
+              className={`flex flex-col items-center justify-center gap-3 w-full py-10 rounded-2xl border-2 border-dashed bg-surface-container-lowest text-on-surface-variant cursor-pointer transition-all ${
+                dragOver ? "border-primary bg-primary/5" : "border-outline-variant/30 hover:border-primary/50 hover:text-on-surface hover:bg-surface-container-lowest/80"
+              }`}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+            >
+              <svg fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-8 h-8">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                <circle cx="8.5" cy="8.5" r="1.5" />
+                <polyline points="21 15 16 10 5 21" />
+              </svg>
+              {/* En un celular no se arrastra nada: ahí el texto tiene que
+                  hablar de la cámara, que es lo que abre el input. */}
+              <div className="text-center">
+                <p className="text-sm font-medium sm:hidden">Toca para tomar la foto del producto</p>
+                <p className="text-sm font-medium hidden sm:block">Arrastra una imagen o haz clic para subir</p>
+                <p className="text-xs text-on-surface-variant/60 mt-1">Se optimiza a WebP antes de subirla</p>
+              </div>
+              <input type="file" accept="image/*" capture="environment" onChange={handleImageChange} className="hidden" />
+            </label>
+          )}
+        </div>
+
         <div className="bg-surface-container rounded-2xl sm:rounded-3xl border border-outline-variant/10 shadow-sm p-4 sm:p-8 space-y-6">
           <div>
             <h2 className="text-lg font-bold text-on-surface mb-1">Informaci&oacute;n General</h2>
@@ -224,42 +309,50 @@ function ProductForm() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
             <div className="space-y-1.5">
-              <label className="text-[13px] font-semibold text-on-surface block">Categor&iacute;a</label>
-              <div className="relative">
-                <select
+              <label htmlFor="product-category" className="text-[13px] font-semibold text-on-surface block">Categor&iacute;a</label>
+              {/* Mismo par selector + "＋" que Proveedor: quien está dando de alta
+                  un producto y descubre que le falta la categoría no debería
+                  tener que abandonar el formulario y perder lo escrito. */}
+              <div className="flex gap-2 items-center">
+                <Select
+                  id="product-category"
+                  containerClassName="flex-1 min-w-0"
                   value={form.category_id}
                   onChange={(e) => setForm({ ...form, category_id: e.target.value })}
-                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all appearance-none"
-                  required
                 >
                   <option value="" disabled>Selecciona...</option>
                   {categories.map((cat) => (
                     <option key={cat.id} value={cat.id}>{cat.name}</option>
                   ))}
-                </select>
-                <svg className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant pointer-events-none" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <polyline points="6 9 12 15 18 9" />
-                </svg>
+                </Select>
+                <button
+                  type="button"
+                  onClick={() => setCategoryModalOpen(true)}
+                  className="shrink-0 w-11 py-3 flex items-center justify-center rounded-xl bg-primary/10 text-primary hover:bg-primary hover:text-white transition-colors"
+                  title="Crear nueva categoría"
+                  aria-label="Crear nueva categoría"
+                >
+                  <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-4 h-4">
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
+                </button>
               </div>
             </div>
             <div className="space-y-1.5">
-              <label className="text-[13px] font-semibold text-on-surface block">Proveedor</label>
+              <label htmlFor="product-distributor" className="text-[13px] font-semibold text-on-surface block">Proveedor</label>
               <div className="flex gap-2 items-center">
-                <div className="relative flex-1">
-                  <select
-                    value={form.distributor_id}
-                    onChange={(e) => setForm({ ...form, distributor_id: e.target.value })}
-                    className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all appearance-none"
-                  >
-                    <option value="">Sin proveedor</option>
-                    {distributors.map((d) => (
-                      <option key={d.id} value={d.id}>{d.business_name}</option>
-                    ))}
-                  </select>
-                  <svg className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant pointer-events-none" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <polyline points="6 9 12 15 18 9" />
-                  </svg>
-                </div>
+                <Select
+                  id="product-distributor"
+                  containerClassName="flex-1 min-w-0"
+                  value={form.distributor_id}
+                  onChange={(e) => setForm({ ...form, distributor_id: e.target.value })}
+                >
+                  <option value="">Sin proveedor</option>
+                  {distributors.map((d) => (
+                    <option key={d.id} value={d.id}>{d.business_name}</option>
+                  ))}
+                </Select>
                 <button
                   type="button"
                   onClick={() => setDistributorModalOpen(true)}
@@ -273,53 +366,36 @@ function ProductForm() {
                 </button>
               </div>
             </div>
-            <div className="space-y-1.5">
-              <label className="text-[13px] font-semibold text-on-surface block">Unidad de Medida</label>
-              <div className="relative">
-                <select
-                  value={form.unit}
-                  onChange={(e) => setForm({ ...form, unit: e.target.value })}
-                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all appearance-none"
-                  required
-                >
-                  <option value="Unidad">Unidad</option>
-                  <option value="kg">kg</option>
-                  <option value="g">g</option>
-                  <option value="lb">lb</option>
-                  <option value="L">L</option>
-                  <option value="ml">ml</option>
-                  <option value="m">m</option>
-                  <option value="cm">cm</option>
-                  <option value="Par">Par</option>
-                  <option value="Docena">Docena</option>
-                  <option value="Caja">Caja</option>
-                  <option value="Pack">Pack</option>
-                </select>
-                <svg className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant pointer-events-none" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <polyline points="6 9 12 15 18 9" />
-                </svg>
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[13px] font-semibold text-on-surface block">Producto padre <span className="text-on-surface-variant font-normal">(opcional)</span></label>
-              <div className="relative">
-                <select
-                  value={form.parent_product_id}
-                  onChange={(e) => setForm({ ...form, parent_product_id: e.target.value })}
-                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all appearance-none"
-                >
-                  <option value="">Es producto principal</option>
-                  {products
-                    .filter((p) => !p.parent_product_id && p.id !== editId)
-                    .map((p) => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                </select>
-                <svg className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant pointer-events-none" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <polyline points="6 9 12 15 18 9" />
-                </svg>
-              </div>
-            </div>
+            <Select
+              label="Unidad de Medida"
+              value={form.unit}
+              onChange={(e) => setForm({ ...form, unit: e.target.value })}
+            >
+              <option value="Unidad">Unidad</option>
+              <option value="kg">kg</option>
+              <option value="g">g</option>
+              <option value="lb">lb</option>
+              <option value="L">L</option>
+              <option value="ml">ml</option>
+              <option value="m">m</option>
+              <option value="cm">cm</option>
+              <option value="Par">Par</option>
+              <option value="Docena">Docena</option>
+              <option value="Caja">Caja</option>
+              <option value="Pack">Pack</option>
+            </Select>
+            <Select
+              label="Producto padre (opcional)"
+              value={form.parent_product_id}
+              onChange={(e) => setForm({ ...form, parent_product_id: e.target.value })}
+            >
+              <option value="">Es producto principal</option>
+              {products
+                .filter((p) => !p.parent_product_id && p.id !== editId)
+                .map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+            </Select>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-5">
@@ -334,46 +410,54 @@ function ProductForm() {
                 required
               />
             </div>
+
+            {/* Código de barras: el del empaque, distinto del SKU interno. Se
+                escanea con la cámara o lo teclea un lector láser de mostrador. */}
+            <div className="space-y-1.5 sm:col-span-2">
+              <label htmlFor="advanced-product-barcode" className="text-[13px] font-semibold text-on-surface block">
+                Código de barras <span className="text-on-surface-variant font-normal">(opcional)</span>
+              </label>
+              <BarcodeField
+                id="advanced-product-barcode"
+                value={form.barcode ?? ""}
+                onChange={(code) => setForm({ ...form, barcode: code })}
+              />
+            </div>
           </div>
 
           <div className="border-t border-outline-variant/10 pt-6 space-y-6">
             <div>
               <h3 className="text-base font-bold text-on-surface">Precio de Compra (Paquete)</h3>
+              <p className="text-xs text-on-surface-variant mt-1">
+                Escribe en cualquiera de los dos: el otro se calcula solo.
+              </p>
             </div>
-            <div className="flex flex-col sm:flex-row items-end gap-3">
-              <div className="space-y-1.5 flex-1">
+            <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+              <div className="space-y-1.5 flex-1 w-full">
                 <label className="text-[13px] font-semibold text-on-surface block">Precio base</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={purchasePriceBase}
-                  onFocus={(e) => e.target.select()}
-                  onChange={(e) => setPurchasePriceBase(e.target.value)}
-                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
-                  required
+                <MoneyInput
+                  aria-label="Precio base de compra"
+                  value={purchase.base}
+                  onChange={setPurchase.fromBase}
                 />
               </div>
               <div className="pb-3 text-primary font-bold text-lg hidden sm:block">+</div>
-              <div className="space-y-1.5 flex-1">
-                <label className="text-[13px] font-semibold text-on-surface block">IVA</label>
-                <select
-                  value={purchasePriceTax}
-                  onChange={(e) => setPurchasePriceTax(e.target.value)}
-                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all appearance-none"
-                >
-                  <option value="Ninguno">Ninguno</option>
-                  <option value="19%">19%</option>
-                </select>
-              </div>
+              <Select
+                label="IVA"
+                containerClassName="flex-1 w-full"
+                value={purchasePriceTax}
+                onChange={(e) => setPurchasePriceTax(e.target.value)}
+              >
+                <option value="Ninguno">Ninguno</option>
+                <option value="IVA">{rawPercentLabel}</option>
+              </Select>
               <div className="pb-3 text-primary font-bold text-lg hidden sm:block">=</div>
-              <div className="space-y-1.5 flex-1">
+              <div className="space-y-1.5 flex-1 w-full">
                 <label className="text-[13px] font-semibold text-on-surface block">Total</label>
-                <input
-                  type="number"
-                  value={purchasePriceTotal}
-                  readOnly
-                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all opacity-80 cursor-not-allowed"
+                <MoneyInput
+                  aria-label="Total de compra con IVA"
+                  value={purchase.total}
+                  onChange={setPurchase.fromTotal}
                 />
               </div>
             </div>
@@ -382,134 +466,84 @@ function ProductForm() {
           <div className="border-t border-outline-variant/10 pt-6 space-y-6">
             <div>
               <h3 className="text-base font-bold text-on-surface">Precio de Venta (Unidad)</h3>
+              <p className="text-xs text-on-surface-variant mt-1">
+                Escribe el precio de vitrina en el Total y el IVA se desglosa hacia atrás.
+              </p>
             </div>
-            <div className="space-y-4">
-              <div className="flex flex-wrap gap-2 sm:gap-4">
-                {(["manual", "percentage", "final"] as const).map((mode) => (
-                  <button
-                    key={mode}
-                    type="button"
-                    onClick={() => setPriceMode(mode)}
-                    className={`flex-1 py-2.5 rounded-xl text-sm font-medium border transition-colors ${
-                      priceMode === mode
-                        ? "border-primary text-primary bg-primary/5"
-                        : "border-outline-variant/30 text-on-surface hover:bg-surface-container-low"
-                    }`}
-                  >
-                    {mode === "manual" ? "Manual" : mode === "percentage" ? "% Margen" : "Precio Final"}
-                  </button>
-                ))}
+            <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+              <div className="space-y-1.5 flex-1 w-full">
+                <label className="text-[13px] font-semibold text-on-surface block">Precio base</label>
+                <MoneyInput
+                  aria-label="Precio base de venta"
+                  value={selling.base}
+                  onChange={setSelling.fromBase}
+                />
               </div>
-
-              {priceMode === "manual" ? (
-                <div className="flex flex-col sm:flex-row items-end gap-3">
-                  <div className="space-y-1.5 flex-1">
-                    <label className="text-[13px] font-semibold text-on-surface block">Precio base</label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="1"
-                      value={sellingPriceBase}
-                      onFocus={(e) => e.target.select()}
-                      onChange={(e) => setSellingPriceBase(e.target.value)}
-                      className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
-                      required
-                    />
-                  </div>
-                  <div className="pb-3 text-primary font-bold text-lg hidden sm:block">+</div>
-                  <div className="space-y-1.5 flex-1">
-                    <label className="text-[13px] font-semibold text-on-surface block">IVA</label>
-                    <select
-                      value={sellingPriceTax}
-                      onChange={(e) => setSellingPriceTax(e.target.value)}
-                      className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all appearance-none"
-                    >
-                      <option value="Ninguno">Ninguno</option>
-                      <option value="19%">19%</option>
-                    </select>
-                  </div>
-                  <div className="pb-3 text-primary font-bold text-lg hidden sm:block">=</div>
-                  <div className="space-y-1.5 flex-1">
-                    <label className="text-[13px] font-semibold text-on-surface block">Total</label>
-                    <input
-                      type="number"
-                      value={sellingPriceTotal}
-                      readOnly
-                      className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all opacity-80 cursor-not-allowed"
-                    />
-                  </div>
-                </div>
-              ) : priceMode === "percentage" ? (
-                <div className="max-w-xs space-y-1.5">
-                  <label className="text-[13px] font-semibold text-on-surface block">Margen de ganancia (%)</label>
-                  <div className="flex gap-3 items-end">
-                    <input
-                      type="number"
-                      min="0"
-                      step="1"
-                      value={priceMargin}
-                      onFocus={(e) => e.target.select()}
-                      onChange={(e) => setPriceMargin(e.target.value)}
-                      className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
-                      placeholder="Ej. 30"
-                    />
-                    <div className="pb-3 text-sm text-on-surface-variant">%</div>
-                  </div>
-                  <p className="text-xs text-on-surface-variant mt-2">
-                    Precio de venta sugerido: <strong className="text-on-surface font-mono">${Number(sellingPriceTotal).toLocaleString("en-US")}</strong> (costo {priceMargin || "0"}% sobre total de compra)
-                  </p>
-                </div>
-              ) : (
-                <div className="flex flex-col sm:flex-row items-end gap-3">
-                  <div className="space-y-1.5 flex-1">
-                    <label className="text-[13px] font-semibold text-on-surface block">Precio de venta final</label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="1"
-                      value={finalSellingPrice}
-                      onFocus={(e) => e.target.select()}
-                      onChange={(e) => setFinalSellingPrice(e.target.value)}
-                      className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
-                      placeholder="Ej. 500"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-1.5 flex-1">
-                    <label className="text-[13px] font-semibold text-on-surface block">IVA</label>
-                    <select
-                      value={sellingPriceTax}
-                      onChange={(e) => setSellingPriceTax(e.target.value)}
-                      className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all appearance-none"
-                    >
-                      <option value="Ninguno">Ninguno</option>
-                      <option value="19%">19%</option>
-                    </select>
-                  </div>
-                  <div className="space-y-1.5 flex-1">
-                    <label className="text-[13px] font-semibold text-on-surface block">Base calculada</label>
-                    <input
-                      type="number"
-                      value={sellingPriceTax === "Ninguno" ? finalSellingPrice : (parseFloat(finalSellingPrice || "0") / 1.19).toFixed(0)}
-                      readOnly
-                      className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all opacity-80 cursor-not-allowed"
-                    />
-                  </div>
-                </div>
-              )}
+              <div className="pb-3 text-primary font-bold text-lg hidden sm:block">+</div>
+              <Select
+                label="IVA"
+                containerClassName="flex-1 w-full"
+                value={sellingPriceTax}
+                onChange={(e) => setSellingPriceTax(e.target.value)}
+              >
+                <option value="Ninguno">Ninguno</option>
+                {includeTax && <option value="IVA">{percentLabel}</option>}
+              </Select>
+              <div className="pb-3 text-primary font-bold text-lg hidden sm:block">=</div>
+              <div className="space-y-1.5 flex-1 w-full">
+                <label className="text-[13px] font-semibold text-on-surface block">
+                  Total <span className="text-on-surface-variant font-normal">(vitrina)</span>
+                </label>
+                <MoneyInput
+                  aria-label="Precio final de venta con IVA"
+                  value={selling.total}
+                  onChange={setSelling.fromTotal}
+                  required
+                />
+              </div>
             </div>
+
+            {/* El margen dejó de ser un MODO de carga para ser lo que siempre
+                fue: el resultado. Se mira, no se elige. */}
+            {margin && (
+              <p className={`text-xs font-medium ${margin.pct < 0 ? "text-error" : "text-on-surface-variant"}`}>
+                Margen: <strong className="font-mono">{margin.pct.toFixed(1)}%</strong> sobre un costo de{" "}
+                <span className="font-mono">${margin.costPerUnit.toLocaleString("en-US", { maximumFractionDigits: 0 })}</span> por unidad
+                {margin.pct < 0 ? " — estás vendiendo a pérdida." : ""}
+              </p>
+            )}
           </div>
 
-          <div className="space-y-1.5">
-            <label className="text-[13px] font-semibold text-on-surface block">Unidades por Paquete <span className="text-on-surface-variant font-normal">(opcional)</span></label>
-            <input
-              type="number"
-              min="1"
-              value={form.units_per_package}
-              onChange={(e) => setForm({ ...form, units_per_package: e.target.value })}
-              className="w-full max-w-xs bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-on-surface-variant/50"
-              placeholder="Ej. 24"
-            />
+          {/* Venta por caja. El stock SIEMPRE se cuenta en unidades sueltas:
+              vender una caja descuenta las que trae. Sin precio de caja el
+              producto simplemente no se ofrece por caja en el POS. */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
+            <div className="space-y-1.5">
+              <label className="text-[13px] font-semibold text-on-surface block">
+                Unidades por Caja <span className="text-on-surface-variant font-normal">(opcional)</span>
+              </label>
+              <input
+                type="number"
+                min="1"
+                value={form.units_per_package}
+                onChange={(e) => setForm({ ...form, units_per_package: e.target.value })}
+                className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-on-surface-variant/50"
+                placeholder="Ej. 24"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[13px] font-semibold text-on-surface block">
+                Precio de venta por Caja <span className="text-on-surface-variant font-normal">(opcional)</span>
+              </label>
+              <MoneyInput
+                aria-label="Precio de venta por caja"
+                value={form.package_price ?? ""}
+                onChange={(raw) => setForm({ ...form, package_price: raw })}
+                placeholder="Vacío = no se vende por caja"
+              />
+              {packageHint && <p className="text-xs text-on-surface-variant">{packageHint}</p>}
+            </div>
           </div>
 
           {editId && (
@@ -582,22 +616,14 @@ function ProductForm() {
 
             {form.has_commission && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5 pl-0 sm:pl-14">
-                <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-on-surface block">Tipo de comisión</label>
-                  <div className="relative">
-                    <select
-                      value={form.commission_type}
-                      onChange={(e) => setForm({ ...form, commission_type: e.target.value })}
-                      className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all appearance-none"
-                    >
-                      <option value="percentage">Porcentaje (%)</option>
-                      <option value="fixed">Valor fijo ($)</option>
-                    </select>
-                    <svg className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant pointer-events-none" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                      <polyline points="6 9 12 15 18 9" />
-                    </svg>
-                  </div>
-                </div>
+                <Select
+                  label="Tipo de comisión"
+                  value={form.commission_type}
+                  onChange={(e) => setForm({ ...form, commission_type: e.target.value })}
+                >
+                  <option value="percentage">Porcentaje (%)</option>
+                  <option value="fixed">Valor fijo ($)</option>
+                </Select>
                 <div className="space-y-1.5">
                   <label className="text-[13px] font-semibold text-on-surface block">
                     {form.commission_type === "fixed" ? "Valor por unidad ($)" : "Porcentaje (%)"}
@@ -616,47 +642,6 @@ function ProductForm() {
               </div>
             )}
           </div>
-        </div>
-
-        <div className="bg-surface-container rounded-2xl sm:rounded-3xl border border-outline-variant/10 shadow-sm p-4 sm:p-8 space-y-5">
-          <div>
-            <h2 className="text-lg font-bold text-on-surface mb-1">Imagen del Producto</h2>
-            <p className="text-sm text-on-surface-variant">Sube una foto para identificar el producto visualmente</p>
-          </div>
-
-          {imagePreview ? (
-            <div className="flex items-center gap-6">
-              <div className="relative w-28 h-28 rounded-2xl overflow-hidden border border-outline-variant/20 bg-surface-container-lowest shrink-0">
-                <Image src={imagePreview} alt="Vista previa" fill sizes="112px" unoptimized className="object-cover" />
-              </div>
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-on-surface">Imagen cargada</p>
-                <button type="button" onClick={resetImage} className="text-sm font-medium text-error hover:text-error-dim transition-colors">
-                  Quitar imagen
-                </button>
-              </div>
-            </div>
-          ) : (
-            <label
-              className={`flex flex-col items-center justify-center gap-3 w-full py-10 rounded-2xl border-2 border-dashed bg-surface-container-lowest text-on-surface-variant cursor-pointer transition-all ${
-                dragOver ? "border-primary bg-primary/5" : "border-outline-variant/30 hover:border-primary/50 hover:text-on-surface hover:bg-surface-container-lowest/80"
-              }`}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-            >
-              <svg fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-8 h-8">
-                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                <circle cx="8.5" cy="8.5" r="1.5" />
-                <polyline points="21 15 16 10 5 21" />
-              </svg>
-              <div className="text-center">
-                <p className="text-sm font-medium">Arrastra una imagen o haz clic para subir</p>
-                <p className="text-xs text-on-surface-variant/60 mt-1">PNG, JPG, WEBP o GIF</p>
-              </div>
-              <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={handleImageChange} className="hidden" />
-            </label>
-          )}
         </div>
 
         {error && <p className="text-sm text-error bg-error-container/10 rounded-xl px-4 py-3 border border-error-container/20">{error}</p>}
@@ -690,6 +675,13 @@ function ProductForm() {
         <DistributorQuickModal
           onClose={() => setDistributorModalOpen(false)}
           onCreated={handleDistributorCreated}
+        />
+      )}
+
+      {categoryModalOpen && (
+        <CategoryQuickModal
+          onClose={() => setCategoryModalOpen(false)}
+          onCreated={(id) => setForm((prev) => ({ ...prev, category_id: id }))}
         />
       )}
     </div>

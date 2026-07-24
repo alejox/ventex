@@ -1,4 +1,5 @@
 import { createClient } from "@/utils/supabase/client";
+import { toWebp } from "@/lib/image";
 
 // ---- Tipos del dominio de inventario ----
 export interface DistributorBrief {
@@ -18,9 +19,13 @@ export interface Product {
   distributor_id: string | null;
   parent_product_id: string | null;
   sku: string;
+  /** Código del fabricante (EAN-13 / UPC) impreso en el empaque. */
+  barcode: string | null;
   unit: string;
   purchase_price?: number;
   price: number;
+  /** Precio de venta de la CAJA (IVA incluido). null = no se vende por caja. */
+  package_price: number | null;
   stock_level: number;
   minimum_stock: number;
   image_url: string | null;
@@ -54,9 +59,11 @@ export interface NewProductInput {
   distributor_id: string;
   parent_product_id?: string;
   sku: string;
+  barcode?: string;
   unit: string;
   purchase_price: string;
   price: string;
+  package_price?: string;
   stock_level?: string;
   image_url: string;
   has_commission: boolean;
@@ -88,7 +95,7 @@ export interface NewCategoryInput {
  * Si agregás una columna a la tabla, agregala también acá y al GRANT.
  */
 const PRODUCT_COLUMNS =
-  "id, created_at, updated_at, user_id, name, sku, price, stock_level, image_url, status, " +
+  "id, created_at, updated_at, user_id, name, sku, barcode, price, package_price, stock_level, image_url, status, " +
   "category_id, unit, distributor_id, minimum_stock, icon, has_commission, commission_type, " +
   "commission_value, units_per_package, parent_product_id";
 
@@ -136,12 +143,16 @@ export async function uploadProductImage(file: File): Promise<string> {
   } = await supabase.auth.getUser();
   if (!user) throw new Error("No hay sesión activa");
 
-  const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+  // Se convierte acá y no en cada formulario: así toda foto que entre al bucket
+  // pasa por la misma compresión, venga del alta rápida o del form avanzado.
+  const optimized = await toWebp(file);
+
+  const ext = optimized.name.split(".").pop()?.toLowerCase() || "jpg";
   const path = `${user.id}/${crypto.randomUUID()}.${ext}`;
 
   const { error } = await supabase.storage
     .from(PRODUCT_IMAGES_BUCKET)
-    .upload(path, file, { cacheControl: "3600", upsert: false });
+    .upload(path, optimized, { cacheControl: "3600", upsert: false });
   if (error) throw error;
 
   const { data } = supabase.storage.from(PRODUCT_IMAGES_BUCKET).getPublicUrl(path);
@@ -204,6 +215,29 @@ function costPatch(raw: string): { purchase_price?: number } {
   return raw.trim() !== "" && Number.isFinite(value) ? { purchase_price: value } : {};
 }
 
+/**
+ * El código de barras vacío se guarda como NULL, nunca como "".
+ *
+ * El índice único es por (user_id, barcode) y solo ignora los NULL: si se
+ * guardara la cadena vacía, el segundo producto sin código chocaría contra el
+ * primero con un error de duplicado.
+ */
+/**
+ * Precio de caja vacío = NULL, no 0.
+ *
+ * Un 0 significaría "la caja sale gratis" y `create_sale` la dejaría vender;
+ * NULL es lo que hace que el producto simplemente no se venda por caja.
+ */
+function normalizePackagePrice(raw: string | undefined): number | null {
+  const value = parseFloat((raw ?? "").trim());
+  return Number.isFinite(value) && value > 0 ? value : null;
+}
+
+function normalizeBarcode(raw: string | undefined): string | null {
+  const value = (raw ?? "").trim();
+  return value === "" ? null : value;
+}
+
 export async function createProduct(input: NewProductInput): Promise<Product> {
   const supabase = createClient();
   const { data, error } = await supabase
@@ -214,9 +248,11 @@ export async function createProduct(input: NewProductInput): Promise<Product> {
       distributor_id: input.distributor_id || null,
       parent_product_id: input.parent_product_id || null,
       sku: input.sku,
+      barcode: normalizeBarcode(input.barcode),
       unit: input.unit,
       ...costPatch(input.purchase_price),
       price: parseFloat(input.price),
+      package_price: normalizePackagePrice(input.package_price),
       stock_level: parseInt(input.stock_level || "0"),
       image_url: input.image_url || null,
       has_commission: input.has_commission,
@@ -243,9 +279,11 @@ export async function updateProduct(id: string, input: NewProductInput): Promise
       distributor_id: input.distributor_id || null,
       parent_product_id: input.parent_product_id || null,
       sku: input.sku,
+      barcode: normalizeBarcode(input.barcode),
       unit: input.unit,
       ...costPatch(input.purchase_price),
       price: parseFloat(input.price),
+      package_price: normalizePackagePrice(input.package_price),
       stock_level: parseInt(input.stock_level || "0"),
       image_url: input.image_url || null,
       has_commission: input.has_commission,

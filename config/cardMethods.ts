@@ -66,3 +66,9 @@ export const COLOMBIA_CARD_METHODS: CardMethodOption[] = [
 ];
 
 export const DEFAULT_CARD_METHODS = ["bold", "credibanco", "redeban", "sumup", "mercadopago"];
+
+export function getCardMethodName(id: string | null | undefined): string {
+  if (!id) return "";
+  const match = COLOMBIA_CARD_METHODS.find((m) => m.id === id);
+  return match ? match.shortName : id;
+}

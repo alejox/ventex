@@ -6,6 +6,7 @@ import { useCustomersStore } from "@/stores/customers.store";
 import { useServicesStore } from "@/stores/services.store";
 import { useStaffStore } from "@/stores/staff.store";
 import { useProfile } from "@/components/ProfileProvider";
+import { Select } from "@/components/ui/Select";
 import type { Appointment, NewAppointmentInput } from "@/services/appointments.service";
 
 interface AppointmentModalProps {
@@ -237,67 +238,52 @@ function AppointmentModalBody({
           </div>
 
           {/* Customer */}
-          <div className="space-y-1.5">
-            <label className="text-[13px] font-semibold text-on-surface block">
-              Cliente
-            </label>
-            <select
-              value={form.customer_id || ""}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  customer_id: e.target.value || null,
-                })
-              }
-              className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
-            >
+          <Select
+            label="Cliente"
+            value={form.customer_id || ""}
+            onChange={(e) =>
+              setForm({
+                ...form,
+                customer_id: e.target.value || null,
+              })
+            }
+          >
               <option value="">Sin cliente</option>
               {customers.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.full_name}
                 </option>
               ))}
-            </select>
-          </div>
+            </Select>
 
           {/* Service + Barber */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <label className="text-[13px] font-semibold text-on-surface block">
-                Servicio
-              </label>
-              <select
-                value={form.service_id || ""}
-                onChange={(e) => handleServiceChange(e.target.value)}
-                className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
-              >
+            <Select
+              label="Servicio"
+              value={form.service_id || ""}
+              onChange={(e) => handleServiceChange(e.target.value)}
+            >
                 <option value="">Sin servicio</option>
                 {activeServices.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name}
                   </option>
                 ))}
-              </select>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[13px] font-semibold text-on-surface block">
-                Asignado a
-              </label>
-              <select
-                value={form.staff_id || ""}
-                onChange={(e) =>
-                  setForm({ ...form, staff_id: e.target.value || null })
-                }
-                className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
-              >
+              </Select>
+            <Select
+              label="Asignado a"
+              value={form.staff_id || ""}
+              onChange={(e) =>
+                setForm({ ...form, staff_id: e.target.value || null })
+              }
+            >
                 <option value="">Sin asignar</option>
                 {activeStaff.map((m) => (
                   <option key={m.id} value={m.id}>
                     {m.full_name}
                   </option>
                 ))}
-              </select>
-            </div>
+              </Select>
           </div>
 
           {/* Vehículo (lavaautos) */}

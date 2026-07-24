@@ -6,6 +6,8 @@ interface ReceiptItem {
   name: string;
   sku: string | null;
   quantity: number;
+  /** "Caja x24 u." cuando la línea es una caja; ausente si es unidad suelta. */
+  packageLabel?: string | null;
   price: number;
   total: number;
 }
@@ -145,7 +147,11 @@ export function PosReceipt({ data }: Props) {
                   <tr key={i}>
                     <td className="py-1 pr-2">
                       <span className="font-medium">{item.name}</span>
-                      {item.sku && <span className="text-gray-500 block">SKU: {item.sku}</span>}
+                      {item.packageLabel ? (
+                        <span className="text-gray-500 block">{item.packageLabel}</span>
+                      ) : (
+                        item.sku && <span className="text-gray-500 block">SKU: {item.sku}</span>
+                      )}
                     </td>
                     <td className="py-1 text-center">{item.quantity}</td>
                     <td className="py-1 text-right">{fmt(item.total)}</td>

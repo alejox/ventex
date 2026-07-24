@@ -377,6 +377,7 @@ export type Database = {
       inventory_movements: {
         Row: {
           created_at: string
+          created_by: string | null
           id: string
           notes: string | null
           product_id: string
@@ -388,6 +389,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          created_by?: string | null
           id?: string
           notes?: string | null
           product_id: string
@@ -399,6 +401,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          created_by?: string | null
           id?: string
           notes?: string | null
           product_id?: string
@@ -409,6 +412,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "inventory_movements_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "inventory_movements_product_id_fkey"
             columns: ["product_id"]
@@ -684,6 +694,7 @@ export type Database = {
       }
       products: {
         Row: {
+          barcode: string | null
           category_id: string | null
           commission_type: string | null
           commission_value: number | null
@@ -695,6 +706,7 @@ export type Database = {
           image_url: string | null
           minimum_stock: number
           name: string
+          package_price: number | null
           parent_product_id: string | null
           price: number
           purchase_price: number
@@ -707,6 +719,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          barcode?: string | null
           category_id?: string | null
           commission_type?: string | null
           commission_value?: number | null
@@ -718,6 +731,7 @@ export type Database = {
           image_url?: string | null
           minimum_stock?: number
           name: string
+          package_price?: number | null
           parent_product_id?: string | null
           price?: number
           purchase_price?: number
@@ -730,6 +744,7 @@ export type Database = {
           user_id?: string
         }
         Update: {
+          barcode?: string | null
           category_id?: string | null
           commission_type?: string | null
           commission_value?: number | null
@@ -741,6 +756,7 @@ export type Database = {
           image_url?: string | null
           minimum_stock?: number
           name?: string
+          package_price?: number | null
           parent_product_id?: string | null
           price?: number
           purchase_price?: number
@@ -938,7 +954,9 @@ export type Database = {
           service_id: string | null
           sku: string | null
           staff_id: string | null
+          unit_kind: string
           unit_price: number
+          units_per_item: number
           user_id: string
         }
         Insert: {
@@ -952,7 +970,9 @@ export type Database = {
           service_id?: string | null
           sku?: string | null
           staff_id?: string | null
+          unit_kind?: string
           unit_price: number
+          units_per_item?: number
           user_id?: string
         }
         Update: {
@@ -966,7 +986,9 @@ export type Database = {
           service_id?: string | null
           sku?: string | null
           staff_id?: string | null
+          unit_kind?: string
           unit_price?: number
+          units_per_item?: number
           user_id?: string
         }
         Relationships: [
@@ -1128,6 +1150,7 @@ export type Database = {
         Row: {
           allow_oversell: boolean
           business_profile: Json | null
+          card_methods_enabled: Json
           created_at: string
           currency: string
           id: string
@@ -1140,6 +1163,7 @@ export type Database = {
         Insert: {
           allow_oversell?: boolean
           business_profile?: Json | null
+          card_methods_enabled?: Json
           created_at?: string
           currency?: string
           id?: string
@@ -1152,6 +1176,7 @@ export type Database = {
         Update: {
           allow_oversell?: boolean
           business_profile?: Json | null
+          card_methods_enabled?: Json
           created_at?: string
           currency?: string
           id?: string

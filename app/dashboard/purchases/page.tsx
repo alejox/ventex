@@ -9,6 +9,8 @@ import { useDistributorsStore } from "@/stores/distributors.store";
 import { useInventoryStore } from "@/stores/inventory.store";
 import { DistributorQuickModal } from "@/components/DistributorQuickModal";
 import { CategoryQuickModal } from "@/components/CategoryQuickModal";
+import { Select } from "@/components/ui/Select";
+import { useBusinessTax } from "@/lib/useBusinessTax";
 import { PurchaseInvoiceDetailModal } from "@/components/PurchaseInvoiceDetailModal";
 import { ProductModal } from "@/components/ProductModal";
 import { DataTable, type DataColumn } from "@/components/DataTable";
@@ -99,7 +101,7 @@ export default function PurchasesPage() {
     setIssueDate(invoice.issue_date);
     setSupplierInvoiceNumber(invoice.supplier_invoice_number ?? "");
     setStatus(invoice.status);
-    setTaxRate(invoice.tax_rate > 0 ? "19%" : "Ninguno");
+    setTaxRate(invoice.tax_rate > 0 ? "IVA" : "Ninguno");
     setDiscountAmount(String(invoice.discount_amount));
     try {
       const items = await purchasesService.fetchPurchaseInvoiceItems(invoice.id);
@@ -163,7 +165,18 @@ export default function PurchasesPage() {
     setProductSearch("");
   }, []);
 
-  const taxMultiplier = taxRate === "Ninguno" ? 0 : 0.19;
+  /**
+   * La tasa sale de los ajustes del negocio, no de un 19% escrito a mano.
+   *
+   * Dos diferencias con el lado de las ventas, y las dos importan:
+   * 1. Se usa `rawRate` y no `rate`: un negocio NO responsable de IVA igual lo
+   *    paga a sus proveedores, solo que no puede descontarlo. Con `rate` el
+   *    impuesto de la factura de compra desaparecería.
+   * 2. Acá el IVA se SUMA (base + impuesto), porque así llega la factura del
+   *    proveedor. Los precios del catálogo, al revés, ya lo traen incluido.
+   */
+  const { rawRate: businessTaxRate, rawPercentLabel: percentLabel } = useBusinessTax();
+  const taxMultiplier = taxRate === "Ninguno" ? 0 : businessTaxRate;
   const subtotal = useMemo(
     () => lines.reduce((s, l) => s + l.quantity * l.unit_price, 0),
     [lines]
@@ -203,7 +216,7 @@ export default function PurchasesPage() {
       supplier_invoice_number: supplierInvoiceNumber,
       status,
       items: validLines,
-      tax_rate: taxRate === "Ninguno" ? 0 : 0.19,
+      tax_rate: taxRate === "Ninguno" ? 0 : businessTaxRate,
       discount_amount: discount,
     };
 
@@ -283,22 +296,29 @@ export default function PurchasesPage() {
       align: "center",
       mobile: "badge",
       cell: (inv) => (
-        <select
-          value={inv.status}
-          onChange={(e) => updateStatus(inv.id, e.target.value)}
-          aria-label={`Estado de la factura #${inv.invoice_number}`}
-          className={`text-[11px] font-bold border rounded-md px-2.5 py-1 appearance-none cursor-pointer focus:outline-none ${
-            inv.status === "paid"
-              ? "bg-[#10b981]/10 text-[#10b981] border-[#10b981]/20"
-              : inv.status === "pending"
-                ? "bg-amber-100 text-amber-700 border-amber-200"
-                : "bg-surface-variant text-on-surface-variant border-transparent"
-          }`}
-        >
-          <option value="paid">Pagada</option>
-          <option value="pending">Pendiente</option>
-          <option value="cancelled">Anulada</option>
-        </select>
+        <div className="flex items-center gap-2">
+          <span
+            aria-hidden="true"
+            className={`w-2 h-2 rounded-full shrink-0 ${
+              inv.status === "paid"
+                ? "bg-[#10b981]"
+                : inv.status === "pending"
+                  ? "bg-amber-500"
+                  : "bg-on-surface-variant/40"
+            }`}
+          />
+          <Select
+            size="sm"
+            containerClassName="w-32"
+            value={inv.status}
+            onChange={(e) => updateStatus(inv.id, e.target.value)}
+            aria-label={`Estado de la factura #${inv.invoice_number}`}
+          >
+            <option value="paid">Pagada</option>
+            <option value="pending">Pendiente</option>
+            <option value="cancelled">Anulada</option>
+          </Select>
+        </div>
       ),
     },
     {
@@ -422,16 +442,17 @@ export default function PurchasesPage() {
                 <path d="m21 21-4.35-4.35" />
               </svg>
             </div>
-            <select
+            <Select
+              aria-label="Filtrar por proveedor"
+              containerClassName="w-full sm:w-56"
               value={filterDistributorId}
               onChange={(e) => setFilterDistributorId(e.target.value)}
-              className="bg-surface-container-lowest border border-outline-variant/20 rounded-xl py-2 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
             >
               <option value="">Todos los proveedores</option>
               {distributors.map((d) => (
                 <option key={d.id} value={d.id}>{d.business_name}</option>
               ))}
-            </select>
+            </Select>
           </div>
           <DataTable
             rows={filteredInvoices}
@@ -468,13 +489,13 @@ export default function PurchasesPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-on-surface block">Proveedor</label>
-                  <div className="flex gap-2">
-                    <select
-                      required
+                  <label htmlFor="purchase-distributor" className="text-[13px] font-semibold text-on-surface block">Proveedor</label>
+                  <div className="flex gap-2 items-center">
+                    <Select
+                      id="purchase-distributor"
+                      containerClassName="flex-1 min-w-0"
                       value={distributorId}
                       onChange={(e) => setDistributorId(e.target.value)}
-                      className="flex-1 bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all appearance-none"
                     >
                       <option value="">Seleccionar proveedor…</option>
                       {distributors
@@ -484,7 +505,7 @@ export default function PurchasesPage() {
                             {d.business_name}
                           </option>
                         ))}
-                    </select>
+                    </Select>
                     <button
                       type="button"
                       onClick={() => setDistributorModalOpen(true)}
@@ -528,29 +549,23 @@ export default function PurchasesPage() {
                     placeholder="N° factura del proveedor"
                   />
                 </div>
-                <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-on-surface block">Estado</label>
-                  <select
-                    value={status}
-                    onChange={(e) => setStatus(e.target.value)}
-                    className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all appearance-none"
-                  >
-                    <option value="paid">Pagada</option>
-                    <option value="pending">Pendiente</option>
-                    <option value="cancelled">Anulada</option>
-                  </select>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-on-surface block">IVA</label>
-                  <select
-                    value={taxRate}
-                    onChange={(e) => setTaxRate(e.target.value)}
-                    className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all appearance-none"
-                  >
-                    <option value="Ninguno">Ninguno</option>
-                    <option value="19%">19%</option>
-                  </select>
-                </div>
+                <Select
+                  label="Estado"
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value)}
+                >
+                  <option value="paid">Pagada</option>
+                  <option value="pending">Pendiente</option>
+                  <option value="cancelled">Anulada</option>
+                </Select>
+                <Select
+                  label="IVA"
+                  value={taxRate}
+                  onChange={(e) => setTaxRate(e.target.value)}
+                >
+                  <option value="Ninguno">Ninguno</option>
+                  <option value="IVA">{percentLabel}</option>
+                </Select>
                 <div className="space-y-1.5">
                   <label className="text-[13px] font-semibold text-on-surface block">Descuento ($)</label>
                   <input
@@ -705,7 +720,7 @@ export default function PurchasesPage() {
                 </div>
                 {taxMultiplier > 0 && (
                   <div className="flex items-center gap-4 text-sm text-on-surface-variant">
-                    <span>IVA (19%):</span>
+                    <span>IVA ({percentLabel}):</span>
                     <span className="font-mono w-28 text-right">{money(taxAmount)}</span>
                   </div>
                 )}
