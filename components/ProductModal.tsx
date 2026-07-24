@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useInventoryStore } from "@/stores/inventory.store";
-import { generateSku } from "@/services/inventory.service";
 import { CategoryQuickModal } from "@/components/CategoryQuickModal";
 import { BarcodeField } from "@/components/BarcodeField";
 import { useBusinessTax } from "@/lib/useBusinessTax";
@@ -67,8 +66,16 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
   const [bodega, setBodega] = useState("Principal");
   const [quantity, setQuantity] = useState("0");
   const [unitsPerPackage, setUnitsPerPackage] = useState("24");
+  /** Unidad o caja: define cómo se cuenta el stock y si se ofrece precio de caja. */
+  const [presentation, setPresentation] = useState<"unit" | "package">("unit");
   const [tax, setTax] = useState("IVA");
   const [packageSellingPrice, setPackageSellingPrice] = useState("");
+
+  /** El stock siempre se guarda en unidades sueltas: una caja son N. */
+  const initialStock =
+    presentation === "package"
+      ? (parseInt(quantity || "0") || 0) * Math.max(parseInt(unitsPerPackage || "1") || 1, 1)
+      : parseInt(quantity || "0") || 0;
 
   // Base y total, editables por los dos lados: escribir uno recalcula el otro.
   const purchaseMultiplier = tax === "Ninguno" ? 1 : 1 + rawRate;
@@ -90,20 +97,22 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
         name,
         category_id: categoryId,
         distributor_id: "",
-        sku: generateSku(),
+        // Vacío: el servicio genera el código interno. El alta rápida no pide
+        // SKU a propósito — es el camino de los 20 segundos.
+        sku: "",
         // Un servicio no tiene empaque, así que no lleva código de barras.
         barcode: isService ? "" : barcode,
         // Vacío = este producto no se vende por caja.
-        package_price: isService ? "" : packageSellingPrice,
+        package_price: isService || presentation !== "package" ? "" : packageSellingPrice,
         unit,
         purchase_price: isService ? "0" : packagePrice.total,
         price: sellingPrice,
-        stock_level: isService ? "0" : String(parseInt(quantity || "0") * parseInt(unitsPerPackage || "1")),
+        stock_level: isService ? "0" : String(initialStock),
         image_url: "",
         has_commission: false,
         commission_type: "percentage",
         commission_value: "",
-        units_per_package: isService ? "1" : (unitsPerPackage || "1"),
+        units_per_package: isService || presentation !== "package" ? "1" : (unitsPerPackage || "1"),
       },
       // El store sube la foto y guarda su URL; el servicio la convierte a WebP.
       isService ? null : imageFile,
@@ -292,39 +301,80 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
                   <option value="Principal">Principal</option>
                 </Select>
 
-                {/* Cantidad de paquetes */}
+              </>
+            )}
+          </div>
+
+          {/* Presentación y stock. Mismo lenguaje que el formulario avanzado:
+              el stock se cuenta en unidades sueltas y la caja solo dice cuántas
+              trae cada una. */}
+          {type === "Producto" && (
+            <div className="space-y-3">
+              <label className="flex items-center gap-1 text-sm font-semibold text-on-surface">
+                Presentación y stock inicial <span className="text-primary">*</span>
+              </label>
+
+              <div className="flex gap-3">
+                {(["unit", "package"] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => setPresentation(mode)}
+                    className={`flex-1 py-2 rounded-lg text-xs font-medium border transition-colors ${
+                      presentation === mode
+                        ? "border-primary text-primary bg-primary/5"
+                        : "border-outline-variant/30 text-on-surface-variant hover:bg-surface-container-low"
+                    }`}
+                  >
+                    {mode === "unit" ? "Unidad" : "Caja"}
+                  </button>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="flex items-center gap-1 text-sm font-semibold text-on-surface">
-                    Paquetes en stock <span className="text-primary">*</span>
+                  <label htmlFor="quick-quantity" className="text-[13px] font-semibold text-on-surface block">
+                    {presentation === "package" ? "Cajas que estás cargando" : "Unidades en stock"}
                   </label>
                   <input
+                    id="quick-quantity"
                     type="number"
                     min="0"
                     value={quantity}
                     onChange={(e) => setQuantity(e.target.value)}
                     required
-                    className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                    className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-base sm:text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
                   />
                 </div>
 
-            {/* Unidades por paquete (opcional) */}
-                <div className="space-y-1.5">
-                  <label className="flex items-center gap-1 text-sm font-semibold text-on-surface">
-                    Unidades por paquete
-                    <span className="text-xs text-on-surface-variant font-normal">(opcional)</span>
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={unitsPerPackage}
-                    onChange={(e) => setUnitsPerPackage(e.target.value)}
-                    className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-                    placeholder="Ej. 24"
-                  />
-                </div>
-              </>
-            )}
-          </div>
+                {presentation === "package" && (
+                  <div className="space-y-1.5">
+                    <label htmlFor="quick-units-per-package" className="text-[13px] font-semibold text-on-surface block">
+                      Unidades por caja
+                    </label>
+                    <input
+                      id="quick-units-per-package"
+                      type="number"
+                      min="1"
+                      value={unitsPerPackage}
+                      onChange={(e) => setUnitsPerPackage(e.target.value)}
+                      className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-base sm:text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                      placeholder="Ej. 60"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {presentation === "package" && (
+                <p className="text-sm text-on-surface">
+                  Stock inicial: <strong className="font-mono text-primary">{initialStock}</strong> unidades
+                  <span className="text-xs text-on-surface-variant font-normal">
+                    {" "}({quantity || "0"} × {unitsPerPackage || "1"})
+                  </span>
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Sección de precios */}
           {type === "Producto" ? (
@@ -415,21 +465,23 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
                   </div>
                 </div>
 
-                {/* Vender también por caja. El stock se sigue contando en
-                    unidades: vender una caja descuenta las que trae. */}
-                <div className="space-y-1 pt-3 border-t border-outline-variant/10">
-                  <label htmlFor="package-price" className="flex items-center gap-1 text-xs font-semibold text-on-surface">
-                    Precio de venta por caja de {unitsPerPackage || "1"}
-                    <span className="text-on-surface-variant font-normal">(opcional)</span>
-                  </label>
-                  <MoneyInput
-                    id="package-price"
-                    aria-label="Precio de venta por caja"
-                    value={packageSellingPrice}
-                    onChange={setPackageSellingPrice}
-                    placeholder="Vacío = no se vende por caja"
-                  />
-                </div>
+                {/* Vender también por caja. Solo tiene sentido si el producto
+                    se maneja por caja; si no, el campo sobra. */}
+                {presentation === "package" && (
+                  <div className="space-y-1 pt-3 border-t border-outline-variant/10">
+                    <label htmlFor="package-price" className="flex items-center gap-1 text-xs font-semibold text-on-surface">
+                      Precio de venta por caja de {unitsPerPackage || "1"}
+                      <span className="text-on-surface-variant font-normal">(opcional)</span>
+                    </label>
+                    <MoneyInput
+                      id="package-price"
+                      aria-label="Precio de venta por caja"
+                      value={packageSellingPrice}
+                      onChange={setPackageSellingPrice}
+                      placeholder="Vacío = no se vende por caja"
+                    />
+                  </div>
+                )}
               </div>
             </div>
           ) : (

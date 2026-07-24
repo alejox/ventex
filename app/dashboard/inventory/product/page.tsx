@@ -66,6 +66,14 @@ function ProductForm() {
   const [seededId, setSeededId] = useState<string | null>(null);
   const [distributorModalOpen, setDistributorModalOpen] = useState(false);
   const [categoryModalOpen, setCategoryModalOpen] = useState(false);
+  /**
+   * Cómo se maneja el producto. Arranca en "unidad" porque es lo que aplica a
+   * la mayoría; la caja es una decisión que se toma, no un default que se sufre.
+   * En edición se siembra según lo que ya tenga guardado.
+   */
+  const [presentation, setPresentation] = useState<"unit" | "package">("unit");
+  const [initialUnits, setInitialUnits] = useState("");
+  const [initialPackages, setInitialPackages] = useState("");
   const [purchasePriceTax, setPurchasePriceTax] = useState("IVA");
   const [sellingPriceTax, setSellingPriceTax] = useState("IVA");
 
@@ -102,6 +110,12 @@ function ProductForm() {
   useEffect(() => {
     fetchInventory();
   }, [fetchInventory]);
+
+  /** Stock inicial en unidades sueltas: una caja son N. */
+  const initialStock =
+    presentation === "package"
+      ? (parseInt(initialPackages || "0") || 0) * Math.max(parseInt(form.units_per_package || "1") || 1, 1)
+      : parseInt(initialUnits || "0") || 0;
 
   const packageHint = (() => {
     const boxPrice = parseFloat(form.package_price ?? "");
@@ -145,6 +159,7 @@ function ProductForm() {
       commission_value: editingProduct.commission_value ? String(editingProduct.commission_value) : "",
       units_per_package: editingProduct.units_per_package ? String(editingProduct.units_per_package) : "1",
     });
+    setPresentation((editingProduct.units_per_package ?? 1) > 1 ? "package" : "unit");
     setPurchase.fromTotal(String(editingProduct.purchase_price ?? "0"));
     setSelling.fromTotal(String(editingProduct.price ?? "0"));
     if (editingProduct.image_url) setImagePreview(editingProduct.image_url);
@@ -203,7 +218,11 @@ function ProductForm() {
       ...form,
       purchase_price: purchasePriceTotal,
       price: sellingPriceTotal,
-      stock_level: editId ? String(form.stock_level || "0") : "0",
+      // Crear es DECLARAR lo que hay; cambiarlo después es un movimiento, que
+      // sí deja motivo, fecha y responsable.
+      stock_level: editId ? String(form.stock_level || "0") : String(initialStock),
+      units_per_package: presentation === "package" ? (form.units_per_package || "1") : "1",
+      package_price: presentation === "package" ? form.package_price : "",
     };
     const ok = editId
       ? await updateProduct(editId, payload, imageFile)
@@ -400,14 +419,16 @@ function ProductForm() {
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-5">
             <div className="space-y-1.5">
-              <label className="text-[13px] font-semibold text-on-surface block">SKU</label>
+              <label htmlFor="product-sku" className="text-[13px] font-semibold text-on-surface block">
+                SKU <span className="text-on-surface-variant font-normal">(opcional)</span>
+              </label>
               <input
+                id="product-sku"
                 type="text"
                 value={form.sku}
                 onChange={(e) => setForm({ ...form, sku: e.target.value })}
-                className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all font-mono placeholder:text-on-surface-variant/50"
-                placeholder="Ej. QSO-001"
-                required
+                className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-base sm:text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all font-mono placeholder:text-on-surface-variant/50"
+                placeholder="Se genera solo si lo dejas vacío"
               />
             </div>
 
@@ -514,51 +535,130 @@ function ProductForm() {
             )}
           </div>
 
-          {/* Venta por caja. El stock SIEMPRE se cuenta en unidades sueltas:
-              vender una caja descuenta las que trae. Sin precio de caja el
-              producto simplemente no se ofrece por caja en el POS. */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
-            <div className="space-y-1.5">
-              <label className="text-[13px] font-semibold text-on-surface block">
-                Unidades por Caja <span className="text-on-surface-variant font-normal">(opcional)</span>
-              </label>
-              <input
-                type="number"
-                min="1"
-                value={form.units_per_package}
-                onChange={(e) => setForm({ ...form, units_per_package: e.target.value })}
-                className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-on-surface-variant/50"
-                placeholder="Ej. 24"
-              />
+          {/* Presentación y stock en UNA sección.
+              El stock siempre se cuenta en unidades sueltas; la caja es solo la
+              forma de contarlas al cargar y de cobrarlas al vender. */}
+          <div className="border-t border-outline-variant/10 pt-6 space-y-5">
+            <div>
+              <h3 className="text-base font-bold text-on-surface">Presentación y stock</h3>
+              <p className="text-xs text-on-surface-variant mt-1">
+                ¿Este producto se maneja suelto o por caja?
+              </p>
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-[13px] font-semibold text-on-surface block">
-                Precio de venta por Caja <span className="text-on-surface-variant font-normal">(opcional)</span>
-              </label>
-              <MoneyInput
-                aria-label="Precio de venta por caja"
-                value={form.package_price ?? ""}
-                onChange={(raw) => setForm({ ...form, package_price: raw })}
-                placeholder="Vacío = no se vende por caja"
-              />
-              {packageHint && <p className="text-xs text-on-surface-variant">{packageHint}</p>}
+            <div className="flex gap-2 sm:gap-3 max-w-sm">
+              {(["unit", "package"] as const).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setPresentation(mode)}
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-medium border transition-colors ${
+                    presentation === mode
+                      ? "border-primary text-primary bg-primary/5"
+                      : "border-outline-variant/30 text-on-surface hover:bg-surface-container-low"
+                  }`}
+                >
+                  {mode === "unit" ? "Unidad" : "Caja"}
+                </button>
+              ))}
             </div>
+
+            {presentation === "package" ? (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
+                  <div className="space-y-1.5">
+                    <label htmlFor="units-per-package" className="text-[13px] font-semibold text-on-surface block">
+                      Unidades por caja
+                    </label>
+                    <input
+                      id="units-per-package"
+                      type="number"
+                      min="1"
+                      value={form.units_per_package}
+                      onChange={(e) => setForm({ ...form, units_per_package: e.target.value })}
+                      className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-base sm:text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-on-surface-variant/50"
+                      placeholder="Ej. 60"
+                    />
+                  </div>
+
+                  {!editId && (
+                    <div className="space-y-1.5">
+                      <label htmlFor="initial-packages" className="text-[13px] font-semibold text-on-surface block">
+                        Cajas que estás cargando
+                      </label>
+                      <input
+                        id="initial-packages"
+                        type="number"
+                        min="0"
+                        value={initialPackages}
+                        onChange={(e) => setInitialPackages(e.target.value)}
+                        className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-base sm:text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-on-surface-variant/50"
+                        placeholder="Ej. 4"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {!editId && (
+                  <p className="text-sm text-on-surface">
+                    Stock inicial:{" "}
+                    <strong className="font-mono text-primary">{initialStock}</strong> unidades
+                    <span className="text-xs text-on-surface-variant font-normal">
+                      {" "}({initialPackages || "0"} × {form.units_per_package || "1"})
+                    </span>
+                  </p>
+                )}
+
+                <div className="space-y-1.5 max-w-sm">
+                  <label className="text-[13px] font-semibold text-on-surface block">
+                    Precio de venta por caja <span className="text-on-surface-variant font-normal">(opcional)</span>
+                  </label>
+                  <MoneyInput
+                    aria-label="Precio de venta por caja"
+                    value={form.package_price ?? ""}
+                    onChange={(raw) => setForm({ ...form, package_price: raw })}
+                    placeholder="Vacío = no se vende por caja"
+                  />
+                  {packageHint && <p className="text-xs text-on-surface-variant">{packageHint}</p>}
+                </div>
+              </div>
+            ) : (
+              !editId && (
+                <div className="space-y-1.5 max-w-sm">
+                  <label htmlFor="initial-units" className="text-[13px] font-semibold text-on-surface block">
+                    Stock inicial <span className="text-on-surface-variant font-normal">(unidades)</span>
+                  </label>
+                  <input
+                    id="initial-units"
+                    type="number"
+                    min="0"
+                    value={initialUnits}
+                    onChange={(e) => setInitialUnits(e.target.value)}
+                    className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-base sm:text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-on-surface-variant/50"
+                    placeholder="Ej. 25"
+                  />
+                </div>
+              )
+            )}
+
+            {/* En EDICIÓN el stock no se toca acá: cambiarlo a mano sería un
+                ajuste sin motivo, sin fecha y sin responsable, y el historial
+                de movimientos dejaría de ser confiable. */}
+            {editId && (
+              <div className="flex flex-wrap items-center gap-4 px-1">
+                <div className="text-sm text-on-surface-variant">
+                  Stock actual: <strong className="text-on-surface">{form.stock_level || "0"}</strong> unidades
+                </div>
+                <a
+                  href={`/dashboard/inventory/movements?product_id=${editId}`}
+                  className="text-xs font-semibold text-primary hover:text-primary-dim transition-colors"
+                >
+                  Ajustar por movimientos →
+                </a>
+              </div>
+            )}
           </div>
 
-          {editId && (
-            <div className="flex items-center gap-4 px-1">
-              <div className="text-sm text-on-surface-variant">
-                Stock actual: <strong className="text-on-surface">{form.stock_level || "0"}</strong>
-              </div>
-              <a
-                href={`/dashboard/inventory/movements?product_id=${editId}`}
-                className="text-xs font-semibold text-primary hover:text-primary-dim transition-colors"
-              >
-                Ver movimientos →
-              </a>
-            </div>
-          )}
 
           {editId && (() => {
             const currentProduct = products.find((p) => p.id === editId);

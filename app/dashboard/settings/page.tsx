@@ -213,6 +213,8 @@ function SettingsForm({ settings }: { settings: Settings }) {
   const [transferMethods, setTransferMethods] = useState<string[]>(
     () => settings.transfer_methods_enabled ?? DEFAULT_TRANSFER_METHODS
   );
+  const [acceptsTransfer, setAcceptsTransfer] = useState(settings.accepts_transfer);
+  const [acceptsCard, setAcceptsCard] = useState(settings.accepts_card);
   const [cardMethods, setCardMethods] = useState<string[]>(
     () => settings.card_methods_enabled ?? DEFAULT_CARD_METHODS
   );
@@ -243,6 +245,8 @@ function SettingsForm({ settings }: { settings: Settings }) {
       allow_oversell: allowOversell,
       currency,
       transfer_methods_enabled: transferMethods,
+      accepts_transfer: acceptsTransfer,
+      accepts_card: acceptsCard,
       card_methods_enabled: cardMethods,
     });
     if (ok) setSaved(true);
@@ -337,11 +341,35 @@ function SettingsForm({ settings }: { settings: Settings }) {
         ))}
       </Select>
 
+      <ToggleSetting
+        title="Cobrar por transferencia"
+        description={
+          acceptsTransfer ? (
+            <>
+              El punto de venta ofrece «Transferencia» como forma de pago. Apágalo si tu negocio solo
+              recibe efectivo: la opción desaparece del cobro.
+            </>
+          ) : (
+            <>
+              «Transferencia» <strong className="text-on-surface">no aparece</strong> entre las formas
+              de pago. Las ventas ya cobradas por transferencia siguen intactas en el historial.
+            </>
+          )
+        }
+        checked={acceptsTransfer}
+        onChange={(v) => {
+          setAcceptsTransfer(v);
+          setSaved(false);
+        }}
+      />
+
+      {acceptsTransfer && (
       <div className="pt-4 border-t border-outline-variant/10 space-y-4">
         <div>
           <h3 className="text-sm font-bold text-on-surface mb-1">Medios de transferencia (Colombia)</h3>
           <p className="text-xs text-on-surface-variant">
-            Selecciona los canales de transferencia habilitados para cobro en el POS.
+            Selecciona los canales que usas. Si no marcas ninguno, el POS no pregunta por cuál
+            entró la plata — es lo normal cuando el negocio tiene una sola cuenta.
           </p>
         </div>
 
@@ -387,12 +415,37 @@ function SettingsForm({ settings }: { settings: Settings }) {
           })}
         </div>
       </div>
+      )}
 
+      <ToggleSetting
+        title="Cobrar con datáfono"
+        description={
+          acceptsCard ? (
+            <>
+              El punto de venta ofrece «Datáfono» como forma de pago. Apágalo si tu negocio solo
+              recibe efectivo y transferencias: la opción desaparece del cobro.
+            </>
+          ) : (
+            <>
+              «Datáfono» <strong className="text-on-surface">no aparece</strong> entre las formas de
+              pago. Las ventas ya cobradas con tarjeta siguen intactas en el historial.
+            </>
+          )
+        }
+        checked={acceptsCard}
+        onChange={(v) => {
+          setAcceptsCard(v);
+          setSaved(false);
+        }}
+      />
+
+      {acceptsCard && (
       <div className="pt-4 border-t border-outline-variant/10 space-y-4">
         <div>
           <h3 className="text-sm font-bold text-on-surface mb-1">Medios de tarjeta (Colombia)</h3>
           <p className="text-xs text-on-surface-variant">
-            Selecciona los datáfonos y pasarelas habilitados para cobro con tarjeta en el POS.
+            Selecciona los datáfonos que usas. Si no marcas ninguno, el POS no pregunta cuál se
+            usó — es lo normal cuando el negocio tiene uno solo.
           </p>
         </div>
 
@@ -438,6 +491,7 @@ function SettingsForm({ settings }: { settings: Settings }) {
           })}
         </div>
       </div>
+      )}
 
       <div className="flex items-center justify-between gap-4 pt-6 mt-4 border-t border-outline-variant/10">
         <span className={`text-sm font-medium text-[#10b981] transition-opacity ${saved ? "opacity-100" : "opacity-0"}`}>

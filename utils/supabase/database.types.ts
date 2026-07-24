@@ -1148,6 +1148,8 @@ export type Database = {
       }
       settings: {
         Row: {
+          accepts_card: boolean
+          accepts_transfer: boolean
           allow_oversell: boolean
           business_profile: Json | null
           card_methods_enabled: Json
@@ -1161,6 +1163,8 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          accepts_card?: boolean
+          accepts_transfer?: boolean
           allow_oversell?: boolean
           business_profile?: Json | null
           card_methods_enabled?: Json
@@ -1174,6 +1178,8 @@ export type Database = {
           user_id?: string
         }
         Update: {
+          accepts_card?: boolean
+          accepts_transfer?: boolean
           allow_oversell?: boolean
           business_profile?: Json | null
           card_methods_enabled?: Json

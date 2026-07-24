@@ -195,6 +195,7 @@ export default function POSPage() {
   const decrement = usePosStore((s) => s.decrement);
   const setQuantity = usePosStore((s) => s.setQuantity);
   const removeFromCart = usePosStore((s) => s.removeFromCart);
+  const setLineKind = usePosStore((s) => s.setLineKind);
   const setCustomer = usePosStore((s) => s.setCustomer);
   const setStaff = usePosStore((s) => s.setStaff);
   const setPaymentMethod = usePosStore((s) => s.setPaymentMethod);
@@ -205,6 +206,31 @@ export default function POSPage() {
   const checkout = usePosStore((s) => s.checkout);
   const transferMethodsEnabled = useSettingsStore((s) => s.settings?.transfer_methods_enabled);
   const cardMethodsEnabled = useSettingsStore((s) => s.settings?.card_methods_enabled);
+  const acceptsCard = useSettingsStore((s) => s.settings?.accepts_card) ?? true;
+  const acceptsTransfer = useSettingsStore((s) => s.settings?.accepts_transfer) ?? true;
+
+  /**
+   * Formas de pago realmente disponibles. Un negocio sin datáfono no tiene por
+   * qué descartar esa opción en cada venta.
+   */
+  const paymentOptions = useMemo(
+    () =>
+      PAYMENT_METHODS.filter(
+        (m) =>
+          (m.value !== "tarjeta" || acceptsCard) &&
+          (m.value !== "transferencia" || acceptsTransfer),
+      ),
+    [acceptsCard, acceptsTransfer],
+  );
+
+  /**
+   * Solo se pregunta CUÁL datáfono si el dueño marcó más de uno. Sin marcar
+   * ninguno se entiende que hay uno solo y preguntar es ruido; con uno solo
+   * marcado, la respuesta ya está dada.
+   */
+  const asksCardMethod = (cardMethodsEnabled?.length ?? 0) > 1;
+  const asksTransferMethod = (transferMethodsEnabled?.length ?? 0) > 1;
+
 
   // Estado local
   const [search, setSearch] = useState("");
@@ -247,6 +273,26 @@ export default function POSPage() {
   const activeTab = useMemo(() => tabs.find(t => t.id === activeTabId) || tabs[0], [tabs, activeTabId]);
 
   const { cart, customerId, staffId, paymentMethod, transferMethod, cardMethod } = activeTab;
+  // El dueño puede apagar el datáfono desde Ajustes con una venta ya abierta en
+  // tarjeta. Sin esto, la venta seguiría apuntando a un medio que el negocio ya
+  // no acepta y el selector quedaría en blanco.
+  useEffect(() => {
+    if (!acceptsCard && paymentMethod === "tarjeta") {
+      setPaymentMethod("efectivo");
+      setCardMethod(null);
+    }
+    if (!acceptsTransfer && paymentMethod === "transferencia") {
+      setPaymentMethod("efectivo");
+      setTransferMethod(null);
+    }
+  }, [
+    acceptsCard,
+    acceptsTransfer,
+    paymentMethod,
+    setPaymentMethod,
+    setCardMethod,
+    setTransferMethod,
+  ]);
 
   /** Lo único que el atajo de teclado necesita saber del render actual. */
   interface KeyboardSnapshot {
@@ -654,18 +700,6 @@ export default function POSPage() {
                             `Stock: ${item.stock_level}`
                           )}
                         </p>
-                        {/* Vender la caja entera. Solo aparece si el producto
-                            tiene precio de caja: sin precio no hay caja que
-                            vender, y el servidor rechazaría la línea. */}
-                        {item.package_price != null && (
-                          <button
-                            type="button"
-                            onClick={() => addToCart(item, "package")}
-                            className="mt-1 inline-flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/5 px-2 py-1 text-[11px] font-bold text-primary active:bg-primary/15 transition-colors"
-                          >
-                            Caja &times;{item.units_per_package} &middot; ${money(item.package_price)}
-                          </button>
-                        )}
                       </div>
 
                       {qty > 0 ? (
@@ -715,23 +749,20 @@ export default function POSPage() {
                  teléfono. Menos scroll = menos tiempo por venta. */
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3 xl:gap-4">
                 {filtered.map((item) => (
-                  /* La tarjeta dejó de ser un <button> porque necesita DOS
-                     acciones (unidad y caja) y un botón no puede anidar otro.
-                     El contenedor conserva el borde y el `group` del hover. */
-                  <div
+                  /* Una sola acción por tarjeta: agregar. Elegir caja vive en
+                     la línea del carrito, no acá — un segundo botón bajo el
+                     precio se toca sin querer y multiplica el cobro por 12. */
+                  <button
                     key={item.id}
-                    className={`rounded-2xl p-3 border flex flex-col transition-colors group shadow-sm relative ${
+                    type="button"
+                    onClick={() => addToCart(item)}
+                    disabled={!allowOversell && item.kind === "product" && (item.stock_level ?? 0) <= 0}
+                    className={`text-left rounded-2xl p-3 border flex flex-col transition-colors group shadow-sm relative disabled:opacity-50 disabled:cursor-not-allowed ${
                       item.kind === "service"
-                        ? "bg-emerald-500/5 border-emerald-500/20 hover:border-emerald-400/40"
-                        : "bg-surface-container border-outline-variant/10 hover:border-primary/30"
+                        ? "bg-emerald-500/5 border-emerald-500/20 hover:border-emerald-400/40 disabled:hover:border-emerald-500/20"
+                        : "bg-surface-container border-outline-variant/10 hover:border-primary/30 disabled:hover:border-outline-variant/10"
                     }`}
                   >
-                    <button
-                      type="button"
-                      onClick={() => addToCart(item)}
-                      disabled={!allowOversell && item.kind === "product" && (item.stock_level ?? 0) <= 0}
-                      className="text-left flex flex-col flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
                     {/* Con sobreventa: informa. Sin ella: el botón ya está frenado. */}
                     {item.kind === "product" && (item.stock_level ?? 0) <= 0 && (
                       <span
@@ -787,18 +818,7 @@ export default function POSPage() {
                         </span>
                       )}
                     </div>
-                    </button>
-
-                    {item.package_price != null && (
-                      <button
-                        type="button"
-                        onClick={() => addToCart(item, "package")}
-                        className="mt-2 w-full rounded-lg border border-primary/30 bg-primary/5 px-2 py-1.5 text-[11px] font-bold text-primary hover:bg-primary/15 transition-colors"
-                      >
-                        Caja &times;{item.units_per_package} &middot; ${money(item.package_price)}
-                      </button>
-                    )}
-                  </div>
+                  </button>
                 ))}
               </div>
             ) : (
@@ -1079,20 +1099,24 @@ export default function POSPage() {
             onChange={(e) => {
               const newMethod = e.target.value as PaymentMethod;
               setPaymentMethod(newMethod);
+              // Con un solo canal (o ninguno marcado) no se pregunta, pero
+              // igual se sella cuál se usó si el dueño lo dejó configurado.
               if (newMethod === "transferencia" && !transferMethod) {
-                setTransferMethod(transferMethodsEnabled?.[0] || "nequi");
+                setTransferMethod(transferMethodsEnabled?.[0] ?? null);
               }
+              // Con un solo datáfono (o ninguno marcado) no se pregunta, pero
+              // igual se sella cuál se usó si el dueño lo dejó configurado.
               if (newMethod === "tarjeta" && !cardMethod) {
-                setCardMethod(cardMethodsEnabled?.[0] || "bold");
+                setCardMethod(cardMethodsEnabled?.[0] ?? null);
               }
             }}
           >
-            {PAYMENT_METHODS.map((m) => (
+            {paymentOptions.map((m) => (
               <option key={m.value} value={m.value}>{m.label}</option>
             ))}
           </Select>
 
-          {paymentMethod === "transferencia" && (
+          {paymentMethod === "transferencia" && asksTransferMethod && (
             <TransferMethodSelector
               enabledMethods={transferMethodsEnabled}
               selectedMethod={transferMethod ?? transferMethodsEnabled?.[0] ?? "nequi"}
@@ -1100,7 +1124,7 @@ export default function POSPage() {
             />
           )}
 
-          {paymentMethod === "tarjeta" && (
+          {paymentMethod === "tarjeta" && asksCardMethod && (
             <CardMethodSelector
               enabledMethods={cardMethodsEnabled}
               selectedMethod={cardMethod ?? cardMethodsEnabled?.[0] ?? "bold"}
@@ -1173,7 +1197,7 @@ export default function POSPage() {
                           <span className="text-emerald-500">Servicio</span>
                         ) : line.unitKind === "package" ? (
                           <span className="text-primary">
-                            Caja &times; {line.item.units_per_package} u.
+                            {line.quantity * lineUnits(line)} unidades en total
                           </span>
                         ) : (
                           <span className="text-on-surface-variant">SKU: {line.item.sku}</span>
@@ -1192,6 +1216,36 @@ export default function POSPage() {
                     </div>
                   </div>
                 </div>
+                {/* Unidad o caja se decide ACÁ y no en la tarjeta del catálogo:
+                    en la tarjeta es un botón que se toca sin querer y multiplica
+                    el cobro por 12; acá el cajero está revisando lo que va a
+                    cobrar y ve los dos precios al lado. */}
+                {line.item.kind === "product" && line.item.package_price != null && (
+                  <div className="flex gap-1 p-0.5 rounded-lg bg-surface-container-lowest border border-outline-variant/15">
+                    {([
+                      { kind: "unit" as const, label: "Unidad", price: line.item.price },
+                      { kind: "package" as const, label: `Caja ×${line.item.units_per_package}`, price: line.item.package_price },
+                    ]).map((opt) => {
+                      const active = (line.unitKind ?? "unit") === opt.kind;
+                      return (
+                        <button
+                          key={opt.kind}
+                          type="button"
+                          aria-pressed={active}
+                          onClick={() => setLineKind(cartLineKey(line), opt.kind)}
+                          className={`flex-1 rounded-md px-2 py-1.5 text-[11px] font-bold transition-colors ${
+                            active
+                              ? "bg-primary text-on-primary"
+                              : "text-on-surface-variant hover:bg-surface-container"
+                          }`}
+                        >
+                          {opt.label} · ${money(opt.price)}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
                 {/* El toast dura 5s; esto queda mientras el ítem esté en el
                     carrito, así el cajero lo ve al momento de cobrar. */}
                 {line.item.kind === "product" &&

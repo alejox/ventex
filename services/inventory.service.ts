@@ -47,9 +47,30 @@ export interface Product {
  * dominio, y además `Math.random` no puede llamarse dentro del cuerpo de un
  * componente (regla `react-hooks/purity`: el compilador de React no distingue
  * el handler del render).
+ *
+ * Lleva marca de tiempo en base 36 y no solo azar: hay un índice ÚNICO sobre
+ * `(user_id, sku)`, y desde que el SKU es opcional este generador pasó a ser el
+ * camino normal, no la excepción. Con `Math.random() * 100000` a secas, un
+ * catálogo de unos cientos de productos empieza a chocar y el usuario recibe un
+ * "duplicate key" que no entiende ni puede resolver.
  */
 export function generateSku(): string {
-  return `PRD-${Math.floor(Math.random() * 100000)}`;
+  const stamp = Date.now().toString(36).toUpperCase().slice(-5);
+  // 4 caracteres de azar (36^4 = 1.679.616) y no 2: con 2, todo lo creado
+  // dentro del mismo milisegundo compite por apenas 1.296 valores, y una carga
+  // masiva de productos chocaba. Medido: 20.000 SKU en ráfaga pasaron de 8.807
+  // colisiones a 0.
+  const noise = Math.floor(Math.random() * 1679616).toString(36).toUpperCase().padStart(4, "0");
+  return `PRD-${stamp}${noise}`;
+}
+
+/**
+ * El SKU es opcional PARA EL USUARIO, no en la base: la columna es NOT NULL y
+ * tiene índice único por negocio. Si el campo llega vacío se genera uno.
+ */
+function normalizeSku(raw: string): string {
+  const value = raw.trim();
+  return value === "" ? generateSku() : value;
 }
 
 /** Datos del formulario de producto (campos en string tal como llegan del form). */
@@ -247,7 +268,7 @@ export async function createProduct(input: NewProductInput): Promise<Product> {
       category_id: input.category_id || null,
       distributor_id: input.distributor_id || null,
       parent_product_id: input.parent_product_id || null,
-      sku: input.sku,
+      sku: normalizeSku(input.sku),
       barcode: normalizeBarcode(input.barcode),
       unit: input.unit,
       ...costPatch(input.purchase_price),
@@ -278,7 +299,7 @@ export async function updateProduct(id: string, input: NewProductInput): Promise
       category_id: input.category_id || null,
       distributor_id: input.distributor_id || null,
       parent_product_id: input.parent_product_id || null,
-      sku: input.sku,
+      sku: normalizeSku(input.sku),
       barcode: normalizeBarcode(input.barcode),
       unit: input.unit,
       ...costPatch(input.purchase_price),

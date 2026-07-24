@@ -77,6 +77,8 @@ interface PosState {
   decrement: (key: string) => void;
   setQuantity: (key: string, quantity: number) => void;
   removeFromCart: (key: string) => void;
+  /** Cambia una línea entre unidad y caja (la decisión vive en el carrito). */
+  setLineKind: (key: string, unitKind: SaleUnitKind) => void;
   setCustomer: (customerId: string | null) => void;
   setStaff: (staffId: string | null) => void;
   setLineDiscounts: (discounts: { key: string; discountAmount: number }[]) => void;
@@ -370,6 +372,52 @@ export const usePosStore = create<PosState>((set, get) => {
                   : quantity;
               return { ...l, quantity: capped };
             }),
+          };
+        }),
+      }));
+    },
+
+    /**
+     * Pasar una línea de unidad a caja (o al revés).
+     *
+     * Si ya hay otra línea del MISMO producto en la presentación destino, las
+     * dos se fusionan sumando cantidades: dejar dos renglones idénticos sería
+     * un error de lectura para el cajero justo antes de cobrar.
+     */
+    setLineKind: (key, unitKind) => {
+      const s = get();
+      const tab = s.tabs.find((t) => t.id === s.activeTabId);
+      const line = tab?.cart.find((l) => keyOf(l) === key);
+      if (!line || (line.unitKind ?? "unit") === unitKind) return;
+
+      const targetKey = lineKey(line.item.id, unitKind);
+      // Si las dos líneas se van a fusionar, el stock se compara contra la
+      // cantidad SUMADA: revisar solo la línea que se mueve dejaría pasar una
+      // sobreventa que aparece recién al juntarlas.
+      const twinQty = tab?.cart.find((l) => keyOf(l) === targetKey)?.quantity ?? 0;
+
+      if (oversells(line.item, unitKind, line.quantity + twinQty)) {
+        set({ stockAlert: oversellMessage(line.item, s.allowOversell) });
+        if (!s.allowOversell) return;
+      }
+
+      set((s) => ({
+        tabs: s.tabs.map((t) => {
+          if (t.id !== s.activeTabId) return t;
+          const twin = t.cart.find((l) => keyOf(l) === targetKey);
+          if (twin) {
+            return {
+              ...t,
+              cart: t.cart
+                .map((l) =>
+                  keyOf(l) === targetKey ? { ...l, quantity: l.quantity + line.quantity } : l,
+                )
+                .filter((l) => keyOf(l) !== key),
+            };
+          }
+          return {
+            ...t,
+            cart: t.cart.map((l) => (keyOf(l) === key ? { ...l, unitKind } : l)),
           };
         }),
       }));
