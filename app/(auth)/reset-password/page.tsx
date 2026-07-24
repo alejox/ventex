@@ -1,14 +1,26 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { Suspense, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { LogoVertical } from "@/components/Logo";
+import { authMessage } from "@/lib/errors";
 
-export default function ResetPasswordPage() {
+const LINK_ERRORS: Record<string, string> = {
+  enlace_vencido: "El enlace ya se usó o venció. Pedí uno nuevo acá abajo.",
+  enlace_invalido: "El enlace no es válido. Pedí uno nuevo acá abajo.",
+};
+
+function ResetPasswordForm() {
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [sent, setSent] = useState(false);
+
+  // `/auth/confirm` rebota acá cuando el enlace del correo no sirve.
+  const linkError = LINK_ERRORS[searchParams.get("error") ?? ""] ?? "";
+  const shownError = error || (sent ? "" : linkError);
 
   const handleReset = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -18,14 +30,17 @@ export default function ResetPasswordPage() {
     const { createClient } = await import("@/utils/supabase/client");
     const supabase = createClient();
 
+    // El enlace apunta a nuestra route handler, no directo a /update-password:
+    // ahí se canjea el token contra Supabase y se deja la sesión en la cookie
+    // antes de que el usuario vea el formulario.
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/update-password`,
+      redirectTo: `${window.location.origin}/auth/confirm?next=/update-password`,
     });
 
     setLoading(false);
 
     if (error) {
-      setError(error.message);
+      setError(authMessage(error));
     } else {
       setSent(true);
     }
@@ -45,8 +60,17 @@ export default function ResetPasswordPage() {
         <h2 className="text-[28px] font-bold text-on-surface mb-2">
           Revisa tu correo
         </h2>
-        <p className="text-on-surface-variant text-sm mb-8 leading-relaxed">
-          Te enviamos un enlace para restablecer tu contraseña a <strong className="text-on-surface">{email}</strong>.
+        <p className="text-on-surface-variant text-sm mb-3 leading-relaxed">
+          Si existe una cuenta con <strong className="text-on-surface">{email}</strong>, te enviamos un enlace para restablecer tu contraseña.
+        </p>
+        {/*
+          Supabase no distingue entre "correo enviado" y "ese correo no existe":
+          responde igual en los dos casos para que nadie pueda averiguar qué
+          direcciones están registradas. Por eso el texto es condicional y por
+          eso avisamos de la carpeta de spam.
+        */}
+        <p className="text-on-surface-variant/70 text-[13px] mb-8 leading-relaxed">
+          Puede tardar un par de minutos. Revisá también la carpeta de spam.
         </p>
         <Link
           href="/login"
@@ -74,9 +98,9 @@ export default function ResetPasswordPage() {
       </div>
 
       <form className="space-y-5" onSubmit={handleReset}>
-        {error && (
+        {shownError && (
           <div className="bg-error-container/20 text-error-dim text-[13px] px-4 py-3 rounded-lg border border-error-container/30">
-            {error}
+            {shownError}
           </div>
         )}
         <div className="space-y-1.5">
@@ -130,5 +154,13 @@ export default function ResetPasswordPage() {
         </Link>
       </div>
     </div>
+  );
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={null}>
+      <ResetPasswordForm />
+    </Suspense>
   );
 }

@@ -11,6 +11,57 @@
  * También traduce los errores que levantan los guards de permisos, que llegan
  * con el prefijo `SIN_PERMISO:` desde las policies y funciones de Postgres.
  */
+/**
+ * Mensaje legible para los errores de Supabase Auth.
+ *
+ * Existe aparte de `toMessage` porque GoTrue devuelve texto en inglés y códigos
+ * propios (`over_email_send_rate_limit`, `otp_expired`, …) que el usuario final
+ * no puede interpretar. El caso más frecuente es el límite de envío: sin
+ * traducirlo, la pantalla de "restablecer contraseña" muestra un mensaje en
+ * inglés que parece un error del sistema cuando en realidad solo hay que
+ * esperar unos segundos.
+ */
+export function authMessage(e: unknown): string {
+  const code =
+    e && typeof e === "object" ? (e as { code?: unknown }).code : undefined;
+  const raw =
+    typeof e === "string"
+      ? e
+      : e && typeof e === "object" && typeof (e as { message?: unknown }).message === "string"
+        ? ((e as { message: string }).message)
+        : "";
+
+  // "For security purposes, you can only request this after 43 seconds."
+  const cooldown = /after (\d+) seconds?/i.exec(raw);
+  if (code === "over_email_send_rate_limit" || cooldown) {
+    return cooldown
+      ? `Por seguridad, esperá ${cooldown[1]} segundos antes de pedir otro enlace.`
+      : "Se alcanzó el límite de correos. Esperá unos minutos e intentá de nuevo.";
+  }
+
+  if (code === "otp_expired" || /expired|invalid.*(token|link)|token not found/i.test(raw)) {
+    return "El enlace ya se usó o venció. Pedí uno nuevo.";
+  }
+
+  if (code === "same_password" || /should be different from the old/i.test(raw)) {
+    return "La contraseña nueva tiene que ser distinta de la anterior.";
+  }
+
+  if (code === "weak_password" || /password should be at least/i.test(raw)) {
+    return "La contraseña es muy corta. Usá al menos 6 caracteres.";
+  }
+
+  if (/auth session missing|session_not_found/i.test(raw)) {
+    return "La sesión de recuperación no es válida. Pedí un enlace nuevo.";
+  }
+
+  if (/failed to fetch|network/i.test(raw)) {
+    return "No pudimos conectar con el servidor. Revisá tu conexión.";
+  }
+
+  return toMessage(e);
+}
+
 export function toMessage(e: unknown): string {
   if (typeof e === "string" && e.trim()) return e;
 
