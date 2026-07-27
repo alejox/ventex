@@ -65,7 +65,16 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const profile = useProfile();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [calculatorOpen, setCalculatorOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("sidebarCollapsed") === "true";
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    localStorage.setItem("sidebarCollapsed", String(sidebarCollapsed));
+  }, [sidebarCollapsed]);
 
   const isWorker = profile?.isWorker ?? false;
 
@@ -170,6 +179,28 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           )}
         </div>
         )}
+
+        {/* Botón toggle en el borde inferior del sidebar */}
+        <div className="p-4 border-t border-outline-variant/10">
+          <button
+            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+            className={`flex items-center gap-3 py-3 rounded-xl transition-all text-sm font-medium text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low w-full overflow-hidden ${
+              sidebarCollapsed ? "justify-center px-0" : "px-4"
+            }`}
+            title={sidebarCollapsed ? "Expandir menú" : "Minimizar menú"}
+          >
+            <svg
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              viewBox="0 0 24 24"
+              className={`w-5 h-5 shrink-0 transition-transform duration-300 ${sidebarCollapsed ? "rotate-180" : ""}`}
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+            </svg>
+            {!sidebarCollapsed && <span className="whitespace-nowrap">Minimizar menú</span>}
+          </button>
+        </div>
       </aside>
 
       {/* Main Content Area */}
@@ -187,13 +218,6 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="hidden lg:flex items-center gap-4 flex-1 max-w-xl">
-            <button
-              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-              className="text-on-surface-variant hover:text-on-surface focus:outline-none p-2 rounded-full hover:bg-surface-container-low transition-colors mr-2 shrink-0"
-              title="Alternar menú"
-            >
-              <IconMenu className="w-6 h-6" />
-            </button>
             <div className="relative w-full">
               <IconSearch className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant" />
               <input
