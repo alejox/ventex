@@ -50,11 +50,10 @@ const NAV_ICONS: Record<string, IconType> = {
   staff: IconUserBadge,
   vehicles: IconCar,
   billing: IconFileText,
-  inventory: IconBox,
+  catalogo: IconBox,
   pedidos: IconRefreshCw,
   customers: IconUsers,
   distributors: IconBox,
-  purchases: IconRefreshCw,
   movements: IconBox,
   calendar: IconCalendar,
   subscription: IconCreditCard,
@@ -96,15 +95,16 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-screen bg-background text-on-background font-sans">
       {/* Sidebar - Desktop */}
-      <aside className={`print:hidden hidden lg:flex flex-col justify-between border-r border-outline-variant/10 bg-surface-container-lowest transition-all duration-300 ${sidebarCollapsed ? "w-20" : "w-64"}`}>
-        <div>
-          <div className="h-20 flex items-center justify-center border-b border-outline-variant/10 px-4">
-            {sidebarCollapsed ? (
-              <LogoVertical className="w-[30px] h-[30px]" />
-            ) : (
-              <LogoHorizontal className="w-[110px] h-[30px]" />
-            )}
-          </div>
+      <aside className={`print:hidden hidden lg:flex flex-col border-r border-outline-variant/10 bg-surface-container-lowest transition-all duration-300 ${sidebarCollapsed ? "w-20" : "w-64"}`}>
+        <div className="h-20 shrink-0 flex items-center justify-center border-b border-outline-variant/10 px-4">
+          {sidebarCollapsed ? (
+            <LogoVertical className="w-[30px] h-[30px]" />
+          ) : (
+            <LogoHorizontal className="w-[110px] h-[30px]" />
+          )}
+        </div>
+
+        <div className="flex-1 overflow-y-auto min-h-0">
           <nav className="p-4 space-y-1">
             <div className={`flex items-center mb-4 mt-4 ${sidebarCollapsed ? "justify-center" : "px-4"}`}>
               {!sidebarCollapsed && (
@@ -156,7 +156,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         {/* Accesos de administración. Si un trabajador no tiene ninguno, el
             bloque entero (con su borde) desaparece en vez de quedar vacío. */}
         {showAdminLinks && (
-        <div className="p-4 border-t border-outline-variant/10 space-y-1">
+        <div className="shrink-0 p-4 border-t border-outline-variant/10 space-y-1">
           {isSuperAdmin && (
             <Link
               href="/admin"

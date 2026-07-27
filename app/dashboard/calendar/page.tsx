@@ -98,6 +98,7 @@ export default function CalendarPage() {
   const { appointments, loading, error, fetchAppointments, setSelectedDate } =
     useAppointmentsStore();
 
+  const [displayMode, setDisplayMode] = useState<"calendar" | "list">("calendar");
   const [view, setView] = useState<"month" | "week" | "day">("month");
   const [currentDate, setCurrentDate] = useState(new Date());
   const [modalOpen, setModalOpen] = useState(false);
@@ -205,7 +206,23 @@ export default function CalendarPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          {/* View toggle */}
+          {/* Display mode tabs */}
+          <div className="flex items-center bg-surface-container border border-outline-variant/10 rounded-xl p-1 shadow-sm">
+            {(["calendar", "list"] as const).map((m) => (
+              <button
+                key={m}
+                onClick={() => setDisplayMode(m)}
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${
+                  displayMode === m
+                    ? "bg-surface-container-lowest text-on-surface shadow-sm"
+                    : "text-on-surface-variant hover:text-on-surface"
+                }`}
+              >
+                {m === "calendar" ? "Calendario" : "Lista"}
+              </button>
+            ))}
+          </div>
+          {displayMode === "calendar" && (
           <div className="flex items-center bg-surface-container border border-outline-variant/10 rounded-xl p-1 shadow-sm">
             {(["month", "week", "day"] as const).map((v) => (
               <button
@@ -221,6 +238,7 @@ export default function CalendarPage() {
               </button>
             ))}
           </div>
+          )}
           <button
             onClick={goToday}
             className="px-3 py-2 text-xs font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded-xl transition-colors border border-outline-variant/10"
@@ -277,7 +295,7 @@ export default function CalendarPage() {
       )}
 
       {/* ---- MONTH VIEW ---- */}
-      {!loading && view === "month" && (
+      {!loading && displayMode === "calendar" && view === "month" && (
         <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-3xl shadow-sm overflow-hidden">
           {/* Day headers */}
           <div className="grid grid-cols-7 border-b border-outline-variant/10 bg-surface-container/50">
@@ -355,7 +373,7 @@ export default function CalendarPage() {
       )}
 
       {/* ---- WEEK VIEW ---- */}
-      {!loading && view === "week" && (
+      {!loading && displayMode === "calendar" && view === "week" && (
         <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-3xl shadow-sm overflow-hidden">
           {/* Day headers */}
           <div className="grid grid-cols-8 border-b border-outline-variant/10 bg-surface-container/50">
@@ -446,7 +464,7 @@ export default function CalendarPage() {
       )}
 
       {/* ---- DAY VIEW ---- */}
-      {!loading && view === "day" && (
+      {!loading && displayMode === "calendar" && view === "day" && (
         <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-3xl shadow-sm overflow-hidden">
           <div className="max-h-[600px] overflow-y-auto">
             {HOURS.map((h) => {
@@ -511,92 +529,73 @@ export default function CalendarPage() {
         </div>
       )}
 
-      {/* Upcoming list (month view sidebar) */}
-      {!loading && view === "month" && appointments.length > 0 && (
-        <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-3xl p-6 shadow-sm">
-          <h3 className="font-bold text-on-surface mb-4">
-            Próximas Citas ({appointments.length})
-          </h3>
-          <div className="space-y-2">
-            {appointments.slice(0, 5).map((appt) => (
-              <button
-                key={appt.id}
-                onClick={() => handleEditAppointment(appt)}
-                className="w-full flex items-center gap-4 p-3 rounded-xl hover:bg-surface-container transition-colors text-left"
-              >
-                <div
-                  className={`w-2 h-10 rounded-full ${
-                    appt.status === "confirmed"
-                      ? "bg-[#6063ee]"
-                      : appt.status === "completed"
-                        ? "bg-emerald-500"
-                        : appt.status === "cancelled"
-                          ? "bg-error-container"
-                          : "bg-amber-500"
-                  }`}
-                />
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-bold text-on-surface truncate">
-                    {appt.title}
-                  </div>
-                  <div className="text-xs text-on-surface-variant">
-                    {appt.appointment_date} {appt.start_time.slice(0, 5)} -{" "}
-                    {appt.end_time.slice(0, 5)}
-                  </div>
-                  {(appt.services?.name || appt.staff?.full_name) && (
-                    <div className="text-xs text-on-surface-variant/80 truncate">
-                      {[appt.services?.name, appt.staff?.full_name].filter(Boolean).join(" · ")}
-                    </div>
-                  )}
-                </div>
-                <span
-                  className={`text-[10px] font-bold px-2 py-1 rounded-md border ${getStatusColor(
-                    appt.status,
-                  )}`}
-                >
-                  {getStatusLabel(appt.status)}
-                </span>
-              </button>
-            ))}
+      {/* ---- LIST VIEW ---- */}
+      {!loading && displayMode === "list" && (
+        <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-3xl shadow-sm">
+          <div className="p-4 border-b border-outline-variant/10">
+            <h3 className="font-bold text-on-surface">
+              {appointments.length > 0
+                ? `Citas (${appointments.length})`
+                : "Citas"}
+            </h3>
           </div>
+          {appointments.length > 0 ? (
+            <div className="divide-y divide-outline-variant/5">
+              {appointments.map((appt) => (
+                <button
+                  key={appt.id}
+                  onClick={() => handleEditAppointment(appt)}
+                  className="w-full flex items-center gap-4 p-4 hover:bg-surface-container/50 transition-colors text-left"
+                >
+                  <div
+                    className={`w-2 h-10 rounded-full shrink-0 ${
+                      appt.status === "confirmed"
+                        ? "bg-[#6063ee]"
+                        : appt.status === "completed"
+                          ? "bg-emerald-500"
+                          : appt.status === "cancelled"
+                            ? "bg-error-container"
+                            : "bg-amber-500"
+                    }`}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-bold text-on-surface truncate">
+                      {appt.title}
+                    </div>
+                    <div className="text-xs text-on-surface-variant">
+                      {appt.appointment_date} · {appt.start_time.slice(0, 5)} -{" "}
+                      {appt.end_time.slice(0, 5)}
+                    </div>
+                    {appt.customers?.full_name && (
+                      <div className="text-xs text-on-surface-variant/80 truncate">
+                        {appt.customers.full_name}
+                      </div>
+                    )}
+                    {(appt.services?.name || appt.staff?.full_name) && (
+                      <div className="text-xs text-on-surface-variant/80 truncate">
+                        {[appt.services?.name, appt.staff?.full_name].filter(Boolean).join(" · ")}
+                      </div>
+                    )}
+                  </div>
+                  <span
+                    className={`text-[10px] font-bold px-2 py-1 rounded-md shrink-0 border ${getStatusColor(
+                      appt.status,
+                    )}`}
+                  >
+                    {getStatusLabel(appt.status)}
+                  </span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="p-12 text-center text-sm text-on-surface-variant">
+              No hay citas en este período.
+            </div>
+          )}
         </div>
       )}
 
-      {/* Empty state */}
-      {!loading && appointments.length === 0 && (
-        <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-3xl p-12 shadow-sm flex flex-col items-center justify-center text-center">
-          <div className="w-16 h-16 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant mb-4">
-            <svg
-              width="32"
-              height="32"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-              <line x1="16" y1="2" x2="16" y2="6" />
-              <line x1="8" y1="2" x2="8" y2="6" />
-              <line x1="3" y1="10" x2="21" y2="10" />
-            </svg>
-          </div>
-          <h2 className="text-lg font-bold text-on-surface mb-2">
-            No hay citas este mes
-          </h2>
-          <p className="text-sm text-on-surface-variant max-w-sm mb-6">
-            Crea tu primera cita haciendo clic en el botón de arriba o en
-            cualquier celda del calendario.
-          </p>
-          <button
-            onClick={() => handleNewAppointment()}
-            className="px-6 py-2.5 bg-surface-container border border-outline-variant/20 text-on-surface text-sm font-semibold rounded-xl hover:bg-surface-container-high transition-colors"
-          >
-            Nueva Cita
-          </button>
-        </div>
-      )}
+
 
       {/* Modal */}
       <AppointmentModal

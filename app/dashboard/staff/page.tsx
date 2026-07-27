@@ -416,40 +416,15 @@ export default function StaffPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Select
-                  label="Rol"
-                  value={form.role}
-                  onChange={(e) => setForm({ ...form, role: e.target.value })}
-                >
-                  {ROLES.map((r) => (
-                    <option key={r} value={r}>{r}</option>
-                  ))}
-                </Select>
-                <Select
-                  label="Tipo"
-                  value={form.commission_type}
-                  onChange={(e) => setForm({ ...form, commission_type: e.target.value })}
-                >
-                  <option value="percentage">Porcentaje (%)</option>
-                  <option value="fixed">Valor fijo por unidad ($)</option>
-                </Select>
-                <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-on-surface block">
-                    {form.commission_type === "fixed" ? "Valor por unidad ($)" : "Comisión (%)"}
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    max={form.commission_type === "fixed" ? "999999" : "100"}
-                    value={form.commission_rate}
-                    onChange={(e) => setForm({ ...form, commission_rate: e.target.value })}
-                    className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50"
-                    placeholder="0"
-                  />
-                </div>
-              </div>
+              <Select
+                label="Rol"
+                value={form.role}
+                onChange={(e) => setForm({ ...form, role: e.target.value })}
+              >
+                {ROLES.map((r) => (
+                  <option key={r} value={r}>{r}</option>
+                ))}
+              </Select>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">

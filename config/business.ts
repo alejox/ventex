@@ -39,6 +39,7 @@ export type WorkerPermission =
   | "inventory_edit"
   | "inventory_stock"
   | "services"
+  | "catalogo"
   | "vehicles"
   | "billing"
   | "settings";
@@ -56,6 +57,7 @@ export const WORKER_PERMISSION_LABELS: Record<WorkerPermission, string> = {
   inventory_edit: "Crear y editar productos",
   inventory_stock: "Ajustar stock y ver movimientos",
   services: "Servicios",
+  catalogo: "Catálogo (productos y servicios)",
   vehicles: "Vehículos",
   billing: "Facturación",
   settings: "Configuración del negocio",
@@ -201,16 +203,13 @@ export const NAV_ITEMS: NavItem[] = [
   // UNIVERSAL_NAV_IDS) porque los 4 rubros cobran.
   { id: "pos", name: "Punto de Venta", href: "/dashboard/pos", modules: [] },
   { id: "sales", name: "Ventas", href: "/dashboard/sales", modules: [] },
-  { id: "services", name: "Servicios", href: "/dashboard/services", modules: ["services"] },
+  { id: "catalogo", name: "Catálogo", href: "/dashboard/catalogo", modules: ["inventory", "services"] },
   { id: "staff", name: "Personal", href: "/dashboard/staff", modules: ["staff"] },
   { id: "vehicles", name: "Vehículos", href: "/dashboard/vehicles", modules: ["vehicles"] },
   { id: "billing", name: "Facturación", href: "/dashboard/billing", modules: ["billing"] },
-  { id: "inventory", name: "Inventario", href: "/dashboard/inventory", modules: ["inventory"] },
   { id: "pedidos", name: "Pedidos", href: "/dashboard/pedidos", modules: ["inventory"] },
   { id: "customers", name: "Clientes", href: "/dashboard/customers", modules: [] },
   { id: "distributors", name: "Proveedores", href: "/dashboard/distributors", modules: ["inventory"] },
-  { id: "purchases", name: "Compras", href: "/dashboard/purchases", modules: ["inventory"] },
-  { id: "movements", name: "Movimientos", href: "/dashboard/inventory/movements", modules: ["inventory"] },
   { id: "calendar", name: "Calendario", href: "/dashboard/calendar", modules: ["appointments"] },
   { id: "subscription", name: "Mi Plan", href: "/dashboard/subscription", modules: [] },
 ];
@@ -226,15 +225,14 @@ export interface QuickAction {
 
 export const QUICK_ACTIONS: QuickAction[] = [
   { id: "new-sale", title: "Nueva Venta", href: "/dashboard/pos", module: null },
-  { id: "new-product", title: "Añadir Producto", href: "/dashboard/inventory", module: "inventory" },
+  { id: "new-product", title: "Añadir Producto", href: "/dashboard/catalogo?action=new-product", module: "inventory" },
   { id: "new-customer", title: "Registrar Cliente", href: "/dashboard/customers", module: null },
   { id: "new-appointment", title: "Nueva Cita", href: "/dashboard/calendar", module: "appointments" },
-  { id: "new-service", title: "Nuevo Servicio", href: "/dashboard/services", module: "services" },
+  { id: "new-service", title: "Nuevo Servicio", href: "/dashboard/catalogo?action=new-service", module: "services" },
   { id: "new-staff", title: "Añadir Personal", href: "/dashboard/staff", module: "staff" },
   { id: "new-vehicle", title: "Registrar Vehículo", href: "/dashboard/vehicles", module: "vehicles" },
   { id: "new-invoice", title: "Nueva Factura", href: "/dashboard/billing", module: "billing" },
   { id: "replenish", title: "Nuevo Pedido", href: "/dashboard/pedidos", module: "inventory" },
-  { id: "new-purchase", title: "Nueva Compra", href: "/dashboard/purchases", module: "inventory" },
 ];
 
 // ---- Modelo de visibilidad: el TIPO define un menú base, los MÓDULOS suman ----
@@ -247,9 +245,9 @@ const UNIVERSAL_NAV_IDS = ["panel", "pos", "sales", "customers", "subscription"]
 
 /** Menú base por tipo de negocio (además de las universales). */
 const BASE_NAV_BY_TYPE: Record<BusinessType, string[]> = {
-  salon: ["calendar", "inventory", "distributors"],
-  tienda: ["inventory", "distributors"],
-  lavaautos: ["calendar", "inventory", "distributors"],
+  salon: ["calendar", "catalogo", "distributors"],
+  tienda: ["catalogo", "distributors"],
+  lavaautos: ["calendar", "catalogo", "distributors"],
   servicios: ["calendar"],
 };
 
@@ -322,6 +320,10 @@ export function workerNavItems(permissions: WorkerPermissions): NavItem[] {
       (k) => permissions[k] && !NON_NAV_PERMISSIONS.includes(k),
     ),
   );
+  // Workers con inventario o servicios ven el catálogo unificado
+  if (granted.has("inventory") || granted.has("services")) {
+    granted.add("catalogo");
+  }
   return NAV_ITEMS.filter((item) => granted.has(item.id as WorkerPermission));
 }
 
