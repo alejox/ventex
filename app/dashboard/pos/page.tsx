@@ -26,9 +26,9 @@ import { SaleConfigModal } from "@/components/SaleConfigModal";
 import { notifySuccess, notifyWarning, notifyError } from "@/lib/notifications";
 import { PosCatalog } from "./components/PosCatalog";
 import { PosCartPanel } from "./components/PosCartPanel";
+import { CheckoutModal } from "./components/CheckoutModal";
 import { DeliveryModal } from "./components/DeliveryModal";
 import { PosTabsBar } from "./components/PosTabsBar";
-import { CashConfirmModal } from "./components/CashConfirmModal";
 import { SuccessModal } from "./components/SuccessModal";
 import { TabRenameModal } from "./components/TabRenameModal";
 import { TabCloseConfirmModal } from "./components/TabCloseConfirmModal";
@@ -48,6 +48,9 @@ interface ReceiptData {
   date: Date;
   businessName?: string | null;
   logoUrl?: string | null;
+  municipality?: string | null;
+  phone?: string | null;
+  taxResponsibility?: string | null;
   includeTax: boolean;
 }
 
@@ -157,11 +160,11 @@ export default function POSPage() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
+  const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
   const [isDeliveryModalOpen, setIsDeliveryModalOpen] = useState(false);
   const [isDiscountModalOpen, setIsDiscountModalOpen] = useState(false);
   const [isRecentSalesModalOpen, setIsRecentSalesModalOpen] = useState(false);
   const [isSaleConfigModalOpen, setIsSaleConfigModalOpen] = useState(false);
-  const [isCashConfirmOpen, setIsCashConfirmOpen] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [tabMenuId, setTabMenuId] = useState<string | null>(null);
   const [renamingTabId, setRenamingTabId] = useState<string | null>(null);
@@ -197,6 +200,7 @@ export default function POSPage() {
     cart: CartLine[];
     submitting: boolean;
     paymentMethod: PaymentMethod;
+    isDelivery: boolean;
     anyModalOpen: boolean;
     requireShift: (action: () => void) => void;
     checkout: () => void;
@@ -212,7 +216,8 @@ export default function POSPage() {
         setIsRecentSalesModalOpen(false);
         setIsSaleConfigModalOpen(false);
         setIsSuccessModalOpen(false);
-        setIsCashConfirmOpen(false);
+        setIsCheckoutModalOpen(false);
+        setIsDeliveryModalOpen(false);
         setIsOpenShiftOpen(false);
         setIsScannerOpen(false);
         setIsCartOpen(false);
@@ -225,11 +230,11 @@ export default function POSPage() {
         if (!snapshot) return;
         if (!snapshot.anyModalOpen && snapshot.cart.length > 0 && !snapshot.submitting) {
           snapshot.requireShift(() => {
-            if (snapshot.paymentMethod === "efectivo") {
-              setAmountTendered("");
-              setIsCashConfirmOpen(true);
+            setAmountTendered("");
+            if (snapshot.isDelivery) {
+              setIsDeliveryModalOpen(true);
             } else {
-              snapshot.checkout();
+              setIsCheckoutModalOpen(true);
             }
           });
         }
@@ -323,6 +328,9 @@ export default function POSPage() {
       date: new Date(),
       businessName: businessProfile?.businessName ?? null,
       logoUrl: businessProfile?.logoUrl ?? null,
+      municipality: businessProfile?.municipality ?? null,
+      phone: businessProfile?.phone ?? null,
+      taxResponsibility: businessProfile?.taxResponsibility ?? null,
       includeTax,
     };
     setReceiptData(data);
@@ -342,13 +350,11 @@ export default function POSPage() {
 
   const handleCheckoutClick = () => {
     requireShift(() => {
+      setAmountTendered("");
       if (isDelivery) {
         setIsDeliveryModalOpen(true);
-      } else if (paymentMethod === "efectivo") {
-        setAmountTendered("");
-        setIsCashConfirmOpen(true);
       } else {
-        handleCheckout();
+        setIsCheckoutModalOpen(true);
       }
     });
   };
@@ -358,13 +364,15 @@ export default function POSPage() {
       cart,
       submitting,
       paymentMethod,
+      isDelivery,
       anyModalOpen:
         isCustomerModalOpen ||
         isDiscountModalOpen ||
         isRecentSalesModalOpen ||
         isSaleConfigModalOpen ||
         isSuccessModalOpen ||
-        isCashConfirmOpen ||
+        isCheckoutModalOpen ||
+        isDeliveryModalOpen ||
         isOpenShiftOpen ||
         isScannerOpen ||
         renamingTabId !== null ||
@@ -407,7 +415,9 @@ export default function POSPage() {
             openCloseShift={openCloseShift}
           />
 
-          <div className="lg:hidden fixed bottom-[calc(2.75rem+env(safe-area-inset-bottom))] inset-x-0 z-40 px-3 pt-3 pb-2 bg-gradient-to-t from-background via-background to-transparent">
+          <div className={`lg:hidden fixed bottom-[calc(2.75rem+env(safe-area-inset-bottom))] inset-x-0 z-40 px-3 pt-3 pb-2 bg-gradient-to-t from-background via-background to-transparent transition-opacity duration-200 ${
+            isCartOpen ? "opacity-0 pointer-events-none" : "opacity-100"
+          }`}>
             <button
               type="button"
               onClick={() => setIsCartOpen(true)}
@@ -481,11 +491,7 @@ export default function POSPage() {
             onOpenRecentSalesModal={() => setIsRecentSalesModalOpen(true)}
             onOpenCustomerModal={() => setIsCustomerModalOpen(true)}
             requireShift={requireShift}
-            splits={splits}
-            addSplit={addSplit}
-            removeSplit={removeSplit}
-            updateSplitAmount={updateSplitAmount}
-            updateSplitMethod={updateSplitMethod}
+            splitsCount={splits.length}
             isDelivery={isDelivery}
             setDelivery={setDelivery}
           />
@@ -571,28 +577,35 @@ export default function POSPage() {
           setDeliveryData={setDeliveryData}
           onConfirm={() => {
             setIsDeliveryModalOpen(false);
-            if (paymentMethod === "efectivo") {
-              setAmountTendered("");
-              setIsCashConfirmOpen(true);
-            } else {
-              handleCheckout();
-            }
+            setIsCheckoutModalOpen(true);
           }}
           onClose={() => setIsDeliveryModalOpen(false)}
         />
       )}
 
-      {isCashConfirmOpen && (
-        <CashConfirmModal
+      {isCheckoutModalOpen && (
+        <CheckoutModal
           totals={totals}
+          cart={cart}
+          paymentMethod={paymentMethod}
+          paymentOptions={paymentOptions}
+          splits={splits}
+          addSplit={addSplit}
+          removeSplit={removeSplit}
+          updateSplitAmount={updateSplitAmount}
+          updateSplitMethod={updateSplitMethod}
+          transferMethodsEnabled={transferMethodsEnabled}
+          cardMethodsEnabled={cardMethodsEnabled}
+          asksCardMethod={asksCardMethod}
+          asksTransferMethod={asksTransferMethod}
           submitting={submitting}
           amountTendered={amountTendered}
           setAmountTendered={setAmountTendered}
           onConfirm={() => {
-            setIsCashConfirmOpen(false);
+            setIsCheckoutModalOpen(false);
             handleCheckout();
           }}
-          onClose={() => setIsCashConfirmOpen(false)}
+          onClose={() => setIsCheckoutModalOpen(false)}
         />
       )}
 

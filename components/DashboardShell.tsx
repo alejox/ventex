@@ -66,9 +66,10 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const [calculatorOpen, setCalculatorOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     if (typeof window !== "undefined") {
-      return localStorage.getItem("sidebarCollapsed") === "true";
+      const saved = localStorage.getItem("sidebarCollapsed");
+      return saved !== null ? saved === "true" : true;
     }
-    return false;
+    return true;
   });
 
   useEffect(() => {

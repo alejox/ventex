@@ -38,6 +38,9 @@ interface ReceiptData {
   date: Date;
   businessName?: string | null;
   logoUrl?: string | null;
+  municipality?: string | null;
+  phone?: string | null;
+  taxResponsibility?: string | null;
   /** Si el negocio desglosa IVA (responsable de IVA). */
   includeTax: boolean;
 }
@@ -73,6 +76,9 @@ export function PosReceipt({ data }: Props) {
               margin: 0;
               padding: 0;
             }
+            [data-sonner-toaster] {
+              display: none !important;
+            }
           }
         `,
         }}
@@ -93,14 +99,16 @@ export function PosReceipt({ data }: Props) {
                   className="mx-auto mb-2 max-h-20 w-auto object-contain"
                 />
               )}
-              <h1 className="font-bold text-xl">{data.businessName || "Alejox"}</h1>
-              <p>Bogot&aacute;</p>
-              <p>
-                <span className="font-bold">Tel&eacute;fono:</span> 3148956814
-              </p>
+              <h1 className="font-bold text-xl">{data.businessName || "Mi Negocio"}</h1>
+              {data.municipality && <p>{data.municipality}</p>}
+              {data.phone && (
+                <p>
+                  <span className="font-bold">Tel&eacute;fono:</span> {data.phone}
+                </p>
+              )}
               <p>
                 <span className="font-bold">R&eacute;gimen:</span>{" "}
-                {data.includeTax ? "Responsable de IVA" : "No responsable de IVA"}
+                {data.taxResponsibility || (data.includeTax ? "Responsable de IVA" : "No responsable de IVA")}
               </p>
             </div>
 

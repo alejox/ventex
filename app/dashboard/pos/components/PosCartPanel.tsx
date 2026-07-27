@@ -12,7 +12,6 @@ import {
   type CustomerOption,
   type SaleTotals,
   type StaffOption,
-  type PaymentSplit,
 } from "@/services/pos.service";
 
 const money = (n: number) =>
@@ -59,11 +58,7 @@ interface PosCartPanelProps {
   onOpenRecentSalesModal: () => void;
   onOpenCustomerModal: () => void;
   requireShift: (action: () => void) => void;
-  splits: PaymentSplit[];
-  addSplit: () => void;
-  removeSplit: (index: number) => void;
-  updateSplitAmount: (index: number, amount: number) => void;
-  updateSplitMethod: (index: number, method: PaymentMethod, transferMethod?: string | null, cardMethod?: string | null) => void;
+  splitsCount: number;
   isDelivery: boolean;
   setDelivery: (enabled: boolean) => void;
 }
@@ -109,11 +104,7 @@ export function PosCartPanel({
   onOpenRecentSalesModal,
   onOpenCustomerModal,
   requireShift,
-  splits,
-  addSplit,
-  removeSplit,
-  updateSplitAmount,
-  updateSplitMethod,
+  splitsCount,
   isDelivery,
   setDelivery,
 }: PosCartPanelProps) {
@@ -127,8 +118,8 @@ export function PosCartPanel({
       )}
 
       <div
-        className={`fixed inset-y-0 right-0 z-50 w-full max-w-[420px] shadow-2xl transition-transform duration-300 ease-out
-          lg:static lg:z-auto lg:w-[420px] lg:max-w-none lg:translate-x-0 lg:shadow-none lg:transition-none
+        className={`fixed inset-y-0 right-0 z-50 w-full max-w-[480px] shadow-2xl transition-transform duration-300 ease-out
+          lg:static lg:z-auto lg:w-[480px] lg:max-w-none lg:translate-x-0 lg:shadow-none lg:transition-none
           bg-surface-container-lowest flex flex-col h-full shrink-0 border-l border-outline-variant/10
           ${isCartOpen ? "translate-x-0" : "translate-x-full"}`}
       >
@@ -182,33 +173,56 @@ export function PosCartPanel({
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <Select label="Lista de precio" size="sm" defaultValue="general">
-                <option value="general">General</option>
+              <Select
+                label="Método de pago"
+                size="sm"
+                value={paymentMethod}
+                onChange={(e) => {
+                  const newMethod = e.target.value as PaymentMethod;
+                  setPaymentMethod(newMethod);
+                  if (newMethod === "transferencia" && !transferMethod) {
+                    setTransferMethod(transferMethodsEnabled?.[0] ?? null);
+                  }
+                  if (newMethod === "tarjeta" && !cardMethod) {
+                    setCardMethod(cardMethodsEnabled?.[0] ?? null);
+                  }
+                }}
+              >
+                {paymentOptions.map((m) => (
+                  <option key={m.value} value={m.value}>{m.label}</option>
+                ))}
               </Select>
-              <Select label="Numeración" size="sm" defaultValue="principal">
-                <option value="principal">Principal</option>
-              </Select>
-            </div>
 
-            <Select
-              label="Método de pago"
-              size="sm"
-              value={paymentMethod}
-              onChange={(e) => {
-                const newMethod = e.target.value as PaymentMethod;
-                setPaymentMethod(newMethod);
-                if (newMethod === "transferencia" && !transferMethod) {
-                  setTransferMethod(transferMethodsEnabled?.[0] ?? null);
-                }
-                if (newMethod === "tarjeta" && !cardMethod) {
-                  setCardMethod(cardMethodsEnabled?.[0] ?? null);
-                }
-              }}
-            >
-              {paymentOptions.map((m) => (
-                <option key={m.value} value={m.value}>{m.label}</option>
-              ))}
-            </Select>
+              <div className="flex gap-2 items-end">
+                <Select
+                  label="Cliente"
+                  size="sm"
+                  containerClassName="flex-1 min-w-0"
+                  value={customerId ?? ""}
+                  onChange={(e) => setCustomer(e.target.value || null)}
+                >
+                  <option value="">Consumidor final (22222222222)</option>
+                  {customers.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.full_name}
+                      {c.tax_exempt ? " (exento)" : ""}
+                    </option>
+                  ))}
+                </Select>
+                <button
+                  onClick={onOpenCustomerModal}
+                  aria-label="Nuevo cliente"
+                  className="h-9 w-10 shrink-0 flex items-center justify-center rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                >
+                  <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-4 h-4">
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                    <circle cx="8.5" cy="7" r="4" />
+                    <line x1="20" y1="8" x2="20" y2="14" />
+                    <line x1="23" y1="11" x2="17" y2="11" />
+                  </svg>
+                </button>
+              </div>
+            </div>
 
             {paymentMethod === "transferencia" && asksTransferMethod && (
               <TransferMethodSelector
@@ -246,133 +260,20 @@ export function PosCartPanel({
               </label>
             )}
 
-            {/* Split payment */}
-            <div className="space-y-2">
-              {splits.length === 0 && totals.total > 0 && (
-                <button
-                  type="button"
-                  onClick={addSplit}
-                  className="w-full py-2 rounded-lg text-xs font-semibold border border-dashed border-outline-variant/40 text-on-surface-variant hover:text-on-surface hover:border-outline-variant hover:bg-surface-container transition-colors"
-                >
-                  + Dividir pago en varios métodos
-                </button>
-              )}
-
-              {splits.length > 0 && (
-                <div className="space-y-2 p-3 rounded-xl bg-surface-container border border-outline-variant/10">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-on-surface">Pago dividido</span>
-                    <button
-                      type="button"
-                      onClick={addSplit}
-                      className="text-xs text-primary hover:text-primary-dim transition-colors font-medium"
-                    >
-                      + Agregar
-                    </button>
-                  </div>
-
-                  {splits.map((sp, i) => {
-                    const isLast = i === splits.length - 1;
-                    const othersSum = splits.reduce((s, x, j) => s + (j !== i ? x.amount : 0), 0);
-                    const remaining = Math.max(0, totals.total - othersSum);
-
-                    return (
-                      <div key={i} className="flex items-center gap-2">
-                        <Select
-                          size="sm"
-                          containerClassName="w-[110px] shrink-0"
-                          value={sp.payment_method}
-                          onChange={(e) => {
-                            const method = e.target.value as PaymentMethod;
-                            let tm: string | null = null;
-                            let cm: string | null = null;
-                            if (method === "transferencia") tm = transferMethodsEnabled?.[0] ?? null;
-                            if (method === "tarjeta") cm = cardMethodsEnabled?.[0] ?? null;
-                            updateSplitMethod(i, method, tm, cm);
-                          }}
-                        >
-                          {paymentOptions.map((m) => (
-                            <option key={m.value} value={m.value}>{m.label}</option>
-                          ))}
-                        </Select>
-
-                        <div className="relative flex-1 min-w-0">
-                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-on-surface-variant">$</span>
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            value={sp.amount || ""}
-                            onChange={(e) => updateSplitAmount(i, parseFloat(e.target.value) || 0)}
-                            className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-lg py-1.5 pl-5 pr-2 text-xs text-on-surface focus:outline-none focus:border-primary transition-all"
-                            placeholder={isLast && remaining > 0 ? remaining.toFixed(0) : "0"}
-                          />
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() => removeSplit(i)}
-                          className="shrink-0 w-6 h-6 flex items-center justify-center rounded text-on-surface-variant/60 hover:text-error transition-colors"
-                        >
-                          <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-3.5 h-3.5">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
-                      </div>
-                    );
-                  })}
-
-                  {(() => {
-                    const paid = splits.reduce((s, sp) => s + sp.amount, 0);
-                    const remaining = totals.total - paid;
-                    return (
-                      <div className="flex justify-between items-center pt-1 border-t border-outline-variant/10">
-                        <span className="text-[11px] text-on-surface-variant">
-                          Pagado: ${money(paid)} / ${money(totals.total)}
-                        </span>
-                        {remaining > 0.01 && (
-                          <span className="text-[11px] font-semibold text-error">
-                            Restan ${money(remaining)}
-                          </span>
-                        )}
-                        {Math.abs(remaining) <= 0.01 && (
-                          <span className="text-[11px] font-semibold text-success">Completo ✓</span>
-                        )}
-                      </div>
-                    );
-                  })()}
-                </div>
-              )}
-            </div>
-
-            <div className="flex gap-2 items-end">
-              <Select
-                label="Cliente"
-                size="sm"
-                containerClassName="flex-1 min-w-0"
-                value={customerId ?? ""}
-                onChange={(e) => setCustomer(e.target.value || null)}
-              >
-                <option value="">Consumidor final (22222222222)</option>
-                {customers.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.full_name}
-                    {c.tax_exempt ? " (exento)" : ""}
-                  </option>
-                ))}
-              </Select>
-              <button
-                onClick={onOpenCustomerModal}
-                aria-label="Nuevo cliente"
-                className="h-9 w-10 shrink-0 flex items-center justify-center rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
-              >
-                <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-4 h-4">
-                  <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                  <circle cx="8.5" cy="7" r="4" />
-                  <line x1="20" y1="8" x2="20" y2="14" />
-                  <line x1="23" y1="11" x2="17" y2="11" />
-                </svg>
-              </button>            </div>
+            {/* Split payment indicator */}
+            {splitsCount > 0 && totals.total > 0 && (
+              <div className="flex items-center gap-2 py-1">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 text-primary text-[11px] font-semibold">
+                  <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-3 h-3">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 2v20M2 12h20" />
+                  </svg>
+                  Pago dividido ({splitsCount} método{splitsCount !== 1 ? "s" : ""})
+                </span>
+                <span className="text-[11px] text-on-surface-variant">
+                  Se configura al confirmar la venta
+                </span>
+              </div>
+            )}
 
             {staff.length > 0 && (
               <Select
@@ -402,93 +303,16 @@ export function PosCartPanel({
                 </p>
               </div>
             ) : (
-              cart.map((line) => (
-                <div key={cartLineKey(line)} className={`flex flex-col gap-2 rounded-xl p-2 ${line.item.kind === "service" ? "bg-emerald-500/5 border border-emerald-500/10" : ""}`}>
-                  <div className="flex justify-between items-start gap-2">
-                    <div className="flex-1 flex justify-between items-start">
-                      <div>
-                        <h4 className="text-sm font-medium text-on-surface line-clamp-1">{line.item.name}</h4>
-                        <p className="text-[10px] mt-0.5 uppercase tracking-wide font-semibold">
-                          {line.item.kind === "service" ? (
-                            <span className="text-emerald-500">Servicio</span>
-                          ) : line.unitKind === "package" ? (
-                            <span className="text-primary">
-                              {line.quantity * lineUnits(line)} unidades en total
-                            </span>
-                          ) : (
-                            <span className="text-on-surface-variant">SKU: {line.item.sku}</span>
-                          )}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-bold text-on-surface">
-                          ${money(linePrice(line) * line.quantity)}
-                        </p>
-                        {(line.discountAmount ?? 0) > 0 && (
-                          <p className="text-xs font-medium text-error">
-                            -{money(line.discountAmount!)}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {line.item.kind === "product" && line.item.package_price != null && (
-                    <div className="flex gap-1 p-0.5 rounded-lg bg-surface-container-lowest border border-outline-variant/15">
-                      {([
-                        { kind: "unit" as const, label: "Unidad", price: line.item.price },
-                        { kind: "package" as const, label: `Caja ×${line.item.units_per_package}`, price: line.item.package_price },
-                      ]).map((opt) => {
-                        const active = (line.unitKind ?? "unit") === opt.kind;
-                        return (
-                          <button
-                            key={opt.kind}
-                            type="button"
-                            aria-pressed={active}
-                            onClick={() => setLineKind(cartLineKey(line), opt.kind)}
-                            className={`flex-1 rounded-md px-2 py-1.5 text-[11px] font-bold transition-colors ${
-                              active
-                                ? "bg-primary text-on-primary"
-                                : "text-on-surface-variant hover:bg-surface-container"
-                            }`}
-                          >
-                            {opt.label} &middot; ${money(opt.price)}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  {line.item.kind === "product" &&
-                    line.item.stock_level != null &&
-                    line.quantity * lineUnits(line) > line.item.stock_level && (
-                      <p className="text-[10px] font-semibold text-amber-500 flex items-center gap-1">
-                        <AlertTriangle className="w-3 h-3 shrink-0" />
-                        Sin stock: quedan {line.item.stock_level} y se venden{" "}
-                        {line.quantity * lineUnits(line)}.
-                      </p>
-                    )}
-
-                  {(line.item.kind === "service" || line.item.has_commission) && staff.length > 0 && (
-                    <Select
-                      size="sm"
-                      value={line.staffId ?? ""}
-                      onChange={(e) => setLineStaff(cartLineKey(line), e.target.value || null)}
-                    >
-                      <option value="">Atendido por &mdash;</option>
-                      {staff.map((m) => (
-                        <option key={m.id} value={m.id}>{m.full_name}</option>
-                      ))}
-                    </Select>
-                  )}
-
-                  <div className="flex items-center justify-between mt-1">
-                    <div className="flex items-center border border-outline-variant/20 rounded-lg overflow-hidden bg-surface-container-lowest">
+              <>
+                <div className="space-y-1">
+                {cart.map((line) => (
+                  <div key={cartLineKey(line)} className={`group flex items-center gap-2 py-1.5 px-1.5 -mx-1 rounded-lg hover:bg-surface-container-low transition-colors ${line.item.kind === "service" ? "border-l-2 border-emerald-500/60 pl-2.5" : ""}`}>
+                    <div className="flex items-center shrink-0">
                       <button
                         onClick={() => decrement(cartLineKey(line))}
-                        className="w-11 h-11 flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors text-lg"
+                        className="w-5 h-5 flex items-center justify-center rounded text-on-surface-variant/60 hover:text-on-surface transition-colors text-xs"
                       >
-                        &minus;
+                        <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-3 h-3"><path strokeLinecap="round" d="M5 12h14" /></svg>
                       </button>
                       <input
                         type="number"
@@ -499,7 +323,7 @@ export function PosCartPanel({
                           const v = parseInt(e.target.value, 10);
                           if (Number.isFinite(v)) setQuantity(cartLineKey(line), v);
                         }}
-                        className="w-12 text-center text-xs font-medium text-on-surface bg-transparent border-none outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        className="w-8 text-center text-xs font-semibold text-on-surface bg-transparent outline-none tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       />
                       <button
                         onClick={() => increment(cartLineKey(line))}
@@ -509,23 +333,102 @@ export function PosCartPanel({
                           line.item.stock_level != null &&
                           line.quantity >= line.item.stock_level
                         }
-                        className="w-11 h-11 flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors disabled:opacity-30 disabled:cursor-not-allowed text-lg"
+                        className="w-5 h-5 flex items-center justify-center rounded text-on-surface-variant/60 hover:text-on-surface transition-colors disabled:opacity-30 disabled:cursor-not-allowed text-xs"
                       >
-                        +
+                        <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-3 h-3"><path strokeLinecap="round" d="M12 5v14M5 12h14" /></svg>
                       </button>
                     </div>
+
+                    <div className="flex-1 min-w-0">
+                      <span className="text-xs font-medium text-on-surface truncate block">{line.item.name}</span>
+                      <div className="flex items-center gap-1 mt-0.5">
+                        {line.item.kind === "service" ? (
+                          <span className="text-[9px] text-emerald-500 font-medium">Servicio</span>
+                        ) : line.unitKind === "package" ? (
+                          <span className="text-[9px] text-primary font-medium">Caja &times;{line.item.units_per_package}</span>
+                        ) : (
+                          <span className="text-[9px] text-on-surface-variant/50">{line.item.sku}</span>
+                        )}
+                        {(line.discountAmount ?? 0) > 0 && (
+                          <span className="text-[9px] text-error font-medium">-{money(line.discountAmount!)}</span>
+                        )}
+                        {line.item.kind === "product" &&
+                          line.item.stock_level != null &&
+                          line.quantity * lineUnits(line) > line.item.stock_level && (
+                            <AlertTriangle className="w-3 h-3 text-amber-500 shrink-0" />
+                        )}
+                      </div>
+                    </div>
+
+                    <span className="text-xs font-bold text-on-surface tabular-nums shrink-0">${money(linePrice(line) * line.quantity)}</span>
+
                     <button
                       onClick={() => removeFromCart(cartLineKey(line))}
-                      className="text-error/70 hover:text-error transition-colors p-1"
-                      aria-label="Quitar ítem"
+                      className="shrink-0 w-4 h-4 flex items-center justify-center text-on-surface-variant/30 hover:text-error transition-colors opacity-0 group-hover:opacity-100"
+                      aria-label="Quitar &iacute;tem"
                     >
-                      <IconTrash className="w-4 h-4" />
+                      <IconTrash className="w-3 h-3" />
                     </button>
                   </div>
+                ))}
+              </div>
+
+              {cart.some((l) => l.item.kind === "product" && l.item.package_price != null) && (
+                <div className="space-y-1.5 pt-1 border-t border-outline-variant/10">
+                  {cart
+                    .filter((l) => l.item.kind === "product" && l.item.package_price != null)
+                    .map((line) => (
+                      <div key={`pkg-${cartLineKey(line)}`} className="flex gap-1 p-0.5 rounded-lg bg-surface-container-lowest border border-outline-variant/15">
+                        {([
+                          { kind: "unit" as const, label: "Unidad", price: line.item.price },
+                          { kind: "package" as const, label: `Caja &times;${line.item.units_per_package}`, price: line.item.package_price },
+                        ]).map((opt) => {
+                          const active = (line.unitKind ?? "unit") === opt.kind;
+                          return (
+                            <button
+                              key={opt.kind}
+                              type="button"
+                              aria-pressed={active}
+                              onClick={() => setLineKind(cartLineKey(line), opt.kind)}
+                              className={`flex-1 rounded-md px-2 py-1.5 text-[11px] font-bold transition-colors ${
+                                active
+                                  ? "bg-primary text-on-primary"
+                                  : "text-on-surface-variant hover:bg-surface-container"
+                              }`}
+                            >
+                              {opt.label} &middot; ${money(opt.price ?? 0)}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ))}
                 </div>
-              ))
-            )}
-          </div>
+              )}
+
+              {cart.some((l) => (l.item.kind === "service" || l.item.has_commission) && staff.length > 0) && (
+                <div className="space-y-1.5 pt-1 border-t border-outline-variant/10">
+                  {cart
+                    .filter((l) => (l.item.kind === "service" || l.item.has_commission) && staff.length > 0)
+                    .map((line) => (
+                      <div key={`stf-${cartLineKey(line)}`} className="flex items-center gap-2">
+                        <span className="text-[10px] text-on-surface-variant shrink-0 truncate max-w-[80px]">{line.item.name}</span>
+                        <Select
+                          size="sm"
+                          value={line.staffId ?? ""}
+                          onChange={(e) => setLineStaff(cartLineKey(line), e.target.value || null)}
+                        >
+                          <option value="">&mdash;</option>
+                          {staff.map((m) => (
+                            <option key={m.id} value={m.id}>{m.full_name}</option>
+                          ))}
+                        </Select>
+                      </div>
+                    ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
 
         </div>
 
