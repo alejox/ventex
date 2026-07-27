@@ -13,6 +13,7 @@ interface CustomersState {
   addCustomer: (input: NewCustomerInput) => Promise<boolean>;
   updateCustomer: (id: string, input: NewCustomerInput) => Promise<boolean>;
   deleteCustomer: (id: string) => Promise<boolean>;
+  registerPayment: (customerId: string, amount: number, notes?: string) => Promise<boolean>;
 }
 
 
@@ -70,6 +71,24 @@ export const useCustomersStore = create<CustomersState>((set) => ({
       return true;
     } catch (e) {
       set({ error: toMessage(e), submitting: false });
+      return false;
+    }
+  },
+
+  registerPayment: async (customerId, amount, notes) => {
+    set({ error: null });
+    try {
+      await customersService.registerPayment(customerId, amount, notes);
+      set((s) => ({
+        customers: s.customers.map((c) =>
+          c.id === customerId
+            ? { ...c, credit_balance: Math.max(0, c.credit_balance - amount) }
+            : c,
+        ),
+      }));
+      return true;
+    } catch (e) {
+      set({ error: toMessage(e) });
       return false;
     }
   },

@@ -9,6 +9,8 @@ export interface Customer {
   identification: string | null;
   doc_type: string | null;
   tax_exempt: boolean;
+  credit_balance: number;
+  credit_limit: number | null;
   created_at: string;
 }
 
@@ -19,6 +21,15 @@ export interface NewCustomerInput {
   identification: string;
   doc_type: string;
   tax_exempt: boolean;
+  credit_limit?: number | null;
+}
+
+export interface CustomerPayment {
+  id: string;
+  customer_id: string;
+  amount: number;
+  notes: string | null;
+  created_at: string;
 }
 
 export interface CustomerSale {
@@ -30,7 +41,7 @@ export interface CustomerSale {
   item_count: number;
 }
 
-const SELECT = "id, full_name, email, phone, identification, doc_type, tax_exempt, created_at";
+const SELECT = "id, full_name, email, phone, identification, doc_type, tax_exempt, credit_balance, credit_limit, created_at";
 
 export async function fetchCustomers(): Promise<Customer[]> {
   const supabase = createClient();
@@ -72,6 +83,7 @@ export async function createCustomer(input: NewCustomerInput): Promise<Customer>
       identification: input.identification || null,
       doc_type: input.doc_type || null,
       tax_exempt: input.tax_exempt,
+      credit_limit: input.credit_limit ?? null,
     })
     .select(SELECT)
     .single();
@@ -90,6 +102,7 @@ export async function updateCustomer(id: string, input: NewCustomerInput): Promi
       identification: input.identification || null,
       doc_type: input.doc_type || null,
       tax_exempt: input.tax_exempt,
+      credit_limit: input.credit_limit ?? null,
     })
     .eq("id", id)
     .select(SELECT)
@@ -102,4 +115,35 @@ export async function deleteCustomer(id: string): Promise<void> {
   const supabase = createClient();
   const { error } = await supabase.from("customers").delete().eq("id", id);
   if (error) throw error;
+}
+
+export async function registerPayment(
+  customerId: string,
+  amount: number,
+  notes?: string,
+): Promise<void> {
+  const supabase = createClient();
+  const { error: payError } = await supabase.from("customer_payments").insert({
+    customer_id: customerId,
+    amount,
+    notes: notes ?? null,
+  });
+  if (payError) throw payError;
+
+  const { error: balError } = await supabase.rpc("register_customer_payment", {
+    p_customer_id: customerId,
+    p_amount: amount,
+  });
+  if (balError) throw balError;
+}
+
+export async function fetchCustomerPayments(customerId: string): Promise<CustomerPayment[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("customer_payments")
+    .select("id, customer_id, amount, notes, created_at")
+    .eq("customer_id", customerId)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as CustomerPayment[];
 }

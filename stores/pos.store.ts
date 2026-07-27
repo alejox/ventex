@@ -637,6 +637,8 @@ export const usePosStore = create<PosState>((set, get) => {
           });
         }
 
+        const catalog = await posService.fetchCatalog();
+
         set((s) => {
           const defaultMethod = get().defaultPaymentMethod;
           const defaultStaff = get().defaultStaffId;

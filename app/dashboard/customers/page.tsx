@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { IconUsers, IconPlus, IconShoppingCart } from "@/app/assets/icons/DashboardIcons";
 import { useCustomersStore } from "@/stores/customers.store";
+import { CustomerPaymentModal } from "@/components/CustomerPaymentModal";
 import { DataTable, type DataColumn } from "@/components/DataTable";
 import { Select } from "@/components/ui/Select";
 import { fetchCustomerSales } from "@/services/customers.service";
@@ -18,6 +19,7 @@ const EMPTY_CUSTOMER: NewCustomerInput = {
   identification: "",
   doc_type: "CC",
   tax_exempt: false,
+  credit_limit: null,
 };
 
 const money = (n: number) =>
@@ -45,6 +47,7 @@ export default function CustomersPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const [detailCustomer, setDetailCustomer] = useState<Customer | null>(null);
+  const [paymentCustomer, setPaymentCustomer] = useState<Customer | null>(null);
   const [customerSales, setCustomerSales] = useState<CustomerSale[]>([]);
   const [salesLoading, setSalesLoading] = useState(false);
 
@@ -67,6 +70,7 @@ export default function CustomersPage() {
       identification: c.identification ?? "",
       doc_type: c.doc_type ?? "CC",
       tax_exempt: c.tax_exempt,
+      credit_limit: c.credit_limit,
     });
     setModalOpen(true);
   };
@@ -148,6 +152,18 @@ export default function CustomersPage() {
       ),
     },
     {
+      header: "Debe",
+      align: "right",
+      sortKey: "deuda",
+      className: "font-bold",
+      cell: (c) =>
+        c.credit_balance > 0 ? (
+          <span className="text-[#f59e0b]">${money(c.credit_balance)}</span>
+        ) : (
+          <span className="text-on-surface-variant/50">$0.00</span>
+        ),
+    },
+    {
       header: "Impuestos",
       align: "center",
       mobile: "badge",
@@ -169,6 +185,20 @@ export default function CustomersPage() {
       className: "pr-4",
       cell: (c) => (
         <div className="flex items-center justify-end gap-1">
+          <button
+            type="button"
+            onClick={() => setPaymentCustomer(c)}
+            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${
+              c.credit_balance > 0
+                ? "text-[#f59e0b] hover:text-white hover:bg-[#f59e0b]"
+                : "text-on-surface-variant hover:text-primary hover:bg-primary/10"
+            }`}
+            title={c.credit_balance > 0 ? `Registrar abono (debe $${money(c.credit_balance)})` : "Registrar abono"}
+          >
+            <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-4 h-4">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" />
+            </svg>
+          </button>
           <button
             type="button"
             onClick={() => openDetail(c)}
@@ -559,6 +589,13 @@ export default function CustomersPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {paymentCustomer && (
+        <CustomerPaymentModal
+          customer={paymentCustomer}
+          onClose={() => setPaymentCustomer(null)}
+        />
       )}
     </div>
   );

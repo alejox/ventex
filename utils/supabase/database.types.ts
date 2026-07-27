@@ -263,6 +263,8 @@ export type Database = {
       customers: {
         Row: {
           created_at: string | null
+          credit_balance: number
+          credit_limit: number | null
           doc_type: string | null
           email: string | null
           full_name: string
@@ -274,6 +276,8 @@ export type Database = {
         }
         Insert: {
           created_at?: string | null
+          credit_balance?: number
+          credit_limit?: number | null
           doc_type?: string | null
           email?: string | null
           full_name: string
@@ -285,6 +289,8 @@ export type Database = {
         }
         Update: {
           created_at?: string | null
+          credit_balance?: number
+          credit_limit?: number | null
           doc_type?: string | null
           email?: string | null
           full_name?: string
@@ -292,6 +298,33 @@ export type Database = {
           identification?: string | null
           phone?: string | null
           tax_exempt?: boolean | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      customer_payments: {
+        Row: {
+          amount: number
+          created_at: string
+          customer_id: string
+          id: string
+          notes: string | null
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          customer_id: string
+          id?: string
+          notes?: string | null
+          user_id?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          customer_id?: string
+          id?: string
+          notes?: string | null
           user_id?: string
         }
         Relationships: []
@@ -1754,6 +1787,10 @@ export type Database = {
       is_tenant_owner: { Args: never; Returns: boolean }
       my_subscription: { Args: never; Returns: Json }
       open_shift: { Args: { p_opening_cash: number }; Returns: Json }
+      register_customer_payment: {
+        Args: { p_amount: number; p_customer_id: string }
+        Returns: undefined
+      }
       register_cash_withdrawal: {
         Args: { p_amount: number; p_reason: string }
         Returns: string

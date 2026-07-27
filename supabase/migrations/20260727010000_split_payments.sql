@@ -10,7 +10,7 @@
 create table if not exists public.sale_payments (
   id uuid primary key default gen_random_uuid(),
   sale_id uuid not null references public.sales(id) on delete cascade,
-  payment_method text not null check (payment_method in ('efectivo', 'tarjeta', 'transferencia')),
+  payment_method text not null check (payment_method in ('efectivo', 'tarjeta', 'transferencia', 'credito', 'split')),
   amount numeric(12,2) not null check (amount > 0),
   transfer_method text,
   card_method text,

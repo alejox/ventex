@@ -94,7 +94,7 @@ export interface SaleTotals {
   total: number;
 }
 
-export type PaymentMethod = "efectivo" | "tarjeta" | "transferencia";
+export type PaymentMethod = "efectivo" | "tarjeta" | "transferencia" | "credito";
 
 export interface PaymentSplit {
   payment_method: PaymentMethod;

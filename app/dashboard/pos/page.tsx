@@ -37,6 +37,7 @@ const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
   { value: "efectivo", label: "Efectivo" },
   { value: "tarjeta", label: "Dat\u00f3fono" },
   { value: "transferencia", label: "Transferencia" },
+  { value: "credito", label: "Cr\u00e9dito / Fiado" },
 ];
 
 interface ReceiptData {

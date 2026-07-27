@@ -31,10 +31,9 @@ as $function$
       raise exception 'No autenticado';
     end if;
 
-    -- Verificar la venta
     select s.id, s.status, s.total, s.payment_method, s.shift_id, s.sale_number
     into v_sale
-    from sales s
+    from public.sales s
     where s.id = p_sale_id and s.user_id = v_uid;
 
     if not found then
@@ -47,7 +46,6 @@ as $function$
 
     v_sale_number := v_sale.sale_number;
 
-    -- Workers necesitan caja abierta
     select coalesce(is_worker, false) into v_is_worker
     from public.profiles where id = v_auth;
 
@@ -59,13 +57,11 @@ as $function$
       end if;
     end if;
 
-    -- Marcar venta como anulada
-    update sales set status = 'void' where id = p_sale_id;
+    update public.sales set status = 'void' where id = p_sale_id;
 
-    -- Devolver stock y registrar movimientos
     for v_item in
       select si.product_id, si.quantity, si.unit_kind, si.units_per_item
-      from sale_items si
+      from public.sale_items si
       where si.sale_id = p_sale_id and si.product_id is not null
     loop
       if v_item.unit_kind = 'package' then
@@ -74,13 +70,11 @@ as $function$
         v_return_units := v_item.quantity;
       end if;
 
-      -- Devolver stock
-      update products
+      update public.products
       set stock_level = stock_level + v_return_units
       where id = v_item.product_id;
 
-      -- Registrar movimiento de inventario
-      insert into inventory_movements (
+      insert into public.inventory_movements (
         product_id, quantity, type, reference_type, reference_id, created_by, user_id, notes
       ) values (
         v_item.product_id,
@@ -94,9 +88,8 @@ as $function$
       );
     end loop;
 
-    -- Si fue efectivo y hay turno, registrar salida de caja
     if v_sale.payment_method = 'efectivo' and v_sale.shift_id is not null then
-      insert into cash_movements (amount, reason, shift_id, user_id, worker_id)
+      insert into public.cash_movements (amount, reason, shift_id, user_id, worker_id)
       values (
         -v_sale.total,
         'Devolución - Venta #' || v_sale_number::text || ' anulada',
