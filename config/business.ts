@@ -202,6 +202,7 @@ export const NAV_ITEMS: NavItem[] = [
   // POS y Ventas no dependen de ningún módulo: son universales (ver
   // UNIVERSAL_NAV_IDS) porque los 4 rubros cobran.
   { id: "pos", name: "Punto de Venta", href: "/dashboard/pos", modules: [] },
+  { id: "calendar", name: "Calendario", href: "/dashboard/calendar", modules: ["appointments"] },
   { id: "sales", name: "Ventas", href: "/dashboard/sales", modules: [] },
   { id: "catalogo", name: "Catálogo", href: "/dashboard/catalogo", modules: ["inventory", "services"] },
   { id: "staff", name: "Personal", href: "/dashboard/staff", modules: ["staff"] },
@@ -210,7 +211,6 @@ export const NAV_ITEMS: NavItem[] = [
   { id: "pedidos", name: "Pedidos", href: "/dashboard/pedidos", modules: ["inventory"] },
   { id: "customers", name: "Clientes", href: "/dashboard/customers", modules: [] },
   { id: "distributors", name: "Proveedores", href: "/dashboard/distributors", modules: ["inventory"] },
-  { id: "calendar", name: "Calendario", href: "/dashboard/calendar", modules: ["appointments"] },
   { id: "subscription", name: "Mi Plan", href: "/dashboard/subscription", modules: [] },
 ];
 
