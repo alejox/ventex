@@ -21,6 +21,15 @@ export interface NewCustomerInput {
   tax_exempt: boolean;
 }
 
+export interface CustomerSale {
+  id: string;
+  sale_number: number;
+  created_at: string;
+  payment_method: string;
+  total: number;
+  item_count: number;
+}
+
 const SELECT = "id, full_name, email, phone, identification, doc_type, tax_exempt, created_at";
 
 export async function fetchCustomers(): Promise<Customer[]> {
@@ -28,6 +37,28 @@ export async function fetchCustomers(): Promise<Customer[]> {
   const { data, error } = await supabase.from("customers").select(SELECT).order("full_name");
   if (error) throw error;
   return (data ?? []) as Customer[];
+}
+
+export async function fetchCustomerSales(customerId: string): Promise<CustomerSale[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("sales")
+    .select("id, sale_number, created_at, payment_method, total, sale_items(count)")
+    .eq("customer_id", customerId)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return ((data ?? []) as unknown[]).map((s) => {
+    const row = s as Record<string, unknown>;
+    const items = Array.isArray(row.sale_items) ? (row.sale_items[0] as Record<string, unknown>) : { count: 0 };
+    return {
+      id: row.id as string,
+      sale_number: row.sale_number as number,
+      created_at: row.created_at as string,
+      payment_method: row.payment_method as string,
+      total: row.total as number,
+      item_count: (items?.count as number) ?? 0,
+    };
+  });
 }
 
 export async function createCustomer(input: NewCustomerInput): Promise<Customer> {

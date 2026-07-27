@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { IconUsers, IconPlus } from "@/app/assets/icons/DashboardIcons";
+import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
+import { IconUsers, IconPlus, IconShoppingCart } from "@/app/assets/icons/DashboardIcons";
 import { useCustomersStore } from "@/stores/customers.store";
 import { DataTable, type DataColumn } from "@/components/DataTable";
 import { Select } from "@/components/ui/Select";
-import type { Customer, NewCustomerInput } from "@/services/customers.service";
+import { fetchCustomerSales } from "@/services/customers.service";
+import type { Customer, NewCustomerInput, CustomerSale } from "@/services/customers.service";
 
 const DOC_TYPES = ["CC", "NIT", "RUT", "RFC"];
 
@@ -16,6 +18,15 @@ const EMPTY_CUSTOMER: NewCustomerInput = {
   identification: "",
   doc_type: "CC",
   tax_exempt: false,
+};
+
+const money = (n: number) =>
+  n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+const PAYMENT_LABELS: Record<string, string> = {
+  efectivo: "Efectivo",
+  tarjeta: "Tarjeta",
+  transferencia: "Transferencia",
 };
 
 export default function CustomersPage() {
@@ -32,6 +43,10 @@ export default function CustomersPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<NewCustomerInput>(EMPTY_CUSTOMER);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const [detailCustomer, setDetailCustomer] = useState<Customer | null>(null);
+  const [customerSales, setCustomerSales] = useState<CustomerSale[]>([]);
+  const [salesLoading, setSalesLoading] = useState(false);
 
   useEffect(() => {
     fetchCustomers();
@@ -56,6 +71,19 @@ export default function CustomersPage() {
     setModalOpen(true);
   };
 
+  const openDetail = useCallback(async (c: Customer) => {
+    setDetailCustomer(c);
+    setSalesLoading(true);
+    try {
+      const sales = await fetchCustomerSales(c.id);
+      setCustomerSales(sales);
+    } catch {
+      setCustomerSales([]);
+    } finally {
+      setSalesLoading(false);
+    }
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const ok = editingId
@@ -79,6 +107,14 @@ export default function CustomersPage() {
     const ok = await deleteCustomer(deletingId);
     if (ok) setDeletingId(null);
   };
+
+  const handleDetailEdit = (c: Customer) => {
+    setDetailCustomer(null);
+    openEdit(c);
+  };
+
+  const totalSpent = customerSales.reduce((sum, s) => sum + s.total, 0);
+  const lastSale = customerSales.length > 0 ? customerSales[0] : null;
 
   const columns: DataColumn<Customer>[] = [
     {
@@ -130,6 +166,17 @@ export default function CustomersPage() {
       className: "pr-4",
       cell: (c) => (
         <div className="flex items-center justify-end gap-1">
+          <button
+            type="button"
+            onClick={() => openDetail(c)}
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
+            title="Ver historial"
+          >
+            <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-4 h-4">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 14l2 2 4-4" />
+            </svg>
+          </button>
           <button
             type="button"
             onClick={() => openEdit(c)}
@@ -364,6 +411,148 @@ export default function CustomersPage() {
               >
                 {submitting ? "Eliminando…" : "Eliminar"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Detalle del Cliente */}
+      {detailCustomer && (
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-surface-container rounded-t-3xl sm:rounded-3xl w-full sm:max-w-2xl max-h-[90vh] border border-outline-variant/10 shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200 flex flex-col">
+            {/* Header */}
+            <div className="p-4 sm:p-6 border-b border-outline-variant/10 flex justify-between items-start bg-surface-container-low shrink-0">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-3 mb-1">
+                  <div className="w-10 h-10 rounded-full bg-primary/15 text-primary flex items-center justify-center shrink-0">
+                    <span className="text-sm font-bold">{detailCustomer.full_name.charAt(0).toUpperCase()}</span>
+                  </div>
+                  <div className="min-w-0">
+                    <h2 className="text-lg sm:text-xl font-bold text-on-surface truncate">
+                      {detailCustomer.full_name}
+                    </h2>
+                    <p className="text-xs text-on-surface-variant">
+                      {detailCustomer.doc_type ? `${detailCustomer.doc_type} ${detailCustomer.identification}` : detailCustomer.identification ?? "Sin documento"}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-on-surface-variant">
+                  {detailCustomer.phone && <span>{detailCustomer.phone}</span>}
+                  {detailCustomer.email && <span>{detailCustomer.email}</span>}
+                  <span className={detailCustomer.tax_exempt ? "text-amber-500 font-semibold" : ""}>
+                    {detailCustomer.tax_exempt ? "Exento de IVA" : "Aplica IVA"}
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0 ml-4">
+                <Link
+                  href={`/dashboard/pos?customerId=${detailCustomer.id}`}
+                  className="h-9 px-3.5 rounded-xl bg-primary hover:bg-primary-dim text-on-primary text-xs font-semibold shadow-md shadow-primary/20 transition-all flex items-center gap-1.5"
+                >
+                  <IconShoppingCart className="w-3.5 h-3.5" />
+                  Nueva Venta
+                </Link>
+                <button
+                  onClick={() => handleDetailEdit(detailCustomer)}
+                  className="h-9 w-9 flex items-center justify-center rounded-xl text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-colors"
+                  title="Editar"
+                >
+                  <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-4 h-4">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => setDetailCustomer(null)}
+                  className="h-9 w-9 flex items-center justify-center rounded-xl text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors"
+                  aria-label="Cerrar"
+                >
+                  <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="18" height="18">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div className="overflow-y-auto p-4 sm:p-6 space-y-6">
+              {/* Stats */}
+              <div className="grid grid-cols-3 gap-4">
+                <div className="bg-surface-container-low rounded-xl p-4 text-center">
+                  <p className="text-2xl font-bold text-on-surface tabular-nums">
+                    {salesLoading ? <span className="inline-block w-12 h-6 rounded bg-surface-container-high animate-pulse" /> : customerSales.length}
+                  </p>
+                  <p className="text-[11px] text-on-surface-variant mt-1 font-medium uppercase tracking-wider">Ventas</p>
+                </div>
+                <div className="bg-surface-container-low rounded-xl p-4 text-center">
+                  <p className="text-2xl font-bold text-on-surface tabular-nums">
+                    {salesLoading ? <span className="inline-block w-20 h-6 rounded bg-surface-container-high animate-pulse" /> : `$${money(totalSpent)}`}
+                  </p>
+                  <p className="text-[11px] text-on-surface-variant mt-1 font-medium uppercase tracking-wider">Total Gastado</p>
+                </div>
+                <div className="bg-surface-container-low rounded-xl p-4 text-center">
+                  <p className="text-2xl font-bold text-on-surface tabular-nums">
+                    {salesLoading ? <span className="inline-block w-16 h-6 rounded bg-surface-container-high animate-pulse" /> : lastSale ? new Date(lastSale.created_at).toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit" }) : "—"}
+                  </p>
+                  <p className="text-[11px] text-on-surface-variant mt-1 font-medium uppercase tracking-wider">Última Visita</p>
+                </div>
+              </div>
+
+              {/* Historial de Ventas */}
+              <div>
+                <h3 className="text-sm font-bold text-on-surface mb-3">Historial de Ventas</h3>
+                {salesLoading ? (
+                  <p className="text-center text-sm text-on-surface-variant py-8">Cargando ventas…</p>
+                ) : customerSales.length === 0 ? (
+                  <div className="text-center py-8 bg-surface-container-low rounded-xl border border-dashed border-outline-variant/20">
+                    <IconShoppingCart className="w-8 h-8 mx-auto text-on-surface-variant/30 mb-2" />
+                    <p className="text-sm text-on-surface-variant">Este cliente aún no tiene compras registradas.</p>
+                    <Link
+                      href={`/dashboard/pos?customerId=${detailCustomer.id}`}
+                      className="inline-block mt-3 text-xs font-semibold text-primary hover:text-primary-dim underline underline-offset-2"
+                    >
+                      Registrar primera venta
+                    </Link>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse min-w-[480px]">
+                      <thead>
+                        <tr className="text-[10px] uppercase tracking-wider text-on-surface-variant font-bold border-b border-outline-variant/10">
+                          <th className="pb-3 pr-3">Venta</th>
+                          <th className="pb-3 pr-3">Fecha</th>
+                          <th className="pb-3 pr-3">Método</th>
+                          <th className="pb-3 pr-3 text-center">Items</th>
+                          <th className="pb-3 text-right">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-outline-variant/5">
+                        {customerSales.map((s) => (
+                          <tr key={s.id} className="hover:bg-surface-container-lowest transition-colors">
+                            <td className="py-3 pr-3 font-mono text-xs text-on-surface-variant">
+                              #{s.sale_number}
+                            </td>
+                            <td className="py-3 pr-3 text-xs text-on-surface-variant whitespace-nowrap">
+                              {new Date(s.created_at).toLocaleDateString("es-CO", {
+                                day: "2-digit",
+                                month: "2-digit",
+                                year: "numeric",
+                              })}
+                            </td>
+                            <td className="py-3 pr-3 text-xs text-on-surface-variant">
+                              {PAYMENT_LABELS[s.payment_method] ?? s.payment_method}
+                            </td>
+                            <td className="py-3 pr-3 text-center text-xs text-on-surface-variant tabular-nums">
+                              {s.item_count}
+                            </td>
+                            <td className="py-3 text-right text-xs font-bold text-on-surface tabular-nums">
+                              ${money(s.total)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
