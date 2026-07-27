@@ -9,7 +9,7 @@ type LoginMode = "owner" | "staff";
 
 export default function LoginPage() {
 
-  const [mode, setMode] = useState<LoginMode>("staff");
+  const [mode, setMode] = useState<LoginMode>("owner");
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [businessKey, setBusinessKey] = useState("");
@@ -84,8 +84,8 @@ export default function LoginPage() {
       <div className="grid grid-cols-2 gap-1 p-1 mb-6 rounded-xl bg-surface-container border border-outline-variant/20">
         {(
           [
-            { id: "staff", label: "Empleado" },
             { id: "owner", label: "Dueño" },
+            { id: "staff", label: "Empleado" },
           ] as const
         ).map((t) => (
           <button

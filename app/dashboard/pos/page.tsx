@@ -367,109 +367,111 @@ export default function POSPage() {
 
   return (
     <>
-      <div className="flex flex-col lg:flex-row lg:h-[calc(100vh-5rem)] -m-6 lg:-m-10 pb-[calc(7rem+env(safe-area-inset-bottom))] lg:pb-0 bg-background relative lg:overflow-hidden print:hidden">
+      <div className="-m-6 lg:-m-10 bg-background print:hidden flex flex-col lg:h-[calc(100vh-5rem)]">
+        <div className="flex flex-col lg:flex-row flex-1 lg:overflow-hidden pb-[calc(7rem+env(safe-area-inset-bottom))] lg:pb-0">
 
-        <PosCatalog
-          search={search}
-          setSearch={setSearch}
-          activeCategory={activeCategory}
-          setActiveCategory={setActiveCategory}
-          categories={categories}
-          filtered={filtered}
-          catalog={catalog}
-          viewMode={viewMode}
-          setViewMode={setViewMode}
-          loading={loading}
-          error={error}
-          cartQty={cartQty}
-          allowOversell={allowOversell}
-          isWorker={isWorker}
-          currentShift={currentShift}
-          addToCart={addToCart}
-          increment={increment}
-          decrement={decrement}
-          lineKey={lineKey}
-          onOpenScanner={() => setIsScannerOpen(true)}
-          onOpenShift={() => setIsOpenShiftOpen(true)}
-          onOpenWithdrawal={() => setIsWithdrawalOpen(true)}
-          openCloseShift={openCloseShift}
-        />
+          <PosCatalog
+            search={search}
+            setSearch={setSearch}
+            activeCategory={activeCategory}
+            setActiveCategory={setActiveCategory}
+            categories={categories}
+            filtered={filtered}
+            catalog={catalog}
+            viewMode={viewMode}
+            setViewMode={setViewMode}
+            loading={loading}
+            error={error}
+            cartQty={cartQty}
+            allowOversell={allowOversell}
+            isWorker={isWorker}
+            currentShift={currentShift}
+            addToCart={addToCart}
+            increment={increment}
+            decrement={decrement}
+            lineKey={lineKey}
+            onOpenScanner={() => setIsScannerOpen(true)}
+            onOpenShift={() => setIsOpenShiftOpen(true)}
+            onOpenWithdrawal={() => setIsWithdrawalOpen(true)}
+            openCloseShift={openCloseShift}
+          />
 
-        <div className="lg:hidden fixed bottom-[calc(2.75rem+env(safe-area-inset-bottom))] inset-x-0 z-40 px-3 pt-3 pb-2 bg-gradient-to-t from-background via-background to-transparent">
-          <button
-            type="button"
-            onClick={() => setIsCartOpen(true)}
-            disabled={cart.length === 0}
-            className="w-full h-12 flex items-center justify-between gap-3 rounded-xl bg-primary text-white px-3.5 shadow-lg shadow-primary/25 active:bg-primary-dim transition-colors disabled:opacity-40"
-          >
-            <span className="flex items-center gap-2.5 min-w-0">
-              <span className="relative shrink-0">
-                <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-5 h-5">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+          <div className="lg:hidden fixed bottom-[calc(2.75rem+env(safe-area-inset-bottom))] inset-x-0 z-40 px-3 pt-3 pb-2 bg-gradient-to-t from-background via-background to-transparent">
+            <button
+              type="button"
+              onClick={() => setIsCartOpen(true)}
+              disabled={cart.length === 0}
+              className="w-full h-12 flex items-center justify-between gap-3 rounded-xl bg-primary text-white px-3.5 shadow-lg shadow-primary/25 active:bg-primary-dim transition-colors disabled:opacity-40"
+            >
+              <span className="flex items-center gap-2.5 min-w-0">
+                <span className="relative shrink-0">
+                  <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-5 h-5">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                  </svg>
+                  {cartUnits > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-white text-primary text-[10px] font-bold flex items-center justify-center">
+                      {cartUnits}
+                    </span>
+                  )}
+                </span>
+                <span className="text-[13px] font-semibold truncate">
+                  {cart.length === 0
+                    ? "Agreg\u00e1 \u00edtems para cobrar"
+                    : `${cart.length} \u00edtem${cart.length !== 1 ? "s" : ""} \u00b7 cobrar`}
+                </span>
+              </span>
+              <span className="flex items-center gap-1.5 shrink-0">
+                <span className="text-sm font-bold tabular-nums">${(totals.total).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                <svg fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-3.5 h-3.5">
+                  <path d="M5 12h14M13 6l6 6-6 6" />
                 </svg>
-                {cartUnits > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-white text-primary text-[10px] font-bold flex items-center justify-center">
-                    {cartUnits}
-                  </span>
-                )}
               </span>
-              <span className="text-[13px] font-semibold truncate">
-                {cart.length === 0
-                  ? "Agreg\u00e1 \u00edtems para cobrar"
-                  : `${cart.length} \u00edtem${cart.length !== 1 ? "s" : ""} \u00b7 cobrar`}
-              </span>
-            </span>
-            <span className="flex items-center gap-1.5 shrink-0">
-              <span className="text-sm font-bold tabular-nums">${(totals.total).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-              <svg fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-3.5 h-3.5">
-                <path d="M5 12h14M13 6l6 6-6 6" />
-              </svg>
-            </span>
-          </button>
-        </div>
+            </button>
+          </div>
 
-        <PosCartPanel
-          cart={cart}
-          totals={totals}
-          paymentMethod={paymentMethod}
-          setPaymentMethod={setPaymentMethod}
-          customerId={customerId}
-          setCustomer={setCustomer}
-          staffId={staffId}
-          setStaff={setStaff}
-          customers={customers}
-          staff={staff}
-          taxRate={taxRate}
-          includeTax={includeTax}
-          isTaxExempt={isTaxExempt}
-          submitting={submitting}
-          allowOversell={allowOversell}
-          transferMethod={transferMethod ?? null}
-          setTransferMethod={setTransferMethod}
-          cardMethod={cardMethod ?? null}
-          setCardMethod={setCardMethod}
-          transferMethodsEnabled={transferMethodsEnabled}
-          cardMethodsEnabled={cardMethodsEnabled}
-          paymentOptions={paymentOptions}
-          asksCardMethod={asksCardMethod}
-          asksTransferMethod={asksTransferMethod}
-          cartUnits={cartUnits}
-          isCartOpen={isCartOpen}
-          setIsCartOpen={setIsCartOpen}
-          setLineKind={setLineKind}
-          setLineStaff={setLineStaff}
-          increment={increment}
-          decrement={decrement}
-          setQuantity={setQuantity}
-          removeFromCart={removeFromCart}
-          clearCart={clearCart}
-          onCheckout={handleCheckoutClick}
-          onOpenDiscountModal={() => setIsDiscountModalOpen(true)}
-          onOpenSaleConfigModal={() => setIsSaleConfigModalOpen(true)}
-          onOpenRecentSalesModal={() => setIsRecentSalesModalOpen(true)}
-          onOpenCustomerModal={() => setIsCustomerModalOpen(true)}
-          requireShift={requireShift}
-        />
+          <PosCartPanel
+            cart={cart}
+            totals={totals}
+            paymentMethod={paymentMethod}
+            setPaymentMethod={setPaymentMethod}
+            customerId={customerId}
+            setCustomer={setCustomer}
+            staffId={staffId}
+            setStaff={setStaff}
+            customers={customers}
+            staff={staff}
+            taxRate={taxRate}
+            includeTax={includeTax}
+            isTaxExempt={isTaxExempt}
+            submitting={submitting}
+            allowOversell={allowOversell}
+            transferMethod={transferMethod ?? null}
+            setTransferMethod={setTransferMethod}
+            cardMethod={cardMethod ?? null}
+            setCardMethod={setCardMethod}
+            transferMethodsEnabled={transferMethodsEnabled}
+            cardMethodsEnabled={cardMethodsEnabled}
+            paymentOptions={paymentOptions}
+            asksCardMethod={asksCardMethod}
+            asksTransferMethod={asksTransferMethod}
+            cartUnits={cartUnits}
+            isCartOpen={isCartOpen}
+            setIsCartOpen={setIsCartOpen}
+            setLineKind={setLineKind}
+            setLineStaff={setLineStaff}
+            increment={increment}
+            decrement={decrement}
+            setQuantity={setQuantity}
+            removeFromCart={removeFromCart}
+            clearCart={clearCart}
+            onCheckout={handleCheckoutClick}
+            onOpenDiscountModal={() => setIsDiscountModalOpen(true)}
+            onOpenSaleConfigModal={() => setIsSaleConfigModalOpen(true)}
+            onOpenRecentSalesModal={() => setIsRecentSalesModalOpen(true)}
+            onOpenCustomerModal={() => setIsCustomerModalOpen(true)}
+            requireShift={requireShift}
+          />
+        </div>
 
         <PosTabsBar
           tabs={tabs}

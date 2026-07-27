@@ -24,7 +24,7 @@ export function PosTabsBar({
   onCloseTab,
 }: PosTabsBarProps) {
   return (
-    <div className={`fixed bottom-0 inset-x-0 pb-[env(safe-area-inset-bottom)] lg:relative lg:z-auto lg:pb-0 lg:mt-auto lg:-ml-10 lg:-mr-6 bg-surface-container-low border-t border-outline-variant/20 ${
+    <div className={`fixed bottom-0 inset-x-0 pb-[env(safe-area-inset-bottom)] lg:static lg:pb-0 bg-surface-container-low border-t border-outline-variant/20 ${
       tabMenuId ? "z-[60]" : "z-40"
     }`}>
       <div className="px-2 lg:pl-10 lg:pr-6 flex items-stretch gap-0.5 overflow-x-auto scrollbar-hide">
