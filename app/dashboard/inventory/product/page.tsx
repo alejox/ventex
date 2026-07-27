@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useEffect } from "react";
+import { Suspense, useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useInventoryStore } from "@/stores/inventory.store";
@@ -11,9 +11,28 @@ import { BarcodeField } from "@/components/BarcodeField";
 import { Select } from "@/components/ui/Select";
 import { usePricePair } from "@/lib/usePricePair";
 import { useBusinessTax } from "@/lib/useBusinessTax";
+import { useBarcodeLookup } from "@/lib/useBarcodeLookup";
+import type { OpenFactsProduct } from "@/services/openfacts.service";
 import { ProductImageUpload } from "./components/ProductImageUpload";
 import { ProductPricingSection } from "./components/ProductPricingSection";
 import { ProductPresentationSection } from "./components/ProductPresentationSection";
+
+const UNIT_MAP: Record<string, string> = {
+  ml: "ml", cl: "ml", l: "L", dl: "L",
+  g: "g", kg: "kg", lb: "lb", oz: "g",
+  m: "m", cm: "cm",
+  unidad: "Unidad", un: "Unidad", docena: "Docena",
+  pack: "Pack", caja: "Caja",
+};
+
+function parseQuantityUnit(raw: string): string | undefined {
+  const lower = raw.toLowerCase().trim();
+  const parts = lower.split(/\s+/);
+  for (const p of parts) {
+    const match = UNIT_MAP[p];
+    if (match) return match;
+  }
+}
 
 function ProductForm() {
   const router = useRouter();
@@ -67,6 +86,7 @@ function ProductForm() {
   const [seededId, setSeededId] = useState<string | null>(null);
   const [distributorModalOpen, setDistributorModalOpen] = useState(false);
   const [categoryModalOpen, setCategoryModalOpen] = useState(false);
+  const [itemType, setItemType] = useState<"Producto" | "Servicio">("Producto");
   /**
    * Cómo se maneja el producto. Arranca en "unidad" porque es lo que aplica a
    * la mayoría; la caja es una decisión que se toma, no un default que se sufre.
@@ -142,6 +162,7 @@ function ProductForm() {
   // usuario escribe no se pisa cuando el store se refresca.
   if (editingProduct && seededId !== editingProduct.id) {
     setSeededId(editingProduct.id);
+    if (editingProduct.unit === "Servicio") setItemType("Servicio");
     setForm({
       name: editingProduct.name,
       category_id: editingProduct.category_id ?? "",
@@ -215,24 +236,54 @@ function ProductForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
+    const isService = itemType === "Servicio";
     const payload = {
       ...form,
-      purchase_price: purchasePriceTotal,
+      purchase_price: isService ? "0" : purchasePriceTotal,
       price: sellingPriceTotal,
-      // Crear es DECLARAR lo que hay; cambiarlo después es un movimiento, que
-      // sí deja motivo, fecha y responsable.
-      stock_level: editId ? String(form.stock_level || "0") : String(initialStock),
-      units_per_package: presentation === "package" ? (form.units_per_package || "1") : "1",
-      package_price: presentation === "package" ? form.package_price : "",
+      stock_level: isService
+        ? "0"
+        : editId
+          ? String(form.stock_level || "0")
+          : String(initialStock),
+      units_per_package: isService ? "1" : (presentation === "package" ? (form.units_per_package || "1") : "1"),
+      package_price: isService ? "" : (presentation === "package" ? form.package_price : ""),
+      barcode: isService ? "" : form.barcode,
+      sku: isService ? "" : form.sku,
+      unit: isService ? "Servicio" : form.unit,
     };
     const ok = editId
-      ? await updateProduct(editId, payload, imageFile)
-      : await addProduct(payload, imageFile);
+      ? await updateProduct(editId, payload, isService ? null : imageFile)
+      : await addProduct(payload, isService ? null : imageFile);
     const success = typeof ok === "string" || ok === true;
     setSaving(false);
     if (success) router.push(backTo);
   };
 
+  const handleBarcodeFound = useCallback(
+    (product: OpenFactsProduct) => {
+      if (editingProduct) return;
+      setForm((prev) => {
+        const next = { ...prev };
+        if (!prev.name.trim() && product.name) next.name = product.name;
+        if (prev.unit === "Unidad" && product.quantity) {
+          const u = parseQuantityUnit(product.quantity);
+          if (u) next.unit = u;
+        }
+        if (product.imageUrl && !prev.image_url) next.image_url = product.imageUrl;
+        return next;
+      });
+      if (product.imageUrl && !imagePreview) {
+        setImagePreview(product.imageUrl);
+      }
+    },
+    [editingProduct, imagePreview],
+  );
+
+  const { searching, product: lookedUp } = useBarcodeLookup(
+    form.barcode ?? "",
+    handleBarcodeFound,
+  );
   if (loadingProduct) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -256,24 +307,47 @@ function ProductForm() {
         </Link>
         <div className="min-w-0">
           <h1 className="text-2xl sm:text-3xl font-bold text-on-surface tracking-tight">
-            {editId ? "Editar Producto" : "Nuevo Producto"}
+            {editId ? "Editar" : "Nuevo"} {editId ? (itemType === "Servicio" ? "Servicio" : "Producto") : ""}
           </h1>
           <p className="text-sm text-on-surface-variant mt-1">
-            {editId ? "Actualiza los datos del producto" : "Registra un nuevo producto en tu inventario"}
+            {editId
+              ? "Actualiza los datos"
+              : "Registra un nuevo producto o servicio en tu catálogo"}
           </p>
         </div>
       </div>
 
+      {!editId && (
+        <div className="flex gap-3 mb-6">
+          {(["Producto", "Servicio"] as const).map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setItemType(t)}
+              className={`px-5 py-2.5 rounded-xl text-sm font-semibold border transition-colors ${
+                itemType === t
+                  ? "border-primary text-primary bg-primary/5"
+                  : "border-outline-variant/30 text-on-surface hover:bg-surface-container-low"
+              }`}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} className="space-y-6">
-        <ProductImageUpload
-          imagePreview={imagePreview}
-          dragOver={dragOver}
-          onImageChange={handleImageChange}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-          onReset={resetImage}
-        />
+        {itemType === "Producto" && (
+          <ProductImageUpload
+            imagePreview={imagePreview}
+            dragOver={dragOver}
+            onImageChange={handleImageChange}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            onReset={resetImage}
+          />
+        )}
 
         <div className="bg-surface-container rounded-2xl sm:rounded-3xl border border-outline-variant/10 shadow-sm p-4 sm:p-8 space-y-6">
           <div>
@@ -293,12 +367,9 @@ function ProductForm() {
             />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+          <div className={`grid grid-cols-1 sm:grid-cols-2 ${itemType === "Producto" ? "lg:grid-cols-4" : ""} gap-4 sm:gap-5`}>
             <div className="space-y-1.5">
               <label htmlFor="product-category" className="text-[13px] font-semibold text-on-surface block">Categor&iacute;a</label>
-              {/* Mismo par selector + "＋" que Proveedor: quien está dando de alta
-                  un producto y descubre que le falta la categoría no debería
-                  tener que abandonar el formulario y perder lo escrito. */}
               <div className="flex gap-2 items-center">
                 <Select
                   id="product-category"
@@ -325,126 +396,185 @@ function ProductForm() {
                 </button>
               </div>
             </div>
-            <div className="space-y-1.5">
-              <label htmlFor="product-distributor" className="text-[13px] font-semibold text-on-surface block">Proveedor</label>
-              <div className="flex gap-2 items-center">
-                <Select
-                  id="product-distributor"
-                  containerClassName="flex-1 min-w-0"
-                  value={form.distributor_id}
-                  onChange={(e) => setForm({ ...form, distributor_id: e.target.value })}
-                >
-                  <option value="">Sin proveedor</option>
-                  {distributors.map((d) => (
-                    <option key={d.id} value={d.id}>{d.business_name}</option>
+            {itemType === "Producto" && (
+              <div className="space-y-1.5">
+                <label htmlFor="product-distributor" className="text-[13px] font-semibold text-on-surface block">Proveedor</label>
+                <div className="flex gap-2 items-center">
+                  <Select
+                    id="product-distributor"
+                    containerClassName="flex-1 min-w-0"
+                    value={form.distributor_id}
+                    onChange={(e) => setForm({ ...form, distributor_id: e.target.value })}
+                  >
+                    <option value="">Sin proveedor</option>
+                    {distributors.map((d) => (
+                      <option key={d.id} value={d.id}>{d.business_name}</option>
+                    ))}
+                  </Select>
+                  <button
+                    type="button"
+                    onClick={() => setDistributorModalOpen(true)}
+                    className="shrink-0 w-11 py-3 flex items-center justify-center rounded-xl bg-primary/10 text-primary hover:bg-primary hover:text-white transition-colors"
+                    title="Crear nuevo proveedor"
+                  >
+                    <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-4 h-4">
+                      <line x1="12" y1="5" x2="12" y2="19" />
+                      <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            )}
+            {itemType === "Producto" && (
+              <Select
+                label="Unidad de Medida"
+                value={form.unit}
+                onChange={(e) => setForm({ ...form, unit: e.target.value })}
+              >
+                <option value="Unidad">Unidad</option>
+                <option value="kg">kg</option>
+                <option value="g">g</option>
+                <option value="lb">lb</option>
+                <option value="L">L</option>
+                <option value="ml">ml</option>
+                <option value="m">m</option>
+                <option value="cm">cm</option>
+                <option value="Par">Par</option>
+                <option value="Docena">Docena</option>
+                <option value="Caja">Caja</option>
+                <option value="Pack">Pack</option>
+              </Select>
+            )}
+            {itemType === "Producto" && (
+              <Select
+                label="Producto padre (opcional)"
+                value={form.parent_product_id}
+                onChange={(e) => setForm({ ...form, parent_product_id: e.target.value })}
+              >
+                <option value="">Es producto principal</option>
+                {products
+                  .filter((p) => !p.parent_product_id && p.id !== editId)
+                  .map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
                   ))}
-                </Select>
-                <button
-                  type="button"
-                  onClick={() => setDistributorModalOpen(true)}
-                  className="shrink-0 w-11 py-3 flex items-center justify-center rounded-xl bg-primary/10 text-primary hover:bg-primary hover:text-white transition-colors"
-                  title="Crear nuevo proveedor"
-                >
-                  <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-4 h-4">
-                    <line x1="12" y1="5" x2="12" y2="19" />
-                    <line x1="5" y1="12" x2="19" y2="12" />
-                  </svg>
-                </button>
+              </Select>
+            )}
+          </div>
+
+          {itemType === "Producto" && (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-5">
+              <div className="space-y-1.5">
+                <label htmlFor="product-sku" className="text-[13px] font-semibold text-on-surface block">
+                  SKU <span className="text-on-surface-variant font-normal">(opcional)</span>
+                </label>
+                <input
+                  id="product-sku"
+                  type="text"
+                  value={form.sku}
+                  onChange={(e) => setForm({ ...form, sku: e.target.value })}
+                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-base sm:text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all font-mono placeholder:text-on-surface-variant/50"
+                  placeholder="Se genera solo si lo dejas vacío"
+                />
+              </div>
+
+              <div className="space-y-1.5 sm:col-span-2">
+                <label htmlFor="advanced-product-barcode" className="text-[13px] font-semibold text-on-surface block">
+                  Código de barras <span className="text-on-surface-variant font-normal">(opcional)</span>
+                </label>
+                <BarcodeField
+                  id="advanced-product-barcode"
+                  value={form.barcode ?? ""}
+                  onChange={(code) => setForm({ ...form, barcode: code })}
+                />
+                {searching && (
+                  <p className="text-xs text-on-surface-variant flex items-center gap-1.5 pt-1">
+                    <span className="inline-block w-3 h-3 border-2 border-on-surface-variant/30 border-t-on-surface-variant rounded-full animate-spin" />
+                    Buscando en Open Food Facts…
+                  </p>
+                )}
+                {!searching && lookedUp && (
+                  <p className="text-xs text-success flex items-center gap-1 pt-1">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                    Info encontrada: {lookedUp.name}
+                  </p>
+                )}
               </div>
             </div>
-            <Select
-              label="Unidad de Medida"
-              value={form.unit}
-              onChange={(e) => setForm({ ...form, unit: e.target.value })}
-            >
-              <option value="Unidad">Unidad</option>
-              <option value="kg">kg</option>
-              <option value="g">g</option>
-              <option value="lb">lb</option>
-              <option value="L">L</option>
-              <option value="ml">ml</option>
-              <option value="m">m</option>
-              <option value="cm">cm</option>
-              <option value="Par">Par</option>
-              <option value="Docena">Docena</option>
-              <option value="Caja">Caja</option>
-              <option value="Pack">Pack</option>
-            </Select>
-            <Select
-              label="Producto padre (opcional)"
-              value={form.parent_product_id}
-              onChange={(e) => setForm({ ...form, parent_product_id: e.target.value })}
-            >
-              <option value="">Es producto principal</option>
-              {products
-                .filter((p) => !p.parent_product_id && p.id !== editId)
-                .map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-            </Select>
-          </div>
+          )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-5">
-            <div className="space-y-1.5">
-              <label htmlFor="product-sku" className="text-[13px] font-semibold text-on-surface block">
-                SKU <span className="text-on-surface-variant font-normal">(opcional)</span>
-              </label>
-              <input
-                id="product-sku"
-                type="text"
-                value={form.sku}
-                onChange={(e) => setForm({ ...form, sku: e.target.value })}
-                className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-base sm:text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all font-mono placeholder:text-on-surface-variant/50"
-                placeholder="Se genera solo si lo dejas vacío"
+          {itemType === "Producto" ? (
+            <>
+              <ProductPricingSection
+                purchase={{ base: purchase.base, total: purchase.total, fromBase: setPurchase.fromBase, fromTotal: setPurchase.fromTotal }}
+                selling={{ base: selling.base, total: selling.total, fromBase: setSelling.fromBase, fromTotal: setSelling.fromTotal }}
+                purchasePriceTax={purchasePriceTax}
+                setPurchasePriceTax={setPurchasePriceTax}
+                sellingPriceTax={sellingPriceTax}
+                setSellingPriceTax={setSellingPriceTax}
+                rawPercentLabel={rawPercentLabel}
+                percentLabel={percentLabel}
+                includeTax={includeTax}
+                margin={margin}
               />
-            </div>
 
-            {/* Código de barras: el del empaque, distinto del SKU interno. Se
-                escanea con la cámara o lo teclea un lector láser de mostrador. */}
-            <div className="space-y-1.5 sm:col-span-2">
-              <label htmlFor="advanced-product-barcode" className="text-[13px] font-semibold text-on-surface block">
-                Código de barras <span className="text-on-surface-variant font-normal">(opcional)</span>
-              </label>
-              <BarcodeField
-                id="advanced-product-barcode"
-                value={form.barcode ?? ""}
-                onChange={(code) => setForm({ ...form, barcode: code })}
+              <ProductPresentationSection
+                presentation={presentation}
+                setPresentation={setPresentation}
+                editId={editId}
+                unitsPerPackage={form.units_per_package ?? "1"}
+                onUnitsPerPackageChange={(v) => setForm({ ...form, units_per_package: v })}
+                initialUnits={initialUnits}
+                setInitialUnits={setInitialUnits}
+                initialPackages={initialPackages}
+                setInitialPackages={setInitialPackages}
+                initialStock={initialStock}
+                packagePrice={form.package_price ?? ""}
+                onPackagePriceChange={(v) => setForm({ ...form, package_price: v })}
+                packageHint={packageHint}
+                stockLevel={form.stock_level ?? ""}
               />
+            </>
+          ) : (
+            <div className="pt-2">
+              <h3 className="text-sm font-bold text-on-surface mb-2">Precio de venta</h3>
+              <p className="text-xs text-on-surface-variant mb-3">{includeTax ? "Precio final (IVA incluido)" : "Precio (sin IVA)"}</p>
+              <div className="flex items-end gap-3">
+                <div className="space-y-1.5 flex-1 max-w-[240px]">
+                  <label className="text-[13px] font-semibold text-on-surface block">Precio</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-on-surface-variant">$</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={selling.total}
+                      onChange={(e) => setSelling.fromTotal(e.target.value)}
+                      className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 pl-7 pr-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+                      placeholder="0.00"
+                      required
+                    />
+                  </div>
+                </div>
+                {taxRate > 0 && (
+                  <div className="space-y-1.5">
+                    <label className="text-[13px] font-semibold text-on-surface block">IVA</label>
+                    <Select
+                      value={sellingPriceTax}
+                      onChange={(e) => setSellingPriceTax(e.target.value)}
+                    >
+                      <option value="IVA">{percentLabel}</option>
+                      <option value="Ninguno">Ninguno</option>
+                    </Select>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-
-          <ProductPricingSection
-            purchase={{ base: purchase.base, total: purchase.total, fromBase: setPurchase.fromBase, fromTotal: setPurchase.fromTotal }}
-            selling={{ base: selling.base, total: selling.total, fromBase: setSelling.fromBase, fromTotal: setSelling.fromTotal }}
-            purchasePriceTax={purchasePriceTax}
-            setPurchasePriceTax={setPurchasePriceTax}
-            sellingPriceTax={sellingPriceTax}
-            setSellingPriceTax={setSellingPriceTax}
-            rawPercentLabel={rawPercentLabel}
-            percentLabel={percentLabel}
-            includeTax={includeTax}
-            margin={margin}
-          />
-
-          <ProductPresentationSection
-            presentation={presentation}
-            setPresentation={setPresentation}
-            editId={editId}
-            unitsPerPackage={form.units_per_package ?? "1"}
-            onUnitsPerPackageChange={(v) => setForm({ ...form, units_per_package: v })}
-            initialUnits={initialUnits}
-            setInitialUnits={setInitialUnits}
-            initialPackages={initialPackages}
-            setInitialPackages={setInitialPackages}
-            initialStock={initialStock}
-            packagePrice={form.package_price ?? ""}
-            onPackagePriceChange={(v) => setForm({ ...form, package_price: v })}
-            packageHint={packageHint}
-            stockLevel={form.stock_level ?? ""}
-          />
+          )}
 
 
-          {editId && (() => {
+          {itemType === "Producto" && editId && (() => {
             const currentProduct = products.find((p) => p.id === editId);
             const variantList = currentProduct?.variants ?? [];
             if (variantList.length === 0) return null;

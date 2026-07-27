@@ -96,6 +96,13 @@ export interface SaleTotals {
 
 export type PaymentMethod = "efectivo" | "tarjeta" | "transferencia";
 
+export interface PaymentSplit {
+  payment_method: PaymentMethod;
+  amount: number;
+  transfer_method?: string | null;
+  card_method?: string | null;
+}
+
 /** Línea de venta: lleva product_id o service_id según el tipo de ítem. */
 export interface CheckoutItem {
   product_id?: string;
@@ -116,6 +123,8 @@ export interface CheckoutInput {
   items: CheckoutItem[];
   /** Desglosar IVA en esta venta. Sin esto manda la configuración del negocio. */
   includeTax?: boolean;
+  /** Pagos divididos: si se envía, ignora paymentMethod/transferMethod/cardMethod. */
+  splits?: PaymentSplit[];
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -303,24 +312,13 @@ export async function createSale(input: CheckoutInput): Promise<string> {
     ...(input.cardMethod ? { p_card_method: input.cardMethod } : {}),
   };
 
-  // 1. Intentar la llamada con el payload específico
-  const primaryCall = await supabase.rpc("create_sale", payload);
-  if (!primaryCall.error) {
-    return primaryCall.data as string;
+  if (input.splits && input.splits.length > 0) {
+    payload.p_payments = input.splits as unknown as Json;
   }
 
-  // 2. Si falla por falta del parámetro opcional en DB remota no migrada, reintentar con los 5 parámetros base
-  const basePayload: CreateSaleArgs = {
-    p_customer_id: input.customerId as string,
-    p_payment_method: input.paymentMethod,
-    p_discount_amount: input.discount,
-    p_items: input.items as unknown as Json,
-    p_staff_id: input.staffId ?? undefined,
-  };
-
-  const fallbackCall = await supabase.rpc("create_sale", basePayload);
-  if (fallbackCall.error) throw fallbackCall.error;
-  return fallbackCall.data as string;
+  const { data, error } = await supabase.rpc("create_sale", payload);
+  if (error) throw error;
+  return data as string;
 }
 
 export async function createCustomer(params: {

@@ -42,6 +42,7 @@ interface SalesState {
   setPage: (page: number) => Promise<void>;
   openDetail: (saleId: string) => Promise<void>;
   closeDetail: () => void;
+  voidSale: (saleId: string) => Promise<boolean>;
 }
 
 
@@ -127,4 +128,23 @@ export const useSalesStore = create<SalesState>((set, get) => ({
   },
 
   closeDetail: () => set({ detail: null }),
+
+  voidSale: async (saleId) => {
+    set({ error: null });
+    try {
+      await salesService.voidSale(saleId);
+      set((s) => ({
+        sales: s.sales.map((sl) =>
+          sl.id === saleId ? { ...sl, status: "void" } : sl
+        ),
+        detail: s.detail?.id === saleId
+          ? { ...s.detail, status: "void" }
+          : s.detail,
+      }));
+      return true;
+    } catch (e) {
+      set({ error: toMessage(e) });
+      return false;
+    }
+  },
 }));

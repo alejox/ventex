@@ -296,6 +296,81 @@ export type Database = {
         }
         Relationships: []
       }
+      deliveries: {
+        Row: {
+          address: string
+          created_at: string
+          delivery_person_id: string
+          fee: number
+          id: string
+          notes: string | null
+          sale_id: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          address?: string
+          created_at?: string
+          delivery_person_id: string
+          fee?: number
+          id?: string
+          notes?: string | null
+          sale_id: string
+          status?: string
+          user_id?: string
+        }
+        Update: {
+          address?: string
+          created_at?: string
+          delivery_person_id?: string
+          fee?: number
+          id?: string
+          notes?: string | null
+          sale_id?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deliveries_delivery_person_id_fkey"
+            columns: ["delivery_person_id"]
+            isOneToOne: false
+            referencedRelation: "delivery_persons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deliveries_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      delivery_persons: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          phone: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          phone: string
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          phone?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       distributors: {
         Row: {
           address: string | null
@@ -1101,6 +1176,47 @@ export type Database = {
           },
         ]
       }
+      sale_payments: {
+        Row: {
+          amount: number
+          card_method: string | null
+          created_at: string
+          id: string
+          payment_method: string
+          sale_id: string
+          transfer_method: string | null
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          card_method?: string | null
+          created_at?: string
+          id?: string
+          payment_method: string
+          sale_id: string
+          transfer_method?: string | null
+          user_id?: string
+        }
+        Update: {
+          amount?: number
+          card_method?: string | null
+          created_at?: string
+          id?: string
+          payment_method?: string
+          sale_id?: string
+          transfer_method?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sale_payments_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       services: {
         Row: {
           commission_type: string | null
@@ -1617,6 +1733,7 @@ export type Database = {
           p_include_tax?: boolean
           p_items: Json
           p_payment_method: string
+          p_payments?: Json
           p_staff_id?: string
           p_transfer_method?: string
         }
@@ -1686,6 +1803,10 @@ export type Database = {
       staff_login_email: {
         Args: { p_business_email: string; p_username: string }
         Returns: string
+      }
+      void_sale: {
+        Args: { p_sale_id: string }
+        Returns: undefined
       }
       worker_login: {
         Args: { p_business_key: string; p_username: string }

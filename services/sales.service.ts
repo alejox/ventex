@@ -281,3 +281,9 @@ export async function fetchSaleDetail(saleId: string): Promise<SaleDetail> {
     items,
   };
 }
+
+export async function voidSale(saleId: string): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase.rpc("void_sale", { p_sale_id: saleId });
+  if (error) throw error;
+}

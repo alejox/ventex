@@ -97,6 +97,7 @@ export default function DistributorsPage() {
     {
       header: "Negocio",
       mobile: "title",
+      sortKey: "negocio",
       className: "pl-6 font-medium text-on-surface",
       headerClassName: "pl-6",
       cell: (d) => d.business_name,
@@ -104,6 +105,7 @@ export default function DistributorsPage() {
     {
       header: "Contacto",
       mobile: "subtitle",
+      sortKey: "contacto",
       className: "text-on-surface-variant",
       cell: (d) => (
         <>
@@ -114,6 +116,7 @@ export default function DistributorsPage() {
     },
     {
       header: "Teléfono",
+      sortKey: "telefono",
       className: "text-on-surface-variant",
       cell: (d) => d.phone ?? "—",
     },
@@ -124,6 +127,7 @@ export default function DistributorsPage() {
     },
     {
       header: "Documento",
+      sortKey: "doc",
       className: "text-on-surface-variant font-mono text-xs",
       cell: (d) => (
         <span className="font-mono text-xs">

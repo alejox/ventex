@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useInventoryStore } from "@/stores/inventory.store";
 import { CategoryQuickModal } from "@/components/CategoryQuickModal";
 import { BarcodeField } from "@/components/BarcodeField";
+import { useBarcodeLookup } from "@/lib/useBarcodeLookup";
+import type { OpenFactsProduct } from "@/services/openfacts.service";
 import { useBusinessTax } from "@/lib/useBusinessTax";
 import { usePricePair } from "@/lib/usePricePair";
 import { MoneyInput } from "@/components/ui/MoneyInput";
@@ -36,6 +38,23 @@ function IconExternalLink(props: React.SVGProps<SVGSVGElement>) {
       <line x1="10" y1="14" x2="21" y2="3" />
     </svg>
   );
+}
+
+const UNIT_MAP: Record<string, string> = {
+  ml: "ml", cl: "ml", l: "L", dl: "L",
+  g: "g", kg: "Kg", lb: "lb", oz: "g",
+  m: "m", cm: "cm",
+  unidad: "Unidad", un: "Unidad", docena: "Docena",
+  pack: "Pack", caja: "Caja",
+};
+
+function parseQuantityUnit(raw: string): string | undefined {
+  const lower = raw.toLowerCase().trim();
+  const parts = lower.split(/\s+/);
+  for (const p of parts) {
+    const match = UNIT_MAP[p];
+    if (match) return match;
+  }
 }
 
 export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModalProps) {
@@ -76,6 +95,25 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
     presentation === "package"
       ? (parseInt(quantity || "0") || 0) * Math.max(parseInt(unitsPerPackage || "1") || 1, 1)
       : parseInt(quantity || "0") || 0;
+
+  const handleBarcodeFound = useCallback(
+    (product: OpenFactsProduct) => {
+      if (!name.trim() && product.name) setName(product.name);
+      if (unit === "Unidad" && product.quantity) {
+        const u = parseQuantityUnit(product.quantity);
+        if (u) setUnit(u);
+      }
+      if (product.imageUrl && !imagePreview) {
+        setImagePreview(product.imageUrl);
+      }
+    },
+    [name, unit, imagePreview],
+  );
+
+  const { product: lookedUp, searching } = useBarcodeLookup(
+    type === "Producto" ? barcode : "",
+    handleBarcodeFound,
+  );
 
   // Base y total, editables por los dos lados: escribir uno recalcula el otro.
   const purchaseMultiplier = tax === "Ninguno" ? 1 : 1 + rawRate;
@@ -237,13 +275,27 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
 
             {/* Código de barras: se escanea con la cámara del celular o se
                 escribe (los lectores láser de mostrador teclean en el campo). */}
-            {type === "Producto" && (
+              {type === "Producto" && (
               <div className="space-y-1.5">
                 <label htmlFor="product-barcode" className="flex items-center gap-1 text-sm font-semibold text-on-surface">
                   Código de barras
                   <span className="text-xs text-on-surface-variant font-normal">(opcional)</span>
                 </label>
                 <BarcodeField id="product-barcode" value={barcode} onChange={setBarcode} />
+                {searching && (
+                  <p className="text-xs text-on-surface-variant flex items-center gap-1.5 pt-1">
+                    <span className="inline-block w-3 h-3 border-2 border-on-surface-variant/30 border-t-on-surface-variant rounded-full animate-spin" />
+                    Buscando en Open Food Facts…
+                  </p>
+                )}
+                {!searching && lookedUp && (
+                  <p className="text-xs text-success flex items-center gap-1 pt-1">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                    Info encontrada: {lookedUp.name}
+                  </p>
+                )}
               </div>
             )}
 

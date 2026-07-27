@@ -12,6 +12,7 @@ import {
   type CustomerOption,
   type SaleTotals,
   type StaffOption,
+  type PaymentSplit,
 } from "@/services/pos.service";
 
 const money = (n: number) =>
@@ -58,6 +59,13 @@ interface PosCartPanelProps {
   onOpenRecentSalesModal: () => void;
   onOpenCustomerModal: () => void;
   requireShift: (action: () => void) => void;
+  splits: PaymentSplit[];
+  addSplit: () => void;
+  removeSplit: (index: number) => void;
+  updateSplitAmount: (index: number, amount: number) => void;
+  updateSplitMethod: (index: number, method: PaymentMethod, transferMethod?: string | null, cardMethod?: string | null) => void;
+  isDelivery: boolean;
+  setDelivery: (enabled: boolean) => void;
 }
 
 export function PosCartPanel({
@@ -101,6 +109,13 @@ export function PosCartPanel({
   onOpenRecentSalesModal,
   onOpenCustomerModal,
   requireShift,
+  splits,
+  addSplit,
+  removeSplit,
+  updateSplitAmount,
+  updateSplitMethod,
+  isDelivery,
+  setDelivery,
 }: PosCartPanelProps) {
   return (
     <>
@@ -141,7 +156,7 @@ export function PosCartPanel({
                     <rect x="6" y="14" width="12" height="8"/>
                   </svg>
                 </button>
-                <button onClick={onOpenSaleConfigModal} className="hover:text-primary" title="Configuraci\u00f3n">
+                <button onClick={onOpenSaleConfigModal} className="hover:text-primary" title="Configuración">
                   <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-5 h-5">
                     <line x1="4" y1="21" x2="4" y2="14"/>
                     <line x1="4" y1="10" x2="4" y2="3"/>
@@ -170,13 +185,13 @@ export function PosCartPanel({
               <Select label="Lista de precio" size="sm" defaultValue="general">
                 <option value="general">General</option>
               </Select>
-              <Select label="Numeraci\u00f3n" size="sm" defaultValue="principal">
+              <Select label="Numeración" size="sm" defaultValue="principal">
                 <option value="principal">Principal</option>
               </Select>
             </div>
 
             <Select
-              label="M\u00e9todo de pago"
+              label="Método de pago"
               size="sm"
               value={paymentMethod}
               onChange={(e) => {
@@ -210,6 +225,125 @@ export function PosCartPanel({
                 onSelect={(id) => setCardMethod(id)}
               />
             )}
+
+            {/* Domicilio toggle */}
+            {totals.total > 0 && (
+              <label className="flex items-center gap-3 py-1.5 cursor-pointer">
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={isDelivery}
+                  onClick={() => setDelivery(!isDelivery)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${
+                    isDelivery ? "bg-[#6063ee]" : "bg-outline-variant/30"
+                  }`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    isDelivery ? "translate-x-6" : "translate-x-1"
+                  }`} />
+                </button>
+                <span className="text-sm text-on-surface">Es domicilio</span>
+              </label>
+            )}
+
+            {/* Split payment */}
+            <div className="space-y-2">
+              {splits.length === 0 && totals.total > 0 && (
+                <button
+                  type="button"
+                  onClick={addSplit}
+                  className="w-full py-2 rounded-lg text-xs font-semibold border border-dashed border-outline-variant/40 text-on-surface-variant hover:text-on-surface hover:border-outline-variant hover:bg-surface-container transition-colors"
+                >
+                  + Dividir pago en varios métodos
+                </button>
+              )}
+
+              {splits.length > 0 && (
+                <div className="space-y-2 p-3 rounded-xl bg-surface-container border border-outline-variant/10">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-on-surface">Pago dividido</span>
+                    <button
+                      type="button"
+                      onClick={addSplit}
+                      className="text-xs text-primary hover:text-primary-dim transition-colors font-medium"
+                    >
+                      + Agregar
+                    </button>
+                  </div>
+
+                  {splits.map((sp, i) => {
+                    const isLast = i === splits.length - 1;
+                    const othersSum = splits.reduce((s, x, j) => s + (j !== i ? x.amount : 0), 0);
+                    const remaining = Math.max(0, totals.total - othersSum);
+
+                    return (
+                      <div key={i} className="flex items-center gap-2">
+                        <Select
+                          size="sm"
+                          containerClassName="w-[110px] shrink-0"
+                          value={sp.payment_method}
+                          onChange={(e) => {
+                            const method = e.target.value as PaymentMethod;
+                            let tm: string | null = null;
+                            let cm: string | null = null;
+                            if (method === "transferencia") tm = transferMethodsEnabled?.[0] ?? null;
+                            if (method === "tarjeta") cm = cardMethodsEnabled?.[0] ?? null;
+                            updateSplitMethod(i, method, tm, cm);
+                          }}
+                        >
+                          {paymentOptions.map((m) => (
+                            <option key={m.value} value={m.value}>{m.label}</option>
+                          ))}
+                        </Select>
+
+                        <div className="relative flex-1 min-w-0">
+                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-on-surface-variant">$</span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={sp.amount || ""}
+                            onChange={(e) => updateSplitAmount(i, parseFloat(e.target.value) || 0)}
+                            className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-lg py-1.5 pl-5 pr-2 text-xs text-on-surface focus:outline-none focus:border-primary transition-all"
+                            placeholder={isLast && remaining > 0 ? remaining.toFixed(0) : "0"}
+                          />
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => removeSplit(i)}
+                          className="shrink-0 w-6 h-6 flex items-center justify-center rounded text-on-surface-variant/60 hover:text-error transition-colors"
+                        >
+                          <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-3.5 h-3.5">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    );
+                  })}
+
+                  {(() => {
+                    const paid = splits.reduce((s, sp) => s + sp.amount, 0);
+                    const remaining = totals.total - paid;
+                    return (
+                      <div className="flex justify-between items-center pt-1 border-t border-outline-variant/10">
+                        <span className="text-[11px] text-on-surface-variant">
+                          Pagado: ${money(paid)} / ${money(totals.total)}
+                        </span>
+                        {remaining > 0.01 && (
+                          <span className="text-[11px] font-semibold text-error">
+                            Restan ${money(remaining)}
+                          </span>
+                        )}
+                        {Math.abs(remaining) <= 0.01 && (
+                          <span className="text-[11px] font-semibold text-success">Completo ✓</span>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+            </div>
 
             <div className="flex gap-2 items-end">
               <Select
@@ -264,7 +398,7 @@ export function PosCartPanel({
                   </svg>
                 </div>
                 <p className="text-sm text-on-surface-variant">
-                  Aqu\u00ed ver\u00e1s los \u00edtems que elijas en tu pr\u00f3xima venta
+                  Aquí verás los ítems que elijas en tu próxima venta
                 </p>
               </div>
             ) : (
@@ -303,7 +437,7 @@ export function PosCartPanel({
                     <div className="flex gap-1 p-0.5 rounded-lg bg-surface-container-lowest border border-outline-variant/15">
                       {([
                         { kind: "unit" as const, label: "Unidad", price: line.item.price },
-                        { kind: "package" as const, label: `Caja \u00d7${line.item.units_per_package}`, price: line.item.package_price },
+                        { kind: "package" as const, label: `Caja ×${line.item.units_per_package}`, price: line.item.package_price },
                       ]).map((opt) => {
                         const active = (line.unitKind ?? "unit") === opt.kind;
                         return (
@@ -383,7 +517,7 @@ export function PosCartPanel({
                     <button
                       onClick={() => removeFromCart(cartLineKey(line))}
                       className="text-error/70 hover:text-error transition-colors p-1"
-                      aria-label="Quitar \u00edtem"
+                      aria-label="Quitar ítem"
                     >
                       <IconTrash className="w-4 h-4" />
                     </button>
@@ -399,7 +533,7 @@ export function PosCartPanel({
           {cart.length > 0 && (
             <div className="flex items-center justify-between mb-3 px-1">
               <span className="text-xs font-semibold text-on-surface-variant">
-                {cart.length} \u00edtem{cart.length !== 1 ? "s" : ""} &middot; {cartUnits} unidad{cartUnits !== 1 ? "es" : ""}
+                {cart.length} ítem{cart.length !== 1 ? "s" : ""} &middot; {cartUnits} unidad{cartUnits !== 1 ? "es" : ""}
               </span>
             </div>
           )}
@@ -414,7 +548,7 @@ export function PosCartPanel({
                     <span className="font-semibold text-on-surface">${money(totals.gross)}</span>
                   </div>
                   <div className="flex justify-between text-sm text-[#10b981]">
-                    <span>Descuento por exenci\u00f3n de IVA</span>
+                    <span>Descuento por exención de IVA</span>
                     <span className="font-semibold">-${money(totals.exemptionDiscount)}</span>
                   </div>
                   <div className="flex justify-between text-sm text-on-surface-variant">
@@ -499,12 +633,12 @@ export function PosCartPanel({
               <button
                 onClick={onOpenRecentSalesModal}
                 className="w-[52px] flex-shrink-0 flex items-center justify-center rounded-xl bg-surface-container border border-outline-variant/10 text-on-surface hover:bg-surface-container-high transition-colors py-3"
-                aria-label="\u00daltimas ventas"
+                aria-label="Últimas ventas"
               >
                 <IconReceipt className="w-6 h-6" />
               </button>
               <div className="absolute bottom-full right-0 mb-2 w-max opacity-0 scale-95 invisible group-hover:opacity-100 group-hover:scale-100 group-hover:visible transition-all duration-150 ease-out bg-inverse-surface text-inverse-on-surface text-xs font-medium py-1.5 px-2.5 rounded shadow-lg pointer-events-none z-50">
-                \u00daltimas ventas
+                Últimas ventas
                 <div className="absolute top-full right-4 -mt-px border-4 border-transparent border-t-inverse-surface"></div>
               </div>
             </div>

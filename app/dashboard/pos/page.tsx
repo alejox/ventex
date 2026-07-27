@@ -26,6 +26,7 @@ import { SaleConfigModal } from "@/components/SaleConfigModal";
 import { notifySuccess, notifyWarning, notifyError } from "@/lib/notifications";
 import { PosCatalog } from "./components/PosCatalog";
 import { PosCartPanel } from "./components/PosCartPanel";
+import { DeliveryModal } from "./components/DeliveryModal";
 import { PosTabsBar } from "./components/PosTabsBar";
 import { CashConfirmModal } from "./components/CashConfirmModal";
 import { SuccessModal } from "./components/SuccessModal";
@@ -130,6 +131,12 @@ export default function POSPage() {
   const setLineStaff = usePosStore((s) => s.setLineStaff);
   const clearCart = usePosStore((s) => s.clearCart);
   const checkout = usePosStore((s) => s.checkout);
+  const addSplit = usePosStore((s) => s.addSplit);
+  const removeSplit = usePosStore((s) => s.removeSplit);
+  const updateSplitAmount = usePosStore((s) => s.updateSplitAmount);
+  const updateSplitMethod = usePosStore((s) => s.updateSplitMethod);
+  const setDelivery = usePosStore((s) => s.setDelivery);
+  const setDeliveryData = usePosStore((s) => s.setDeliveryData);
 
   const paymentOptions = useMemo(
     () =>
@@ -149,6 +156,7 @@ export default function POSPage() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
+  const [isDeliveryModalOpen, setIsDeliveryModalOpen] = useState(false);
   const [isDiscountModalOpen, setIsDiscountModalOpen] = useState(false);
   const [isRecentSalesModalOpen, setIsRecentSalesModalOpen] = useState(false);
   const [isSaleConfigModalOpen, setIsSaleConfigModalOpen] = useState(false);
@@ -171,7 +179,7 @@ export default function POSPage() {
   }, [isSuccessModalOpen]);
 
   const activeTab = useMemo(() => tabs.find(t => t.id === activeTabId) || tabs[0], [tabs, activeTabId]);
-  const { cart, customerId, staffId, paymentMethod, transferMethod, cardMethod } = activeTab;
+  const { cart, customerId, staffId, paymentMethod, transferMethod, cardMethod, splits, isDelivery, deliveryData } = activeTab;
 
   useEffect(() => {
     if (!acceptsCard && paymentMethod === "tarjeta") {
@@ -333,7 +341,9 @@ export default function POSPage() {
 
   const handleCheckoutClick = () => {
     requireShift(() => {
-      if (paymentMethod === "efectivo") {
+      if (isDelivery) {
+        setIsDeliveryModalOpen(true);
+      } else if (paymentMethod === "efectivo") {
         setAmountTendered("");
         setIsCashConfirmOpen(true);
       } else {
@@ -470,6 +480,13 @@ export default function POSPage() {
             onOpenRecentSalesModal={() => setIsRecentSalesModalOpen(true)}
             onOpenCustomerModal={() => setIsCustomerModalOpen(true)}
             requireShift={requireShift}
+            splits={splits}
+            addSplit={addSplit}
+            removeSplit={removeSplit}
+            updateSplitAmount={updateSplitAmount}
+            updateSplitMethod={updateSplitMethod}
+            isDelivery={isDelivery}
+            setDelivery={setDelivery}
           />
         </div>
 
@@ -545,6 +562,24 @@ export default function POSPage() {
         <CloseShiftModal live={currentShift} onClose={() => setIsCloseShiftOpen(false)} />
       )}
       {isSaleConfigModalOpen && <SaleConfigModal onClose={() => setIsSaleConfigModalOpen(false)} />}
+
+      {isDeliveryModalOpen && (
+        <DeliveryModal
+          totals={totals}
+          deliveryData={deliveryData}
+          setDeliveryData={setDeliveryData}
+          onConfirm={() => {
+            setIsDeliveryModalOpen(false);
+            if (paymentMethod === "efectivo") {
+              setAmountTendered("");
+              setIsCashConfirmOpen(true);
+            } else {
+              handleCheckout();
+            }
+          }}
+          onClose={() => setIsDeliveryModalOpen(false)}
+        />
+      )}
 
       {isCashConfirmOpen && (
         <CashConfirmModal

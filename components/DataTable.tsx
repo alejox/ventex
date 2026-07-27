@@ -34,6 +34,8 @@ export interface DataColumn<T> {
   /** Clases del encabezado de la tabla. */
   headerClassName?: string;
   mobile?: MobileRole;
+  /** Clave para ordenar. Si no se define, la columna no es ordenable. */
+  sortKey?: string;
 }
 
 interface DataTableProps<T> {
@@ -62,6 +64,13 @@ const alignClass = {
   right: "text-right",
 } as const;
 
+const stringify = (node: React.ReactNode): string => {
+  if (node == null) return "";
+  if (typeof node === "string") return node;
+  if (typeof node === "number") return String(node);
+  return "";
+};
+
 /**
  * Una lista, dos formas.
  *
@@ -84,6 +93,36 @@ export function DataTable<T>({
   // Qué tarjetas tienen el detalle abierto. Se guarda por clave de fila para
   // que abrir una no reordene ni cierre las demás.
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [sortKey, setSortKey] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+  const toggleSort = (key: string) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  };
+
+  const sortedRows = [...rows].sort((a, b) => {
+    if (!sortKey) return 0;
+    const col = columns.find((c) => c.sortKey === sortKey);
+    if (!col) return 0;
+    const va = stringify(col.cell(a));
+    const vb = stringify(col.cell(b));
+    const cmp = va.localeCompare(vb, "es", { numeric: true, sensitivity: "base" });
+    return sortDir === "asc" ? cmp : -cmp;
+  });
+
+  const renderSortIcon = (key: string) => {
+    if (sortKey !== key) return null;
+    return (
+      <span className="inline-block ml-1 transition-transform">
+        {sortDir === "asc" ? "▲" : "▼"}
+      </span>
+    );
+  };
   const role = (c: DataColumn<T>): MobileRole => c.mobile ?? "field";
 
   /** La fila accionable también tiene que responder al teclado, no solo al click. */
@@ -130,15 +169,19 @@ export function DataTable<T>({
                 <th
                   key={c.header}
                   scope="col"
-                  className={`p-4 ${alignClass[c.align ?? "left"]} ${c.headerClassName ?? ""}`}
+                  className={`p-4 ${alignClass[c.align ?? "left"]} ${c.headerClassName ?? ""} ${c.sortKey ? "cursor-pointer select-none hover:text-on-surface transition-colors" : ""}`}
+                  onClick={c.sortKey ? () => toggleSort(c.sortKey!) : undefined}
                 >
-                  {c.header}
+                  <span className="inline-flex items-center">
+                    {c.header}
+                    {renderSortIcon(c.sortKey ?? "")}
+                  </span>
                 </th>
               ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-outline-variant/5 text-sm">
-            {rows.map((row) => {
+            {sortedRows.map((row) => {
               const interaction = rowInteraction(row);
               return (
               <tr
@@ -171,7 +214,7 @@ export function DataTable<T>({
           oscurece y en oscuro aclara, con una sola clase. Alternar entre dos
           tokens de superficie no servía: se llevan un 2% de diferencia. */}
       <ul className="lg:hidden divide-y divide-outline-variant/20">
-        {rows.map((row) => {
+        {sortedRows.map((row) => {
           const interaction = rowInteraction(row);
           const key = rowKey(row);
           const isOpen = expanded[key] ?? false;

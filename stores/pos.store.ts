@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { toMessage } from "@/lib/errors";
 import * as posService from "@/services/pos.service";
 import * as settingsService from "@/services/settings.service";
+import * as deliveryService from "@/services/delivery.service";
 import { lineKey, cartLineKey as keyOf } from "@/services/pos.service";
 import type {
   CatalogItem,
@@ -9,8 +10,16 @@ import type {
   StaffOption,
   CartLine,
   PaymentMethod,
+  PaymentSplit,
   SaleUnitKind,
 } from "@/services/pos.service";
+
+export interface DeliveryData {
+  personId: string | null;
+  address: string;
+  fee: number;
+  notes: string;
+}
 
 export interface SaleTab {
   id: string;
@@ -21,6 +30,9 @@ export interface SaleTab {
   paymentMethod: PaymentMethod;
   transferMethod?: string | null;
   cardMethod?: string | null;
+  splits: PaymentSplit[];
+  isDelivery: boolean;
+  deliveryData: DeliveryData;
 }
 
 interface PosState {
@@ -86,6 +98,12 @@ interface PosState {
   setPaymentMethod: (method: PaymentMethod) => void;
   setTransferMethod: (method: string | null) => void;
   setCardMethod: (method: string | null) => void;
+  addSplit: () => void;
+  removeSplit: (index: number) => void;
+  updateSplitAmount: (index: number, amount: number) => void;
+  updateSplitMethod: (index: number, method: PaymentMethod, transferMethod?: string | null, cardMethod?: string | null) => void;
+  setDelivery: (enabled: boolean) => void;
+  setDeliveryData: (data: Partial<DeliveryData>) => void;
   clearCart: () => void;
   /** Devuelve true si la venta se registró (para que el componente limpie la UI). */
   checkout: () => Promise<boolean>;
@@ -97,12 +115,17 @@ const createDefaultTab = (index: number, get?: () => PosState): SaleTab => {
   const defaultStaff = get?.()?.defaultStaffId ?? null;
   const defaultCustomer = get?.()?.defaultCustomerId ?? null;
   return {
-    id: `tab-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-    name: index === 0 ? "Venta principal" : `Venta ${index + 1}`,
+    id: crypto.randomUUID(),
+    name: `Venta ${index + 1}`,
     cart: [],
     customerId: defaultCustomer,
     staffId: defaultStaff,
     paymentMethod: defaultMethod,
+    transferMethod: null,
+    cardMethod: null,
+    splits: [],
+    isDelivery: false,
+    deliveryData: { personId: null, address: "", fee: 0, notes: "" },
   };
 };
 
@@ -492,6 +515,72 @@ export const usePosStore = create<PosState>((set, get) => {
         ),
       })),
 
+    addSplit: () =>
+      set((s) => ({
+        tabs: s.tabs.map((t) =>
+          t.id === s.activeTabId
+            ? { ...t, splits: [...t.splits, { payment_method: "efectivo", amount: 0 }] }
+            : t,
+        ),
+      })),
+
+    removeSplit: (index) =>
+      set((s) => ({
+        tabs: s.tabs.map((t) =>
+          t.id === s.activeTabId
+            ? { ...t, splits: t.splits.filter((_, i) => i !== index) }
+            : t,
+        ),
+      })),
+
+    updateSplitAmount: (index, amount) =>
+      set((s) => ({
+        tabs: s.tabs.map((t) =>
+          t.id === s.activeTabId
+            ? {
+                ...t,
+                splits: t.splits.map((sp, i) =>
+                  i === index ? { ...sp, amount } : sp,
+                ),
+              }
+            : t,
+        ),
+      })),
+
+    updateSplitMethod: (index, method, transferMethod, cardMethod) =>
+      set((s) => ({
+        tabs: s.tabs.map((t) =>
+          t.id === s.activeTabId
+            ? {
+                ...t,
+                splits: t.splits.map((sp, i) =>
+                  i === index
+                    ? { ...sp, payment_method: method, transfer_method: transferMethod ?? null, card_method: cardMethod ?? null }
+                    : sp,
+                ),
+              }
+            : t,
+        ),
+      })),
+
+    setDelivery: (enabled) =>
+      set((s) => ({
+        tabs: s.tabs.map((t) =>
+          t.id === s.activeTabId
+            ? { ...t, isDelivery: enabled }
+            : t,
+        ),
+      })),
+
+    setDeliveryData: (data) =>
+      set((s) => ({
+        tabs: s.tabs.map((t) =>
+          t.id === s.activeTabId
+            ? { ...t, deliveryData: { ...t.deliveryData, ...data } }
+            : t,
+        ),
+      })),
+
     clearCart: () =>
       set((s) => {
         const defaultMethod = get().defaultPaymentMethod;
@@ -500,7 +589,7 @@ export const usePosStore = create<PosState>((set, get) => {
         return {
           tabs: s.tabs.map((t) =>
             t.id === s.activeTabId
-              ? { ...t, cart: [], customerId: defaultCustomer, staffId: defaultStaff, paymentMethod: defaultMethod, transferMethod: null, cardMethod: null }
+              ? { ...t, cart: [], customerId: defaultCustomer, staffId: defaultStaff,                 paymentMethod: defaultMethod, transferMethod: null, cardMethod: null, splits: [], isDelivery: false, deliveryData: { personId: null, address: "", fee: 0, notes: "" } }
               : t,
           ),
         };
@@ -511,12 +600,12 @@ export const usePosStore = create<PosState>((set, get) => {
       const activeTab = state.tabs.find((t) => t.id === state.activeTabId);
       if (!activeTab || activeTab.cart.length === 0) return false;
 
-      const { cart, customerId, staffId, paymentMethod, transferMethod, cardMethod } = activeTab;
+      const { cart, customerId, staffId, paymentMethod, transferMethod, cardMethod, splits, isDelivery, deliveryData } = activeTab;
 
       set({ submitting: true, error: null });
       try {
         const totalDiscount = cart.reduce((acc, l) => acc + (l.discountAmount || 0), 0);
-        await posService.createSale({
+        const saleId = await posService.createSale({
           customerId,
           staffId,
           paymentMethod,
@@ -535,10 +624,18 @@ export const usePosStore = create<PosState>((set, get) => {
               kind: l.unitKind ?? "unit",
             };
           }),
+          splits: splits.length > 0 ? splits : undefined,
         });
 
-        // Refresca el catálogo para reflejar el stock ya descontado por la RPC.
-        const catalog = await posService.fetchCatalog();
+        if (isDelivery && deliveryData.personId) {
+          await deliveryService.createDelivery({
+            sale_id: saleId,
+            delivery_person_id: deliveryData.personId,
+            address: deliveryData.address,
+            fee: deliveryData.fee,
+            notes: deliveryData.notes || undefined,
+          });
+        }
 
         set((s) => {
           const defaultMethod = get().defaultPaymentMethod;
@@ -549,7 +646,7 @@ export const usePosStore = create<PosState>((set, get) => {
             catalog,
             tabs: s.tabs.map((t) =>
               t.id === s.activeTabId
-                ? { ...t, cart: [], customerId: defaultCustomer, staffId: defaultStaff, paymentMethod: defaultMethod, transferMethod: null, cardMethod: null }
+                ? { ...t, cart: [], customerId: defaultCustomer, staffId: defaultStaff,                 paymentMethod: defaultMethod, transferMethod: null, cardMethod: null, splits: [], isDelivery: false, deliveryData: { personId: null, address: "", fee: 0, notes: "" } }
                 : t,
             ),
           };

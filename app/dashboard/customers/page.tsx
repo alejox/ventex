@@ -120,6 +120,7 @@ export default function CustomersPage() {
     {
       header: "Nombre",
       mobile: "title",
+      sortKey: "nombre",
       className: "pl-6 font-medium text-on-surface",
       headerClassName: "pl-6",
       cell: (c) => c.full_name,
@@ -127,6 +128,7 @@ export default function CustomersPage() {
     {
       header: "Contacto",
       mobile: "subtitle",
+      sortKey: "email",
       className: "text-on-surface-variant",
       cell: (c) => (
         <>
@@ -137,6 +139,7 @@ export default function CustomersPage() {
     },
     {
       header: "Documento",
+      sortKey: "doc",
       className: "text-on-surface-variant font-mono text-xs",
       cell: (c) => (
         <span className="font-mono text-xs">

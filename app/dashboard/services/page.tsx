@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { IconScissors, IconPlus, IconClock } from "@/app/assets/icons/DashboardIcons";
+import { useEffect, useMemo, useState } from "react";
+import { IconSearch, IconScissors, IconPlus, IconClock } from "@/app/assets/icons/DashboardIcons";
 import { useServicesStore } from "@/stores/services.store";
 import type { NewServiceInput, Service } from "@/services/services.service";
 import { Select } from "@/components/ui/Select";
@@ -31,10 +31,16 @@ export default function ServicesPage() {
 
   const deleteService = useServicesStore((s) => s.deleteService);
 
+  const [searchQuery, setSearchQuery] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<NewServiceInput>(EMPTY_SERVICE);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+
+  const filtered = useMemo(
+    () => services.filter((s) => !searchQuery || s.name.toLowerCase().includes(searchQuery.toLowerCase())),
+    [services, searchQuery],
+  );
 
   useEffect(() => {
     fetchServices();
@@ -118,8 +124,22 @@ export default function ServicesPage() {
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {services.map((s) => (
+        <>
+          <div className="relative w-full sm:max-w-xs">
+            <IconSearch className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Buscar servicio..."
+              className="w-full h-11 bg-surface-container border border-outline-variant/20 rounded-xl pl-11 pr-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-on-surface-variant/50"
+            />
+          </div>
+          {filtered.length === 0 ? (
+            <p className="text-center text-sm text-on-surface-variant py-8">Ningún servicio coincide con la búsqueda.</p>
+          ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filtered.map((s) => (
             <button
               key={s.id}
               onClick={() => openEdit(s)}
@@ -153,6 +173,8 @@ export default function ServicesPage() {
             </button>
           ))}
         </div>
+      )}
+        </>
       )}
 
       {confirmDelete && (

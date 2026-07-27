@@ -70,12 +70,14 @@ const SALE_COLUMNS: DataColumn<SaleListItem>[] = [
   {
     header: "Cliente",
     mobile: "title",
+    sortKey: "cliente",
     className: "font-medium text-on-surface",
     cell: (s) => s.customer_name ?? "De Paso",
   },
   {
     header: "Fecha",
     mobile: "subtitle",
+    sortKey: "fecha",
     className: "text-on-surface-variant",
     cell: (s) => formatDate(s.created_at),
   },
@@ -83,6 +85,7 @@ const SALE_COLUMNS: DataColumn<SaleListItem>[] = [
     header: "Total",
     align: "right",
     mobile: "trailing",
+    sortKey: "total",
     className: "font-bold text-on-surface",
     cell: (s) => `$${money(s.total)}`,
   },
@@ -97,6 +100,7 @@ const SALE_COLUMNS: DataColumn<SaleListItem>[] = [
   },
   {
     header: "N.º",
+    sortKey: "numero",
     className: "pl-6 font-mono text-xs text-on-surface-variant",
     headerClassName: "pl-6",
     cell: (s) => <span className="font-mono text-xs">#{s.sale_number}</span>,
@@ -109,6 +113,7 @@ const SALE_COLUMNS: DataColumn<SaleListItem>[] = [
   },
   {
     header: "Pago",
+    sortKey: "pago",
     className: "text-on-surface-variant",
     cell: (s) => paymentLabelOf(s.payment_method, s.transfer_method, s.card_method),
   },
@@ -123,7 +128,9 @@ export default function SalesPage() {
   const fetchSales = useSalesStore((s) => s.fetchSales);
   const openDetail = useSalesStore((s) => s.openDetail);
   const closeDetail = useSalesStore((s) => s.closeDetail);
+  const voidSale = useSalesStore((s) => s.voidSale);
 
+  const [voidConfirm, setVoidConfirm] = useState(false);
   const summary = useSalesStore((s) => s.summary);
   const period = useSalesStore((s) => s.period);
   const customFrom = useSalesStore((s) => s.customFrom);
@@ -397,7 +404,7 @@ export default function SalesPage() {
                 )}
               </div>
               <button
-                onClick={closeDetail}
+                onClick={() => { closeDetail(); setVoidConfirm(false); }}
                 className="text-on-surface-variant hover:text-on-surface"
               >
                 ✕
@@ -454,6 +461,48 @@ export default function SalesPage() {
                   </span>
                   <span>{STATUS_LABELS[detail.status] ?? detail.status}</span>
                 </div>
+
+                {detail.status === "completed" && (
+                  <div className="pt-3 border-t border-outline-variant/10">
+                    {voidConfirm ? (
+                      <div className="space-y-2">
+                        <p className="text-sm text-on-surface font-medium">
+                          ¿Anular esta venta?
+                        </p>
+                        <p className="text-xs text-on-surface-variant">
+                          Se devolverá el stock al inventario. Esta acción no se puede deshacer.
+                        </p>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const ok = await voidSale(detail.id);
+                              if (ok) setVoidConfirm(false);
+                            }}
+                            className="px-4 py-2 rounded-xl text-xs font-bold bg-error-container/20 text-error hover:bg-error hover:text-on-error transition-colors"
+                          >
+                            Sí, anular venta
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setVoidConfirm(false)}
+                            className="px-4 py-2 rounded-xl text-xs font-semibold bg-surface-container-high text-on-surface-variant hover:text-on-surface transition-colors"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setVoidConfirm(true)}
+                        className="w-full py-2.5 rounded-xl text-xs font-bold border border-error-container/30 text-error hover:bg-error hover:text-on-error transition-colors"
+                      >
+                        Anular venta
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>
