@@ -16,6 +16,7 @@ import { useProfile } from "@/components/ProfileProvider";
 import { can } from "@/lib/permissions";
 import { Select } from "@/components/ui/Select";
 import { BarcodeScannerModal } from "@/components/BarcodeScannerModal";
+import { StockAdjustmentModal } from "@/components/StockAdjustmentModal";
 import { ProductModal } from "@/components/ProductModal";
 import { notifyError } from "@/lib/notifications";
 
@@ -87,6 +88,8 @@ export default function InventoryPage() {
   const [categoryFilter, setCategoryFilter] = useState("");
   const [stockFilter, setStockFilter] = useState("");
   const [scannerOpen, setScannerOpen] = useState(false);
+  const [adjustModalOpen, setAdjustModalOpen] = useState(false);
+  const [adjustProductId, setAdjustProductId] = useState<string | undefined>();
   /** Código escaneado que no existe en el catálogo: abre el alta con él puesto. */
   const [newProductBarcode, setNewProductBarcode] = useState<string | null>(null);
 
@@ -177,6 +180,7 @@ export default function InventoryPage() {
         {(canMoveStock || canEdit) && (
         <div className="grid grid-cols-2 gap-3 w-full lg:flex lg:w-auto">
           {canMoveStock && (
+          <>
           <Link
             href="/dashboard/inventory/movements"
             className="h-11 whitespace-nowrap bg-surface-container hover:bg-surface-container-high border border-outline-variant/20 text-on-surface text-sm font-semibold px-3 lg:px-5 rounded-xl transition-colors flex items-center justify-center gap-2"
@@ -186,6 +190,16 @@ export default function InventoryPage() {
             </svg>
             Movimientos
           </Link>
+          <button
+            onClick={() => { setAdjustProductId(undefined); setAdjustModalOpen(true); }}
+            className="h-11 whitespace-nowrap bg-surface-container hover:bg-surface-container-high border border-outline-variant/20 text-on-surface text-sm font-semibold px-3 lg:px-5 rounded-xl transition-colors flex items-center justify-center gap-2"
+          >
+            <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-4 h-4">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            Añadir stock
+          </button>
+          </>
           )}
           {canEdit && (
           <>
@@ -537,6 +551,21 @@ export default function InventoryPage() {
                                 <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                               </svg>
                             </Link>
+                            {canMoveStock && (
+                            <button
+                              onClick={(e) => {
+                                e.preventDefault();
+                                setAdjustProductId(item.id);
+                                setAdjustModalOpen(true);
+                              }}
+                              className="w-9 h-9 flex items-center justify-center rounded-xl text-on-surface-variant hover:text-success hover:bg-success/10 transition-colors"
+                              title="Añadir stock"
+                            >
+                              <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-4 h-4">
+                                <path d="M12 5v14M5 12h14" />
+                              </svg>
+                            </button>
+                            )}
                             <button
                               onClick={(e) => {
                                 e.preventDefault();
@@ -760,6 +789,17 @@ export default function InventoryPage() {
           onClose={() => setNewProductBarcode(null)}
           onCreated={() => {
             setNewProductBarcode(null);
+            fetchInventory();
+          }}
+        />
+      )}
+
+      {adjustModalOpen && (
+        <StockAdjustmentModal
+          preselectedProductId={adjustProductId}
+          onClose={() => setAdjustModalOpen(false)}
+          onSuccess={() => {
+            setAdjustModalOpen(false);
             fetchInventory();
           }}
         />

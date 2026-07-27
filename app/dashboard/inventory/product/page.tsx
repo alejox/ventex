@@ -13,6 +13,7 @@ import { usePricePair } from "@/lib/usePricePair";
 import { useBusinessTax } from "@/lib/useBusinessTax";
 import { useBarcodeLookup } from "@/lib/useBarcodeLookup";
 import type { OpenFactsProduct } from "@/services/openfacts.service";
+import { StockAdjustmentModal } from "@/components/StockAdjustmentModal";
 import { ProductImageUpload } from "./components/ProductImageUpload";
 import { ProductPricingSection } from "./components/ProductPricingSection";
 import { ProductPresentationSection } from "./components/ProductPresentationSection";
@@ -87,6 +88,7 @@ function ProductForm() {
   const [distributorModalOpen, setDistributorModalOpen] = useState(false);
   const [categoryModalOpen, setCategoryModalOpen] = useState(false);
   const [itemType, setItemType] = useState<"Producto" | "Servicio">("Producto");
+  const [adjustModalOpen, setAdjustModalOpen] = useState(false);
   /**
    * Cómo se maneja el producto. Arranca en "unidad" porque es lo que aplica a
    * la mayoría; la caja es una decisión que se toma, no un default que se sufre.
@@ -534,6 +536,7 @@ function ProductForm() {
                 onPackagePriceChange={(v) => setForm({ ...form, package_price: v })}
                 packageHint={packageHint}
                 stockLevel={form.stock_level ?? ""}
+                onAdjustStock={editId ? () => setAdjustModalOpen(true) : undefined}
               />
             </>
           ) : (
@@ -696,6 +699,17 @@ function ProductForm() {
         <CategoryQuickModal
           onClose={() => setCategoryModalOpen(false)}
           onCreated={(id) => setForm((prev) => ({ ...prev, category_id: id }))}
+        />
+      )}
+
+      {adjustModalOpen && editId && (
+        <StockAdjustmentModal
+          preselectedProductId={editId}
+          onClose={() => setAdjustModalOpen(false)}
+          onSuccess={() => {
+            setAdjustModalOpen(false);
+            fetchInventory();
+          }}
         />
       )}
     </div>
