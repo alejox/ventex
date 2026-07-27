@@ -94,7 +94,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const userEmail = profile?.email ?? "";
 
   return (
-    <div className="flex h-screen bg-background text-on-background font-sans">
+    <div className="flex h-screen bg-background text-on-background font-sans relative">
       {/* Sidebar - Desktop */}
       <aside className={`print:hidden hidden lg:flex flex-col justify-between border-r border-outline-variant/10 bg-surface-container-lowest transition-all duration-300 ${sidebarCollapsed ? "w-20" : "w-64"}`}>
         <div>
@@ -180,28 +180,23 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         </div>
         )}
 
-        {/* Botón toggle en el borde inferior del sidebar */}
-        <div className="p-4 border-t border-outline-variant/10">
-          <button
-            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            className={`flex items-center gap-3 py-3 rounded-xl transition-all text-sm font-medium text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low w-full overflow-hidden ${
-              sidebarCollapsed ? "justify-center px-0" : "px-4"
-            }`}
-            title={sidebarCollapsed ? "Expandir menú" : "Minimizar menú"}
-          >
-            <svg
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              viewBox="0 0 24 24"
-              className={`w-5 h-5 shrink-0 transition-transform duration-300 ${sidebarCollapsed ? "rotate-180" : ""}`}
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-            </svg>
-            {!sidebarCollapsed && <span className="whitespace-nowrap">Minimizar menú</span>}
-          </button>
-        </div>
       </aside>
+      <button
+        onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+        className="print:hidden hidden lg:flex absolute z-30 top-1/2 -translate-y-1/2 w-5 h-10 items-center justify-center rounded-r-lg bg-surface-container-lowest border border-outline-variant/10 border-l-0 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low transition-all cursor-pointer"
+        style={{ left: sidebarCollapsed ? "4.5rem" : "15.5rem" }}
+        title={sidebarCollapsed ? "Expandir menú" : "Minimizar menú"}
+      >
+        <svg
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          viewBox="0 0 24 24"
+          className={`w-3 h-3 transition-transform duration-300 ${sidebarCollapsed ? "rotate-180" : ""}`}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+        </svg>
+      </button>
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0">
