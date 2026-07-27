@@ -41,10 +41,34 @@ export async function createCustomer(input: NewCustomerInput): Promise<Customer>
       identification: input.identification || null,
       doc_type: input.doc_type || null,
       tax_exempt: input.tax_exempt,
-      // user_id lo asigna el trigger set_customers_user_id.
     })
     .select(SELECT)
     .single();
   if (error) throw error;
   return data as Customer;
+}
+
+export async function updateCustomer(id: string, input: NewCustomerInput): Promise<Customer> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("customers")
+    .update({
+      full_name: input.full_name,
+      email: input.email || null,
+      phone: input.phone || null,
+      identification: input.identification || null,
+      doc_type: input.doc_type || null,
+      tax_exempt: input.tax_exempt,
+    })
+    .eq("id", id)
+    .select(SELECT)
+    .single();
+  if (error) throw error;
+  return data as Customer;
+}
+
+export async function deleteCustomer(id: string): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase.from("customers").delete().eq("id", id);
+  if (error) throw error;
 }

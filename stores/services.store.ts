@@ -13,6 +13,7 @@ interface ServicesState {
   /** Devuelve true si el alta fue correcta (para que el componente cierre el modal). */
   addService: (input: NewServiceInput) => Promise<boolean>;
   updateService: (id: string, input: NewServiceInput) => Promise<boolean>;
+  deleteService: (id: string) => Promise<boolean>;
 }
 
 
@@ -50,6 +51,21 @@ export const useServicesStore = create<ServicesState>((set) => ({
       const service = await servicesService.updateService(id, input);
       set((s) => ({
         services: s.services.map((x) => (x.id === id ? service : x)),
+        submitting: false,
+      }));
+      return true;
+    } catch (e) {
+      set({ error: toMessage(e), submitting: false });
+      return false;
+    }
+  },
+
+  deleteService: async (id) => {
+    set({ submitting: true, error: null });
+    try {
+      await servicesService.deleteService(id);
+      set((s) => ({
+        services: s.services.filter((x) => x.id !== id),
         submitting: false,
       }));
       return true;

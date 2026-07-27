@@ -74,3 +74,9 @@ export async function updateService(id: string, input: NewServiceInput): Promise
   if (error) throw error;
   return data as Service;
 }
+
+export async function deleteService(id: string): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase.from("services").delete().eq("id", id);
+  if (error) throw error;
+}

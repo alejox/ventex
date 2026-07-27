@@ -25,6 +25,8 @@ interface InventoryState {
   updateProduct: (id: string, input: NewProductInput, imageFile?: File | null) => Promise<boolean>;
   /** Devuelve el id de la categoría creada para poder seleccionarla, o false. */
   addCategory: (input: NewCategoryInput) => Promise<string | false>;
+  archiveProduct: (id: string) => Promise<boolean>;
+  activateProduct: (id: string) => Promise<boolean>;
 }
 
 
@@ -82,6 +84,36 @@ export const useInventoryStore = create<InventoryState>((set) => ({
       const category = await inventoryService.createCategory(input);
       set((s) => ({ categories: [...s.categories, category] }));
       return category.id;
+    } catch (e) {
+      set({ error: toMessage(e) });
+      return false;
+    }
+  },
+
+  archiveProduct: async (id) => {
+    try {
+      await inventoryService.archiveProduct(id);
+      set((s) => ({
+        products: s.products.map((p) =>
+          p.id === id ? { ...p, status: "inactive" } : p
+        ),
+      }));
+      return true;
+    } catch (e) {
+      set({ error: toMessage(e) });
+      return false;
+    }
+  },
+
+  activateProduct: async (id) => {
+    try {
+      await inventoryService.activateProduct(id);
+      set((s) => ({
+        products: s.products.map((p) =>
+          p.id === id ? { ...p, status: "active" } : p
+        ),
+      }));
+      return true;
     } catch (e) {
       set({ error: toMessage(e) });
       return false;

@@ -32,6 +32,7 @@ export interface Product {
   has_commission: boolean;
   commission_type: string | null;
   commission_value: number | null;
+  status: string;
   units_per_package?: number;
   created_at: string;
   categories: { name: string } | null;
@@ -285,6 +286,24 @@ export async function createProduct(input: NewProductInput): Promise<Product> {
   if (error) throw error;
   const [withCost] = await attachCosts(supabase, [data as unknown as Product]);
   return withCost;
+}
+
+export async function archiveProduct(id: string): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("products")
+    .update({ status: "inactive" })
+    .eq("id", id);
+  if (error) throw error;
+}
+
+export async function activateProduct(id: string): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("products")
+    .update({ status: "active" })
+    .eq("id", id);
+  if (error) throw error;
 }
 
 export async function updateProduct(id: string, input: NewProductInput): Promise<Product> {

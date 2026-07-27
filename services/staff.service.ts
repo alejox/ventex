@@ -196,6 +196,12 @@ export async function fetchStaffSales(staffId: string): Promise<StaffSaleItem[]>
   return result;
 }
 
+export async function deleteStaff(id: string): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase.from("staff").delete().eq("id", id);
+  if (error) throw error;
+}
+
 export async function updateStaff(id: string, input: NewStaffInput): Promise<StaffMember> {
   const supabase = createClient();
   const { data, error } = await supabase

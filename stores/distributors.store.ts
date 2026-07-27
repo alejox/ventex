@@ -13,6 +13,7 @@ interface DistributorsState {
   /** Devuelve true si el alta fue correcta (para que el componente navegue/cierre). */
   addDistributor: (input: NewDistributorInput) => Promise<boolean>;
   updateDistributor: (id: string, input: NewDistributorInput) => Promise<boolean>;
+  deleteDistributor: (id: string) => Promise<boolean>;
 }
 
 
@@ -50,6 +51,21 @@ export const useDistributorsStore = create<DistributorsState>((set) => ({
       const distributor = await distributorsService.updateDistributor(id, input);
       set((s) => ({
         distributors: s.distributors.map((d) => (d.id === id ? distributor : d)),
+        submitting: false,
+      }));
+      return true;
+    } catch (e) {
+      set({ error: toMessage(e), submitting: false });
+      return false;
+    }
+  },
+
+  deleteDistributor: async (id) => {
+    set({ submitting: true, error: null });
+    try {
+      await distributorsService.deleteDistributor(id);
+      set((s) => ({
+        distributors: s.distributors.filter((d) => d.id !== id),
         submitting: false,
       }));
       return true;

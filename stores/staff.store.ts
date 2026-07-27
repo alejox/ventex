@@ -17,6 +17,7 @@ interface StaffState {
   /** Devuelve true si el alta fue correcta (para que el componente cierre el modal). */
   addStaff: (input: NewStaffInput) => Promise<boolean>;
   updateStaff: (id: string, input: NewStaffInput) => Promise<boolean>;
+  deleteStaff: (id: string) => Promise<boolean>;
 }
 
 
@@ -66,6 +67,21 @@ export const useStaffStore = create<StaffState>((set) => ({
       const member = await staffService.updateStaff(id, input);
       set((s) => ({
         staff: s.staff.map((x) => (x.id === id ? member : x)),
+        submitting: false,
+      }));
+      return true;
+    } catch (e) {
+      set({ error: toMessage(e), submitting: false });
+      return false;
+    }
+  },
+
+  deleteStaff: async (id) => {
+    set({ submitting: true, error: null });
+    try {
+      await staffService.deleteStaff(id);
+      set((s) => ({
+        staff: s.staff.filter((x) => x.id !== id),
         submitting: false,
       }));
       return true;

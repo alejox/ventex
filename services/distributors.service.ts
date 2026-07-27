@@ -59,6 +59,12 @@ export async function updateDistributor(id: string, input: NewDistributorInput):
   return data as Distributor;
 }
 
+export async function deleteDistributor(id: string): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase.from("distributors").delete().eq("id", id);
+  if (error) throw error;
+}
+
 export async function createDistributor(input: NewDistributorInput): Promise<Distributor> {
   const supabase = createClient();
   const { data, error } = await supabase

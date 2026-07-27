@@ -10,8 +10,9 @@ interface CustomersState {
   submitting: boolean;
 
   fetchCustomers: () => Promise<void>;
-  /** Devuelve true si el alta fue correcta (para que el componente navegue/cierre). */
   addCustomer: (input: NewCustomerInput) => Promise<boolean>;
+  updateCustomer: (id: string, input: NewCustomerInput) => Promise<boolean>;
+  deleteCustomer: (id: string) => Promise<boolean>;
 }
 
 
@@ -36,6 +37,36 @@ export const useCustomersStore = create<CustomersState>((set) => ({
     try {
       const customer = await customersService.createCustomer(input);
       set((s) => ({ customers: [...s.customers, customer], submitting: false }));
+      return true;
+    } catch (e) {
+      set({ error: toMessage(e), submitting: false });
+      return false;
+    }
+  },
+
+  updateCustomer: async (id, input) => {
+    set({ submitting: true, error: null });
+    try {
+      const customer = await customersService.updateCustomer(id, input);
+      set((s) => ({
+        customers: s.customers.map((c) => (c.id === id ? customer : c)),
+        submitting: false,
+      }));
+      return true;
+    } catch (e) {
+      set({ error: toMessage(e), submitting: false });
+      return false;
+    }
+  },
+
+  deleteCustomer: async (id) => {
+    set({ submitting: true, error: null });
+    try {
+      await customersService.deleteCustomer(id);
+      set((s) => ({
+        customers: s.customers.filter((c) => c.id !== id),
+        submitting: false,
+      }));
       return true;
     } catch (e) {
       set({ error: toMessage(e), submitting: false });
