@@ -2,7 +2,8 @@
 
 import { useState, useMemo, useEffect, useCallback } from "react";
 import Image from "next/image";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
+import { IconAlertTriangle } from "@/app/assets/icons/DashboardIcons";
 import { buildSuggestedItems } from "@/services/abastecimiento.service";
 import type { SuggestedOrderItem } from "@/services/abastecimiento.service";
 import { useDistributorsStore } from "@/stores/distributors.store";
@@ -13,16 +14,6 @@ function IconZap(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" width="20" height="20" {...props}>
       <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-    </svg>
-  );
-}
-
-function IconAlertTriangle(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" width="20" height="20" {...props}>
-      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-      <line x1="12" y1="9" x2="12" y2="13" />
-      <line x1="12" y1="17" x2="12.01" y2="17" />
     </svg>
   );
 }
@@ -94,7 +85,7 @@ export function PedidosClient({
     setGenerated(true);
   };
 
-  const handleExportExcel = useCallback(() => {
+  const handleExportExcel = useCallback(async () => {
     const data = items.map((item) => {
       const qty = quantities[item.productId] ?? item.suggestedQuantity;
       return {
@@ -108,19 +99,33 @@ export function PedidosClient({
       };
     });
 
-    const ws = XLSX.utils.json_to_sheet(data);
-    const colWidths = [
-      { wch: 40 }, { wch: 15 }, { wch: 25 }, { wch: 14 },
-      { wch: 14 }, { wch: 18 }, { wch: 10 },
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet("Pedido");
+
+    worksheet.columns = [
+      { header: "Producto", key: "Producto", width: 40 },
+      { header: "SKU", key: "SKU", width: 15 },
+      { header: "Proveedor", key: "Proveedor", width: 25 },
+      { header: "Stock Actual", key: "Stock Actual", width: 14 },
+      { header: "Stock M\u00ednimo", key: "Stock M\u00ednimo", width: 14 },
+      { header: "Cantidad a Pedir", key: "Cantidad a Pedir", width: 18 },
+      { header: "Unidad", key: "Unidad", width: 10 },
     ];
-    ws["!cols"] = colWidths;
 
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Pedido");
+    worksheet.addRows(data);
 
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const url = URL.createObjectURL(blob);
     const now = new Date();
-    const dateStr = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,"0")}${String(now.getDate()).padStart(2,"0")}`;
-    XLSX.writeFile(wb, `pedido_${dateStr}.xlsx`);
+    const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}`;
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `pedido_${dateStr}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
   }, [items, quantities]);
 
   const handleGenerate = () => {

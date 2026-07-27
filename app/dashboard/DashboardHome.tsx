@@ -1,17 +1,39 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useFinanceStore } from "@/stores/finance.store";
 import { useInventoryStore } from "@/stores/inventory.store";
-import { IconTrendingUp, IconTrendingDown, IconDollar, IconShoppingCart } from "@/app/assets/icons/DashboardIcons";
+import { backdropProps } from "@/components/modal";
+import type { NewExpenseInput } from "@/services/finance.service";
+import { IconTrendingUp, IconTrendingDown, IconDollar, IconShoppingCart, IconPlus } from "@/app/assets/icons/DashboardIcons";
 
 const money = (n: number) =>
   n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-export function DashboardHome() {
+const today = () => new Date().toISOString().slice(0, 10);
+
+const emptyExpense = (): NewExpenseInput => ({
+  description: "",
+  category: "",
+  amount: "",
+  expense_date: today(),
+});
+
+/**
+ * Panel de inicio: resumen financiero del negocio (KPIs, ingresos vs gastos,
+ * movimientos) más la alerta de stock bajo.
+ *
+ * Es también el único punto de entrada para registrar un gasto, así que
+ * `canAddExpense` llega desde el servidor: solo el dueño escribe gastos, un
+ * trabajador con permiso `panel` los ve pero no los crea.
+ */
+export function DashboardHome({ canAddExpense = false }: { canAddExpense?: boolean }) {
   const overview = useFinanceStore((s) => s.overview);
   const loading = useFinanceStore((s) => s.loading);
+  const error = useFinanceStore((s) => s.error);
+  const submitting = useFinanceStore((s) => s.submitting);
   const fetchOverview = useFinanceStore((s) => s.fetchOverview);
+  const addExpense = useFinanceStore((s) => s.addExpense);
 
   const todaySales = useFinanceStore((s) => s.todaySales);
   const fetchTodaySales = useFinanceStore((s) => s.fetchTodaySales);
@@ -19,6 +41,9 @@ export function DashboardHome() {
   const products = useInventoryStore((s) => s.products);
   const invLoading = useInventoryStore((s) => s.loading);
   const fetchInventory = useInventoryStore((s) => s.fetchInventory);
+
+  const [modalOpen, setModalOpen] = useState(false);
+  const [form, setForm] = useState<NewExpenseInput>(emptyExpense);
 
   useEffect(() => {
     fetchOverview();
@@ -30,14 +55,41 @@ export function DashboardHome() {
 
   const overviewBusy = loading || !overview;
 
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const ok = await addExpense(form);
+    if (ok) {
+      setModalOpen(false);
+      setForm(emptyExpense());
+    }
+  };
+
   return (
     <div className="flex flex-col gap-6 w-full animate-in fade-in duration-500">
-      <div>
-        <h1 className="text-2xl font-bold text-on-surface">Dashboard</h1>
-        <p className="text-sm text-on-surface-variant mt-1">Resumen general del negocio</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-on-surface">Dashboard</h1>
+          <p className="text-sm text-on-surface-variant mt-1">Resumen general del negocio</p>
+        </div>
+        {canAddExpense && (
+          <button
+            onClick={() => setModalOpen(true)}
+            className="bg-primary hover:bg-primary-dim text-on-primary text-sm font-semibold py-2.5 px-4 rounded-xl shadow-lg shadow-primary/20 transition-colors flex items-center justify-center gap-2"
+          >
+            <IconPlus className="w-4 h-4" />
+            <span>Registrar Gasto</span>
+          </button>
+        )}
       </div>
 
-      {/* KPIs principales */}
+      {error && (
+        <div className="rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim">
+          {error}
+        </div>
+      )}
+
+      {/* KPIs principales. Ojo: revenue/expenses/net son acumulados históricos,
+          no del mes — el corte por mes es el gráfico de abajo. */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
           icon={<IconDollar className="w-5 h-5" />}
@@ -49,7 +101,7 @@ export function DashboardHome() {
         />
         <KpiCard
           icon={<IconTrendingUp className="w-5 h-5" />}
-          label="Ingresos (mes)"
+          label="Ingresos totales"
           value={overviewBusy ? "—" : `$${money(overview.revenue)}`}
           sub={`${overviewBusy ? "—" : overview.salesCount} ventas`}
           loading={overviewBusy}
@@ -57,15 +109,15 @@ export function DashboardHome() {
         />
         <KpiCard
           icon={<IconTrendingDown className="w-5 h-5" />}
-          label="Gastos (mes)"
+          label="Gastos totales"
           value={overviewBusy ? "—" : `$${money(overview.expenses)}`}
           loading={overviewBusy}
           accent="bg-error/10 text-error"
         />
         <KpiCard
           icon={<IconShoppingCart className="w-5 h-5" />}
-          label="Neto (mes)"
-          value={overviewBusy ? "—" : `$${money(overview.net)}`}
+          label="Beneficio neto"
+          value={overviewBusy ? "—" : `${overview.net < 0 ? "-" : ""}$${money(Math.abs(overview.net))}`}
           loading={overviewBusy}
           accent={overviewBusy || overview.net >= 0 ? "bg-[#10b981]/10 text-[#10b981]" : "bg-error/10 text-error"}
         />
@@ -123,11 +175,15 @@ export function DashboardHome() {
           {overviewBusy ? (
             <p className="text-sm text-on-surface-variant text-center py-8">Cargando…</p>
           ) : overview.recent.length === 0 ? (
-            <p className="text-sm text-on-surface-variant text-center py-8">Sin movimientos</p>
+            <p className="text-sm text-on-surface-variant text-center py-8">
+              Sin movimientos todavía. Registra ventas o gastos.
+            </p>
           ) : (
             <div className="space-y-3">
+              {/* La clave lleva el tipo: una venta y un gasto son filas distintas
+                  aunque compartieran id. */}
               {overview.recent.map((t) => (
-                <div key={t.id} className="flex items-center justify-between">
+                <div key={`${t.kind}-${t.id}`} className="flex items-center justify-between">
                   <div className="flex items-center gap-3 min-w-0">
                     <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
                       t.kind === "sale" ? "bg-[#10b981]/10" : "bg-error/10"
@@ -145,10 +201,12 @@ export function DashboardHome() {
                       </p>
                     </div>
                   </div>
+                  {/* El monto ya viene negativo para los gastos: el signo se pone
+                      aparte y el número siempre en absoluto. */}
                   <span className={`text-xs font-bold shrink-0 ${
-                    t.kind === "sale" ? "text-[#10b981]" : "text-error"
+                    t.amount >= 0 ? "text-[#10b981]" : "text-error"
                   }`}>
-                    {t.kind === "sale" ? "+" : "-"}${money(t.amount)}
+                    {t.amount >= 0 ? "+" : "-"}${money(Math.abs(t.amount))}
                   </span>
                 </div>
               ))}
@@ -188,6 +246,97 @@ export function DashboardHome() {
           </div>
         )}
       </div>
+
+      {/* Modal Registrar Gasto */}
+      {modalOpen && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
+          {...backdropProps(() => setModalOpen(false))}
+        >
+          <div className="bg-surface-container rounded-3xl w-full max-w-md border border-outline-variant/10 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-6 border-b border-outline-variant/10 flex justify-between items-center bg-surface-container-low">
+              <h2 className="text-xl font-bold text-on-surface">Registrar Gasto</h2>
+              <button
+                onClick={() => setModalOpen(false)}
+                className="w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors"
+                aria-label="Cerrar"
+              >
+                <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="20" height="20">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <form onSubmit={handleSave} className="p-6 space-y-5">
+              <div className="space-y-1.5">
+                <label className="text-[13px] font-semibold text-on-surface block">Descripción</label>
+                <input
+                  type="text"
+                  value={form.description}
+                  onChange={(e) => setForm({ ...form, description: e.target.value })}
+                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
+                  placeholder="Ej. Pago a proveedor"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[13px] font-semibold text-on-surface block">Monto ($)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={form.amount}
+                    onChange={(e) => setForm({ ...form, amount: e.target.value })}
+                    className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
+                    placeholder="0.00"
+                    required
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[13px] font-semibold text-on-surface block">Fecha</label>
+                  <input
+                    type="date"
+                    value={form.expense_date}
+                    onChange={(e) => setForm({ ...form, expense_date: e.target.value })}
+                    className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[13px] font-semibold text-on-surface block">Categoría (opcional)</label>
+                <input
+                  type="text"
+                  value={form.category}
+                  onChange={(e) => setForm({ ...form, category: e.target.value })}
+                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
+                  placeholder="Ej. Inventario, Servicios, Renta"
+                />
+              </div>
+
+              <div className="pt-4 flex justify-end gap-3 border-t border-outline-variant/10">
+                <button
+                  type="button"
+                  onClick={() => setModalOpen(false)}
+                  className="px-5 py-2.5 rounded-xl text-sm font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="px-5 py-2.5 rounded-xl text-sm font-semibold bg-primary hover:bg-primary-dim text-on-primary shadow-[0_0_15px_rgba(96,99,238,0.2)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {submitting ? "Guardando…" : "Guardar Gasto"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

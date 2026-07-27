@@ -1,5 +1,6 @@
 import { createClient } from "@/utils/supabase/server";
 import { buildSuggestedItems } from "@/services/abastecimiento.service";
+import { attachCosts } from "@/services/inventory.service";
 import { PedidosClient } from "./PedidosClient";
 
 export default async function PedidosPage() {
@@ -31,20 +32,11 @@ export default async function PedidosPage() {
 
   const rows = (products ?? []) as unknown as ProductRow[];
 
-  // El costo llega por RPC, que devuelve vacío si la persona no tiene el
-  // permiso `inventory_costs`. Sin costo el pedido sugerido se arma igual: lo
-  // que se pierde es la valorización, no la sugerencia de reposición.
-  const { data: costRows } = await supabase.rpc("get_product_costs" as never, {
-    p_ids: rows.map((p) => p.id),
-  } as never);
-  const costs = new Map<string, number>();
-  for (const row of (costRows ?? []) as { product_id: string; purchase_price: number }[]) {
-    costs.set(row.product_id, Number(row.purchase_price));
-  }
+  const withCosts = await attachCosts(supabase, rows);
 
-  const initialProducts: ProductRow[] = rows.map((p) => ({
+  const initialProducts: ProductRow[] = withCosts.map((p) => ({
     ...p,
-    purchase_price: costs.get(p.id) ?? 0,
+    purchase_price: p.purchase_price ?? 0,
   }));
 
   const allCategories = (categories ?? []) as { id: string; name: string }[];

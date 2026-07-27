@@ -168,7 +168,7 @@ export async function createPurchaseInvoice(params: PurchaseInvoiceParams): Prom
     reference_id: invoiceId,
     notes: `Compra #${invoiceNumber}`,
   }));
-  await supabase.from("inventory_movements" as never).insert(movements as never);
+  await supabase.from("inventory_movements").insert(movements);
 
   return toInvoice(raw);
 }
@@ -258,7 +258,7 @@ export async function cancelPurchaseInvoice(id: string, items: { product_id: str
     reference_id: id,
     notes: `Anulación de compra #${id.slice(0, 8)}`,
   }));
-  await supabase.from("inventory_movements" as never).insert(movements as never);
+  await supabase.from("inventory_movements").insert(movements);
 }
 
 export async function fetchLastPurchaseFromDistributor(distributorId: string): Promise<{ items: { product_id: string; product_name: string; quantity: number; unit_price: number }[] } | null> {

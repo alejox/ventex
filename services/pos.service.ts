@@ -1,4 +1,5 @@
 import { createClient } from "@/utils/supabase/client";
+import type { Database, Json } from "@/utils/supabase/database.types";
 
 // ---- Tipos del dominio del POS ----
 /** Un ítem del catálogo: producto (con stock) o servicio (sin stock). */
@@ -290,37 +291,34 @@ export async function fetchPosConfig(): Promise<PosConfig> {
 export async function createSale(input: CheckoutInput): Promise<string> {
   const supabase = createClient();
 
-  const payload: Record<string, unknown> = {
+  type CreateSaleArgs = Database["public"]["Functions"]["create_sale"]["Args"];
+
+  const payload: CreateSaleArgs = {
     p_customer_id: input.customerId as string,
     p_payment_method: input.paymentMethod,
     p_discount_amount: input.discount,
-    p_items: input.items as unknown as never,
-    p_staff_id: (input.staffId ?? null) as string | null,
+    p_items: input.items as unknown as Json,
+    p_staff_id: input.staffId ?? undefined,
+    ...(input.transferMethod ? { p_transfer_method: input.transferMethod } : {}),
+    ...(input.cardMethod ? { p_card_method: input.cardMethod } : {}),
   };
 
-  if (input.transferMethod) {
-    payload.p_transfer_method = input.transferMethod;
-  }
-  if (input.cardMethod) {
-    payload.p_card_method = input.cardMethod;
-  }
-
   // 1. Intentar la llamada con el payload específico
-  const primaryCall = await supabase.rpc("create_sale", payload as never);
+  const primaryCall = await supabase.rpc("create_sale", payload);
   if (!primaryCall.error) {
     return primaryCall.data as string;
   }
 
   // 2. Si falla por falta del parámetro opcional en DB remota no migrada, reintentar con los 5 parámetros base
-  const basePayload = {
+  const basePayload: CreateSaleArgs = {
     p_customer_id: input.customerId as string,
     p_payment_method: input.paymentMethod,
     p_discount_amount: input.discount,
-    p_items: input.items as unknown as never,
-    p_staff_id: (input.staffId ?? null) as string | null,
+    p_items: input.items as unknown as Json,
+    p_staff_id: input.staffId ?? undefined,
   };
 
-  const fallbackCall = await supabase.rpc("create_sale", basePayload as never);
+  const fallbackCall = await supabase.rpc("create_sale", basePayload);
   if (fallbackCall.error) throw fallbackCall.error;
   return fallbackCall.data as string;
 }

@@ -131,19 +131,18 @@ const PRODUCT_SELECT =
  * UI no muestra la columna. La decisión de permiso vive en la base, en un solo
  * lugar, y no hay que duplicarla en cada pantalla que lea inventario.
  */
-async function attachCosts<T extends { id: string; purchase_price?: number }>(
+export async function attachCosts<T extends { id: string; purchase_price?: number }>(
   supabase: ReturnType<typeof createClient>,
   rows: T[],
 ): Promise<T[]> {
   if (rows.length === 0) return rows;
-  const { data, error } = await supabase.rpc("get_product_costs" as never, {
+  const { data, error } = await supabase.rpc("get_product_costs", {
     p_ids: rows.map((r) => r.id),
-  } as never);
-  // Un fallo acá no puede tumbar el inventario: se muestra sin costos.
+  });
   if (error) return rows;
 
   const costs = new Map<string, number>();
-  for (const row of (data ?? []) as { product_id: string; purchase_price: number }[]) {
+  for (const row of data ?? []) {
     costs.set(row.product_id, Number(row.purchase_price));
   }
   return rows.map((r) => (costs.has(r.id) ? { ...r, purchase_price: costs.get(r.id) } : r));
@@ -280,12 +279,10 @@ export async function createProduct(input: NewProductInput): Promise<Product> {
       commission_type: input.has_commission ? input.commission_type : null,
       commission_value: input.has_commission ? parseFloat(input.commission_value) || null : null,
       units_per_package: parseInt(input.units_per_package || "1") || 1,
-    } as never)
+    })
     .select(PRODUCT_SELECT)
     .single();
   if (error) throw error;
-  // El producto vuelve sin costo (la columna no es legible): se recupera por RPC
-  // para que el store no quede con una fila a medias hasta el próximo refetch.
   const [withCost] = await attachCosts(supabase, [data as unknown as Product]);
   return withCost;
 }
@@ -311,7 +308,7 @@ export async function updateProduct(id: string, input: NewProductInput): Promise
       commission_type: input.has_commission ? input.commission_type : null,
       commission_value: input.has_commission ? parseFloat(input.commission_value) || null : null,
       units_per_package: parseInt(input.units_per_package || "1") || 1,
-    } as never)
+    })
     .eq("id", id)
     .select(PRODUCT_SELECT)
     .single();

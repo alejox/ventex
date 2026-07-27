@@ -1,0 +1,101 @@
+﻿sí sabes parce, oiga parce, mira que a mí se me olvidó comentarle,
+
+ayer incluso le estuve dando un rato ahí y subí hasta los cambios a main y todo,
+
+cómo le digo hay algo porque yo generé un módulo que es el módulo
+
+de compras e yo me acordé que eso lo hacía yo en la droguería
+
+e incluso en otro negocio que yo manejaba un post por decirlo
+
+así se es que lo de las compras las compras yo me acuerdo que
+
+que funcionaba todo el modelo así,
+
+pero no sé, marica, hay algo, la verdad ayer estaba ya comenzórrado,
+
+entonces como que frené y y paré,
+
+pero hay algo que no me, no me, no me ha ajustado muy bien la lógica,
+
+yo no sé si de todas maneras más tarde le puede pegar una revisadita a ver
+
+si usted de pronto que está con la cabeza más fresca me me coge la idea
+
+más fácil como meterlo con la guía que usted dice que es como más más aletosita,
+
+qué pasa, normalmente cuando usted en el negocio recibe una factura,
+
+digamos yo recibo la factura empiezo a crearla a ingresar esa
+
+compra que me va a quedar el registro de cuánto me valió cada producto,
+
+cuánto fue el total de la factura, con qué proveedor,
+
+a qué proveedor le recibí esa factura,
+
+que incluso en el menú usted lo pilla como menú de compra
+
+eh pues eh básicamente qué fue lo que recibí y los productos,
+
+cuando el producto no existía pues obviamente había que crear el producto.
+
+y meterlelo del inventario, ahora eso me puso también a pensar ayer,
+
+yo dije bueno, será que es en cuando yo cree el producto
+
+sí debo de generar el inventario porque él me decía stock,
+
+yo decía yo creo que esa casilla de stock me está sobrando,
+
+sí me entiende a qué voy con todo eso,
+
+yo creo que tema del producto debería permitirme solamente crear el producto pero
+
+el inventario eh agregarlo justamente donde dice inventario pero ahorita entra
+
+también mi cómo le digo yo sí como mi mi mi tema mental ahí donde entro
+
+en conflicto es que yo digo bueno este inventario debería dejar agregar digamos
+
+estar agregando stocks o eso debería ser siempre desde la factura
+
+de compra eh o qué sí
+
+me entiende aunque pues usted sabe que hay mucha gente que ah no es que fulano me dio
+
+mercancía para venderla acá,
+
+entonces listo, no sería una compra, simplemente sería inventario,
+
+sí me entiende, es que se puede se puede prestar de las dos maneras,
+
+pero no sé usted cómo lo vea,
+
+y lo que necesitaría es básicamente ajustar ese módulo bien de compras también
+
+tema de de cuando yo hago la compra,
+
+es decir, es decir cuando me ingresa el producto,
+
+ahí estaba tratando de poner el precio base
+
+y que luego me calculara el IVA y lo mismo para la
+
+que uno le agregara por decirle así el precio base y ya lo generara con iva y todo,
+
+pero entonces usted sabe que mucha gente no lo maneja eso así,
+
+sobre todo en las tiendas, en las tiendas usted dice ah yo vendo 500 y ya ellos
+
+no se van poner a calcular y usted no va en una calculadora sino que pienso yo que
+
+debería más bien poner ahí como una opción de uno de que el usuario ponga
+
+el precio en cuanto lo quiere vender y que él en automático le calcule el iva sí
+
+me entiende entonces creo que eso es lo que me me está haciendo falta como por
+
+ajustar qué pena marica hay el audio tan largo pero pero eran como muchas cosas
+
+que tenía en la cabeza.

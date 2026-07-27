@@ -20,7 +20,14 @@ export default function RegisterPage() {
     REGISTER_BUSINESS_OPTIONS.length === 1 ? REGISTER_BUSINESS_OPTIONS[0].id : "",
   );
   const [modules, setModules] = useState<Record<string, boolean>>({});
-  
+
+  // El rubro puede no ofrecer extras opcionales (la tienda hoy no los tiene):
+  // en ese caso el paso de módulos no existe y el asistente pasa de 3 pasos a
+  // 2, en lugar de mostrar una pantalla vacía con un botón "Continuar".
+  const moduleOptions = MODULES_BY_TYPE[businessType as BusinessType] ?? [];
+  const hasModuleStep = moduleOptions.length > 0;
+  const totalSteps = hasModuleStep ? 3 : 2;
+
   // Step 3 state
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -32,7 +39,8 @@ export default function RegisterPage() {
   const [businessName, setBusinessName] = useState("");
   const [confirmed, setConfirmed] = useState(false);
 
-  const handleNext = () => setStep(step + 1);
+  const handleNext = () => setStep(step === 1 && !hasModuleStep ? 3 : step + 1);
+  const handleBack = () => setStep(step === 3 && !hasModuleStep ? 1 : step - 1);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -138,7 +146,7 @@ export default function RegisterPage() {
         ) : (
           <button
             type="button"
-            onClick={() => setStep(step - 1)}
+            onClick={handleBack}
             className="inline-flex items-center gap-2 h-10 -ml-2 px-2 rounded-lg text-sm font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors"
           >
             <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-4 h-4">
@@ -195,7 +203,7 @@ export default function RegisterPage() {
 
           <div className="mt-6 flex flex-col items-center">
             <span className="text-[13px] text-on-surface-variant font-medium mb-4">
-              Paso 1 de 3: Perfil de Negocio
+              Paso 1 de {totalSteps}: Perfil de Negocio
             </span>
             <div className="flex gap-4 text-[12px] text-on-surface-variant/70">
                <Link href="#" className="hover:text-on-surface transition-colors">Términos y Condiciones</Link>
@@ -221,7 +229,7 @@ export default function RegisterPage() {
           </div>
 
           <div className="space-y-4 mb-8">
-            {(MODULES_BY_TYPE[businessType as BusinessType] || []).map((mod) => {
+            {moduleOptions.map((mod) => {
               const isOn = !mod.comingSoon && !!modules[mod.id];
               return (
               <div key={mod.id} className={`p-5 rounded-[24px] border transition-all duration-300 ${mod.comingSoon ? 'bg-surface-container-low/50 border-outline-variant/10 opacity-70' : isOn ? 'bg-primary/5 border-primary/40' : 'bg-surface-container-low border-outline-variant/10 hover:bg-surface-container'}`}>
@@ -476,7 +484,7 @@ export default function RegisterPage() {
             </button>
             <div className="mt-4 flex flex-col items-center">
               <span className="text-[13px] text-on-surface-variant font-medium">
-                Paso 3 de 3: Datos de Cuenta
+                Paso {totalSteps} de {totalSteps}: Datos de Cuenta
               </span>
             </div>
           </form>

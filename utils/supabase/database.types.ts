@@ -1461,6 +1461,19 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_product_costs: {
+        Args: { p_ids: string[] }
+        Returns: { product_id: string; purchase_price: number }[]
+      }
+      register_manual_movement: {
+        Args: {
+          p_product_id: string
+          p_type: string
+          p_quantity: number
+          p_notes: string | null
+        }
+        Returns: undefined
+      }
       admin_apply_credit_pack: {
         Args: { p_pack_id: string; p_reseller_id: string }
         Returns: undefined

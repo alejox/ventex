@@ -32,6 +32,9 @@ export function OnboardingModal({ defaultName }: { defaultName: string }) {
   const [error, setError] = useState("");
 
   const moduleOptions = MODULES_BY_TYPE[businessType as BusinessType] ?? [];
+  // El rubro puede no ofrecer extras (la tienda hoy no los tiene): el paso 2
+  // queda siendo solo el nombre, y el copy no puede prometer "herramientas".
+  const hasModules = moduleOptions.length > 0;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,12 +70,18 @@ export function OnboardingModal({ defaultName }: { defaultName: string }) {
             id="onboarding-title"
             className="text-[24px] sm:text-[26px] font-bold text-on-surface mb-2 tracking-tight"
           >
-            {step === 1 ? "Personaliza tu experiencia" : "Potencia tu negocio"}
+            {step === 1
+              ? "Personaliza tu experiencia"
+              : hasModules
+                ? "Potencia tu negocio"
+                : "Nombra tu negocio"}
           </h2>
           <p className="text-on-surface-variant text-[14px]">
             {step === 1
               ? "Selecciona el tipo de negocio que mejor te describe para configurar tu panel."
-              : "Selecciona las herramientas que necesitas y dale un nombre a tu negocio."}
+              : hasModules
+                ? "Selecciona las herramientas que necesitas y dale un nombre a tu negocio."
+                : "Dale un nombre a tu negocio para terminar de configurarlo."}
           </p>
         </div>
 
@@ -136,7 +145,7 @@ export function OnboardingModal({ defaultName }: { defaultName: string }) {
             className="animate-in fade-in slide-in-from-bottom-4 duration-500"
             onSubmit={handleSubmit}
           >
-            {moduleOptions.length > 0 && (
+            {hasModules && (
               <div className="space-y-3 mb-6">
                 {moduleOptions.map((mod) => {
                   const isOn = !mod.comingSoon && !!modules[mod.id];
@@ -251,7 +260,7 @@ export function OnboardingModal({ defaultName }: { defaultName: string }) {
             )}
 
             <p className="text-center text-[13px] text-on-surface-variant font-medium mt-5">
-              Paso 2 de 2: Módulos y nombre
+              Paso 2 de 2: {hasModules ? "Módulos y nombre" : "Nombre del negocio"}
             </p>
           </form>
         )}

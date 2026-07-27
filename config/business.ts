@@ -10,6 +10,13 @@
  */
 
 export type BusinessType = "salon" | "tienda" | "lavaautos" | "servicios";
+/**
+ * `ecommerce` y `website` quedan RESERVADOS, no ofrecidos: se anunciaban como
+ * extras pero no existe nada detrás (ni tienda pública, ni carrito, ni
+ * catálogo, ni checkout). Siguen en el tipo porque `profiles.modules` de
+ * cuentas viejas puede tenerlos guardados; no aparecen en `MODULES_BY_TYPE`
+ * ni gatean ninguna pantalla. Al implementarlos, volver a listarlos ahí.
+ */
 export type ModuleId =
   | "ecommerce"
   | "website"
@@ -157,15 +164,13 @@ export const MODULES_BY_TYPE: Record<BusinessType, ModuleOption[]> = {
     { id: "services", label: "Servicios", description: "Define tu catálogo de servicios: corte, barba, tinte, con precio y duración." },
     { id: "staff", label: "Personal", description: "Administra tu equipo de barberos y estilistas, con sus comisiones." },
     { id: "inventory", label: "Inventario", description: "Controla stock de productos, pomadas, ceras, shampoos y más." },
-    { id: "ecommerce", label: "E-commerce", description: "Vende productos de grooming y belleza online 24/7." },
   ],
   // Inventario NO es un extra opcional de la tienda: es parte del núcleo y ya
-  // viene en el menú base (ver BASE_NAV_BY_TYPE.tienda). Los dos extras son
-  // E-commerce y Página web, ambos aún en construcción.
-  tienda: [
-    { id: "ecommerce", label: "E-commerce", description: "Vende tus productos online con carrito de compras y pagos seguros.", comingSoon: true },
-    { id: "website", label: "Página web", description: "Tu sitio de presencia: catálogo, información del negocio y contacto.", comingSoon: true },
-  ],
+  // viene en el menú base (ver BASE_NAV_BY_TYPE.tienda). Los dos extras que se
+  // anunciaban acá (E-commerce y Página web) no tienen implementación, así que
+  // no se ofrecen: hoy la tienda no tiene módulos opcionales. Las pantallas que
+  // consumen esta lista contemplan que venga vacía.
+  tienda: [],
   lavaautos: [
     { id: "appointments", label: "Citas", description: "Agenda turnos de lavado, detailing y mantenimiento." },
     { id: "services", label: "Servicios", description: "Tu menú de lavados: básico, premium, encerado y detailing, con precio y duración." },
@@ -192,15 +197,16 @@ export interface NavItem {
 
 export const NAV_ITEMS: NavItem[] = [
   { id: "panel", name: "Panel", href: "/dashboard", modules: [] },
-  { id: "pos", name: "Punto de Venta", href: "/dashboard/pos", modules: ["ecommerce"] },
-  { id: "sales", name: "Ventas", href: "/dashboard/sales", modules: ["ecommerce"] },
+  // POS y Ventas no dependen de ningún módulo: son universales (ver
+  // UNIVERSAL_NAV_IDS) porque los 4 rubros cobran.
+  { id: "pos", name: "Punto de Venta", href: "/dashboard/pos", modules: [] },
+  { id: "sales", name: "Ventas", href: "/dashboard/sales", modules: [] },
   { id: "services", name: "Servicios", href: "/dashboard/services", modules: ["services"] },
   { id: "staff", name: "Personal", href: "/dashboard/staff", modules: ["staff"] },
   { id: "vehicles", name: "Vehículos", href: "/dashboard/vehicles", modules: ["vehicles"] },
   { id: "billing", name: "Facturación", href: "/dashboard/billing", modules: ["billing"] },
   { id: "inventory", name: "Inventario", href: "/dashboard/inventory", modules: ["inventory"] },
   { id: "pedidos", name: "Pedidos", href: "/dashboard/pedidos", modules: ["inventory"] },
-  { id: "finance", name: "Finanzas", href: "/dashboard/finance", modules: [] },
   { id: "customers", name: "Clientes", href: "/dashboard/customers", modules: [] },
   { id: "distributors", name: "Proveedores", href: "/dashboard/distributors", modules: ["inventory"] },
   { id: "purchases", name: "Compras", href: "/dashboard/purchases", modules: ["inventory"] },
@@ -219,10 +225,9 @@ export interface QuickAction {
 }
 
 export const QUICK_ACTIONS: QuickAction[] = [
-  { id: "new-sale", title: "Nueva Venta", href: "/dashboard/pos", module: "ecommerce" },
+  { id: "new-sale", title: "Nueva Venta", href: "/dashboard/pos", module: null },
   { id: "new-product", title: "Añadir Producto", href: "/dashboard/inventory", module: "inventory" },
   { id: "new-customer", title: "Registrar Cliente", href: "/dashboard/customers", module: null },
-  { id: "view-finance", title: "Ver Finanzas", href: "/dashboard/finance", module: null },
   { id: "new-appointment", title: "Nueva Cita", href: "/dashboard/calendar", module: "appointments" },
   { id: "new-service", title: "Nuevo Servicio", href: "/dashboard/services", module: "services" },
   { id: "new-staff", title: "Añadir Personal", href: "/dashboard/staff", module: "staff" },
@@ -238,7 +243,7 @@ export const QUICK_ACTIONS: QuickAction[] = [
 
 /** Secciones que ve cualquier cuenta, sea cual sea su tipo. */
 // POS y Ventas son universales: los 4 rubros pueden cobrar (productos y/o servicios).
-const UNIVERSAL_NAV_IDS = ["panel", "pos", "sales", "finance", "customers", "subscription"];
+const UNIVERSAL_NAV_IDS = ["panel", "pos", "sales", "customers", "subscription"];
 
 /** Menú base por tipo de negocio (además de las universales). */
 const BASE_NAV_BY_TYPE: Record<BusinessType, string[]> = {
@@ -248,7 +253,7 @@ const BASE_NAV_BY_TYPE: Record<BusinessType, string[]> = {
   servicios: ["calendar"],
 };
 
-const UNIVERSAL_QUICK_IDS = ["new-sale", "new-customer", "view-finance"];
+const UNIVERSAL_QUICK_IDS = ["new-sale", "new-customer"];
 
 const BASE_QUICK_BY_TYPE: Record<BusinessType, string[]> = {
   salon: ["new-appointment", "new-product"],
@@ -260,7 +265,7 @@ const BASE_QUICK_BY_TYPE: Record<BusinessType, string[]> = {
 /**
  * Tipos de negocio cuyos módulos vienen TODOS activados por defecto (sin opt-in):
  * el dueño ve la suite completa de su rubro sin tener que habilitar nada.
- * Salón / Barbería: Citas, Servicios, Barberos, Inventario y E-commerce.
+ * Salón / Barbería: Citas, Servicios, Barberos e Inventario.
  */
 const FULL_MODULE_TYPES: BusinessType[] = ["salon", "lavaautos", "servicios"];
 

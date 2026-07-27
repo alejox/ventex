@@ -77,7 +77,10 @@ function BusinessModulesForm() {
   const [modules, setModules] = useState<Modules>(profile?.modules ?? {});
   const [saved, setSaved] = useState(false);
 
-  const available = MODULES_BY_TYPE[businessType] ?? [];
+  // Solo módulos realmente disponibles: un `comingSoon` no se puede encender.
+  // Antes esta lista no lo filtraba y el toggle sí persistía en el perfil, así
+  // que se podía "activar" un módulo que no existe.
+  const available = (MODULES_BY_TYPE[businessType] ?? []).filter((m) => !m.comingSoon);
 
   const toggle = (id: ModuleId) => {
     setModules((m) => ({ ...m, [id]: !m[id] }));
@@ -120,6 +123,9 @@ function BusinessModulesForm() {
         ))}
       </Select>
 
+      {/* Un rubro puede no tener extras opcionales (la tienda hoy no los tiene):
+          en ese caso no se muestra un encabezado sobre una lista vacía. */}
+      {available.length > 0 && (
       <div className="space-y-3">
         <span className="block text-sm font-semibold text-on-surface">Módulos</span>
         {available.map((mod) => (
@@ -151,6 +157,7 @@ function BusinessModulesForm() {
           </button>
         ))}
       </div>
+      )}
 
       <div className="flex items-center justify-between gap-4 pt-6 mt-4 border-t border-outline-variant/10">
         <span className={`text-sm font-medium text-[#10b981] transition-opacity ${saved ? "opacity-100" : "opacity-0"}`}>

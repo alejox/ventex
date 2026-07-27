@@ -27,5 +27,7 @@ export default async function DashboardPage() {
     );
   }
 
-  return <DashboardHome />;
+  // Registrar gastos es del dueño: el trabajador con permiso `panel` ve el
+  // resumen pero no escribe en él.
+  return <DashboardHome canAddExpense={!profile?.isWorker} />;
 }

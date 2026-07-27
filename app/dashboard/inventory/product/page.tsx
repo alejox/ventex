@@ -2,17 +2,18 @@
 
 import { Suspense, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import Image from "next/image";
 import Link from "next/link";
 import { useInventoryStore } from "@/stores/inventory.store";
 import type { NewProductInput } from "@/services/inventory.service";
 import { DistributorQuickModal } from "@/components/DistributorQuickModal";
 import { CategoryQuickModal } from "@/components/CategoryQuickModal";
 import { BarcodeField } from "@/components/BarcodeField";
-import { MoneyInput } from "@/components/ui/MoneyInput";
 import { Select } from "@/components/ui/Select";
 import { usePricePair } from "@/lib/usePricePair";
 import { useBusinessTax } from "@/lib/useBusinessTax";
+import { ProductImageUpload } from "./components/ProductImageUpload";
+import { ProductPricingSection } from "./components/ProductPricingSection";
+import { ProductPresentationSection } from "./components/ProductPresentationSection";
 
 function ProductForm() {
   const router = useRouter();
@@ -264,49 +265,15 @@ function ProductForm() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="bg-surface-container rounded-2xl sm:rounded-3xl border border-outline-variant/10 shadow-sm p-4 sm:p-8 space-y-5">
-          <div>
-            <h2 className="text-lg font-bold text-on-surface mb-1">Imagen del Producto</h2>
-            <p className="text-sm text-on-surface-variant">Sube una foto para identificar el producto visualmente</p>
-          </div>
-
-          {imagePreview ? (
-            <div className="flex items-center gap-6">
-              <div className="relative w-28 h-28 rounded-2xl overflow-hidden border border-outline-variant/20 bg-surface-container-lowest shrink-0">
-                <Image src={imagePreview} alt="Vista previa" fill sizes="112px" unoptimized className="object-cover" />
-              </div>
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-on-surface">Imagen cargada</p>
-                <button type="button" onClick={resetImage} className="text-sm font-medium text-error hover:text-error-dim transition-colors">
-                  Quitar imagen
-                </button>
-              </div>
-            </div>
-          ) : (
-            <label
-              className={`flex flex-col items-center justify-center gap-3 w-full py-10 rounded-2xl border-2 border-dashed bg-surface-container-lowest text-on-surface-variant cursor-pointer transition-all ${
-                dragOver ? "border-primary bg-primary/5" : "border-outline-variant/30 hover:border-primary/50 hover:text-on-surface hover:bg-surface-container-lowest/80"
-              }`}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-            >
-              <svg fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-8 h-8">
-                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                <circle cx="8.5" cy="8.5" r="1.5" />
-                <polyline points="21 15 16 10 5 21" />
-              </svg>
-              {/* En un celular no se arrastra nada: ahí el texto tiene que
-                  hablar de la cámara, que es lo que abre el input. */}
-              <div className="text-center">
-                <p className="text-sm font-medium sm:hidden">Toca para tomar la foto del producto</p>
-                <p className="text-sm font-medium hidden sm:block">Arrastra una imagen o haz clic para subir</p>
-                <p className="text-xs text-on-surface-variant/60 mt-1">Se optimiza a WebP antes de subirla</p>
-              </div>
-              <input type="file" accept="image/*" capture="environment" onChange={handleImageChange} className="hidden" />
-            </label>
-          )}
-        </div>
+        <ProductImageUpload
+          imagePreview={imagePreview}
+          dragOver={dragOver}
+          onImageChange={handleImageChange}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          onReset={resetImage}
+        />
 
         <div className="bg-surface-container rounded-2xl sm:rounded-3xl border border-outline-variant/10 shadow-sm p-4 sm:p-8 space-y-6">
           <div>
@@ -446,218 +413,35 @@ function ProductForm() {
             </div>
           </div>
 
-          <div className="border-t border-outline-variant/10 pt-6 space-y-6">
-            <div>
-              <h3 className="text-base font-bold text-on-surface">Precio de Compra (Paquete)</h3>
-              <p className="text-xs text-on-surface-variant mt-1">
-                Escribe en cualquiera de los dos: el otro se calcula solo.
-              </p>
-            </div>
-            <div className="flex flex-col sm:flex-row sm:items-end gap-3">
-              <div className="space-y-1.5 flex-1 w-full">
-                <label className="text-[13px] font-semibold text-on-surface block">Precio base</label>
-                <MoneyInput
-                  aria-label="Precio base de compra"
-                  value={purchase.base}
-                  onChange={setPurchase.fromBase}
-                />
-              </div>
-              <div className="pb-3 text-primary font-bold text-lg hidden sm:block">+</div>
-              <Select
-                label="IVA"
-                containerClassName="flex-1 w-full"
-                value={purchasePriceTax}
-                onChange={(e) => setPurchasePriceTax(e.target.value)}
-              >
-                <option value="Ninguno">Ninguno</option>
-                <option value="IVA">{rawPercentLabel}</option>
-              </Select>
-              <div className="pb-3 text-primary font-bold text-lg hidden sm:block">=</div>
-              <div className="space-y-1.5 flex-1 w-full">
-                <label className="text-[13px] font-semibold text-on-surface block">Total</label>
-                <MoneyInput
-                  aria-label="Total de compra con IVA"
-                  value={purchase.total}
-                  onChange={setPurchase.fromTotal}
-                />
-              </div>
-            </div>
-          </div>
+          <ProductPricingSection
+            purchase={{ base: purchase.base, total: purchase.total, fromBase: setPurchase.fromBase, fromTotal: setPurchase.fromTotal }}
+            selling={{ base: selling.base, total: selling.total, fromBase: setSelling.fromBase, fromTotal: setSelling.fromTotal }}
+            purchasePriceTax={purchasePriceTax}
+            setPurchasePriceTax={setPurchasePriceTax}
+            sellingPriceTax={sellingPriceTax}
+            setSellingPriceTax={setSellingPriceTax}
+            rawPercentLabel={rawPercentLabel}
+            percentLabel={percentLabel}
+            includeTax={includeTax}
+            margin={margin}
+          />
 
-          <div className="border-t border-outline-variant/10 pt-6 space-y-6">
-            <div>
-              <h3 className="text-base font-bold text-on-surface">Precio de Venta (Unidad)</h3>
-              <p className="text-xs text-on-surface-variant mt-1">
-                Escribe el precio de vitrina en el Total y el IVA se desglosa hacia atrás.
-              </p>
-            </div>
-            <div className="flex flex-col sm:flex-row sm:items-end gap-3">
-              <div className="space-y-1.5 flex-1 w-full">
-                <label className="text-[13px] font-semibold text-on-surface block">Precio base</label>
-                <MoneyInput
-                  aria-label="Precio base de venta"
-                  value={selling.base}
-                  onChange={setSelling.fromBase}
-                />
-              </div>
-              <div className="pb-3 text-primary font-bold text-lg hidden sm:block">+</div>
-              <Select
-                label="IVA"
-                containerClassName="flex-1 w-full"
-                value={sellingPriceTax}
-                onChange={(e) => setSellingPriceTax(e.target.value)}
-              >
-                <option value="Ninguno">Ninguno</option>
-                {includeTax && <option value="IVA">{percentLabel}</option>}
-              </Select>
-              <div className="pb-3 text-primary font-bold text-lg hidden sm:block">=</div>
-              <div className="space-y-1.5 flex-1 w-full">
-                <label className="text-[13px] font-semibold text-on-surface block">
-                  Total <span className="text-on-surface-variant font-normal">(vitrina)</span>
-                </label>
-                <MoneyInput
-                  aria-label="Precio final de venta con IVA"
-                  value={selling.total}
-                  onChange={setSelling.fromTotal}
-                  required
-                />
-              </div>
-            </div>
-
-            {/* El margen dejó de ser un MODO de carga para ser lo que siempre
-                fue: el resultado. Se mira, no se elige. */}
-            {margin && (
-              <p className={`text-xs font-medium ${margin.pct < 0 ? "text-error" : "text-on-surface-variant"}`}>
-                Margen: <strong className="font-mono">{margin.pct.toFixed(1)}%</strong> sobre un costo de{" "}
-                <span className="font-mono">${margin.costPerUnit.toLocaleString("en-US", { maximumFractionDigits: 0 })}</span> por unidad
-                {margin.pct < 0 ? " — estás vendiendo a pérdida." : ""}
-              </p>
-            )}
-          </div>
-
-          {/* Presentación y stock en UNA sección.
-              El stock siempre se cuenta en unidades sueltas; la caja es solo la
-              forma de contarlas al cargar y de cobrarlas al vender. */}
-          <div className="border-t border-outline-variant/10 pt-6 space-y-5">
-            <div>
-              <h3 className="text-base font-bold text-on-surface">Presentación y stock</h3>
-              <p className="text-xs text-on-surface-variant mt-1">
-                ¿Este producto se maneja suelto o por caja?
-              </p>
-            </div>
-
-            <div className="flex gap-2 sm:gap-3 max-w-sm">
-              {(["unit", "package"] as const).map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={() => setPresentation(mode)}
-                  className={`flex-1 py-2.5 rounded-xl text-sm font-medium border transition-colors ${
-                    presentation === mode
-                      ? "border-primary text-primary bg-primary/5"
-                      : "border-outline-variant/30 text-on-surface hover:bg-surface-container-low"
-                  }`}
-                >
-                  {mode === "unit" ? "Unidad" : "Caja"}
-                </button>
-              ))}
-            </div>
-
-            {presentation === "package" ? (
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
-                  <div className="space-y-1.5">
-                    <label htmlFor="units-per-package" className="text-[13px] font-semibold text-on-surface block">
-                      Unidades por caja
-                    </label>
-                    <input
-                      id="units-per-package"
-                      type="number"
-                      min="1"
-                      value={form.units_per_package}
-                      onChange={(e) => setForm({ ...form, units_per_package: e.target.value })}
-                      className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-base sm:text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-on-surface-variant/50"
-                      placeholder="Ej. 60"
-                    />
-                  </div>
-
-                  {!editId && (
-                    <div className="space-y-1.5">
-                      <label htmlFor="initial-packages" className="text-[13px] font-semibold text-on-surface block">
-                        Cajas que estás cargando
-                      </label>
-                      <input
-                        id="initial-packages"
-                        type="number"
-                        min="0"
-                        value={initialPackages}
-                        onChange={(e) => setInitialPackages(e.target.value)}
-                        className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-base sm:text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-on-surface-variant/50"
-                        placeholder="Ej. 4"
-                      />
-                    </div>
-                  )}
-                </div>
-
-                {!editId && (
-                  <p className="text-sm text-on-surface">
-                    Stock inicial:{" "}
-                    <strong className="font-mono text-primary">{initialStock}</strong> unidades
-                    <span className="text-xs text-on-surface-variant font-normal">
-                      {" "}({initialPackages || "0"} × {form.units_per_package || "1"})
-                    </span>
-                  </p>
-                )}
-
-                <div className="space-y-1.5 max-w-sm">
-                  <label className="text-[13px] font-semibold text-on-surface block">
-                    Precio de venta por caja <span className="text-on-surface-variant font-normal">(opcional)</span>
-                  </label>
-                  <MoneyInput
-                    aria-label="Precio de venta por caja"
-                    value={form.package_price ?? ""}
-                    onChange={(raw) => setForm({ ...form, package_price: raw })}
-                    placeholder="Vacío = no se vende por caja"
-                  />
-                  {packageHint && <p className="text-xs text-on-surface-variant">{packageHint}</p>}
-                </div>
-              </div>
-            ) : (
-              !editId && (
-                <div className="space-y-1.5 max-w-sm">
-                  <label htmlFor="initial-units" className="text-[13px] font-semibold text-on-surface block">
-                    Stock inicial <span className="text-on-surface-variant font-normal">(unidades)</span>
-                  </label>
-                  <input
-                    id="initial-units"
-                    type="number"
-                    min="0"
-                    value={initialUnits}
-                    onChange={(e) => setInitialUnits(e.target.value)}
-                    className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-base sm:text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-on-surface-variant/50"
-                    placeholder="Ej. 25"
-                  />
-                </div>
-              )
-            )}
-
-            {/* En EDICIÓN el stock no se toca acá: cambiarlo a mano sería un
-                ajuste sin motivo, sin fecha y sin responsable, y el historial
-                de movimientos dejaría de ser confiable. */}
-            {editId && (
-              <div className="flex flex-wrap items-center gap-4 px-1">
-                <div className="text-sm text-on-surface-variant">
-                  Stock actual: <strong className="text-on-surface">{form.stock_level || "0"}</strong> unidades
-                </div>
-                <a
-                  href={`/dashboard/inventory/movements?product_id=${editId}`}
-                  className="text-xs font-semibold text-primary hover:text-primary-dim transition-colors"
-                >
-                  Ajustar por movimientos →
-                </a>
-              </div>
-            )}
-          </div>
+          <ProductPresentationSection
+            presentation={presentation}
+            setPresentation={setPresentation}
+            editId={editId}
+            unitsPerPackage={form.units_per_package ?? "1"}
+            onUnitsPerPackageChange={(v) => setForm({ ...form, units_per_package: v })}
+            initialUnits={initialUnits}
+            setInitialUnits={setInitialUnits}
+            initialPackages={initialPackages}
+            setInitialPackages={setInitialPackages}
+            initialStock={initialStock}
+            packagePrice={form.package_price ?? ""}
+            onPackagePriceChange={(v) => setForm({ ...form, package_price: v })}
+            packageHint={packageHint}
+            stockLevel={form.stock_level ?? ""}
+          />
 
 
           {editId && (() => {

@@ -1,4 +1,5 @@
 import { createClient } from "@/utils/supabase/client";
+import type { Json } from "@/utils/supabase/database.types";
 
 // ---- Tipos del dominio de ajustes (config por cuenta) ----
 export interface BusinessProfile {
@@ -234,14 +235,13 @@ export async function updateIncludeTax(includeTax: boolean): Promise<boolean> {
   if (existing?.id) {
     const { data, error } = await supabase
       .from("settings")
-      .update({ include_tax: includeTax } as never)
+      .update({ include_tax: includeTax })
       .eq("id", existing.id)
       .select("id");
     if (error) throw error;
     return (data?.length ?? 0) > 0;
   }
 
-  // Todavía no hay fila de ajustes: se crea con los valores por defecto.
   const { data, error } = await supabase
     .from("settings")
     .insert({
@@ -249,7 +249,7 @@ export async function updateIncludeTax(includeTax: boolean): Promise<boolean> {
       include_tax: includeTax,
       allow_oversell: DEFAULTS.allow_oversell,
       currency: DEFAULTS.currency,
-    } as never)
+    })
     .select("id");
   if (error) throw error;
   return (data?.length ?? 0) > 0;
@@ -267,7 +267,7 @@ export async function saveSettings(input: SettingsInput): Promise<Settings> {
   // Los medios (transferencia y tarjeta) solo viajan si el llamador los trae:
   // la pantalla de ajustes manda todo, pero otros llamadores mandan un subconjunto
   // y no tienen por qué pisar listas que no editaron.
-  const payload: Record<string, unknown> = {
+  const payload = {
     tax_rate: input.tax_rate,
     include_tax: input.include_tax,
     allow_oversell: input.allow_oversell,
@@ -276,13 +276,13 @@ export async function saveSettings(input: SettingsInput): Promise<Settings> {
     currency: input.currency,
     ...(input.transfer_methods_enabled ? { transfer_methods_enabled: input.transfer_methods_enabled } : {}),
     ...(input.card_methods_enabled ? { card_methods_enabled: input.card_methods_enabled } : {}),
-    ...(input.business_profile ? { business_profile: input.business_profile } : {}),
+    ...(input.business_profile ? { business_profile: input.business_profile as Json } : {}),
   };
 
   if (existing?.id) {
     const { data, error } = await supabase
       .from("settings")
-      .update(payload as never)
+      .update(payload)
       .eq("id", existing.id)
       .select(SETTINGS_SELECT)
       .single();
@@ -292,7 +292,7 @@ export async function saveSettings(input: SettingsInput): Promise<Settings> {
 
   const { data, error } = await supabase
     .from("settings")
-    .insert(payload as never)
+    .insert(payload)
     .select(SETTINGS_SELECT)
     .single();
   if (error) throw error;

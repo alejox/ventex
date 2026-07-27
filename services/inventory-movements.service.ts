@@ -38,7 +38,7 @@ const MOVEMENT_SELECT = `
 export async function fetchMovements(productId?: string): Promise<InventoryMovement[]> {
   const supabase = createClient();
   let query = supabase
-    .from("inventory_movements" as never)
+    .from("inventory_movements")
     .select(MOVEMENT_SELECT)
     .order("created_at", { ascending: false });
 
@@ -64,11 +64,11 @@ export async function fetchMovements(productId?: string): Promise<InventoryMovem
  */
 export async function createManualMovement(input: ManualMovementInput): Promise<void> {
   const supabase = createClient();
-  const { error } = await supabase.rpc("register_manual_movement" as never, {
+  const { error } = await supabase.rpc("register_manual_movement", {
     p_product_id: input.product_id,
     p_type: input.type,
     p_quantity: input.quantity,
     p_notes: input.notes || null,
-  } as never);
+  });
   if (error) throw error;
 }
