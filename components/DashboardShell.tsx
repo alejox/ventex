@@ -122,9 +122,10 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                   stroke="currentColor"
                   strokeWidth="2"
                   viewBox="0 0 24 24"
-                  className={`w-3.5 h-3.5 transition-transform duration-300 ${sidebarCollapsed ? "rotate-180" : ""}`}
+                  className={`w-4 h-4 transition-transform duration-300 ${sidebarCollapsed ? "rotate-180" : ""}`}
                 >
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M11 19l-5-7 5-7" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M18 19l-5-7 5-7" />
                 </svg>
               </button>
             </div>
