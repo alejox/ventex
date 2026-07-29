@@ -2,12 +2,56 @@
 
 import { useEffect, useCallback } from "react";
 import { Select } from "@/components/ui/Select";
+import { COLOMBIA_TRANSFER_METHODS } from "@/config/transferMethods";
+import { COLOMBIA_CARD_METHODS } from "@/config/cardMethods";
 import type { PaymentMethod, PaymentSplit, SaleTotals, CartLine } from "@/services/pos.service";
 
 const money = (n: number) =>
   n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const QUICK_AMOUNTS = [2000, 5000, 10000, 20000, 50000, 100000];
+
+/** Chips de canal (Nequi, Bold…) para una línea del pago dividido. */
+function SplitChannelChips({
+  label,
+  options,
+  selected,
+  onSelect,
+}: {
+  label: string;
+  options: { id: string; shortName: string }[];
+  selected: string | null;
+  onSelect: (id: string) => void;
+}) {
+  if (options.length === 0) return null;
+
+  return (
+    <div className="pl-[118px] pr-8 -mt-1 space-y-1">
+      <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider block">
+        {label}
+      </span>
+      <div className="flex flex-wrap gap-1.5">
+        {options.map((o) => {
+          const isSelected = selected === o.id;
+          return (
+            <button
+              key={o.id}
+              type="button"
+              onClick={() => onSelect(o.id)}
+              className={`px-2.5 py-1 rounded-lg border text-[11px] font-semibold transition-all ${
+                isSelected
+                  ? "bg-primary/10 border-primary text-primary"
+                  : "bg-surface-container-low border-outline-variant/20 text-on-surface-variant hover:border-outline-variant/40 hover:text-on-surface"
+              }`}
+            >
+              {o.shortName}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 interface CheckoutModalProps {
   totals: SaleTotals;
@@ -42,8 +86,8 @@ export function CheckoutModal({
   updateSplitMethod,
   transferMethodsEnabled,
   cardMethodsEnabled,
-  asksCardMethod: _asksCardMethod,
-  asksTransferMethod: _asksTransferMethod,
+  asksCardMethod,
+  asksTransferMethod,
   submitting,
   amountTendered,
   setAmountTendered,
@@ -57,6 +101,13 @@ export function CheckoutModal({
 
   const hasSplits = splits.length > 0;
   const hasCash = !hasSplits && paymentMethod === "efectivo";
+
+  const transferOptions = COLOMBIA_TRANSFER_METHODS.filter((m) =>
+    transferMethodsEnabled ? transferMethodsEnabled.includes(m.id) : true,
+  );
+  const cardOptions = COLOMBIA_CARD_METHODS.filter((m) =>
+    cardMethodsEnabled ? cardMethodsEnabled.includes(m.id) : true,
+  );
 
   const tendered = parseFloat(amountTendered) || 0;
   const change = tendered - totals.total;
@@ -151,47 +202,67 @@ export function CheckoutModal({
                   const remaining = Math.max(0, totals.total - othersSum);
 
                   return (
-                    <div key={i} className="flex items-center gap-2">
-                      <Select
-                        size="sm"
-                        containerClassName="w-[110px] shrink-0"
-                        value={sp.payment_method}
-                        onChange={(e) => {
-                          const method = e.target.value as PaymentMethod;
-                          let tm: string | null = null;
-                          let cm: string | null = null;
-                          if (method === "transferencia") tm = transferMethodsEnabled?.[0] ?? null;
-                          if (method === "tarjeta") cm = cardMethodsEnabled?.[0] ?? null;
-                          updateSplitMethod(i, method, tm, cm);
-                        }}
-                      >
-                        {paymentOptions.map((m) => (
-                          <option key={m.value} value={m.value}>{m.label}</option>
-                        ))}
-                      </Select>
+                    <div key={i} className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Select
+                          size="sm"
+                          containerClassName="w-[110px] shrink-0"
+                          value={sp.payment_method}
+                          onChange={(e) => {
+                            const method = e.target.value as PaymentMethod;
+                            let tm: string | null = null;
+                            let cm: string | null = null;
+                            if (method === "transferencia") tm = transferMethodsEnabled?.[0] ?? null;
+                            if (method === "tarjeta") cm = cardMethodsEnabled?.[0] ?? null;
+                            updateSplitMethod(i, method, tm, cm);
+                          }}
+                        >
+                          {paymentOptions.map((m) => (
+                            <option key={m.value} value={m.value}>{m.label}</option>
+                          ))}
+                        </Select>
 
-                      <div className="relative flex-1 min-w-0">
-                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-on-surface-variant">$</span>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={sp.amount || ""}
-                          onChange={(e) => updateSplitAmount(i, parseFloat(e.target.value) || 0)}
-                          className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-lg py-1.5 pl-5 pr-2 text-xs text-on-surface focus:outline-none focus:border-primary transition-all"
-                          placeholder={isLast && remaining > 0 ? remaining.toFixed(0) : "0"}
-                        />
+                        <div className="relative flex-1 min-w-0">
+                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-on-surface-variant">$</span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={sp.amount || ""}
+                            onChange={(e) => updateSplitAmount(i, parseFloat(e.target.value) || 0)}
+                            className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-lg py-1.5 pl-5 pr-2 text-xs text-on-surface focus:outline-none focus:border-primary transition-all"
+                            placeholder={isLast && remaining > 0 ? remaining.toFixed(0) : "0"}
+                          />
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => removeSplit(i)}
+                          className="shrink-0 w-6 h-6 flex items-center justify-center rounded text-on-surface-variant/60 hover:text-error transition-colors"
+                        >
+                          <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-3.5 h-3.5">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() => removeSplit(i)}
-                        className="shrink-0 w-6 h-6 flex items-center justify-center rounded text-on-surface-variant/60 hover:text-error transition-colors"
-                      >
-                        <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-3.5 h-3.5">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
+                      {sp.payment_method === "transferencia" && asksTransferMethod && (
+                        <SplitChannelChips
+                          label="Medio de transferencia"
+                          options={transferOptions}
+                          selected={sp.transfer_method ?? transferOptions[0]?.id ?? null}
+                          onSelect={(id) => updateSplitMethod(i, "transferencia", id, null)}
+                        />
+                      )}
+
+                      {sp.payment_method === "tarjeta" && asksCardMethod && (
+                        <SplitChannelChips
+                          label="Medio de tarjeta / datáfono"
+                          options={cardOptions}
+                          selected={sp.card_method ?? cardOptions[0]?.id ?? null}
+                          onSelect={(id) => updateSplitMethod(i, "tarjeta", null, id)}
+                        />
+                      )}
                     </div>
                   );
                 })}
