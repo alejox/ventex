@@ -2,17 +2,21 @@
 
 import React, { useState } from "react";
 import { IconX } from "@/app/assets/icons/DashboardIcons";
-import { useWorkerStore } from "@/stores/worker.store";
+import { useStaffStore } from "@/stores/staff.store";
 import { useProfile } from "@/components/ProfileProvider";
 import { Select } from "@/components/ui/Select";
 import { notifySuccess } from "@/lib/notifications";
 import { staffRolesForType } from "@/config/business";
 import type { WorkerMember } from "@/services/worker.service";
 
-export function EditWorkerModal({ worker, onClose }: { worker: WorkerMember; onClose: () => void }) {
-  const updateWorker = useWorkerStore((s) => s.updateWorker);
-  const submitting = useWorkerStore((s) => s.submitting);
-  const error = useWorkerStore((s) => s.error);
+/**
+ * Edita la CUENTA (usuario, contraseña) de alguien que ya tiene acceso. El
+ * nombre y el cargo se sincronizan con la ficha desde la pantalla de Personal.
+ */
+export function EditAccessModal({ worker, onClose }: { worker: WorkerMember; onClose: () => void }) {
+  const updateAccess = useStaffStore((s) => s.updateAccess);
+  const submitting = useStaffStore((s) => s.submitting);
+  const error = useStaffStore((s) => s.error);
   const profile = useProfile();
   const roleOptions = staffRolesForType(profile?.businessType ?? null);
   const options =
@@ -25,14 +29,14 @@ export function EditWorkerModal({ worker, onClose }: { worker: WorkerMember; onC
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const ok = await updateWorker(worker.id, {
+    const ok = await updateAccess(worker.id, {
       fullName,
       username,
       role,
       password: password || undefined,
     });
     if (ok) {
-      notifySuccess("Trabajador actualizado", "Los datos del trabajador se guardaron.");
+      notifySuccess("Acceso actualizado", "Los datos de la cuenta se guardaron.");
       onClose();
     }
   };
@@ -41,7 +45,7 @@ export function EditWorkerModal({ worker, onClose }: { worker: WorkerMember; onC
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
       <div className="bg-surface-container rounded-3xl w-full max-w-md border border-outline-variant/10 shadow-2xl animate-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between p-6 border-b border-outline-variant/10">
-          <h2 className="text-lg font-bold text-on-surface">Editar trabajador</h2>
+          <h2 className="text-lg font-bold text-on-surface">Editar acceso</h2>
           <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors">
             <IconX className="w-5 h-5" />
           </button>

@@ -22,11 +22,10 @@ export const TEST_SERVICE = {
   description: "E2E test service",
 };
 
+// Sin tasa de comisión: la comisión se configura por producto/servicio.
 export const TEST_STAFF = {
   full_name: "Test Staff E2E",
   role: "Barbero",
-  commission_rate: "10",
-  commission_type: "percentage",
 };
 
 export const TEST_DISTRIBUTOR = {

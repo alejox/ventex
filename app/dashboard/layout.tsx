@@ -1,8 +1,10 @@
+import { cookies } from "next/headers";
 import { fetchProfileServer, ensureLicenseCurrent } from "@/services/profile.server";
 import { ProfileProvider } from "@/components/ProfileProvider";
 import { DashboardShell } from "@/components/DashboardShell";
 import { LicenseBlocked } from "@/components/LicenseBlocked";
 import { OnboardingModal } from "@/components/onboarding/OnboardingModal";
+import { SIDEBAR_COOKIE, parseSidebarCollapsed } from "@/lib/sidebar";
 
 // Server Component: el perfil se lee en el servidor y se inyecta por context,
 // de modo que la navegación se gatea antes de pintar (sin parpadeo). El shell
@@ -19,6 +21,13 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }) {
   const profile = await fetchProfileServer();
+
+  // El menú se pinta ya plegado/expandido desde el servidor: leer la preferencia
+  // aquí es lo que evita el desajuste de hidratación (ver lib/sidebar.ts). No
+  // vuelve dinámica la ruta: fetchProfileServer ya lee cookies de sesión.
+  const sidebarCollapsed = parseSidebarCollapsed(
+    (await cookies()).get(SIDEBAR_COOKIE)?.value,
+  );
 
   // Perfil de dueño sin tipo de negocio = entró por OAuth (Google) y todavía no
   // completó el onboarding. Los workers heredan el negocio del dueño; los
@@ -37,7 +46,7 @@ export default async function DashboardLayout({
   ) {
     return (
       <ProfileProvider profile={profile}>
-        <DashboardShell>
+        <DashboardShell defaultCollapsed={sidebarCollapsed}>
           <OnboardingModal defaultName={profile.fullName} />
         </DashboardShell>
       </ProfileProvider>
@@ -53,7 +62,7 @@ export default async function DashboardLayout({
 
   return (
     <ProfileProvider profile={profile}>
-      <DashboardShell>{children}</DashboardShell>
+      <DashboardShell defaultCollapsed={sidebarCollapsed}>{children}</DashboardShell>
     </ProfileProvider>
   );
 }

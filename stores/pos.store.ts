@@ -50,6 +50,13 @@ interface PosState {
   submitting: boolean;
   stockAlert: string | null;
   clearStockAlert: () => void;
+  /**
+   * El servidor rechazó la venta por tope de ventas del plan (create_sale
+   * levanta `LIMITE_VENTAS:`). No es un error más: la caja queda trabada hasta
+   * que suban de plan, así que se muestra como modal y no como toast.
+   */
+  planLimitHit: boolean;
+  clearPlanLimit: () => void;
 
   // Configuración
   /** Del negocio (`settings.include_tax`). Persiste: no es por venta. */
@@ -172,6 +179,7 @@ export const usePosStore = create<PosState>((set, get) => {
     activeTabId: "", // se inicializará luego o en la primera tab
     submitting: false,
     stockAlert: null,
+    planLimitHit: false,
 
     includeTax: true,
     /**
@@ -656,11 +664,18 @@ export const usePosStore = create<PosState>((set, get) => {
 
         return true;
       } catch (e) {
-        set({ error: toMessage(e), submitting: false });
+        const message = toMessage(e);
+        // El prefijo lo pone create_sale (misma convención que STOCK_INSUFICIENTE).
+        if (message.includes("LIMITE_VENTAS")) {
+          set({ planLimitHit: true, error: null, submitting: false });
+          return false;
+        }
+        set({ error: message, submitting: false });
         return false;
       }
     },
 
     clearStockAlert: () => set({ stockAlert: null }),
+    clearPlanLimit: () => set({ planLimitHit: false }),
   };
 });

@@ -1,24 +1,32 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
-import { IconUserBadge, IconPlus } from "@/app/assets/icons/DashboardIcons";
+import { IconUserBadge, IconPlus, IconLogOut } from "@/app/assets/icons/DashboardIcons";
 import { useStaffStore } from "@/stores/staff.store";
 import { useSubscriptionStore } from "@/stores/subscription.store";
 import { fetchStaffSales } from "@/services/staff.service";
 import type { CommissionRow, NewStaffInput, StaffMember, StaffSaleItem } from "@/services/staff.service";
 import { DataTable, type DataColumn } from "@/components/DataTable";
 import { Select } from "@/components/ui/Select";
+import { BusinessKeyCard } from "@/components/BusinessKeyCard";
+import { useProfile } from "@/components/ProfileProvider";
+import { staffRolesForType } from "@/config/business";
+import { mergeTeam, hasStaffRecord } from "@/lib/team";
+import { GrantAccessModal } from "./components/GrantAccessModal";
+import { EditAccessModal } from "./components/EditAccessModal";
+import { PermissionsPanel } from "./components/PermissionsPanel";
+import { ShiftHistorySection } from "./components/ShiftHistorySection";
 
-const ROLES = ["Barbero", "Estilista", "Colorista", "Manicurista", "Lavador", "Detailer", "Consultor", "Profesional", "Recepción", "Otro"];
-
+// Los cargos NO se escriben acá: salen de STAFF_ROLES_BY_TYPE según el rubro
+// (config/business.ts). Una barbería ofrece Barbero y Estilista; una tienda,
+// Cajero y Bodeguero. Tener la lista a mano en esta pantalla era lo que hacía
+// que a un tendero le apareciera "Detailer" en el selector.
 const EMPTY_STAFF: NewStaffInput = {
   full_name: "",
-  role: "Barbero",
+  role: "",
   phone: "",
   email: "",
-  commission_rate: "0",
-  commission_type: "percentage",
   status: "active",
 };
 
@@ -48,17 +56,10 @@ const COMMISSION_COLUMNS: DataColumn<CommissionRow>[] = [
     cell: (c) => c.salesCount,
   },
   {
-    header: "Servicios",
+    header: "Vendido",
     align: "right",
     className: "text-on-surface-variant tabular-nums",
-    cell: (c) => `$${money(c.servicesTotal)}`,
-  },
-  {
-    header: "Tasa",
-    align: "center",
-    className: "text-on-surface-variant",
-    cell: (c) =>
-      c.commission_type === "fixed" ? `$${money(c.commission_rate)}/und` : `${c.commission_rate}%`,
+    cell: (c) => `$${money(c.soldTotal)}`,
   },
 ];
 
@@ -80,10 +81,37 @@ export default function StaffPage() {
 
   const deleteStaff = useStaffStore((s) => s.deleteStaff);
 
+  const accounts = useStaffStore((s) => s.accounts);
+  const fetchAccounts = useStaffStore((s) => s.fetchAccounts);
+  const revokeAccess = useStaffStore((s) => s.revokeAccess);
+
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<NewStaffInput>(EMPTY_STAFF);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+
+  /** Ids de la persona sobre la que está abierto cada modal de acceso. */
+  const [grantFor, setGrantFor] = useState<string | null>(null);
+  const [editAccessFor, setEditAccessFor] = useState<string | null>(null);
+  const [permsFor, setPermsFor] = useState<string | null>(null);
+
+  const profile = useProfile();
+  const roleOptions = staffRolesForType(profile?.businessType ?? null);
+  /** Un cargo viejo que ya no está en el catálogo del rubro no se pierde. */
+  const roleChoices =
+    form.role && !roleOptions.includes(form.role) ? [form.role, ...roleOptions] : roleOptions;
+
+  // Una fila por PERSONA: la ficha manda y el acceso cuelga de ella.
+  const team = useMemo(() => mergeTeam(staff, accounts), [staff, accounts]);
+
+  const commissionByStaff = useMemo(
+    () => new Map(commissions.map((c) => [c.staff_id, c.commission])),
+    [commissions],
+  );
+
+  const grantMember = grantFor ? team.find((m) => m.id === grantFor) ?? null : null;
+  const accountToEdit = editAccessFor ? accounts.find((a) => a.id === editAccessFor) ?? null : null;
+  const accountForPerms = permsFor ? accounts.find((a) => a.id === permsFor) ?? null : null;
 
   const [salesModalOpen, setSalesModalOpen] = useState(false);
   const [salesStaff, setSalesStaff] = useState<StaffMember | null>(null);
@@ -107,9 +135,19 @@ export default function StaffPage() {
 
   useEffect(() => {
     fetchStaff();
+    fetchAccounts();
     fetchCommissions();
     fetchSubscription();
-  }, [fetchStaff, fetchCommissions, fetchSubscription]);
+  }, [fetchStaff, fetchAccounts, fetchCommissions, fetchSubscription]);
+
+  const handleRevoke = useCallback(
+    async (accountId: string, name: string) => {
+      if (confirm(`¿Quitarle el acceso a "${name}"? Deja de poder entrar al sistema, pero su ficha y su historial se conservan.`)) {
+        await revokeAccess(accountId);
+      }
+    },
+    [revokeAccess],
+  );
 
   const activeCount = staff.filter((m) => m.status === "active").length;
   const maxCollaborators = subscription?.max_collaborators ?? Infinity;
@@ -126,11 +164,9 @@ export default function StaffPage() {
     setEditingId(m.id);
     setForm({
       full_name: m.full_name,
-      role: m.role ?? "Barbero",
+      role: m.role ?? "",
       phone: m.phone ?? "",
       email: m.email ?? "",
-      commission_rate: String(m.commission_rate),
-      commission_type: m.commission_type || "percentage",
       status: m.status,
     });
     setModalOpen(true);
@@ -168,7 +204,7 @@ export default function StaffPage() {
         <div>
           <h1 className="text-2xl font-bold text-on-surface">Personal</h1>
           <p className="text-sm text-on-surface-variant mt-1">
-            Administra tu equipo y la comisión que gana cada uno por servicio.
+            Tu equipo en un solo lugar: cargo, comisión y quién entra al sistema.
           </p>
         </div>
         <button
@@ -212,6 +248,12 @@ export default function StaffPage() {
         </div>
       )}
 
+      {/* La llave del negocio es la mitad del login de los empleados: va acá,
+          donde se les dan los permisos, y no escondida en Ajustes. Se muestra
+          siempre — sin ella nadie puede entrar, así que el dueño la necesita a
+          la vista ANTES de crear la primera cuenta, no después. */}
+      <BusinessKeyCard />
+
       {loading ? (
         <p className="text-center text-sm text-on-surface-variant py-12">Cargando equipo…</p>
       ) : staff.length === 0 ? (
@@ -219,9 +261,10 @@ export default function StaffPage() {
           <div className="w-16 h-16 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant mb-4">
             <IconUserBadge className="w-8 h-8" />
           </div>
-          <h2 className="text-lg font-bold text-on-surface mb-2">Aún no hay miembros del equipo</h2>
+          <h2 className="text-lg font-bold text-on-surface mb-2">Aún no hay nadie en tu equipo</h2>
           <p className="text-sm text-on-surface-variant max-w-sm mb-6">
-            Añade a tu personal para asignarle citas y llevar el control de sus comisiones.
+            Añade a tu personal para llevar sus comisiones y, si lo necesitas, darle
+            su propio usuario para entrar al sistema.
           </p>
           <button
             onClick={openCreate}
@@ -232,10 +275,10 @@ export default function StaffPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {staff.map((m) => (
+          {team.map((m) => (
             <div
               key={m.id}
-              onClick={() => openEdit(m)}
+              onClick={() => hasStaffRecord(m) && openEdit(m)}
               className="text-left bg-surface-container rounded-2xl border border-outline-variant/10 shadow-sm p-5 hover:border-primary/30 hover:shadow-md transition-all group relative cursor-pointer"
             >
               <div className="absolute top-3 right-3 w-7 h-7 rounded-full bg-surface-container-lowest/80 border border-outline-variant/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
@@ -262,12 +305,68 @@ export default function StaffPage() {
                 {m.phone && <div className="truncate">{m.phone}</div>}
                 {m.email && <div className="truncate text-xs">{m.email}</div>}
               </div>
+              {/* La comisión se configura por producto/servicio, no por
+                  persona: acá se muestra lo DEVENGADO en el mes, que es la
+                  pregunta real ("¿cuánto le debo?"). La tasa de la ficha no se
+                  muestra porque no la usa nadie para calcular. */}
               <div className="flex items-center justify-between mt-4 pt-4 border-t border-outline-variant/10">
-                <span className="text-xs font-medium text-on-surface-variant">Comisión</span>
+                <span className="text-xs font-medium text-on-surface-variant">Comisión del mes</span>
                 <span className="text-base font-bold text-on-surface tabular-nums">
-                  {m.commission_type === "fixed" ? `$${money(m.commission_rate)}/und` : `${m.commission_rate}%`}
+                  ${money(commissionByStaff.get(m.id) ?? 0)}
                 </span>
               </div>
+
+              {/* Acceso al sistema: la mitad que antes vivía en Ajustes. */}
+              <div className="mt-3 pt-3 border-t border-outline-variant/10">
+                {m.account ? (
+                  <>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                      <span className="text-xs font-semibold text-on-surface truncate">
+                        @{m.account.username}
+                      </span>
+                      <span className="ml-auto text-[10px] font-bold text-emerald-600 dark:text-emerald-400 shrink-0">
+                        Con acceso
+                      </span>
+                    </div>
+                    <div className="flex gap-1.5">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setEditAccessFor(m.account!.id); }}
+                        className="flex-1 py-1.5 rounded-lg border border-outline-variant/20 text-[11px] font-semibold text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors"
+                      >
+                        Cuenta
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setPermsFor(m.account!.id); }}
+                        className="flex-1 py-1.5 rounded-lg border border-outline-variant/20 text-[11px] font-semibold text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors"
+                      >
+                        Permisos
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleRevoke(m.account!.id, m.full_name); }}
+                        className="shrink-0 px-2 py-1.5 rounded-lg text-on-surface-variant hover:text-error hover:bg-error/10 transition-colors"
+                        title="Quitar acceso"
+                      >
+                        <IconLogOut className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-outline-variant shrink-0" />
+                      <span className="text-xs text-on-surface-variant">No entra al sistema</span>
+                    </div>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setGrantFor(m.id); }}
+                      className="w-full py-1.5 rounded-lg border border-primary/30 text-[11px] font-semibold text-primary hover:bg-primary/10 transition-colors"
+                    >
+                      Permisos
+                    </button>
+                  </>
+                )}
+              </div>
+
               <button
                 onClick={(e) => { e.stopPropagation(); openSales(m); }}
                 className="mt-3 w-full py-1.5 rounded-lg border border-outline-variant/20 text-[11px] font-semibold text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors"
@@ -285,7 +384,8 @@ export default function StaffPage() {
           <div className="px-6 py-4 border-b border-outline-variant/10 bg-surface-container-low">
             <h2 className="text-sm font-bold text-on-surface">Comisiones del mes</h2>
             <p className="text-xs text-on-surface-variant mt-0.5">
-              Calculadas sobre los servicios vendidos atribuidos a cada miembro.
+              Suma de lo que dejó cada producto y servicio con comisión, al valor
+              que tenía el día de la venta.
             </p>
           </div>
           {commissionsLoading ? (
@@ -456,11 +556,12 @@ export default function StaffPage() {
               </div>
 
               <Select
-                label="Rol"
+                label="Rol / Cargo"
                 value={form.role}
                 onChange={(e) => setForm({ ...form, role: e.target.value })}
               >
-                {ROLES.map((r) => (
+                <option value="">Seleccionar cargo</option>
+                {roleChoices.map((r) => (
                   <option key={r} value={r}>{r}</option>
                 ))}
               </Select>
@@ -491,7 +592,12 @@ export default function StaffPage() {
               <div className="flex items-center justify-between p-3 sm:p-4 bg-surface-container-low rounded-xl border border-outline-variant/10">
                 <div>
                   <p className="text-sm font-bold text-on-surface">Activo</p>
-                  <p className="text-xs text-on-surface-variant mt-1">Disponible para asignarle citas.</p>
+                  {/* Hablar de citas acá era falso para tienda, que no las tiene.
+                      El cupo del plan sí es cierto en los cuatro rubros: el
+                      trigger enforce_staff_limit solo cuenta los activos. */}
+                  <p className="text-xs text-on-surface-variant mt-1">
+                    Trabaja hoy. Los inactivos no ocupan cupo de tu plan.
+                  </p>
                 </div>
                 <button
                   type="button"
@@ -541,6 +647,25 @@ export default function StaffPage() {
             </form>
           </div>
         </div>
+      )}
+
+      {/* Turnos de caja: solo tiene sentido para quien sí entra al sistema. */}
+      {accounts.length > 0 && <ShiftHistorySection workers={accounts} />}
+
+      {grantMember && (
+        <GrantAccessModal member={grantMember} onClose={() => setGrantFor(null)} />
+      )}
+
+      {accountToEdit && (
+        <EditAccessModal worker={accountToEdit} onClose={() => setEditAccessFor(null)} />
+      )}
+
+      {accountForPerms && (
+        <PermissionsPanel
+          workerId={accountForPerms.id}
+          current={accountForPerms.worker_permissions ?? {}}
+          onClose={() => setPermsFor(null)}
+        />
       )}
     </div>
   );

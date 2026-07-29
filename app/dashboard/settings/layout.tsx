@@ -5,14 +5,16 @@ import { fetchProfileServer } from "@/services/profile.server";
 import { SettingsTabs } from "./SettingsTabs";
 
 // Server Component: todo lo que cuelga de /dashboard/settings es configuración
-// del negocio (facturación, tipo de negocio y módulos, datos fiscales,
-// trabajadores). El dueño siempre entra; un trabajador solo con el permiso
-// `settings` que le asigne el dueño. Se gatea aquí, en el servidor, antes de
-// pintar nada, así también cubre la navegación directa por URL.
+// del negocio (facturación, tipo de negocio y módulos, datos fiscales). El
+// dueño siempre entra; un trabajador solo con el permiso `settings` que le
+// asigne el dueño. Se gatea aquí, en el servidor, antes de pintar nada, así
+// también cubre la navegación directa por URL.
+//
+// El equipo y sus accesos ya no viven acá: se administran en /dashboard/staff,
+// que tiene su propio gate de solo-dueño.
 export default async function SettingsLayout({ children }: { children: React.ReactNode }) {
   const profile = await fetchProfileServer();
-  const isWorker = profile?.isWorker ?? false;
-  if (isWorker && !profile?.workerPermissions?.settings) redirect("/dashboard");
+  if (profile?.isWorker && !profile?.workerPermissions?.settings) redirect("/dashboard");
 
   return (
     <div className="w-full max-w-4xl mx-auto pb-20 animate-in fade-in duration-300">
@@ -27,7 +29,7 @@ export default async function SettingsLayout({ children }: { children: React.Rea
       </div>
 
       <div className="border-b border-outline-variant/20 mb-8">
-        <SettingsTabs showWorkers={!isWorker} />
+        <SettingsTabs />
       </div>
 
       {children}

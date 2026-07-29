@@ -992,6 +992,114 @@ export type Database = {
           },
         ]
       }
+      purchase_order_items: {
+        Row: {
+          created_at: string
+          id: string
+          product_id: string | null
+          product_name: string
+          purchase_order_id: string
+          quantity: number
+          sku: string | null
+          unit_price: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          product_id?: string | null
+          product_name: string
+          purchase_order_id: string
+          quantity: number
+          sku?: string | null
+          unit_price?: number
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          product_id?: string | null
+          product_name?: string
+          purchase_order_id?: string
+          quantity?: number
+          sku?: string | null
+          unit_price?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_order_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_order_items_purchase_order_id_fkey"
+            columns: ["purchase_order_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      purchase_orders: {
+        Row: {
+          created_at: string
+          distributor_id: string | null
+          id: string
+          invoice_id: string | null
+          issued_at: string | null
+          notes: string | null
+          order_number: number
+          received_at: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          distributor_id?: string | null
+          id?: string
+          invoice_id?: string | null
+          issued_at?: string | null
+          notes?: string | null
+          order_number?: number
+          received_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          distributor_id?: string | null
+          id?: string
+          invoice_id?: string | null
+          issued_at?: string | null
+          notes?: string | null
+          order_number?: number
+          received_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_orders_distributor_id_fkey"
+            columns: ["distributor_id"]
+            isOneToOne: false
+            referencedRelation: "distributors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_orders_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       reseller_credits: {
         Row: {
           client_id: string | null
@@ -1052,6 +1160,7 @@ export type Database = {
       }
       sale_items: {
         Row: {
+          commission_amount: number
           created_at: string
           id: string
           line_total: number
@@ -1068,6 +1177,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          commission_amount?: number
           created_at?: string
           id?: string
           line_total: number
@@ -1084,6 +1194,7 @@ export type Database = {
           user_id?: string
         }
         Update: {
+          commission_amount?: number
           created_at?: string
           id?: string
           line_total?: number
@@ -1399,12 +1510,8 @@ export type Database = {
           allowed_branches: string[]
           auth_user_id: string | null
           can_login: boolean
-          commission_mode: string
-          commission_rate: number
-          commission_type: string
           created_at: string
           email: string | null
-          fixed_amount_commission: number | null
           full_name: string
           id: string
           is_active: boolean
@@ -1415,7 +1522,6 @@ export type Database = {
           phone: string | null
           pos_pin_hash: string | null
           primary_branch_id: string | null
-          product_rate_pct: number | null
           role: string | null
           status: string
           user_id: string
@@ -1425,12 +1531,8 @@ export type Database = {
           allowed_branches?: string[]
           auth_user_id?: string | null
           can_login?: boolean
-          commission_mode?: string
-          commission_rate?: number
-          commission_type?: string
           created_at?: string
           email?: string | null
-          fixed_amount_commission?: number | null
           full_name: string
           id?: string
           is_active?: boolean
@@ -1441,7 +1543,6 @@ export type Database = {
           phone?: string | null
           pos_pin_hash?: string | null
           primary_branch_id?: string | null
-          product_rate_pct?: number | null
           role?: string | null
           status?: string
           user_id?: string
@@ -1451,12 +1552,8 @@ export type Database = {
           allowed_branches?: string[]
           auth_user_id?: string | null
           can_login?: boolean
-          commission_mode?: string
-          commission_rate?: number
-          commission_type?: string
           created_at?: string
           email?: string | null
-          fixed_amount_commission?: number | null
           full_name?: string
           id?: string
           is_active?: boolean
@@ -1467,7 +1564,6 @@ export type Database = {
           phone?: string | null
           pos_pin_hash?: string | null
           primary_branch_id?: string | null
-          product_rate_pct?: number | null
           role?: string | null
           status?: string
           user_id?: string

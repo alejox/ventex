@@ -2,23 +2,39 @@
 
 import React, { useState } from "react";
 import { IconX, IconCheck } from "@/app/assets/icons/DashboardIcons";
-import { useWorkerStore } from "@/stores/worker.store";
+import { useStaffStore } from "@/stores/staff.store";
 import { useProfile } from "@/components/ProfileProvider";
 import { Select } from "@/components/ui/Select";
 import { staffRolesForType, type WorkerPermissions, type WorkerPermission } from "@/config/business";
 import { PermissionToggles, togglePermission } from "./PermissionToggles";
+import type { TeamMember } from "@/lib/team";
 
-export function InviteModal({ onClose }: { onClose: () => void }) {
-  const inviteWorker = useWorkerStore((s) => s.inviteWorker);
-  const submitting = useWorkerStore((s) => s.submitting);
-  const error = useWorkerStore((s) => s.error);
+/**
+ * Le crea acceso al sistema a alguien que YA tiene ficha de personal.
+ *
+ * `staffId` es lo que amarra la cuenta a la ficha: sin él nacería una cuenta
+ * suelta y la persona volvería a aparecer dos veces en la lista, que es justo
+ * el problema que esta pantalla vino a resolver. El nombre sale de la ficha y
+ * no se edita acá — se cambia en la ficha, que es la que manda.
+ */
+export function GrantAccessModal({
+  member,
+  onClose,
+}: {
+  member: TeamMember;
+  onClose: () => void;
+}) {
+  const grantAccess = useStaffStore((s) => s.grantAccess);
+  const submitting = useStaffStore((s) => s.submitting);
+  const error = useStaffStore((s) => s.error);
   const profile = useProfile();
   const roleOptions = staffRolesForType(profile?.businessType ?? null);
+  const options =
+    member.role && !roleOptions.includes(member.role) ? [member.role, ...roleOptions] : roleOptions;
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [fullName, setFullName] = useState("");
-  const [role, setRole] = useState("");
+  const [role, setRole] = useState(member.role ?? "");
   const [perms, setPerms] = useState<WorkerPermissions>({});
   const [done, setDone] = useState(false);
 
@@ -28,7 +44,14 @@ export function InviteModal({ onClose }: { onClose: () => void }) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const ok = await inviteWorker({ username, password, fullName, role, permissions: perms });
+    const ok = await grantAccess({
+      username,
+      password,
+      fullName: member.full_name,
+      role,
+      staffId: member.id,
+      permissions: perms,
+    });
     if (ok) setDone(true);
   };
 
@@ -39,9 +62,9 @@ export function InviteModal({ onClose }: { onClose: () => void }) {
           <div className="w-14 h-14 mx-auto rounded-full bg-primary/20 flex items-center justify-center mb-4">
             <IconCheck className="w-7 h-7 text-primary" />
           </div>
-          <h2 className="text-xl font-bold text-on-surface mb-2">Trabajador creado</h2>
+          <h2 className="text-xl font-bold text-on-surface mb-2">Acceso creado</h2>
           <p className="text-sm text-on-surface-variant mb-6">
-            Se ha creado la cuenta para <strong>{fullName}</strong>. Ya puede iniciar sesión en la pestaña
+            <strong>{member.full_name}</strong> ya puede entrar desde la pestaña
             <span className="font-semibold"> Empleado</span> con la llave del negocio, su usuario
             <strong> {username}</strong> y su contraseña.
           </p>
@@ -60,8 +83,11 @@ export function InviteModal({ onClose }: { onClose: () => void }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
       <div className="bg-surface-container rounded-3xl w-full max-w-md border border-outline-variant/10 shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between p-6 border-b border-outline-variant/10 shrink-0">
-          <h2 className="text-lg font-bold text-on-surface">Invitar trabajador</h2>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors">
+          <div className="min-w-0">
+            <h2 className="text-lg font-bold text-on-surface">Permisos y acceso</h2>
+            <p className="text-sm text-on-surface-variant mt-0.5 truncate">{member.full_name}</p>
+          </div>
+          <button onClick={onClose} className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors">
             <IconX className="w-5 h-5" />
           </button>
         </div>
@@ -72,18 +98,6 @@ export function InviteModal({ onClose }: { onClose: () => void }) {
               {error}
             </div>
           )}
-
-          <div>
-            <label className="block text-sm font-semibold text-on-surface mb-1.5">Nombre completo</label>
-            <input
-              type="text"
-              required
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              placeholder="Ej: Juan Pérez"
-              className="w-full px-4 py-2.5 bg-surface-container-low border border-outline-variant/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 text-on-surface placeholder:text-on-surface-variant/50"
-            />
-          </div>
 
           <div>
             <label className="block text-sm font-semibold text-on-surface mb-1.5">Usuario</label>
@@ -97,7 +111,7 @@ export function InviteModal({ onClose }: { onClose: () => void }) {
               className="w-full px-4 py-2.5 bg-surface-container-low border border-outline-variant/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 text-on-surface placeholder:text-on-surface-variant/50"
             />
             <p className="text-xs text-on-surface-variant mt-1">
-              El trabajador entrará con la llave del negocio, este usuario y su contraseña.
+              Entrará con la llave del negocio, este usuario y su contraseña.
             </p>
           </div>
 
@@ -114,13 +128,9 @@ export function InviteModal({ onClose }: { onClose: () => void }) {
             />
           </div>
 
-          <Select
-            label="Rol / Cargo"
-            value={role}
-            onChange={(e) => setRole(e.target.value)}
-          >
+          <Select label="Rol / Cargo" value={role} onChange={(e) => setRole(e.target.value)}>
             <option value="">Seleccionar cargo</option>
-            {roleOptions.map((r) => (
+            {options.map((r) => (
               <option key={r} value={r}>
                 {r}
               </option>
@@ -148,7 +158,7 @@ export function InviteModal({ onClose }: { onClose: () => void }) {
               disabled={submitting}
               className="px-5 py-2.5 rounded-xl bg-primary text-white font-semibold hover:bg-primary-dim transition-colors disabled:opacity-50"
             >
-              {submitting ? "Creando…" : "Crear trabajador"}
+              {submitting ? "Creando…" : "Dar acceso"}
             </button>
           </div>
         </form>

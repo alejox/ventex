@@ -7,7 +7,11 @@ import { IconAlertTriangle } from "@/app/assets/icons/DashboardIcons";
 import { buildSuggestedItems } from "@/services/abastecimiento.service";
 import type { SuggestedOrderItem } from "@/services/abastecimiento.service";
 import { useDistributorsStore } from "@/stores/distributors.store";
+import { usePurchaseOrdersStore } from "@/stores/purchase-orders.store";
+import type { PurchaseOrder, PurchaseOrderLineInput } from "@/services/purchase-orders.service";
+import { notifySuccess, notifyError } from "@/lib/notifications";
 import { ProductBrowser } from "./ProductBrowser";
+import { SavedOrders } from "./SavedOrders";
 import { Select } from "@/components/ui/Select";
 
 function IconZap(props: React.SVGProps<SVGSVGElement>) {
@@ -68,6 +72,30 @@ export function PedidosClient({
   const [selectedDistributorId, setSelectedDistributorId] = useState("");
   const [manualWhatsApp, setManualWhatsApp] = useState("");
 
+  const orders = usePurchaseOrdersStore((s) => s.orders);
+  const ordersLoading = usePurchaseOrdersStore((s) => s.loading);
+  const savingOrder = usePurchaseOrdersStore((s) => s.submitting);
+  const orderError = usePurchaseOrdersStore((s) => s.error);
+  const fetchOrders = usePurchaseOrdersStore((s) => s.fetchOrders);
+  const saveDraft = usePurchaseOrdersStore((s) => s.saveDraft);
+  const issueOrder = usePurchaseOrdersStore((s) => s.issue);
+  const receiveOrder = usePurchaseOrdersStore((s) => s.receive);
+  const cancelOrder = usePurchaseOrdersStore((s) => s.cancel);
+
+  /**
+   * Borrador que se está editando. Sin esto, cada "Guardar" crearía un pedido
+   * nuevo y la lista se llenaría de copias del mismo.
+   */
+  const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchOrders();
+  }, [fetchOrders]);
+
+  useEffect(() => {
+    if (orderError) notifyError("No se pudo guardar el pedido", orderError);
+  }, [orderError]);
+
   const selectedDistributor = useMemo(
     () => distributors.find((d) => d.id === selectedDistributorId),
     [distributors, selectedDistributorId],
@@ -79,11 +107,113 @@ export function PedidosClient({
     return "";
   }, [manualWhatsApp, selectedDistributor]);
 
-  const handleClear = () => {
+  const handleClear = useCallback(() => {
     setItems([]);
     setQuantities({});
     setGenerated(true);
-  };
+    setEditingOrderId(null);
+  }, []);
+
+  /** Las líneas del armador, en el formato que guarda la base. */
+  const buildLines = useCallback((): PurchaseOrderLineInput[] => {
+    return items
+      .map((item) => ({
+        product_id: item.productId,
+        product_name: item.productName,
+        sku: item.sku || null,
+        quantity: quantities[item.productId] ?? item.suggestedQuantity,
+        unit_price: item.purchasePrice,
+      }))
+      .filter((line) => line.quantity > 0);
+  }, [items, quantities]);
+
+  const handleSaveDraft = useCallback(async () => {
+    const lines = buildLines();
+    if (lines.length === 0) {
+      notifyError("Pedido vacío", "Agrega productos con cantidad mayor a cero.");
+      return;
+    }
+    const order = await saveDraft(
+      { distributor_id: selectedDistributorId || null, items: lines },
+      editingOrderId,
+    );
+    if (order) {
+      setEditingOrderId(order.id);
+      notifySuccess(
+        `Borrador #${order.order_number} guardado`,
+        "Puedes retomarlo cuando quieras desde Pedidos guardados.",
+      );
+    }
+  }, [buildLines, saveDraft, selectedDistributorId, editingOrderId]);
+
+  const handleIssue = useCallback(async () => {
+    const lines = buildLines();
+    if (lines.length === 0) {
+      notifyError("Pedido vacío", "Agrega productos con cantidad mayor a cero.");
+      return;
+    }
+    // Emitir compromete una compra. Sin proveedor no se puede recibir después,
+    // así que se frena acá y no cuando llegue la mercancía. El borrador sí
+    // puede guardarse sin proveedor: para eso es un borrador.
+    if (!selectedDistributorId) {
+      notifyError(
+        "Falta el proveedor",
+        "Elige a quién le vas a comprar antes de emitir la orden.",
+      );
+      return;
+    }
+    const order = await issueOrder(
+      { distributor_id: selectedDistributorId || null, items: lines },
+      editingOrderId,
+    );
+    if (order) {
+      notifySuccess(
+        `Orden #${order.order_number} emitida`,
+        "Cuando llegue la mercancía, márcala como recibida y se registra la compra.",
+      );
+      handleClear();
+    }
+  }, [buildLines, issueOrder, selectedDistributorId, editingOrderId, handleClear]);
+
+  /** Carga un borrador guardado de vuelta en el armador. */
+  const handleResume = useCallback((order: PurchaseOrder) => {
+    setItems(
+      order.items.map((line) => ({
+        productId: line.product_id ?? line.id,
+        productName: line.product_name,
+        imageUrl: null,
+        sku: line.sku ?? "",
+        currentStock: 0,
+        minimumStock: 0,
+        suggestedQuantity: line.quantity,
+        unit: "Unidad",
+        purchasePrice: line.unit_price,
+        distributorName: order.distributor_name,
+      })),
+    );
+    setQuantities(
+      Object.fromEntries(
+        order.items.map((line) => [line.product_id ?? line.id, line.quantity]),
+      ),
+    );
+    setSelectedDistributorId(order.distributor_id ?? "");
+    setEditingOrderId(order.id);
+    setGenerated(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
+
+  const handleReceive = useCallback(
+    async (order: PurchaseOrder) => {
+      const ok = await receiveOrder(order);
+      if (ok) {
+        notifySuccess(
+          `Pedido #${order.order_number} recibido`,
+          "Se registró la compra y el stock ya quedó actualizado.",
+        );
+      }
+    },
+    [receiveOrder],
+  );
 
   const handleExportExcel = useCallback(async () => {
     const data = items.map((item) => {
@@ -259,6 +389,27 @@ export function PedidosClient({
           </div>
         </div>
       </div>
+
+      {/* Editando un borrador ya guardado: sin este aviso el dueño no sabe si
+          está armando un pedido nuevo o modificando uno existente. */}
+      {editingOrderId && (
+        <div className="rounded-xl bg-primary/10 border border-primary/20 px-4 py-3 text-sm text-on-surface flex flex-wrap items-center justify-between gap-2">
+          <span>
+            Estás editando el borrador{" "}
+            <strong>
+              #{orders.find((o) => o.id === editingOrderId)?.order_number ?? ""}
+            </strong>
+            . Al guardar se actualiza, no se crea uno nuevo.
+          </span>
+          <button
+            type="button"
+            onClick={handleClear}
+            className="text-xs font-semibold text-primary hover:underline whitespace-nowrap"
+          >
+            Empezar uno nuevo
+          </button>
+        </div>
+      )}
 
       {/* Table */}
       <div className="bg-surface-container rounded-3xl border border-outline-variant/10 shadow-sm overflow-hidden flex flex-col">
@@ -512,7 +663,9 @@ export function PedidosClient({
           </button>
           <button
             type="button"
-            className="h-12 px-8 rounded-xl border border-outline-variant/30 text-sm font-semibold text-on-surface hover:bg-surface-container-low transition-colors flex items-center justify-center gap-2"
+            onClick={handleSaveDraft}
+            disabled={savingOrder || activeItems.length === 0}
+            className="h-12 px-8 rounded-xl border border-outline-variant/30 text-sm font-semibold text-on-surface hover:bg-surface-container-low transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-4 h-4">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -520,21 +673,32 @@ export function PedidosClient({
               <line x1="16" y1="13" x2="8" y2="13" />
               <line x1="16" y1="17" x2="8" y2="17" />
             </svg>
-            Guardar como Borrador
+            {savingOrder ? "Guardando…" : editingOrderId ? "Actualizar Borrador" : "Guardar como Borrador"}
           </button>
           <button
             type="button"
-            className="h-12 px-8 rounded-xl bg-primary hover:bg-primary-dim text-on-primary text-sm font-semibold shadow-[0_0_20px_rgba(96,99,238,0.25)] transition-all flex items-center justify-center gap-2 hover:shadow-[0_0_25px_rgba(96,99,238,0.35)]"
+            onClick={handleIssue}
+            disabled={savingOrder || activeItems.length === 0}
+            className="h-12 px-8 rounded-xl bg-primary hover:bg-primary-dim text-on-primary text-sm font-semibold shadow-[0_0_20px_rgba(96,99,238,0.25)] transition-all flex items-center justify-center gap-2 hover:shadow-[0_0_25px_rgba(96,99,238,0.35)] disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-4 h-4">
               <polyline points="20 6 9 17 4 12" />
             </svg>
-            Emitir Orden de Compra
+            {savingOrder ? "Emitiendo…" : "Emitir Orden de Compra"}
           </button>
         </div>
       )}
 
       {/* Product Browser Modal */}
+      <SavedOrders
+        orders={orders}
+        loading={ordersLoading}
+        submitting={savingOrder}
+        onResume={handleResume}
+        onReceive={handleReceive}
+        onCancel={cancelOrder}
+      />
+
       {browserOpen && (
         <ProductBrowser
           products={initialProducts}

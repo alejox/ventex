@@ -5,16 +5,16 @@ import { usePathname } from "next/navigation";
 
 /**
  * Navegación por pestañas de Ajustes. Cliente solo por `usePathname`.
- * `showWorkers`: administrar trabajadores es exclusivo del dueño, incluso si
- * un trabajador tiene permiso para ver el resto de la configuración.
+ *
+ * Ya no hay pestaña "Trabajadores": el acceso al sistema es un atributo de la
+ * ficha de personal, así que se administra completo en /dashboard/staff.
  */
-export function SettingsTabs({ showWorkers }: { showWorkers: boolean }) {
+export function SettingsTabs() {
   const pathname = usePathname();
 
   const tabs = [
     { name: "General", href: "/dashboard/settings" },
     { name: "Datos de tu negocio", href: "/dashboard/settings/business" },
-    ...(showWorkers ? [{ name: "Trabajadores", href: "/dashboard/settings/trabajadores" }] : []),
   ];
 
   return (

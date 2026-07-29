@@ -405,25 +405,36 @@ export function PosCartPanel({
                 </div>
               )}
 
-              {cart.some((l) => (l.item.kind === "service" || l.item.has_commission) && staff.length > 0) && (
+              {/* Líneas que comisionan. La atribución es lo ÚNICO que decide si
+                  la comisión se devenga: create_sale la congela en cero cuando
+                  no hay persona, así que dejarla sin asignar la pierde para
+                  siempre. Por eso se avisa en vez de fallar en silencio. */}
+              {cart.some((l) => l.item.kind === "service" || l.item.has_commission) && (
                 <div className="space-y-1.5 pt-1 border-t border-outline-variant/10">
-                  {cart
-                    .filter((l) => (l.item.kind === "service" || l.item.has_commission) && staff.length > 0)
-                    .map((line) => (
-                      <div key={`stf-${cartLineKey(line)}`} className="flex items-center gap-2">
-                        <span className="text-[10px] text-on-surface-variant shrink-0 truncate max-w-[80px]">{line.item.name}</span>
-                        <Select
-                          size="sm"
-                          value={line.staffId ?? ""}
-                          onChange={(e) => setLineStaff(cartLineKey(line), e.target.value || null)}
-                        >
-                          <option value="">&mdash;</option>
-                          {staff.map((m) => (
-                            <option key={m.id} value={m.id}>{m.full_name}</option>
-                          ))}
-                        </Select>
-                      </div>
-                    ))}
+                  {staff.length === 0 ? (
+                    <p className="text-[10px] text-amber-600 dark:text-amber-400">
+                      Hay productos que comisionan, pero no tienes personal cargado.
+                      Agrégalo en Personal para poder asignarles la comisión.
+                    </p>
+                  ) : (
+                    cart
+                      .filter((l) => l.item.kind === "service" || l.item.has_commission)
+                      .map((line) => (
+                        <div key={`stf-${cartLineKey(line)}`} className="flex items-center gap-2">
+                          <span className="text-[10px] text-on-surface-variant shrink-0 truncate max-w-[80px]">{line.item.name}</span>
+                          <Select
+                            size="sm"
+                            value={line.staffId ?? ""}
+                            onChange={(e) => setLineStaff(cartLineKey(line), e.target.value || null)}
+                          >
+                            <option value="">Sin comisión</option>
+                            {staff.map((m) => (
+                              <option key={m.id} value={m.id}>{m.full_name}</option>
+                            ))}
+                          </Select>
+                        </div>
+                      ))
+                  )}
                 </div>
               )}
             </>

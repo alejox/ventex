@@ -1,31 +1,59 @@
 import { create } from "zustand";
 import { toMessage } from "@/lib/errors";
 import * as staffService from "@/services/staff.service";
+import * as workerService from "@/services/worker.service";
 import type { StaffMember, NewStaffInput, CommissionRow } from "@/services/staff.service";
+import type {
+  WorkerMember,
+  InviteWorkerInput,
+  UpdateWorkerInput,
+} from "@/services/worker.service";
+import type { WorkerPermissions } from "@/config/business";
 
+/**
+ * Store de Personal: la ficha de la persona Y su acceso al sistema.
+ *
+ * Son dos consultas separadas a propósito. `fetchStaff` (solo fichas) lo usan
+ * pantallas que cualquier empleado puede abrir — el selector de personal de las
+ * citas, por ejemplo. `fetchAccounts` lee `profiles`, que solo el dueño puede
+ * listar: mezclarlas en una sola acción rompería las citas para los empleados.
+ */
 interface StaffState {
   staff: StaffMember[];
   loading: boolean;
   error: string | null;
   submitting: boolean;
 
+  /** Cuentas de acceso del negocio. Solo se cargan en la pantalla del dueño. */
+  accounts: WorkerMember[];
+  accountsLoading: boolean;
+
   commissions: CommissionRow[];
   commissionsLoading: boolean;
 
   fetchStaff: () => Promise<void>;
+  fetchAccounts: () => Promise<void>;
   fetchCommissions: () => Promise<void>;
+
   /** Devuelve true si el alta fue correcta (para que el componente cierre el modal). */
   addStaff: (input: NewStaffInput) => Promise<boolean>;
   updateStaff: (id: string, input: NewStaffInput) => Promise<boolean>;
   deleteStaff: (id: string) => Promise<boolean>;
-}
 
+  /** Le crea cuenta a una ficha existente; `staffId` es lo que las enlaza. */
+  grantAccess: (input: InviteWorkerInput) => Promise<boolean>;
+  updateAccess: (accountId: string, input: UpdateWorkerInput) => Promise<boolean>;
+  updatePermissions: (accountId: string, permissions: WorkerPermissions) => Promise<boolean>;
+  revokeAccess: (accountId: string) => Promise<boolean>;
+}
 
 export const useStaffStore = create<StaffState>((set) => ({
   staff: [],
   loading: false,
   error: null,
   submitting: false,
+  accounts: [],
+  accountsLoading: false,
   commissions: [],
   commissionsLoading: false,
 
@@ -36,6 +64,16 @@ export const useStaffStore = create<StaffState>((set) => ({
       set({ staff, loading: false });
     } catch (e) {
       set({ error: toMessage(e), loading: false });
+    }
+  },
+
+  fetchAccounts: async () => {
+    set({ accountsLoading: true });
+    try {
+      const accounts = await workerService.fetchWorkers();
+      set({ accounts, accountsLoading: false });
+    } catch (e) {
+      set({ error: toMessage(e), accountsLoading: false });
     }
   },
 
@@ -82,6 +120,72 @@ export const useStaffStore = create<StaffState>((set) => ({
       await staffService.deleteStaff(id);
       set((s) => ({
         staff: s.staff.filter((x) => x.id !== id),
+        submitting: false,
+      }));
+      return true;
+    } catch (e) {
+      set({ error: toMessage(e), submitting: false });
+      return false;
+    }
+  },
+
+  grantAccess: async (input) => {
+    set({ submitting: true, error: null });
+    try {
+      await workerService.inviteWorkerViaApi(input);
+      // La cuenta se crea del lado del servidor (Auth + perfil): hay que releer
+      // para conocer su id, que es lo que después piden permisos y edición.
+      const accounts = await workerService.fetchWorkers();
+      set({ accounts, submitting: false });
+      return true;
+    } catch (e) {
+      set({ error: toMessage(e), submitting: false });
+      return false;
+    }
+  },
+
+  updateAccess: async (accountId, input) => {
+    set({ submitting: true, error: null });
+    try {
+      await workerService.updateWorker(accountId, input);
+      set((s) => ({
+        accounts: s.accounts.map((a) =>
+          a.id === accountId
+            ? { ...a, full_name: input.fullName, username: input.username, role: input.role || null }
+            : a,
+        ),
+        submitting: false,
+      }));
+      return true;
+    } catch (e) {
+      set({ error: toMessage(e), submitting: false });
+      return false;
+    }
+  },
+
+  updatePermissions: async (accountId, permissions) => {
+    set({ submitting: true, error: null });
+    try {
+      await workerService.updateWorkerPermissions(accountId, permissions);
+      set((s) => ({
+        accounts: s.accounts.map((a) =>
+          a.id === accountId ? { ...a, worker_permissions: permissions } : a,
+        ),
+        submitting: false,
+      }));
+      return true;
+    } catch (e) {
+      set({ error: toMessage(e), submitting: false });
+      return false;
+    }
+  },
+
+  revokeAccess: async (accountId) => {
+    set({ submitting: true, error: null });
+    try {
+      await workerService.deactivateWorker(accountId);
+      set((s) => ({
+        accounts: s.accounts.filter((a) => a.id !== accountId),
         submitting: false,
       }));
       return true;

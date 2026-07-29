@@ -32,6 +32,7 @@ import { PosTabsBar } from "./components/PosTabsBar";
 import { SuccessModal } from "./components/SuccessModal";
 import { TabRenameModal } from "./components/TabRenameModal";
 import { TabCloseConfirmModal } from "./components/TabCloseConfirmModal";
+import { PlanLimitModal } from "./components/PlanLimitModal";
 
 const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
   { value: "efectivo", label: "Efectivo" },
@@ -68,6 +69,8 @@ export default function POSPage() {
   const allowOversell = usePosStore((s) => s.allowOversell);
   const stockAlert = usePosStore((s) => s.stockAlert);
   const clearStockAlert = usePosStore((s) => s.clearStockAlert);
+  const planLimitHit = usePosStore((s) => s.planLimitHit);
+  const clearPlanLimit = usePosStore((s) => s.clearPlanLimit);
 
   const businessProfile = useSettingsStore((s) => s.settings?.business_profile);
   const fetchSettings = useSettingsStore((s) => s.fetchSettings);
@@ -618,6 +621,10 @@ export default function POSPage() {
           onClose={() => setIsSuccessModalOpen(false)}
         />
       )}
+
+      {/* El servidor rechazó la venta por tope del plan: la caja no puede
+          seguir hasta que suban de plan, así que se corta con un modal. */}
+      {planLimitHit && <PlanLimitModal onClose={clearPlanLimit} />}
 
       <PosReceipt data={receiptData} />
     </>

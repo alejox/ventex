@@ -28,6 +28,7 @@ import { InstallPrompt } from "@/components/InstallPrompt";
 import { useProfile } from "@/components/ProfileProvider";
 import { visibleNavItems, workerNavItems } from "@/config/business";
 import { backdropProps } from "@/components/modal";
+import { SIDEBAR_COOKIE, SIDEBAR_COOKIE_MAX_AGE } from "@/lib/sidebar";
 
 type IconType = typeof IconHome;
 
@@ -59,21 +60,24 @@ const NAV_ICONS: Record<string, IconType> = {
   subscription: IconCreditCard,
 };
 
-export function DashboardShell({ children }: { children: React.ReactNode }) {
+export function DashboardShell({
+  children,
+  defaultCollapsed = true,
+}: {
+  children: React.ReactNode;
+  /** Preferencia leída de la cookie en el layout de servidor (ver lib/sidebar.ts). */
+  defaultCollapsed?: boolean;
+}) {
   const pathname = usePathname();
   const profile = useProfile();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [calculatorOpen, setCalculatorOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("sidebarCollapsed");
-      return saved !== null ? saved === "true" : true;
-    }
-    return true;
-  });
+  // Arranca con lo que ya pintó el servidor: el primer render del cliente tiene
+  // que ser idéntico o React descarta el árbol y el menú "salta".
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(defaultCollapsed);
 
   useEffect(() => {
-    localStorage.setItem("sidebarCollapsed", String(sidebarCollapsed));
+    document.cookie = `${SIDEBAR_COOKIE}=${sidebarCollapsed}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}; samesite=lax`;
   }, [sidebarCollapsed]);
 
   const isWorker = profile?.isWorker ?? false;

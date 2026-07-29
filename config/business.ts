@@ -241,7 +241,12 @@ export const QUICK_ACTIONS: QuickAction[] = [
 
 /** Secciones que ve cualquier cuenta, sea cual sea su tipo. */
 // POS y Ventas son universales: los 4 rubros pueden cobrar (productos y/o servicios).
-const UNIVERSAL_NAV_IDS = ["panel", "pos", "sales", "customers", "subscription"];
+// `staff` es universal desde que Personal absorbió a Trabajadores: todo negocio
+// tiene gente, y ahí es donde se crean las cuentas de acceso de los empleados.
+// Antes dependía del módulo `staff`, que la tienda no tiene — dejarlo así habría
+// dejado sin administración de empleados justo al único rubro con registro
+// abierto. El módulo `staff` sigue existiendo para las comisiones por servicio.
+const UNIVERSAL_NAV_IDS = ["panel", "pos", "sales", "customers", "staff", "subscription"];
 
 /** Menú base por tipo de negocio (además de las universales). */
 const BASE_NAV_BY_TYPE: Record<BusinessType, string[]> = {

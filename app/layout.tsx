@@ -58,11 +58,15 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         {/*
           Aplica el tema guardado antes de que se pinte nada (evita el flash de
-          tema claro). Va como primer hijo de <body> y NO en <head>: React trata
-          los hijos de <head> como hoistables, y un script inline no lo es, así
-          que lo recrearía en cliente ("scripts inside React components are never
-          executed"). En <body> la hidratación reclama el nodo que ya vino en el
-          HTML, que es el que de hecho ejecutó el navegador al parsear.
+          tema claro). Tiene que ser un <script> a mano, NO next/script: con
+          `beforeInteractive` Next no inlinea el código, emite un
+          `self.__next_s.push([...])` que solo corre cuando arranca el bundle —
+          o sea, después del primer pintado, que es justo lo que queremos evitar.
+
+          React avisa por consola ("scripts inside React components are never
+          executed") cuando le toca RE-crear este nodo en cliente, cosa que solo
+          pasa si antes falló una hidratación. Si ves ese warning, el bug real
+          está en otro lado del árbol, no acá.
         */}
         <script
           id="theme-init"

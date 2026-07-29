@@ -1,14 +1,17 @@
 import { createClient } from "@/utils/supabase/client";
 
 // ---- Tipos del dominio de staff (barberos / estilistas / empleados) ----
+/**
+ * Ficha de una persona del negocio. NO lleva tasa de comisión: la comisión se
+ * configura por producto y servicio, y el monto de cada venta queda congelado
+ * en `sale_items.commission_amount`.
+ */
 export interface StaffMember {
   id: string;
   full_name: string;
   role: string | null;
   phone: string | null;
   email: string | null;
-  commission_rate: number;
-  commission_type: string;
   status: string;
   created_at: string;
 }
@@ -18,19 +21,25 @@ export interface NewStaffInput {
   role: string;
   phone: string;
   email: string;
-  commission_rate: string;
-  commission_type: string;
   status: string;
 }
 
-/** Fila del reporte de comisiones (mes en curso) por miembro del equipo. */
+/**
+ * Fila del reporte de comisiones (mes en curso) por miembro del equipo.
+ *
+ * No lleva tasa: la comisión se configura POR PRODUCTO/SERVICIO
+ * (`products.has_commission`, `commission_type`, `commission_value`), no por
+ * persona, y el monto de cada línea queda congelado en
+ * `sale_items.commission_amount` al vender. Dos personas pueden vender lo mismo
+ * y ganar distinto según qué vendió cada una, así que una tasa única por
+ * persona no describe nada.
+ */
 export interface CommissionRow {
   staff_id: string;
   full_name: string;
-  commission_rate: number;
-  commission_type: string;
   salesCount: number;
-  servicesTotal: number;
+  /** Total vendido atribuido a la persona (productos y servicios). */
+  soldTotal: number;
   commission: number;
 }
 
@@ -48,10 +57,7 @@ export interface StaffSaleItem {
   commissionAmount: number;
 }
 
-const SELECT = "id, full_name, role, phone, email, commission_rate, commission_type, status, created_at";
-
-const calcCommission = (rate: number, type: string, lineTotal: number, quantity: number) =>
-  type === "fixed" ? rate * quantity : Math.round(lineTotal * (rate / 100) * 100) / 100;
+const SELECT = "id, full_name, role, phone, email, status, created_at";
 
 export async function fetchStaff(): Promise<StaffMember[]> {
   const supabase = createClient();
@@ -69,8 +75,6 @@ export async function createStaff(input: NewStaffInput): Promise<StaffMember> {
       role: input.role || null,
       phone: input.phone || null,
       email: input.email || null,
-      commission_rate: parseFloat(input.commission_rate) || 0,
-      commission_type: input.commission_type || "percentage",
       status: input.status,
     })
     .select(SELECT)
@@ -81,8 +85,9 @@ export async function createStaff(input: NewStaffInput): Promise<StaffMember> {
 
 /**
  * Comisiones del mes en curso por miembro del equipo.
- * - percentage: rate% × line_total
- * - fixed: rate × quantity
+ *
+ * Suma lo ya congelado en cada línea al vender; no recalcula nada. Cambiar hoy
+ * la comisión de un producto no puede mover lo que ya se devengó.
  */
 export async function fetchCommissions(): Promise<CommissionRow[]> {
   const supabase = createClient();
@@ -90,12 +95,14 @@ export async function fetchCommissions(): Promise<CommissionRow[]> {
   const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
   const [staffRes, itemsRes] = await Promise.all([
-    supabase.from("staff").select("id, full_name, commission_rate, commission_type"),
+    supabase.from("staff").select("id, full_name"),
     supabase
       .from("sale_items")
-      .select("sale_id, staff_id, line_total, quantity, service_id, sales!inner(status, created_at)")
+      // Sin filtro por service_id: antes solo sumaba SERVICIOS, así que en una
+      // tienda —que no los tiene— el reporte salía vacío por definición. Los
+      // productos también comisionan.
+      .select("sale_id, staff_id, line_total, commission_amount, sales!inner(status, created_at)")
       .not("staff_id", "is", null)
-      .not("service_id", "is", null)
       .eq("sales.status", "completed")
       .gte("sales.created_at", start),
   ]);
@@ -107,13 +114,15 @@ export async function fetchCommissions(): Promise<CommissionRow[]> {
     sale_id: string;
     staff_id: string;
     line_total: number;
-    quantity: number;
+    commission_amount: number;
   }[];
 
-  const byStaff = new Map<string, { servicesTotal: number; commission: number; sales: Set<string> }>();
+  const byStaff = new Map<string, { soldTotal: number; commission: number; sales: Set<string> }>();
   for (const it of items) {
-    const prev = byStaff.get(it.staff_id) ?? { servicesTotal: 0, commission: 0, sales: new Set<string>() };
-    prev.servicesTotal += it.line_total ?? 0;
+    const prev = byStaff.get(it.staff_id) ?? { soldTotal: 0, commission: 0, sales: new Set<string>() };
+    prev.soldTotal += it.line_total ?? 0;
+    // La comisión NO se recalcula: se suma la que quedó congelada al vender.
+    prev.commission += it.commission_amount ?? 0;
     prev.sales.add(it.sale_id);
     byStaff.set(it.staff_id, prev);
   }
@@ -122,24 +131,15 @@ export async function fetchCommissions(): Promise<CommissionRow[]> {
     .map((m) => {
       const a = byStaff.get(m.id);
       if (!a) return null;
-      const staffItems = items.filter((i) => i.staff_id === m.id);
-      let commission = 0;
-      if (m.commission_type === "fixed") {
-        commission = staffItems.reduce((s, i) => s + (m.commission_rate * i.quantity), 0);
-      } else {
-        commission = staffItems.reduce((s, i) => s + Math.round(i.line_total * (m.commission_rate / 100) * 100) / 100, 0);
-      }
       return {
         staff_id: m.id,
         full_name: m.full_name,
-        commission_rate: m.commission_rate,
-        commission_type: m.commission_type,
         salesCount: a.sales.size,
-        servicesTotal: a.servicesTotal,
-        commission: Math.round(commission * 100) / 100,
+        soldTotal: Math.round(a.soldTotal * 100) / 100,
+        commission: Math.round(a.commission * 100) / 100,
       };
     })
-    .filter((r): r is CommissionRow => r !== null && r.servicesTotal > 0)
+    .filter((r): r is CommissionRow => r !== null && r.soldTotal > 0)
     .sort((a, b) => b.commission - a.commission);
 }
 
@@ -148,18 +148,15 @@ export async function fetchCommissions(): Promise<CommissionRow[]> {
  */
 export async function fetchStaffSales(staffId: string): Promise<StaffSaleItem[]> {
   const supabase = createClient();
-  const [staffRes, dataRes] = await Promise.all([
-    supabase.from("staff").select("commission_rate, commission_type").eq("id", staffId).single(),
-    supabase
-      .from("sale_items")
-      .select("id, product_name, sku, unit_price, quantity, line_total, sales!inner(sale_number, created_at, payment_method, customers(full_name))")
-      .eq("staff_id", staffId),
-  ]);
-  if (staffRes.error) throw staffRes.error;
-  if (dataRes.error) throw dataRes.error;
-
-  const rate = (staffRes.data as { commission_rate: number; commission_type: string })?.commission_rate ?? 0;
-  const type = (staffRes.data as { commission_rate: number; commission_type: string })?.commission_type ?? "percentage";
+  const { data, error } = await supabase
+    .from("sale_items")
+    .select("id, product_name, sku, unit_price, quantity, line_total, commission_amount, sales!inner(sale_number, created_at, payment_method, status, customers(full_name))")
+    .eq("staff_id", staffId)
+    // Mismo filtro que fetchCommissions: una venta anulada (void_sale la deja en
+    // 'void') no se paga. Sin esto, este detalle sumaba más comisión que el
+    // reporte del mes y el dueño no sabía cuál de los dos creer.
+    .eq("sales.status", "completed");
+  if (error) throw error;
 
   // El embed anidado de PostgREST (sale_items → sales → customers) no queda bien
   // tipado por el generador, así que se describe la forma que sí devuelve.
@@ -170,15 +167,17 @@ export async function fetchStaffSales(staffId: string): Promise<StaffSaleItem[]>
     unit_price: number;
     quantity: number;
     line_total: number;
+    commission_amount: number;
     sales: {
       sale_number: number | null;
       created_at: string | null;
       payment_method: string | null;
+      status: string | null;
       customers: { full_name: string | null } | null;
     } | null;
   }
 
-  const result = ((dataRes.data ?? []) as unknown as SaleItemRow[]).map((r) => ({
+  const result = ((data ?? []) as unknown as SaleItemRow[]).map((r) => ({
     id: r.id,
     product_name: r.product_name,
     sku: r.sku,
@@ -189,7 +188,7 @@ export async function fetchStaffSales(staffId: string): Promise<StaffSaleItem[]>
     created_at: r.sales?.created_at ?? "",
     customer_name: r.sales?.customers?.full_name ?? null,
     payment_method: r.sales?.payment_method ?? "",
-    commissionAmount: calcCommission(rate, type, r.line_total, r.quantity),
+    commissionAmount: r.commission_amount ?? 0,
   }));
 
   result.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
@@ -211,8 +210,6 @@ export async function updateStaff(id: string, input: NewStaffInput): Promise<Sta
       role: input.role || null,
       phone: input.phone || null,
       email: input.email || null,
-      commission_rate: parseFloat(input.commission_rate) || 0,
-      commission_type: input.commission_type || "percentage",
       status: input.status,
     })
     .eq("id", id)
