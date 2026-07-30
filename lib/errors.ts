@@ -62,6 +62,71 @@ export function authMessage(e: unknown): string {
   return toMessage(e);
 }
 
+/**
+ * Firmas de "no llegué al servidor" en los tres motores. Cada navegador
+ * redacta el fallo de `fetch` a su manera y hay que cubrir los tres: Chrome
+ * dice "Failed to fetch", Firefox "NetworkError when attempting to fetch
+ * resource" y Safari —el de las tablets del salón— simplemente "Load failed".
+ */
+const NETWORK_FAILURE =
+  /failed to fetch|networkerror|network request failed|load failed|fetch failed|internet connection appears to be offline|err_internet_disconnected/i;
+
+/**
+ * Si el error es "no llegué al servidor" y no "el servidor me dijo que no".
+ *
+ * La distinción decide si una venta se puede encolar para reenviarla. Y la
+ * asimetría del riesgo es fuerte, así que ante la duda esta función devuelve
+ * FALSE:
+ *
+ * - Tratar un rechazo del servidor como fallo de red encola una venta que no
+ *   va a entrar nunca. El cajero cree que cobró, entrega la mercadería y el
+ *   descuadre aparece horas después. Es el error caro.
+ * - Tratar un fallo de red como rechazo solo muestra un error y el cajero
+ *   reintenta. Desde que `create_sale` es idempotente, ese reintento es gratis
+ *   incluso si la venta sí había entrado: devuelve la misma. Es el error barato.
+ *
+ * Por eso el criterio es "confirmá que fue la red", no "descartá que fue el
+ * servidor". Un timeout o un error raro caen del lado del reintento.
+ */
+export function isNetworkError(e: unknown): boolean {
+  if (!e || typeof e !== "object") return false;
+
+  // Todo error de Postgres viaja con su SQLSTATE ('P0001' para los `raise
+  // exception` de create_sale, '23505' para el índice único, '42501' para la
+  // RLS...). Si hay código, el servidor contestó: no fue la red, sin importar
+  // lo que diga el mensaje. Va primero por eso.
+  const code = (e as { code?: unknown }).code;
+  if (typeof code === "string" && code.trim() !== "") return false;
+
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return true;
+
+  const message = (e as { message?: unknown }).message;
+  return typeof message === "string" && NETWORK_FAILURE.test(message);
+}
+
+/**
+ * Si el servidor rechazó la venta de forma DEFINITIVA.
+ *
+ * Sirve para decidir si una venta encolada se sigue reintentando o se manda a
+ * la bandeja de conflictos. Solo devuelve true con códigos que no cambian por
+ * reintentar:
+ *
+ * - `P0001`: los `raise exception` de `create_sale` (STOCK_INSUFICIENTE, tope
+ *   del plan, cupo de crédito, turno cerrado).
+ * - clase `23`: violaciones de restricción.
+ * - clase `42`: permisos y RLS.
+ *
+ * Lo que queda afuera importa tanto como lo que entra. Un `PGRST301` (JWT
+ * vencido) o un 5xx traen código pero SÍ pueden andar en el próximo intento, y
+ * marcarlos como definitivos perdería ventas cobradas.
+ */
+export function isBusinessRejection(e: unknown): boolean {
+  if (!e || typeof e !== "object") return false;
+  const code = (e as { code?: unknown }).code;
+  if (typeof code !== "string") return false;
+  return code === "P0001" || code.startsWith("23") || code.startsWith("42");
+}
+
 export function toMessage(e: unknown): string {
   if (typeof e === "string" && e.trim()) return e;
 

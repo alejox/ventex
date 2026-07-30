@@ -94,15 +94,15 @@ export function PosCatalog({
                 e.stopPropagation();
               }
             }}
-            placeholder="Buscar o escanear c\u00f3digo"
+            placeholder="Buscar o escanear código"
             ref={searchRef}
             className="w-full h-12 bg-surface-container-lowest rounded-2xl pl-14 pr-14 text-base lg:text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant border border-outline-variant/30 shadow-sm"
           />
           <button
             type="button"
             onClick={onOpenScanner}
-            aria-label="Escanear c\u00f3digo de barras"
-            title="Escanear c\u00f3digo de barras"
+            aria-label="Escanear código de barras"
+            title="Escanear código de barras"
             className="absolute right-1.5 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center rounded-xl text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
           >
             <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-5 h-5">
@@ -117,7 +117,7 @@ export function PosCatalog({
             <button
               onClick={onOpenShift}
               className="h-12 px-4 rounded-2xl border border-outline-variant/30 text-sm font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low transition-colors shrink-0 flex items-center gap-2"
-              title="A\u00fan no has abierto la caja de este turno"
+              title="Aún no has abierto la caja de este turno"
             >
               <span className="w-2 h-2 rounded-full bg-on-surface-variant/40" />
               Abrir turno

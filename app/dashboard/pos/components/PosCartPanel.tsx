@@ -345,7 +345,7 @@ export function PosCartPanel({
                         {line.item.kind === "service" ? (
                           <span className="text-[9px] text-emerald-500 font-medium">Servicio</span>
                         ) : line.unitKind === "package" ? (
-                          <span className="text-[9px] text-primary font-medium">Caja &times;{line.item.units_per_package}</span>
+                          <span className="text-[9px] text-primary font-medium">Caja ×{line.item.units_per_package}</span>
                         ) : (
                           <span className="text-[9px] text-on-surface-variant/50">{line.item.sku}</span>
                         )}
@@ -381,7 +381,10 @@ export function PosCartPanel({
                       <div key={`pkg-${cartLineKey(line)}`} className="flex gap-1 p-0.5 rounded-lg bg-surface-container-lowest border border-outline-variant/15">
                         {([
                           { kind: "unit" as const, label: "Unidad", price: line.item.price },
-                          { kind: "package" as const, label: `Caja &times;${line.item.units_per_package}`, price: line.item.package_price },
+                          // El carácter va literal, no como entidad HTML: esto
+                          // es un string de JS y nadie lo decodifica, así que
+                          // `&times;` se imprimiría tal cual.
+                          { kind: "package" as const, label: `Caja ×${line.item.units_per_package}`, price: line.item.package_price },
                         ]).map((opt) => {
                           const active = (line.unitKind ?? "unit") === opt.kind;
                           return (

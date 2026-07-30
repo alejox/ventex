@@ -125,6 +125,12 @@ export interface CheckoutInput {
   includeTax?: boolean;
   /** Pagos divididos: si se envía, ignora paymentMethod/transferMethod/cardMethod. */
   splits?: PaymentSplit[];
+  /**
+   * Clave de idempotencia. Tiene que ser LA MISMA en cada reintento del mismo
+   * carrito: es lo único que le permite al servidor distinguir "cobrame otra
+   * vez" de "no supe si el cobro anterior entró". Ver `createSale`.
+   */
+  clientSaleId?: string;
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -296,7 +302,15 @@ export async function fetchPosConfig(): Promise<PosConfig> {
   };
 }
 
-/** Registra la venta de forma transaccional vía RPC y devuelve el id de la venta. */
+/**
+ * Registra la venta de forma transaccional vía RPC y devuelve el id de la venta.
+ *
+ * Es IDEMPOTENTE cuando se manda `clientSaleId`: el RPC guarda esa clave junto
+ * a la venta y, si la vuelve a ver, devuelve el id de la que ya existe en vez
+ * de crear una segunda. Sin la clave no hay forma de reintentar sin riesgo —
+ * una respuesta perdida deja al cajero eligiendo entre duplicar la venta (y el
+ * descuento de stock) o perderla.
+ */
 export async function createSale(input: CheckoutInput): Promise<string> {
   const supabase = createClient();
 
@@ -310,6 +324,7 @@ export async function createSale(input: CheckoutInput): Promise<string> {
     p_staff_id: input.staffId ?? undefined,
     ...(input.transferMethod ? { p_transfer_method: input.transferMethod } : {}),
     ...(input.cardMethod ? { p_card_method: input.cardMethod } : {}),
+    ...(input.clientSaleId ? { p_client_sale_id: input.clientSaleId } : {}),
   };
 
   if (input.splits && input.splits.length > 0) {
@@ -319,6 +334,21 @@ export async function createSale(input: CheckoutInput): Promise<string> {
   const { data, error } = await supabase.rpc("create_sale", payload);
   if (error) throw error;
   return data as string;
+}
+
+/**
+ * `auth.uid()` de la sesión actual, o null si no hay.
+ *
+ * Usa `getSession()` y NO `getUser()` a propósito: `getUser()` sale a la red a
+ * validar el token contra GoTrue, así que devuelve null justo cuando más se lo
+ * necesita —sin conexión—, mientras que `getSession()` lee el token que ya está
+ * guardado en el navegador. Es el id con el que se marca a quién pertenece una
+ * venta encolada.
+ */
+export async function getAuthUserId(): Promise<string | null> {
+  const supabase = createClient();
+  const { data } = await supabase.auth.getSession();
+  return data.session?.user.id ?? null;
 }
 
 export async function createCustomer(params: {

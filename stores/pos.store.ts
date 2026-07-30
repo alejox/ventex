@@ -1,8 +1,10 @@
 import { create } from "zustand";
-import { toMessage } from "@/lib/errors";
+import { toMessage, isNetworkError, isBusinessRejection } from "@/lib/errors";
 import * as posService from "@/services/pos.service";
 import * as settingsService from "@/services/settings.service";
 import * as deliveryService from "@/services/delivery.service";
+import * as offlineQueue from "@/services/offline-queue.service";
+import { useShiftsStore } from "@/stores/shifts.store";
 import { lineKey, cartLineKey as keyOf } from "@/services/pos.service";
 import type {
   CatalogItem,
@@ -13,6 +15,16 @@ import type {
   PaymentSplit,
   SaleUnitKind,
 } from "@/services/pos.service";
+
+/**
+ * Cómo terminó un cobro.
+ *
+ * `queued` NO es un error: la venta está guardada en el dispositivo y se envía
+ * sola cuando vuelva la red. Para el cajero es tan válida como `sold` —el
+ * carrito se limpia igual— pero el mensaje tiene que ser distinto, porque el
+ * comprobante todavía no tiene número de venta del servidor.
+ */
+export type CheckoutOutcome = "sold" | "queued" | "failed";
 
 export interface DeliveryData {
   personId: string | null;
@@ -33,6 +45,12 @@ export interface SaleTab {
   splits: PaymentSplit[];
   isDelivery: boolean;
   deliveryData: DeliveryData;
+  /**
+   * Clave de idempotencia del cobro en curso. Se acuña en el primer intento y
+   * sobrevive a los reintentos de ESTE carrito; se limpia cuando el carrito se
+   * vacía, porque a partir de ahí lo que se cobra es otra venta.
+   */
+  checkoutId: string | null;
 }
 
 interface PosState {
@@ -112,8 +130,35 @@ interface PosState {
   setDelivery: (enabled: boolean) => void;
   setDeliveryData: (data: Partial<DeliveryData>) => void;
   clearCart: () => void;
-  /** Devuelve true si la venta se registró (para que el componente limpie la UI). */
-  checkout: () => Promise<boolean>;
+  /** Ver `CheckoutOutcome`: `queued` también es un cobro bueno. */
+  checkout: () => Promise<CheckoutOutcome>;
+
+  /**
+   * Ventas cobradas sin conexión que todavía no llegaron al servidor. Solo las
+   * de ESTA sesión: las que dejó otra cuenta en el mismo dispositivo no se
+   * pueden enviar desde acá (irían al turno equivocado).
+   */
+  pendingSales: number;
+  /** Ventas que el servidor rechazó al reenviarlas: hay que resolverlas a mano. */
+  rejectedSales: number;
+  /** El detalle de esas rechazadas, para la bandeja. Se carga bajo demanda. */
+  rejectedList: offlineQueue.PendingSale[];
+  /** Relee los contadores desde IndexedDB. */
+  refreshPendingSales: () => Promise<void>;
+  /** Trae el detalle de las rechazadas de esta sesión. */
+  loadRejectedSales: () => Promise<void>;
+  /** Devuelve una rechazada a la cola (p. ej. después de reponer stock). */
+  retryRejectedSale: (clientSaleId: string) => Promise<void>;
+  /** La borra del dispositivo. Es definitivo: se pierde el registro. */
+  discardRejectedSale: (clientSaleId: string) => Promise<void>;
+
+  /** Un drenaje en curso. Evita que dos disparadores pisen el mismo envío. */
+  syncing: boolean;
+  /**
+   * Reenvía las ventas encoladas de esta sesión, de la más vieja a la más
+   * nueva. Es seguro llamarla de más: si ya hay una corrida en curso, sale.
+   */
+  syncPendingSales: () => Promise<void>;
 }
 
 
@@ -133,8 +178,65 @@ const createDefaultTab = (index: number, get?: () => PosState): SaleTab => {
     splits: [],
     isDelivery: false,
     deliveryData: { personId: null, address: "", fee: 0, notes: "" },
+    checkoutId: null,
   };
 };
+
+/**
+ * Guarda una venta en la cola del dispositivo.
+ *
+ * Devuelve false si no se pudo por lo que sea. Ese false importa: mientras la
+ * venta no esté guardada en algún lado, el POS no tiene derecho a decirle al
+ * cajero que quedó cobrada.
+ */
+async function queueSale(params: {
+  clientSaleId: string;
+  input: posService.CheckoutInput;
+  delivery: offlineQueue.PendingDelivery | null;
+  total: number;
+}): Promise<boolean> {
+  if (!offlineQueue.isOfflineQueueSupported()) return false;
+
+  try {
+    const authUserId = await posService.getAuthUserId();
+    // Sin sesión no hay a quién atribuir la venta, y atribuirla mal la deposita
+    // en el turno de otra persona. Es preferible fallar acá y que el cajero lo
+    // sepa, antes que registrarla en la caja equivocada.
+    if (!authUserId) return false;
+
+    await offlineQueue.enqueueSale({
+      clientSaleId: params.clientSaleId,
+      input: params.input,
+      authUserId,
+      shiftId: useShiftsStore.getState().currentShift?.id ?? null,
+      delivery: params.delivery,
+      total: params.total,
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Descuenta del catálogo en memoria las unidades de un carrito ya cobrado.
+ * Una caja descuenta sus N unidades sueltas, igual que hace `create_sale`.
+ */
+function applySoldUnits(catalog: CatalogItem[], cart: CartLine[]): CatalogItem[] {
+  const sold = new Map<string, number>();
+  for (const line of cart) {
+    if (line.item.kind !== "product") continue;
+    const units = line.quantity * posService.lineUnits(line);
+    sold.set(line.item.id, (sold.get(line.item.id) ?? 0) + units);
+  }
+  if (sold.size === 0) return catalog;
+
+  return catalog.map((item) => {
+    const units = sold.get(item.id);
+    if (!units || item.stock_level == null) return item;
+    return { ...item, stock_level: item.stock_level - units };
+  });
+}
 
 /**
  * Un producto queda sobrevendido cuando la cantidad pedida supera su stock.
@@ -597,7 +699,7 @@ export const usePosStore = create<PosState>((set, get) => {
         return {
           tabs: s.tabs.map((t) =>
             t.id === s.activeTabId
-              ? { ...t, cart: [], customerId: defaultCustomer, staffId: defaultStaff,                 paymentMethod: defaultMethod, transferMethod: null, cardMethod: null, splits: [], isDelivery: false, deliveryData: { personId: null, address: "", fee: 0, notes: "" } }
+              ? { ...t, cart: [], customerId: defaultCustomer, staffId: defaultStaff,                 paymentMethod: defaultMethod, transferMethod: null, cardMethod: null, splits: [], isDelivery: false, deliveryData: { personId: null, address: "", fee: 0, notes: "" }, checkoutId: null }
               : t,
           ),
         };
@@ -606,34 +708,49 @@ export const usePosStore = create<PosState>((set, get) => {
     checkout: async () => {
       const state = get();
       const activeTab = state.tabs.find((t) => t.id === state.activeTabId);
-      if (!activeTab || activeTab.cart.length === 0) return false;
+      if (!activeTab || activeTab.cart.length === 0) return "failed";
 
       const { cart, customerId, staffId, paymentMethod, transferMethod, cardMethod, splits, isDelivery, deliveryData } = activeTab;
 
-      set({ submitting: true, error: null });
+      // La clave se acuña UNA vez por carrito y se guarda en la pestaña antes
+      // de salir a la red. Si este intento muere sin respuesta y el cajero
+      // vuelve a tocar "Cobrar", viaja la misma clave y el servidor devuelve la
+      // venta que ya registró. Acuñar una nueva por intento la duplicaría.
+      const clientSaleId = activeTab.checkoutId ?? crypto.randomUUID();
+
+      set((s) => ({
+        submitting: true,
+        error: null,
+        tabs: s.tabs.map((t) => (t.id === activeTab.id ? { ...t, checkoutId: clientSaleId } : t)),
+      }));
+      // El payload se arma UNA vez: lo que sale a la red y lo que se guarda en
+      // la cola tienen que ser byte por byte lo mismo. Recalcularlo al reenviar
+      // abriría la puerta a que la venta encolada no sea la que se cobró.
+      const input: posService.CheckoutInput = {
+        customerId,
+        staffId,
+        paymentMethod,
+        transferMethod,
+        cardMethod,
+        discount: cart.reduce((acc, l) => acc + (l.discountAmount || 0), 0),
+        includeTax: state.includeTax,
+        items: cart.map((l) => {
+          const base = l.item.kind === "service"
+            ? { service_id: l.item.id }
+            : { product_id: l.item.id };
+          return {
+            ...base,
+            quantity: l.quantity,
+            staff_id: l.staffId ?? null,
+            kind: l.unitKind ?? "unit",
+          };
+        }),
+        splits: splits.length > 0 ? splits : undefined,
+        clientSaleId,
+      };
+
       try {
-        const totalDiscount = cart.reduce((acc, l) => acc + (l.discountAmount || 0), 0);
-        const saleId = await posService.createSale({
-          customerId,
-          staffId,
-          paymentMethod,
-          transferMethod,
-          cardMethod,
-          discount: totalDiscount,
-          includeTax: state.includeTax,
-          items: cart.map((l) => {
-            const base = l.item.kind === "service"
-              ? { service_id: l.item.id }
-              : { product_id: l.item.id };
-            return {
-              ...base,
-              quantity: l.quantity,
-              staff_id: l.staffId ?? null,
-              kind: l.unitKind ?? "unit",
-            };
-          }),
-          splits: splits.length > 0 ? splits : undefined,
-        });
+        const saleId = await posService.createSale(input);
 
         if (isDelivery && deliveryData.personId) {
           await deliveryService.createDelivery({
@@ -656,22 +773,235 @@ export const usePosStore = create<PosState>((set, get) => {
             catalog,
             tabs: s.tabs.map((t) =>
               t.id === s.activeTabId
-                ? { ...t, cart: [], customerId: defaultCustomer, staffId: defaultStaff,                 paymentMethod: defaultMethod, transferMethod: null, cardMethod: null, splits: [], isDelivery: false, deliveryData: { personId: null, address: "", fee: 0, notes: "" } }
+                ? { ...t, cart: [], customerId: defaultCustomer, staffId: defaultStaff,                 paymentMethod: defaultMethod, transferMethod: null, cardMethod: null, splits: [], isDelivery: false, deliveryData: { personId: null, address: "", fee: 0, notes: "" }, checkoutId: null }
                 : t,
             ),
           };
         });
 
-        return true;
+        return "sold";
       } catch (e) {
         const message = toMessage(e);
         // El prefijo lo pone create_sale (misma convención que STOCK_INSUFICIENTE).
         if (message.includes("LIMITE_VENTAS")) {
           set({ planLimitHit: true, error: null, submitting: false });
-          return false;
+          return "failed";
         }
+
+        // Se encola SOLO si no llegamos al servidor. Un STOCK_INSUFICIENTE, un
+        // cupo de crédito o un tope de plan son un "no" del servidor: guardarlos
+        // le escondería al cajero que la venta no se hizo, y la mercadería ya
+        // salió del mostrador. Ver `isNetworkError`.
+        if (isNetworkError(e)) {
+          // El total tal cual se lo dijo al cliente, con la misma cuenta que
+          // muestra el POS. Es contra este número que se cuadra la caja si la
+          // venta después no entra.
+          const cliente = state.customers.find((c) => c.id === customerId);
+          const { total } = posService.computeTotals(
+            cart,
+            state.taxRate,
+            cliente?.tax_exempt ?? false,
+            state.includeTax,
+          );
+
+          const queued = await queueSale({
+            clientSaleId,
+            input,
+            total,
+            delivery:
+              isDelivery && deliveryData.personId
+                ? {
+                    personId: deliveryData.personId,
+                    address: deliveryData.address,
+                    fee: deliveryData.fee,
+                    notes: deliveryData.notes || undefined,
+                  }
+                : null,
+          });
+
+          if (queued) {
+            set((s) => {
+              const defaultMethod = get().defaultPaymentMethod;
+              const defaultStaff = get().defaultStaffId;
+              const defaultCustomer = get().defaultCustomerId;
+              return {
+                submitting: false,
+                error: null,
+                pendingSales: s.pendingSales + 1,
+                // Sin red no se puede releer el catálogo, así que el stock se
+                // descuenta acá. Si no, durante la caída el cajero ve las
+                // mismas unidades disponibles y vende cinco veces la última.
+                catalog: applySoldUnits(s.catalog, cart),
+                tabs: s.tabs.map((t) =>
+                  t.id === s.activeTabId
+                    ? { ...t, cart: [], customerId: defaultCustomer, staffId: defaultStaff, paymentMethod: defaultMethod, transferMethod: null, cardMethod: null, splits: [], isDelivery: false, deliveryData: { personId: null, address: "", fee: 0, notes: "" }, checkoutId: null }
+                    : t,
+                ),
+              };
+            });
+            return "queued";
+          }
+
+          // No se pudo guardar en el dispositivo. Es el único caso peor que no
+          // tener cola: decirle al cajero que la venta quedó cuando no quedó en
+          // ningún lado. Se reporta como fallo y el carrito NO se limpia.
+          set({
+            error: "No hay conexión y tampoco pudimos guardar la venta en este dispositivo. No cierres el POS y volvé a intentar.",
+            submitting: false,
+          });
+          return "failed";
+        }
+
         set({ error: message, submitting: false });
-        return false;
+        return "failed";
+      }
+    },
+
+    pendingSales: 0,
+    rejectedSales: 0,
+    rejectedList: [],
+    syncing: false,
+
+    loadRejectedSales: async () => {
+      try {
+        const authUserId = await posService.getAuthUserId();
+        if (!authUserId) return;
+        const rejectedList = await offlineQueue.listRejectedSales(authUserId);
+        set({ rejectedList, rejectedSales: rejectedList.length });
+      } catch {
+        set({ rejectedList: [] });
+      }
+    },
+
+    retryRejectedSale: async (clientSaleId) => {
+      await offlineQueue.retryRejectedSale(clientSaleId);
+      await get().refreshPendingSales();
+
+      // Un drenaje en curso ya tomó su lista de pendientes ANTES de que esta
+      // venta volviera a la cola, así que no la incluye — y `syncPendingSales`
+      // se sale sola si ya hay uno corriendo. Sin esta espera, el cajero toca
+      // "Intentar de nuevo", no pasa nada visible, y la venta se queda hasta el
+      // próximo intervalo.
+      for (let i = 0; i < 100 && get().syncing; i++) {
+        await new Promise((r) => setTimeout(r, 100));
+      }
+
+      // Se intenta ya: si el motivo del rechazo se resolvió, el cajero lo ve
+      // en el momento en vez de esperar al próximo intervalo.
+      await get().syncPendingSales();
+      await get().loadRejectedSales();
+    },
+
+    discardRejectedSale: async (clientSaleId) => {
+      await offlineQueue.removePendingSale(clientSaleId);
+      await get().loadRejectedSales();
+      await get().refreshPendingSales();
+    },
+
+    refreshPendingSales: async () => {
+      try {
+        const authUserId = await posService.getAuthUserId();
+        if (!authUserId) return;
+        const [pendingSales, rejectedSales] = await Promise.all([
+          offlineQueue.countPendingSales(authUserId),
+          offlineQueue.countRejectedSales(authUserId),
+        ]);
+        set({ pendingSales, rejectedSales });
+      } catch {
+        // Sin cola disponible el POS sigue cobrando online; el contador es
+        // informativo y no puede tumbar la pantalla.
+      }
+    },
+
+    syncPendingSales: async () => {
+      if (get().syncing) return;
+      if (!offlineQueue.isOfflineQueueSupported()) return;
+
+      let authUserId: string | null = null;
+      try {
+        authUserId = await posService.getAuthUserId();
+      } catch {
+        return;
+      }
+      // Sin sesión, drenar registraría las ventas bajo quien esté logueado
+      // ahora. Se esperan: la cola no vence.
+      if (!authUserId) return;
+
+      let pendientes: offlineQueue.PendingSale[];
+      try {
+        pendientes = await offlineQueue.listPendingSales(authUserId);
+      } catch {
+        return;
+      }
+      if (pendientes.length === 0) {
+        await get().refreshPendingSales();
+        return;
+      }
+
+      set({ syncing: true });
+      let enviadaAlguna = false;
+
+      try {
+        // EN SERIE y de la más vieja a la más nueva: el stock se descuenta en
+        // el orden en que se cobró. En paralelo, dos ventas del mismo producto
+        // se pisarían y el sobregiro quedaría escondido.
+        for (const venta of pendientes) {
+          try {
+            const saleId = await posService.createSale(venta.input);
+
+            // El domicilio se crea acá porque recién ahora existe el sale_id.
+            // Si falla, la VENTA ya entró: no se puede reintentar el conjunto
+            // (el RPC devolvería la misma venta, pero se duplicaría el envío).
+            if (venta.delivery) {
+              try {
+                await deliveryService.createDelivery({
+                  sale_id: saleId,
+                  delivery_person_id: venta.delivery.personId,
+                  address: venta.delivery.address,
+                  fee: venta.delivery.fee,
+                  notes: venta.delivery.notes || undefined,
+                });
+              } catch {
+                // Se pierde el domicilio, no la venta. Queda para cargarlo a
+                // mano; sacar la venta de la cola es lo correcto igual.
+              }
+            }
+
+            await offlineQueue.removePendingSale(venta.clientSaleId);
+            enviadaAlguna = true;
+          } catch (e) {
+            // Volvió a cortarse: las que siguen van a fallar igual. Se corta
+            // acá para no gastar intentos ni romper el orden.
+            if (isNetworkError(e)) break;
+
+            if (isBusinessRejection(e)) {
+              await offlineQueue.markRejected(venta.clientSaleId, e);
+              continue;
+            }
+
+            // Ni red ni rechazo claro (un 5xx, un JWT vencido que no refrescó).
+            // Puede andar en el próximo intento, así que se reintenta — pero
+            // con tope, para que una venta rota no deje el contador arriba
+            // para siempre.
+            await offlineQueue.recordFailedAttempt(venta.clientSaleId, e);
+            if (venta.attempts + 1 >= offlineQueue.MAX_SYNC_ATTEMPTS) {
+              await offlineQueue.markRejected(venta.clientSaleId, e);
+            }
+          }
+        }
+      } finally {
+        set({ syncing: false });
+        await get().refreshPendingSales();
+      }
+
+      // El catálogo en memoria arrastra los descuentos optimistas del modo sin
+      // conexión. Ahora que hay red, la verdad la tiene el servidor.
+      if (enviadaAlguna) {
+        try {
+          set({ catalog: await posService.fetchCatalog() });
+        } catch {
+          // Se volvió a caer justo acá: el catálogo se corrige en el próximo init.
+        }
       }
     },
 

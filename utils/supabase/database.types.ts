@@ -1244,6 +1244,7 @@ export type Database = {
       sales: {
         Row: {
           card_method: string | null
+          client_sale_id: string | null
           created_at: string
           customer_id: string | null
           discount_amount: number
@@ -1262,6 +1263,7 @@ export type Database = {
         }
         Insert: {
           card_method?: string | null
+          client_sale_id?: string | null
           created_at?: string
           customer_id?: string | null
           discount_amount?: number
@@ -1280,6 +1282,7 @@ export type Database = {
         }
         Update: {
           card_method?: string | null
+          client_sale_id?: string | null
           created_at?: string
           customer_id?: string | null
           discount_amount?: number
@@ -1857,6 +1860,7 @@ export type Database = {
       create_sale: {
         Args: {
           p_card_method?: string
+          p_client_sale_id?: string
           p_customer_id: string
           p_discount_amount: number
           p_include_tax?: boolean

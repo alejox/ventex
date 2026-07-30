@@ -11,10 +11,49 @@ test.describe("Punto de Venta (POS)", () => {
 
   test("carga la página del POS con todos los elementos principales", async ({ page }) => {
     await expect(page.getByText("Factura de venta")).toBeVisible({ timeout: 15000 });
-    await expect(page.getByPlaceholder("Buscar productos o escanear código")).toBeVisible();
-    await expect(page.getByText("Lista de precio")).toBeVisible();
+    await expect(page.getByPlaceholder("Buscar o escanear código")).toBeVisible();
+    // Antes acá se afirmaba "Lista de precio", un texto que ya no existe en
+    // ninguna parte de la app: el test fallaba desde que se quitó. Se cambia
+    // por el botón de cobro, que sí es un elemento principal y estable.
+    await expect(page.getByRole("button", { name: /vender/i })).toBeVisible();
     await expect(page.getByText("Método de pago")).toBeVisible();
     await expect(page.getByText("Cliente", { exact: true })).toBeVisible();
+  });
+
+  /**
+   * Dos formas de escribir un carácter que solo funcionan en su contexto:
+   *
+   * - `&times;` se decodifica en TEXTO JSX y en atributos JSX, pero NO dentro
+   *   de un string de JS. Pasó con `Caja &times;12`: el mismo texto existía dos
+   *   veces, una como texto JSX y otra en un template literal, y alguien copió
+   *   la primera.
+   * - `ó` se interpreta en un string de JS, pero NO en un atributo JSX.
+   *   Pasó con `placeholder="Buscar o escanear código"`.
+   *
+   * Las dos fallan igual de silenciosas: compilan, pasan el typecheck y solo se
+   * ven mirando la pantalla. Por eso el guardia mira la pantalla.
+   */
+  test("no queda ningún escape sin resolver en la pantalla", async ({ page }) => {
+    await expect(page.getByText("Factura de venta")).toBeVisible({ timeout: 15000 });
+
+    const texto = await page.evaluate(() => document.body.innerText);
+    expect(texto).not.toMatch(/&[a-zA-Z]{2,10};|&#\d+;/);
+    expect(texto).not.toMatch(/\\u[0-9a-fA-F]{4}/);
+
+    // Los atributos no salen en innerText y son justo donde apareció el bug:
+    // un placeholder o un tooltip roto no se ve hasta que alguien se planta ahí.
+    const atributos = await page.evaluate(() =>
+      [...document.querySelectorAll("[placeholder],[title],[aria-label],[alt]")].flatMap((el) =>
+        ["placeholder", "title", "aria-label", "alt"]
+          .map((a) => el.getAttribute(a))
+          .filter((v): v is string => v !== null),
+      ),
+    );
+    for (const valor of atributos) {
+      expect(valor, `atributo con escape sin resolver: ${valor}`).not.toMatch(
+        /&[a-zA-Z]{2,10};|&#\d+;|\\u[0-9a-fA-F]{4}/,
+      );
+    }
   });
 
   test("cambia el método de pago a tarjeta", async ({ page }) => {
@@ -111,7 +150,7 @@ test.describe("Punto de Venta (POS)", () => {
   });
 
   test("el buscador de productos acepta texto", async ({ page }) => {
-    const searchInput = page.getByPlaceholder("Buscar productos o escanear código");
+    const searchInput = page.getByPlaceholder("Buscar o escanear código");
     await searchInput.fill("Prueba");
     await expect(searchInput).toHaveValue("Prueba");
   });

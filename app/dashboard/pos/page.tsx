@@ -24,6 +24,7 @@ import { RecentSalesModal } from "@/components/RecentSalesModal";
 import { DiscountModal } from "@/components/DiscountModal";
 import { SaleConfigModal } from "@/components/SaleConfigModal";
 import { notifySuccess, notifyWarning, notifyError } from "@/lib/notifications";
+import { useOfflineSync } from "@/lib/useOfflineSync";
 import { PosCatalog } from "./components/PosCatalog";
 import { PosCartPanel } from "./components/PosCartPanel";
 import { CheckoutModal } from "./components/CheckoutModal";
@@ -33,6 +34,8 @@ import { SuccessModal } from "./components/SuccessModal";
 import { TabRenameModal } from "./components/TabRenameModal";
 import { TabCloseConfirmModal } from "./components/TabCloseConfirmModal";
 import { PlanLimitModal } from "./components/PlanLimitModal";
+import { OfflineQueueBadge } from "./components/OfflineQueueBadge";
+import { RejectedSalesModal } from "./components/RejectedSalesModal";
 
 const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
   { value: "efectivo", label: "Efectivo" },
@@ -163,6 +166,9 @@ export default function POSPage() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
+  /** La última venta quedó en la cola del dispositivo, no en el servidor. */
+  const [lastSaleQueued, setLastSaleQueued] = useState(false);
+  const [isRejectedModalOpen, setIsRejectedModalOpen] = useState(false);
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
   const [isDeliveryModalOpen, setIsDeliveryModalOpen] = useState(false);
   const [isDiscountModalOpen, setIsDiscountModalOpen] = useState(false);
@@ -178,6 +184,8 @@ export default function POSPage() {
   const [amountTendered, setAmountTendered] = useState("");
 
   useEffect(() => { init(); }, [init]);
+  // Reenvía solo las ventas que quedaron cobradas sin conexión.
+  useOfflineSync();
   useEffect(() => {
     if (isSuccessModalOpen) {
       const timer = setTimeout(() => setIsSuccessModalOpen(false), 5000);
@@ -337,12 +345,23 @@ export default function POSPage() {
       includeTax,
     };
     setReceiptData(data);
-    const ok = await checkout();
-    if (ok) {
-      notifySuccess(
-        "\u00a1Venta realizada con \u00e9xito! \ud83c\udf89",
-        "El comprobante de la transacci\u00f3n est\u00e1 listo."
-      );
+    const outcome = await checkout();
+    // "queued" es un cobro bueno: la venta est\u00e1 guardada en el dispositivo y se
+    // env\u00eda sola cuando vuelva la red. Se limpia la pantalla igual que en una
+    // venta normal, pero el aviso no puede prometer que ya qued\u00f3 registrada.
+    if (outcome === "sold" || outcome === "queued") {
+      setLastSaleQueued(outcome === "queued");
+      if (outcome === "sold") {
+        notifySuccess(
+          "\u00a1Venta realizada con \u00e9xito! \ud83c\udf89",
+          "El comprobante de la transacci\u00f3n est\u00e1 listo."
+        );
+      } else {
+        notifyWarning(
+          "Venta cobrada sin conexi\u00f3n",
+          "Qued\u00f3 guardada en este dispositivo y se enviar\u00e1 sola cuando vuelva internet. No cierres sesi\u00f3n."
+        );
+      }
       setSearch("");
       setActiveCategory("Todos");
       setAmountTendered("");
@@ -515,6 +534,12 @@ export default function POSPage() {
           }}
           onCloseTab={(id) => setClosingTabId(id)}
         />
+
+        {/* Pegado a la barra de pestañas: es donde el cajero mira entre venta
+            y venta. Solo se dibuja si hay algo pendiente o sin registrar. */}
+        <div className="px-3 pb-2 empty:hidden">
+          <OfflineQueueBadge onVerRechazadas={() => setIsRejectedModalOpen(true)} />
+        </div>
       </div>
 
       {renamingTabId && (
@@ -619,7 +644,12 @@ export default function POSPage() {
             setIsSuccessModalOpen(false);
           }}
           onClose={() => setIsSuccessModalOpen(false)}
+          offline={lastSaleQueued}
         />
+      )}
+
+      {isRejectedModalOpen && (
+        <RejectedSalesModal onClose={() => setIsRejectedModalOpen(false)} />
       )}
 
       {/* El servidor rechazó la venta por tope del plan: la caja no puede
