@@ -3,6 +3,7 @@ import { toMessage } from "@/lib/errors";
 import * as adminService from "@/services/admin.service";
 import type {
   AdminCompany,
+  AdminCompanyActivity,
   AdminCreditMovement,
   AdminReseller,
   AdminStats,
@@ -15,6 +16,9 @@ import type { Plan, PlanPeriod } from "@/services/subscription.service";
 
 interface AdminState {
   companies: AdminCompany[];
+  companyActivity: AdminCompanyActivity[];
+  companyActivityAvailable: boolean;
+  companyActivityError: string | null;
   resellers: AdminReseller[];
   packs: CreditPack[];
   movements: AdminCreditMovement[];
@@ -53,6 +57,9 @@ interface AdminState {
 
 export const useAdminStore = create<AdminState>((set) => ({
   companies: [],
+  companyActivity: [],
+  companyActivityAvailable: false,
+  companyActivityError: null,
   resellers: [],
   packs: [],
   movements: [],
@@ -81,14 +88,25 @@ export const useAdminStore = create<AdminState>((set) => ({
     set({ loading: true, error: null });
     try {
       // Revendedores y promos también: desde Empresas se pueden recargar créditos.
-      const [companies, plans, periods, resellers, packs] = await Promise.all([
+      const [companies, activity, plans, periods, resellers, packs] = await Promise.all([
         adminService.fetchCompanies(),
+        adminService.fetchCompanyActivity(),
         adminService.fetchPlans(),
         adminService.fetchPlanPeriods(),
         adminService.fetchResellers(),
         adminService.fetchCreditPacks(),
       ]);
-      set({ companies, plans, periods, resellers, packs, loading: false });
+      set({
+        companies,
+        companyActivity: activity.rows,
+        companyActivityAvailable: activity.available,
+        companyActivityError: activity.error,
+        plans,
+        periods,
+        resellers,
+        packs,
+        loading: false,
+      });
     } catch (e) {
       set({ error: toMessage(e), loading: false });
     }

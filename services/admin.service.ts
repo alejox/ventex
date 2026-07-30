@@ -29,6 +29,28 @@ export interface AdminCompany {
   created_at: string;
 }
 
+/** Señales operativas complementarias (RPC admin_company_activity). */
+export interface AdminCompanyActivity {
+  user_id: string;
+  business_type: string | null;
+  registered_at: string;
+  last_sign_in_at: string | null;
+  last_operational_activity_at: string | null;
+  activation_stage: "registered" | "setup_started" | "catalog_ready" | "activated";
+  monthly_sales_count: number;
+  monthly_gmv: number;
+  customers_count: number;
+  products_count: number;
+  services_count: number;
+  staff_count: number;
+}
+
+export interface AdminCompanyActivityResult {
+  rows: AdminCompanyActivity[];
+  available: boolean;
+  error: string | null;
+}
+
 /** Métricas globales de la plataforma (RPC admin_stats). */
 export interface AdminStats {
   companies: number;
@@ -57,6 +79,36 @@ export async function fetchCompanies(): Promise<AdminCompany[]> {
   const { data, error } = await supabase.rpc("admin_companies");
   if (error) throw error;
   return (data ?? []) as unknown as AdminCompany[];
+}
+
+/**
+ * La RPC es complementaria: mientras la migración no esté aplicada, el panel
+ * conserva la información de admin_companies y explica qué detalle falta.
+ */
+export async function fetchCompanyActivity(): Promise<AdminCompanyActivityResult> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("admin_company_activity");
+
+  if (error) {
+    const migrationPending =
+      error.code === "PGRST202" ||
+      error.code === "42883" ||
+      error.message.includes("admin_company_activity");
+
+    return {
+      rows: [],
+      available: false,
+      error: migrationPending
+        ? "La migración de actividad empresarial aún no está aplicada. Se muestran los datos actuales; las señales operativas aparecerán al publicar la RPC."
+        : `No se pudo cargar la actividad empresarial: ${error.message}`,
+    };
+  }
+
+  return {
+    rows: (data ?? []) as unknown as AdminCompanyActivity[],
+    available: true,
+    error: null,
+  };
 }
 
 export async function fetchStats(): Promise<AdminStats> {

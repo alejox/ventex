@@ -1747,6 +1747,23 @@ export type Database = {
           user_id: string
         }[]
       }
+      admin_company_activity: {
+        Args: never
+        Returns: {
+          activation_stage: string
+          business_type: string | null
+          customers_count: number
+          last_operational_activity_at: string | null
+          last_sign_in_at: string | null
+          monthly_gmv: number
+          monthly_sales_count: number
+          products_count: number
+          registered_at: string
+          services_count: number
+          staff_count: number
+          user_id: string
+        }[]
+      }
       admin_credit_movements: {
         Args: { p_limit?: number }
         Returns: {
