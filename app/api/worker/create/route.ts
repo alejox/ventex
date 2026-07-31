@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { requireSelectedWorkspaceOwner } from "@/services/workspace.server";
+import { sendExistingUserInvitationEmail } from "@/services/invitation-email.server";
 import {
   findAuthUserByEmail,
   findMembership,
@@ -199,10 +200,29 @@ export async function POST(request: NextRequest) {
   }
 
   if (existingAuthUserId) {
+    try {
+      await sendExistingUserInvitationEmail({
+        recipient: email,
+        employeeName: staff.full_name,
+        businessName: owner.businessName ?? "Ventex",
+        role,
+        invitationUrl: new URL("/workspace", request.nextUrl.origin).toString(),
+      });
+    } catch (error) {
+      await updateMembership(membershipId, workspaceId, {
+        status: "revoked",
+        revoked_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }, "pending");
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message : "No se pudo enviar la invitación." },
+        { status: 502 },
+      );
+    }
     return NextResponse.json({
       membershipId,
       status: "pending",
-      delivery: "in_app",
+      delivery: "email",
     });
   }
 

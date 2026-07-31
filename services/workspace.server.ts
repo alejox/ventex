@@ -86,6 +86,7 @@ export async function requireSelectedWorkspaceOwner() {
     user,
     workspaceId: context.active.workspace_id,
     membershipId: context.active.id,
+    businessName: context.active.business_name,
     client,
   };
 }

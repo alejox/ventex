@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { requireSelectedWorkspaceOwner } from "@/services/workspace.server";
+import { sendExistingUserInvitationEmail } from "@/services/invitation-email.server";
 import {
   findMembership,
   listWorkspaceMemberships,
@@ -180,13 +181,27 @@ export async function POST(request: NextRequest) {
         { status: 409 },
       );
     }
-    return NextResponse.json(
-      {
-        error:
-          "La invitación sigue pendiente y la cuenta no fue reemplazada. El usuario existente puede aceptarla desde su selector de negocios.",
-      },
-      { status: 409 },
-    );
+    const { data: invitationStaff } = await admin
+      .from("staff")
+      .select("full_name")
+      .eq("id", membership.staff_id)
+      .eq("user_id", workspaceId)
+      .maybeSingle();
+    try {
+      await sendExistingUserInvitationEmail({
+        recipient: membership.invited_email,
+        employeeName: invitationStaff?.full_name ?? "Hola",
+        businessName: owner.businessName ?? "Ventex",
+        role: membership.role,
+        invitationUrl: new URL("/workspace", request.nextUrl.origin).toString(),
+      });
+    } catch (error) {
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message : "No se pudo reenviar la invitación." },
+        { status: 502 },
+      );
+    }
+    return NextResponse.json({ ok: true, delivery: "email" });
   } else if (
     action === "suspend" ||
     action === "reactivate" ||
