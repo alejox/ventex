@@ -15,6 +15,7 @@ import type { WorkerMember } from "@/services/worker.service";
  */
 export function EditAccessModal({ worker, onClose }: { worker: WorkerMember; onClose: () => void }) {
   const updateAccess = useStaffStore((s) => s.updateAccess);
+  const resendInvitation = useStaffStore((s) => s.resendInvitation);
   const submitting = useStaffStore((s) => s.submitting);
   const error = useStaffStore((s) => s.error);
   const profile = useProfile();
@@ -35,6 +36,11 @@ export function EditAccessModal({ worker, onClose }: { worker: WorkerMember; onC
       notifySuccess("Acceso actualizado", "Los datos de la cuenta se guardaron.");
       onClose();
     }
+  };
+
+  const handleResend = async () => {
+    const ok = await resendInvitation(worker.id);
+    if (ok) notifySuccess("Invitación reenviada", "El correo fue enviado nuevamente.");
   };
 
   return (
@@ -88,6 +94,17 @@ export function EditAccessModal({ worker, onClose }: { worker: WorkerMember; onC
               </option>
             ))}
           </Select>
+
+          {worker.access_status === "pending" && (
+            <button
+              type="button"
+              onClick={() => void handleResend()}
+              disabled={submitting}
+              className="w-full rounded-xl border border-primary/30 px-4 py-2.5 text-sm font-semibold text-primary hover:bg-primary/10 disabled:opacity-50"
+            >
+              {submitting ? "Enviando…" : "Reenviar invitación"}
+            </button>
+          )}
 
           <div className="flex justify-end gap-3 pt-4">
             <button

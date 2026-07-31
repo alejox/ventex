@@ -44,6 +44,7 @@ interface StaffState {
   grantAccess: (input: InviteWorkerInput) => Promise<boolean>;
   updateAccess: (accountId: string, input: UpdateWorkerInput) => Promise<boolean>;
   updatePermissions: (accountId: string, permissions: WorkerPermissions) => Promise<boolean>;
+  resendInvitation: (accountId: string) => Promise<boolean>;
   reactivateAccess: (accountId: string) => Promise<boolean>;
   revokeAccess: (accountId: string) => Promise<boolean>;
 }
@@ -174,6 +175,18 @@ export const useStaffStore = create<StaffState>((set) => ({
         ),
         submitting: false,
       }));
+      return true;
+    } catch (e) {
+      set({ error: toMessage(e), submitting: false });
+      return false;
+    }
+  },
+
+  resendInvitation: async (accountId) => {
+    set({ submitting: true, error: null });
+    try {
+      await workerService.changeWorkerAccess(accountId, "resend");
+      set({ submitting: false });
       return true;
     } catch (e) {
       set({ error: toMessage(e), submitting: false });
