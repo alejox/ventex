@@ -1,110 +1,268 @@
-import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/utils/supabase/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/utils/supabase/admin";
-import { WORKER_PERMISSION_LABELS, type WorkerPermission, type WorkerPermissions } from "@/config/business";
+import { requireSelectedWorkspaceOwner } from "@/services/workspace.server";
+import {
+  findAuthUserByEmail,
+  findMembership,
+  insertMembership,
+  provisionalIdentityIsUnused,
+  updateMembership,
+} from "@/services/workspace-admin.server";
+import {
+  WORKER_PERMISSION_LABELS,
+  type WorkerPermission,
+  type WorkerPermissions,
+} from "@/config/business";
 
-const USERNAME_PATTERN = /^[a-z0-9._-]{3,30}$/;
+const MEMBERSHIP_ALREADY_ACTIVE = "MEMBERSHIP_ALREADY_ACTIVE";
+const MEMBERSHIP_ALREADY_PENDING = "MEMBERSHIP_ALREADY_PENDING";
+const MEMBERSHIP_SUSPENDED = "MEMBERSHIP_SUSPENDED";
 
-/**
- * Filtra los permisos del body a las claves conocidas y valores booleanos: el
- * cliente admin escribe sin RLS, así que nada del JSON entra crudo al perfil.
- */
 function sanitizePermissions(raw: unknown): WorkerPermissions {
   if (!raw || typeof raw !== "object") return {};
-  const valid = Object.keys(WORKER_PERMISSION_LABELS) as WorkerPermission[];
-  const out: WorkerPermissions = {};
-  for (const key of valid) {
-    if ((raw as Record<string, unknown>)[key] === true) out[key] = true;
+  const permissions: WorkerPermissions = {};
+  for (const key of Object.keys(
+    WORKER_PERMISSION_LABELS,
+  ) as WorkerPermission[]) {
+    if ((raw as Record<string, unknown>)[key] === true) permissions[key] = true;
   }
-  return out;
+  return permissions;
 }
 
-export async function POST(req: NextRequest) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+function invitationRedirect(
+  request: NextRequest,
+  membershipId: string,
+): string {
+  const url = new URL("/update-password", request.nextUrl.origin);
+  url.searchParams.set("invitation", membershipId);
+  return url.toString();
+}
 
-  const body = await req.json();
-  const username = String(body.username ?? "").trim().toLowerCase();
-  const { password, fullName, role, staffId } = body;
-  const permissions = sanitizePermissions(body.permissions);
-
-  if (!username || !password || !fullName) {
-    return NextResponse.json({ error: "Faltan campos requeridos" }, { status: 400 });
+function invitationError(message: string): string {
+  const normalized = message.toLowerCase();
+  if (normalized.includes("rate") || normalized.includes("limit")) {
+    return "Se alcanzó el límite temporal de invitaciones. Esperá unos minutos e intentá de nuevo.";
   }
-  if (!USERNAME_PATTERN.test(username)) {
+  return "No se pudo enviar la invitación. Verificá el correo e intentá de nuevo.";
+}
+
+async function deleteUnusedProvisionalIdentity(userId: string): Promise<void> {
+  if (await provisionalIdentityIsUnused(userId)) {
+    await createAdminClient().auth.admin.deleteUser(userId);
+  }
+}
+
+export async function POST(request: NextRequest) {
+  const owner = await requireSelectedWorkspaceOwner();
+  if (!owner) {
     return NextResponse.json(
-      { error: "El usuario debe tener entre 3 y 30 caracteres: letras, números, punto, guion o guion bajo." },
+      { error: "Solo el dueño del negocio seleccionado puede invitar empleados." },
+      { status: 403 },
+    );
+  }
+
+  const body = await request.json();
+  const email = String(body.email ?? "").trim().toLowerCase();
+  const staffId = String(body.staffId ?? "");
+  const role = body.role ? String(body.role).trim() : null;
+  const permissions = sanitizePermissions(body.permissions);
+  const { workspaceId } = owner;
+
+  if (!email || !email.includes("@") || !staffId) {
+    return NextResponse.json(
+      { error: "El correo y el miembro del personal son obligatorios." },
       { status: 400 },
     );
   }
 
   const admin = createAdminClient();
+  const { data: staff } = await admin
+    .from("staff")
+    .select("id, full_name, user_id")
+    .eq("id", staffId)
+    .eq("user_id", workspaceId)
+    .maybeSingle();
 
-  // El cliente admin salta RLS y crea usuarios de Auth: hay que verificar a mano
-  // que quien llama sea el DUEÑO del negocio. Sin esto, cualquier sesión (un
-  // trabajador, o cualquier cuenta) podía acuñar usuarios sin límite, y el gate
-  // de app/dashboard/settings/trabajadores/layout.tsx no cubre la API.
-  const { data: ownerProfile } = await admin
-    .from("profiles")
-    .select("business_key, is_worker")
-    .eq("id", user.id)
-    .single();
-  if (!ownerProfile || ownerProfile.is_worker) {
+  if (!staff) {
     return NextResponse.json(
-      { error: "Solo el dueño del negocio puede crear trabajadores." },
+      { error: "Ese miembro del personal no pertenece al negocio seleccionado." },
       { status: 403 },
     );
   }
 
-  // El trabajador inicia sesión con la llave del negocio: asegúrate de que el dueño
-  // tenga una, generándola si aún no existe.
-  if (!ownerProfile.business_key) {
-    const { data: newKey } = await admin.rpc("generate_business_key");
-    if (newKey) {
-      await admin.from("profiles").update({ business_key: newKey }).eq("id", user.id);
-    }
-  }
-
-  // El correo del trabajador es sintético (nunca lo usa: entra con usuario + llave).
-  const syntheticEmail = `w-${crypto.randomUUID()}@workers.ventex.app`;
-
-  const { data: authData, error: authError } = await admin.auth.admin.createUser({
-    email: syntheticEmail,
-    password,
-    email_confirm: true,
-    user_metadata: { full_name: fullName, is_worker: true },
-  });
-
-  if (authError) return NextResponse.json({ error: authError.message }, { status: 400 });
-  if (!authData.user) return NextResponse.json({ error: "No se pudo crear el usuario" }, { status: 500 });
-
-  const workerId = authData.user.id;
-  const staffIdToUse = staffId || null;
-
-  // El trigger on_auth_user_created ya insertó un perfil (is_worker=false). Se actualiza
-  // con el cliente admin porque `is_worker`, `workspace_id`, `worker_username` y
-  // `worker_role` solo son escribibles por el service_role (ver la migración
-  // restrict_profiles_column_grants).
-  const { error: profileError } = await admin.from("profiles").upsert({
-    id: workerId,
-    full_name: fullName,
-    is_worker: true,
-    workspace_id: user.id,
-    staff_id: staffIdToUse,
-    worker_username: username,
-    worker_role: role || null,
-    worker_permissions: permissions,
-  });
-
-  if (profileError) {
-    await admin.auth.admin.deleteUser(workerId);
-    const isDuplicate = profileError.code === "23505";
+  const [emailMembership, staffMembership] = await Promise.all([
+    findMembership({ workspace_id: workspaceId, invited_email: email }),
+    findMembership({ workspace_id: workspaceId, staff_id: staffId }),
+  ]);
+  const existingMembership = emailMembership ?? staffMembership;
+  if (
+    emailMembership &&
+    staffMembership &&
+    emailMembership.id !== staffMembership.id
+  ) {
     return NextResponse.json(
-      { error: isDuplicate ? "Ese usuario ya existe en tu negocio. Elige otro." : profileError.message },
-      { status: isDuplicate ? 409 : 500 },
+      { error: "El correo y el miembro del personal ya están vinculados a accesos distintos." },
+      { status: 409 },
     );
   }
 
-  return NextResponse.json({ userId: workerId });
+  if (existingMembership?.status === "active") {
+    return NextResponse.json(
+      { code: MEMBERSHIP_ALREADY_ACTIVE, error: "Ese correo ya tiene acceso activo a este negocio." },
+      { status: 409 },
+    );
+  }
+  if (existingMembership?.status === "pending") {
+    return NextResponse.json(
+      { code: MEMBERSHIP_ALREADY_PENDING, error: "Ese correo ya tiene una invitación pendiente para este negocio." },
+      { status: 409 },
+    );
+  }
+  if (existingMembership?.status === "suspended") {
+    return NextResponse.json(
+      { code: MEMBERSHIP_SUSPENDED, error: "Ese acceso está suspendido. Reactivalo en lugar de crear otra invitación." },
+      { status: 409 },
+    );
+  }
+
+  let existingAuthUserId: string | null;
+  try {
+    existingAuthUserId = await findAuthUserByEmail(email);
+  } catch {
+    return NextResponse.json(
+      { error: "No se pudo verificar si el correo ya tiene una cuenta." },
+      { status: 500 },
+    );
+  }
+
+  let membershipId = existingMembership?.id ?? null;
+  if (membershipId) {
+    try {
+      const restored = await updateMembership(
+        membershipId,
+        workspaceId,
+        {
+          auth_user_id: existingAuthUserId,
+          staff_id: staffId,
+          invited_email: email,
+          role,
+          permissions,
+          status: "pending",
+          provisional_auth_user: false,
+          invited_at: new Date().toISOString(),
+          accepted_at: null,
+          activated_at: null,
+          suspended_at: null,
+          revoked_at: null,
+          updated_at: new Date().toISOString(),
+        },
+        "revoked",
+      );
+      if (!restored) throw new Error("La membresía cambió de estado.");
+    } catch (error) {
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message : "No se pudo restaurar la membresía." },
+        { status: 500 },
+      );
+    }
+  } else {
+    try {
+      const membership = await insertMembership({
+        workspace_id: workspaceId,
+        auth_user_id: existingAuthUserId,
+        staff_id: staffId,
+        invited_email: email,
+        member_kind: "member",
+        role,
+        permissions,
+        status: "pending",
+        provisional_auth_user: false,
+        accepted_at: null,
+        activated_at: null,
+        suspended_at: null,
+        revoked_at: null,
+      });
+      membershipId = membership.id;
+    } catch (error) {
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message : "No se pudo crear la membresía." },
+        { status: 409 },
+      );
+    }
+  }
+
+  if (!membershipId) {
+    return NextResponse.json(
+      { error: "No se pudo resolver la membresía pendiente." },
+      { status: 500 },
+    );
+  }
+
+  if (existingAuthUserId) {
+    return NextResponse.json({
+      membershipId,
+      status: "pending",
+      delivery: "in_app",
+    });
+  }
+
+  const { data: invited, error: inviteError } =
+    await admin.auth.admin.inviteUserByEmail(email, {
+      redirectTo: invitationRedirect(request, membershipId),
+      data: { full_name: staff.full_name },
+    });
+
+  if (inviteError || !invited.user) {
+    await updateMembership(
+      membershipId,
+      workspaceId,
+      {
+        status: "revoked",
+        revoked_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+      "pending",
+    );
+    return NextResponse.json(
+      { error: invitationError(inviteError?.message ?? "") },
+      { status: 409 },
+    );
+  }
+
+  const provisionalUserId = invited.user.id;
+  let linkError: Error | null = null;
+  try {
+    const linked = await updateMembership(
+      membershipId,
+      workspaceId,
+      {
+        auth_user_id: provisionalUserId,
+        provisional_auth_user: true,
+        updated_at: new Date().toISOString(),
+      },
+      "pending",
+    );
+    if (!linked) linkError = new Error("La membresía cambió de estado.");
+  } catch (error) {
+    linkError = error instanceof Error ? error : new Error("No se pudo vincular la identidad.");
+  }
+
+  if (linkError) {
+    await updateMembership(membershipId, workspaceId, {
+      status: "revoked",
+      revoked_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+    await deleteUnusedProvisionalIdentity(provisionalUserId);
+    return NextResponse.json(
+      { error: "La invitación no pudo vincularse con el personal. Intentá de nuevo." },
+      { status: 500 },
+    );
+  }
+
+  return NextResponse.json({
+    membershipId,
+    status: "pending",
+    delivery: "email",
+  });
 }

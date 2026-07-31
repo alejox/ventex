@@ -1,20 +1,26 @@
 import { createClient } from "@/utils/supabase/client";
 import type { BusinessType, Modules, Profile, WorkerPermissions } from "@/config/business";
 
-/** Mapea la fila de `profiles` (+ datos de auth) al tipo de dominio. */
+type CurrentProfileRow = {
+  id: string;
+  full_name: string | null;
+  business_type: string | null;
+  business_name?: string | null;
+  modules: unknown;
+  is_super_admin?: boolean | null;
+  is_reseller?: boolean | null;
+  is_worker?: boolean | null;
+  worker_access_status?: string | null;
+  workspace_id?: string | null;
+  membership_id?: string | null;
+  membership_kind?: string | null;
+  staff_id?: string | null;
+  worker_permissions?: unknown;
+};
+
+/** Mapea la proyección segura del perfil (+ datos de auth) al tipo de dominio. */
 function toProfile(
-  row: {
-    id: string;
-    full_name: string | null;
-    business_type: string | null;
-    modules: unknown;
-    is_super_admin?: boolean | null;
-    is_reseller?: boolean | null;
-    is_worker?: boolean | null;
-    workspace_id?: string | null;
-    staff_id?: string | null;
-    worker_permissions?: unknown;
-  } | null,
+  row: CurrentProfileRow | null,
   email: string,
 ): Profile | null {
   if (!row) return null;
@@ -27,7 +33,19 @@ function toProfile(
     isSuperAdmin: Boolean(row.is_super_admin),
     isReseller: Boolean(row.is_reseller),
     isWorker: Boolean(row.is_worker),
+    workerAccessStatus:
+      row.worker_access_status === "pending" ||
+      row.worker_access_status === "active" ||
+      row.worker_access_status === "suspended"
+        ? row.worker_access_status
+        : null,
     workspaceId: row.workspace_id ?? null,
+    membershipId: row.membership_id ?? null,
+    membershipKind:
+      row.membership_kind === "owner" || row.membership_kind === "member"
+        ? row.membership_kind
+        : null,
+    businessName: row.business_name ?? null,
     staffId: row.staff_id ?? null,
     workerPermissions: (row.worker_permissions ?? {}) as WorkerPermissions,
   };
@@ -41,14 +59,10 @@ export async function fetchProfile(): Promise<Profile | null> {
   } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("id, full_name, business_type, modules, is_super_admin, is_reseller, is_worker, workspace_id, staff_id, worker_permissions")
-    .eq("id", user.id)
-    .maybeSingle();
+  const { data, error } = await supabase.rpc("current_user_profile");
   if (error) throw error;
 
-  return toProfile(data, user.email || "");
+  return toProfile(data as CurrentProfileRow | null, user.email || "");
 }
 
 export interface ProfileUpdate {
@@ -65,18 +79,41 @@ export async function updateProfile(patch: ProfileUpdate): Promise<Profile> {
   } = await supabase.auth.getUser();
   if (!user) throw new Error("No hay sesión activa");
 
-  const row: { full_name?: string; business_type?: string | null; modules?: Modules } = {};
-  if (patch.fullName !== undefined) row.full_name = patch.fullName;
-  if (patch.businessType !== undefined) row.business_type = patch.businessType;
-  if (patch.modules !== undefined) row.modules = patch.modules;
+  const current = await fetchProfile();
+  if (!current) throw new Error("No se pudo resolver el perfil");
 
-  const { data, error } = await supabase
-    .from("profiles")
-    .update(row)
-    .eq("id", user.id)
-    .select("id, full_name, business_type, modules, is_super_admin, is_reseller, is_worker, workspace_id, staff_id, worker_permissions")
-    .single();
-  if (error) throw error;
+  if (patch.fullName !== undefined) {
+    const { error } = await supabase
+      .from("profiles")
+      .update({ full_name: patch.fullName })
+      .eq("id", user.id);
+    if (error) throw error;
+  }
 
-  return toProfile(data, user.email || "")!;
+  if (patch.businessType !== undefined || patch.modules !== undefined) {
+    if (
+      current.membershipKind !== "owner" ||
+      !current.workspaceId
+    ) {
+      throw new Error("Solo el dueño puede cambiar la configuración del negocio");
+    }
+    const businessPatch: {
+      business_type?: string | null;
+      modules?: Modules;
+    } = {};
+    if (patch.businessType !== undefined) {
+      businessPatch.business_type = patch.businessType;
+    }
+    if (patch.modules !== undefined) businessPatch.modules = patch.modules;
+
+    const { error } = await supabase
+      .from("profiles")
+      .update(businessPatch)
+      .eq("id", current.workspaceId);
+    if (error) throw error;
+  }
+
+  const updated = await fetchProfile();
+  if (!updated) throw new Error("No se pudo recargar el perfil");
+  return updated;
 }

@@ -1,6 +1,8 @@
 import { createClient } from "@/utils/supabase/client";
 import { findOrCreateVehicleByPlate } from "@/services/vehicles.service";
 import { createSale } from "@/services/pos.service";
+import { getWorkspaceExecutionContext } from "@/services/workspace.service";
+import { fetchCurrentShift } from "@/services/shifts.service";
 
 // ---- TYPES ----
 export interface Appointment {
@@ -185,7 +187,14 @@ export async function chargeAppointment(appt: Appointment): Promise<string> {
   if (!appt.service_id) {
     throw new Error("La cita no tiene un servicio asignado para cobrar");
   }
+  const [context, shift] = await Promise.all([
+    getWorkspaceExecutionContext(),
+    fetchCurrentShift(),
+  ]);
   return createSale({
+    workspaceId: context.workspaceId,
+    membershipId: context.membershipId,
+    shiftId: shift?.id ?? null,
     customerId: appt.customer_id,
     staffId: appt.staff_id,
     paymentMethod: "efectivo",

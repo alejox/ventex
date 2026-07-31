@@ -54,15 +54,22 @@ export async function GET(request: NextRequest) {
   const rawType = searchParams.get("type");
   const type = rawType && EMAIL_OTP_TYPES.has(rawType) ? (rawType as EmailOtpType) : null;
   const next = safeNext(searchParams.get("next"), "/dashboard/pos");
+  const isInvitation = type === "invite" || next.includes("invitation=");
 
   // Un enlace de recuperación roto tiene que devolver al formulario de
   // recuperación, no al login: ahí es donde el usuario puede pedir otro.
-  const errorPath = type === "recovery" || next.startsWith("/update-password")
+  const errorPath = isInvitation
+    ? "/access-disabled"
+    : type === "recovery" || next.startsWith("/update-password")
     ? "/reset-password"
     : "/login";
 
-  const fail = (reason: string) =>
-    NextResponse.redirect(`${origin}${errorPath}?error=${reason}`);
+  const fail = (reason: string) => {
+    const url = new URL(errorPath, origin);
+    if (isInvitation) url.searchParams.set("status", "expired");
+    else url.searchParams.set("error", reason);
+    return NextResponse.redirect(url);
+  };
 
   if (!tokenHash && !code) return fail("enlace_invalido");
 

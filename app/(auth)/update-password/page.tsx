@@ -58,7 +58,9 @@ function UpdatePasswordForm() {
       setError(
         hashError
           ? authMessage(hashError)
-          : "El enlace ya se usó o venció. Pedí uno nuevo.",
+          : searchParams.has("invitation")
+            ? "La invitación ya se usó o venció. Pedile al dueño que contacte a soporte para emitir un nuevo enlace."
+            : "El enlace ya se usó o venció. Pedí uno nuevo.",
       );
       setStatus("invalid");
     })();
@@ -74,15 +76,29 @@ function UpdatePasswordForm() {
 
     const { error } = await supabase.auth.updateUser({ password });
 
-    setLoading(false);
-
     if (error) {
+      setLoading(false);
       setError(authMessage(error));
     } else {
+      const invitationId = searchParams.get("invitation");
+      if (invitationId) {
+        const response = await fetch("/api/worker/activate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ membershipId: invitationId }),
+        });
+        const result = await response.json().catch(() => null);
+        if (!response.ok) {
+          setLoading(false);
+          setError(result?.error ?? "No se pudo activar tu acceso.");
+          return;
+        }
+      }
       // La sesión de recuperación no es una sesión normal: dejarla abierta
       // significa que cualquiera con el enlace queda logueado. Se cierra y el
       // usuario entra con la contraseña nueva.
       await supabase.auth.signOut();
+      setLoading(false);
       setSuccess(true);
     }
   };
@@ -100,6 +116,7 @@ function UpdatePasswordForm() {
   }
 
   if (status === "invalid") {
+    const invitation = searchParams.has("invitation");
     return (
       <div className="w-full max-w-[420px] mx-auto text-center">
         <div className="flex justify-center mb-8 lg:hidden">
@@ -117,10 +134,10 @@ function UpdatePasswordForm() {
         </h2>
         <p className="text-on-surface-variant text-sm mb-8 leading-relaxed">{error}</p>
         <Link
-          href="/reset-password"
+          href={invitation ? "/login" : "/reset-password"}
           className="inline-block w-full bg-primary hover:bg-primary-dim text-on-primary font-semibold py-3.5 rounded-xl transition-all text-[15px] text-center"
         >
-          Pedir un enlace nuevo
+          {invitation ? "Volver al inicio de sesión" : "Pedir un enlace nuevo"}
         </Link>
       </div>
     );

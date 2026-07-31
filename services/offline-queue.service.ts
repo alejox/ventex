@@ -20,14 +20,21 @@ import type { CheckoutInput } from "./pos.service";
  * encoló otra persona la registra bajo la sesión equivocada y le carga la plata
  * al turno equivocado, que es exactamente lo que el arqueo existe para detectar.
  *
- * Por eso cada entrada guarda su `authUserId` y las lecturas piden a quién
- * pertenecen. Nunca agregues una función que devuelva todo junto para drenarlo.
+ * Por eso cada entrada congela identidad, workspace y membresía. Las lecturas
+ * exigen los tres; una fila vieja sin ese contexto jamás se drena.
  */
 
 const DB_NAME = "ventex-offline";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE = "pending_sales";
 const BY_USER = "by_auth_user";
+const BY_WORKSPACE_CONTEXT = "by_workspace_context";
+
+export interface QueueContext {
+  authUserId: string;
+  workspaceId: string;
+  membershipId: string;
+}
 
 /**
  * Envío a domicilio de una venta encolada.
@@ -58,6 +65,10 @@ export interface PendingSale {
    * empleado es su propio id, y el servidor lo resuelve a `workspace_id`.
    */
   authUserId: string;
+  /** Negocio seleccionado cuando el cliente entregó la venta. */
+  workspaceId: string;
+  /** Membresía activa usada para permisos y atribución. */
+  membershipId: string;
   /** Turno abierto al momento de cobrar. null cuando cobra el dueño. */
   shiftId: string | null;
   /** Se crea al drenar, después de que el servidor devuelva el id de la venta. */
@@ -100,6 +111,8 @@ export interface EnqueueSaleParams {
   clientSaleId: string;
   input: CheckoutInput;
   authUserId: string;
+  workspaceId: string;
+  membershipId: string;
   shiftId: string | null;
   delivery?: PendingDelivery | null;
   /** Lo cobrado, tal cual se lo dijo al cliente. */
@@ -129,9 +142,19 @@ function openDb(): Promise<IDBDatabase> {
 
     request.onupgradeneeded = () => {
       const db = request.result;
+      let store: IDBObjectStore;
       if (!db.objectStoreNames.contains(STORE)) {
-        const store = db.createObjectStore(STORE, { keyPath: "clientSaleId" });
+        store = db.createObjectStore(STORE, { keyPath: "clientSaleId" });
         store.createIndex(BY_USER, "authUserId", { unique: false });
+      } else {
+        store = request.transaction!.objectStore(STORE);
+      }
+      if (!store.indexNames.contains(BY_WORKSPACE_CONTEXT)) {
+        store.createIndex(
+          BY_WORKSPACE_CONTEXT,
+          ["authUserId", "workspaceId", "membershipId"],
+          { unique: false },
+        );
       }
     };
 
@@ -176,8 +199,19 @@ async function withStore<T>(
   });
 }
 
-function requestAll(store: IDBObjectStore, authUserId: string): IDBRequest<PendingSale[]> {
-  return store.index(BY_USER).getAll(IDBKeyRange.only(authUserId));
+function requestAll(
+  store: IDBObjectStore,
+  context: QueueContext,
+): IDBRequest<PendingSale[]> {
+  return store
+    .index(BY_WORKSPACE_CONTEXT)
+    .getAll(
+      IDBKeyRange.only([
+        context.authUserId,
+        context.workspaceId,
+        context.membershipId,
+      ]),
+    );
 }
 
 /** Más viejas primero: el stock se descuenta en el orden en que se cobró. */
@@ -194,6 +228,8 @@ export async function enqueueSale(params: EnqueueSaleParams): Promise<PendingSal
     clientSaleId: params.clientSaleId,
     input: params.input,
     authUserId: params.authUserId,
+    workspaceId: params.workspaceId,
+    membershipId: params.membershipId,
     shiftId: params.shiftId,
     delivery: params.delivery ?? null,
     total: params.total,
@@ -215,8 +251,12 @@ export async function enqueueSale(params: EnqueueSaleParams): Promise<PendingSal
  * Pide el `authUserId` a propósito: ver las de otra sesión no sirve para nada
  * bueno y drenarlas rompe la atribución de tenencia y de turno.
  */
-export async function listPendingSales(authUserId: string): Promise<PendingSale[]> {
-  const rows = await withStore("readonly", (store) => requestAll(store, authUserId));
+export async function listPendingSales(
+  context: QueueContext,
+): Promise<PendingSale[]> {
+  const rows = await withStore("readonly", (store) =>
+    requestAll(store, context),
+  );
   return (rows ?? []).filter((r) => r.status !== "rejected").sort(byQueuedAt);
 }
 
@@ -224,19 +264,23 @@ export async function listPendingSales(authUserId: string): Promise<PendingSale[
  * Las que el servidor rechazó y no se van a enviar solas. Son plata que entró
  * sin quedar registrada, así que alguien las tiene que resolver a mano.
  */
-export async function listRejectedSales(authUserId: string): Promise<PendingSale[]> {
-  const rows = await withStore("readonly", (store) => requestAll(store, authUserId));
+export async function listRejectedSales(
+  context: QueueContext,
+): Promise<PendingSale[]> {
+  const rows = await withStore("readonly", (store) =>
+    requestAll(store, context),
+  );
   return (rows ?? []).filter((r) => r.status === "rejected").sort(byQueuedAt);
 }
 
 /** Cuántas ventas tiene sin enviar esta sesión (para el indicador del POS). */
-export async function countPendingSales(authUserId: string): Promise<number> {
-  return (await listPendingSales(authUserId)).length;
+export async function countPendingSales(context: QueueContext): Promise<number> {
+  return (await listPendingSales(context)).length;
 }
 
 /** Cuántas quedaron trabadas esperando que alguien las mire. */
-export async function countRejectedSales(authUserId: string): Promise<number> {
-  return (await listRejectedSales(authUserId)).length;
+export async function countRejectedSales(context: QueueContext): Promise<number> {
+  return (await listRejectedSales(context)).length;
 }
 
 /**
@@ -265,9 +309,16 @@ export async function markRejected(clientSaleId: string, reason: unknown): Promi
  * Se cuenta por `authUserId` y no restando totales: las propias ya rechazadas
  * no son de otro y no pueden aparecer acá.
  */
-export async function countOrphanPendingSales(authUserId: string): Promise<number> {
+export async function countOrphanPendingSales(
+  context: QueueContext,
+): Promise<number> {
   const todas = await withStore<PendingSale[]>("readonly", (store) => store.getAll());
-  return (todas ?? []).filter((r) => r.authUserId !== authUserId).length;
+  return (todas ?? []).filter(
+    (row) =>
+      row.authUserId !== context.authUserId ||
+      row.workspaceId !== context.workspaceId ||
+      row.membershipId !== context.membershipId,
+  ).length;
 }
 
 /** Saca una venta de la cola. Se llama cuando el servidor ya la confirmó. */

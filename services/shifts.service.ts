@@ -5,6 +5,8 @@ import { createClient } from "@/utils/supabase/client";
 /** Turno abierto del empleado con acumulados en vivo (rpc current_shift). */
 export interface CurrentShift {
   id: string;
+  workspace_id: string;
+  membership_id: string;
   opened_at: string;
   opening_cash: number;
   sales_count: number;

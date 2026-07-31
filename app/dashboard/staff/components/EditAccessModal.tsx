@@ -10,8 +10,8 @@ import { staffRolesForType } from "@/config/business";
 import type { WorkerMember } from "@/services/worker.service";
 
 /**
- * Edita la CUENTA (usuario, contraseña) de alguien que ya tiene acceso. El
- * nombre y el cargo se sincronizan con la ficha desde la pantalla de Personal.
+ * Edita los datos de acceso que controla el dueño. El correo identifica la
+ * cuenta y la contraseña siempre pertenece al empleado.
  */
 export function EditAccessModal({ worker, onClose }: { worker: WorkerMember; onClose: () => void }) {
   const updateAccess = useStaffStore((s) => s.updateAccess);
@@ -23,17 +23,13 @@ export function EditAccessModal({ worker, onClose }: { worker: WorkerMember; onC
     worker.role && !roleOptions.includes(worker.role) ? [worker.role, ...roleOptions] : roleOptions;
 
   const [fullName, setFullName] = useState(worker.full_name ?? "");
-  const [username, setUsername] = useState(worker.username ?? "");
   const [role, setRole] = useState(worker.role ?? "");
-  const [password, setPassword] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const ok = await updateAccess(worker.id, {
       fullName,
-      username,
       role,
-      password: password || undefined,
     });
     if (ok) {
       notifySuccess("Acceso actualizado", "Los datos de la cuenta se guardaron.");
@@ -71,15 +67,12 @@ export function EditAccessModal({ worker, onClose }: { worker: WorkerMember; onC
           </div>
 
           <div>
-            <label className="block text-sm font-semibold text-on-surface mb-1.5">Usuario</label>
+            <label className="block text-sm font-semibold text-on-surface mb-1.5">Correo electrónico</label>
             <input
-              type="text"
-              required
-              autoCapitalize="none"
-              value={username}
-              onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/\s+/g, ""))}
-              placeholder="ej: juan.perez"
-              className="w-full px-4 py-2.5 bg-surface-container-low border border-outline-variant/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 text-on-surface placeholder:text-on-surface-variant/50"
+              type="email"
+              readOnly
+              value={worker.email ?? ""}
+              className="w-full px-4 py-2.5 bg-surface-container-low border border-outline-variant/20 rounded-xl text-on-surface-variant"
             />
           </div>
 
@@ -95,18 +88,6 @@ export function EditAccessModal({ worker, onClose }: { worker: WorkerMember; onC
               </option>
             ))}
           </Select>
-
-          <div>
-            <label className="block text-sm font-semibold text-on-surface mb-1.5">Nueva contraseña</label>
-            <input
-              type="password"
-              minLength={6}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Dejar en blanco para no cambiarla"
-              className="w-full px-4 py-2.5 bg-surface-container-low border border-outline-variant/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 text-on-surface placeholder:text-on-surface-variant/50"
-            />
-          </div>
 
           <div className="flex justify-end gap-3 pt-4">
             <button

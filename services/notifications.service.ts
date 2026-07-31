@@ -1,4 +1,5 @@
 import { createClient } from "@/utils/supabase/client";
+import { getSelectedWorkspaceId } from "@/services/workspace.service";
 
 // ---- Tipos del dominio de notificaciones ----
 
@@ -20,9 +21,11 @@ const NOTIFICATION_SELECT = "id, type, severity, title, body, data, read_at, cre
 /** Últimas notificaciones del usuario autenticado (RLS: solo las suyas). */
 export async function fetchNotifications(limit = 30): Promise<AppNotification[]> {
   const supabase = createClient();
+  const workspaceId = await getSelectedWorkspaceId();
   const { data, error } = await supabase
     .from("notifications")
     .select(NOTIFICATION_SELECT)
+    .eq("user_id", workspaceId)
     .order("created_at", { ascending: false })
     .limit(limit);
   if (error) throw error;
@@ -32,9 +35,11 @@ export async function fetchNotifications(limit = 30): Promise<AppNotification[]>
 /** Cuenta de no leídas, sin traer las filas. */
 export async function fetchUnreadCount(): Promise<number> {
   const supabase = createClient();
+  const workspaceId = await getSelectedWorkspaceId();
   const { count, error } = await supabase
     .from("notifications")
     .select("id", { count: "exact", head: true })
+    .eq("user_id", workspaceId)
     .is("read_at", null);
   if (error) throw error;
   return count ?? 0;
@@ -42,19 +47,23 @@ export async function fetchUnreadCount(): Promise<number> {
 
 export async function markRead(id: string): Promise<void> {
   const supabase = createClient();
+  const workspaceId = await getSelectedWorkspaceId();
   const { error } = await supabase
     .from("notifications")
     .update({ read_at: new Date().toISOString() })
     .eq("id", id)
+    .eq("user_id", workspaceId)
     .is("read_at", null);
   if (error) throw error;
 }
 
 export async function markAllRead(): Promise<void> {
   const supabase = createClient();
+  const workspaceId = await getSelectedWorkspaceId();
   const { error } = await supabase
     .from("notifications")
     .update({ read_at: new Date().toISOString() })
+    .eq("user_id", workspaceId)
     .is("read_at", null);
   if (error) throw error;
 }

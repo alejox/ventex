@@ -44,6 +44,7 @@ interface StaffState {
   grantAccess: (input: InviteWorkerInput) => Promise<boolean>;
   updateAccess: (accountId: string, input: UpdateWorkerInput) => Promise<boolean>;
   updatePermissions: (accountId: string, permissions: WorkerPermissions) => Promise<boolean>;
+  reactivateAccess: (accountId: string) => Promise<boolean>;
   revokeAccess: (accountId: string) => Promise<boolean>;
 }
 
@@ -151,7 +152,7 @@ export const useStaffStore = create<StaffState>((set) => ({
       set((s) => ({
         accounts: s.accounts.map((a) =>
           a.id === accountId
-            ? { ...a, full_name: input.fullName, username: input.username, role: input.role || null }
+            ? { ...a, full_name: input.fullName, role: input.role || null }
             : a,
         ),
         submitting: false,
@@ -180,12 +181,33 @@ export const useStaffStore = create<StaffState>((set) => ({
     }
   },
 
+  reactivateAccess: async (accountId) => {
+    set({ submitting: true, error: null });
+    try {
+      await workerService.changeWorkerAccess(accountId, "reactivate");
+      set((s) => ({
+        accounts: s.accounts.map((a) =>
+          a.id === accountId ? { ...a, access_status: "active", suspended_at: null } : a,
+        ),
+        submitting: false,
+      }));
+      return true;
+    } catch (e) {
+      set({ error: toMessage(e), submitting: false });
+      return false;
+    }
+  },
+
   revokeAccess: async (accountId) => {
     set({ submitting: true, error: null });
     try {
-      await workerService.deactivateWorker(accountId);
+      await workerService.changeWorkerAccess(accountId, "suspend");
       set((s) => ({
-        accounts: s.accounts.filter((a) => a.id !== accountId),
+        accounts: s.accounts.map((a) =>
+          a.id === accountId
+            ? { ...a, access_status: "suspended", suspended_at: new Date().toISOString() }
+            : a,
+        ),
         submitting: false,
       }));
       return true;

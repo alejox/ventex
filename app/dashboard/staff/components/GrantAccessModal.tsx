@@ -32,8 +32,7 @@ export function GrantAccessModal({
   const options =
     member.role && !roleOptions.includes(member.role) ? [member.role, ...roleOptions] : roleOptions;
 
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
+  const [email, setEmail] = useState(member.email ?? "");
   const [role, setRole] = useState(member.role ?? "");
   const [perms, setPerms] = useState<WorkerPermissions>({});
   const [done, setDone] = useState(false);
@@ -45,8 +44,7 @@ export function GrantAccessModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const ok = await grantAccess({
-      username,
-      password,
+      email,
       fullName: member.full_name,
       role,
       staffId: member.id,
@@ -62,11 +60,11 @@ export function GrantAccessModal({
           <div className="w-14 h-14 mx-auto rounded-full bg-primary/20 flex items-center justify-center mb-4">
             <IconCheck className="w-7 h-7 text-primary" />
           </div>
-          <h2 className="text-xl font-bold text-on-surface mb-2">Acceso creado</h2>
+          <h2 className="text-xl font-bold text-on-surface mb-2">Invitación creada</h2>
           <p className="text-sm text-on-surface-variant mb-6">
-            <strong>{member.full_name}</strong> ya puede entrar desde la pestaña
-            <span className="font-semibold"> Empleado</span> con la llave del negocio, su usuario
-            <strong> {username}</strong> y su contraseña.
+            <strong>{member.full_name}</strong> podrá aceptar el acceso con{" "}
+            <strong>{email}</strong>. Si todavía no tiene una cuenta, recibirá
+            un correo para crear su contraseña.
           </p>
           <button
             onClick={onClose}
@@ -100,32 +98,19 @@ export function GrantAccessModal({
           )}
 
           <div>
-            <label className="block text-sm font-semibold text-on-surface mb-1.5">Usuario</label>
+            <label className="block text-sm font-semibold text-on-surface mb-1.5">Correo electrónico</label>
             <input
-              type="text"
+              type="email"
               required
               autoCapitalize="none"
-              value={username}
-              onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/\s+/g, ""))}
-              placeholder="ej: juan.perez"
+              value={email}
+              onChange={(e) => setEmail(e.target.value.trim())}
+              placeholder="persona@ejemplo.com"
               className="w-full px-4 py-2.5 bg-surface-container-low border border-outline-variant/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 text-on-surface placeholder:text-on-surface-variant/50"
             />
             <p className="text-xs text-on-surface-variant mt-1">
-              Entrará con la llave del negocio, este usuario y su contraseña.
+              La persona recibirá la invitación y elegirá su propia contraseña.
             </p>
-          </div>
-
-          <div>
-            <label className="block text-sm font-semibold text-on-surface mb-1.5">Contraseña</label>
-            <input
-              type="password"
-              required
-              minLength={6}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Mínimo 6 caracteres"
-              className="w-full px-4 py-2.5 bg-surface-container-low border border-outline-variant/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 text-on-surface placeholder:text-on-surface-variant/50"
-            />
           </div>
 
           <Select label="Rol / Cargo" value={role} onChange={(e) => setRole(e.target.value)}>
@@ -158,7 +143,7 @@ export function GrantAccessModal({
               disabled={submitting}
               className="px-5 py-2.5 rounded-xl bg-primary text-white font-semibold hover:bg-primary-dim transition-colors disabled:opacity-50"
             >
-              {submitting ? "Creando…" : "Dar acceso"}
+              {submitting ? "Creando…" : "Crear invitación"}
             </button>
           </div>
         </form>

@@ -6,6 +6,10 @@ import * as deliveryService from "@/services/delivery.service";
 import * as offlineQueue from "@/services/offline-queue.service";
 import { useShiftsStore } from "@/stores/shifts.store";
 import { lineKey, cartLineKey as keyOf } from "@/services/pos.service";
+import {
+  getWorkspaceExecutionContext,
+  type WorkspaceExecutionContext,
+} from "@/services/workspace.service";
 import type {
   CatalogItem,
   CustomerOption,
@@ -54,6 +58,8 @@ export interface SaleTab {
 }
 
 interface PosState {
+  /** Contexto de autoridad congelado al inicializar este POS. */
+  executionContext: WorkspaceExecutionContext | null;
   // Datos del catálogo (vienen de services)
   catalog: CatalogItem[];
   customers: CustomerOption[];
@@ -194,21 +200,24 @@ async function queueSale(params: {
   input: posService.CheckoutInput;
   delivery: offlineQueue.PendingDelivery | null;
   total: number;
+  context: WorkspaceExecutionContext;
 }): Promise<boolean> {
   if (!offlineQueue.isOfflineQueueSupported()) return false;
+  if (
+    params.input.workspaceId !== params.context.workspaceId ||
+    params.input.membershipId !== params.context.membershipId
+  ) {
+    return false;
+  }
 
   try {
-    const authUserId = await posService.getAuthUserId();
-    // Sin sesión no hay a quién atribuir la venta, y atribuirla mal la deposita
-    // en el turno de otra persona. Es preferible fallar acá y que el cajero lo
-    // sepa, antes que registrarla en la caja equivocada.
-    if (!authUserId) return false;
-
     await offlineQueue.enqueueSale({
       clientSaleId: params.clientSaleId,
       input: params.input,
-      authUserId,
-      shiftId: useShiftsStore.getState().currentShift?.id ?? null,
+      authUserId: params.context.authUserId,
+      workspaceId: params.context.workspaceId,
+      membershipId: params.context.membershipId,
+      shiftId: params.input.shiftId,
       delivery: params.delivery,
       total: params.total,
     });
@@ -270,6 +279,7 @@ const oversellMessage = (item: CatalogItem, allowed: boolean) =>
 
 export const usePosStore = create<PosState>((set, get) => {
   return {
+    executionContext: null,
     catalog: [],
     customers: [],
     staff: [],
@@ -316,11 +326,12 @@ export const usePosStore = create<PosState>((set, get) => {
     init: async () => {
       set({ loading: true, error: null });
       try {
-        const [catalog, customers, staff, config] = await Promise.all([
+        const [catalog, customers, staff, config, executionContext] = await Promise.all([
           posService.fetchCatalog(),
           posService.fetchCustomers(),
           posService.fetchStaff(),
           posService.fetchPosConfig(),
+          getWorkspaceExecutionContext(),
         ]);
         // Desglose de IVA y sobreventa son política del negocio y viven en
         // `settings`. El toggle del POS escribe `include_tax` (ver
@@ -329,9 +340,9 @@ export const usePosStore = create<PosState>((set, get) => {
         const state = get();
         if (state.activeTabId === "") {
           const firstTab = createDefaultTab(0, get);
-          set({ catalog, customers, staff, taxRate, includeTax, allowOversell, loading: false, tabs: [firstTab], activeTabId: firstTab.id });
+          set({ catalog, customers, staff, taxRate, includeTax, allowOversell, executionContext, loading: false, tabs: [firstTab], activeTabId: firstTab.id });
         } else {
-          set({ catalog, customers, staff, taxRate, includeTax, allowOversell, loading: false });
+          set({ catalog, customers, staff, taxRate, includeTax, allowOversell, executionContext, loading: false });
         }
       } catch (e) {
         set({ error: toMessage(e), loading: false });
@@ -709,6 +720,12 @@ export const usePosStore = create<PosState>((set, get) => {
       const state = get();
       const activeTab = state.tabs.find((t) => t.id === state.activeTabId);
       if (!activeTab || activeTab.cart.length === 0) return "failed";
+      if (!state.executionContext) {
+        set({
+          error: "No hay un negocio activo. Volvé a elegir el negocio antes de cobrar.",
+        });
+        return "failed";
+      }
 
       const { cart, customerId, staffId, paymentMethod, transferMethod, cardMethod, splits, isDelivery, deliveryData } = activeTab;
 
@@ -727,6 +744,9 @@ export const usePosStore = create<PosState>((set, get) => {
       // la cola tienen que ser byte por byte lo mismo. Recalcularlo al reenviar
       // abriría la puerta a que la venta encolada no sea la que se cobró.
       const input: posService.CheckoutInput = {
+        workspaceId: state.executionContext.workspaceId,
+        membershipId: state.executionContext.membershipId,
+        shiftId: useShiftsStore.getState().currentShift?.id ?? null,
         customerId,
         staffId,
         paymentMethod,
@@ -808,6 +828,7 @@ export const usePosStore = create<PosState>((set, get) => {
             clientSaleId,
             input,
             total,
+            context: state.executionContext,
             delivery:
               isDelivery && deliveryData.personId
                 ? {
@@ -864,9 +885,9 @@ export const usePosStore = create<PosState>((set, get) => {
 
     loadRejectedSales: async () => {
       try {
-        const authUserId = await posService.getAuthUserId();
-        if (!authUserId) return;
-        const rejectedList = await offlineQueue.listRejectedSales(authUserId);
+        const context = get().executionContext;
+        if (!context) return;
+        const rejectedList = await offlineQueue.listRejectedSales(context);
         set({ rejectedList, rejectedSales: rejectedList.length });
       } catch {
         set({ rejectedList: [] });
@@ -900,11 +921,11 @@ export const usePosStore = create<PosState>((set, get) => {
 
     refreshPendingSales: async () => {
       try {
-        const authUserId = await posService.getAuthUserId();
-        if (!authUserId) return;
+        const context = get().executionContext;
+        if (!context) return;
         const [pendingSales, rejectedSales] = await Promise.all([
-          offlineQueue.countPendingSales(authUserId),
-          offlineQueue.countRejectedSales(authUserId),
+          offlineQueue.countPendingSales(context),
+          offlineQueue.countRejectedSales(context),
         ]);
         set({ pendingSales, rejectedSales });
       } catch {
@@ -917,19 +938,17 @@ export const usePosStore = create<PosState>((set, get) => {
       if (get().syncing) return;
       if (!offlineQueue.isOfflineQueueSupported()) return;
 
-      let authUserId: string | null = null;
+      let context: WorkspaceExecutionContext;
       try {
-        authUserId = await posService.getAuthUserId();
+        context = await getWorkspaceExecutionContext();
       } catch {
         return;
       }
       // Sin sesión, drenar registraría las ventas bajo quien esté logueado
       // ahora. Se esperan: la cola no vence.
-      if (!authUserId) return;
-
       let pendientes: offlineQueue.PendingSale[];
       try {
-        pendientes = await offlineQueue.listPendingSales(authUserId);
+        pendientes = await offlineQueue.listPendingSales(context);
       } catch {
         return;
       }
@@ -946,6 +965,13 @@ export const usePosStore = create<PosState>((set, get) => {
         // el orden en que se cobró. En paralelo, dos ventas del mismo producto
         // se pisarían y el sobregiro quedaría escondido.
         for (const venta of pendientes) {
+          if (
+            venta.workspaceId !== context.workspaceId ||
+            venta.membershipId !== context.membershipId ||
+            venta.authUserId !== context.authUserId
+          ) {
+            continue;
+          }
           try {
             const saleId = await posService.createSale(venta.input);
 

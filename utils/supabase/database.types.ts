@@ -260,6 +260,41 @@ export type Database = {
           },
         ]
       }
+      customer_payments: {
+        Row: {
+          amount: number
+          created_at: string
+          customer_id: string
+          id: string
+          notes: string | null
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          customer_id: string
+          id?: string
+          notes?: string | null
+          user_id?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          customer_id?: string
+          id?: string
+          notes?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_payments_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customers: {
         Row: {
           created_at: string | null
@@ -298,33 +333,6 @@ export type Database = {
           identification?: string | null
           phone?: string | null
           tax_exempt?: boolean | null
-          user_id?: string
-        }
-        Relationships: []
-      }
-      customer_payments: {
-        Row: {
-          amount: number
-          created_at: string
-          customer_id: string
-          id: string
-          notes: string | null
-          user_id: string
-        }
-        Insert: {
-          amount: number
-          created_at?: string
-          customer_id: string
-          id?: string
-          notes?: string | null
-          user_id?: string
-        }
-        Update: {
-          amount?: number
-          created_at?: string
-          customer_id?: string
-          id?: string
-          notes?: string | null
           user_id?: string
         }
         Relationships: []
@@ -916,8 +924,12 @@ export type Database = {
           reseller_id: string | null
           staff_id: string | null
           updated_at: string
+          worker_access_status: string | null
+          worker_activated_at: string | null
+          worker_invited_at: string | null
           worker_permissions: Json | null
           worker_role: string | null
+          worker_suspended_at: string | null
           worker_username: string | null
           workspace_id: string | null
         }
@@ -936,8 +948,12 @@ export type Database = {
           reseller_id?: string | null
           staff_id?: string | null
           updated_at?: string
+          worker_access_status?: string | null
+          worker_activated_at?: string | null
+          worker_invited_at?: string | null
           worker_permissions?: Json | null
           worker_role?: string | null
+          worker_suspended_at?: string | null
           worker_username?: string | null
           workspace_id?: string | null
         }
@@ -956,8 +972,12 @@ export type Database = {
           reseller_id?: string | null
           staff_id?: string | null
           updated_at?: string
+          worker_access_status?: string | null
+          worker_activated_at?: string | null
+          worker_invited_at?: string | null
           worker_permissions?: Json | null
           worker_role?: string | null
+          worker_suspended_at?: string | null
           worker_username?: string | null
           workspace_id?: string | null
         }
@@ -1241,6 +1261,47 @@ export type Database = {
           },
         ]
       }
+      sale_payments: {
+        Row: {
+          amount: number
+          card_method: string | null
+          created_at: string
+          id: string
+          payment_method: string
+          sale_id: string
+          transfer_method: string | null
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          card_method?: string | null
+          created_at?: string
+          id?: string
+          payment_method: string
+          sale_id: string
+          transfer_method?: string | null
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          card_method?: string | null
+          created_at?: string
+          id?: string
+          payment_method?: string
+          sale_id?: string
+          transfer_method?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sale_payments_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sales: {
         Row: {
           card_method: string | null
@@ -1323,47 +1384,6 @@ export type Database = {
           },
         ]
       }
-      sale_payments: {
-        Row: {
-          amount: number
-          card_method: string | null
-          created_at: string
-          id: string
-          payment_method: string
-          sale_id: string
-          transfer_method: string | null
-          user_id: string
-        }
-        Insert: {
-          amount: number
-          card_method?: string | null
-          created_at?: string
-          id?: string
-          payment_method: string
-          sale_id: string
-          transfer_method?: string | null
-          user_id?: string
-        }
-        Update: {
-          amount?: number
-          card_method?: string | null
-          created_at?: string
-          id?: string
-          payment_method?: string
-          sale_id?: string
-          transfer_method?: string | null
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "sale_payments_sale_id_fkey"
-            columns: ["sale_id"]
-            isOneToOne: false
-            referencedRelation: "sales"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       services: {
         Row: {
           commission_type: string | null
@@ -1421,7 +1441,7 @@ export type Database = {
           id: string
           include_tax: boolean
           tax_rate: number
-          transfer_methods_enabled: Json | null
+          transfer_methods_enabled: Json
           updated_at: string
           user_id: string
         }
@@ -1436,7 +1456,7 @@ export type Database = {
           id?: string
           include_tax?: boolean
           tax_rate?: number
-          transfer_methods_enabled?: Json | null
+          transfer_methods_enabled?: Json
           updated_at?: string
           user_id?: string
         }
@@ -1451,7 +1471,7 @@ export type Database = {
           id?: string
           include_tax?: boolean
           tax_rate?: number
-          transfer_methods_enabled?: Json | null
+          transfer_methods_enabled?: Json
           updated_at?: string
           user_id?: string
         }
@@ -1472,6 +1492,7 @@ export type Database = {
           status: string
           totals_by_method: Json | null
           user_id: string
+          withdrawals_total: number | null
           worker_id: string
         }
         Insert: {
@@ -1488,6 +1509,7 @@ export type Database = {
           status?: string
           totals_by_method?: Json | null
           user_id?: string
+          withdrawals_total?: number | null
           worker_id?: string
         }
         Update: {
@@ -1504,6 +1526,7 @@ export type Database = {
           status?: string
           totals_by_method?: Json | null
           user_id?: string
+          withdrawals_total?: number | null
           worker_id?: string
         }
         Relationships: []
@@ -1709,19 +1732,6 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      get_product_costs: {
-        Args: { p_ids: string[] }
-        Returns: { product_id: string; purchase_price: number }[]
-      }
-      register_manual_movement: {
-        Args: {
-          p_product_id: string
-          p_type: string
-          p_quantity: number
-          p_notes: string | null
-        }
-        Returns: undefined
-      }
       admin_apply_credit_pack: {
         Args: { p_pack_id: string; p_reseller_id: string }
         Returns: undefined
@@ -1751,10 +1761,10 @@ export type Database = {
         Args: never
         Returns: {
           activation_stage: string
-          business_type: string | null
+          business_type: string
           customers_count: number
-          last_operational_activity_at: string | null
-          last_sign_in_at: string | null
+          last_operational_activity_at: string
+          last_sign_in_at: string
           monthly_gmv: number
           monthly_sales_count: number
           products_count: number
@@ -1870,6 +1880,7 @@ export type Database = {
         Args: { p_add: number; p_uid: string }
         Returns: undefined
       }
+      can_write_settings: { Args: never; Returns: boolean }
       close_shift: {
         Args: { p_closing_cash: number; p_notes?: string; p_shift_id?: string }
         Returns: Json
@@ -1880,7 +1891,6 @@ export type Database = {
           p_client_sale_id?: string
           p_customer_id: string
           p_discount_amount: number
-          p_include_tax?: boolean
           p_items: Json
           p_payment_method: string
           p_payments?: Json
@@ -1891,10 +1901,18 @@ export type Database = {
       }
       current_shift: { Args: never; Returns: Json }
       current_tenant: { Args: never; Returns: string }
+      current_user_profile: { Args: never; Returns: Json }
       deactivate_worker: { Args: { p_worker_id: string }; Returns: undefined }
       ensure_license_current: { Args: never; Returns: Json }
       generate_business_key: { Args: never; Returns: string }
       get_effective_user_id: { Args: never; Returns: string }
+      get_product_costs: {
+        Args: { p_ids: string[] }
+        Returns: {
+          product_id: string
+          purchase_price: number
+        }[]
+      }
       increment_stock: {
         Args: { p_product_id: string; p_quantity: number }
         Returns: undefined
@@ -1904,17 +1922,22 @@ export type Database = {
       is_tenant_owner: { Args: never; Returns: boolean }
       my_subscription: { Args: never; Returns: Json }
       open_shift: { Args: { p_opening_cash: number }; Returns: Json }
-      register_customer_payment: {
-        Args: { p_amount: number; p_customer_id: string }
-        Returns: undefined
-      }
       register_cash_withdrawal: {
         Args: { p_amount: number; p_reason: string }
         Returns: string
       }
-      sales_summary: {
-        Args: { p_customer?: string; p_from?: string; p_to?: string }
-        Returns: Json
+      register_customer_payment: {
+        Args: { p_amount: number; p_customer_id: string }
+        Returns: undefined
+      }
+      register_manual_movement: {
+        Args: {
+          p_notes?: string
+          p_product_id: string
+          p_quantity: number
+          p_type: string
+        }
+        Returns: undefined
       }
       reseller_clients: {
         Args: never
@@ -1945,6 +1968,16 @@ export type Database = {
         Returns: undefined
       }
       reseller_stats: { Args: never; Returns: Json }
+      sales_summary: {
+        Args: {
+          p_customer?: string
+          p_from?: string
+          p_payment_method?: string
+          p_to?: string
+          p_transfer_method?: string
+        }
+        Returns: Json
+      }
       staff_can: { Args: { section: string }; Returns: boolean }
       staff_can_action: {
         Args: { action?: string; section: string }
@@ -1958,10 +1991,8 @@ export type Database = {
         Args: { p_business_email: string; p_username: string }
         Returns: string
       }
-      void_sale: {
-        Args: { p_sale_id: string }
-        Returns: undefined
-      }
+      void_sale: { Args: { p_sale_id: string }; Returns: undefined }
+      worker_can: { Args: { perm: string }; Returns: boolean }
       worker_login: {
         Args: { p_business_key: string; p_username: string }
         Returns: string

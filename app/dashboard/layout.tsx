@@ -5,6 +5,8 @@ import { DashboardShell } from "@/components/DashboardShell";
 import { LicenseBlocked } from "@/components/LicenseBlocked";
 import { OnboardingModal } from "@/components/onboarding/OnboardingModal";
 import { SIDEBAR_COOKIE, parseSidebarCollapsed } from "@/lib/sidebar";
+import { redirect } from "next/navigation";
+import { resolveWorkspaceForDashboard } from "@/services/workspace.server";
 
 // Server Component: el perfil se lee en el servidor y se inyecta por context,
 // de modo que la navegación se gatea antes de pintar (sin parpadeo). El shell
@@ -20,7 +22,20 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const workspaceContext = await resolveWorkspaceForDashboard();
   const profile = await fetchProfileServer();
+
+  if (
+    profile &&
+    !workspaceContext?.active &&
+    (
+      (workspaceContext?.available.length ?? 0) > 0 ||
+      (workspaceContext?.invitations.length ?? 0) > 0 ||
+      profile.businessType
+    )
+  ) {
+    redirect("/workspace");
+  }
 
   // El menú se pinta ya plegado/expandido desde el servidor: leer la preferencia
   // aquí es lo que evita el desajuste de hidratación (ver lib/sidebar.ts). No

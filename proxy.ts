@@ -9,7 +9,10 @@ export async function proxy(request: NextRequest) {
   } = await supabaseResponse.supabase.auth.getUser();
 
   const { pathname } = request.nextUrl;
-  const isProtected = pathname.startsWith("/dashboard") || pathname.startsWith("/admin");
+  const isProtected =
+    pathname.startsWith("/dashboard") ||
+    pathname.startsWith("/admin") ||
+    pathname === "/workspace";
 
   if (isProtected && !user) {
     const url = request.nextUrl.clone();

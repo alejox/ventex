@@ -68,7 +68,7 @@ export async function createManualMovement(input: ManualMovementInput): Promise<
     p_product_id: input.product_id,
     p_type: input.type,
     p_quantity: input.quantity,
-    p_notes: input.notes || null,
+    p_notes: input.notes || undefined,
   });
   if (error) throw error;
 }

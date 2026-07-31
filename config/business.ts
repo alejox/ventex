@@ -100,8 +100,16 @@ export interface Profile {
   isReseller: boolean;
   /** Trabajador (empleado con acceso limitado). */
   isWorker: boolean;
+  /** Estado autoritativo del acceso del trabajador. */
+  workerAccessStatus: "pending" | "active" | "suspended" | null;
   /** ID del perfil del dueño del negocio (solo para workers). */
   workspaceId: string | null;
+  /** Membresía activa, validada para la sesión JWT actual. */
+  membershipId: string | null;
+  /** Tipo de vínculo dentro del negocio seleccionado. */
+  membershipKind: "owner" | "member" | null;
+  /** Nombre del negocio seleccionado. */
+  businessName: string | null;
   /** ID del registro en staff al que está vinculado. */
   staffId: string | null;
   /** Permisos granulares del worker. */
@@ -122,13 +130,11 @@ export const BUSINESS_OPTIONS: BusinessOption[] = [
 ];
 
 /**
- * Tipos de negocio ABIERTOS al registro público hoy. El modelo completo
- * (`BUSINESS_OPTIONS`, tipos, gating) sigue intacto para las cuentas que ya
- * existen y para el panel de reseller/ajustes; esto solo acota lo que puede
- * elegir alguien que se registra ahora. Enfoque actual: modelo de tienda.
- * Ampliar esta lista reabre los demás rubros sin más cambios.
+ * Tipos de negocio abiertos al registro público. Los demás rubros siguen
+ * disponibles para cuentas existentes y para los paneles administrativos,
+ * pero no se ofrecen hasta que su onboarding esté listo.
  */
-export const REGISTRABLE_BUSINESS_TYPES: BusinessType[] = ["tienda"];
+export const REGISTRABLE_BUSINESS_TYPES: BusinessType[] = ["salon", "tienda"];
 
 export const REGISTER_BUSINESS_OPTIONS: BusinessOption[] = BUSINESS_OPTIONS.filter(
   (o) => REGISTRABLE_BUSINESS_TYPES.includes(o.id),
@@ -187,6 +193,29 @@ export const MODULES_BY_TYPE: Record<BusinessType, ModuleOption[]> = {
     { id: "billing", label: "Facturación", description: "Genera facturas y cotizaciones para tus clientes." },
   ],
 };
+
+/**
+ * Tipos de negocio cuyos módulos vienen todos activados por defecto. Esto
+ * mantiene alineado lo que el usuario ve al registrarse con lo que se persiste
+ * en `profiles.modules` desde su primer ingreso.
+ */
+const FULL_MODULE_TYPES: BusinessType[] = ["salon", "lavaautos", "servicios"];
+
+/** Todos los ids de módulo que ofrece un tipo de negocio. */
+export function modulesForType(businessType: BusinessType): ModuleId[] {
+  return (MODULES_BY_TYPE[businessType] ?? [])
+    .filter((module) => !module.comingSoon)
+    .map((module) => module.id);
+}
+
+/** Módulos preseleccionados al iniciar o cambiar el tipo de negocio. */
+export function defaultModulesForType(businessType: BusinessType | null): Modules {
+  if (!businessType || !FULL_MODULE_TYPES.includes(businessType)) return {};
+
+  return Object.fromEntries(
+    modulesForType(businessType).map((moduleId) => [moduleId, true]),
+  ) as Modules;
+}
 
 // ---- Modelo lógico de navegación (sidebar). Iconos se mapean por id. ----
 export interface NavItem {
@@ -264,18 +293,6 @@ const BASE_QUICK_BY_TYPE: Record<BusinessType, string[]> = {
   lavaautos: ["new-appointment", "new-product"],
   servicios: ["new-appointment"],
 };
-
-/**
- * Tipos de negocio cuyos módulos vienen TODOS activados por defecto (sin opt-in):
- * el dueño ve la suite completa de su rubro sin tener que habilitar nada.
- * Salón / Barbería: Citas, Servicios, Barberos e Inventario.
- */
-const FULL_MODULE_TYPES: BusinessType[] = ["salon", "lavaautos", "servicios"];
-
-/** Todos los ids de módulo que ofrece un tipo de negocio. */
-export function modulesForType(businessType: BusinessType): ModuleId[] {
-  return (MODULES_BY_TYPE[businessType] ?? []).map((m) => m.id);
-}
 
 /**
  * Módulos efectivos de una cuenta: para los tipos "full module" se activan

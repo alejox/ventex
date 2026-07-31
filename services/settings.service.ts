@@ -1,4 +1,5 @@
 import { createClient } from "@/utils/supabase/client";
+import { getSelectedWorkspaceId } from "@/services/workspace.service";
 import type { Json } from "@/utils/supabase/database.types";
 
 // ---- Tipos del dominio de ajustes (config por cuenta) ----
@@ -76,13 +77,10 @@ const BUSINESS_LOGOS_BUCKET = "business-logos";
  */
 export async function uploadBusinessLogo(file: File): Promise<string> {
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("No hay sesión activa");
+  const workspaceId = await getSelectedWorkspaceId();
 
   const ext = file.name.split(".").pop()?.toLowerCase() || "png";
-  const path = `${user.id}/${crypto.randomUUID()}.${ext}`;
+  const path = `${workspaceId}/${crypto.randomUUID()}.${ext}`;
 
   const { error } = await supabase.storage
     .from(BUSINESS_LOGOS_BUCKET)
@@ -96,15 +94,12 @@ export async function uploadBusinessLogo(file: File): Promise<string> {
 /** Devuelve la llave de la tienda (business_key) del dueño autenticado, o null si aún no tiene. */
 export async function fetchBusinessKey(): Promise<string | null> {
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("No hay sesión activa");
+  const workspaceId = await getSelectedWorkspaceId();
 
   const { data, error } = await supabase
     .from("profiles")
     .select("business_key")
-    .eq("id", user.id)
+    .eq("id", workspaceId)
     .maybeSingle();
   if (error) throw error;
   return data?.business_key ?? null;
@@ -125,10 +120,7 @@ export function normalizeBusinessKey(raw: string): string {
  */
 export async function setBusinessKey(raw: string): Promise<string> {
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("No hay sesión activa");
+  const workspaceId = await getSelectedWorkspaceId();
 
   const key = normalizeBusinessKey(raw);
   if (!BUSINESS_KEY_PATTERN.test(key)) {
@@ -138,7 +130,7 @@ export async function setBusinessKey(raw: string): Promise<string> {
   const { error } = await supabase
     .from("profiles")
     .update({ business_key: key })
-    .eq("id", user.id);
+    .eq("id", workspaceId);
   if (error) {
     if (error.code === "23505") {
       throw new Error("Esa llave ya está en uso por otro negocio. Elige una diferente.");
@@ -155,10 +147,7 @@ export async function setBusinessKey(raw: string): Promise<string> {
  */
 export async function regenerateBusinessKey(): Promise<string> {
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("No hay sesión activa");
+  const workspaceId = await getSelectedWorkspaceId();
 
   const { data: key, error: genErr } = await supabase.rpc("generate_business_key");
   if (genErr) throw genErr;
@@ -167,7 +156,7 @@ export async function regenerateBusinessKey(): Promise<string> {
   const { error: updErr } = await supabase
     .from("profiles")
     .update({ business_key: key })
-    .eq("id", user.id);
+    .eq("id", workspaceId);
   if (updErr) throw updErr;
 
   return key;

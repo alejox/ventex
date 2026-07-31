@@ -1,4 +1,5 @@
 import { createClient } from "@/utils/supabase/client";
+import { getSelectedWorkspaceId } from "@/services/workspace.service";
 import { toWebp } from "@/lib/image";
 
 // ---- Tipos del dominio de inventario ----
@@ -159,17 +160,14 @@ const DISTRIBUTOR_SELECT = "id, business_name";
  */
 export async function uploadProductImage(file: File): Promise<string> {
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("No hay sesión activa");
+  const workspaceId = await getSelectedWorkspaceId();
 
   // Se convierte acá y no en cada formulario: así toda foto que entre al bucket
   // pasa por la misma compresión, venga del alta rápida o del form avanzado.
   const optimized = await toWebp(file);
 
   const ext = optimized.name.split(".").pop()?.toLowerCase() || "jpg";
-  const path = `${user.id}/${crypto.randomUUID()}.${ext}`;
+  const path = `${workspaceId}/${crypto.randomUUID()}.${ext}`;
 
   const { error } = await supabase.storage
     .from(PRODUCT_IMAGES_BUCKET)

@@ -41,7 +41,7 @@ export function mergeTeam(staff: StaffMember[], accounts: WorkerMember[]): TeamM
   for (const account of huerfanas) {
     merged.push({
       id: `account:${account.id}`,
-      full_name: account.full_name ?? account.username ?? "Sin nombre",
+      full_name: account.full_name ?? account.email ?? "Sin nombre",
       role: account.role,
       phone: null,
       email: null,

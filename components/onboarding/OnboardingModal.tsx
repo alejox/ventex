@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { BUSINESS_ICONS, MODULE_ICONS, RocketIcon } from "@/app/assets/icons/BusinessIcons";
 import {
+  defaultModulesForType,
   MODULES_BY_TYPE,
   REGISTER_BUSINESS_OPTIONS,
   type BusinessType,
@@ -21,12 +22,13 @@ import { completeOnboarding } from "./actions";
  * (REGISTER_BUSINESS_OPTIONS + MODULES_BY_TYPE), de una sola fuente.
  */
 export function OnboardingModal({ defaultName }: { defaultName: string }) {
-  // Con un único rubro habilitado no tiene sentido obligar a elegirlo.
   const [step, setStep] = useState(1);
-  const [businessType, setBusinessType] = useState(
-    REGISTER_BUSINESS_OPTIONS.length === 1 ? REGISTER_BUSINESS_OPTIONS[0].id : "",
+  const initialBusinessType =
+    REGISTER_BUSINESS_OPTIONS.length === 1 ? REGISTER_BUSINESS_OPTIONS[0].id : "";
+  const [businessType, setBusinessType] = useState(initialBusinessType);
+  const [modules, setModules] = useState<Record<string, boolean>>(
+    defaultModulesForType(initialBusinessType || null),
   );
-  const [modules, setModules] = useState<Record<string, boolean>>({});
   const [businessName, setBusinessName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -35,6 +37,10 @@ export function OnboardingModal({ defaultName }: { defaultName: string }) {
   // El rubro puede no ofrecer extras (la tienda hoy no los tiene): el paso 2
   // queda siendo solo el nombre, y el copy no puede prometer "herramientas".
   const hasModules = moduleOptions.length > 0;
+  const selectBusinessType = (type: BusinessType) => {
+    setBusinessType(type);
+    setModules(defaultModulesForType(type));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -98,7 +104,7 @@ export function OnboardingModal({ defaultName }: { defaultName: string }) {
                 <button
                   key={option.id}
                   type="button"
-                  onClick={() => setBusinessType(option.id)}
+                  onClick={() => selectBusinessType(option.id)}
                   className={`w-full py-4 px-6 rounded-[20px] border flex flex-col items-center justify-center gap-3 transition-all duration-300 ${
                     businessType === option.id
                       ? "bg-primary/5 border-primary ring-1 ring-primary/50 shadow-[0_0_20px_rgba(96,99,238,0.1)]"

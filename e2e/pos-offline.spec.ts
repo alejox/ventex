@@ -103,13 +103,26 @@ test("sin conexión la venta se encola y el carrito se limpia", async ({ page, c
   expect(cola).toHaveLength(1);
   const pendiente = cola[0] as {
     authUserId: string;
+    workspaceId: string;
+    membershipId: string;
     clientSaleId: string;
     attempts: number;
-    input: { clientSaleId: string; items: unknown[] };
+    input: {
+      clientSaleId: string;
+      workspaceId: string;
+      membershipId: string;
+      shiftId: string;
+      items: unknown[];
+    };
   };
-  // La venta queda marcada con su dueño: drenarla desde otra sesión la
-  // depositaría en el turno equivocado.
+  // La venta congela identidad, negocio, membresía y turno: otra sesión o un
+  // cambio de negocio no puede drenarla hacia una caja distinta.
   expect(pendiente.authUserId).toMatch(/^[0-9a-f-]{36}$/);
+  expect(pendiente.workspaceId).toMatch(/^[0-9a-f-]{36}$/);
+  expect(pendiente.membershipId).toMatch(/^[0-9a-f-]{36}$/);
+  expect(pendiente.input.workspaceId).toBe(pendiente.workspaceId);
+  expect(pendiente.input.membershipId).toBe(pendiente.membershipId);
+  expect(pendiente.input.shiftId).toMatch(/^[0-9a-f-]{36}$/);
   // La misma clave adentro y afuera: es la que hace idempotente el reenvío.
   expect(pendiente.input.clientSaleId).toBe(pendiente.clientSaleId);
   expect(pendiente.input.items).toHaveLength(1);

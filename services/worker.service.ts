@@ -1,145 +1,122 @@
-import { createClient } from "@/utils/supabase/client";
 import type { WorkerPermissions } from "@/config/business";
+
+export type WorkerAccessStatus =
+  | "pending"
+  | "active"
+  | "suspended"
+  | "revoked";
 
 export interface WorkerMember {
   id: string;
   full_name: string | null;
-  username: string | null;
+  email: string | null;
   staff_id: string | null;
   role: string | null;
   worker_permissions: WorkerPermissions;
+  access_status: WorkerAccessStatus;
+  invited_at: string | null;
+  activated_at: string | null;
+  suspended_at: string | null;
   created_at: string;
 }
 
 export interface InviteWorkerInput {
-  username: string;
-  password: string;
+  email: string;
   fullName: string;
   role: string;
-  staffId?: string;
-  /** Permisos iniciales. Sin esto, el trabajador nace sin acceso a nada. */
+  staffId: string;
   permissions?: WorkerPermissions;
 }
 
 export interface UpdateWorkerInput {
   fullName: string;
-  username: string;
   role: string;
-  /** Opcional: si se indica, restablece la contraseña del trabajador. */
-  password?: string;
 }
 
-// El trabajador inicia sesión con la llave del negocio + `worker_username` + contraseña.
-// El rol vive en `worker_role`. El correo (auth) es sintético y no se muestra.
-const WORKER_SELECT = `
-  id,
-  full_name,
-  staff_id,
-  worker_role,
-  worker_username,
-  worker_permissions,
-  created_at
-`;
+async function api<T>(
+  path: string,
+  init?: RequestInit,
+): Promise<T> {
+  const response = await fetch(path, init);
+  const data = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error(data?.error ?? "No se pudo actualizar el acceso.");
+  }
+  return data as T;
+}
 
 export async function fetchWorkers(): Promise<WorkerMember[]> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from("profiles")
-    .select(WORKER_SELECT)
-    .eq("is_worker", true)
-    .order("created_at", { ascending: false });
+  const result = await api<{
+    accounts: Array<{
+      id: string;
+      full_name: string | null;
+      email: string | null;
+      staff_id: string | null;
+      role: string | null;
+      worker_permissions: WorkerPermissions | null;
+      access_status: WorkerAccessStatus;
+      invited_at: string | null;
+      activated_at: string | null;
+      suspended_at: string | null;
+      revoked_at: string | null;
+      created_at: string;
+    }>;
+  }>("/api/worker/update");
 
-  if (error) throw error;
-
-  return (data ?? []).map((row) => ({
+  return result.accounts.map((row) => ({
     id: row.id,
     full_name: row.full_name,
-    username: row.worker_username ?? null,
+    email: row.email,
     staff_id: row.staff_id,
-    role: row.worker_role ?? null,
-    worker_permissions: (row.worker_permissions ?? {}) as WorkerPermissions,
+    role: row.role,
+    worker_permissions: row.worker_permissions ?? {},
+    access_status: row.access_status,
+    invited_at: row.invited_at,
+    activated_at: row.activated_at,
+    suspended_at: row.suspended_at,
     created_at: row.created_at,
   }));
 }
 
-/**
- * Actualiza nombre, usuario, cargo y (opcionalmente) la contraseña de un trabajador.
- * Va por una ruta de servidor: cambiar el usuario (unicidad) y la contraseña exige
- * privilegios de administrador que no existen en el cliente.
- */
-export async function updateWorker(workerId: string, input: UpdateWorkerInput): Promise<void> {
-  const res = await fetch("/api/worker/update", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ workerId, ...input }),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error ?? "Error al actualizar trabajador");
-}
-
-export async function inviteWorker(input: InviteWorkerInput): Promise<{ userId: string }> {
-  const supabase = createClient();
-
-  const { data, error } = await supabase.functions.invoke("worker-create-account", {
-    body: input,
-  });
-
-  if (error) {
-    const ctx = (error as { context?: Response }).context;
-    if (ctx) {
-      const body = await ctx.json().catch(() => null);
-      if (body?.error) throw new Error(body.error);
-    }
-    throw error;
-  }
-
-  return { userId: data.userId };
-}
-
-export async function inviteWorkerViaApi(input: InviteWorkerInput): Promise<{ userId: string }> {
-  const res = await fetch("/api/worker/create", {
+export async function inviteWorkerViaApi(
+  input: InviteWorkerInput,
+): Promise<{ membershipId: string; status: "pending" }> {
+  return api("/api/worker/create", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
   });
+}
 
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error ?? "Error al crear trabajador");
-  return data;
+export async function updateWorker(
+  membershipId: string,
+  input: UpdateWorkerInput,
+): Promise<void> {
+  await api("/api/worker/update", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ membershipId, action: "update", ...input }),
+  });
 }
 
 export async function updateWorkerPermissions(
-  workerId: string,
+  membershipId: string,
   permissions: WorkerPermissions,
 ): Promise<void> {
-  const supabase = createClient();
-  // `.select()` para detectar el caso en que RLS filtra el UPDATE a 0 filas
-  // (p. ej. un trabajador mal enlazado): sin filas devueltas, no se guardó nada.
-  const { data, error } = await supabase
-    .from("profiles")
-    .update({ worker_permissions: permissions })
-    .eq("id", workerId)
-    .select("id");
-  if (error) throw error;
-  if (!data || data.length === 0) {
-    throw new Error("No se pudieron guardar los permisos. Verifica que el trabajador pertenece a tu negocio.");
-  }
+  await api("/api/worker/update", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ membershipId, action: "permissions", permissions }),
+  });
 }
 
-export async function updateWorkerStaffLink(
-  workerId: string,
-  staffId: string | null,
+export async function changeWorkerAccess(
+  membershipId: string,
+  action: "suspend" | "reactivate" | "resend" | "revoke",
 ): Promise<void> {
-  const supabase = createClient();
-  const { error } = await supabase
-    .from("profiles")
-    .update({ staff_id: staffId })
-    .eq("id", workerId);
-  if (error) throw error;
-}
-
-export async function deactivateWorker(workerId: string): Promise<void> {
-  const supabase = createClient();
-  const { error } = await supabase.rpc("deactivate_worker", { p_worker_id: workerId });
-  if (error) throw error;
+  await api("/api/worker/update", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ membershipId, action }),
+  });
 }

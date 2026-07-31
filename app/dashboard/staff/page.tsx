@@ -9,7 +9,6 @@ import { fetchStaffSales } from "@/services/staff.service";
 import type { CommissionRow, NewStaffInput, StaffMember, StaffSaleItem } from "@/services/staff.service";
 import { DataTable, type DataColumn } from "@/components/DataTable";
 import { Select } from "@/components/ui/Select";
-import { BusinessKeyCard } from "@/components/BusinessKeyCard";
 import { useProfile } from "@/components/ProfileProvider";
 import { staffRolesForType } from "@/config/business";
 import { mergeTeam, hasStaffRecord } from "@/lib/team";
@@ -84,6 +83,7 @@ export default function StaffPage() {
   const accounts = useStaffStore((s) => s.accounts);
   const fetchAccounts = useStaffStore((s) => s.fetchAccounts);
   const revokeAccess = useStaffStore((s) => s.revokeAccess);
+  const reactivateAccess = useStaffStore((s) => s.reactivateAccess);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -142,7 +142,7 @@ export default function StaffPage() {
 
   const handleRevoke = useCallback(
     async (accountId: string, name: string) => {
-      if (confirm(`¿Quitarle el acceso a "${name}"? Deja de poder entrar al sistema, pero su ficha y su historial se conservan.`)) {
+      if (confirm(`¿Suspender el acceso de "${name}"? Dejará de entrar inmediatamente, pero su ficha, permisos e historial se conservan.`)) {
         await revokeAccess(accountId);
       }
     },
@@ -248,12 +248,6 @@ export default function StaffPage() {
         </div>
       )}
 
-      {/* La llave del negocio es la mitad del login de los empleados: va acá,
-          donde se les dan los permisos, y no escondida en Ajustes. Se muestra
-          siempre — sin ella nadie puede entrar, así que el dueño la necesita a
-          la vista ANTES de crear la primera cuenta, no después. */}
-      <BusinessKeyCard />
-
       {loading ? (
         <p className="text-center text-sm text-on-surface-variant py-12">Cargando equipo…</p>
       ) : staff.length === 0 ? (
@@ -321,12 +315,22 @@ export default function StaffPage() {
                 {m.account ? (
                   <>
                     <div className="flex items-center gap-2 mb-2">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                        m.account.access_status === "active"
+                          ? "bg-emerald-500"
+                          : m.account.access_status === "pending"
+                            ? "bg-amber-500"
+                            : "bg-error"
+                      }`} />
                       <span className="text-xs font-semibold text-on-surface truncate">
-                        @{m.account.username}
+                        {m.account.email}
                       </span>
-                      <span className="ml-auto text-[10px] font-bold text-emerald-600 dark:text-emerald-400 shrink-0">
-                        Con acceso
+                      <span className="ml-auto text-[10px] font-bold text-on-surface-variant shrink-0">
+                        {m.account.access_status === "active"
+                          ? "Activo"
+                          : m.account.access_status === "pending"
+                            ? "Pendiente"
+                            : "Suspendido"}
                       </span>
                     </div>
                     <div className="flex gap-1.5">
@@ -342,13 +346,22 @@ export default function StaffPage() {
                       >
                         Permisos
                       </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleRevoke(m.account!.id, m.full_name); }}
-                        className="shrink-0 px-2 py-1.5 rounded-lg text-on-surface-variant hover:text-error hover:bg-error/10 transition-colors"
-                        title="Quitar acceso"
-                      >
-                        <IconLogOut className="w-3.5 h-3.5" />
-                      </button>
+                      {m.account.access_status === "suspended" ? (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); reactivateAccess(m.account!.id); }}
+                          className="flex-1 py-1.5 rounded-lg border border-emerald-500/30 text-[11px] font-semibold text-emerald-600 hover:bg-emerald-500/10"
+                        >
+                          Reactivar
+                        </button>
+                      ) : m.account.access_status === "active" ? (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleRevoke(m.account!.id, m.full_name); }}
+                          className="shrink-0 px-2 py-1.5 rounded-lg text-on-surface-variant hover:text-error hover:bg-error/10 transition-colors"
+                          title="Suspender acceso"
+                        >
+                          <IconLogOut className="w-3.5 h-3.5" />
+                        </button>
+                      ) : null}
                     </div>
                   </>
                 ) : (
@@ -361,7 +374,7 @@ export default function StaffPage() {
                       onClick={(e) => { e.stopPropagation(); setGrantFor(m.id); }}
                       className="w-full py-1.5 rounded-lg border border-primary/30 text-[11px] font-semibold text-primary hover:bg-primary/10 transition-colors"
                     >
-                      Permisos
+                      Dar acceso
                     </button>
                   </>
                 )}

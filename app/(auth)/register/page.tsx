@@ -6,6 +6,7 @@ import { LogoVertical } from "@/components/Logo";
 import { GoogleButton } from "@/components/GoogleButton";
 import { BUSINESS_ICONS, MODULE_ICONS, RocketIcon } from "@/app/assets/icons/BusinessIcons";
 import {
+  defaultModulesForType,
   REGISTER_BUSINESS_OPTIONS,
   MODULES_BY_TYPE,
   type BusinessType,
@@ -14,12 +15,12 @@ import {
 // --- Component ---
 export default function RegisterPage() {
   const [step, setStep] = useState(1);
-  // Con un único rubro habilitado no tiene sentido obligar a elegirlo: viene
-  // preseleccionado y el paso 1 queda a un clic de continuar.
-  const [businessType, setBusinessType] = useState(
-    REGISTER_BUSINESS_OPTIONS.length === 1 ? REGISTER_BUSINESS_OPTIONS[0].id : "",
+  const initialBusinessType =
+    REGISTER_BUSINESS_OPTIONS.length === 1 ? REGISTER_BUSINESS_OPTIONS[0].id : "";
+  const [businessType, setBusinessType] = useState(initialBusinessType);
+  const [modules, setModules] = useState<Record<string, boolean>>(
+    defaultModulesForType(initialBusinessType || null),
   );
-  const [modules, setModules] = useState<Record<string, boolean>>({});
 
   // El rubro puede no ofrecer extras opcionales (la tienda hoy no los tiene):
   // en ese caso el paso de módulos no existe y el asistente pasa de 3 pasos a
@@ -41,6 +42,10 @@ export default function RegisterPage() {
 
   const handleNext = () => setStep(step === 1 && !hasModuleStep ? 3 : step + 1);
   const handleBack = () => setStep(step === 3 && !hasModuleStep ? 1 : step - 1);
+  const selectBusinessType = (type: BusinessType) => {
+    setBusinessType(type);
+    setModules(defaultModulesForType(type));
+  };
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -172,7 +177,7 @@ export default function RegisterPage() {
             {REGISTER_BUSINESS_OPTIONS.map((option) => (
               <button
                 key={option.id}
-                onClick={() => setBusinessType(option.id)}
+                onClick={() => selectBusinessType(option.id)}
                 className={`w-full py-4 px-6 rounded-[20px] border flex flex-col items-center justify-center gap-3 transition-all duration-300 ${
                   businessType === option.id
                     ? "bg-primary/5 border-primary ring-1 ring-primary/50 shadow-[0_0_20px_rgba(96,99,238,0.1)]"
@@ -244,6 +249,8 @@ export default function RegisterPage() {
                     ) : (
                        <button
                           type="button"
+                          aria-label={`Activar ${mod.label}`}
+                          aria-pressed={isOn}
                           onClick={() => setModules({...modules, [mod.id]: !modules[mod.id]})}
                           className={`w-11 h-6 rounded-full relative transition-colors duration-300 focus:outline-none ${isOn ? 'bg-primary' : 'bg-surface-container-highest border border-outline-variant/20'}`}
                        >

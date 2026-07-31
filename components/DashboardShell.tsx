@@ -29,6 +29,7 @@ import { useProfile } from "@/components/ProfileProvider";
 import { visibleNavItems, workerNavItems } from "@/config/business";
 import { backdropProps } from "@/components/modal";
 import { SIDEBAR_COOKIE, SIDEBAR_COOKIE_MAX_AGE } from "@/lib/sidebar";
+import { WorkspaceSwitcher } from "@/components/WorkspaceSwitcher";
 
 type IconType = typeof IconHome;
 
@@ -229,6 +230,7 @@ export function DashboardShell({
           </div>
 
           <div className="flex items-center gap-4 sm:gap-6 ml-auto">
+            <WorkspaceSwitcher />
             <button
               onClick={() => setCalculatorOpen(true)}
               className="text-on-surface-variant hover:text-on-surface transition-colors"

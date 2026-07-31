@@ -114,6 +114,10 @@ export interface CheckoutItem {
 }
 
 export interface CheckoutInput {
+  /** Context frozen before the network attempt; the RPC rejects a switch. */
+  workspaceId: string;
+  membershipId: string;
+  shiftId: string | null;
   customerId: string | null;
   staffId: string | null;
   paymentMethod: PaymentMethod;
@@ -315,13 +319,21 @@ export async function createSale(input: CheckoutInput): Promise<string> {
   const supabase = createClient();
 
   type CreateSaleArgs = Database["public"]["Functions"]["create_sale"]["Args"];
+  type WorkspaceCreateSaleArgs = CreateSaleArgs & {
+    p_expected_workspace_id: string;
+    p_expected_membership_id: string;
+    p_expected_shift_id?: string;
+  };
 
-  const payload: CreateSaleArgs = {
+  const payload: WorkspaceCreateSaleArgs = {
     p_customer_id: input.customerId as string,
     p_payment_method: input.paymentMethod,
     p_discount_amount: input.discount,
     p_items: input.items as unknown as Json,
     p_staff_id: input.staffId ?? undefined,
+    p_expected_workspace_id: input.workspaceId,
+    p_expected_membership_id: input.membershipId,
+    ...(input.shiftId ? { p_expected_shift_id: input.shiftId } : {}),
     ...(input.transferMethod ? { p_transfer_method: input.transferMethod } : {}),
     ...(input.cardMethod ? { p_card_method: input.cardMethod } : {}),
     ...(input.clientSaleId ? { p_client_sale_id: input.clientSaleId } : {}),
@@ -334,21 +346,6 @@ export async function createSale(input: CheckoutInput): Promise<string> {
   const { data, error } = await supabase.rpc("create_sale", payload);
   if (error) throw error;
   return data as string;
-}
-
-/**
- * `auth.uid()` de la sesión actual, o null si no hay.
- *
- * Usa `getSession()` y NO `getUser()` a propósito: `getUser()` sale a la red a
- * validar el token contra GoTrue, así que devuelve null justo cuando más se lo
- * necesita —sin conexión—, mientras que `getSession()` lee el token que ya está
- * guardado en el navegador. Es el id con el que se marca a quién pertenece una
- * venta encolada.
- */
-export async function getAuthUserId(): Promise<string | null> {
-  const supabase = createClient();
-  const { data } = await supabase.auth.getSession();
-  return data.session?.user.id ?? null;
 }
 
 export async function createCustomer(params: {
