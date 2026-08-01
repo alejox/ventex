@@ -1,18 +1,27 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Plan, PlanPeriod } from "@/services/subscription.service";
 import { formatMoney, formatSalesLimit } from "@/config/plans";
 import { whatsappUrl } from "@/config/contact";
+import { useSubscriptionBillingStore } from "@/stores/subscription-billing.store";
+import { PaymentModal, GUEST_EMAIL_KEY } from "@/components/billing/PaymentModal";
+import { useSearchParam, useStoredValue, stripSearchParams } from "@/lib/useUrlState";
 
 /**
  * Precios de la landing. Los planes y sus tiempos vienen de la base, así que lo
  * que el super admin publica en /admin/plans es lo que ve el visitante.
  *
  * Es Client Component porque el visitante ELIGE la duración antes de comprar:
- * esa elección cambia los precios de todas las tarjetas y viaja dentro del
- * mensaje de WhatsApp, que es donde se cierra la venta (no hay checkout).
+ * esa elección cambia los precios de todas las tarjetas. Con la pasarela activa
+ * el botón abre el checkout de dLocal Go; sin sesión se paga como INVITADO (se
+ * pide el correo y al volver se crea la cuenta, que reclama el pago). Sin
+ * pasarela configurada, la venta se cierra por WhatsApp como antes.
+ *
+ * El `?pay=` con el que vuelve dLocal se lee ACÁ, en el cliente, y no como
+ * `searchParams` de la página: leerlo en el server convertía la landing en
+ * dinámica y anulaba su `revalidate = 300`.
  */
 export function PricingSection({
   plans,
@@ -25,10 +34,80 @@ export function PricingSection({
   const featuredId = useMemo(() => findFeaturedPlan(plans), [plans]);
   const [months, setMonths] = useState(1);
 
+  const checkoutAuthed = useSubscriptionBillingStore((s) => s.checkoutAuthed);
+  const checkAuth = useSubscriptionBillingStore((s) => s.checkAuth);
+  const [payPeriod, setPayPeriod] = useState<PlanPeriod | null>(null);
+  const [payPlanName, setPayPlanName] = useState("");
+  const [payGuest, setPayGuest] = useState(false);
+
+  useEffect(() => {
+    checkAuth();
+  }, [checkAuth]);
+
+  /**
+   * Vuelta del checkout: `?pay=<orderId>` reabre el modal en modo polling.
+   * El id se toma de la URL (no de un estado sembrado en un efecto) y sólo deja
+   * de contar cuando el usuario cierra el modal — así refrescar la pantalla no
+   * lo reabre y no hay render en cascada al montar.
+   */
+  const returningOrderId = useSearchParam("pay");
+  const storedGuestEmail = useStoredValue(GUEST_EMAIL_KEY);
+  const [dismissedReturn, setDismissedReturn] = useState(false);
+  const payOrderId = dismissedReturn ? null : returningOrderId;
+  // Si el correo del invitado no está en este navegador (volvió en otro
+  // dispositivo), se consulta como usuario con sesión; sin sesión el polling
+  // responde 403 y el modal ofrece revisar más tarde.
+  const returningAsGuest = Boolean(storedGuestEmail);
+
   if (plans.length === 0) return null;
 
   /** Si la duración elegida ya no existe, se cae al mes (siempre presente). */
   const selected = options.find((o) => o.months === months) ?? options[0];
+
+  const closeModal = () => {
+    setPayPeriod(null);
+    setPayPlanName("");
+    setPayGuest(false);
+    setDismissedReturn(true);
+    stripSearchParams("pay");
+  };
+
+  /**
+   * Un invitado que acaba de pagar va al registro con su correo ya cargado: al
+   * completarlo, `claim_guest_orders` ata el pago a la cuenta nueva. Quien ya
+   * tenía sesión va directo a ver su plan.
+   */
+  const handlePaid = () => {
+    // `payGuest` sólo está seteado si el pago arrancó en esta pantalla; al
+    // volver del checkout el modo se deduce del correo guardado.
+    const asGuest = payPeriod ? payGuest : returningAsGuest;
+    if (!asGuest) {
+      window.location.href = "/dashboard/subscription";
+      return;
+    }
+    window.location.href = storedGuestEmail
+      ? `/register?paid=1&email=${encodeURIComponent(storedGuestEmail)}`
+      : "/register?paid=1";
+  };
+
+  /**
+   * Abre el checkout. Si todavía no sabemos si hay sesión (`null`), se resuelve
+   * antes de decidir: abrirlo asumiendo "con sesión" haría que un anónimo saltee
+   * el paso del correo y el pago se rechace por falta de correo.
+   */
+  const startPayment = async (planName: string, selectedPeriod: PlanPeriod) => {
+    let authed = checkoutAuthed;
+    if (authed === null) {
+      await checkAuth();
+      authed = useSubscriptionBillingStore.getState().checkoutAuthed;
+    }
+    setPayPlanName(planName);
+    setPayPeriod(selectedPeriod);
+    setPayGuest(authed !== true);
+    // Un pago nuevo tiene prioridad sobre un `?pay=` viejo que siguiera en la URL.
+    setDismissedReturn(true);
+    stripSearchParams("pay");
+  };
 
   return (
     <section id="precios" className="max-w-6xl mx-auto px-6 py-24">
@@ -54,14 +133,39 @@ export function PricingSection({
             periods={periods.filter((p) => p.plan_id === plan.id)}
             months={selected?.months ?? 1}
             featured={plan.id === featuredId}
+            onPay={(p) => void startPayment(plan.name, p)}
           />
         ))}
       </div>
 
       <p className="mt-8 text-center text-sm text-on-surface-variant">
-        Sin tarjeta ni pagos automáticos. Escríbenos por WhatsApp con el plan que
-        elegiste y activamos tu licencia el mismo día.
+        Paga con Nequi, PSE, tarjeta o efectivo. ¿Todavía no tienes cuenta? Paga
+        primero y la creas enseguida con el mismo correo.{" "}
+        <a
+          href={whatsappUrl(
+            "Hola, tengo una duda sobre los planes de Ventex antes de contratar.",
+          )}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-primary font-semibold hover:underline"
+        >
+          ¿Dudas? Escríbenos
+        </a>
+        .
       </p>
+
+      {(payPeriod || payOrderId) && (
+        <PaymentModal
+          key={payPeriod?.id ?? payOrderId ?? "pay"}
+          open
+          period={payPeriod}
+          planName={payPlanName}
+          initialOrderId={payPeriod ? null : payOrderId}
+          guest={payPeriod ? payGuest : returningAsGuest}
+          onClose={closeModal}
+          onPaid={handlePaid}
+        />
+      )}
     </section>
   );
 }
@@ -120,11 +224,13 @@ function PlanCard({
   periods,
   months,
   featured,
+  onPay,
 }: {
   plan: Plan;
   periods: PlanPeriod[];
   months: number;
   featured: boolean;
+  onPay: (period: PlanPeriod) => void;
 }) {
   const monthlyPrice = Number(plan.price);
   const free = monthlyPrice <= 0;
@@ -200,40 +306,23 @@ function PlanCard({
           Empieza gratis
         </Link>
       ) : (
-        <a
-          href={whatsappUrl(buildPurchaseMessage(plan.name, period, total, span))}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={`mt-8 flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-bold transition-colors ${
+        /* La compra se cierra SIEMPRE en el checkout, nunca por WhatsApp (que
+           quedó solo para soporte). Sin sesión también se puede pagar: el modal
+           pide el correo y la cuenta se crea después. */
+        <button
+          onClick={() => period && onPay(period)}
+          disabled={!period}
+          className={`mt-8 flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-bold transition-colors w-full disabled:opacity-50 ${
             featured
               ? "bg-primary text-on-primary shadow-lg shadow-primary/25 hover:bg-primary-dim"
               : "bg-surface-container-high border border-outline-variant/20 text-on-surface hover:bg-surface-container-highest"
           }`}
         >
-          <WhatsAppIcon />
-          Quiero {plan.name}
-        </a>
+          {period && span > 1 ? `Pagar ${formatMoney(total)}` : "Pagar ahora"}
+        </button>
       )}
     </div>
   );
-}
-
-/**
- * El mensaje lleva plan, modalidad y precio ya redactados: quien atiende no
- * tiene que preguntar nada para recargar la licencia.
- */
-function buildPurchaseMessage(
-  planName: string,
-  period: PlanPeriod | undefined,
-  total: number,
-  span: number,
-): string {
-  const modality = period?.name ?? "Mensual";
-  const price =
-    span > 1
-      ? `${formatMoney(total)} por ${span} meses`
-      : `${formatMoney(total)} al mes`;
-  return `Hola, quiero contratar el plan ${planName} de Ventex en modalidad ${modality} (${price}). ¿Cómo activo mi cuenta?`;
 }
 
 /**
@@ -302,11 +391,3 @@ function Feature({ children }: { children: React.ReactNode }) {
   );
 }
 
-function WhatsAppIcon() {
-  return (
-    <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-      <path d="M17.47 14.38c-.3-.15-1.76-.87-2.03-.97-.27-.1-.47-.15-.67.15-.2.3-.77.96-.94 1.16-.17.2-.35.22-.64.08-.3-.15-1.25-.46-2.39-1.47-.88-.79-1.48-1.76-1.65-2.06-.17-.3-.02-.46.13-.6.13-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.02-.52-.08-.15-.67-1.61-.92-2.21-.24-.58-.49-.5-.67-.51h-.57c-.2 0-.52.07-.79.37-.27.3-1.04 1.02-1.04 2.48s1.06 2.88 1.21 3.08c.15.2 2.1 3.2 5.08 4.49.71.3 1.26.49 1.69.63.71.22 1.36.19 1.87.12.57-.09 1.76-.72 2.01-1.41.25-.7.25-1.29.17-1.42-.07-.13-.27-.2-.57-.35z" />
-      <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.46 1.32 4.96L2 22l5.25-1.38a9.87 9.87 0 0 0 4.79 1.22h.01c5.46 0 9.91-4.45 9.91-9.91S17.5 2 12.04 2zm0 18.02h-.01a8.2 8.2 0 0 1-4.19-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.19 8.19 0 0 1-1.26-4.38c0-4.54 3.7-8.23 8.24-8.23a8.23 8.23 0 0 1 0 16.47z" />
-    </svg>
-  );
-}

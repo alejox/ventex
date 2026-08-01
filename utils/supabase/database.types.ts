@@ -103,6 +103,105 @@ export type Database = {
           },
         ]
       }
+      billing_orders: {
+        Row: {
+          amount: number
+          card_id: string | null
+          checkout_token: string | null
+          created_at: string
+          currency: string
+          dlocal_enrollment_id: string | null
+          dlocal_payment_id: string | null
+          error: string | null
+          guest_email: string | null
+          id: string
+          method: string
+          order_id: string
+          paid_at: string | null
+          payer_document: string | null
+          payer_email: string | null
+          payer_name: string | null
+          payer_phone: string | null
+          payment_method_type: string | null
+          period_months: number
+          period_name: string
+          plan_id: string
+          plan_period_id: string
+          status: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          amount: number
+          card_id?: string | null
+          checkout_token?: string | null
+          created_at?: string
+          currency?: string
+          dlocal_enrollment_id?: string | null
+          dlocal_payment_id?: string | null
+          error?: string | null
+          guest_email?: string | null
+          id?: string
+          method?: string
+          order_id: string
+          paid_at?: string | null
+          payer_document?: string | null
+          payer_email?: string | null
+          payer_name?: string | null
+          payer_phone?: string | null
+          payment_method_type?: string | null
+          period_months: number
+          period_name: string
+          plan_id: string
+          plan_period_id: string
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          amount?: number
+          card_id?: string | null
+          checkout_token?: string | null
+          created_at?: string
+          currency?: string
+          dlocal_enrollment_id?: string | null
+          dlocal_payment_id?: string | null
+          error?: string | null
+          guest_email?: string | null
+          id?: string
+          method?: string
+          order_id?: string
+          paid_at?: string | null
+          payer_document?: string | null
+          payer_email?: string | null
+          payer_name?: string | null
+          payer_phone?: string | null
+          payment_method_type?: string | null
+          period_months?: number
+          period_name?: string
+          plan_id?: string
+          plan_period_id?: string
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_orders_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "billing_orders_plan_period_id_fkey"
+            columns: ["plan_period_id"]
+            isOneToOne: false
+            referencedRelation: "plan_periods"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cash_movements: {
         Row: {
           amount: number
@@ -1681,6 +1780,21 @@ export type Database = {
       }
       subscriptions: {
         Row: {
+          billing_card_brand: string | null
+          billing_card_last4: string | null
+          billing_error: string | null
+          billing_failed_attempts: number
+          billing_last_charge_at: string | null
+          billing_network_reference: string | null
+          billing_next_charge_at: string | null
+          billing_payer_document: string | null
+          billing_payer_email: string | null
+          billing_payer_name: string | null
+          billing_payer_phone: string | null
+          billing_provider: string | null
+          billing_provider_ref: string | null
+          billing_recurring: boolean
+          billing_transaction_link_id: string | null
           created_at: string
           current_period_end: string | null
           id: string
@@ -1691,6 +1805,21 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          billing_card_brand?: string | null
+          billing_card_last4?: string | null
+          billing_error?: string | null
+          billing_failed_attempts?: number
+          billing_last_charge_at?: string | null
+          billing_network_reference?: string | null
+          billing_next_charge_at?: string | null
+          billing_payer_document?: string | null
+          billing_payer_email?: string | null
+          billing_payer_name?: string | null
+          billing_payer_phone?: string | null
+          billing_provider?: string | null
+          billing_provider_ref?: string | null
+          billing_recurring?: boolean
+          billing_transaction_link_id?: string | null
           created_at?: string
           current_period_end?: string | null
           id?: string
@@ -1701,6 +1830,21 @@ export type Database = {
           user_id: string
         }
         Update: {
+          billing_card_brand?: string | null
+          billing_card_last4?: string | null
+          billing_error?: string | null
+          billing_failed_attempts?: number
+          billing_last_charge_at?: string | null
+          billing_network_reference?: string | null
+          billing_next_charge_at?: string | null
+          billing_payer_document?: string | null
+          billing_payer_email?: string | null
+          billing_payer_name?: string | null
+          billing_payer_phone?: string | null
+          billing_provider?: string | null
+          billing_provider_ref?: string | null
+          billing_recurring?: boolean
+          billing_transaction_link_id?: string | null
           created_at?: string
           current_period_end?: string | null
           id?: string
@@ -2049,11 +2193,16 @@ export type Database = {
         }
         Returns: undefined
       }
+      apply_billing_charge: {
+        Args: { p_order_id: string; p_user_id: string }
+        Returns: Json
+      }
       assert_monthly_sales_limit: {
         Args: { p_add: number; p_uid: string }
         Returns: undefined
       }
       can_write_settings: { Args: never; Returns: boolean }
+      claim_guest_orders: { Args: { p_email: string }; Returns: Json }
       clear_active_workspace: { Args: never; Returns: undefined }
       close_shift: {
         Args: { p_closing_cash: number; p_notes?: string; p_shift_id?: string }
@@ -2173,6 +2322,10 @@ export type Database = {
       }
       staff_login_email: {
         Args: { p_business_email: string; p_username: string }
+        Returns: string
+      }
+      sync_billing_schedule: {
+        Args: { p_months: number; p_user_id: string }
         Returns: string
       }
       void_sale: { Args: { p_sale_id: string }; Returns: undefined }

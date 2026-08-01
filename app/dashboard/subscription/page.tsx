@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useSubscriptionStore } from "@/stores/subscription.store";
 import { useSettingsStore } from "@/stores/settings.store";
 import type { Plan, PlanPeriod } from "@/services/subscription.service";
@@ -12,6 +12,10 @@ import {
   SUBSCRIPTION_STATUS_LABELS,
 } from "@/config/plans";
 import { whatsappUrl } from "@/config/contact";
+import { PaymentModal } from "@/components/billing/PaymentModal";
+import { useSubscriptionBillingStore } from "@/stores/subscription-billing.store";
+import type { BillingStatus } from "@/services/subscription-billing.service";
+import { useSearchParam, stripSearchParams } from "@/lib/useUrlState";
 
 export default function SubscriptionPage() {
   const subscription = useSubscriptionStore((s) => s.subscription);
@@ -24,13 +28,60 @@ export default function SubscriptionPage() {
   const settings = useSettingsStore((s) => s.settings);
   const fetchSettings = useSettingsStore((s) => s.fetchSettings);
 
+  const billing = useSubscriptionBillingStore((s) => s.billing);
+  const loadBilling = useSubscriptionBillingStore((s) => s.loadBilling);
+  const claim = useSubscriptionBillingStore((s) => s.claim);
+  const setRecurring = useSubscriptionBillingStore((s) => s.setRecurring);
+  const billingBusy = useSubscriptionBillingStore((s) => s.submitting);
+  const billingError = useSubscriptionBillingStore((s) => s.error);
+
   const currency = settings?.currency ?? "COP";
   const businessName = settings?.business_profile?.businessName?.trim() || "";
+
+  const [payPeriod, setPayPeriod] = useState<PlanPeriod | null>(null);
+  const [payPlanName, setPayPlanName] = useState("");
 
   useEffect(() => {
     fetchAll();
     if (!settings) fetchSettings();
   }, [fetchAll, fetchSettings, settings]);
+
+  /**
+   * Red de seguridad del pago hecho como invitado. Corre siempre porque alguien
+   * pudo pagar en la landing sin sesión y entrar después por su cuenta; es
+   * idempotente, así que si no hay nada que reclamar no hace nada. Sólo se
+   * recarga el plan cuando efectivamente activó algo.
+   */
+  useEffect(() => {
+    void claim().then((activated) => {
+      if (activated > 0) fetchAll();
+    });
+    void loadBilling();
+  }, [claim, fetchAll, loadBilling]);
+
+  /** Vuelta del checkout: `?pay=<orderId>` reabre el modal en modo polling. */
+  const returningOrderId = useSearchParam("pay");
+  const [dismissedReturn, setDismissedReturn] = useState(false);
+  const payOrderId = dismissedReturn ? null : returningOrderId;
+
+  const closeModal = () => {
+    setPayPeriod(null);
+    setPayPlanName("");
+    setDismissedReturn(true);
+    stripSearchParams("pay", "paid");
+  };
+
+  const openPayment = (planName: string, selectedPeriod: PlanPeriod) => {
+    setPayPlanName(planName);
+    setPayPeriod(selectedPeriod);
+    setDismissedReturn(true);
+    stripSearchParams("pay", "paid");
+  };
+
+  const handlePaid = () => {
+    fetchAll();
+    void loadBilling();
+  };
 
   /** Firma del negocio para que el asesor sepa a quién le recarga la licencia. */
   const signature = businessName ? ` Mi negocio es "${businessName}".` : "";
@@ -44,9 +95,9 @@ export default function SubscriptionPage() {
         </p>
       </div>
 
-      {error && (
+      {(error || billingError) && (
         <div className="rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim mb-6">
-          {error}
+          {error ?? billingError}
         </div>
       )}
 
@@ -56,9 +107,21 @@ export default function SubscriptionPage() {
         <>
           <CurrentPlanCard
             subscription={subscription}
+            periods={periods.filter((p) => p.plan_id === subscription.plan_id && p.is_active)}
             currency={currency}
             signature={signature}
+            onPay={(p) => openPayment(subscription.plan_name, p)}
           />
+
+          {billing && (
+            <BillingCard
+              billing={billing}
+              currency={currency}
+              busy={billingBusy}
+              onToggleRecurring={(enabled) => void setRecurring(enabled).catch(() => {})}
+            />
+          )}
+
           <h2 className="text-lg font-bold text-on-surface mt-10 mb-4">Planes disponibles</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {plans
@@ -70,31 +133,50 @@ export default function SubscriptionPage() {
                   periods={periods.filter((x) => x.plan_id === p.id && x.is_active)}
                   currency={currency}
                   current={p.id === subscription.plan_id}
-                  signature={signature}
+                  onPay={(per) => openPayment(p.name, per)}
                 />
               ))}
           </div>
           <p className="text-xs text-on-surface-variant mt-6 text-center">
-            Los cambios de plan y las renovaciones se gestionan por WhatsApp con
-            un asesor.
+            Cambiá o renová tu plan pagando acá con Nequi, PSE, tarjeta o
+            efectivo. El cambio queda activo en el momento.
           </p>
         </>
       ) : null}
+
+      {(payPeriod || payOrderId) && (
+        <PaymentModal
+          key={payPeriod?.id ?? payOrderId ?? "pay"}
+          open
+          period={payPeriod}
+          planName={payPlanName}
+          initialOrderId={payPeriod ? null : payOrderId}
+          onClose={closeModal}
+          onPaid={handlePaid}
+        />
+      )}
     </div>
   );
 }
 
 function CurrentPlanCard({
   subscription,
+  periods,
   currency,
   signature,
+  onPay,
 }: {
   subscription: NonNullable<ReturnType<typeof useSubscriptionStore.getState>["subscription"]>;
+  periods: PlanPeriod[];
   currency: string;
   signature: string;
+  onPay: (period: PlanPeriod) => void;
 }) {
   const accent = planAccent(subscription.plan_id);
   const statusLabel = SUBSCRIPTION_STATUS_LABELS[subscription.status] ?? subscription.status;
+  /** El plan Gratis no se cobra: no hay nada que renovar. */
+  const canPayOnline = subscription.price > 0;
+  const mensual = periods.find((p) => p.months === 1) ?? periods[0];
 
   return (
     <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-3xl p-6 md:p-8 shadow-sm">
@@ -138,15 +220,20 @@ function CurrentPlanCard({
 
       <div className="mt-8 pt-6 border-t border-outline-variant/10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <p className="text-sm text-on-surface-variant">
-          ¿Necesitas renovar, subir de plan o resolver una duda? Escríbenos por
-          WhatsApp y te atendemos.
+          {canPayOnline
+            ? "Renová tu plan en línea con Nequi, PSE, tarjeta o efectivo."
+            : "¿Necesitás ayuda con tu cuenta? Escribinos y te atendemos."}
         </p>
+        {/* WhatsApp quedó SOLO para soporte: la renovación se paga acá. */}
         <div className="flex flex-wrap gap-3 shrink-0">
-          <WhatsAppButton
-            message={`Hola, quiero renovar mi plan ${subscription.plan_name} en Ventex.${signature}`}
-          >
-            Renovar plan
-          </WhatsAppButton>
+          {canPayOnline && mensual && (
+            <button
+              onClick={() => onPay(mensual)}
+              className="inline-flex items-center justify-center gap-2 py-2.5 px-5 rounded-xl text-sm font-bold transition-colors whitespace-nowrap bg-primary text-white hover:bg-primary-dim shadow-lg shadow-primary/20"
+            >
+              Renovar en línea
+            </button>
+          )}
           <WhatsAppButton
             variant="ghost"
             message={`Hola, necesito ayuda con mi cuenta de Ventex (plan ${subscription.plan_name}).${signature}`}
@@ -154,6 +241,132 @@ function CurrentPlanCard({
             Soporte
           </WhatsAppButton>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/** Nombres legibles de los medios que informa dLocal Go. */
+const METHOD_LABELS: Record<string, string> = {
+  CREDIT_CARD: "Tarjeta de crédito",
+  DEBIT_CARD: "Tarjeta débito",
+  BANK_TRANSFER: "Transferencia / PSE",
+  WALLET: "Billetera (Nequi)",
+  VOUCHER: "Efectivo",
+  TICKET: "Efectivo",
+};
+
+function formatDate(value: string | null): string {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleDateString("es-CO", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
+}
+
+/**
+ * Estado del cobro automático: cuándo se cobra, con qué se pagó la última vez y
+ * el botón de baja.
+ *
+ * En dLocal Go el cobro recurrente lo inicia el comercio, así que "dar de baja"
+ * es dejar de cobrar: el plan sigue vivo hasta el fin del periodo ya pagado, y
+ * eso es justo lo que dice el texto para que nadie crea que pierde los días que
+ * pagó.
+ */
+function BillingCard({
+  billing,
+  currency,
+  busy,
+  onToggleRecurring,
+}: {
+  billing: BillingStatus;
+  currency: string;
+  busy: boolean;
+  onToggleRecurring: (enabled: boolean) => void;
+}) {
+  const methodLabel = billing.lastPayment?.methodType
+    ? (METHOD_LABELS[billing.lastPayment.methodType] ?? billing.lastPayment.methodType)
+    : null;
+
+  return (
+    <div className="mt-6 bg-surface-container-lowest border border-outline-variant/10 rounded-3xl p-6 md:p-8 shadow-sm">
+      <div className="flex items-start justify-between gap-4 mb-6">
+        <div>
+          <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1">
+            Cobro automático
+          </p>
+          <p className="text-lg font-bold text-on-surface">
+            {billing.recurring ? "Activo" : "Desactivado"}
+          </p>
+        </div>
+        <span
+          className={`shrink-0 text-[11px] font-semibold px-2.5 py-1 rounded-full ${
+            billing.recurring
+              ? "bg-[#10b981]/15 text-[#10b981]"
+              : "bg-surface-container-high text-on-surface-variant"
+          }`}
+        >
+          {billing.recurring ? "Se renueva solo" : "Renovación manual"}
+        </span>
+      </div>
+
+      {billing.error && (
+        <div className="rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim mb-5">
+          {billing.error}
+        </div>
+      )}
+
+      <dl className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+        <div>
+          <dt className="text-on-surface-variant mb-0.5">
+            {billing.recurring ? "Próximo cobro" : "Tu plan vence"}
+          </dt>
+          <dd className="font-semibold text-on-surface">
+            {formatDate(billing.recurring ? billing.nextChargeAt : billing.currentPeriodEnd)}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-on-surface-variant mb-0.5">Último pago</dt>
+          <dd className="font-semibold text-on-surface">
+            {billing.lastPayment
+              ? `${formatMoney(billing.lastPayment.amount, currency)} · ${formatDate(billing.lastPayment.paidAt)}`
+              : "—"}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-on-surface-variant mb-0.5">Medio de pago</dt>
+          <dd className="font-semibold text-on-surface">{methodLabel ?? "—"}</dd>
+        </div>
+      </dl>
+
+      <div className="mt-6 pt-5 border-t border-outline-variant/10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <p className="text-[13px] text-on-surface-variant leading-relaxed">
+          {billing.recurring
+            ? "Si das de baja, tu plan sigue activo hasta la fecha de vencimiento y después no se renueva."
+            : billing.hasSavedMethod
+              ? "Podés volver a activar la renovación automática con el mismo medio de pago."
+              : "Pagá una vez en línea y la renovación automática queda disponible."}
+        </p>
+        {(billing.recurring || billing.hasSavedMethod) && (
+          <button
+            onClick={() => onToggleRecurring(!billing.recurring)}
+            disabled={busy}
+            className={`shrink-0 inline-flex items-center justify-center py-2.5 px-5 rounded-xl text-sm font-bold transition-colors whitespace-nowrap disabled:opacity-50 ${
+              billing.recurring
+                ? "border border-outline-variant/20 text-on-surface hover:bg-surface-container-high"
+                : "bg-primary text-white hover:bg-primary-dim"
+            }`}
+          >
+            {busy
+              ? "Guardando…"
+              : billing.recurring
+                ? "Dar de baja la renovación"
+                : "Activar renovación"}
+          </button>
+        )}
       </div>
     </div>
   );
@@ -249,17 +462,18 @@ function PlanCard({
   periods,
   currency,
   current,
-  signature,
+  onPay,
 }: {
   plan: Plan;
   periods: PlanPeriod[];
   currency: string;
   current: boolean;
-  signature: string;
+  onPay: (period: PlanPeriod) => void;
 }) {
   const accent = planAccent(plan.id);
   /** Tiempos de más de un mes: son la oferta de ahorro del plan. */
   const longer = periods.filter((p) => p.months > 1);
+  const mensual = periods.find((p) => p.months === 1) ?? periods[0];
   return (
     <div
       className={`flex flex-col rounded-3xl p-6 border transition-colors ${
@@ -301,27 +515,29 @@ function PlanCard({
         </li>
       </ul>
 
-      {plan.price > 0 && (
+      {/* Contratar y renovar se hace SIEMPRE en el checkout; WhatsApp quedó
+          solo para soporte. Sin periodo mensual activo no hay nada que cobrar. */}
+      {plan.price > 0 && mensual && (
         <div className="mt-6 flex flex-col gap-2">
-          <WhatsAppButton
-            variant={current ? "outline" : "solid"}
-            message={
+          <button
+            onClick={() => onPay(mensual)}
+            className={`inline-flex items-center justify-center gap-2 py-2.5 px-5 rounded-xl text-sm font-bold transition-colors whitespace-nowrap ${
               current
-                ? `Hola, quiero renovar mi plan ${plan.name} en Ventex.${signature}`
-                : `Hola, quiero contratar el plan ${plan.name} en Ventex.${signature}`
-            }
+                ? "border border-outline-variant/20 text-on-surface hover:bg-surface-container-high"
+                : "bg-primary text-white hover:bg-primary-dim shadow-lg shadow-primary/20"
+            }`}
           >
-            {current ? "Renovar" : `Quiero el plan ${plan.name}`}
-          </WhatsAppButton>
-          {/* Un botón por tiempo largo: el mensaje ya lleva el precio acordado. */}
+            {current ? "Renovar" : `Pagar ${mensual.name.toLowerCase()}`}
+          </button>
+          {/* Un botón por tiempo largo: pago único con descuento. */}
           {longer.map((p) => (
-            <WhatsAppButton
+            <button
               key={p.id}
-              variant="ghost"
-              message={`Hola, quiero el plan ${plan.name} en modalidad ${p.name} (${formatMoney(p.price, currency)} por ${p.months} meses).${signature}`}
+              onClick={() => onPay(p)}
+              className="inline-flex items-center justify-center gap-2 py-2.5 px-5 rounded-xl text-sm font-bold transition-colors whitespace-nowrap border border-outline-variant/20 text-on-surface hover:bg-surface-container-high"
             >
-              Contratar {p.name.toLowerCase()}
-            </WhatsAppButton>
+              Pagar {p.name.toLowerCase()} · {formatMoney(p.price, currency)}
+            </button>
           ))}
         </div>
       )}
