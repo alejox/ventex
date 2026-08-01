@@ -28,6 +28,7 @@ export const fetchProfileServer = cache(async function fetchProfileServer(): Pro
     full_name?: string | null;
     business_type?: string | null;
     business_name?: string | null;
+    phone?: string | null;
     modules?: unknown;
     is_super_admin?: boolean | null;
     is_reseller?: boolean | null;
@@ -63,6 +64,7 @@ export const fetchProfileServer = cache(async function fetchProfileServer(): Pro
         ? row.membership_kind
         : null,
     businessName: row?.business_name ?? null,
+    phone: row?.phone ?? null,
     staffId: row?.staff_id ?? null,
     workerPermissions: (row?.worker_permissions ?? {}) as WorkerPermissions,
   };

@@ -24,6 +24,7 @@ import {
 export async function completeOnboarding(formData: FormData): Promise<{ error: string } | void> {
   const businessType = String(formData.get("business_type") || "");
   const businessName = String(formData.get("business_name") || "").trim();
+  const phone = String(formData.get("phone") || "").trim() || null;
 
   // El tipo tiene que ser uno de los habilitados hoy; nada de valores forjados.
   if (!REGISTRABLE_BUSINESS_TYPES.includes(businessType as BusinessType)) {
@@ -45,7 +46,7 @@ export async function completeOnboarding(formData: FormData): Promise<{ error: s
 
   const { error } = await supabase
     .from("profiles")
-    .update({ business_type: businessType, business_name: businessName, modules })
+    .update({ business_type: businessType, business_name: businessName, modules, phone })
     .eq("id", user.id);
 
   if (error) return { error: error.message };

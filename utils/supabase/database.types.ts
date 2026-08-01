@@ -108,6 +108,7 @@ export type Database = {
           amount: number
           created_at: string
           id: string
+          membership_id: string
           reason: string
           shift_id: string
           user_id: string
@@ -117,6 +118,7 @@ export type Database = {
           amount: number
           created_at?: string
           id?: string
+          membership_id: string
           reason: string
           shift_id: string
           user_id?: string
@@ -126,12 +128,20 @@ export type Database = {
           amount?: number
           created_at?: string
           id?: string
+          membership_id?: string
           reason?: string
           shift_id?: string
           user_id?: string
           worker_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "cash_movements_shift_context_fkey"
+            columns: ["shift_id", "user_id", "membership_id"]
+            isOneToOne: false
+            referencedRelation: "shifts"
+            referencedColumns: ["id", "user_id", "membership_id"]
+          },
           {
             foreignKeyName: "cash_movements_shift_id_fkey"
             columns: ["shift_id"]
@@ -921,6 +931,7 @@ export type Database = {
           is_worker: boolean | null
           modules: Json
           owner_id: string | null
+          phone: string | null
           reseller_id: string | null
           staff_id: string | null
           updated_at: string
@@ -945,6 +956,7 @@ export type Database = {
           is_worker?: boolean | null
           modules?: Json
           owner_id?: string | null
+          phone?: string | null
           reseller_id?: string | null
           staff_id?: string | null
           updated_at?: string
@@ -969,6 +981,7 @@ export type Database = {
           is_worker?: boolean | null
           modules?: Json
           owner_id?: string | null
+          phone?: string | null
           reseller_id?: string | null
           staff_id?: string | null
           updated_at?: string
@@ -1310,6 +1323,7 @@ export type Database = {
           customer_id: string | null
           discount_amount: number
           id: string
+          membership_id: string
           payment_method: string
           sale_number: number
           shift_id: string | null
@@ -1329,6 +1343,7 @@ export type Database = {
           customer_id?: string | null
           discount_amount?: number
           id?: string
+          membership_id: string
           payment_method?: string
           sale_number?: number
           shift_id?: string | null
@@ -1348,6 +1363,7 @@ export type Database = {
           customer_id?: string | null
           discount_amount?: number
           id?: string
+          membership_id?: string
           payment_method?: string
           sale_number?: number
           shift_id?: string | null
@@ -1367,6 +1383,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "customers"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_membership_fkey"
+            columns: ["membership_id", "user_id"]
+            isOneToOne: false
+            referencedRelation: "workspace_memberships"
+            referencedColumns: ["id", "workspace_id"]
           },
           {
             foreignKeyName: "sales_shift_id_fkey"
@@ -1484,6 +1507,7 @@ export type Database = {
           difference: number | null
           expected_cash: number | null
           id: string
+          membership_id: string
           notes: string | null
           opened_at: string
           opening_cash: number
@@ -1501,6 +1525,7 @@ export type Database = {
           difference?: number | null
           expected_cash?: number | null
           id?: string
+          membership_id: string
           notes?: string | null
           opened_at?: string
           opening_cash?: number
@@ -1518,6 +1543,7 @@ export type Database = {
           difference?: number | null
           expected_cash?: number | null
           id?: string
+          membership_id?: string
           notes?: string | null
           opened_at?: string
           opening_cash?: number
@@ -1529,7 +1555,15 @@ export type Database = {
           withdrawals_total?: number | null
           worker_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "shifts_membership_fkey"
+            columns: ["membership_id", "user_id", "worker_id"]
+            isOneToOne: false
+            referencedRelation: "workspace_memberships"
+            referencedColumns: ["id", "workspace_id", "auth_user_id"]
+          },
+        ]
       }
       staff: {
         Row: {
@@ -1727,11 +1761,150 @@ export type Database = {
           },
         ]
       }
+      workspace_memberships: {
+        Row: {
+          accepted_at: string | null
+          activated_at: string | null
+          auth_user_id: string | null
+          created_at: string
+          id: string
+          invited_at: string
+          invited_email: string
+          member_kind: string
+          permissions: Json
+          provisional_auth_user: boolean
+          revoked_at: string | null
+          role: string | null
+          staff_id: string | null
+          status: string
+          suspended_at: string | null
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          activated_at?: string | null
+          auth_user_id?: string | null
+          created_at?: string
+          id?: string
+          invited_at?: string
+          invited_email: string
+          member_kind?: string
+          permissions?: Json
+          provisional_auth_user?: boolean
+          revoked_at?: string | null
+          role?: string | null
+          staff_id?: string | null
+          status?: string
+          suspended_at?: string | null
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          accepted_at?: string | null
+          activated_at?: string | null
+          auth_user_id?: string | null
+          created_at?: string
+          id?: string
+          invited_at?: string
+          invited_email?: string
+          member_kind?: string
+          permissions?: Json
+          provisional_auth_user?: boolean
+          revoked_at?: string | null
+          role?: string | null
+          staff_id?: string | null
+          status?: string
+          suspended_at?: string | null
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_memberships_staff_workspace_fkey"
+            columns: ["staff_id", "workspace_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id", "user_id"]
+          },
+          {
+            foreignKeyName: "workspace_memberships_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workspace_session_selections: {
+        Row: {
+          auth_user_id: string
+          membership_id: string
+          selected_at: string
+          session_id: string
+          workspace_id: string
+        }
+        Insert: {
+          auth_user_id: string
+          membership_id: string
+          selected_at?: string
+          session_id: string
+          workspace_id: string
+        }
+        Update: {
+          auth_user_id?: string
+          membership_id?: string
+          selected_at?: string
+          session_id?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_session_selections_membership_fkey"
+            columns: ["membership_id", "workspace_id", "auth_user_id"]
+            isOneToOne: false
+            referencedRelation: "workspace_memberships"
+            referencedColumns: ["id", "workspace_id", "auth_user_id"]
+          },
+          {
+            foreignKeyName: "workspace_session_selections_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workspaces: {
+        Row: {
+          created_at: string
+          id: string
+          owner_user_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id: string
+          owner_user_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          owner_user_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      accept_workspace_invitation: {
+        Args: { p_membership_id: string }
+        Returns: Json
+      }
       admin_apply_credit_pack: {
         Args: { p_pack_id: string; p_reseller_id: string }
         Returns: undefined
@@ -1881,6 +2054,7 @@ export type Database = {
         Returns: undefined
       }
       can_write_settings: { Args: never; Returns: boolean }
+      clear_active_workspace: { Args: never; Returns: undefined }
       close_shift: {
         Args: { p_closing_cash: number; p_notes?: string; p_shift_id?: string }
         Returns: Json
@@ -1891,6 +2065,9 @@ export type Database = {
           p_client_sale_id?: string
           p_customer_id: string
           p_discount_amount: number
+          p_expected_membership_id?: string
+          p_expected_shift_id?: string
+          p_expected_workspace_id?: string
           p_items: Json
           p_payment_method: string
           p_payments?: Json
@@ -1899,12 +2076,15 @@ export type Database = {
         }
         Returns: string
       }
+      current_session_id: { Args: never; Returns: string }
       current_shift: { Args: never; Returns: Json }
       current_tenant: { Args: never; Returns: string }
       current_user_profile: { Args: never; Returns: Json }
       deactivate_worker: { Args: { p_worker_id: string }; Returns: undefined }
       ensure_license_current: { Args: never; Returns: Json }
+      find_auth_user_by_email: { Args: { p_email: string }; Returns: string }
       generate_business_key: { Args: never; Returns: string }
+      get_active_membership_id: { Args: never; Returns: string }
       get_effective_user_id: { Args: never; Returns: string }
       get_product_costs: {
         Args: { p_ids: string[] }
@@ -1976,6 +2156,10 @@ export type Database = {
           p_to?: string
           p_transfer_method?: string
         }
+        Returns: Json
+      }
+      select_active_workspace: {
+        Args: { p_workspace_id: string }
         Returns: Json
       }
       staff_can: { Args: { section: string }; Returns: boolean }

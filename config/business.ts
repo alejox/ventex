@@ -110,6 +110,8 @@ export interface Profile {
   membershipKind: "owner" | "member" | null;
   /** Nombre del negocio seleccionado. */
   businessName: string | null;
+  /** Teléfono de contacto (opcional). */
+  phone: string | null;
   /** ID del registro en staff al que está vinculado. */
   staffId: string | null;
   /** Permisos granulares del worker. */

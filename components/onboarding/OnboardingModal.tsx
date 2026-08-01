@@ -23,13 +23,15 @@ import { completeOnboarding } from "./actions";
  */
 export function OnboardingModal({ defaultName }: { defaultName: string }) {
   const [step, setStep] = useState(1);
-  const initialBusinessType =
-    REGISTER_BUSINESS_OPTIONS.length === 1 ? REGISTER_BUSINESS_OPTIONS[0].id : "";
-  const [businessType, setBusinessType] = useState(initialBusinessType);
+  // Sin preselección silenciosa: aunque solo haya un rubro registrable, el
+  // usuario debe tocar su tarjeta antes de continuar. El tipo de negocio es
+  // obligatorio y nadie entra al sistema sin haberlo elegido.
+  const [businessType, setBusinessType] = useState("");
   const [modules, setModules] = useState<Record<string, boolean>>(
-    defaultModulesForType(initialBusinessType || null),
+    defaultModulesForType(null),
   );
   const [businessName, setBusinessName] = useState("");
+  const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -50,6 +52,7 @@ export function OnboardingModal({ defaultName }: { defaultName: string }) {
     const fd = new FormData();
     fd.set("business_type", businessType);
     fd.set("business_name", businessName);
+    fd.set("phone", phone);
     fd.set("modules", JSON.stringify(Object.keys(modules).filter((id) => modules[id])));
 
     // La action redirige a /dashboard/pos en el éxito; solo vuelve con un error.
@@ -236,6 +239,34 @@ export function OnboardingModal({ defaultName }: { defaultName: string }) {
                 >
                   <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
                   <polyline points="9 22 9 12 15 12 15 22" />
+                </svg>
+              </div>
+            </div>
+
+            <div className="space-y-1.5 mb-6">
+              <label
+                htmlFor="onboarding-phone"
+                className="text-[13px] font-semibold text-on-surface block"
+              >
+                Teléfono <span className="font-normal text-on-surface-variant/70">(opcional)</span>
+              </label>
+              <div className="relative">
+                <input
+                  id="onboarding-phone"
+                  type="tel"
+                  placeholder="+57 300 123 4567"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-10 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50"
+                />
+                <svg
+                  className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-on-surface-variant/70"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  viewBox="0 0 24 24"
+                >
+                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" />
                 </svg>
               </div>
             </div>

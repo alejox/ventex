@@ -15,11 +15,12 @@ import {
 // --- Component ---
 export default function RegisterPage() {
   const [step, setStep] = useState(1);
-  const initialBusinessType =
-    REGISTER_BUSINESS_OPTIONS.length === 1 ? REGISTER_BUSINESS_OPTIONS[0].id : "";
-  const [businessType, setBusinessType] = useState(initialBusinessType);
+  // Sin preselección silenciosa: aunque solo haya un rubro registrable, el
+  // usuario debe tocar su tarjeta antes de continuar. El tipo de negocio es
+  // obligatorio y nadie entra al sistema sin haberlo elegido.
+  const [businessType, setBusinessType] = useState("");
   const [modules, setModules] = useState<Record<string, boolean>>(
-    defaultModulesForType(initialBusinessType || null),
+    defaultModulesForType(null),
   );
 
   // El rubro puede no ofrecer extras opcionales (la tienda hoy no los tiene):
@@ -35,6 +36,7 @@ export default function RegisterPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [businessName, setBusinessName] = useState("");
@@ -74,6 +76,7 @@ export default function RegisterPage() {
         emailRedirectTo: `${window.location.origin}/auth/confirm?next=/dashboard/pos`,
         data: {
           full_name: name,
+          phone,
           business_name: businessName,
           business_type: businessType,
           modules: modules,
@@ -178,17 +181,15 @@ export default function RegisterPage() {
               <button
                 key={option.id}
                 onClick={() => selectBusinessType(option.id)}
-                className={`w-full py-4 px-6 rounded-[20px] border flex flex-col items-center justify-center gap-3 transition-all duration-300 ${
-                  businessType === option.id
+                className={`w-full py-4 px-6 rounded-[20px] border flex flex-col items-center justify-center gap-3 transition-all duration-300 ${businessType === option.id
                     ? "bg-primary/5 border-primary ring-1 ring-primary/50 shadow-[0_0_20px_rgba(96,99,238,0.1)]"
                     : "bg-surface-container-low border-outline-variant/10 hover:bg-surface-container hover:border-outline-variant/20"
-                }`}
+                  }`}
               >
-                <div className={`w-11 h-11 rounded-full flex items-center justify-center border transition-all duration-300 ${
-                  businessType === option.id
+                <div className={`w-11 h-11 rounded-full flex items-center justify-center border transition-all duration-300 ${businessType === option.id
                     ? "bg-primary border-primary text-on-primary shadow-md"
                     : "bg-surface-container-highest border-outline-variant/20 text-on-surface-variant"
-                }`}>
+                  }`}>
                   {BUSINESS_ICONS[option.id]}
                 </div>
                 <span className={`text-[15px] font-semibold transition-colors ${businessType === option.id ? 'text-primary' : 'text-on-surface'}`}>
@@ -211,9 +212,9 @@ export default function RegisterPage() {
               Paso 1 de {totalSteps}: Perfil de Negocio
             </span>
             <div className="flex gap-4 text-[12px] text-on-surface-variant/70">
-               <Link href="#" className="hover:text-on-surface transition-colors">Términos y Condiciones</Link>
-               <Link href="#" className="hover:text-on-surface transition-colors">Privacidad</Link>
-               <Link href="#" className="hover:text-on-surface transition-colors">Ayuda</Link>
+              <Link href="#" className="hover:text-on-surface transition-colors">Términos y Condiciones</Link>
+              <Link href="#" className="hover:text-on-surface transition-colors">Privacidad</Link>
+              <Link href="#" className="hover:text-on-surface transition-colors">Ayuda</Link>
             </div>
           </div>
         </div>
@@ -223,7 +224,7 @@ export default function RegisterPage() {
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="text-center lg:text-center mb-8 flex flex-col items-center">
             <div className="w-12 h-12 rounded-2xl bg-surface-container-high border border-outline-variant/10 flex items-center justify-center text-primary mb-5 shadow-sm">
-               <RocketIcon />
+              <RocketIcon />
             </div>
             <h2 className="text-[28px] font-bold text-on-surface mb-2 tracking-tight">
               Potencia tu negocio
@@ -237,32 +238,32 @@ export default function RegisterPage() {
             {moduleOptions.map((mod) => {
               const isOn = !mod.comingSoon && !!modules[mod.id];
               return (
-              <div key={mod.id} className={`p-5 rounded-[24px] border transition-all duration-300 ${mod.comingSoon ? 'bg-surface-container-low/50 border-outline-variant/10 opacity-70' : isOn ? 'bg-primary/5 border-primary/40' : 'bg-surface-container-low border-outline-variant/10 hover:bg-surface-container'}`}>
-                 <div className="flex justify-between items-start mb-3">
+                <div key={mod.id} className={`p-5 rounded-[24px] border transition-all duration-300 ${mod.comingSoon ? 'bg-surface-container-low/50 border-outline-variant/10 opacity-70' : isOn ? 'bg-primary/5 border-primary/40' : 'bg-surface-container-low border-outline-variant/10 hover:bg-surface-container'}`}>
+                  <div className="flex justify-between items-start mb-3">
                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center border transition-colors ${isOn ? 'bg-primary text-on-primary border-primary' : 'bg-surface-container-highest border-outline-variant/20 text-on-surface-variant'}`}>
-                       {MODULE_ICONS[mod.id]}
+                      {MODULE_ICONS[mod.id]}
                     </div>
                     {mod.comingSoon ? (
-                       <span className="text-[11px] font-bold uppercase tracking-wide text-on-surface-variant bg-surface-container-highest border border-outline-variant/20 px-2.5 py-1 rounded-full">
-                          Próximamente
-                       </span>
+                      <span className="text-[11px] font-bold uppercase tracking-wide text-on-surface-variant bg-surface-container-highest border border-outline-variant/20 px-2.5 py-1 rounded-full">
+                        Próximamente
+                      </span>
                     ) : (
-                       <button
-                          type="button"
-                          aria-label={`Activar ${mod.label}`}
-                          aria-pressed={isOn}
-                          onClick={() => setModules({...modules, [mod.id]: !modules[mod.id]})}
-                          className={`w-11 h-6 rounded-full relative transition-colors duration-300 focus:outline-none ${isOn ? 'bg-primary' : 'bg-surface-container-highest border border-outline-variant/20'}`}
-                       >
-                          <span className={`absolute top-[2px] w-5 h-5 bg-white rounded-full shadow-sm transition-all duration-300 ${isOn ? 'left-[22px]' : 'left-[2px]'}`}></span>
-                       </button>
+                      <button
+                        type="button"
+                        aria-label={`Activar ${mod.label}`}
+                        aria-pressed={isOn}
+                        onClick={() => setModules({ ...modules, [mod.id]: !modules[mod.id] })}
+                        className={`w-11 h-6 rounded-full relative transition-colors duration-300 focus:outline-none ${isOn ? 'bg-primary' : 'bg-surface-container-highest border border-outline-variant/20'}`}
+                      >
+                        <span className={`absolute top-[2px] w-5 h-5 bg-white rounded-full shadow-sm transition-all duration-300 ${isOn ? 'left-[22px]' : 'left-[2px]'}`}></span>
+                      </button>
                     )}
-                 </div>
-                 <h3 className="text-[17px] font-bold text-on-surface mb-2">{mod.label}</h3>
-                 <p className="text-[13px] text-on-surface-variant leading-relaxed">
+                  </div>
+                  <h3 className="text-[17px] font-bold text-on-surface mb-2">{mod.label}</h3>
+                  <p className="text-[13px] text-on-surface-variant leading-relaxed">
                     {mod.description}
-                 </p>
-              </div>
+                  </p>
+                </div>
               );
             })}
           </div>
@@ -273,10 +274,10 @@ export default function RegisterPage() {
           >
             Continuar
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-               <path d="M5 12h14M12 5l7 7-7 7"/>
+              <path d="M5 12h14M12 5l7 7-7 7" />
             </svg>
           </button>
-          
+
           <div className="mt-4 flex flex-col items-center">
             <span className="text-[13px] text-on-surface-variant font-medium">
               Paso 2 de 3: Módulos Adicionales
@@ -311,7 +312,7 @@ export default function RegisterPage() {
                 {error}
               </div>
             )}
-            
+
             <div className="space-y-1.5">
               <label className="text-[13px] font-semibold text-on-surface block">
                 Nombre del negocio
@@ -348,6 +349,24 @@ export default function RegisterPage() {
                 <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-on-surface-variant/70" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                   <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
                   <circle cx="12" cy="7" r="4" />
+                </svg>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[13px] font-semibold text-on-surface block">
+                Teléfono <span className="font-normal text-on-surface-variant/70">(opcional)</span>
+              </label>
+              <div className="relative">
+                <input
+                  type="tel"
+                  placeholder="+57 300 123 4567"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-10 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50"
+                />
+                <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-on-surface-variant/70" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" />
                 </svg>
               </div>
             </div>
@@ -435,11 +454,10 @@ export default function RegisterPage() {
                   placeholder="••••••••"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className={`w-full bg-surface-container-lowest border rounded-xl py-3 px-10 text-sm text-on-surface focus:outline-none focus:ring-1 transition-all placeholder:text-on-surface-variant/50 ${
-                    confirmPassword && confirmPassword !== password
+                  className={`w-full bg-surface-container-lowest border rounded-xl py-3 px-10 text-sm text-on-surface focus:outline-none focus:ring-1 transition-all placeholder:text-on-surface-variant/50 ${confirmPassword && confirmPassword !== password
                       ? "border-error/60 focus:border-error focus:ring-error"
                       : "border-outline-variant/30 focus:border-primary focus:ring-primary"
-                  }`}
+                    }`}
                   required
                   minLength={6}
                 />
@@ -484,7 +502,7 @@ export default function RegisterPage() {
                 <>
                   Finalizar Registro
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                     <path d="M5 12h14M12 5l7 7-7 7"/>
+                    <path d="M5 12h14M12 5l7 7-7 7" />
                   </svg>
                 </>
               )}
@@ -495,7 +513,7 @@ export default function RegisterPage() {
               </span>
             </div>
           </form>
-          
+
           <div className="mt-8 text-center text-[13px] text-on-surface-variant">
             ¿Ya tienes una cuenta?{" "}
             <Link
