@@ -6,10 +6,8 @@ export const TEST_PASSWORD = "Test123!";
 export async function login(page: Page, email = TEST_EMAIL, password = TEST_PASSWORD) {
   await page.goto("/login");
   await page.waitForLoadState("networkidle");
-  // El login abre en modo "Empleado" (llave + usuario): el campo de correo no
-  // existe hasta cambiar a "Dueño". Sin este clic el fill se colgaba, `login`
-  // devolvía false y TODAS las specs se salteaban solas sin fallar.
-  await page.getByRole("button", { name: "Dueño" }).click();
+  // El login actual es de un solo modo (correo + contraseña) y enruta por la
+  // server action `login` (utils/supabase/actions.ts). No hay toggle Dueño/Empleado.
   await page.fill('input[type="email"]', email);
   await page.fill('input[type="password"]', password);
   await page.click('button[type="submit"]');

@@ -3,36 +3,14 @@
 import Link from "next/link";
 import { LogoVertical } from "@/components/Logo";
 import { GoogleButton } from "@/components/GoogleButton";
-import { useState } from "react";
+import { useActionState, useState } from "react";
+import { login, type LoginState } from "@/utils/supabase/actions";
+
+const initialState: LoginState = { error: null };
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
-
-    const { createClient } = await import("@/utils/supabase/client");
-    const supabase = createClient();
-
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    setLoading(false);
-
-    if (error) {
-      setError(error.message);
-    } else {
-      window.location.href = "/dashboard/pos";
-    }
-  };
+  const [state, formAction, pending] = useActionState(login, initialState);
 
   return (
     <div className="w-full max-w-[480px] mx-auto">
@@ -50,10 +28,10 @@ export default function LoginPage() {
         </p>
       </div>
 
-      <form className="space-y-5" onSubmit={handleLogin}>
-        {error && (
+      <form action={formAction} className="space-y-5">
+        {state.error && (
           <div className="bg-error-container/20 text-error-dim text-[13px] px-4 py-3 rounded-lg border border-error-container/30">
-            {error}
+            {state.error}
           </div>
         )}
 
@@ -64,11 +42,11 @@ export default function LoginPage() {
           <div className="relative">
             <input
               type="email"
+              name="email"
               placeholder="nombre@ejemplo.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
               className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-10 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50"
               required
+              autoComplete="email"
             />
             <svg
               className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-on-surface-variant/70"
@@ -99,11 +77,11 @@ export default function LoginPage() {
           <div className="relative">
             <input
               type={showPassword ? "text" : "password"}
+              name="password"
               placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
               className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-10 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50"
               required
+              autoComplete="current-password"
             />
             <svg
               className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-on-surface-variant/70"
@@ -179,10 +157,10 @@ export default function LoginPage() {
 
         <button
           type="submit"
-          disabled={loading}
+          disabled={pending}
           className="w-full bg-primary hover:bg-primary-dim disabled:bg-primary/50 disabled:cursor-not-allowed text-on-primary font-semibold py-3.5 rounded-xl transition-all text-[15px] shadow-[0_0_15px_rgba(192,193,255,0.15)] flex justify-center items-center gap-2"
         >
-          {loading ? (
+          {pending ? (
             <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />

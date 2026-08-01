@@ -3,39 +3,91 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
+import { authMessage } from "@/lib/errors";
+import { REGISTRABLE_BUSINESS_TYPES, type BusinessType, type Modules } from "@/config/business";
 
-export async function login(formData: FormData) {
+/**
+ * Acciones de auth unificadas: tanto login como registro se hacen EXCLUSIVAMENTE
+ * por estos server actions (con `useActionState` desde las páginas). No hay un
+ * camino client-side alternativo: si necesitás cambiar la sesión, cambiá acá.
+ */
+
+export type LoginState = { error: string | null };
+
+export async function login(
+  _prev: LoginState,
+  formData: FormData,
+): Promise<LoginState> {
   const supabase = await createClient();
 
   const { error } = await supabase.auth.signInWithPassword({
-    email: formData.get("email") as string,
-    password: formData.get("password") as string,
+    email: String(formData.get("email") ?? ""),
+    password: String(formData.get("password") ?? ""),
   });
 
-  if (error) {
-    return { error: error.message };
-  }
+  if (error) return { error: authMessage(error) };
 
   revalidatePath("/", "layout");
-  redirect("/dashboard");
+  redirect("/dashboard/pos");
 }
 
-export async function signup(formData: FormData) {
+export type SignupState = { success: boolean; error: string | null };
+
+export async function signup(
+  _prev: SignupState,
+  formData: FormData,
+): Promise<SignupState> {
+  const email = String(formData.get("email") ?? "");
+  const password = String(formData.get("password") ?? "");
+  const confirmPassword = String(formData.get("confirm_password") ?? "");
+  const businessType = String(formData.get("business_type") ?? "");
+  const businessName = String(formData.get("business_name") ?? "");
+  const fullName = String(formData.get("full_name") ?? "");
+  const phone = String(formData.get("phone") ?? "");
+
+  // Validación duplicada del lado del servidor: la del cliente es UX, esta es
+  // la que importa.
+  if (password !== confirmPassword) {
+    return { success: false, error: "Las contraseñas no coinciden." };
+  }
+
+  if (!REGISTRABLE_BUSINESS_TYPES.includes(businessType as BusinessType)) {
+    return { success: false, error: "Debes seleccionar un tipo de negocio." };
+  }
+
+  let modules: Modules = {};
+  const rawModules = formData.get("modules");
+  if (typeof rawModules === "string") {
+    try {
+      const parsed = JSON.parse(rawModules) as unknown;
+      if (parsed && typeof parsed === "object") modules = parsed as Modules;
+    } catch {
+      modules = {};
+    }
+  }
+
   const supabase = await createClient();
 
   const { error } = await supabase.auth.signUp({
-    email: formData.get("email") as string,
-    password: formData.get("password") as string,
+    email,
+    password,
     options: {
-      emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"}/auth/callback`,
+      // /auth/confirm verifica el token en el servidor (acepta ?code= y
+      // ?token_hash=), igual que el reset y la confirmación de correo.
+      emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"}/auth/confirm?next=/dashboard/pos`,
+      data: {
+        full_name: fullName,
+        phone,
+        business_name: businessName,
+        business_type: businessType,
+        modules,
+      },
     },
   });
 
-  if (error) {
-    return { error: error.message };
-  }
+  if (error) return { success: false, error: authMessage(error) };
 
-  return { success: true };
+  return { success: true, error: null };
 }
 
 export async function signout() {

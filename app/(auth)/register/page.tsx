@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useActionState, useState } from "react";
 import { LogoVertical } from "@/components/Logo";
 import { GoogleButton } from "@/components/GoogleButton";
+import { signup, type SignupState } from "@/utils/supabase/actions";
 import { BUSINESS_ICONS, MODULE_ICONS, RocketIcon } from "@/app/assets/icons/BusinessIcons";
 import {
   defaultModulesForType,
@@ -37,10 +38,11 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
   const [businessName, setBusinessName] = useState("");
-  const [confirmed, setConfirmed] = useState(false);
+  const [state, formAction, pending] = useActionState<SignupState, FormData>(
+    signup,
+    { success: false, error: null },
+  );
 
   const handleNext = () => setStep(step === 1 && !hasModuleStep ? 3 : step + 1);
   const handleBack = () => setStep(step === 3 && !hasModuleStep ? 1 : step - 1);
@@ -49,51 +51,9 @@ export default function RegisterPage() {
     setModules(defaultModulesForType(type));
   };
 
-  const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const confirmMismatch = confirmPassword !== "" && confirmPassword !== password;
 
-    // La confirmación se valida antes de tocar la red: si no coinciden, no
-    // tiene sentido crear la cuenta.
-    if (password !== confirmPassword) {
-      setError("Las contraseñas no coinciden.");
-      return;
-    }
-
-    setLoading(true);
-    setError("");
-
-    // Use Supabase client to register
-    const { createClient } = await import("@/utils/supabase/client");
-    const supabase = createClient();
-
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        // Pasa por /auth/confirm (verifica el token en el servidor) igual que el
-        // reset de contraseña. Acepta el ?code= actual y también el token_hash
-        // si la plantilla "Confirm signup" se migra a ese formato.
-        emailRedirectTo: `${window.location.origin}/auth/confirm?next=/dashboard/pos`,
-        data: {
-          full_name: name,
-          phone,
-          business_name: businessName,
-          business_type: businessType,
-          modules: modules,
-        }
-      }
-    });
-
-    setLoading(false);
-
-    if (error) {
-      setError(error.message);
-    } else {
-      setConfirmed(true);
-    }
-  };
-
-  if (confirmed) {
+  if (state.success) {
     return (
       <div className="w-full max-w-[420px] mx-auto text-center">
         <div className="flex justify-center mb-8 lg:hidden">
@@ -306,10 +266,12 @@ export default function RegisterPage() {
             </div>
           </div>
 
-          <form className="space-y-5" onSubmit={handleRegister}>
-            {error && (
+          <form action={formAction} className="space-y-5">
+            <input type="hidden" name="business_type" value={businessType} />
+            <input type="hidden" name="modules" value={JSON.stringify(modules)} />
+            {state.error && (
               <div className="bg-error-container/20 text-error-dim text-[13px] px-4 py-3 rounded-lg border border-error-container/30">
-                {error}
+                {state.error}
               </div>
             )}
 
@@ -320,6 +282,7 @@ export default function RegisterPage() {
               <div className="relative">
                 <input
                   type="text"
+                  name="business_name"
                   placeholder="Mi Tienda"
                   value={businessName}
                   onChange={(e) => setBusinessName(e.target.value)}
@@ -340,6 +303,7 @@ export default function RegisterPage() {
               <div className="relative">
                 <input
                   type="text"
+                  name="full_name"
                   placeholder="Juan Pérez"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
@@ -360,6 +324,7 @@ export default function RegisterPage() {
               <div className="relative">
                 <input
                   type="tel"
+                  name="phone"
                   placeholder="+57 300 123 4567"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
@@ -378,6 +343,7 @@ export default function RegisterPage() {
               <div className="relative">
                 <input
                   type="email"
+                  name="email"
                   placeholder="nombre@ejemplo.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -398,12 +364,14 @@ export default function RegisterPage() {
               <div className="relative">
                 <input
                   type={showPassword ? "text" : "password"}
+                  name="password"
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-10 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50"
                   required
                   minLength={6}
+                  autoComplete="new-password"
                 />
                 <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-on-surface-variant/70" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                   <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
@@ -451,22 +419,24 @@ export default function RegisterPage() {
               <div className="relative">
                 <input
                   type={showPassword ? "text" : "password"}
+                  name="confirm_password"
                   placeholder="••••••••"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className={`w-full bg-surface-container-lowest border rounded-xl py-3 px-10 text-sm text-on-surface focus:outline-none focus:ring-1 transition-all placeholder:text-on-surface-variant/50 ${confirmPassword && confirmPassword !== password
+                  className={`w-full bg-surface-container-lowest border rounded-xl py-3 px-10 text-sm text-on-surface focus:outline-none focus:ring-1 transition-all placeholder:text-on-surface-variant/50 ${confirmMismatch
                       ? "border-error/60 focus:border-error focus:ring-error"
                       : "border-outline-variant/30 focus:border-primary focus:ring-primary"
                     }`}
                   required
                   minLength={6}
+                  autoComplete="new-password"
                 />
                 <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-on-surface-variant/70" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                   <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
                   <path d="M7 11V7a5 5 0 0110 0v4" />
                 </svg>
               </div>
-              {confirmPassword && confirmPassword !== password && (
+              {confirmMismatch && (
                 <p className="text-[12px] text-error pl-1">Las contraseñas no coinciden.</p>
               )}
             </div>
@@ -490,10 +460,10 @@ export default function RegisterPage() {
 
             <button
               type="submit"
-              disabled={loading || !password || password !== confirmPassword}
+              disabled={pending || !password || confirmMismatch}
               className="w-full bg-primary hover:bg-primary-dim disabled:bg-primary/50 disabled:cursor-not-allowed text-on-primary font-semibold py-3.5 rounded-xl transition-all text-[15px] shadow-[0_0_15px_rgba(96,99,238,0.15)] flex justify-center items-center gap-2"
             >
-              {loading ? (
+              {pending ? (
                 <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
