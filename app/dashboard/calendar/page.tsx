@@ -186,6 +186,24 @@ export default function CalendarPage() {
   // Get week days
   const weekDays = useMemo(() => getWeekDays(currentDate), [currentDate]);
 
+  /**
+   * ¿El periodo que se está viendo ya contiene el día de hoy?
+   *
+   * Sin esto, "Hoy" parece roto: cuando ya estás en el periodo actual —que es
+   * el caso al entrar— el clic no cambia nada y no hay ninguna señal de por
+   * qué. El botón funciona; lo que faltaba era que dijera dónde estás parado.
+   */
+  const isOnToday = useMemo(() => {
+    const now = new Date();
+    if (view === "month") {
+      return currentMonth === now.getMonth() && currentYear === now.getFullYear();
+    }
+    if (view === "week") {
+      return weekDays.some((d) => d.date === today);
+    }
+    return formatDate(currentDate) === today;
+  }, [view, currentMonth, currentYear, weekDays, currentDate, today]);
+
   // Get appointments for a specific hour (day view)
   const getAppointmentsForHour = (date: string, hour: number) => {
     const dayAppts = appointmentsByDate[date] || [];
@@ -205,9 +223,16 @@ export default function CalendarPage() {
             Gestiona tus citas, eventos y agenda.
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        {/*
+          En móvil los cuatro grupos suman ~480px contra 390 de pantalla: la
+          fila no envolvía y "Nueva Cita" —la acción principal— quedaba fuera
+          del viewport, alcanzable sólo con scroll horizontal. Ahora los
+          controles envuelven y el botón se lleva su propia fila completa.
+        */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-3">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           {/* Display mode tabs */}
-          <div className="flex items-center bg-surface-container border border-outline-variant/10 rounded-xl p-1 shadow-sm">
+          <div className="flex shrink-0 items-center bg-surface-container border border-outline-variant/10 rounded-xl p-1 shadow-sm">
             {(["calendar", "list"] as const).map((m) => (
               <button
                 key={m}
@@ -223,7 +248,7 @@ export default function CalendarPage() {
             ))}
           </div>
           {displayMode === "calendar" && (
-          <div className="flex items-center bg-surface-container border border-outline-variant/10 rounded-xl p-1 shadow-sm">
+          <div className="flex shrink-0 items-center bg-surface-container border border-outline-variant/10 rounded-xl p-1 shadow-sm">
             {(["month", "week", "day"] as const).map((v) => (
               <button
                 key={v}
@@ -241,16 +266,30 @@ export default function CalendarPage() {
           )}
           <button
             onClick={goToday}
-            className="px-3 py-2 text-xs font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded-xl transition-colors border border-outline-variant/10"
+            disabled={isOnToday}
+            aria-current={isOnToday ? "date" : undefined}
+            title={isOnToday ? "Ya estás viendo hoy" : "Volver a hoy"}
+            // Un control deshabilitado tiene que PARECER deshabilitado, y la
+            // diferencia entre ambos estados tiene que verse de un vistazo: con
+            // dos grises casi iguales el usuario lo sigue clickeando. `opacity`
+            // sobre todo el botón es inequívoco; el estado activo, en cambio,
+            // lleva borde y texto plenos para invitar al clic.
+            className={`shrink-0 px-3 py-2 text-xs font-semibold rounded-xl border transition-all ${
+              isOnToday
+                ? "border-outline-variant/10 text-on-surface-variant opacity-40 cursor-not-allowed"
+                : "border-outline-variant/40 text-on-surface hover:bg-surface-container hover:border-outline-variant"
+            }`}
           >
             Hoy
           </button>
+          </div>
+          {/* Fila propia en móvil: el label vuelve a verse y el botón no se corta. */}
           <button
             onClick={() => handleNewAppointment()}
-            className="bg-[#6063ee] hover:bg-[#c0c1ff] text-white hover:text-[#0b0664] text-sm font-semibold py-2.5 px-4 rounded-xl shadow-lg shadow-[#6063ee]/20 transition-colors flex items-center justify-center gap-2"
+            className="w-full sm:w-auto shrink-0 bg-[#6063ee] hover:bg-[#c0c1ff] text-white hover:text-[#0b0664] text-sm font-semibold py-2.5 px-4 rounded-xl shadow-lg shadow-[#6063ee]/20 transition-colors flex items-center justify-center gap-2"
           >
             <IconPlus className="w-4 h-4" />
-            <span className="hidden sm:inline">Nueva Cita</span>
+            <span>Nueva Cita</span>
           </button>
         </div>
       </div>
@@ -322,7 +361,7 @@ export default function CalendarPage() {
               return (
                 <div
                   key={cell.date}
-                  className={`min-h-[100px] p-2 border-b border-r border-outline-variant/5 hover:bg-surface-container/20 transition-colors ${
+                  className={`min-h-[72px] sm:min-h-[100px] p-1.5 sm:p-2 border-b border-r border-outline-variant/5 hover:bg-surface-container/20 transition-colors ${
                     !cell.isCurrentMonth ? "opacity-40" : ""
                   }`}
                   onClick={() => {
@@ -352,11 +391,21 @@ export default function CalendarPage() {
                           e.stopPropagation();
                           handleEditAppointment(appt);
                         }}
-                        className={`w-full text-left px-2 py-1 text-[10px] font-bold rounded-md truncate border-l-2 ${getStatusColor(
+                        className={`w-full text-center sm:text-left px-0.5 sm:px-2 py-1 text-[9px] sm:text-[10px] font-bold rounded-md truncate border-l-2 ${getStatusColor(
                           appt.status,
                         )}`}
+                        title={`${appt.start_time.slice(0, 5)} ${appt.title}`}
                       >
-                        {appt.start_time.slice(0, 5)} {appt.title}
+                        {/*
+                          En una celda de ~50px el texto completo se recortaba a
+                          "11:…", que no dice ni la hora. En móvil se muestra
+                          sólo la hora, que entera es más útil que un título
+                          mutilado; el título vuelve desde `sm`.
+                        */}
+                        <span className="sm:hidden">{appt.start_time.slice(0, 5)}</span>
+                        <span className="hidden sm:inline">
+                          {appt.start_time.slice(0, 5)} {appt.title}
+                        </span>
                       </button>
                     ))}
                     {dayAppts.length > 3 && (

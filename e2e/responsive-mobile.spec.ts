@@ -88,6 +88,7 @@ const ROUTES: Array<[string, string]> = [
   ["Servicios", "/dashboard/services"],
   ["Proveedores", "/dashboard/distributors"],
   ["Personal", "/dashboard/staff"],
+  ["Calendario", "/dashboard/calendar"],
 ];
 
 test.describe("responsive movil 375px", () => {
@@ -217,6 +218,36 @@ test.describe("responsive movil 375px", () => {
         probe.docScrollWidth,
         `${label} modal desborda:\n${report(label, probe)}`,
       ).toBeLessThanOrEqual(probe.docClientWidth + 1);
+    });
+  }
+
+  /**
+   * La barra del calendario se salía de la pantalla en móvil: sus cuatro grupos
+   * sumaban ~480px contra 390 de viewport y "Nueva Cita" —la acción principal—
+   * quedaba fuera, alcanzable sólo con scroll horizontal.
+   *
+   * El chequeo genérico de `docScrollWidth` NO lo detectaba: el documento medía
+   * exactamente el ancho del viewport porque el desborde ocurría dentro de un
+   * contenedor con scroll propio. Por eso este test mide el botón en sí.
+   */
+  for (const view of ["Mes", "Semana", "Día"] as const) {
+    test(`el boton de nueva cita entra en pantalla: vista ${view}`, async ({ page }) => {
+      await page.goto("/dashboard/calendar", { waitUntil: "domcontentloaded" });
+      await page.waitForLoadState("networkidle").catch(() => {});
+      await page.waitForTimeout(800);
+
+      await page.getByRole("button", { name: view, exact: true }).first().click();
+      await page.waitForTimeout(500);
+
+      const cta = page.getByRole("button", { name: /Nueva Cita/i }).first();
+      await expect(cta).toBeVisible();
+
+      const box = await cta.boundingBox();
+      expect(box, "el boton de nueva cita debe existir").not.toBeNull();
+      expect(
+        Math.round((box?.x ?? 0) + (box?.width ?? 0)),
+        `vista ${view}: "Nueva Cita" se sale del viewport de ${MOBILE.width}px`,
+      ).toBeLessThanOrEqual(MOBILE.width + 1);
     });
   }
 });

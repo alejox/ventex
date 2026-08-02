@@ -1,13 +1,50 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { toast } from "sonner";
 import { useAppointmentsStore } from "@/stores/appointments.store";
 import { useCustomersStore } from "@/stores/customers.store";
 import { useServicesStore } from "@/stores/services.store";
 import { useStaffStore } from "@/stores/staff.store";
 import { useProfile } from "@/components/ProfileProvider";
 import { Select } from "@/components/ui/Select";
+import { whatsappUrl, toWhatsappNumber } from "@/config/contact";
 import type { Appointment, NewAppointmentInput } from "@/services/appointments.service";
+
+/**
+ * Mensaje de confirmación ya redactado para el cliente.
+ *
+ * La fecha se parsea a mano: `new Date("2026-08-05")` la interpreta como
+ * medianoche UTC y, en Colombia (UTC-5), se muestra como el día anterior.
+ * Confirmarle a alguien el día equivocado es peor que no confirmarle nada.
+ */
+function buildConfirmationMessage({
+  customerName,
+  serviceName,
+  date,
+  startTime,
+}: {
+  customerName: string;
+  serviceName: string;
+  date: string;
+  startTime: string;
+}): string {
+  const [year, month, day] = date.split("-").map(Number);
+  const readableDate =
+    year && month && day
+      ? new Intl.DateTimeFormat("es-CO", {
+          weekday: "long",
+          day: "numeric",
+          month: "long",
+        }).format(new Date(year, month - 1, day))
+      : date;
+
+  const firstName = customerName.trim().split(" ")[0];
+  const greeting = firstName ? `Hola ${firstName}` : "Hola";
+  const what = serviceName ? ` de ${serviceName}` : "";
+
+  return `${greeting}, te confirmamos tu cita${what} para el ${readableDate} a las ${startTime.slice(0, 5)}. ¡Te esperamos!`;
+}
 
 interface AppointmentModalProps {
   open: boolean;
@@ -111,6 +148,34 @@ function AppointmentModalBody({
   const activeServices = services.filter((s) => s.status === "active");
   const activeStaff = staff.filter((m) => m.status === "active");
 
+  /**
+   * Estado VIVO de la cita, leído del store.
+   *
+   * El prop `appointment` es la foto del momento en que se abrió el modal: al
+   * cambiar el estado, el store y la base se actualizan pero ese objeto sigue
+   * igual, así que leer de él dejaba la píldora clavada en el estado viejo y
+   * parecía que el clic no hacía nada.
+   */
+  const liveStatus = useAppointmentsStore((s) =>
+    appointment
+      ? (s.appointments.find((a) => a.id === appointment.id)?.status ?? appointment.status)
+      : null,
+  );
+
+  // Se resuelve contra el store y no contra el dato embebido en la cita para
+  // que el teléfono siga al cliente que está elegido AHORA en el desplegable,
+  // aunque el dueño lo acabe de cambiar sin guardar todavía.
+  const selectedCustomer = customers.find((c) => c.id === form.customer_id) ?? null;
+  const customerWhatsapp = toWhatsappNumber(selectedCustomer?.phone);
+
+  const confirmationMessage = buildConfirmationMessage({
+    customerName: selectedCustomer?.full_name ?? "",
+    serviceName:
+      services.find((s) => s.id === form.service_id)?.name || form.service_type || form.title,
+    date: form.appointment_date,
+    startTime: form.start_time,
+  });
+
   useEffect(() => {
     if (customers.length === 0) fetchCustomers();
     if (services.length === 0) fetchServices();
@@ -145,15 +210,22 @@ function AppointmentModalBody({
   };
 
   const handleStatusChange = async (status: string) => {
-    if (!appointment) return;
-    await updateStatus(appointment.id, status);
+    if (!appointment || status === liveStatus) return;
+    const ok = await updateStatus(appointment.id, status);
+    // Sin aviso, un cambio de estado correcto se ve igual que uno que falló.
+    if (ok) {
+      const label = STATUS_OPTIONS.find((o) => o.value === status)?.label ?? status;
+      toast.success(`Cita marcada como ${label.toLowerCase()}.`);
+    } else {
+      toast.error(useAppointmentsStore.getState().error ?? "No se pudo cambiar el estado.");
+    }
   };
 
   const canCharge =
     !!appointment &&
     !!appointment.service_id &&
-    appointment.status !== "completed" &&
-    appointment.status !== "cancelled";
+    liveStatus !== "completed" &&
+    liveStatus !== "cancelled";
 
   const handleCharge = async () => {
     if (!appointment) return;
@@ -200,9 +272,14 @@ function AppointmentModalBody({
               {STATUS_OPTIONS.map((opt) => (
                 <button
                   key={opt.value}
+                  // Explícito aunque hoy quede fuera del <form>: si alguien mueve
+                  // esta barra adentro, el default `submit` guardaría la cita
+                  // entera en cada clic de estado.
+                  type="button"
+                  aria-pressed={liveStatus === opt.value}
                   onClick={() => handleStatusChange(opt.value)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
-                    appointment?.status === opt.value
+                    liveStatus === opt.value
                       ? opt.color
                       : "bg-surface-container border-outline-variant/10 text-on-surface-variant hover:bg-surface-container-high"
                   }`}
@@ -252,9 +329,44 @@ function AppointmentModalBody({
               {customers.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.full_name}
+                  {c.phone ? ` · ${c.phone}` : ""}
                 </option>
               ))}
             </Select>
+
+          {/*
+            Contacto del cliente. Las citas que entran por el sitio web público
+            llegan como "Pendiente" y hay que confirmarlas a mano, así que el
+            teléfono tiene que estar acá: sin él, el dueño ve la reserva pero no
+            tiene cómo responderle a quien la hizo.
+          */}
+          {selectedCustomer ? (
+            <div className="-mt-1 flex flex-col gap-2 rounded-xl bg-surface-container-lowest border border-outline-variant/30 p-3 sm:flex-row sm:items-center sm:justify-between">
+              {selectedCustomer.phone ? (
+                <a
+                  href={`tel:${selectedCustomer.phone}`}
+                  className="text-sm font-medium text-on-surface hover:text-primary transition-colors"
+                >
+                  {selectedCustomer.phone}
+                </a>
+              ) : (
+                <span className="text-sm text-on-surface-variant">
+                  Este cliente no tiene teléfono cargado.
+                </span>
+              )}
+
+              {customerWhatsapp ? (
+                <a
+                  href={whatsappUrl(confirmationMessage, customerWhatsapp)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-[#25D366] px-4 py-2 text-sm font-semibold text-white hover:brightness-95 transition-all"
+                >
+                  Confirmar por WhatsApp
+                </a>
+              ) : null}
+            </div>
+          ) : null}
 
           {/* Service + Barber */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useProfile } from "@/components/ProfileProvider";
 import { useWorkspaceStore } from "@/stores/workspace.store";
 
@@ -66,12 +67,12 @@ export function WorkspaceSwitcher() {
             </button>
           ))}
           {(context?.invitations.length ?? 0) > 0 && (
-            <a
+            <Link
               href="/workspace"
               className="mt-1 block rounded-xl px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/10"
             >
               Ver invitaciones pendientes
-            </a>
+            </Link>
           )}
         </div>
       )}
