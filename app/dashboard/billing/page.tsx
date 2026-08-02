@@ -497,7 +497,7 @@ export default function BillingPage() {
                 />
               </div>
 
-              <div className="pt-4 flex flex-col-reverse sm:flex-row gap-3 border-t border-outline-variant/10">
+              <div className="pt-4 flex flex-col sm:flex-row gap-3 border-t border-outline-variant/10">
                 <button
                   type="button"
                   onClick={() => setFormOpen(false)}

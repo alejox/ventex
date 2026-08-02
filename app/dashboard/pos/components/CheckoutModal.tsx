@@ -169,9 +169,9 @@ export function CheckoutModal({
                 {cartUnits} unidad{cartUnits !== 1 ? "es" : ""}
               </span>
             </div>
-            <div className="flex justify-between items-baseline border-t border-outline-variant/10 pt-2.5 mt-2">
-              <span className="text-sm font-semibold text-on-surface">Total</span>
-              <span className="text-xl font-bold text-on-surface tabular-nums">
+            <div className="flex justify-between items-baseline gap-3 border-t border-outline-variant/10 pt-2.5 mt-2">
+              <span className="text-sm font-semibold text-on-surface shrink-0">Total</span>
+              <span className="text-lg sm:text-xl font-bold text-on-surface tabular-nums tracking-tight truncate">
                 ${money(totals.total)}
               </span>
             </div>
@@ -374,11 +374,11 @@ export function CheckoutModal({
                       : "bg-error/5 border border-error/20"
                   }`}
                 >
-                  <span className="font-semibold text-sm text-on-surface-variant">
+                  <span className="font-semibold text-sm text-on-surface-variant shrink-0">
                     Cambio
                   </span>
                   <span
-                    className={`text-lg font-bold tabular-nums ${
+                    className={`text-base sm:text-lg font-bold tabular-nums tracking-tight truncate ${
                       change >= 0 ? "text-[#10b981]" : "text-error"
                     }`}
                   >
@@ -396,7 +396,7 @@ export function CheckoutModal({
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 py-3 rounded-xl border border-outline-variant/30 text-sm font-semibold text-on-surface hover:bg-surface-container-low transition-colors"
+            className="shrink-0 px-6 py-3 rounded-xl border border-outline-variant/30 text-sm font-semibold text-on-surface hover:bg-surface-container-low transition-colors"
           >
             Cancelar
           </button>
@@ -404,7 +404,7 @@ export function CheckoutModal({
             type="button"
             onClick={onConfirm}
             disabled={!canConfirm}
-            className="flex-1 py-3 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary-dim transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="flex-1 min-w-0 py-3 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary-dim transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex flex-col sm:flex-row items-center justify-center gap-0 sm:gap-2 leading-tight"
           >
             {submitting ? (
               <svg
@@ -428,8 +428,10 @@ export function CheckoutModal({
               </svg>
             ) : (
               <>
-                <span>Confirmar venta</span>
-                <span className="tabular-nums">${money(totals.total)}</span>
+                <span className="whitespace-nowrap">Confirmar venta</span>
+                <span className="tabular-nums whitespace-nowrap">
+                  ${money(totals.total)}
+                </span>
               </>
             )}
           </button>

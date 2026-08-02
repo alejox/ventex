@@ -49,7 +49,7 @@ export function CashConfirmModal({
         <div className="p-6 space-y-5">
           <div className="text-center">
             <p className="text-sm text-on-surface-variant mb-1">Total a pagar</p>
-            <p className="text-3xl font-bold text-on-surface">${money(totals.total)}</p>
+            <p className="text-2xl sm:text-3xl font-bold text-on-surface tabular-nums tracking-tight truncate">${money(totals.total)}</p>
           </div>
 
           <div className="space-y-2">
@@ -97,9 +97,9 @@ export function CashConfirmModal({
           </div>
 
           {tendered > 0 && (
-            <div className={`flex justify-between items-center p-3 rounded-xl ${change >= 0 ? "bg-[#10b981]/5 border border-[#10b981]/20" : "bg-error/5 border border-error/20"}`}>
-              <span className="font-semibold text-sm text-on-surface-variant">Cambio</span>
-              <span className={`text-xl font-bold ${change >= 0 ? "text-[#10b981]" : "text-error"}`}>
+            <div className={`flex justify-between items-center gap-3 p-3 rounded-xl ${change >= 0 ? "bg-[#10b981]/5 border border-[#10b981]/20" : "bg-error/5 border border-error/20"}`}>
+              <span className="font-semibold text-sm text-on-surface-variant shrink-0">Cambio</span>
+              <span className={`text-lg sm:text-xl font-bold tabular-nums tracking-tight truncate ${change >= 0 ? "text-[#10b981]" : "text-error"}`}>
                 {change >= 0 ? `$${money(change)}` : `Faltan $${money(Math.abs(change))}`}
               </span>
             </div>

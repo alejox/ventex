@@ -363,8 +363,9 @@ function KpiCard({
           {icon}
         </div>
       </div>
-      <p className="text-[11px] font-semibold text-on-surface-variant uppercase tracking-wider mb-1">{label}</p>
-      <p className="text-2xl font-bold text-on-surface tabular-nums">
+      <p className="text-[11px] font-semibold text-on-surface-variant uppercase tracking-wider mb-1 truncate">{label}</p>
+      {/* Cifra larga: en móvil baja de tamaño en vez de desbordar la tarjeta. */}
+      <p className="text-lg sm:text-xl lg:text-2xl font-bold text-on-surface tabular-nums tracking-tight truncate">
         {loading ? (
           <span className="inline-block w-20 h-7 rounded bg-surface-container-high animate-pulse" />
         ) : (
@@ -372,7 +373,7 @@ function KpiCard({
         )}
       </p>
       {sub && (
-        <p className="text-xs text-on-surface-variant mt-1">{sub}</p>
+        <p className="text-xs text-on-surface-variant mt-1 truncate">{sub}</p>
       )}
     </div>
   );
