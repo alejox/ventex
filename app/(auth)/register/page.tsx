@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useActionState, useState } from "react";
+import { useSearchParam } from "@/lib/useUrlState";
 import { LogoVertical } from "@/components/Logo";
 import { GoogleButton } from "@/components/GoogleButton";
 import { signup, type SignupState } from "@/utils/supabase/actions";
@@ -32,7 +33,7 @@ export default function RegisterPage() {
   const totalSteps = hasModuleStep ? 3 : 2;
 
   // Step 3 state
-  const [email, setEmail] = useState("");
+  const [emailInput, setEmailInput] = useState<string | null>(null);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -43,6 +44,21 @@ export default function RegisterPage() {
     signup,
     { success: false, error: null },
   );
+
+  /**
+   * Vuelta del checkout de invitado (`?paid=1&email=`): el pago ya está
+   * acreditado y esperando atado a ese correo. Se precarga el campo para que la
+   * cuenta se cree con el MISMO correo, que es lo que después le permite a
+   * `claim_guest_orders` reconocer el pago como de este usuario.
+   *
+   * El correo de la URL es sólo el valor inicial: si el usuario lo edita, gana
+   * lo que escribió (y ahí el pago no se reclama solo, por eso el aviso lo
+   * dice).
+   */
+  const paidCheckout = useSearchParam("paid") === "1";
+  const paidEmail = useSearchParam("email");
+  const email = emailInput ?? paidEmail ?? "";
+  const setEmail = setEmailInput;
 
   const handleNext = () => setStep(step === 1 && !hasModuleStep ? 3 : step + 1);
   const handleBack = () => setStep(step === 3 && !hasModuleStep ? 1 : step - 1);
@@ -94,6 +110,20 @@ export default function RegisterPage() {
       <div className="flex justify-center mb-8 lg:hidden">
         <LogoVertical className="w-[180px] h-[48px]" />
       </div>
+
+      {paidCheckout && (
+        <div className="mb-6 rounded-2xl border border-primary/30 bg-primary/5 px-4 py-3.5">
+          <p className="text-[13px] font-bold text-primary mb-1">
+            ¡Tu pago ya está confirmado!
+          </p>
+          <p className="text-[12px] text-on-surface-variant leading-relaxed">
+            Completá tu registro con{" "}
+            <strong className="text-on-surface">{email || "el mismo correo del pago"}</strong>{" "}
+            y tu plan queda activo al confirmar la cuenta. Si usás otro correo,
+            escribinos y lo movemos.
+          </p>
+        </div>
+      )}
 
       {/* Volver.
           En el primer paso sale al login; en los siguientes retrocede un paso.

@@ -54,14 +54,24 @@ export async function GET(request: NextRequest) {
   const rawType = searchParams.get("type");
   const type = rawType && EMAIL_OTP_TYPES.has(rawType) ? (rawType as EmailOtpType) : null;
   const next = safeNext(searchParams.get("next"), "/dashboard/pos");
-  const isInvitation = type === "invite" || next.includes("invitation=");
 
-  // Un enlace de recuperación roto tiene que devolver al formulario de
-  // recuperación, no al login: ahí es donde el usuario puede pedir otro.
+  /**
+   * Sólo las invitaciones de EMPLEADO van a `/access-disabled` cuando el enlace
+   * vence. Se detectan por el marcador `invitation=` que arma
+   * `invitationRedirect()`, no por `type === "invite"`: el checkout de invitado
+   * también genera enlaces de tipo `invite` y mandarlo a `/access-disabled`
+   * le diría "tu acceso fue deshabilitado" a alguien que acaba de pagar.
+   */
+  const isInvitation = next.includes("invitation=");
+
+  // Un enlace roto tiene que devolver a la pantalla donde el usuario puede
+  // pedir otro, no al login genérico.
   const errorPath = isInvitation
     ? "/access-disabled"
     : type === "recovery" || next.startsWith("/update-password")
     ? "/reset-password"
+    : next.startsWith("/register")
+    ? "/register"
     : "/login";
 
   const fail = (reason: string) => {
@@ -94,12 +104,35 @@ export async function GET(request: NextRequest) {
 
   if (tokenHash) {
     if (!type) return fail("enlace_invalido");
-    const { error } = await supabase.auth.verifyOtp({ type, token_hash: tokenHash });
+    const { data, error } = await supabase.auth.verifyOtp({ type, token_hash: tokenHash });
     if (error) return fail("enlace_vencido");
+    await claimGuestCheckout(supabase, data.user?.email ?? null);
     return response;
   }
 
-  const { error } = await supabase.auth.exchangeCodeForSession(code!);
+  const { data, error } = await supabase.auth.exchangeCodeForSession(code!);
   if (error) return fail("enlace_vencido");
+  await claimGuestCheckout(supabase, data.user?.email ?? null);
   return response;
+}
+
+/**
+ * Ata a la cuenta recién validada los pagos que hizo como invitado en la
+ * landing, para que el plan ya esté activo cuando aterrice en el panel.
+ *
+ * Se hace acá porque es el único punto por el que pasan TODAS las validaciones
+ * de correo, y es idempotente: `claim_guest_orders` sólo toma órdenes con
+ * `user_id` nulo, así que en el 99% de los casos no encuentra nada y sale. Un
+ * fallo no puede romper el login: el panel de suscripción lo vuelve a intentar.
+ */
+async function claimGuestCheckout(
+  supabase: ReturnType<typeof createServerClient<Database>>,
+  email: string | null,
+): Promise<void> {
+  if (!email) return;
+  try {
+    await supabase.rpc("claim_guest_orders", { p_email: email });
+  } catch (error) {
+    console.error("claim_guest_orders failed", error);
+  }
 }

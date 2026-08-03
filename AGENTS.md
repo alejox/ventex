@@ -44,7 +44,21 @@ Workers (`profiles.is_worker`) log in with their **own** auth account, but their
   - `utils/supabase/admin.ts` → `createAdminClient()` — service-role key, **bypasses RLS**; only for privileged server-side work (admin/reseller), never exposed to clients. Requires `SUPABASE_SERVICE_ROLE_KEY`.
 - **Migrations**: apply via MCP `apply_migration`, then save the `.sql` to `supabase/migrations/` (56 files) to keep repo and remote in sync. After schema changes, regenerate `utils/supabase/database.types.ts` (MCP `generate_typescript_types`).
 - **`create_sale` RPC**: transactional sale creation (calculates totals server-side, applies IVA from `settings`, decrements stock, freezes staff commission). Employees without an open shift (`public.shifts`) are rejected — enforced inside the RPC, not just gated in the POS UI. Owners are exempt. Shift model: `README-turnos.md`.
-- Env vars: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` required; `NEXT_PUBLIC_SITE_URL` (signup email redirect, defaults to `http://localhost:3000`); `NEXT_PUBLIC_API_URL` optional (axios base).
+- Env vars: see `.env.example` for the full list. Required: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`; `SUPABASE_SERVICE_ROLE_KEY` for the admin client; `NEXT_PUBLIC_SITE_URL` (auth email redirects + the URLs handed to dLocal, defaults to `http://localhost:3000`); `NEXT_PUBLIC_API_URL` optional (axios base).
+
+# Subscription billing (dLocal **Go**)
+
+Not the dLocal Payins/Direct API — a different product with a different contract. `services/dlocalgo.service.ts` is the only place that talks to it.
+
+- **Auth**: `Authorization: Bearer <API_KEY>:<SECRET_KEY>`. No per-request signing.
+- **Hosted checkout**: `POST /v1/payments` returns `redirect_url`; the payer picks Nequi / PSE / card / cash there. **No card data ever reaches Ventex** — there is no tokenization, no Smart Fields, no PCI surface. (`DLOCAL_SMART_API_KEY` belongs to the *transparent* checkout, which is card-only and therefore unused here.)
+- **Notifications** carry only `{"payment_id":"DP-…"}`. Always re-read the payment with `getPayment` before touching state, and verify the signature: `HMAC-SHA256(api_key + raw_body, secret_key)` in `Authorization: V2-HMAC-SHA256, Signature: <hex>`. The body must be the **raw** text — re-serializing breaks the signature.
+- **Renewals** reuse the first payment's `merchant_checkout_token` (`POST /v1/payments/recurring/{token}`), stored in `billing_orders.checkout_token` → `subscriptions.billing_provider_ref`.
+- **Three paths can credit a payment** — webhook, order polling, renewal cron — and all three go through `applyPaymentToOrder` (`services/subscription-billing.server.ts`). `apply_billing_charge` is idempotent, so they can race safely. Polling reconciles against dLocal on purpose: it makes the flow work when a notification is lost, and locally where `localhost` is unreachable.
+- **`apply_billing_charge(order)`**: takes the order id only and derives the owner from the row it just marked paid (`p_user_id` was dropped — it was always `billing_orders.user_id`, its nullability couldn't be expressed in the generated types, and a stale read raced with `claim_guest_orders`). A row with no `user_id` is a guest checkout: the order is marked paid without activating a licence, and `claim_guest_orders(email)` activates it when the visitor registers with that same email. The returned `guest` flag — not the caller's copy of the row — decides whether the guest email goes out. A `client_licenses` row always wins over online billing (the reseller recharges it), so recurrence is forced off for those users.
+- **`/api/billing/recurring` requires `CRON_SECRET`** and returns 503 without it. Do **not** re-add an `x-vercel-cron` header bypass: that header is forgeable and would let anyone trigger real charges. Vercel injects `Authorization: Bearer $CRON_SECRET` automatically when the variable exists.
+- `DLOCAL_ENV` selects sandbox (default, `DLOCAL_SBX_*`) vs production (`DLOCAL_API_KEY`/`DLOCAL_SECRET_KEY`). The default is sandbox on purpose: an unconfigured deploy cannot charge real money.
+- **Buying and renewing always go through the checkout — never WhatsApp.** WhatsApp is support-only (`Soporte` button + the "¿Dudas?" link under the landing prices). Don't reintroduce WhatsApp purchase CTAs on the plan cards. If dLocal is unconfigured, `/api/billing/subscribe` degrades with a 503 and a message pointing at WhatsApp; there is no client-side feature flag.
 
 # Next.js 16 specifics
 
