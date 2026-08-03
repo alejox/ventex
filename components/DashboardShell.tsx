@@ -207,8 +207,8 @@ export function DashboardShell({
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top Navbar */}
-        <header className="print:hidden h-20 flex items-center justify-between px-6 lg:px-10 border-b border-outline-variant/10 bg-surface-container-lowest sticky top-0 z-20">
-          <div className="flex items-center gap-4 lg:hidden">
+        <header className="print:hidden h-20 flex items-center justify-between gap-2 px-4 sm:px-6 lg:px-10 border-b border-outline-variant/10 bg-surface-container-lowest sticky top-0 z-20">
+          <div className="flex items-center gap-3 sm:gap-4 shrink-0 lg:hidden">
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="text-on-surface-variant hover:text-on-surface"
@@ -229,11 +229,11 @@ export function DashboardShell({
             </div>
           </div>
 
-          <div className="flex items-center gap-4 sm:gap-6 ml-auto">
+          <div className="flex items-center gap-2 sm:gap-4 md:gap-6 ml-auto min-w-0">
             <WorkspaceSwitcher />
             <button
               onClick={() => setCalculatorOpen(true)}
-              className="text-on-surface-variant hover:text-on-surface transition-colors"
+              className="shrink-0 text-on-surface-variant hover:text-on-surface transition-colors"
               title="Calculadora"
             >
               <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-5 h-5">

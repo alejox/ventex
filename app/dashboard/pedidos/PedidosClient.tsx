@@ -631,30 +631,38 @@ export function PedidosClient({
               )}
             </div>
 
-            <button
-              type="button"
-              onClick={handleSendWhatsApp}
-              disabled={!whatsappNumber}
-              className="w-full h-12 rounded-xl bg-[#25D366] hover:bg-[#22c35e] disabled:bg-on-surface-variant/30 disabled:cursor-not-allowed text-white text-sm font-semibold transition-all flex items-center justify-center gap-3"
-            >
-              <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={handleSendWhatsApp}
+                disabled={!whatsappNumber}
+                aria-describedby={!whatsappNumber ? "whatsapp-send-hint" : undefined}
+                className="w-full min-h-12 py-2.5 px-4 rounded-xl bg-[#25D366] hover:bg-[#22c35e] disabled:bg-on-surface-variant/30 disabled:cursor-not-allowed text-white text-sm font-semibold transition-all flex items-center justify-center gap-3 leading-tight"
+              >
+                <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 shrink-0">
                 <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
-              </svg>
-              {whatsappNumber ? "Enviar pedido por WhatsApp" : "Selecciona un proveedor o ingresa un n\u00famero"}
-            </button>
+                </svg>
+                Enviar pedido por WhatsApp
+              </button>
+              {!whatsappNumber && (
+                <p id="whatsapp-send-hint" className="text-xs text-on-surface-variant text-center">
+                  Selecciona un proveedor o ingresa un n&uacute;mero para habilitar el env&iacute;o.
+                </p>
+              )}
+            </div>
           </div>
         </div>
       )}
 
       {/* Action Panel */}
       {generated && items.length > 0 && activeItems.length > 0 && (
-        <div className="flex flex-col sm:flex-row items-center justify-end gap-4 pt-2">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-3 sm:gap-4 pt-2">
           <button
             type="button"
             onClick={handleExportExcel}
-            className="h-12 px-6 rounded-xl border border-outline-variant/30 text-sm font-semibold text-on-surface hover:bg-surface-container-low transition-colors flex items-center justify-center gap-2"
+            className="w-full sm:w-auto min-h-12 py-2.5 px-6 rounded-xl border border-outline-variant/30 text-sm font-semibold text-on-surface hover:bg-surface-container-low transition-colors flex items-center justify-center gap-2"
           >
-            <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-4 h-4">
+            <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-4 h-4 shrink-0">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
               <polyline points="7 10 12 15 17 10" />
               <line x1="12" y1="15" x2="12" y2="3" />
@@ -665,9 +673,9 @@ export function PedidosClient({
             type="button"
             onClick={handleSaveDraft}
             disabled={savingOrder || activeItems.length === 0}
-            className="h-12 px-8 rounded-xl border border-outline-variant/30 text-sm font-semibold text-on-surface hover:bg-surface-container-low transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full sm:w-auto min-h-12 py-2.5 px-8 rounded-xl border border-outline-variant/30 text-sm font-semibold text-on-surface hover:bg-surface-container-low transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-4 h-4">
+            <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-4 h-4 shrink-0">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
               <polyline points="14 2 14 8 20 8" />
               <line x1="16" y1="13" x2="8" y2="13" />
@@ -679,9 +687,9 @@ export function PedidosClient({
             type="button"
             onClick={handleIssue}
             disabled={savingOrder || activeItems.length === 0}
-            className="h-12 px-8 rounded-xl bg-primary hover:bg-primary-dim text-on-primary text-sm font-semibold shadow-[0_0_20px_rgba(96,99,238,0.25)] transition-all flex items-center justify-center gap-2 hover:shadow-[0_0_25px_rgba(96,99,238,0.35)] disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full sm:w-auto min-h-12 py-2.5 px-8 rounded-xl bg-primary hover:bg-primary-dim text-on-primary text-sm font-semibold shadow-[0_0_20px_rgba(96,99,238,0.25)] transition-all flex items-center justify-center gap-2 hover:shadow-[0_0_25px_rgba(96,99,238,0.35)] disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-4 h-4">
+            <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-4 h-4 shrink-0">
               <polyline points="20 6 9 17 4 12" />
             </svg>
             {savingOrder ? "Emitiendo…" : "Emitir Orden de Compra"}

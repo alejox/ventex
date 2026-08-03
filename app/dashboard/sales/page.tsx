@@ -293,40 +293,41 @@ export default function SalesPage() {
 
       {/* Tarjetas resumen */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-surface-container p-5 rounded-2xl border border-outline-variant/10 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-xs text-on-surface-variant font-medium">Ventas totales</p>
-            <p className="text-2xl font-black text-on-surface mt-1">{summary ? summary.sales_count : "—"}</p>
+        <div className="bg-surface-container p-5 rounded-2xl border border-outline-variant/10 shadow-sm flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs text-on-surface-variant font-medium truncate">Ventas totales</p>
+            <p className="text-xl lg:text-2xl font-black text-on-surface mt-1 tabular-nums tracking-tight truncate">{summary ? summary.sales_count : "—"}</p>
           </div>
           <div className="w-12 h-12 rounded-2xl bg-[#6063ee]/10 text-[#6063ee] flex items-center justify-center shrink-0">
             <IconShoppingCart className="w-6 h-6" />
           </div>
         </div>
 
-        <div className="bg-surface-container p-5 rounded-2xl border border-outline-variant/10 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-xs text-on-surface-variant font-medium">Completadas</p>
-            <p className="text-2xl font-black text-on-surface mt-1">{summary ? summary.completed_count : "—"}</p>
+        <div className="bg-surface-container p-5 rounded-2xl border border-outline-variant/10 shadow-sm flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs text-on-surface-variant font-medium truncate">Completadas</p>
+            <p className="text-xl lg:text-2xl font-black text-on-surface mt-1 tabular-nums tracking-tight truncate">{summary ? summary.completed_count : "—"}</p>
           </div>
           <div className="w-12 h-12 rounded-2xl bg-[#10b981]/10 text-[#10b981] flex items-center justify-center shrink-0">
             <IconWallet className="w-6 h-6" />
           </div>
         </div>
 
-        <div className="bg-surface-container p-5 rounded-2xl border border-outline-variant/10 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-xs text-on-surface-variant font-medium">Ingresos (completadas)</p>
-            <p className="text-2xl font-black text-on-surface mt-1">{summary ? `$${money(summary.revenue)}` : "—"}</p>
+        <div className="bg-surface-container p-5 rounded-2xl border border-outline-variant/10 shadow-sm flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs text-on-surface-variant font-medium truncate">Ingresos (completadas)</p>
+            {/* Cifra larga: baja de tamaño en vez de comerse el ícono. */}
+            <p className="text-xl lg:text-2xl font-black text-on-surface mt-1 tabular-nums tracking-tight truncate">{summary ? `$${money(summary.revenue)}` : "—"}</p>
           </div>
           <div className="w-12 h-12 rounded-2xl bg-[#3b82f6]/10 text-[#3b82f6] flex items-center justify-center shrink-0">
             <IconWallet className="w-6 h-6" />
           </div>
         </div>
 
-        <div className="bg-surface-container p-5 rounded-2xl border border-outline-variant/10 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-xs text-on-surface-variant font-medium">Ticket promedio</p>
-            <p className="text-2xl font-black text-on-surface mt-1">{summary ? `$${money(summary.avg_ticket)}` : "—"}</p>
+        <div className="bg-surface-container p-5 rounded-2xl border border-outline-variant/10 shadow-sm flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs text-on-surface-variant font-medium truncate">Ticket promedio</p>
+            <p className="text-xl lg:text-2xl font-black text-on-surface mt-1 tabular-nums tracking-tight truncate">{summary ? `$${money(summary.avg_ticket)}` : "—"}</p>
           </div>
           <div className="w-12 h-12 rounded-2xl bg-[#f59e0b]/10 text-[#f59e0b] flex items-center justify-center shrink-0">
             <IconTrendingUp className="w-6 h-6" />

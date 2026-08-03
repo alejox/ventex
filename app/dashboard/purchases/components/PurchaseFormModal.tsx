@@ -430,27 +430,27 @@ export function PurchaseFormModal({
             <div className="flex flex-col items-end gap-1 pt-2 border-t border-outline-variant/10">
               <div className="flex items-center gap-4 text-sm text-on-surface-variant">
                 <span>Subtotal:</span>
-                <span className="font-mono w-28 text-right">{money(subtotal)}</span>
+                <span className="font-mono min-w-28 text-right tabular-nums">{money(subtotal)}</span>
               </div>
               {taxMultiplier > 0 && (
                 <div className="flex items-center gap-4 text-sm text-on-surface-variant">
                   <span>IVA ({percentLabel}):</span>
-                  <span className="font-mono w-28 text-right">{money(taxAmount)}</span>
+                  <span className="font-mono min-w-28 text-right tabular-nums">{money(taxAmount)}</span>
                 </div>
               )}
               {discount > 0 && (
                 <div className="flex items-center gap-4 text-sm text-error">
                   <span>Descuento:</span>
-                  <span className="font-mono w-28 text-right">-{money(discount)}</span>
+                  <span className="font-mono min-w-28 text-right tabular-nums">-{money(discount)}</span>
                 </div>
               )}
               <div className="flex items-center gap-4 pt-1 border-t border-outline-variant/10">
                 <span className="text-sm font-semibold text-on-surface">Total:</span>
-                <span className="text-xl font-bold text-on-surface font-mono w-28 text-right">{money(total)}</span>
+                <span className="text-xl font-bold text-on-surface font-mono min-w-28 text-right tabular-nums">{money(total)}</span>
               </div>
             </div>
 
-            <div className="flex flex-col-reverse sm:flex-row gap-3 pt-2">
+            <div className="flex flex-col sm:flex-row gap-3 pt-2">
               <button
                 type="button"
                 onClick={onClose}

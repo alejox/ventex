@@ -15,6 +15,7 @@ export function SettingsTabs() {
   const tabs = [
     { name: "General", href: "/dashboard/settings" },
     { name: "Datos de tu negocio", href: "/dashboard/settings/business" },
+    { name: "Sitio web", href: "/dashboard/settings/sitio" },
   ];
 
   return (

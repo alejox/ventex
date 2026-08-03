@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useFinanceStore } from "@/stores/finance.store";
 import { useInventoryStore } from "@/stores/inventory.store";
 import { backdropProps } from "@/components/modal";
@@ -219,9 +220,9 @@ export function DashboardHome({ canAddExpense = false }: { canAddExpense?: boole
       <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-2xl p-6 shadow-sm">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-sm font-bold text-on-surface">Productos con stock bajo</h2>
-          <a href="/dashboard/inventory" className="text-xs font-medium text-primary hover:text-primary-dim transition-colors">
+          <Link href="/dashboard/inventory" className="text-xs font-medium text-primary hover:text-primary-dim transition-colors">
             Ver inventario
-          </a>
+          </Link>
         </div>
         {invLoading ? (
           <p className="text-sm text-on-surface-variant text-center py-4">Cargando…</p>
@@ -363,8 +364,9 @@ function KpiCard({
           {icon}
         </div>
       </div>
-      <p className="text-[11px] font-semibold text-on-surface-variant uppercase tracking-wider mb-1">{label}</p>
-      <p className="text-2xl font-bold text-on-surface tabular-nums">
+      <p className="text-[11px] font-semibold text-on-surface-variant uppercase tracking-wider mb-1 truncate">{label}</p>
+      {/* Cifra larga: en móvil baja de tamaño en vez de desbordar la tarjeta. */}
+      <p className="text-lg sm:text-xl lg:text-2xl font-bold text-on-surface tabular-nums tracking-tight truncate">
         {loading ? (
           <span className="inline-block w-20 h-7 rounded bg-surface-container-high animate-pulse" />
         ) : (
@@ -372,7 +374,7 @@ function KpiCard({
         )}
       </p>
       {sub && (
-        <p className="text-xs text-on-surface-variant mt-1">{sub}</p>
+        <p className="text-xs text-on-surface-variant mt-1 truncate">{sub}</p>
       )}
     </div>
   );

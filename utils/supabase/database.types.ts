@@ -202,6 +202,87 @@ export type Database = {
           },
         ]
       }
+      business_hours: {
+        Row: {
+          closes_at: string
+          is_open: boolean
+          opens_at: string
+          user_id: string
+          weekday: number
+        }
+        Insert: {
+          closes_at?: string
+          is_open?: boolean
+          opens_at?: string
+          user_id?: string
+          weekday: number
+        }
+        Update: {
+          closes_at?: string
+          is_open?: boolean
+          opens_at?: string
+          user_id?: string
+          weekday?: number
+        }
+        Relationships: []
+      }
+      business_sites: {
+        Row: {
+          about: string | null
+          address: string | null
+          booking_enabled: boolean
+          created_at: string
+          headline: string | null
+          hero_image_url: string | null
+          id: string
+          instagram: string | null
+          published: boolean
+          slot_interval_minutes: number
+          slug: string
+          template: string
+          timezone: string
+          updated_at: string
+          user_id: string
+          whatsapp: string | null
+        }
+        Insert: {
+          about?: string | null
+          address?: string | null
+          booking_enabled?: boolean
+          created_at?: string
+          headline?: string | null
+          hero_image_url?: string | null
+          id?: string
+          instagram?: string | null
+          published?: boolean
+          slot_interval_minutes?: number
+          slug: string
+          template?: string
+          timezone?: string
+          updated_at?: string
+          user_id?: string
+          whatsapp?: string | null
+        }
+        Update: {
+          about?: string | null
+          address?: string | null
+          booking_enabled?: boolean
+          created_at?: string
+          headline?: string | null
+          hero_image_url?: string | null
+          id?: string
+          instagram?: string | null
+          published?: boolean
+          slot_interval_minutes?: number
+          slug?: string
+          template?: string
+          timezone?: string
+          updated_at?: string
+          user_id?: string
+          whatsapp?: string | null
+        }
+        Relationships: []
+      }
       cash_movements: {
         Row: {
           amount: number
@@ -2248,6 +2329,58 @@ export type Database = {
       is_tenant_owner: { Args: never; Returns: boolean }
       my_subscription: { Args: never; Returns: Json }
       open_shift: { Args: { p_opening_cash: number }; Returns: Json }
+      public_site_availability: {
+        Args: {
+          p_days?: number
+          p_from: string
+          p_service_id: string
+          p_slug: string
+          p_staff_id?: string
+        }
+        Returns: {
+          day: string
+          free_slots: number
+          is_open: boolean
+        }[]
+      }
+      public_site_book: {
+        Args: {
+          p_customer_name: string
+          p_customer_phone: string
+          p_date: string
+          p_notes?: string
+          p_service_id: string
+          p_slug: string
+          p_staff_id?: string
+          p_time: string
+        }
+        Returns: Json
+      }
+      public_site_by_slug: { Args: { p_slug: string }; Returns: Json }
+      public_site_day_slots: {
+        Args: {
+          p_date: string
+          p_service_id: string
+          p_slug: string
+          p_staff_id?: string
+        }
+        Returns: {
+          slot_state: string
+          slot_time: string
+        }[]
+      }
+      public_site_slots: {
+        Args: {
+          p_date: string
+          p_service_id: string
+          p_slug: string
+          p_staff_id?: string
+        }
+        Returns: {
+          slot_time: string
+        }[]
+      }
+      public_site_slug_taken: { Args: { p_slug: string }; Returns: boolean }
       register_cash_withdrawal: {
         Args: { p_amount: number; p_reason: string }
         Returns: string

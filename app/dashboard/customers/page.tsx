@@ -392,7 +392,7 @@ export default function CustomersPage() {
                 </button>
               </div>
 
-              <div className="pt-4 flex flex-col-reverse sm:flex-row gap-3 border-t border-outline-variant/10">
+              <div className="pt-4 flex flex-col sm:flex-row gap-3 border-t border-outline-variant/10">
                 <button
                   type="button"
                   onClick={handleCloseModal}
@@ -509,23 +509,24 @@ export default function CustomersPage() {
             <div className="overflow-y-auto p-4 sm:p-6 space-y-6">
               {/* Stats */}
               <div className="grid grid-cols-3 gap-4">
-                <div className="bg-surface-container-low rounded-xl p-4 text-center">
-                  <p className="text-2xl font-bold text-on-surface tabular-nums">
+                <div className="bg-surface-container-low rounded-xl p-3 sm:p-4 text-center min-w-0">
+                  <p className="text-base sm:text-xl lg:text-2xl font-bold text-on-surface tabular-nums tracking-tight truncate">
                     {salesLoading ? <span className="inline-block w-12 h-6 rounded bg-surface-container-high animate-pulse" /> : customerSales.length}
                   </p>
-                  <p className="text-[11px] text-on-surface-variant mt-1 font-medium uppercase tracking-wider">Ventas</p>
+                  <p className="text-[11px] text-on-surface-variant mt-1 font-medium uppercase tracking-wider truncate">Ventas</p>
                 </div>
-                <div className="bg-surface-container-low rounded-xl p-4 text-center">
-                  <p className="text-2xl font-bold text-on-surface tabular-nums">
+                <div className="bg-surface-container-low rounded-xl p-3 sm:p-4 text-center min-w-0">
+                  {/* Cifra larga en una columna angosta: baja de tamaño antes de recortar. */}
+                  <p className="text-base sm:text-xl lg:text-2xl font-bold text-on-surface tabular-nums tracking-tight truncate">
                     {salesLoading ? <span className="inline-block w-20 h-6 rounded bg-surface-container-high animate-pulse" /> : `$${money(totalSpent)}`}
                   </p>
-                  <p className="text-[11px] text-on-surface-variant mt-1 font-medium uppercase tracking-wider">Total Gastado</p>
+                  <p className="text-[11px] text-on-surface-variant mt-1 font-medium uppercase tracking-wider truncate">Total Gastado</p>
                 </div>
-                <div className="bg-surface-container-low rounded-xl p-4 text-center">
-                  <p className="text-2xl font-bold text-on-surface tabular-nums">
+                <div className="bg-surface-container-low rounded-xl p-3 sm:p-4 text-center min-w-0">
+                  <p className="text-base sm:text-xl lg:text-2xl font-bold text-on-surface tabular-nums tracking-tight truncate">
                     {salesLoading ? <span className="inline-block w-16 h-6 rounded bg-surface-container-high animate-pulse" /> : lastSale ? new Date(lastSale.created_at).toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit" }) : "—"}
                   </p>
-                  <p className="text-[11px] text-on-surface-variant mt-1 font-medium uppercase tracking-wider">Última Visita</p>
+                  <p className="text-[11px] text-on-surface-variant mt-1 font-medium uppercase tracking-wider truncate">Última Visita</p>
                 </div>
               </div>
 
