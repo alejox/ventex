@@ -30,6 +30,7 @@ import { visibleNavItems, workerNavItems } from "@/config/business";
 import { backdropProps } from "@/components/modal";
 import { SIDEBAR_COOKIE, SIDEBAR_COOKIE_MAX_AGE } from "@/lib/sidebar";
 import { WorkspaceSwitcher } from "@/components/WorkspaceSwitcher";
+import { SupportFab } from "@/components/SupportFab";
 
 type IconType = typeof IconHome;
 
@@ -264,6 +265,9 @@ export function DashboardShell({
           {children}
         </main>
       </div>
+
+      {/* Soporte por WhatsApp, siempre a mano. */}
+      <SupportFab />
 
       {/* Calculator Modal */}
       {calculatorOpen && (
