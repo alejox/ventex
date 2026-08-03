@@ -18,6 +18,9 @@ import {
   WEEKDAY_LABELS,
 } from "@/services/public-site.types";
 import type { SiteTemplate } from "@/services/public-site.types";
+import { SOCIAL_NETWORKS, SOCIAL_META } from "@/lib/socialLinks";
+import { SiteQrCard } from "@/components/site/SiteQrCard";
+import { BrandIcon } from "@/app/assets/icons/BrandIcons";
 
 /**
  * "Sitio web" tab: the owner picks a URL, a design, opening hours and whether
@@ -38,6 +41,13 @@ const EMPTY_SITE: SiteInput = {
   whatsapp: null,
   address: null,
   instagram: null,
+  facebook: null,
+  tiktok: null,
+  youtube: null,
+  twitter: null,
+  linkedin: null,
+  telegram: null,
+  website: null,
   timezone: "America/Bogota",
   slot_interval_minutes: 30,
 };
@@ -95,8 +105,16 @@ function SiteForm({
   const [slugState, setSlugState] = useState<"idle" | "checking" | "free" | "taken">("idle");
 
   const suggestedSlug = slugify(settings?.business_profile?.businessName ?? "");
-  const publicUrl =
-    typeof window !== "undefined" && form.slug ? `${window.location.origin}/${form.slug}` : "";
+  // El origen del navegador es la dirección real de este entorno: en producción
+  // es el dominio y en local es localhost, así que el QR siempre abre donde el
+  // sitio efectivamente vive.
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const publicUrl = origin && form.slug ? `${origin}/${form.slug}` : "";
+  /**
+   * El QR apunta al slug YA GUARDADO, no al que se está tipeando: es el único
+   * que resuelve hoy. Si difieren, la tarjeta avisa que hay que guardar.
+   */
+  const qrUrl = origin && currentSlug ? `${origin}/${currentSlug}` : "";
 
   function update<K extends keyof SiteInput>(key: K, value: SiteInput[K]) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -192,6 +210,19 @@ function SiteForm({
         ) : slugState === "taken" ? (
           <p className="text-xs text-error">Ya está tomada. Elegí otra.</p>
         ) : null}
+
+        {qrUrl ? (
+          <SiteQrCard
+            url={qrUrl}
+            fileName={`qr-${currentSlug}`}
+            published={initialSite.published}
+            hasUnsavedSlug={slugify(form.slug) !== currentSlug}
+          />
+        ) : (
+          <p className="rounded-xl border border-outline-variant p-4 text-sm text-on-surface-variant">
+            Guardá tu dirección y acá te aparece el código QR para descargar y compartir.
+          </p>
+        )}
       </section>
 
       {/* ---- Diseño ---- */}
@@ -238,7 +269,10 @@ function SiteForm({
         </Field>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="WhatsApp">
+          <Field
+            label="WhatsApp"
+            icon={<BrandIcon name="whatsapp" className="h-4 w-4 shrink-0" colored />}
+          >
             <input
               value={form.whatsapp ?? ""}
               onChange={(e) => update("whatsapp", e.target.value || null)}
@@ -246,23 +280,46 @@ function SiteForm({
               className={FIELD}
             />
           </Field>
-          <Field label="Instagram">
+          <Field label="Dirección">
             <input
-              value={form.instagram ?? ""}
-              onChange={(e) => update("instagram", e.target.value || null)}
-              placeholder="@minegocio"
+              value={form.address ?? ""}
+              onChange={(e) => update("address", e.target.value || null)}
               className={FIELD}
             />
           </Field>
         </div>
+      </section>
 
-        <Field label="Dirección">
-          <input
-            value={form.address ?? ""}
-            onChange={(e) => update("address", e.target.value || null)}
-            className={FIELD}
-          />
-        </Field>
+      {/* ---- Redes sociales ---- */}
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-lg font-semibold text-on-surface">Redes sociales</h2>
+          <p className="text-sm text-on-surface-variant">
+            Las que dejes vacías no se muestran. Podés escribir tu usuario o pegar el enlace
+            completo: el botón del sitio se arma solo.
+          </p>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          {SOCIAL_NETWORKS.map((network) => (
+            <Field
+              key={network}
+              label={SOCIAL_META[network].label}
+              // Con el color de la marca: acá el logo es la forma más rápida de
+              // encontrar el campo que se busca.
+              icon={<BrandIcon name={network} className="h-4 w-4 shrink-0" colored />}
+            >
+              <input
+                value={form[network] ?? ""}
+                onChange={(e) => update(network, e.target.value || null)}
+                placeholder={SOCIAL_META[network].placeholder}
+                className={FIELD}
+                autoComplete="off"
+                spellCheck={false}
+              />
+            </Field>
+          ))}
+        </div>
       </section>
 
       {/* ---- Horarios ---- */}
@@ -391,10 +448,22 @@ function SiteForm({
 const FIELD =
   "w-full rounded-xl border border-outline-variant bg-surface-container px-3 py-2.5 text-sm text-on-surface outline-none focus:border-primary";
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  icon,
+  children,
+}: {
+  label: string;
+  /** Logo de la marca, cuando el campo es de una red. */
+  icon?: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-sm font-medium text-on-surface-variant">{label}</span>
+      <span className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-on-surface-variant">
+        {icon}
+        {label}
+      </span>
       {children}
     </label>
   );

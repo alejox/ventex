@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useSubscriptionBillingStore } from "@/stores/subscription-billing.store";
 import { formatMoney } from "@/config/plans";
+import { formatLongDate } from "@/lib/planValidity";
 import type { PlanPeriod } from "@/services/subscription.service";
 
 /**
@@ -54,6 +55,13 @@ export function PaymentModal({
   const submitting = useSubscriptionBillingStore((s) => s.submitting);
   const subscribe = useSubscriptionBillingStore((s) => s.subscribe);
   const pollOrder = useSubscriptionBillingStore((s) => s.pollOrder);
+  /**
+   * Vigencia recién comprada. `onPaid` dispara la recarga del estado de cobro,
+   * que marca `billingLoading` de forma síncrona: por eso alcanza con no pintar
+   * nada mientras carga para no mostrar la fecha VIEJA durante un instante.
+   */
+  const periodEnd = useSubscriptionBillingStore((s) => s.billing?.currentPeriodEnd ?? null);
+  const billingLoading = useSubscriptionBillingStore((s) => s.billingLoading);
 
   const [name, setName] = useState("");
   const [docNumber, setDocNumber] = useState("");
@@ -238,6 +246,7 @@ export function PaymentModal({
             guestEmail={guestEmail}
             planName={planName}
             recurring={Boolean(recurring)}
+            validUntil={billingLoading ? null : periodEnd}
             onClose={onClose}
           />
         ) : phase === "waiting" ? (
@@ -399,12 +408,15 @@ function SuccessState({
   guestEmail,
   planName,
   recurring,
+  validUntil,
   onClose,
 }: {
   guest: boolean;
   guestEmail: string;
   planName?: string;
   recurring: boolean;
+  /** Fin del periodo ya recargado. Null mientras no se pueda afirmar. */
+  validUntil: string | null;
   onClose: () => void;
 }) {
   return (
@@ -423,10 +435,23 @@ function SuccessState({
           enviamos el enlace a ese correo.
         </p>
       ) : (
-        <p className="text-sm text-on-surface-variant mb-6">
-          Tu plan {planName ?? "de Ventex"} ya está activo
-          {recurring ? " con renovación automática" : ""}.
-        </p>
+        <>
+          <p className={`text-sm text-on-surface-variant ${validUntil ? "mb-4" : "mb-6"}`}>
+            Tu plan {planName ?? "de Ventex"} ya está activo
+            {recurring ? " con renovación automática" : ""}.
+          </p>
+          {/* Lo primero que se quiere ver después de pagar: hasta cuándo. */}
+          {validUntil && (
+            <div className="rounded-2xl bg-surface-container-low border border-outline-variant/20 px-4 py-3 mb-6 text-left">
+              <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">
+                {recurring ? "Próximo cobro" : "Vigente hasta"}
+              </p>
+              <p className="text-base font-bold text-on-surface mt-0.5">
+                {formatLongDate(validUntil)}
+              </p>
+            </div>
+          )}
+        </>
       )}
       <button
         onClick={onClose}

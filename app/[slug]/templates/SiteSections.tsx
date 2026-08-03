@@ -2,6 +2,8 @@ import Image from "next/image";
 import Link from "next/link";
 import type { PublicSite } from "@/services/public-site.types";
 import { WEEKDAY_LABELS } from "@/services/public-site.types";
+import { socialLinksOf } from "@/lib/socialLinks";
+import { BrandIcon } from "@/app/assets/icons/BrandIcons";
 import { formatCOP, whatsappHref } from "./theme";
 
 /**
@@ -179,7 +181,10 @@ export function HoursSection({ site }: { site: PublicSite }) {
 }
 
 export function ContactSection({ site }: { site: PublicSite }) {
-  const hasContact = site.whatsapp || site.address || site.instagram;
+  // El enlace lo arma `socialLinksOf`, que descarta lo que no sea http(s): el
+  // valor lo escribió el dueño y acá termina en un href público.
+  const socials = socialLinksOf(site);
+  const hasContact = site.whatsapp || site.address || socials.length > 0;
   if (!hasContact) return null;
 
   return (
@@ -193,21 +198,26 @@ export function ContactSection({ site }: { site: PublicSite }) {
               href={whatsappHref(site.whatsapp, `Hola ${site.businessName}, quiero consultar.`)}
               target="_blank"
               rel="noopener noreferrer"
-              className="rounded-[var(--site-radius)] bg-[var(--site-accent)] px-4 py-2.5 font-semibold text-[var(--site-on-accent)]"
+              className="inline-flex items-center gap-2 rounded-[var(--site-radius)] bg-[var(--site-accent)] px-4 py-2.5 font-semibold text-[var(--site-on-accent)]"
             >
+              <BrandIcon name="whatsapp" className="h-4 w-4 shrink-0" />
               Escribir por WhatsApp
             </a>
           ) : null}
-          {site.instagram ? (
+          {socials.map((social) => (
             <a
-              href={`https://instagram.com/${site.instagram.replace(/^@/, "")}`}
+              key={social.network}
+              href={social.href}
               target="_blank"
               rel="noopener noreferrer"
-              className="rounded-[var(--site-radius)] border border-[var(--site-border)] px-4 py-2.5 font-medium text-[var(--site-text)]"
+              className="inline-flex items-center gap-2 rounded-[var(--site-radius)] border border-[var(--site-border)] px-4 py-2.5 font-medium text-[var(--site-text)]"
             >
-              Instagram
+              {/* Sin `colored`: el logo toma el color del texto de la plantilla,
+                  que es la que manda la paleta. */}
+              <BrandIcon name={social.network} className="h-4 w-4 shrink-0" />
+              {social.label}
             </a>
-          ) : null}
+          ))}
         </div>
       </div>
     </section>

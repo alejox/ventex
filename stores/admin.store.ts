@@ -2,6 +2,8 @@ import { create } from "zustand";
 import { toMessage } from "@/lib/errors";
 import * as adminService from "@/services/admin.service";
 import type {
+  AdminBillingSale,
+  AdminBillingStats,
   AdminCompany,
   AdminCompanyActivity,
   AdminCreditMovement,
@@ -22,6 +24,9 @@ interface AdminState {
   resellers: AdminReseller[];
   packs: CreditPack[];
   movements: AdminCreditMovement[];
+  /** Cobros de la pasarela: las cuentas que vendió la plataforma. */
+  sales: AdminBillingSale[];
+  salesStats: AdminBillingStats | null;
   stats: AdminStats | null;
   plans: Plan[];
   /** Tiempos vendibles de cada plan (mensual, trimestral, …). */
@@ -49,6 +54,7 @@ interface AdminState {
     note: string,
   ) => Promise<boolean>;
   fetchCreditsPanel: () => Promise<void>;
+  fetchSalesPanel: () => Promise<void>;
   savePack: (id: string | null, input: CreditPackInput) => Promise<boolean>;
   deletePack: (id: string) => Promise<boolean>;
   applyPack: (resellerId: string, packId: string) => Promise<boolean>;
@@ -63,6 +69,8 @@ export const useAdminStore = create<AdminState>((set) => ({
   resellers: [],
   packs: [],
   movements: [],
+  sales: [],
+  salesStats: null,
   stats: null,
   plans: [],
   periods: [],
@@ -188,6 +196,22 @@ export const useAdminStore = create<AdminState>((set) => ({
         adminService.fetchPlans(),
       ]);
       set({ packs, movements, plans, loading: false });
+    } catch (e) {
+      set({ error: toMessage(e), loading: false });
+    }
+  },
+
+  fetchSalesPanel: async () => {
+    set({ loading: true, error: null });
+    try {
+      // Los planes vienen para poder mostrar el NOMBRE del plan vendido: la
+      // orden guarda el id, y "basica" no es lo que el admin quiere leer.
+      const [sales, salesStats, plans] = await Promise.all([
+        adminService.fetchBillingSales(),
+        adminService.fetchBillingStats(),
+        adminService.fetchPlans(),
+      ]);
+      set({ sales, salesStats, plans, loading: false });
     } catch (e) {
       set({ error: toMessage(e), loading: false });
     }

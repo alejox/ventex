@@ -353,6 +353,63 @@ export async function deletePlanPeriod(id: string): Promise<void> {
   if (error) throw error;
 }
 
+// ---- Ventas de la plataforma (cobros de la pasarela) ----
+
+/**
+ * Una orden de cobro de dLocal Go: lo que Ventex le vendió a alguien.
+ *
+ * OJO con el nombre: acá "venta" es una cuenta vendida, NO una venta del POS de
+ * un inquilino. Eso último es el GMV que muestra `admin_stats`.
+ */
+export interface AdminBillingSale {
+  id: string;
+  order_id: string;
+  status: "pending" | "paid" | "failed" | "cancelled";
+  amount: number;
+  currency: string;
+  plan_id: string;
+  period_name: string;
+  period_months: number;
+  payment_method_type: string | null;
+  payer_name: string | null;
+  contact_email: string | null;
+  /** null = pago de invitado: pagó antes de tener cuenta. */
+  company_id: string | null;
+  company_name: string | null;
+  is_guest: boolean;
+  created_at: string;
+  paid_at: string | null;
+  error: string | null;
+}
+
+export interface AdminBillingStats {
+  gross_total: number;
+  gross_month: number;
+  gross_prev_month: number;
+  sold_total: number;
+  sold_month: number;
+  pending: number;
+  failed_30d: number;
+  /** Pagos cobrados que todavía no reclamó ninguna cuenta. */
+  unclaimed: number;
+  by_plan: Record<string, { sold: number; gross: number }>;
+  by_method: Record<string, number>;
+}
+
+export async function fetchBillingSales(limit = 200): Promise<AdminBillingSale[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("admin_billing_sales", { p_limit: limit });
+  if (error) throw error;
+  return (data ?? []) as unknown as AdminBillingSale[];
+}
+
+export async function fetchBillingStats(): Promise<AdminBillingStats> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("admin_billing_stats");
+  if (error) throw error;
+  return data as unknown as AdminBillingStats;
+}
+
 /** Reutiliza el catálogo de planes del servicio de suscripciones. */
 export type { Plan, PlanPeriod } from "@/services/subscription.service";
 export { fetchPlans, fetchPlanPeriods } from "@/services/subscription.service";

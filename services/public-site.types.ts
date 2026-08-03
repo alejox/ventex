@@ -78,7 +78,18 @@ export interface PublicSite {
   logoUrl: string | null;
   whatsapp: string | null;
   address: string | null;
+  /**
+   * Social handles as the owner typed them. `lib/socialLinks.ts` turns each one
+   * into a safe `http(s)` URL — never build the href by hand here.
+   */
   instagram: string | null;
+  facebook: string | null;
+  tiktok: string | null;
+  youtube: string | null;
+  twitter: string | null;
+  linkedin: string | null;
+  telegram: string | null;
+  website: string | null;
   bookingEnabled: boolean;
   timezone: string;
   hours: PublicHour[];

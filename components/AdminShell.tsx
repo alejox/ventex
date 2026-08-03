@@ -5,11 +5,13 @@ import { usePathname } from "next/navigation";
 import { LogoHorizontal } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ShellUserMenu } from "@/components/ShellUserMenu";
-import { IconHome, IconUsers, IconCreditCard, IconUserBadge, IconDollar } from "@/app/assets/icons/DashboardIcons";
+import { IconHome, IconUsers, IconCreditCard, IconUserBadge, IconDollar, IconReceipt } from "@/app/assets/icons/DashboardIcons";
 
 const ADMIN_NAV = [
   { id: "overview", name: "Resumen", href: "/admin", icon: IconHome },
   { id: "companies", name: "Empresas", href: "/admin/companies", icon: IconUsers },
+  // Ventas = cuentas vendidas por la pasarela, no el GMV de los inquilinos.
+  { id: "sales", name: "Ventas", href: "/admin/sales", icon: IconReceipt },
   { id: "resellers", name: "Revendedores", href: "/admin/resellers", icon: IconUserBadge },
   { id: "credits", name: "Créditos", href: "/admin/credits", icon: IconDollar },
   { id: "plans", name: "Planes", href: "/admin/plans", icon: IconCreditCard },

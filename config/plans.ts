@@ -41,6 +41,25 @@ export const SUBSCRIPTION_STATUS_LABELS: Record<string, string> = {
   cancelled: "Cancelada",
 };
 
+/**
+ * Nombres legibles de los medios de pago que informa dLocal Go.
+ * Los usan la pantalla del dueño y el panel de super admin: si divergen, dos
+ * pantallas llaman distinto al mismo cobro.
+ */
+export const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  CREDIT_CARD: "Tarjeta de crédito",
+  DEBIT_CARD: "Tarjeta débito",
+  BANK_TRANSFER: "Transferencia / PSE",
+  WALLET: "Billetera (Nequi)",
+  VOUCHER: "Efectivo",
+  TICKET: "Efectivo",
+};
+
+export function paymentMethodLabel(type: string | null | undefined): string {
+  if (!type) return "—";
+  return PAYMENT_METHOD_LABELS[type] ?? type;
+}
+
 /** Etiquetas y acentos de la licencia mensual de clientes de revendedor. */
 export const LICENSE_STATUS_LABELS: Record<string, string> = {
   pending: "Pendiente de activar",

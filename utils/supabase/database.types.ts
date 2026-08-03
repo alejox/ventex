@@ -232,54 +232,75 @@ export type Database = {
           address: string | null
           booking_enabled: boolean
           created_at: string
+          facebook: string | null
           headline: string | null
           hero_image_url: string | null
           id: string
           instagram: string | null
+          linkedin: string | null
           published: boolean
           slot_interval_minutes: number
           slug: string
+          telegram: string | null
           template: string
+          tiktok: string | null
           timezone: string
+          twitter: string | null
           updated_at: string
           user_id: string
+          website: string | null
           whatsapp: string | null
+          youtube: string | null
         }
         Insert: {
           about?: string | null
           address?: string | null
           booking_enabled?: boolean
           created_at?: string
+          facebook?: string | null
           headline?: string | null
           hero_image_url?: string | null
           id?: string
           instagram?: string | null
+          linkedin?: string | null
           published?: boolean
           slot_interval_minutes?: number
           slug: string
+          telegram?: string | null
           template?: string
+          tiktok?: string | null
           timezone?: string
+          twitter?: string | null
           updated_at?: string
           user_id?: string
+          website?: string | null
           whatsapp?: string | null
+          youtube?: string | null
         }
         Update: {
           about?: string | null
           address?: string | null
           booking_enabled?: boolean
           created_at?: string
+          facebook?: string | null
           headline?: string | null
           hero_image_url?: string | null
           id?: string
           instagram?: string | null
+          linkedin?: string | null
           published?: boolean
           slot_interval_minutes?: number
           slug?: string
+          telegram?: string | null
           template?: string
+          tiktok?: string | null
           timezone?: string
+          twitter?: string | null
           updated_at?: string
           user_id?: string
+          website?: string | null
           whatsapp?: string | null
+          youtube?: string | null
         }
         Relationships: []
       }
@@ -2134,6 +2155,29 @@ export type Database = {
         Args: { p_pack_id: string; p_reseller_id: string }
         Returns: undefined
       }
+      admin_billing_sales: {
+        Args: { p_limit?: number }
+        Returns: {
+          amount: number
+          company_id: string
+          company_name: string
+          contact_email: string
+          created_at: string
+          currency: string
+          error: string
+          id: string
+          is_guest: boolean
+          order_id: string
+          paid_at: string
+          payer_name: string
+          payment_method_type: string
+          period_months: number
+          period_name: string
+          plan_id: string
+          status: string
+        }[]
+      }
+      admin_billing_stats: { Args: never; Returns: Json }
       admin_companies: {
         Args: never
         Returns: {

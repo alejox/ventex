@@ -14,7 +14,18 @@ export interface BusinessSite {
   hero_image_url: string | null;
   whatsapp: string | null;
   address: string | null;
+  /**
+   * Social handles are stored exactly as typed (`@shop`, a full URL, …). The
+   * link is built at render time by `lib/socialLinks.ts`.
+   */
   instagram: string | null;
+  facebook: string | null;
+  tiktok: string | null;
+  youtube: string | null;
+  twitter: string | null;
+  linkedin: string | null;
+  telegram: string | null;
+  website: string | null;
   timezone: string;
   slot_interval_minutes: number;
 }
@@ -47,13 +58,20 @@ export function toSiteInput(site: BusinessSite): SiteInput {
     whatsapp: site.whatsapp,
     address: site.address,
     instagram: site.instagram,
+    facebook: site.facebook,
+    tiktok: site.tiktok,
+    youtube: site.youtube,
+    twitter: site.twitter,
+    linkedin: site.linkedin,
+    telegram: site.telegram,
+    website: site.website,
     timezone: site.timezone,
     slot_interval_minutes: site.slot_interval_minutes,
   };
 }
 
 const SITE_SELECT =
-  "id, slug, template, published, booking_enabled, headline, about, hero_image_url, whatsapp, address, instagram, timezone, slot_interval_minutes";
+  "id, slug, template, published, booking_enabled, headline, about, hero_image_url, whatsapp, address, instagram, facebook, tiktok, youtube, twitter, linkedin, telegram, website, timezone, slot_interval_minutes";
 
 /** Mon–Sat open 09–19, Sunday closed: the shape most shops start from. */
 export function defaultHours(): BusinessHour[] {

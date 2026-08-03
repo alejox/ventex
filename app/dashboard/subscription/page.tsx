@@ -10,12 +10,14 @@ import {
   usagePercent,
   planAccent,
   SUBSCRIPTION_STATUS_LABELS,
+  paymentMethodLabel,
 } from "@/config/plans";
 import { whatsappUrl } from "@/config/contact";
 import { PaymentModal } from "@/components/billing/PaymentModal";
 import { useSubscriptionBillingStore } from "@/stores/subscription-billing.store";
 import type { BillingStatus } from "@/services/subscription-billing.service";
 import { useSearchParam, stripSearchParams } from "@/lib/useUrlState";
+import { formatLongDate, planValidity, type PlanValidity } from "@/lib/planValidity";
 
 export default function SubscriptionPage() {
   const subscription = useSubscriptionStore((s) => s.subscription);
@@ -110,6 +112,7 @@ export default function SubscriptionPage() {
             periods={periods.filter((p) => p.plan_id === subscription.plan_id && p.is_active)}
             currency={currency}
             signature={signature}
+            billing={billing}
             onPay={(p) => openPayment(subscription.plan_name, p)}
           />
 
@@ -164,12 +167,14 @@ function CurrentPlanCard({
   periods,
   currency,
   signature,
+  billing,
   onPay,
 }: {
   subscription: NonNullable<ReturnType<typeof useSubscriptionStore.getState>["subscription"]>;
   periods: PlanPeriod[];
   currency: string;
   signature: string;
+  billing: BillingStatus | null;
   onPay: (period: PlanPeriod) => void;
 }) {
   const accent = planAccent(subscription.plan_id);
@@ -177,10 +182,23 @@ function CurrentPlanCard({
   /** El plan Gratis no se cobra: no hay nada que renovar. */
   const canPayOnline = subscription.price > 0;
   const mensual = periods.find((p) => p.months === 1) ?? periods[0];
+  /**
+   * La vigencia es lo primero que se busca después de pagar, así que vive acá
+   * arriba y no escondida en la tarjeta de cobro. El inicio del periodo sale del
+   * último cobro: sirve para la barra de avance y, si falta, la barra no se
+   * dibuja.
+   */
+  const validity = canPayOnline
+    ? planValidity(
+        billing?.currentPeriodEnd,
+        billing?.lastChargeAt ?? billing?.lastPayment?.paidAt ?? null,
+      )
+    : null;
+  const expiringSoon = validity != null && validity.tone !== "ok";
 
   return (
     <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-3xl p-6 md:p-8 shadow-sm">
-      <div className="flex items-start justify-between gap-4 mb-8">
+      <div className="flex items-start justify-between gap-4 mb-6">
         <div>
           <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1">
             Plan actual
@@ -203,6 +221,13 @@ function CurrentPlanCard({
         </span>
       </div>
 
+      {validity && (
+        <ValidityStrip
+          validity={validity}
+          recurring={Boolean(billing?.recurring)}
+        />
+      )}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
         <UsageBar
           label="Colaboradores"
@@ -220,18 +245,26 @@ function CurrentPlanCard({
 
       <div className="mt-8 pt-6 border-t border-outline-variant/10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <p className="text-sm text-on-surface-variant">
-          {canPayOnline
-            ? "Renová tu plan en línea con Nequi, PSE, tarjeta o efectivo."
-            : "¿Necesitás ayuda con tu cuenta? Escribinos y te atendemos."}
+          {!canPayOnline
+            ? "¿Necesitás ayuda con tu cuenta? Escribinos y te atendemos."
+            : validity?.tone === "expired"
+              ? "Renovalo ahora y recuperás el acceso completo en el momento."
+              : expiringSoon
+                ? "Renovalo ahora y los días que te quedan se suman al nuevo periodo."
+                : "Renová tu plan en línea con Nequi, PSE, tarjeta o efectivo."}
         </p>
         {/* WhatsApp quedó SOLO para soporte: la renovación se paga acá. */}
         <div className="flex flex-wrap gap-3 shrink-0">
           {canPayOnline && mensual && (
             <button
               onClick={() => onPay(mensual)}
-              className="inline-flex items-center justify-center gap-2 py-2.5 px-5 rounded-xl text-sm font-bold transition-colors whitespace-nowrap bg-primary text-white hover:bg-primary-dim shadow-lg shadow-primary/20"
+              className={`inline-flex items-center justify-center gap-2 py-2.5 px-5 rounded-xl text-sm font-bold transition-colors whitespace-nowrap text-white shadow-lg ${
+                validity?.tone === "expired" || validity?.tone === "urgent"
+                  ? "bg-error hover:bg-error/90 shadow-error/20"
+                  : "bg-primary hover:bg-primary-dim shadow-primary/20"
+              }`}
             >
-              Renovar en línea
+              {validity?.tone === "expired" ? "Reactivar mi plan" : "Renovar en línea"}
             </button>
           )}
           <WhatsAppButton
@@ -246,25 +279,114 @@ function CurrentPlanCard({
   );
 }
 
-/** Nombres legibles de los medios que informa dLocal Go. */
-const METHOD_LABELS: Record<string, string> = {
-  CREDIT_CARD: "Tarjeta de crédito",
-  DEBIT_CARD: "Tarjeta débito",
-  BANK_TRANSFER: "Transferencia / PSE",
-  WALLET: "Billetera (Nequi)",
-  VOUCHER: "Efectivo",
-  TICKET: "Efectivo",
-};
+/**
+ * Paleta de la vigencia. Un solo lugar decide el color: la urgencia se calcula
+ * en `planValidity` y acá sólo se pinta, así que el texto y el fondo nunca
+ * pueden contar cosas distintas.
+ */
+const VALIDITY_TONES = {
+  ok: {
+    box: "bg-surface-container-low border-outline-variant/20",
+    icon: "text-primary",
+    chip: "bg-[#10b981]/15 text-[#10b981]",
+    bar: "bg-primary",
+  },
+  soon: {
+    box: "bg-amber-500/10 border-amber-500/25",
+    icon: "text-amber-500",
+    chip: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
+    bar: "bg-amber-500",
+  },
+  urgent: {
+    box: "bg-error-container/20 border-error-container/30",
+    icon: "text-error",
+    chip: "bg-error-container/30 text-error-dim",
+    bar: "bg-error",
+  },
+  expired: {
+    box: "bg-error-container/20 border-error-container/30",
+    icon: "text-error",
+    chip: "bg-error-container/30 text-error-dim",
+    bar: "bg-error",
+  },
+} as const;
 
-function formatDate(value: string | null): string {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleDateString("es-CO", {
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-  });
+/**
+ * Vigencia del plan en el encabezado: hasta cuándo está pago, cuánto falta y
+ * si se renueva solo. Es la respuesta a "pagué, ¿hasta cuándo tengo?", así que
+ * va antes que el consumo del mes.
+ */
+function ValidityStrip({
+  validity,
+  recurring,
+}: {
+  validity: PlanValidity;
+  recurring: boolean;
+}) {
+  const tone = VALIDITY_TONES[validity.tone];
+
+  return (
+    <div className={`mb-8 rounded-2xl border px-4 py-4 sm:px-5 ${tone.box}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-3 min-w-0">
+          <CalendarIcon className={`w-5 h-5 shrink-0 mt-0.5 ${tone.icon}`} />
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">
+              {validity.headline}
+            </p>
+            <p className="text-base sm:text-lg font-bold text-on-surface mt-0.5 break-words">
+              {validity.dateLabel}
+            </p>
+          </div>
+        </div>
+        <span
+          className={`shrink-0 text-[11px] font-semibold px-2.5 py-1 rounded-full whitespace-nowrap ${tone.chip}`}
+        >
+          {validity.remainingLabel}
+        </span>
+      </div>
+
+      {/* La barra necesita saber cuándo arrancó el periodo; sin ese dato no se
+          dibuja en lugar de inventar un largo. */}
+      {validity.progress != null && validity.tone !== "expired" && (
+        <div className="h-1.5 rounded-full bg-surface-container-high overflow-hidden mt-3">
+          <div
+            className={`h-full rounded-full transition-all ${tone.bar}`}
+            style={{ width: `${Math.max(validity.progress, 3)}%` }}
+          />
+        </div>
+      )}
+
+      <p className="text-[13px] text-on-surface-variant leading-relaxed mt-3">
+        {validity.tone === "expired"
+          ? "Tu plan venció. Renovalo para volver a usar todas las funciones."
+          : recurring
+            ? "Se renueva solo ese día con tu medio de pago guardado. No tenés que hacer nada."
+            : validity.daysLeft === 0
+              ? "Vence hoy: renovalo para no quedarte sin acceso mañana."
+              : "Después de esa fecha se corta el acceso. Si renovás antes, los días que te quedan se suman al nuevo periodo."}
+      </p>
+    </div>
+  );
+}
+
+function CalendarIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      className={className}
+      aria-hidden
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M8 3v3m8-3v3M4 9h16M5 6h14a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1Z"
+      />
+    </svg>
+  );
 }
 
 /**
@@ -287,9 +409,7 @@ function BillingCard({
   busy: boolean;
   onToggleRecurring: (enabled: boolean) => void;
 }) {
-  const methodLabel = billing.lastPayment?.methodType
-    ? (METHOD_LABELS[billing.lastPayment.methodType] ?? billing.lastPayment.methodType)
-    : null;
+  const methodLabel = paymentMethodLabel(billing.lastPayment?.methodType);
 
   return (
     <div className="mt-6 bg-surface-container-lowest border border-outline-variant/10 rounded-3xl p-6 md:p-8 shadow-sm">
@@ -319,26 +439,29 @@ function BillingCard({
         </div>
       )}
 
+      {/* La fecha de vencimiento ya se muestra arriba, en el plan actual: acá
+          sólo va el próximo COBRO, que es otra cosa y sólo existe con la
+          renovación activa. */}
       <dl className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
-        <div>
-          <dt className="text-on-surface-variant mb-0.5">
-            {billing.recurring ? "Próximo cobro" : "Tu plan vence"}
-          </dt>
-          <dd className="font-semibold text-on-surface">
-            {formatDate(billing.recurring ? billing.nextChargeAt : billing.currentPeriodEnd)}
-          </dd>
-        </div>
+        {billing.recurring && (
+          <div>
+            <dt className="text-on-surface-variant mb-0.5">Próximo cobro</dt>
+            <dd className="font-semibold text-on-surface">
+              {formatLongDate(billing.nextChargeAt)}
+            </dd>
+          </div>
+        )}
         <div>
           <dt className="text-on-surface-variant mb-0.5">Último pago</dt>
           <dd className="font-semibold text-on-surface">
             {billing.lastPayment
-              ? `${formatMoney(billing.lastPayment.amount, currency)} · ${formatDate(billing.lastPayment.paidAt)}`
+              ? `${formatMoney(billing.lastPayment.amount, currency)} · ${formatLongDate(billing.lastPayment.paidAt)}`
               : "—"}
           </dd>
         </div>
         <div>
           <dt className="text-on-surface-variant mb-0.5">Medio de pago</dt>
-          <dd className="font-semibold text-on-surface">{methodLabel ?? "—"}</dd>
+          <dd className="font-semibold text-on-surface">{methodLabel}</dd>
         </div>
       </dl>
 
