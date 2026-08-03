@@ -11,6 +11,7 @@ import {
 } from "@/app/assets/icons/DashboardIcons";
 import styles from "./page.module.css";
 import { PricingSection } from "@/components/PricingSection";
+import { WhatsappFab } from "@/components/WhatsappFab";
 import { fetchPublicPlans, fetchPublicPlanPeriods } from "@/services/plans.server";
 
 export const metadata: Metadata = {
@@ -550,6 +551,14 @@ export default async function LandingPage() {
           </div>
         </div>
       </footer>
+
+      {/* Quien mira la landing todavía no tiene cuenta: el mensaje pregunta por
+          el producto, no pide soporte de algo que aún no usa. */}
+      <WhatsappFab
+        message="Hola, estoy viendo la página de Ventex y quiero más información."
+        label="Escríbenos"
+        pulse
+      />
     </div>
   );
 }

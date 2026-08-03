@@ -188,6 +188,40 @@
   --radius: 0.5rem;
 
   --font-sans: var(--font-plus-jakarta-sans), ui-sans-serif, system-ui, sans-serif;
+
+  /* Botón flotante de WhatsApp: ondas que salen del botón + un escalado suave.
+     `ease-out` es lo que las hace ver fluidas — la onda arranca rápido y se
+     frena al desvanecerse, como algo que se expande en el agua. Con una curva
+     lineal parece un parpadeo. */
+  --animate-wave: wave 2.4s cubic-bezier(0, 0, 0.2, 1) infinite;
+  --animate-breathe: breathe 2.4s ease-in-out infinite;
+}
+
+@keyframes wave {
+  0% {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+  /* La opacidad se apaga antes de llegar al final: el último tramo de la
+     expansión ya no se ve, y por eso la onda se siente disolverse en vez de
+     cortarse. */
+  70% {
+    opacity: 0;
+  }
+  100% {
+    transform: scale(2.1);
+    opacity: 0;
+  }
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.06);
+  }
 }
 
 @utility scrollbar-hide {

@@ -2,11 +2,10 @@
 
 import { usePathname } from "next/navigation";
 import { useProfile } from "@/components/ProfileProvider";
-import { whatsappUrl } from "@/config/contact";
-import { BrandIcon } from "@/app/assets/icons/BrandIcons";
+import { WhatsappFab } from "@/components/WhatsappFab";
 
 /**
- * Botón flotante de soporte por WhatsApp.
+ * Soporte por WhatsApp para quien YA es cliente (dashboard).
  *
  * El mensaje sale escrito con el NOMBRE DEL NEGOCIO: quien atiende necesita
  * saber de qué cuenta le están hablando antes de poder ayudar, y pedírselo al
@@ -36,20 +35,5 @@ export function SupportFab() {
     ? `Hola, soy "${businessName}". Necesito soporte.`
     : "Hola, necesito soporte.";
 
-  return (
-    <a
-      href={whatsappUrl(message)}
-      target="_blank"
-      rel="noopener noreferrer"
-      aria-label="Soporte por WhatsApp"
-      title="Soporte por WhatsApp"
-      /* z-40: por debajo de los modales (z-200) — un botón flotante encima de un
-         diálogo tapa justamente lo que la persona vino a resolver.
-         La safe-area es por el gesto de inicio del iPhone. */
-      className="print:hidden fixed right-5 bottom-[calc(1.25rem+env(safe-area-inset-bottom))] z-40 inline-flex items-center gap-2 rounded-full bg-[#25D366] px-4 py-3.5 font-bold text-white shadow-lg shadow-[#25D366]/30 transition-transform hover:scale-105 active:scale-95"
-    >
-      <BrandIcon name="whatsapp" className="h-6 w-6 shrink-0" />
-      <span className="hidden pr-1 text-sm sm:inline">Soporte</span>
-    </a>
-  );
+  return <WhatsappFab message={message} />;
 }
