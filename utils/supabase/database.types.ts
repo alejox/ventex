@@ -2193,10 +2193,7 @@ export type Database = {
         }
         Returns: undefined
       }
-      apply_billing_charge: {
-        Args: { p_order_id: string; p_user_id: string }
-        Returns: Json
-      }
+      apply_billing_charge: { Args: { p_order_id: string }; Returns: Json }
       assert_monthly_sales_limit: {
         Args: { p_add: number; p_uid: string }
         Returns: undefined

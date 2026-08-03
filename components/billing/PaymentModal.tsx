@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useSubscriptionBillingStore } from "@/stores/subscription-billing.store";
 import { formatMoney } from "@/config/plans";
@@ -80,6 +81,14 @@ export function PaymentModal({
   const recurring = period?.months === 1;
   const total = period ? formatMoney(period.price) : "";
   const needEmailStep = guest && phase === "form" && !guestEmail.trim();
+  /**
+   * Invitado que vuelve en otro navegador (o borró el storage): la orden sólo se
+   * puede consultar presentando el correo con el que se creó, y ese correo vive
+   * en el `localStorage` donde arrancó el pago. Sin él el polling daría 403 en
+   * los 60 intentos, así que no se consulta y se muestra el paso que sí sirve:
+   * registrarse con ese mismo correo, que `claim_guest_orders` ata el pago solo.
+   */
+  const missingGuestEmail = Boolean(orderId) && guest && !guestEmail.trim();
 
   const storeGuestEmail = (email: string) => {
     setGuestEmail(email);
@@ -93,7 +102,7 @@ export function PaymentModal({
 
   // ---- Polling mientras se espera la confirmación ----
   useEffect(() => {
-    if (!open || phase !== "waiting" || !orderId) return;
+    if (!open || phase !== "waiting" || !orderId || missingGuestEmail) return;
     pollsRef.current = 0;
     let cancelled = false;
 
@@ -142,7 +151,7 @@ export function PaymentModal({
       cancelled = true;
       clearInterval(interval);
     };
-  }, [open, phase, orderId, pollOrder, onPaid, guest, guestEmail]);
+  }, [open, phase, orderId, pollOrder, onPaid, guest, guestEmail, missingGuestEmail]);
 
   if (!open) return null;
 
@@ -179,7 +188,11 @@ export function PaymentModal({
     }
   };
 
-  const title = period ? `Pagar ${planName ?? ""}`.trim() : "Confirmando tu pago";
+  const title = period
+    ? `Pagar ${planName ?? ""}`.trim()
+    : missingGuestEmail
+      ? "Tu pago quedó registrado"
+      : "Confirmando tu pago";
 
   return (
     <div
@@ -201,6 +214,8 @@ export function PaymentModal({
                     ? " · se renueva automáticamente cada mes"
                     : ` · acceso por ${period.months} meses`}
                 </>
+              ) : missingGuestEmail ? (
+                "Falta un paso para activarlo."
               ) : (
                 "Estás volviendo del checkout. Esperá un momento…"
               )}
@@ -226,7 +241,11 @@ export function PaymentModal({
             onClose={onClose}
           />
         ) : phase === "waiting" ? (
-          <WaitingState onCancel={onClose} />
+          missingGuestEmail ? (
+            <GuestOtherDeviceState />
+          ) : (
+            <WaitingState onCancel={onClose} />
+          )
         ) : phase === "redirecting" ? (
           <div className="text-center py-10">
             <Spinner size="lg" />
@@ -434,6 +453,29 @@ function Field({
         {label}
       </label>
       {children}
+    </div>
+  );
+}
+
+/**
+ * Invitado que volvió del checkout sin el correo del pago a mano. No se puede
+ * confirmar el estado desde acá (haría falta ese correo para autorizar la
+ * consulta), pero el pago está cobrado igual: registrarse con él lo reclama.
+ */
+function GuestOtherDeviceState() {
+  return (
+    <div className="text-center py-8">
+      <p className="text-sm text-on-surface-variant mb-6 leading-relaxed">
+        Este pago empezó en otro navegador, así que no podemos mostrar su estado
+        acá. Creá tu cuenta con el mismo correo con el que pagaste y tu plan queda
+        activo al instante. También te enviamos el enlace a ese correo.
+      </p>
+      <Link
+        href="/register?paid=1"
+        className="block w-full py-3 rounded-xl bg-primary text-white font-bold hover:bg-primary-dim transition-colors"
+      >
+        Crear mi cuenta
+      </Link>
     </div>
   );
 }

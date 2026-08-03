@@ -53,11 +53,17 @@ export function PricingSection({
   const returningOrderId = useSearchParam("pay");
   const storedGuestEmail = useStoredValue(GUEST_EMAIL_KEY);
   const [dismissedReturn, setDismissedReturn] = useState(false);
-  const payOrderId = dismissedReturn ? null : returningOrderId;
-  // Si el correo del invitado no está en este navegador (volvió en otro
-  // dispositivo), se consulta como usuario con sesión; sin sesión el polling
-  // responde 403 y el modal ofrece revisar más tarde.
-  const returningAsGuest = Boolean(storedGuestEmail);
+  /**
+   * El modo de la vuelta lo decide la SESIÓN, no el correo guardado en este
+   * navegador: ese valor sobrevive al registro, así que un dueño con sesión que
+   * pagaba desde la landing volvía marcado como invitado y terminaba en
+   * `/register` en vez de en su panel, con su plan ya activo. El correo guardado
+   * sólo sirve como credencial para consultar la orden de un invitado.
+   */
+  const returningAsGuest = checkoutAuthed === false;
+  // Hasta saber si hay sesión no se abre el polling: consultar con la identidad
+  // equivocada da un 403 seguro y le muestra el texto del invitado a un dueño.
+  const payOrderId = dismissedReturn || checkoutAuthed === null ? null : returningOrderId;
 
   if (plans.length === 0) return null;
 
@@ -79,7 +85,7 @@ export function PricingSection({
    */
   const handlePaid = () => {
     // `payGuest` sólo está seteado si el pago arrancó en esta pantalla; al
-    // volver del checkout el modo se deduce del correo guardado.
+    // volver del checkout el modo lo dice la sesión (`returningAsGuest`).
     const asGuest = payPeriod ? payGuest : returningAsGuest;
     if (!asGuest) {
       window.location.href = "/dashboard/subscription";

@@ -95,24 +95,26 @@ export async function applyPaymentToOrder(
       })
       .eq("id", order.id);
 
+    // La función resuelve el dueño leyendo la orden, así que no se le pasa: el
+    // `user_id` que tenemos acá es de una lectura anterior y puede haber quedado
+    // viejo (un registro con `claim_guest_orders` en el medio), además de que su
+    // nulabilidad no se podía expresar en los tipos generados.
     const { data: charged, error: chargeError } = await admin.rpc("apply_billing_charge", {
       p_order_id: order.id,
-      // `p_user_id` ES nullable: con null la función marca la orden como pagada
-      // sin activar licencia (pago de invitado, se activa al reclamarlo). Los
-      // tipos generados no expresan la nulabilidad de los parámetros de una
-      // función de Postgres, de ahí el cast.
-      p_user_id: order.user_id as string,
     });
 
     if (chargeError) {
       throw new Error(`apply_billing_charge falló: ${chargeError.message}`);
     }
 
-    const applied = (charged as { applied?: boolean } | null)?.applied === true;
+    const result = charged as { applied?: boolean; guest?: boolean } | null;
+    const applied = result?.applied === true;
 
     // Sólo el PRIMER PAID de una orden de invitado manda el correo: en los
-    // reintentos `applied` ya vuelve false.
-    if (applied && order.user_id === null && order.guest_email) {
+    // reintentos `applied` ya vuelve false. Que siga siendo de invitado lo dice
+    // la función (`guest`), no la fila que leímos antes: si la cuenta se creó
+    // mientras el pago viajaba, la orden ya tiene dueño y la licencia se activó.
+    if (applied && result?.guest === true && order.guest_email) {
       await sendGuestCheckoutEmail({
         email: order.guest_email,
         fullName: order.payer_name,
