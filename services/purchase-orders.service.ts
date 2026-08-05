@@ -245,8 +245,14 @@ export async function receivePurchaseOrder(order: PurchaseOrder): Promise<string
       .map((item) => ({
         product_id: item.product_id as string,
         description: item.product_name,
-        quantity: item.quantity,
+        // Un pedido no distingue caja de unidad: sus cantidades siempre fueron
+        // unidades sueltas, que es lo que `increment_stock` sumaba tal cual.
+        // Marcarlo explícito deja el comportamiento idéntico al de antes.
+        package_quantity: 0,
+        loose_quantity: item.quantity,
         unit_price: item.unit_price,
+        package_price: 0,
+        units_per_package: 1,
       })),
   });
 

@@ -11,59 +11,93 @@ test.describe("Compras", () => {
 
   test("carga la página de compras con título y descripción", async ({ page }) => {
     await expect(page.getByRole("heading", { name: "Compras", exact: true })).toBeVisible({ timeout: 15000 });
-    await expect(page.getByText("Registra compras a proveedores y actualiza el stock.")).toBeVisible();
+    await expect(
+      page.getByText("Registra tus compras de productos y mantén actualizadas las cantidades en tu inventario.")
+    ).toBeVisible();
   });
 
-  test("abre el modal de nueva compra", async ({ page }) => {
-    await page.getByRole("button", { name: "Nueva Compra" }).click();
-    await expect(page.getByRole("heading", { name: "Nueva Compra" })).toBeVisible({ timeout: 5000 });
-    await expect(page.getByText("Proveedor", { exact: true })).toBeVisible();
-    await expect(page.getByText("Fecha", { exact: true })).toBeVisible();
-    await expect(page.getByText("IVA", { exact: true })).toBeVisible();
+  test("el buscador está visible haya o no compras", async ({ page }) => {
+    const searchInput = page.getByPlaceholder("Buscar No. de factura");
+    await expect(searchInput).toBeVisible({ timeout: 15000 });
+    await searchInput.fill("FAC-001");
+    await expect(searchInput).toHaveValue("FAC-001");
   });
 
-  test("el modal de nueva compra tiene el formulario completo", async ({ page }) => {
-    await page.getByRole("button", { name: "Nueva Compra" }).click();
-    await page.waitForTimeout(500);
-
-    await expect(page.getByText("Productos")).toBeVisible();
-    await expect(page.getByText("Subtotal:")).toBeVisible();
-    await expect(page.getByText("Total:", { exact: true })).toBeVisible();
+  test("Nueva compra navega a su propia página, no a un modal", async ({ page }) => {
+    await page.getByRole("button", { name: "Nueva compra" }).first().click();
+    await expect(page).toHaveURL(/\/dashboard\/purchases\/new$/, { timeout: 15000 });
+    await expect(page.getByRole("heading", { name: "Nueva compra" })).toBeVisible();
   });
 
-  test("cambia el estado de pago en el formulario", async ({ page }) => {
-    await page.getByRole("button", { name: "Nueva Compra" }).click();
-    await page.waitForTimeout(500);
+  test("el formulario de compra tiene cabecera, líneas y totales", async ({ page }) => {
+    await page.goto("/dashboard/purchases/new");
+    await page.waitForLoadState("networkidle");
 
-    const statusSelect = page.locator("select").filter({ hasText: /Pagada|Pendiente|Anulada/i });
-    if (await statusSelect.isVisible()) {
-      await statusSelect.selectOption("pending");
-    }
+    await expect(page.getByLabel("Factura de compra N°")).toBeVisible({ timeout: 15000 });
+    await expect(page.getByLabel("Fecha de compra:")).toBeVisible();
+    await expect(page.getByLabel("Fecha de vencimiento")).toBeVisible();
+
+    await expect(page.getByRole("heading", { name: "Información general" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Productos comprados" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Agregar producto" })).toBeVisible();
+
+    await expect(page.getByLabel("Notas")).toBeVisible();
+
+    // "Total" también es una columna de la tabla de líneas: sin acotar al panel
+    // el localizador matchea de más y Playwright falla por modo estricto.
+    const totals = page.getByRole("group", { name: "Totales de la compra" });
+    await expect(totals.getByText("Subtotal", { exact: true })).toBeVisible();
+    await expect(totals.getByText("Total", { exact: true })).toBeVisible();
   });
 
-  test("cierra el modal con Cancelar", async ({ page }) => {
-    await page.getByRole("button", { name: "Nueva Compra" }).click();
-    await page.waitForTimeout(500);
-    const cancelBtn = page.getByRole("button", { name: "Cancelar" });
-    if (await cancelBtn.isVisible()) {
-      await cancelBtn.click();
-    }
+  test("la línea acepta cajas y unidades por separado", async ({ page }) => {
+    await page.goto("/dashboard/purchases/new");
+    await page.waitForLoadState("networkidle");
+
+    // Dos cantidades y un solo costo, siempre por unidad suelta: es lo que
+    // evita que el mismo número signifique caja en una línea y unidad en otra.
+    await expect(page.getByLabel("Cajas de la línea 1")).toBeVisible({ timeout: 15000 });
+    await expect(page.getByLabel("Unidades sueltas de la línea 1")).toBeVisible();
+    await expect(page.getByLabel("Costo por unidad de la línea 1")).toBeVisible();
   });
 
-  test("muestra botón de primera compra cuando no hay compras", async ({ page }) => {
-    const firstBtn = page.getByRole("button", { name: "Registrar primera compra" });
-    if (await firstBtn.isVisible()) {
-      await firstBtn.click();
-      await expect(page.getByText("Nueva Compra")).toBeVisible({ timeout: 5000 }).catch(() => {});
-    }
+  test("Agregar producto suma una línea a la tabla", async ({ page }) => {
+    await page.goto("/dashboard/purchases/new");
+    await page.waitForLoadState("networkidle");
+
+    const firstLine = page.getByLabel("Producto de la línea 1");
+    await expect(firstLine).toBeVisible({ timeout: 15000 });
+    await expect(page.getByLabel("Producto de la línea 2")).toHaveCount(0);
+
+    await page.getByRole("button", { name: "Agregar producto" }).click();
+    await expect(page.getByLabel("Producto de la línea 2")).toBeVisible();
   });
 
-  test("filtro de búsqueda por factura está presente", async ({ page }) => {
-    const searchInput = page.getByPlaceholder("Buscar por factura…");
-    if (await searchInput.isVisible()) {
-      await searchInput.fill("FAC-001");
-      await expect(searchInput).toHaveValue("FAC-001");
-    }
+  test("Guardar está deshabilitado sin proveedor ni productos", async ({ page }) => {
+    await page.goto("/dashboard/purchases/new");
+    await page.waitForLoadState("networkidle");
+    await expect(page.getByRole("button", { name: "Guardar", exact: true })).toBeDisabled({ timeout: 15000 });
+  });
+
+  test("Nuevo proveedor abre el panel lateral", async ({ page }) => {
+    await page.goto("/dashboard/purchases/new");
+    await page.waitForLoadState("networkidle");
+
+    await page.getByRole("button", { name: "Nuevo proveedor" }).click();
+    const drawer = page.getByRole("dialog", { name: "Nuevo proveedor" });
+    await expect(drawer).toBeVisible({ timeout: 5000 });
+    await expect(drawer.getByLabel("Razón social / Nombre completo")).toBeVisible();
+
+    await page.keyboard.press("Escape");
+    await expect(drawer).toBeHidden();
+  });
+
+  test("Cancelar vuelve al listado", async ({ page }) => {
+    await page.goto("/dashboard/purchases/new");
+    await page.waitForLoadState("networkidle");
+
+    await page.getByRole("button", { name: "Cancelar" }).click();
+    await expect(page).toHaveURL(/\/dashboard\/purchases$/, { timeout: 15000 });
   });
 
   test("tabla de compras tiene columnas correctas cuando hay datos", async ({ page }) => {

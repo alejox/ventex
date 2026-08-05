@@ -10,8 +10,14 @@ interface DistributorsState {
   submitting: boolean;
 
   fetchDistributors: () => Promise<void>;
-  /** Devuelve true si el alta fue correcta (para que el componente navegue/cierre). */
-  addDistributor: (input: NewDistributorInput) => Promise<boolean>;
+  /**
+   * Devuelve el proveedor creado, o `null` si falló.
+   *
+   * Devuelve la fila y no un booleano porque quien lo crea desde un formulario
+   * de compra necesita el `id` para dejarlo seleccionado; sigue sirviendo como
+   * chequeo de éxito (`if (ok)`) para quien solo quiera cerrar el modal.
+   */
+  addDistributor: (input: NewDistributorInput) => Promise<Distributor | null>;
   updateDistributor: (id: string, input: NewDistributorInput) => Promise<boolean>;
   deleteDistributor: (id: string) => Promise<boolean>;
 }
@@ -38,10 +44,10 @@ export const useDistributorsStore = create<DistributorsState>((set) => ({
     try {
       const distributor = await distributorsService.createDistributor(input);
       set((s) => ({ distributors: [...s.distributors, distributor], submitting: false }));
-      return true;
+      return distributor;
     } catch (e) {
       set({ error: toMessage(e), submitting: false });
-      return false;
+      return null;
     }
   },
 

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { PurchaseInvoice, PurchaseInvoiceItem } from "@/services/purchases.service";
 import * as purchasesService from "@/services/purchases.service";
+import { looseUnitsOf } from "@/services/purchases.service";
 
 const money = (n: number) =>
   "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -82,8 +83,24 @@ export function PurchaseInvoiceDetailModal({ invoice, onClose }: Props) {
                       <p className="text-sm font-medium text-on-surface truncate">
                         {item.products?.name || item.description}
                       </p>
+                      {/* Cómo se cargó y qué entró, separado del precio: mezclar
+                          "40 u." con "$12.000 la caja" en una sola cuenta se lee
+                          como si 40 unidades costaran $12.000 cada una. */}
                       <p className="text-xs text-on-surface-variant mt-0.5">
-                        {item.quantity} × {money(item.unit_price)}
+                        {item.package_quantity > 0 ? (
+                          <>
+                            {item.package_quantity} caja(s) x{item.units_per_package}
+                            {looseUnitsOf(item) > 0 ? ` + ${looseUnitsOf(item)} u.` : ""} ={" "}
+                            <strong className="text-on-surface">{item.quantity} u.</strong>
+                          </>
+                        ) : (
+                          <strong className="text-on-surface">{item.quantity} u.</strong>
+                        )}
+                        <span className="mx-1">·</span>
+                        {item.package_quantity > 0 && `${money(item.package_price)} la caja`}
+                        {item.package_quantity > 0 && looseUnitsOf(item) > 0 && " + "}
+                        {(item.package_quantity === 0 || looseUnitsOf(item) > 0) &&
+                          `${money(item.unit_price)} la unidad`}
                       </p>
                     </div>
                     <span className="text-sm font-semibold text-on-surface font-mono shrink-0 ml-4">

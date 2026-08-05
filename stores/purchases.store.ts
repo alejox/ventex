@@ -13,7 +13,8 @@ interface PurchasesState {
   createInvoice: (params: PurchaseInvoiceParams) => Promise<boolean>;
   updateStatus: (id: string, status: string) => Promise<void>;
   updateInvoice: (id: string, params: PurchaseInvoiceParams) => Promise<boolean>;
-  cancelInvoice: (id: string, items: { product_id: string; quantity: number }[]) => Promise<boolean>;
+  /** El servicio lee sus propias líneas para devolver el stock exacto. */
+  cancelInvoice: (id: string) => Promise<boolean>;
 }
 
 
@@ -74,10 +75,10 @@ export const usePurchasesStore = create<PurchasesState>((set) => ({
     }
   },
 
-  cancelInvoice: async (id, items) => {
+  cancelInvoice: async (id) => {
     set({ submitting: true, error: null });
     try {
-      await purchasesService.cancelPurchaseInvoice(id, items);
+      await purchasesService.cancelPurchaseInvoice(id);
       set((s) => ({
         invoices: s.invoices.map((inv) =>
           inv.id === id ? { ...inv, status: "cancelled" } : inv

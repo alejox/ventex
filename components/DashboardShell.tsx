@@ -20,6 +20,7 @@ import {
   IconCar,
   IconFileText,
   IconRefreshCw,
+  IconReceipt,
 } from "@/app/assets/icons/DashboardIcons";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ShellUserMenu } from "@/components/ShellUserMenu";
@@ -57,6 +58,7 @@ const NAV_ICONS: Record<string, IconType> = {
   pedidos: IconRefreshCw,
   customers: IconUsers,
   distributors: IconBox,
+  purchases: IconReceipt,
   movements: IconBox,
   calendar: IconCalendar,
   subscription: IconCreditCard,

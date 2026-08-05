@@ -242,6 +242,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: "pedidos", name: "Pedidos", href: "/dashboard/pedidos", modules: ["inventory"] },
   { id: "customers", name: "Clientes", href: "/dashboard/customers", modules: [] },
   { id: "distributors", name: "Proveedores", href: "/dashboard/distributors", modules: ["inventory"] },
+  { id: "purchases", name: "Compras", href: "/dashboard/purchases", modules: ["inventory"] },
   { id: "subscription", name: "Mi Plan", href: "/dashboard/subscription", modules: [] },
 ];
 
@@ -280,10 +281,13 @@ export const QUICK_ACTIONS: QuickAction[] = [
 const UNIVERSAL_NAV_IDS = ["panel", "pos", "sales", "customers", "staff", "subscription"];
 
 /** Menú base por tipo de negocio (además de las universales). */
+// `purchases` acompaña a `distributors`: son el mismo dominio (a quién le
+// compro / qué le compré) y la tienda los necesita aunque no tenga el módulo
+// `inventory` activado, porque su menú base sale de acá y no de los módulos.
 const BASE_NAV_BY_TYPE: Record<BusinessType, string[]> = {
-  salon: ["calendar", "catalogo", "distributors"],
-  tienda: ["catalogo", "distributors"],
-  lavaautos: ["calendar", "catalogo", "distributors"],
+  salon: ["calendar", "catalogo", "distributors", "purchases"],
+  tienda: ["catalogo", "distributors", "purchases"],
+  lavaautos: ["calendar", "catalogo", "distributors", "purchases"],
   servicios: ["calendar"],
 };
 

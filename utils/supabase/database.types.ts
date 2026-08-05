@@ -762,10 +762,13 @@ export type Database = {
           id: string
           invoice_id: string
           line_total: number
+          package_price: number
+          package_quantity: number
           product_id: string | null
           quantity: number
           service_id: string | null
           unit_price: number
+          units_per_package: number
           user_id: string
         }
         Insert: {
@@ -774,10 +777,13 @@ export type Database = {
           id?: string
           invoice_id: string
           line_total?: number
+          package_price?: number
+          package_quantity?: number
           product_id?: string | null
           quantity?: number
           service_id?: string | null
           unit_price?: number
+          units_per_package?: number
           user_id?: string
         }
         Update: {
@@ -786,10 +792,13 @@ export type Database = {
           id?: string
           invoice_id?: string
           line_total?: number
+          package_price?: number
+          package_quantity?: number
           product_id?: string | null
           quantity?: number
           service_id?: string | null
           unit_price?: number
+          units_per_package?: number
           user_id?: string
         }
         Relationships: [
@@ -2440,6 +2449,10 @@ export type Database = {
           p_quantity: number
           p_type: string
         }
+        Returns: undefined
+      }
+      replace_purchase_invoice_items: {
+        Args: { p_invoice_id: string; p_items: Json }
         Returns: undefined
       }
       reseller_clients: {

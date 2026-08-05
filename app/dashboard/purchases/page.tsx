@@ -1,134 +1,64 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { IconPlus, IconBox } from "@/app/assets/icons/DashboardIcons";
+import { useRouter } from "next/navigation";
+import { IconPlus } from "@/app/assets/icons/DashboardIcons";
 import { usePurchasesStore } from "@/stores/purchases.store";
 import type { PurchaseInvoice } from "@/services/purchases.service";
-import * as purchasesService from "@/services/purchases.service";
 import { useDistributorsStore } from "@/stores/distributors.store";
-import { useInventoryStore } from "@/stores/inventory.store";
-import { DistributorQuickModal } from "@/components/DistributorQuickModal";
-import { CategoryQuickModal } from "@/components/CategoryQuickModal";
 import { Select } from "@/components/ui/Select";
-import { useBusinessTax } from "@/lib/useBusinessTax";
 import { PurchaseInvoiceDetailModal } from "@/components/PurchaseInvoiceDetailModal";
 import { DataTable, type DataColumn } from "@/components/DataTable";
-import { useProfile } from "@/components/ProfileProvider";
-import { can } from "@/lib/permissions";
-import { PurchaseFormModal, type PurchaseFormPayload } from "./components/PurchaseFormModal";
 import { CancelConfirmModal } from "./components/CancelConfirmModal";
 
 const money = (n: number) =>
   "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export default function PurchasesPage() {
+  const router = useRouter();
+
   const invoices = usePurchasesStore((s) => s.invoices);
   const loading = usePurchasesStore((s) => s.loading);
   const error = usePurchasesStore((s) => s.error);
   const submitting = usePurchasesStore((s) => s.submitting);
   const fetchInvoices = usePurchasesStore((s) => s.fetchInvoices);
-  const createInvoice = usePurchasesStore((s) => s.createInvoice);
   const updateStatus = usePurchasesStore((s) => s.updateStatus);
-  const updateInvoice = usePurchasesStore((s) => s.updateInvoice);
   const cancelInvoice = usePurchasesStore((s) => s.cancelInvoice);
 
   const distributors = useDistributorsStore((s) => s.distributors);
   const fetchDistributors = useDistributorsStore((s) => s.fetchDistributors);
 
-  const products = useInventoryStore((s) => s.products);
-  const fetchInventory = useInventoryStore((s) => s.fetchInventory);
-
-  const [modalOpen, setModalOpen] = useState(false);
-  const [distributorModalOpen, setDistributorModalOpen] = useState(false);
-  const [categoryModalOpen, setCategoryModalOpen] = useState(false);
   const [detailInvoice, setDetailInvoice] = useState<PurchaseInvoice | null>(null);
-  const [editingInvoice, setEditingInvoice] = useState<PurchaseInvoice | null>(null);
-  const [editLines, setEditLines] = useState<{ product_id: string; product_name: string; description: string; quantity: number; unit_price: number }[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [cancelConfirmId, setCancelConfirmId] = useState<string | null>(null);
   const [filterDistributorId, setFilterDistributorId] = useState("");
 
-  const { rawRate: businessTaxRate, rawPercentLabel: percentLabel } = useBusinessTax();
-
-  const profile = useProfile();
-  const canSeeCosts = can(profile, "inventory_costs");
-
   useEffect(() => {
     fetchInvoices();
     fetchDistributors();
-    fetchInventory();
-  }, [fetchInvoices, fetchDistributors, fetchInventory]);
-
-  const openModal = () => {
-    setEditingInvoice(null);
-    setEditLines([]);
-    setModalOpen(true);
-  };
-
-  const openEdit = async (invoice: PurchaseInvoice) => {
-    setEditingInvoice(invoice);
-    setEditLines([]);
-    setModalOpen(true);
-    try {
-      const items = await purchasesService.fetchPurchaseInvoiceItems(invoice.id);
-      setEditLines(
-        items.map((item) => ({
-          product_id: item.product_id ?? "",
-          product_name: item.products?.name ?? item.description,
-          description: item.description,
-          quantity: item.quantity,
-          unit_price: item.unit_price,
-        }))
-      );
-    } catch {
-      setEditLines([]);
-    }
-  };
-
-  const closeModal = () => {
-    setModalOpen(false);
-    setEditingInvoice(null);
-  };
-
-  const handleSubmitForm = async (payload: PurchaseFormPayload) => {
-    return editingInvoice
-      ? await updateInvoice(editingInvoice.id, payload)
-      : await createInvoice(payload);
-  };
-
-  const handleDistributorCreated = () => {
-    fetchDistributors();
-  };
+  }, [fetchInvoices, fetchDistributors]);
 
   const handleCancelInvoice = async (invoice: PurchaseInvoice) => {
-    try {
-      const items = await purchasesService.fetchPurchaseInvoiceItems(invoice.id);
-      const ok = await cancelInvoice(
-        invoice.id,
-        items.map((i) => ({ product_id: i.product_id ?? "", quantity: i.quantity }))
-      );
-      if (ok) setCancelConfirmId(null);
-    } catch {
-      // error handled by store
-    }
+    const ok = await cancelInvoice(invoice.id);
+    if (ok) setCancelConfirmId(null);
   };
 
-  const filteredInvoices = useMemo(
-    () => {
-      let result = invoices;
-      if (searchQuery) {
-        result = result.filter(
-          (inv) =>
-            inv.supplier_invoice_number?.toLowerCase().includes(searchQuery.toLowerCase())
-        );
-      }
-      if (filterDistributorId) {
-        result = result.filter((inv) => inv.distributor_id === filterDistributorId);
-      }
-      return result;
-    },
-    [invoices, searchQuery, filterDistributorId]
-  );
+  const filteredInvoices = useMemo(() => {
+    let result = invoices;
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(
+        (inv) =>
+          inv.supplier_invoice_number?.toLowerCase().includes(q) ||
+          String(inv.invoice_number).includes(q) ||
+          inv.distributors?.business_name.toLowerCase().includes(q)
+      );
+    }
+    if (filterDistributorId) {
+      result = result.filter((inv) => inv.distributor_id === filterDistributorId);
+    }
+    return result;
+  }, [invoices, searchQuery, filterDistributorId]);
 
   const purchaseColumns: DataColumn<PurchaseInvoice>[] = [
     {
@@ -192,9 +122,9 @@ export default function PurchasesPage() {
       cell: (inv) => new Date(inv.issue_date).toLocaleDateString("es-ES"),
     },
     {
-      header: "Recibido",
-      className: "text-xs text-on-surface-variant",
-      cell: (inv) => (inv.created_at ? new Date(inv.created_at).toLocaleDateString("es-ES") : "—"),
+      header: "Vencimiento",
+      className: "text-on-surface-variant",
+      cell: (inv) => (inv.due_date ? new Date(inv.due_date).toLocaleDateString("es-ES") : "—"),
     },
     {
       header: "Acción",
@@ -205,7 +135,7 @@ export default function PurchasesPage() {
         <div className="flex items-center justify-center gap-1">
           <button
             type="button"
-            onClick={() => openEdit(inv)}
+            onClick={() => router.push(`/dashboard/purchases/${inv.id}/edit`)}
             className="w-11 h-11 lg:w-8 lg:h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
             title="Editar factura"
             aria-label={`Editar factura #${inv.invoice_number}`}
@@ -246,19 +176,24 @@ export default function PurchasesPage() {
     },
   ];
 
+  const hasInvoices = invoices.length > 0;
+
   return (
     <div className="flex flex-col gap-6 w-full animate-in fade-in duration-500">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-on-surface">Compras</h1>
-          <p className="text-sm text-on-surface-variant mt-1">Registra compras a proveedores y actualiza el stock.</p>
+          <p className="text-sm text-on-surface-variant mt-1">
+            Registra tus compras de productos y mantén actualizadas las cantidades en tu inventario.
+          </p>
         </div>
         <button
-          onClick={openModal}
+          type="button"
+          onClick={() => router.push("/dashboard/purchases/new")}
           className="bg-[#6063ee] hover:bg-[#c0c1ff] text-white hover:text-[#0b0664] text-sm font-semibold py-2.5 px-4 rounded-xl shadow-lg shadow-[#6063ee]/20 transition-colors flex items-center justify-center gap-2"
         >
           <IconPlus className="w-4 h-4" />
-          <span>Nueva Compra</span>
+          <span>Nueva compra</span>
         </button>
       </div>
 
@@ -268,40 +203,32 @@ export default function PurchasesPage() {
         </div>
       )}
 
-      {loading ? (
-        <p className="text-center text-sm text-on-surface-variant py-12">Cargando compras…</p>
-      ) : invoices.length === 0 ? (
-        <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-3xl p-12 shadow-sm flex flex-col items-center justify-center text-center mt-8">
-          <div className="w-16 h-16 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant mb-4">
-            <IconBox />
+      <div className="bg-surface-container rounded-3xl border border-outline-variant/10 shadow-sm overflow-hidden">
+        {/* El buscador queda a la vista incluso sin compras: es lo que muestra el
+            ejemplo, y evita que la barra aparezca de golpe tras la primera alta. */}
+        <div className="p-4 border-b border-outline-variant/10 flex flex-col sm:flex-row gap-3">
+          <div className="relative w-full sm:max-w-xs">
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Buscar No. de factura"
+              aria-label="Buscar compras"
+              className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-xl py-2.5 pl-9 pr-3 text-base lg:text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/40"
+            />
+            <svg
+              aria-hidden="true"
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant/60"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              viewBox="0 0 24 24"
+            >
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.35-4.35" />
+            </svg>
           </div>
-          <h2 className="text-lg font-bold text-on-surface mb-2">Aún no hay compras</h2>
-          <p className="text-sm text-on-surface-variant max-w-sm mb-6">
-            Registra tu primera compra para mantener el inventario actualizado.
-          </p>
-          <button
-            onClick={openModal}
-            className="px-6 py-2.5 bg-surface-container border border-outline-variant/20 text-on-surface text-sm font-semibold rounded-xl hover:bg-surface-container-high transition-colors"
-          >
-            Registrar primera compra
-          </button>
-        </div>
-      ) : (
-        <div className="bg-surface-container rounded-3xl border border-outline-variant/10 shadow-sm overflow-hidden">
-          <div className="p-4 border-b border-outline-variant/10">
-            <div className="relative max-w-xs">
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Buscar por factura…"
-                className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-xl py-2 pl-9 pr-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/40"
-              />
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant/60" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <circle cx="11" cy="11" r="8" />
-                <path d="m21 21-4.35-4.35" />
-              </svg>
-            </div>
+          {hasInvoices && (
             <Select
               aria-label="Filtrar por proveedor"
               containerClassName="w-full sm:w-56"
@@ -313,7 +240,43 @@ export default function PurchasesPage() {
                 <option key={d.id} value={d.id}>{d.business_name}</option>
               ))}
             </Select>
+          )}
+        </div>
+
+        {loading ? (
+          <p className="text-center text-sm text-on-surface-variant py-20">Cargando compras…</p>
+        ) : !hasInvoices ? (
+          <div className="flex flex-col items-center justify-center text-center px-6 py-20">
+            <svg
+              aria-hidden="true"
+              className="w-14 h-14 text-on-surface-variant/50 mb-6"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              viewBox="0 0 24 24"
+            >
+              <circle cx="11" cy="11" r="7" />
+              <path d="m21 21-4.35-4.35" strokeLinecap="round" />
+            </svg>
+            <h2 className="text-lg font-bold text-on-surface mb-2">
+              ¡Aún no has creado tu primera factura de compra!
+            </h2>
+            <p className="text-sm text-on-surface-variant max-w-md mb-6">
+              Registra tus compras y mantén tu inventario actualizado.
+            </p>
+            <button
+              type="button"
+              onClick={() => router.push("/dashboard/purchases/new")}
+              className="px-6 py-2.5 bg-primary hover:bg-primary-dim text-on-primary text-sm font-semibold rounded-xl transition-colors"
+            >
+              Nueva compra
+            </button>
           </div>
+        ) : filteredInvoices.length === 0 ? (
+          <p className="text-center text-sm text-on-surface-variant py-20">
+            Ninguna compra coincide con la búsqueda.
+          </p>
+        ) : (
           <DataTable
             rows={filteredInvoices}
             rowKey={(inv) => inv.id}
@@ -321,38 +284,8 @@ export default function PurchasesPage() {
             caption="Facturas de compra"
             columns={purchaseColumns}
           />
-        </div>
-      )}
-
-      {modalOpen && (
-        <PurchaseFormModal
-          key={`${editingInvoice?.id ?? "new"}:${editLines.length}`}
-          editingInvoice={editingInvoice}
-          initialLines={editLines}
-          distributors={distributors}
-          products={products}
-          submitting={submitting}
-          error={error}
-          canSeeCosts={canSeeCosts}
-          percentLabel={percentLabel}
-          businessTaxRate={businessTaxRate}
-          onClose={closeModal}
-          onSubmit={handleSubmitForm}
-          onOpenDistributorModal={() => setDistributorModalOpen(true)}
-          onOpenCategoryModal={() => setCategoryModalOpen(true)}
-        />
-      )}
-
-      {distributorModalOpen && (
-        <DistributorQuickModal
-          onClose={() => setDistributorModalOpen(false)}
-          onCreated={handleDistributorCreated}
-        />
-      )}
-
-      {categoryModalOpen && (
-        <CategoryQuickModal onClose={() => setCategoryModalOpen(false)} />
-      )}
+        )}
+      </div>
 
       {detailInvoice && (
         <PurchaseInvoiceDetailModal
