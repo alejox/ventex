@@ -2333,6 +2333,10 @@ export type Database = {
         Returns: undefined
       }
       can_write_settings: { Args: never; Returns: boolean }
+      cancel_purchase_invoice: {
+        Args: { p_invoice_id: string }
+        Returns: undefined
+      }
       claim_guest_orders: { Args: { p_email: string }; Returns: Json }
       clear_active_workspace: { Args: never; Returns: undefined }
       close_shift: {

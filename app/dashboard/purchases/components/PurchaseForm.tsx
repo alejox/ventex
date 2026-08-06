@@ -289,7 +289,18 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
 
   // Una línea sin cajas NI sueltas no compró nada: no puede mover stock.
   const validLines = lines.filter((l) => l.product_id && totalUnitsOf(l) > 0);
-  const canSubmit = Boolean(distributorId) && validLines.length > 0 && !submitting;
+
+  /**
+   * El N° de factura del proveedor es OBLIGATORIO.
+   *
+   * Es el único dato que ata esta compra al papel que emitió el proveedor. Sin
+   * él, dos compras al mismo proveedor por el mismo monto son indistinguibles:
+   * no se puede auditar contra el remito, ni detectar que se cargó dos veces.
+   * El `invoice_number` interno no sirve para eso — lo genera Ventex.
+   */
+  const supplierNumber = supplierInvoiceNumber.trim();
+  const canSubmit =
+    Boolean(distributorId) && Boolean(supplierNumber) && validLines.length > 0 && !submitting;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -298,7 +309,7 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
     const payload = {
       distributor_id: distributorId,
       issue_date: issueDate,
-      supplier_invoice_number: supplierInvoiceNumber,
+      supplier_invoice_number: supplierNumber,
       status,
       // `description` es NOT NULL: si el usuario no escribió observación, cae al
       // nombre del producto en vez de romper el insert.
@@ -353,10 +364,13 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
             <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3 min-w-0">
               <label htmlFor="supplier-number" className="text-lg font-semibold text-on-surface sm:shrink-0">
                 Factura de compra N°
+                <span className="text-error" aria-hidden="true"> *</span>
               </label>
               <input
                 id="supplier-number"
                 type="text"
+                required
+                aria-required="true"
                 value={supplierInvoiceNumber}
                 onChange={(e) => setSupplierInvoiceNumber(e.target.value)}
                 className={`${inputClass} sm:w-48`}
@@ -449,10 +463,11 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              {/* Sin "Anulada": anular devuelve stock y deja movimiento, cosa que
+                  este submit no hace. Se anula desde Acciones en el listado. */}
               <Select label="Estado" value={status} onChange={(e) => setStatus(e.target.value)}>
                 <option value="paid">Pagada</option>
                 <option value="pending">Pendiente</option>
-                <option value="cancelled">Anulada</option>
               </Select>
 
               <div>

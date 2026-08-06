@@ -194,8 +194,24 @@ export async function fetchPurchaseInvoiceItems(invoiceId: string): Promise<Purc
   return (data ?? []) as unknown as PurchaseInvoiceItem[];
 }
 
+/**
+ * Exige el N° de factura del proveedor.
+ *
+ * Es lo único que ata la compra al papel que emitió el proveedor: sin él, dos
+ * compras al mismo proveedor por el mismo monto son indistinguibles y no se
+ * puede detectar que se cargó dos veces. El `invoice_number` no cubre eso: lo
+ * genera Ventex, no el proveedor.
+ */
+function requireSupplierNumber(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) throw new Error("Ingresa el N° de factura del proveedor.");
+  return trimmed;
+}
+
 export async function createPurchaseInvoice(params: PurchaseInvoiceParams): Promise<PurchaseInvoice> {
   const supabase = createClient();
+
+  const supplierNumber = requireSupplierNumber(params.supplier_invoice_number);
 
   const taxRate = params.tax_rate ?? 0;
   const discountAmount = params.discount_amount ?? 0;
@@ -207,7 +223,7 @@ export async function createPurchaseInvoice(params: PurchaseInvoiceParams): Prom
     .from("invoices")
     .insert({
       distributor_id: params.distributor_id,
-      supplier_invoice_number: params.supplier_invoice_number || null,
+      supplier_invoice_number: supplierNumber,
       type: "compra",
       status: params.status,
       issue_date: params.issue_date,
@@ -227,57 +243,61 @@ export async function createPurchaseInvoice(params: PurchaseInvoiceParams): Prom
   const raw = invoice as unknown as RawInvoice;
   const invoiceId = raw.id as string;
 
-  const lines = params.items.map((i) => ({
-    invoice_id: invoiceId,
-    product_id: i.product_id,
-    description: i.description,
-    // `quantity` es el TOTAL en unidades sueltas; las cajas quedan aparte para
-    // poder reabrir la compra tal cual se cargó.
-    quantity: totalUnitsOf(i),
-    package_quantity: i.package_quantity,
-    unit_price: i.unit_price,
-    package_price: i.package_price,
-    line_total: lineTotalOf(i),
-    units_per_package: i.units_per_package,
-  }));
+  // Las líneas, el stock y los movimientos los escribe la MISMA RPC que usa la
+  // edición. Una factura recién creada no tiene líneas, así que su "antes" está
+  // vacío y cada línea entra como delta positivo — el alta es el caso borde de
+  // la edición, no un camino aparte.
+  //
+  // Antes esto eran tres pasos sueltos desde el navegador: insert de líneas, un
+  // bucle de `increment_stock` sin mirar el error, e insert de movimientos
+  // tampoco chequeado. Un fallo en el medio dejaba la compra con stock a medio
+  // aplicar y el historial afirmando lo contrario.
+  const { error: itemsErr } = await supabase.rpc("replace_purchase_invoice_items", {
+    p_invoice_id: invoiceId,
+    p_items: params.items.map((i) => ({
+      product_id: i.product_id,
+      description: i.description,
+      // `quantity` es el TOTAL en unidades sueltas; las cajas quedan aparte para
+      // poder reabrir la compra tal cual se cargó.
+      quantity: totalUnitsOf(i),
+      package_quantity: i.package_quantity,
+      unit_price: i.unit_price,
+      package_price: i.package_price,
+      line_total: lineTotalOf(i),
+      units_per_package: i.units_per_package,
+    })),
+  });
 
-  const { error: itemsErr } = await supabase
-    .from("invoice_items")
-    .insert(lines);
-
-  // Sin esto la factura sobrevive sin líneas: totales cargados y cero productos,
-  // que es como se ve una compra rota en el listado.
+  // La cabecera se insertó en una llamada aparte, así que hay que compensarla a
+  // mano: sin esto la factura sobrevive sin líneas, con totales cargados y cero
+  // productos, que es como se ve una compra rota en el listado.
   if (itemsErr) {
     await supabase.from("invoices").delete().eq("id", invoiceId);
     throw itemsErr;
   }
 
-  for (const item of params.items) {
-    await supabase.rpc("increment_stock", {
-      p_product_id: item.product_id,
-      p_quantity: totalUnitsOf(item),
-    });
-  }
-
-  const invoiceNumber = raw.invoice_number as number;
-  // El movimiento va en unidades sueltas, igual que el delta de stock: guardar
-  // cajas acá dejaría el historial diciendo "entraron 3" cuando entraron 40.
-  const movements = params.items.map((item) => ({
-    product_id: item.product_id,
-    type: "in" as const,
-    quantity: totalUnitsOf(item),
-    reference_type: "purchase",
-    reference_id: invoiceId,
-    notes: `Compra #${invoiceNumber}`,
-  }));
-  await supabase.from("inventory_movements").insert(movements);
-
   return toInvoice(raw);
 }
 
+/**
+ * Cambia el estado de una compra entre los estados que NO mueven inventario.
+ *
+ * "Anulada" queda fuera a propósito: es la única transición que además devuelve
+ * el stock, y por acá pasaba como un `update` de la columna nada más — la
+ * factura quedaba anulada con el stock todavía sumado. Para eso está
+ * `cancelPurchaseInvoice`, y es un camino de ida.
+ */
 export async function updateInvoiceStatus(id: string, status: string): Promise<void> {
+  if (status === "cancelled") {
+    throw new Error("Para anular una compra usa la acción Anular: hay que devolver el stock.");
+  }
+
   const supabase = createClient();
-  const { error } = await supabase.from("invoices").update({ status }).eq("id", id);
+  const { error } = await supabase
+    .from("invoices")
+    .update({ status })
+    .eq("id", id)
+    .neq("status", "cancelled");
   if (error) throw error;
 }
 
@@ -287,38 +307,26 @@ export async function updatePurchaseInvoice(
 ): Promise<PurchaseInvoice> {
   const supabase = createClient();
 
+  const supplierNumber = requireSupplierNumber(params.supplier_invoice_number);
+
   const taxRate = params.tax_rate ?? 0;
   const discountAmount = params.discount_amount ?? 0;
   const subtotal = params.items.reduce((s, i) => s + lineTotalOf(i), 0);
   const taxAmount = Math.round(subtotal * taxRate * 100) / 100;
   const total = subtotal + taxAmount - discountAmount;
 
-  const { data: invoice, error: invErr } = await supabase
-    .from("invoices")
-    .update({
-      distributor_id: params.distributor_id,
-      supplier_invoice_number: params.supplier_invoice_number || null,
-      issue_date: params.issue_date,
-      due_date: params.due_date || null,
-      notes: params.notes || null,
-      status: params.status,
-      subtotal,
-      discount_amount: discountAmount,
-      tax_rate: taxRate,
-      tax_amount: taxAmount,
-      total,
-    })
-    .eq("id", id)
-    .select(INVOICE_SELECT)
-    .single();
-
-  if (invErr) throw invErr;
-
-  const raw = invoice as unknown as RawInvoice;
-
-  // Borrar e insertar por separado desde acá dejaba la factura SIN líneas cuando
-  // el insert fallaba: el delete ya se había aplicado y no hay transacción entre
-  // dos llamadas. La RPC hace las dos cosas en una sola.
+  // Las LÍNEAS van primero, y no es un detalle de orden.
+  //
+  // La RPC ahora valida (permiso de stock, compra anulada) y además mueve
+  // inventario, así que es la que puede fallar. Con la cabecera primero, ese
+  // fallo dejaba los totales nuevos describiendo las líneas viejas — la factura
+  // mentía sobre su propio contenido y nadie se enteraba. Al revés, si la RPC
+  // rechaza no se tocó absolutamente nada.
+  //
+  // Sigue sin ser atómico de punta a punta: son dos llamadas HTTP. Si fallara la
+  // cabecera con las líneas ya guardadas, quedan totales viejos con líneas
+  // nuevas, que se arregla volviendo a guardar. La atomicidad real pide mover
+  // también la cabecera adentro de la RPC.
   const { error: itemsErr } = await supabase.rpc("replace_purchase_invoice_items", {
     p_invoice_id: id,
     p_items: params.items.map((i) => ({
@@ -334,48 +342,56 @@ export async function updatePurchaseInvoice(
   });
   if (itemsErr) throw itemsErr;
 
-  return toInvoice(raw);
+  const { data: invoice, error: invErr } = await supabase
+    .from("invoices")
+    .update({
+      distributor_id: params.distributor_id,
+      supplier_invoice_number: supplierNumber,
+      issue_date: params.issue_date,
+      due_date: params.due_date || null,
+      notes: params.notes || null,
+      status: params.status,
+      subtotal,
+      discount_amount: discountAmount,
+      tax_rate: taxRate,
+      tax_amount: taxAmount,
+      total,
+    })
+    .eq("id", id)
+    // Redundante con el guard de la RPC, que ya rechaza una compra anulada. Se
+    // deja igual porque esta cláusula no depende de que la RPC siga cuidándolo.
+    .neq("status", "cancelled")
+    .select(INVOICE_SELECT)
+    .single();
+
+  if (invErr) throw invErr;
+
+  return toInvoice(invoice as unknown as RawInvoice);
 }
 
 /**
  * Anula una compra y devuelve el stock que había sumado.
  *
- * Lee sus propias líneas en vez de recibirlas: la devolución tiene que ser
- * exactamente el `quantity` guardado —que ya está en unidades sueltas—, y dejar
- * que el llamador arme ese arreglo abría la puerta a devolver 3 donde se habían
- * sumado 40.
+ * Todo el trabajo vive en la RPC, en una sola transacción: marca la factura,
+ * descuenta el stock y escribe el historial. Si algo falla, no pasó nada.
+ *
+ * Antes eran tres pasos desde el navegador y el del medio —el bucle que devuelve
+ * el stock— no miraba el error. Una devolución fallida dejaba igual la factura
+ * anulada y el movimiento escrito: el historial afirmaba haber devuelto stock
+ * que nunca volvió.
+ *
+ * La RPC también lee sus propias líneas en vez de recibirlas: la devolución
+ * tiene que ser exactamente el `quantity` guardado —que ya está en unidades
+ * sueltas—, y dejar que el llamador arme ese arreglo abría la puerta a devolver
+ * 3 donde se habían sumado 40.
  */
 export async function cancelPurchaseInvoice(id: string): Promise<void> {
   const supabase = createClient();
 
-  const items = await fetchPurchaseInvoiceItems(id);
-
-  const { error } = await supabase.from("invoices").update({ status: "cancelled" }).eq("id", id);
+  const { error } = await supabase.rpc("cancel_purchase_invoice", {
+    p_invoice_id: id,
+  });
   if (error) throw error;
-
-  for (const item of items) {
-    if (!item.product_id) continue;
-    await supabase.rpc("increment_stock", {
-      p_product_id: item.product_id,
-      p_quantity: -item.quantity,
-    });
-  }
-
-  const movements = items.flatMap((item) =>
-    item.product_id
-      ? [{
-          product_id: item.product_id,
-          type: "out" as const,
-          quantity: item.quantity,
-          reference_type: "cancellation",
-          reference_id: id,
-          notes: `Anulación de compra #${id.slice(0, 8)}`,
-        }]
-      : []
-  );
-  if (movements.length > 0) {
-    await supabase.from("inventory_movements").insert(movements);
-  }
 }
 
 export async function fetchLastPurchaseFromDistributor(distributorId: string): Promise<{

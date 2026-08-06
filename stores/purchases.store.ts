@@ -11,7 +11,7 @@ interface PurchasesState {
 
   fetchInvoices: () => Promise<void>;
   createInvoice: (params: PurchaseInvoiceParams) => Promise<boolean>;
-  updateStatus: (id: string, status: string) => Promise<void>;
+  updateStatus: (id: string, status: string) => Promise<boolean>;
   updateInvoice: (id: string, params: PurchaseInvoiceParams) => Promise<boolean>;
   /** El servicio lee sus propias líneas para devolver el stock exacto. */
   cancelInvoice: (id: string) => Promise<boolean>;
@@ -61,17 +61,23 @@ export const usePurchasesStore = create<PurchasesState>((set) => ({
     }
   },
 
+  // Marca `submitting` y devuelve si salió bien, igual que el resto: ahora el
+  // cambio de estado pasa por un modal que necesita saber las dos cosas para
+  // mostrar "Guardando…" y para no cerrarse cuando el servicio rechaza.
   updateStatus: async (id, status) => {
-    set({ error: null });
+    set({ submitting: true, error: null });
     try {
       await purchasesService.updateInvoiceStatus(id, status);
       set((s) => ({
         invoices: s.invoices.map((inv) =>
           inv.id === id ? { ...inv, status } : inv
         ),
+        submitting: false,
       }));
+      return true;
     } catch (e) {
-      set({ error: toMessage(e) });
+      set({ error: toMessage(e), submitting: false });
+      return false;
     }
   },
 

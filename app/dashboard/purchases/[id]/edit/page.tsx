@@ -89,5 +89,26 @@ export default function EditPurchasePage() {
     );
   }
 
+  // El listado ya oculta "Editar" en una compra anulada, pero la URL sigue siendo
+  // alcanzable. Sin este corte, guardar el formulario mandaría el estado del
+  // selector —que ya no ofrece "Anulada"— y des-anularía la compra en silencio,
+  // dejando el stock devuelto y la factura otra vez como válida.
+  if (invoice.status === "cancelled") {
+    return (
+      <div className="flex flex-col items-center justify-center text-center py-16 gap-4">
+        <p className="text-sm text-on-surface-variant max-w-sm">
+          Esta compra está anulada y no se puede editar. Si necesitas corregirla, registra una
+          compra nueva.
+        </p>
+        <Link
+          href="/dashboard/purchases"
+          className="px-5 py-2.5 rounded-xl bg-surface-container border border-outline-variant/20 text-on-surface text-sm font-semibold hover:bg-surface-container-high transition-colors"
+        >
+          Volver a Compras
+        </Link>
+      </div>
+    );
+  }
+
   return <PurchaseForm editingInvoice={invoice} initialLines={lines} />;
 }
