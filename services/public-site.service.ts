@@ -15,40 +15,12 @@ import type {
  */
 
 /**
- * Bookable start times ("HH:MM") for a service on a given day.
+ * Every slot of a day with its state, for the calendar grid, including the
+ * busy slots the grid renders as "Reservado".
  *
- * `staffId = null` means "cualquier profesional": the RPC then treats the shop's
- * whole active roster as capacity, so a slot stays open until every one of them
- * is busy.
- */
-export async function fetchSlots(
-  slug: string,
-  serviceId: string,
-  date: string,
-  staffId: string | null,
-): Promise<string[]> {
-  const supabase = createClient();
-
-  const { data, error } = await supabase.rpc("public_site_slots", {
-    p_slug: slug,
-    p_service_id: serviceId,
-    p_date: date,
-    // The SQL parameters carry defaults, so the generated types make them
-    // optional (`string | undefined`) rather than nullable. Omitting is what
-    // "cualquier profesional" means to Postgres anyway.
-    p_staff_id: staffId ?? undefined,
-  });
-
-  if (error) throw error;
-  return ((data ?? []) as { slot_time: string }[]).map((row) => row.slot_time);
-}
-
-/**
- * Every slot of a day with its state, for the calendar grid.
- *
- * Separate from `fetchSlots` on purpose: that one answers "what can I book" and
- * is what the server re-validates against. This one answers "what does the day
- * look like", including the busy slots the grid renders as "Reservado".
+ * The re-validation against double-booking happens server-side, inside the
+ * booking RPC itself (it calls `public_site_slots` in SQL before confirming) —
+ * not through a client-side pre-check.
  */
 export async function fetchDaySlots(
   slug: string,

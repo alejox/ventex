@@ -17,6 +17,10 @@ export interface PurchaseInvoice {
   notes: string | null;
   created_at: string;
   distributors: { business_name: string } | null;
+  /** Quién la cargó. Null en compras históricas, previas a esta columna. */
+  created_by: string | null;
+  /** Nombre del responsable. Llega null si la RLS de profiles no deja verlo. */
+  creator: { full_name: string | null } | null;
   invoice_items?: PurchaseInvoiceItem[];
 }
 
@@ -116,8 +120,9 @@ export interface PurchaseInvoiceParams {
 
 const INVOICE_SELECT = `
   id, invoice_number, supplier_invoice_number, distributor_id, type, status, issue_date, due_date,
-  subtotal, discount_amount, tax_rate, tax_amount, total, notes, created_at,
-  distributors(business_name)
+  subtotal, discount_amount, tax_rate, tax_amount, total, notes, created_at, created_by,
+  distributors(business_name),
+  creator:profiles!created_by(full_name)
 `;
 
 const ITEM_SELECT = `
@@ -128,6 +133,7 @@ const ITEM_SELECT = `
 
 type RawInvoice = Record<string, unknown>;
 type RawDistributorsEmbed = { business_name: string } | { business_name: string }[];
+type RawCreatorEmbed = { full_name: string | null } | { full_name: string | null }[];
 
 const one = <T,>(embed: unknown): T | null => {
   if (Array.isArray(embed)) return (embed[0] as T) ?? null;
@@ -151,6 +157,8 @@ const toInvoice = (r: RawInvoice): PurchaseInvoice => ({
   notes: r.notes as string | null,
   created_at: r.created_at as string,
   distributors: one<{ business_name: string }>(r.distributors as RawDistributorsEmbed | null),
+  created_by: (r.created_by as string | null) ?? null,
+  creator: one<{ full_name: string | null }>(r.creator as RawCreatorEmbed | null),
 });
 
 export async function fetchPurchaseInvoices(): Promise<PurchaseInvoice[]> {

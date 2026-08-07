@@ -28,19 +28,6 @@ async function serverRpc(
   return data;
 }
 
-export const fetchWorkspaceContextServer = cache(
-  async function fetchWorkspaceContextServer(): Promise<WorkspaceContext | null> {
-    const client = await createClient();
-    const {
-      data: { user },
-    } = await client.auth.getUser();
-    if (!user) return null;
-    return normalizeWorkspaceContext(
-      await serverRpc(client, "workspace_context"),
-    );
-  },
-);
-
 export const resolveWorkspaceForDashboard = cache(
   async function resolveWorkspaceForDashboard(): Promise<WorkspaceContext | null> {
     const client = await createClient();

@@ -1,0 +1,16 @@
+-- `authenticated` no tenía SELECT sobre `profiles.full_name` —solo UPDATE—,
+-- así que CUALQUIER embed `profiles!created_by(full_name)` rompe con
+-- "permission denied for table profiles", sin importar qué diga la RLS.
+--
+-- No es una regresión de esta migración: `services/inventory-movements.service.ts`
+-- ya hace exactamente este embed para Movimientos (`author:profiles!created_by`),
+-- con un comentario que dice "el dueño ve los de su equipo" — pero sin este
+-- grant esa consulta nunca pudo funcionar; se rompe ante cualquier movimiento
+-- con `created_by` no nulo. Compras (`invoices.created_by`, agregada en
+-- 20260806120000) pisó la misma piedra al intentar el mismo patrón.
+--
+-- Solo `full_name`: ningún otro campo de `profiles` hace falta para resolver
+-- "quién". Sigue siendo un grant por columna, no de tabla — la RLS
+-- (`profiles_select_self_or_selected_owner`) sigue siendo la que decide qué
+-- FILAS se ven; esto solo habilita la COLUMNA para las filas que ya pasan RLS.
+grant select (full_name) on public.profiles to authenticated;

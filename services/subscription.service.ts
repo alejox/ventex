@@ -1,7 +1,6 @@
 import { createClient } from "@/utils/supabase/client";
 
 // ---- Tipos del dominio de suscripciones ----
-export type PlanId = "gratis" | "basica" | "oro" | (string & {});
 export type SubscriptionStatus = "active" | "past_due" | "cancelled";
 
 /** Definición parametrizable de un plan (tabla public.plans). */

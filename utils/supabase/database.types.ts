@@ -828,6 +828,7 @@ export type Database = {
       invoices: {
         Row: {
           created_at: string
+          created_by: string | null
           customer_id: string | null
           discount_amount: number
           distributor_id: string | null
@@ -847,6 +848,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          created_by?: string | null
           customer_id?: string | null
           discount_amount?: number
           distributor_id?: string | null
@@ -866,6 +868,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          created_by?: string | null
           customer_id?: string | null
           discount_amount?: number
           distributor_id?: string | null
@@ -884,6 +887,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "invoices_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "invoices_customer_id_fkey"
             columns: ["customer_id"]
@@ -1130,7 +1140,6 @@ export type Database = {
       }
       profiles: {
         Row: {
-          business_key: string | null
           business_name: string | null
           business_type: string | null
           created_at: string
@@ -1155,7 +1164,6 @@ export type Database = {
           workspace_id: string | null
         }
         Insert: {
-          business_key?: string | null
           business_name?: string | null
           business_type?: string | null
           created_at?: string
@@ -1180,7 +1188,6 @@ export type Database = {
           workspace_id?: string | null
         }
         Update: {
-          business_key?: string | null
           business_name?: string | null
           business_type?: string | null
           created_at?: string
@@ -2338,7 +2345,6 @@ export type Database = {
         Returns: undefined
       }
       claim_guest_orders: { Args: { p_email: string }; Returns: Json }
-      clear_active_workspace: { Args: never; Returns: undefined }
       close_shift: {
         Args: { p_closing_cash: number; p_notes?: string; p_shift_id?: string }
         Returns: Json
@@ -2367,7 +2373,6 @@ export type Database = {
       deactivate_worker: { Args: { p_worker_id: string }; Returns: undefined }
       ensure_license_current: { Args: never; Returns: Json }
       find_auth_user_by_email: { Args: { p_email: string }; Returns: string }
-      generate_business_key: { Args: never; Returns: string }
       get_active_membership_id: { Args: never; Returns: string }
       get_effective_user_id: { Args: never; Returns: string }
       get_product_costs: {
@@ -2376,10 +2381,6 @@ export type Database = {
           product_id: string
           purchase_price: number
         }[]
-      }
-      increment_stock: {
-        Args: { p_product_id: string; p_quantity: number }
-        Returns: undefined
       }
       is_reseller: { Args: never; Returns: boolean }
       is_super_admin: { Args: never; Returns: boolean }
@@ -2507,24 +2508,12 @@ export type Database = {
         Args: { action?: string; section: string }
         Returns: boolean
       }
-      staff_login: {
-        Args: { p_business_key: string; p_username: string }
-        Returns: string
-      }
-      staff_login_email: {
-        Args: { p_business_email: string; p_username: string }
-        Returns: string
-      }
       sync_billing_schedule: {
         Args: { p_months: number; p_user_id: string }
         Returns: string
       }
       void_sale: { Args: { p_sale_id: string }; Returns: undefined }
       worker_can: { Args: { perm: string }; Returns: boolean }
-      worker_login: {
-        Args: { p_business_key: string; p_username: string }
-        Returns: string
-      }
       workspace_context: { Args: never; Returns: Json }
     }
     Enums: {

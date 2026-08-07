@@ -67,6 +67,16 @@ export function PurchaseInvoiceDetailModal({ invoice, onClose }: Props) {
                 {invoice.status === "paid" ? "Pagada" : invoice.status}
               </p>
             </div>
+            <div>
+              <span className="text-on-surface-variant text-xs font-medium">Cargada por</span>
+              <p className="text-on-surface font-semibold mt-0.5">
+                {/* Compras previas a esta columna: sin autor, "—". Con autor
+                    pero sin nombre visible (la RLS de profiles no deja verlo
+                    desde esta cuenta): "Otro usuario", no un vacío que parezca
+                    un bug. */}
+                {invoice.creator?.full_name || (invoice.created_by ? "Otro usuario" : "—")}
+              </p>
+            </div>
           </div>
 
           <div className="border-t border-outline-variant/10 pt-4">

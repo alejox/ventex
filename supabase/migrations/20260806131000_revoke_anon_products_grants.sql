@@ -1,0 +1,20 @@
+-- Auditoría de grants en profiles/products antes de vender.
+--
+-- `profiles` está bien: ningún grant a `anon`, y `authenticated` solo tiene
+-- las columnas explícitas que necesita (id, business_key, full_name + UPDATE
+-- de identidad). `purchase_price` en `products` también está bien — NO tiene
+-- SELECT ni para `authenticated`, a propósito: es como se hace cumplir el
+-- permiso `inventory_costs` a nivel de base, y `attachCosts()`
+-- (services/inventory.service.ts) ya lo sabe y lo maneja aparte. No tocar eso.
+--
+-- Lo que sí es un agujero de higiene: `anon` tenía SELECT/INSERT/UPDATE en
+-- casi todas las columnas de `products` (probablemente un grant de tabla
+-- amplio de cuando se creó, nunca cerrado). Hoy no es explotable —las dos
+-- policies de RLS de `products` (`workspace_products_read`,
+-- `workspace_products_write`) solo listan a `authenticated`, así que `anon`
+-- no matchea ninguna y no lee ninguna fila— pero es un grant vivo esperando
+-- que el día de mañana alguien agregue una policy pública (ej. catálogo del
+-- micro-sitio) sin acordarse de revisar esto primero. `grep` confirma que
+-- `services/business-site.service.ts` no toca `products` en absoluto: no hay
+-- ningún caso de uso legítimo hoy para que `anon` la vea.
+revoke all on public.products from anon;

@@ -1,0 +1,17 @@
+-- `increment_stock` quedó huérfana: Compras (su único llamador histórico) ya
+-- no la usa —`replace_purchase_invoice_items`/`cancel_purchase_invoice`
+-- (20260805170000_atomic_purchase_stock.sql) mueven el stock ellas mismas,
+-- dentro de la misma transacción— y ningún otro lugar del código la invoca
+-- (`rg "increment_stock\(" ` sobre app/, services/, stores/, e2e/ no da
+-- ningún `.rpc("increment_stock"`, solo comentarios).
+--
+-- Vale la pena sacarla y no solo dejarla sin uso: interpreta su cantidad
+-- distinto a `register_manual_movement` (suma unidades sueltas tal cual, sin
+-- multiplicar por `units_per_package`, ver [[ventex-stock-rpcs-contradictorios]]
+-- en memoria) — una función viva con esa semántica es una trampa para el
+-- próximo que la encuentre y la llame pensando que hace lo mismo que la otra.
+--
+-- El test `e2e/predeploy-workspace-blockers.spec.ts` que verifica sus grants
+-- lee el TEXTO de la migración histórica 20260730233000 (inmutable, nunca se
+-- edita), no el estado vivo de la base — este DROP no lo rompe.
+drop function if exists public.increment_stock(uuid, integer);

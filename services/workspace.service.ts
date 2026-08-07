@@ -136,12 +136,6 @@ export async function selectWorkspace(workspaceId: string): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
-export async function clearSelectedWorkspace(): Promise<void> {
-  const client = createClient();
-  const { error } = await rpc(client)("clear_active_workspace");
-  if (error) throw new Error(error.message);
-}
-
 export async function signOut(): Promise<void> {
   const client = createClient();
   const { error } = await client.auth.signOut();

@@ -37,9 +37,6 @@ export const DLOCAL_COUNTRY = "CO";
 export const DLOCAL_CURRENCY = "COP";
 export const DLOCAL_CONFIGURED = Boolean(API_KEY && SECRET_KEY);
 
-/** Identifica al proveedor en `subscriptions.billing_provider`. */
-export const DLOCAL_PROVIDER = "dlocalgo";
-
 // ---------------------------------------------------------------------------
 // Tipos (subconjunto del API que usa Ventex)
 // ---------------------------------------------------------------------------

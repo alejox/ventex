@@ -309,18 +309,6 @@ export async function markRejected(clientSaleId: string, reason: unknown): Promi
  * Se cuenta por `authUserId` y no restando totales: las propias ya rechazadas
  * no son de otro y no pueden aparecer acá.
  */
-export async function countOrphanPendingSales(
-  context: QueueContext,
-): Promise<number> {
-  const todas = await withStore<PendingSale[]>("readonly", (store) => store.getAll());
-  return (todas ?? []).filter(
-    (row) =>
-      row.authUserId !== context.authUserId ||
-      row.workspaceId !== context.workspaceId ||
-      row.membershipId !== context.membershipId,
-  ).length;
-}
-
 /** Saca una venta de la cola. Se llama cuando el servidor ya la confirmó. */
 export async function removePendingSale(clientSaleId: string): Promise<void> {
   await withStore("readwrite", (store) => store.delete(clientSaleId));

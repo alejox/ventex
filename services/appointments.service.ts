@@ -73,24 +73,6 @@ export async function fetchAppointments(
   })) as Appointment[];
 }
 
-export async function fetchAppointmentsByDate(
-  date: string,
-): Promise<Appointment[]> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from("appointments")
-    .select(SELECT)
-    .eq("appointment_date", date)
-    .order("start_time");
-  if (error) throw error;
-  return (data ?? []).map((a) => ({
-    ...a,
-    customers: one<{ full_name: string }>(a.customers),
-    services: one<{ name: string }>(a.services),
-    staff: one<{ full_name: string }>(a.staff),
-  })) as Appointment[];
-}
-
 export async function createAppointment(
   input: NewAppointmentInput,
 ): Promise<Appointment> {

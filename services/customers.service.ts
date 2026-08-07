@@ -137,13 +137,3 @@ export async function registerPayment(
   if (balError) throw balError;
 }
 
-export async function fetchCustomerPayments(customerId: string): Promise<CustomerPayment[]> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from("customer_payments")
-    .select("id, customer_id, amount, notes, created_at")
-    .eq("customer_id", customerId)
-    .order("created_at", { ascending: false });
-  if (error) throw error;
-  return (data ?? []) as CustomerPayment[];
-}
