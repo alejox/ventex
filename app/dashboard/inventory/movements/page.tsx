@@ -11,6 +11,7 @@ import { DataTable, type DataColumn } from "@/components/DataTable";
 import { useProfile } from "@/components/ProfileProvider";
 import { can } from "@/lib/permissions";
 import type { InventoryMovement } from "@/services/inventory-movements.service";
+import { CollectionEmpty, CollectionError, CollectionFilteredEmpty, CollectionLoading } from "@/components/CollectionState";
 
 const typeLabel: Record<string, string> = {
   in: "Entrada",
@@ -196,30 +197,16 @@ function MovementsContent() {
         </div>
       )}
 
-      {error && (
-        <div className="rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim">
-          {error}
-        </div>
-      )}
+      {error && <CollectionError message={error} onRetry={fetchMovements} />}
 
       {loading ? (
-        <p className="text-center text-sm text-on-surface-variant py-12">Cargando movimientos…</p>
+        <CollectionLoading label="Cargando movimientos…" />
       ) : movements.length === 0 ? (
-        <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-3xl p-12 shadow-sm flex flex-col items-center justify-center text-center mt-8">
-          <div className="w-16 h-16 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant mb-4">
-            <IconBox />
-          </div>
-          <h2 className="text-lg font-bold text-on-surface mb-2">Aún no hay movimientos</h2>
-          <p className="text-sm text-on-surface-variant max-w-sm mb-6">
-            Los movimientos se registran automáticamente con cada compra o venta. También puedes hacer ajustes manuales.
-          </p>
-          <button
-            onClick={() => setAdjustModalOpen(true)}
-            className="px-6 py-2.5 bg-surface-container border border-outline-variant/20 text-on-surface text-sm font-semibold rounded-xl hover:bg-surface-container-high transition-colors"
-          >
-            Hacer ajuste manual
-          </button>
-        </div>
+        filterProductId ? (
+          <CollectionFilteredEmpty title="No hay movimientos para este producto" action={{ label: "Limpiar filtro", href: "/dashboard/inventory/movements" }} />
+        ) : (
+          <CollectionEmpty icon={<IconBox className="h-8 w-8" />} title="Aún no hay movimientos" description="Los movimientos se registran automáticamente con cada compra o venta. También puedes hacer ajustes manuales." action={{ label: "Hacer ajuste manual", onClick: () => setAdjustModalOpen(true) }} />
+        )
       ) : (
         <div className="bg-surface-container rounded-3xl border border-outline-variant/10 shadow-sm overflow-hidden">
           <div className="p-4 border-b border-outline-variant/10">
@@ -237,13 +224,11 @@ function MovementsContent() {
               </svg>
             </div>
           </div>
-          <DataTable
-            rows={filteredMovements}
-            rowKey={(m) => m.id}
-            minWidth={700}
-            caption="Movimientos de inventario"
-            columns={MOVEMENT_COLUMNS}
-          />
+          {filteredMovements.length === 0 ? (
+            <CollectionFilteredEmpty title="Ningún movimiento coincide con la búsqueda" action={{ label: "Limpiar búsqueda", onClick: () => setSearchQuery("") }} />
+          ) : (
+            <DataTable rows={filteredMovements} rowKey={(m) => m.id} minWidth={700} caption="Movimientos de inventario" columns={MOVEMENT_COLUMNS} />
+          )}
         </div>
       )}
 

@@ -6,6 +6,9 @@ import type { AdminReseller } from "@/services/admin.service";
 import { planAccent } from "@/config/plans";
 import { GrantCreditsModal } from "@/components/GrantCreditsModal";
 import { backdropProps } from "@/components/modal";
+import { IconUsers } from "@/app/assets/icons/DashboardIcons";
+import { CollectionEmpty, CollectionError, CollectionLoading } from "@/components/CollectionState";
+import { Pagination } from "@/components/Pagination";
 
 export default function AdminResellersPage() {
   const resellers = useAdminStore((s) => s.resellers);
@@ -16,6 +19,20 @@ export default function AdminResellersPage() {
 
   const [promoting, setPromoting] = useState(false);
   const [granting, setGranting] = useState<AdminReseller | null>(null);
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [resellers.length]);
+
+  const totalPages = Math.ceil(resellers.length / pageSize) || 1;
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const paginatedResellers = resellers.slice(
+    (safeCurrentPage - 1) * pageSize,
+    safeCurrentPage * pageSize
+  );
 
   // Los créditos existen solo para planes de pago: la regla es el precio, no el id.
   const creditPlans = plans.filter((p) => p.is_active && p.price > 0);
@@ -41,24 +58,21 @@ export default function AdminResellersPage() {
         </button>
       </div>
 
-      {error && (
-        <div className="rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim mb-6">
-          {error}
-        </div>
-      )}
+      {error && <div className="mb-6"><CollectionError message={error} onRetry={fetchResellers} /></div>}
 
       {/* Móvil: tarjetas. En la tabla, el botón de créditos quedaba fuera de pantalla. */}
       <div className="lg:hidden space-y-3">
         {loading && resellers.length === 0 ? (
-          <p className="py-10 text-center text-sm text-on-surface-variant">
-            Cargando revendedores…
-          </p>
+          <CollectionLoading label="Cargando revendedores…" />
         ) : resellers.length === 0 ? (
-          <p className="py-10 text-center text-sm text-on-surface-variant">
-            No hay revendedores. Promueve una cuenta existente con “Nuevo revendedor”.
-          </p>
+          <CollectionEmpty
+            icon={<IconUsers className="h-8 w-8" />}
+            title="Aún no hay revendedores"
+            description="Promueve una cuenta existente para otorgarle créditos y que gestione sus clientes."
+            action={{ label: "Nuevo revendedor", onClick: () => setPromoting(true) }}
+          />
         ) : (
-          resellers.map((r) => (
+          paginatedResellers.map((r) => (
             <div
               key={r.user_id}
               className="bg-surface-container-lowest border border-outline-variant/10 rounded-2xl p-4 shadow-sm"
@@ -119,19 +133,20 @@ export default function AdminResellersPage() {
             </thead>
             <tbody>
               {loading && resellers.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-5 py-10 text-center text-on-surface-variant">
-                    Cargando revendedores…
-                  </td>
-                </tr>
+                <tr><td colSpan={5}><CollectionLoading label="Cargando revendedores…" /></td></tr>
               ) : resellers.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-5 py-10 text-center text-on-surface-variant">
-                    No hay revendedores. Promueve una cuenta existente con “Nuevo revendedor”.
+                  <td colSpan={5}>
+                    <CollectionEmpty
+                      icon={<IconUsers className="h-8 w-8" />}
+                      title="Aún no hay revendedores"
+                      description="Promueve una cuenta existente para otorgarle créditos y que gestione sus clientes."
+                      action={{ label: "Nuevo revendedor", onClick: () => setPromoting(true) }}
+                    />
                   </td>
                 </tr>
               ) : (
-                resellers.map((r) => (
+                paginatedResellers.map((r) => (
                   <tr
                     key={r.user_id}
                     className="border-b border-outline-variant/5 last:border-0 hover:bg-surface-container-low/50"
@@ -183,6 +198,19 @@ export default function AdminResellersPage() {
             </tbody>
           </table>
         </div>
+        {resellers.length > 0 && (
+          <Pagination
+            currentPage={safeCurrentPage}
+            totalPages={totalPages}
+            totalItems={resellers.length}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={(newSize) => {
+              setPageSize(newSize);
+              setCurrentPage(1);
+            }}
+          />
+        )}
       </div>
 
       {promoting && <PromoteResellerModal onClose={() => setPromoting(false)} />}
@@ -264,4 +292,3 @@ function PromoteResellerModal({ onClose }: { onClose: () => void }) {
     </div>
   );
 }
-

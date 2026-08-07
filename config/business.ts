@@ -234,15 +234,22 @@ export const NAV_ITEMS: NavItem[] = [
   // UNIVERSAL_NAV_IDS) porque los 4 rubros cobran.
   { id: "pos", name: "Punto de Venta", href: "/dashboard/pos", modules: [] },
   { id: "calendar", name: "Calendario", href: "/dashboard/calendar", modules: ["appointments"] },
-  { id: "sales", name: "Ventas", href: "/dashboard/sales", modules: [] },
-  { id: "catalogo", name: "Catálogo", href: "/dashboard/catalogo", modules: ["inventory", "services"] },
-  { id: "staff", name: "Personal", href: "/dashboard/staff", modules: ["staff"] },
-  { id: "vehicles", name: "Vehículos", href: "/dashboard/vehicles", modules: ["vehicles"] },
-  { id: "billing", name: "Facturación", href: "/dashboard/billing", modules: ["billing"] },
-  { id: "pedidos", name: "Pedidos", href: "/dashboard/pedidos", modules: ["inventory"] },
   { id: "customers", name: "Clientes", href: "/dashboard/customers", modules: [] },
-  { id: "distributors", name: "Proveedores", href: "/dashboard/distributors", modules: ["inventory"] },
+  { id: "sales", name: "Ventas", href: "/dashboard/sales", modules: [] },
   { id: "purchases", name: "Compras", href: "/dashboard/purchases", modules: ["inventory"] },
+  { id: "distributors", name: "Proveedores", href: "/dashboard/distributors", modules: ["inventory"] },
+  { id: "pedidos", name: "Pedidos", href: "/dashboard/pedidos", modules: ["inventory"] },
+  // Antes un solo ítem "Catálogo" mezclaba productos y servicios en una
+  // pantalla más pobre que las dos de verdad (sin variantes, sin permisos
+  // por rol, sin escáner) y que terminaba mandando a /dashboard/inventory de
+  // todos modos para editar. Separados: cada uno lleva a su pantalla
+  // completa y el nombre dice qué es.
+  { id: "inventory", name: "Inventario", href: "/dashboard/inventory", modules: ["inventory"] },
+  { id: "categories", name: "Categorías", href: "/dashboard/categories", modules: ["inventory"] },
+  { id: "services", name: "Servicios", href: "/dashboard/services", modules: ["services"] },
+  { id: "vehicles", name: "Vehículos", href: "/dashboard/vehicles", modules: ["vehicles"] },
+  { id: "staff", name: "Personal", href: "/dashboard/staff", modules: ["staff"] },
+  { id: "billing", name: "Facturación", href: "/dashboard/billing", modules: ["billing"] },
   { id: "subscription", name: "Mi Plan", href: "/dashboard/subscription", modules: [] },
 ];
 
@@ -257,10 +264,10 @@ export interface QuickAction {
 
 export const QUICK_ACTIONS: QuickAction[] = [
   { id: "new-sale", title: "Nueva Venta", href: "/dashboard/pos", module: null },
-  { id: "new-product", title: "Añadir Producto", href: "/dashboard/catalogo?action=new-product", module: "inventory" },
+  { id: "new-product", title: "Añadir Producto", href: "/dashboard/inventory/product", module: "inventory" },
   { id: "new-customer", title: "Registrar Cliente", href: "/dashboard/customers", module: null },
   { id: "new-appointment", title: "Nueva Cita", href: "/dashboard/calendar", module: "appointments" },
-  { id: "new-service", title: "Nuevo Servicio", href: "/dashboard/catalogo?action=new-service", module: "services" },
+  { id: "new-service", title: "Nuevo Servicio", href: "/dashboard/services", module: "services" },
   { id: "new-staff", title: "Añadir Personal", href: "/dashboard/staff", module: "staff" },
   { id: "new-vehicle", title: "Registrar Vehículo", href: "/dashboard/vehicles", module: "vehicles" },
   { id: "new-invoice", title: "Nueva Factura", href: "/dashboard/billing", module: "billing" },
@@ -284,10 +291,17 @@ const UNIVERSAL_NAV_IDS = ["panel", "pos", "sales", "customers", "staff", "subsc
 // `purchases` acompaña a `distributors`: son el mismo dominio (a quién le
 // compro / qué le compré) y la tienda los necesita aunque no tenga el módulo
 // `inventory` activado, porque su menú base sale de acá y no de los módulos.
+//
+// `inventory` en la base de tienda por la misma razón: tienda no tiene
+// módulos propios (MODULES_BY_TYPE.tienda = []), así que "Inventario" nunca
+// se activaría por el mecanismo de módulos — es núcleo, no opcional. Salón y
+// lavaautos NO lo necesitan acá: son FULL_MODULE_TYPES, así que `inventory` y
+// `services` ya les quedan `true` en `effectiveModules` y los ítems
+// correspondientes de NAV_ITEMS se muestran solos.
 const BASE_NAV_BY_TYPE: Record<BusinessType, string[]> = {
-  salon: ["calendar", "catalogo", "distributors", "purchases"],
-  tienda: ["catalogo", "distributors", "purchases"],
-  lavaautos: ["calendar", "catalogo", "distributors", "purchases"],
+  salon: ["calendar", "distributors", "purchases"],
+  tienda: ["inventory", "categories", "distributors", "purchases"],
+  lavaautos: ["calendar", "distributors", "purchases"],
   servicios: ["calendar"],
 };
 
@@ -343,16 +357,22 @@ const NON_NAV_PERMISSIONS: WorkerPermission[] = ["settings"];
  * La única fuente de verdad son sus permisos: sin permiso no hay ítem.
  */
 export function workerNavItems(permissions: WorkerPermissions): NavItem[] {
-  const granted = new Set(
+  const granted = new Set<string>(
     (Object.keys(permissions) as WorkerPermission[]).filter(
       (k) => permissions[k] && !NON_NAV_PERMISSIONS.includes(k),
     ),
   );
-  // Workers con inventario o servicios ven el catálogo unificado
-  if (granted.has("inventory") || granted.has("services")) {
-    granted.add("catalogo");
+  // `catalogo` sigue siendo un permiso otorgable (acceso amplio a productos Y
+  // servicios de una sola vez), pero ya no hay un ítem de nav con ese id —
+  // se resuelve a los dos ítems reales que reemplazaron al catálogo unificado.
+  if (granted.has("catalogo")) {
+    granted.add("inventory");
+    granted.add("services");
   }
-  return NAV_ITEMS.filter((item) => granted.has(item.id as WorkerPermission));
+  if (granted.has("inventory")) {
+    granted.add("categories");
+  }
+  return NAV_ITEMS.filter((item) => granted.has(item.id));
 }
 
 export function visibleQuickActions(

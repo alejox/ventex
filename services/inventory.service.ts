@@ -16,6 +16,8 @@ export interface Category {
 export interface Product {
   id: string;
   name: string;
+  /** Short label that differentiates a variant from its parent (e.g. 'ROJO / L'). */
+  variant_label: string | null;
   category_id: string | null;
   distributor_id: string | null;
   parent_product_id: string | null;
@@ -78,6 +80,8 @@ function normalizeSku(raw: string): string {
 /** Datos del formulario de producto (campos en string tal como llegan del form). */
 export interface NewProductInput {
   name: string;
+  /** Short label for a variant (e.g. 'ROJO / L'). Empty string = not a variant. */
+  variant_label?: string;
   category_id: string;
   distributor_id: string;
   parent_product_id?: string;
@@ -103,6 +107,79 @@ export interface NewCategoryInput {
 }
 
 /**
+ * Obtiene el costo unitario real normalizado.
+ *
+ * Si el producto tiene `units_per_package > 1`, `purchase_price` representa el costo
+ * de la caja/paquete completo, por lo que el costo unitario real es `purchase_price / units_per_package`.
+ * En modo unidad (o si `units_per_package <= 1`), el costo unitario es simplemente `purchase_price`.
+ */
+export function getUnitCost(product: { purchase_price?: number | null; units_per_package?: number | null }): number {
+  const purchasePrice = product.purchase_price ?? 0;
+  if (!Number.isFinite(purchasePrice) || purchasePrice <= 0) return 0;
+  const units = Math.max(product.units_per_package ?? 1, 1);
+  return purchasePrice / units;
+}
+
+/**
+ * Calcula el valor total del inventario de una lista de productos usando el
+ * costo unitario real normalizado * stock_level.
+ */
+export function calculateInventoryValue(
+  products: Array<{ purchase_price?: number | null; units_per_package?: number | null; stock_level: number; variants?: any[] }>
+): number {
+  return products.reduce((sum, p) => {
+    if (p.variants && p.variants.length > 0) return sum;
+    return sum + getUnitCost(p) * (p.stock_level || 0);
+  }, 0);
+}
+
+export async function resetParentStock(parentId: string): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("products")
+    .update({ stock_level: 0 })
+    .eq("id", parentId);
+  if (error) throw error;
+}
+
+/**
+ * Calcula el porcentaje de margen de ganancia real y el costo por unidad derivado.
+ */
+export function calculateMargin(
+  purchaseTotalRaw: string | number,
+  sellingTotalRaw: string | number,
+  presentation: "unit" | "package",
+  unitsPerPackageRaw?: string | number
+): { pct: number; costPerUnit: number } | null {
+  const cost = typeof purchaseTotalRaw === "number" ? purchaseTotalRaw : parseFloat(purchaseTotalRaw || "0");
+  const price = typeof sellingTotalRaw === "number" ? sellingTotalRaw : parseFloat(sellingTotalRaw || "0");
+  if (!(cost > 0) || !(price > 0)) return null;
+
+  const rawUnits = typeof unitsPerPackageRaw === "number" ? unitsPerPackageRaw : parseInt(String(unitsPerPackageRaw || "1"));
+  const units = presentation === "package" ? Math.max(rawUnits || 1, 1) : 1;
+  const costPerUnit = cost / units;
+  const pct = ((price - costPerUnit) / costPerUnit) * 100;
+  return { pct, costPerUnit };
+}
+
+/**
+ * Gestiona la transición limpia entre modos de presentación ("unit" vs "package"),
+ * asegurando que no queden datos obsoletos de `units_per_package` ni `package_price`.
+ */
+export function handlePresentationModeChange(
+  newMode: "unit" | "package",
+  currentUnitsPerPackage?: string
+): { units_per_package: string; package_price: string } {
+  if (newMode === "unit") {
+    return { units_per_package: "1", package_price: "" };
+  } else {
+    // Si viene de modo unidad (units_per_package era "1" o vacío), limpia para obligar la entrada limpia
+    const units = currentUnitsPerPackage === "1" || !currentUnitsPerPackage ? "" : currentUnitsPerPackage;
+    return { units_per_package: units, package_price: "" };
+  }
+}
+
+/**
  * El producto padre es una auto-relación de `products`, así que el embed apunta
  * a la propia tabla con alias y se desambigua con la COLUMNA (`!parent_product_id`):
  * en auto-relaciones PostgREST no resuelve la pista por nombre de constraint.
@@ -118,7 +195,7 @@ export interface NewCategoryInput {
  * Si agregás una columna a la tabla, agregala también acá y al GRANT.
  */
 const PRODUCT_COLUMNS =
-  "id, created_at, updated_at, user_id, name, sku, barcode, price, package_price, stock_level, image_url, status, " +
+  "id, created_at, updated_at, user_id, name, variant_label, sku, barcode, price, package_price, stock_level, image_url, status, " +
   "category_id, unit, distributor_id, minimum_stock, icon, has_commission, commission_type, " +
   "commission_value, units_per_package, parent_product_id";
 
@@ -185,7 +262,10 @@ export async function fetchCategories(): Promise<Category[]> {
     .select("id, name, description")
     .order("name");
   if (error) throw error;
-  return data ?? [];
+  return (data ?? []).map((c) => ({
+    ...c,
+    name: (c.name || "").toUpperCase(),
+  }));
 }
 
 export async function fetchDistributors(): Promise<DistributorBrief[]> {
@@ -215,10 +295,33 @@ export async function fetchProducts(): Promise<Product[]> {
     }
   }
 
-  return all.map((p) => ({
-    ...p,
-    variants: variantsMap[p.id] ?? [],
-  }));
+  const result = all.map((p) => {
+    const vars = variantsMap[p.id] ?? [];
+    if (vars.length > 0) {
+      if (p.stock_level > 0 || p.price > 0 || p.package_price !== null) {
+        // Fire-and-forget DB cleanup for parent products that group variants
+        supabase
+          .from("products")
+          .update({ stock_level: 0, price: 0, package_price: null })
+          .eq("id", p.id)
+          .then();
+      }
+      return {
+        ...p,
+        stock_level: 0,
+        price: 0,
+        package_price: null,
+        purchase_price: 0,
+        variants: vars,
+      };
+    }
+    return {
+      ...p,
+      variants: vars,
+    };
+  });
+
+  return result;
 }
 
 /**
@@ -259,10 +362,12 @@ function normalizeBarcode(raw: string | undefined): string | null {
 
 export async function createProduct(input: NewProductInput): Promise<Product> {
   const supabase = createClient();
+  const variantLabel = input.variant_label?.trim().toUpperCase() || null;
   const { data, error } = await supabase
     .from("products")
     .insert({
-      name: input.name,
+      name: input.name.trim().toUpperCase(),
+      variant_label: variantLabel,
       category_id: input.category_id || null,
       distributor_id: input.distributor_id || null,
       parent_product_id: input.parent_product_id || null,
@@ -306,10 +411,12 @@ export async function activateProduct(id: string): Promise<void> {
 
 export async function updateProduct(id: string, input: NewProductInput): Promise<Product> {
   const supabase = createClient();
+  const variantLabel = input.variant_label?.trim().toUpperCase() || null;
   const { data, error } = await supabase
     .from("products")
     .update({
-      name: input.name,
+      name: input.name.trim().toUpperCase(),
+      variant_label: variantLabel,
       category_id: input.category_id || null,
       distributor_id: input.distributor_id || null,
       parent_product_id: input.parent_product_id || null,
@@ -342,11 +449,35 @@ export async function createCategory(input: NewCategoryInput): Promise<Category>
   const { data, error } = await supabase
     .from("categories")
     .insert({
-      name: input.name,
-      description: input.description,
+      name: input.name.trim().toUpperCase(),
+      description: input.description?.trim() || null,
     })
     .select("id, name, description")
     .single();
   if (error) throw error;
   return data as Category;
+}
+
+export async function updateCategory(id: string, input: NewCategoryInput): Promise<Category> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("categories")
+    .update({
+      name: input.name.trim().toUpperCase(),
+      description: input.description?.trim() || null,
+    })
+    .eq("id", id)
+    .select("id, name, description")
+    .single();
+  if (error) throw error;
+  return data as Category;
+}
+
+export async function deleteCategory(id: string): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("categories")
+    .delete()
+    .eq("id", id);
+  if (error) throw error;
 }

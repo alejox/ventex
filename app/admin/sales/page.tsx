@@ -5,6 +5,8 @@ import { useAdminStore } from "@/stores/admin.store";
 import type { AdminBillingSale } from "@/services/admin.service";
 import { formatMoney, planAccent, paymentMethodLabel } from "@/config/plans";
 import { DataTable, type DataColumn } from "@/components/DataTable";
+import { IconCreditCard } from "@/app/assets/icons/DashboardIcons";
+import { CollectionEmpty, CollectionError, CollectionFilteredEmpty } from "@/components/CollectionState";
 
 /**
  * Ventas de la plataforma: las cuentas que se vendieron por la pasarela.
@@ -84,6 +86,11 @@ export default function AdminSalesPage() {
     () => visible.reduce((total, sale) => total + Number(sale.amount), 0),
     [visible],
   );
+
+  const clearFilters = () => {
+    setFilter("all");
+    setQuery("");
+  };
 
   const monthDelta = stats ? stats.gross_month - stats.gross_prev_month : 0;
 
@@ -189,11 +196,7 @@ export default function AdminSalesPage() {
         </p>
       </div>
 
-      {error && (
-        <div className="rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim mb-6">
-          {error}
-        </div>
-      )}
+      {error && <div className="mb-6"><CollectionError message={error} onRetry={fetchSalesPanel} /></div>}
 
       {loading && !stats ? (
         <p className="text-sm text-on-surface-variant py-12 text-center">Cargando ventas…</p>
@@ -290,11 +293,18 @@ export default function AdminSalesPage() {
           </p>
 
           {visible.length === 0 ? (
-            <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-3xl p-8 text-center text-sm text-on-surface-variant">
-              {sales.length === 0
-                ? "Todavía no hay ventas por la pasarela."
-                : "Ninguna orden coincide con este filtro."}
-            </div>
+            sales.length === 0 ? (
+              <CollectionEmpty
+                icon={<IconCreditCard className="h-8 w-8" />}
+                title="Aún no hay ventas"
+                description="Las ventas procesadas por la pasarela aparecerán aquí cuando se complete el primer pago."
+              />
+            ) : (
+              <CollectionFilteredEmpty
+                title="Ninguna orden coincide con los filtros"
+                action={{ label: "Limpiar filtros", onClick: clearFilters }}
+              />
+            )
           ) : (
             <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-3xl shadow-sm overflow-hidden">
               <DataTable

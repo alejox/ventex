@@ -9,6 +9,7 @@ export interface Distributor {
   phone: string | null;
   whatsapp: string | null;
   address: string | null;
+  city: string | null;
   rfc_rut: string | null;
   doc_type: string | null;
   dv: string | null;
@@ -23,12 +24,13 @@ export interface NewDistributorInput {
   phone: string;
   whatsapp: string;
   address: string;
+  city: string;
   rfc_rut: string;
   doc_type: string;
   dv: string;
 }
 
-const SELECT = "id, business_name, contact_name, email, phone, whatsapp, address, rfc_rut, doc_type, dv, status, created_at";
+const SELECT = "id, business_name, contact_name, email, phone, whatsapp, address, city, rfc_rut, doc_type, dv, status, created_at";
 
 export async function fetchDistributors(): Promise<Distributor[]> {
   const supabase = createClient();
@@ -48,6 +50,7 @@ export async function updateDistributor(id: string, input: NewDistributorInput):
       phone: input.phone || null,
       whatsapp: input.whatsapp || null,
       address: input.address || null,
+      city: input.city || null,
       rfc_rut: input.rfc_rut || null,
       doc_type: input.doc_type || null,
       dv: input.dv || null,
@@ -76,6 +79,7 @@ export async function createDistributor(input: NewDistributorInput): Promise<Dis
       phone: input.phone || null,
       whatsapp: input.whatsapp || null,
       address: input.address || null,
+      city: input.city || null,
       rfc_rut: input.rfc_rut || null,
       doc_type: input.doc_type || null,
       dv: input.dv || null,

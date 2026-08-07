@@ -9,6 +9,7 @@ import {
   IconChevronRight,
   IconPlus,
 } from "@/app/assets/icons/DashboardIcons";
+import { CollectionError, CollectionFilteredEmpty, CollectionLoading } from "@/components/CollectionState";
 
 // ---- HELPERS ----
 const MONTHS_ES = [
@@ -320,18 +321,10 @@ export default function CalendarPage() {
       </div>
 
       {/* Error */}
-      {error && (
-        <div className="rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim">
-          {error}
-        </div>
-      )}
+      {error && <CollectionError message={error} />}
 
       {/* Loading */}
-      {loading && (
-        <p className="text-center text-sm text-on-surface-variant py-12">
-          Cargando citas...
-        </p>
-      )}
+      {loading && <CollectionLoading label="Cargando citas…" />}
 
       {/* ---- MONTH VIEW ---- */}
       {!loading && displayMode === "calendar" && view === "month" && (
@@ -636,11 +629,7 @@ export default function CalendarPage() {
                 </button>
               ))}
             </div>
-          ) : (
-            <div className="p-12 text-center text-sm text-on-surface-variant">
-              No hay citas en este período.
-            </div>
-          )}
+          ) : <CollectionFilteredEmpty title="No hay citas en este período" />}
         </div>
       )}
 

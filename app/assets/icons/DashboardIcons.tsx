@@ -124,6 +124,17 @@ export function IconShoppingCart(props: React.SVGProps<SVGSVGElement>) {
   );
 }
 
+export function IconTruck(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" width="20" height="20" {...props}>
+      <rect x="1" y="3" width="15" height="13" rx="2" />
+      <path d="M16 8h4l3 3v5h-7z" />
+      <circle cx="5.5" cy="19" r="2" />
+      <circle cx="18.5" cy="19" r="2" />
+    </svg>
+  );
+}
+
 export function IconPlus(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" width="20" height="20" {...props}>
@@ -349,6 +360,15 @@ export function IconReceipt(props: React.SVGProps<SVGSVGElement>) {
       <line x1="16" y1="8" x2="8" y2="8" />
       <line x1="16" y1="12" x2="8" y2="12" />
       <line x1="10" y1="16" x2="8" y2="16" />
+    </svg>
+  );
+}
+
+export function IconTag(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" width="20" height="20" {...props}>
+      <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+      <line x1="7" y1="7" x2="7.01" y2="7" />
     </svg>
   );
 }

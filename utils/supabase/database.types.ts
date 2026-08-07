@@ -424,6 +424,24 @@ export type Database = {
           },
         ]
       }
+      co_cities: {
+        Row: {
+          city: string
+          department: string
+          id: number
+        }
+        Insert: {
+          city: string
+          department: string
+          id?: never
+        }
+        Update: {
+          city?: string
+          department?: string
+          id?: never
+        }
+        Relationships: []
+      }
       credit_packs: {
         Row: {
           bonus_credits: number
@@ -627,6 +645,7 @@ export type Database = {
         Row: {
           address: string | null
           business_name: string
+          city: string | null
           contact_name: string | null
           created_at: string | null
           doc_type: string | null
@@ -642,6 +661,7 @@ export type Database = {
         Insert: {
           address?: string | null
           business_name: string
+          city?: string | null
           contact_name?: string | null
           created_at?: string | null
           doc_type?: string | null
@@ -657,6 +677,7 @@ export type Database = {
         Update: {
           address?: string | null
           business_name?: string
+          city?: string | null
           contact_name?: string | null
           created_at?: string | null
           doc_type?: string | null
@@ -1063,6 +1084,7 @@ export type Database = {
           units_per_package: number
           updated_at: string
           user_id: string
+          variant_label: string | null
         }
         Insert: {
           barcode?: string | null
@@ -1088,6 +1110,7 @@ export type Database = {
           units_per_package?: number
           updated_at?: string
           user_id?: string
+          variant_label?: string | null
         }
         Update: {
           barcode?: string | null
@@ -1113,6 +1136,7 @@ export type Database = {
           units_per_package?: number
           updated_at?: string
           user_id?: string
+          variant_label?: string | null
         }
         Relationships: [
           {

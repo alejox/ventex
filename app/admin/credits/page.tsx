@@ -5,6 +5,9 @@ import { useAdminStore } from "@/stores/admin.store";
 import type { CreditPack } from "@/services/admin.service";
 import { formatMoney, planAccent } from "@/config/plans";
 import { backdropProps } from "@/components/modal";
+import { IconCreditCard } from "@/app/assets/icons/DashboardIcons";
+import { CollectionEmpty, CollectionError, CollectionLoading } from "@/components/CollectionState";
+import { Pagination } from "@/components/Pagination";
 import { Select } from "@/components/ui/Select";
 
 const REASON_LABELS: Record<string, string> = {
@@ -24,6 +27,20 @@ export default function AdminCreditsPage() {
 
   const [editing, setEditing] = useState<CreditPack | null>(null);
   const [creating, setCreating] = useState(false);
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [movements.length]);
+
+  const totalPages = Math.ceil(movements.length / pageSize) || 1;
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const paginatedMovements = movements.slice(
+    (safeCurrentPage - 1) * pageSize,
+    safeCurrentPage * pageSize
+  );
 
   useEffect(() => {
     fetchCreditsPanel();
@@ -48,20 +65,20 @@ export default function AdminCreditsPage() {
         </button>
       </div>
 
-      {error && (
-        <div className="rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim mb-6">
-          {error}
-        </div>
-      )}
+      {error && <div className="mb-6"><CollectionError message={error} onRetry={fetchCreditsPanel} /></div>}
 
       {/* ---- Promociones ---- */}
       <h2 className="text-lg font-bold text-on-surface mb-4">Promociones</h2>
       {loading && packs.length === 0 ? (
-        <p className="text-sm text-on-surface-variant py-6">Cargando promociones…</p>
+        <CollectionLoading label="Cargando promociones…" />
       ) : packs.length === 0 ? (
-        <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-3xl p-8 text-center text-sm text-on-surface-variant mb-8">
-          No hay promociones. Crea la primera con “Nueva promoción” (ej: 10 créditos
-          Oro + 2 de regalo).
+        <div className="mb-8">
+          <CollectionEmpty
+            icon={<IconCreditCard className="h-8 w-8" />}
+            title="Aún no hay promociones"
+            description="Crea la primera promoción de créditos para ofrecer recargas a tus revendedores."
+            action={{ label: "Nueva promoción", onClick: () => setCreating(true) }}
+          />
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
@@ -127,15 +144,15 @@ export default function AdminCreditsPage() {
       {/* Móvil: tarjetas. La tabla de 6 columnas se corta a 390px. */}
       <div className="lg:hidden space-y-3">
         {loading && movements.length === 0 ? (
-          <p className="py-10 text-center text-sm text-on-surface-variant">
-            Cargando movimientos…
-          </p>
+          <CollectionLoading label="Cargando movimientos…" />
         ) : movements.length === 0 ? (
-          <p className="py-10 text-center text-sm text-on-surface-variant">
-            Aún no hay movimientos de créditos.
-          </p>
+          <CollectionEmpty
+            icon={<IconCreditCard className="h-8 w-8" />}
+            title="Aún no hay movimientos"
+            description="Los movimientos de créditos aparecerán aquí cuando otorgues, ajustes o consumas créditos."
+          />
         ) : (
-          movements.map((m) => (
+          paginatedMovements.map((m) => (
             <div
               key={m.id}
               className="bg-surface-container-lowest border border-outline-variant/10 rounded-2xl p-4 shadow-sm"
@@ -198,19 +215,19 @@ export default function AdminCreditsPage() {
             </thead>
             <tbody>
               {loading && movements.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-5 py-10 text-center text-on-surface-variant">
-                    Cargando movimientos…
-                  </td>
-                </tr>
+                <tr><td colSpan={6}><CollectionLoading label="Cargando movimientos…" /></td></tr>
               ) : movements.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-5 py-10 text-center text-on-surface-variant">
-                    Aún no hay movimientos de créditos.
+                  <td colSpan={6}>
+                    <CollectionEmpty
+                      icon={<IconCreditCard className="h-8 w-8" />}
+                      title="Aún no hay movimientos"
+                      description="Los movimientos de créditos aparecerán aquí cuando otorgues, ajustes o consumas créditos."
+                    />
                   </td>
                 </tr>
               ) : (
-                movements.map((m) => (
+                paginatedMovements.map((m) => (
                   <tr
                     key={m.id}
                     className="border-b border-outline-variant/5 last:border-0 hover:bg-surface-container-low/50"
@@ -251,6 +268,19 @@ export default function AdminCreditsPage() {
             </tbody>
           </table>
         </div>
+        {movements.length > 0 && (
+          <Pagination
+            currentPage={safeCurrentPage}
+            totalPages={totalPages}
+            totalItems={movements.length}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={(newSize) => {
+              setPageSize(newSize);
+              setCurrentPage(1);
+            }}
+          />
+        )}
       </div>
 
       {(creating || editing) && (

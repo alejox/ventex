@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useDistributorsStore } from "@/stores/distributors.store";
 import { Select } from "@/components/ui/Select";
+import { CitySelect } from "@/components/CitySelect";
 import { notifySuccess } from "@/lib/notifications";
 
 interface DistributorQuickModalProps {
@@ -31,6 +32,7 @@ export function DistributorQuickModal({ onClose, onCreated }: DistributorQuickMo
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [address, setAddress] = useState("");
+  const [city, setCity] = useState("");
   const [docType, setDocType] = useState("NIT");
   const [rfcRut, setRfcRut] = useState("");
   const [dv, setDv] = useState("");
@@ -54,6 +56,7 @@ export function DistributorQuickModal({ onClose, onCreated }: DistributorQuickMo
       phone,
       whatsapp: phone,
       address,
+      city,
       rfc_rut: rfcRut,
       doc_type: docType,
       dv,
@@ -130,7 +133,7 @@ export function DistributorQuickModal({ onClose, onCreated }: DistributorQuickMo
                 type="text"
                 required
                 value={businessName}
-                onChange={(e) => setBusinessName(e.target.value)}
+                onChange={(e) => setBusinessName(e.target.value.toUpperCase())}
                 className={`${field} w-full`}
                 placeholder="Ej. Distribuidora XYZ"
               />
@@ -213,9 +216,19 @@ export function DistributorQuickModal({ onClose, onCreated }: DistributorQuickMo
                 id="dist-address"
                 type="text"
                 value={address}
-                onChange={(e) => setAddress(e.target.value)}
+                onChange={(e) => setAddress(e.target.value.toUpperCase())}
                 className={`${field} w-full`}
                 placeholder="Calle 72 # 23-08"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label htmlFor="dist-city" className={labelClass}>Ciudad</label>
+              <CitySelect
+                id="dist-city"
+                value={city}
+                onChange={setCity}
+                className={`${field} w-full`}
               />
             </div>
           </div>

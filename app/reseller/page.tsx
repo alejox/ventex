@@ -3,6 +3,8 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { useResellerStore } from "@/stores/reseller.store";
+import { IconCreditCard } from "@/app/assets/icons/DashboardIcons";
+import { CollectionEmpty, CollectionError } from "@/components/CollectionState";
 
 const REASON_LABELS: Record<string, string> = {
   grant: "Créditos otorgados",
@@ -38,11 +40,7 @@ export default function ResellerOverviewPage() {
         </p>
       </div>
 
-      {error && (
-        <div className="rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim mb-6">
-          {error}
-        </div>
-      )}
+      {error && <div className="mb-6"><CollectionError message={error} onRetry={fetchOverview} /></div>}
 
       {loading && !stats ? (
         <p className="text-sm text-on-surface-variant py-12 text-center">Cargando…</p>
@@ -77,9 +75,11 @@ export default function ResellerOverviewPage() {
               </Link>
             </div>
             {history.length === 0 ? (
-              <p className="text-sm text-on-surface-variant py-6 text-center">
-                Aún no hay movimientos.
-              </p>
+              <CollectionEmpty
+                icon={<IconCreditCard className="h-8 w-8" />}
+                title="Aún no hay movimientos"
+                description="Los movimientos de créditos aparecerán aquí cuando recibas una recarga o actives una licencia."
+              />
             ) : (
               <ul className="divide-y divide-outline-variant/5">
                 {history.map((m) => (

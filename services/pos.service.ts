@@ -198,7 +198,7 @@ export async function fetchCatalog(): Promise<CatalogItem[]> {
   const [productsRes, servicesRes] = await Promise.all([
     supabase
       .from("products")
-      .select("id, name, sku, barcode, price, package_price, units_per_package, stock_level, image_url, has_commission, commission_type, commission_value, categories(name)")
+      .select("id, parent_product_id, name, sku, barcode, price, package_price, units_per_package, stock_level, image_url, has_commission, commission_type, commission_value, categories(name)")
       .order("name"),
     supabase
       .from("services")
@@ -209,7 +209,17 @@ export async function fetchCatalog(): Promise<CatalogItem[]> {
   if (productsRes.error) throw productsRes.error;
   if (servicesRes.error) throw servicesRes.error;
 
-  const products: CatalogItem[] = (productsRes.data ?? []).map((p) => {
+  const rawProducts = productsRes.data ?? [];
+  const parentIdsWithVariants = new Set<string>();
+  for (const p of rawProducts) {
+    if (p.parent_product_id) {
+      parentIdsWithVariants.add(p.parent_product_id);
+    }
+  }
+
+  const products: CatalogItem[] = rawProducts
+    .filter((p) => !parentIdsWithVariants.has(p.id))
+    .map((p) => {
     // Supabase tipa el embed como array; en una relación to-one llega un objeto.
     const cat = p.categories as unknown as { name: string } | { name: string }[] | null;
     const category_name = Array.isArray(cat) ? (cat[0]?.name ?? null) : (cat?.name ?? null);

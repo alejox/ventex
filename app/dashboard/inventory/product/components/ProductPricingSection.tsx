@@ -19,6 +19,8 @@ interface ProductPricingSectionProps {
   percentLabel: string;
   includeTax: boolean;
   margin: { pct: number; costPerUnit: number } | null;
+  presentation: "unit" | "package";
+  unitsPerPackage: string;
 }
 
 export function ProductPricingSection({
@@ -32,14 +34,27 @@ export function ProductPricingSection({
   percentLabel,
   includeTax,
   margin,
+  presentation,
+  unitsPerPackage,
 }: ProductPricingSectionProps) {
+  const isPackage = presentation === "package";
+  const unitsCount = Math.max(parseInt(unitsPerPackage || "1") || 1, 1);
+  const purchaseTotal = parseFloat(purchase.total || "0");
+  const derivedUnitCost = purchaseTotal > 0 ? purchaseTotal / (isPackage ? unitsCount : 1) : 0;
+
   return (
     <>
       <div className="border-t border-outline-variant/10 pt-6 space-y-6">
         <div>
-          <h3 className="text-base font-bold text-on-surface">Precio de Compra (Paquete)</h3>
+          <h3 className="text-base font-bold text-on-surface">
+            {isPackage
+              ? `Precio de Compra por Caja${unitsCount > 1 ? ` (contiene ${unitsCount} unidades)` : ""}`
+              : "Precio de Compra por Unidad"}
+          </h3>
           <p className="text-xs text-on-surface-variant mt-1">
-            Escribe en cualquiera de los dos: el otro se calcula solo.
+            {isPackage
+              ? "Ingresa el precio de compra de la caja completa. Escribe en Base o Total y el IVA se calcula."
+              : "Ingresa el precio de compra por unidad. Escribe en Base o Total y el IVA se calcula."}
           </p>
         </div>
         <div className="flex flex-col sm:flex-row sm:items-end gap-3">
@@ -71,6 +86,18 @@ export function ProductPricingSection({
             />
           </div>
         </div>
+
+        {purchaseTotal > 0 && (
+          <p className="text-xs font-medium text-on-surface-variant/90 pt-0.5">
+            💡 Costo unitario derivado:{" "}
+            <strong className="font-mono text-on-surface">${derivedUnitCost.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong> por unidad
+            {isPackage && unitsCount > 1 && (
+              <span className="text-on-surface-variant/70 font-normal">
+                {" "}(${purchaseTotal.toLocaleString("en-US", { minimumFractionDigits: 2 })} ÷ {unitsCount} u.)
+              </span>
+            )}
+          </p>
+        )}
       </div>
 
       <div className="border-t border-outline-variant/10 pt-6 space-y-6">

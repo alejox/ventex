@@ -10,7 +10,8 @@ import {
   IconImagePlaceholder,
 } from "@/app/assets/icons/DashboardIcons";
 import { useInventoryStore } from "@/stores/inventory.store";
-import type { NewCategoryInput } from "@/services/inventory.service";
+import type { NewCategoryInput, Product } from "@/services/inventory.service";
+import { getUnitCost, calculateInventoryValue } from "@/services/inventory.service";
 import { stockStatusOf, stockLabelOf, STOCK_CHIP, STOCK_DOT } from "@/lib/stock";
 import { useProfile } from "@/components/ProfileProvider";
 import { can } from "@/lib/permissions";
@@ -19,6 +20,8 @@ import { BarcodeScannerModal } from "@/components/BarcodeScannerModal";
 import { StockAdjustmentModal } from "@/components/StockAdjustmentModal";
 import { ProductModal } from "@/components/ProductModal";
 import { notifyError } from "@/lib/notifications";
+import { CollectionEmpty, CollectionError, CollectionFilteredEmpty, CollectionLoading } from "@/components/CollectionState";
+import { Pagination } from "@/components/Pagination";
 
 
 function IconScanLine(props: React.SVGProps<SVGSVGElement>) {
@@ -43,15 +46,10 @@ function IconLayers(props: React.SVGProps<SVGSVGElement>) {
   );
 }
 
-function IconFilter(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" width="20" height="20" {...props}>
-      <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
-    </svg>
-  );
-}
-
 const EMPTY_CATEGORY: NewCategoryInput = { name: "", description: "" };
+
+/** Un padre con las variantes que sobrevivieron al filtro. */
+type ProductGroup = { parent: Product; variants: Product[] };
 
 export default function InventoryPage() {
   // Espejo de la RLS: acá se esconde lo que la persona no puede usar, pero
@@ -79,6 +77,8 @@ export default function InventoryPage() {
 
   const products = useInventoryStore((s) => s.products);
   const categories = useInventoryStore((s) => s.categories);
+  const loading = useInventoryStore((s) => s.loading);
+  const error = useInventoryStore((s) => s.error);
   const fetchInventory = useInventoryStore((s) => s.fetchInventory);
   const addCategory = useInventoryStore((s) => s.addCategory);
   const archiveProduct = useInventoryStore((s) => s.archiveProduct);
@@ -109,11 +109,13 @@ export default function InventoryPage() {
 
     if (match) {
       setSearchQuery(value);
+      setCurrentPage(1);
       return;
     }
 
     if (!canEdit) {
       setSearchQuery(value);
+      setCurrentPage(1);
       notifyError("Producto no encontrado", `Ningún producto tiene el código ${value}.`);
       return;
     }
@@ -121,7 +123,11 @@ export default function InventoryPage() {
     setNewProductBarcode(value);
   };
 
-  const filteredProducts = products.filter((p) => {
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  /** Filtro por fila (padre o variante): búsqueda y categoría. */
+  const matchesRow = (p: Product): boolean => {
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       // También por código de barras: lo que llega del escáner cae en este mismo
@@ -134,22 +140,87 @@ export default function InventoryPage() {
         return false;
     }
     if (categoryFilter && p.categories?.name !== categoryFilter) return false;
+    return true;
+  };
+
+  const matchesStock = (p: Product): boolean => {
     if (stockFilter === "Agotado" && p.stock_level !== 0) return false;
     if (stockFilter === "Stock Bajo" && (p.stock_level <= 0 || p.stock_level > 5)) return false;
     if (stockFilter === "Óptimo" && p.stock_level <= 5) return false;
     return true;
-  });
+  };
 
-  const parentProducts = filteredProducts.filter((p) => !p.parent_product_id);
-  const productGroups = parentProducts.map((parent) => {
-    const variants = (parent.variants ?? []).filter((v) => {
-      if (stockFilter === "Agotado" && v.stock_level !== 0) return false;
-      if (stockFilter === "Stock Bajo" && (v.stock_level <= 0 || v.stock_level > 5)) return false;
-      if (stockFilter === "Óptimo" && v.stock_level <= 5) return false;
-      return true;
+  /**
+   * El grupo (padre + variantes) es la unidad que se dibuja y se pagina.
+   *
+   * Antes el filtro se aplicaba fila por fila y después se descartaban las
+   * variantes: buscar por el SKU o la etiqueta de una variante no encontraba
+   * nada, y el paginado contaba solo los padres aunque la página dibujara
+   * también todas las variantes.
+   *
+   * Ahora el grupo sobrevive si el padre matchea O si alguna variante lo hace;
+   * si solo la variante matchea, se muestran únicamente las que pasan.
+   */
+  const productGroups: ProductGroup[] = products
+    .filter((p) => !p.parent_product_id)
+    .flatMap((parent) => {
+      const parentMatches = matchesRow(parent) && matchesStock(parent);
+      const variants = (parent.variants ?? []).filter(
+        (v) => matchesStock(v) && (parentMatches ? true : matchesRow(v)),
+      );
+      if (!parentMatches && variants.length === 0) return [];
+      return [{ parent, variants }];
     });
-    return { parent, variants };
-  });
+
+  const getGroupWeight = (g: ProductGroup): number =>
+    (g.parent.variants?.length ?? 0) > 0 ? g.variants.length : 1;
+
+  const totalFilteredProductsCount = productGroups.reduce(
+    (acc, g) => acc + getGroupWeight(g),
+    0,
+  );
+
+  const pageAssignments: ProductGroup[][] = [];
+  let currentPageGroups: ProductGroup[] = [];
+  let currentCount = 0;
+
+  for (const group of productGroups) {
+    const groupWeight = getGroupWeight(group);
+    if (currentCount > 0 && currentCount + groupWeight > pageSize) {
+      pageAssignments.push(currentPageGroups);
+      currentPageGroups = [group];
+      currentCount = groupWeight;
+    } else {
+      currentPageGroups.push(group);
+      currentCount += groupWeight;
+    }
+  }
+  if (currentPageGroups.length > 0) {
+    pageAssignments.push(currentPageGroups);
+  }
+
+  const totalPages = pageAssignments.length || 1;
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const paginatedGroups = pageAssignments[safeCurrentPage - 1] ?? [];
+
+  const rowsBeforePage = pageAssignments
+    .slice(0, safeCurrentPage - 1)
+    .reduce((acc, groups) => acc + groups.reduce((gAcc, g) => gAcc + getGroupWeight(g), 0), 0);
+
+  const rowsInPage = paginatedGroups.reduce(
+    (acc, g) => acc + getGroupWeight(g),
+    0,
+  );
+
+  const pageStartItem = totalFilteredProductsCount > 0 ? rowsBeforePage + 1 : 0;
+  const pageEndItem = rowsBeforePage + rowsInPage;
+
+  const clearFilters = () => {
+    setSearchQuery("");
+    setCategoryFilter("");
+    setStockFilter("");
+    setCurrentPage(1);
+  };
 
   useEffect(() => {
     fetchInventory();
@@ -164,6 +235,8 @@ export default function InventoryPage() {
     }
   };
 
+  const sellableProducts = products.filter((p) => (p.variants?.length ?? 0) === 0);
+
   return (
     <div className="space-y-8">
       {/* Header */}
@@ -171,7 +244,15 @@ export default function InventoryPage() {
         <div>
           <h1 className="text-3xl font-bold text-on-surface tracking-tight">Gesti&oacute;n de Inventario</h1>
           <p className="text-on-surface-variant text-sm mt-1.5">
-            {products.length} producto{products.length !== 1 ? "s" : ""} registrado{products.length !== 1 ? "s" : ""}
+            {sellableProducts.length} producto{sellableProducts.length !== 1 ? "s" : ""} registrado{sellableProducts.length !== 1 ? "s" : ""}
+            {canMoveStock && (
+              <Link
+                href="/dashboard/inventory/movements"
+                className="ml-3 font-semibold text-primary hover:text-primary-dim transition-colors"
+              >
+                Ver movimientos →
+              </Link>
+            )}
           </p>
         </div>
         {/* Móvil: secundarios a dos columnas y el primario debajo, a ancho completo.
@@ -181,15 +262,6 @@ export default function InventoryPage() {
         <div className="grid grid-cols-2 gap-3 w-full lg:flex lg:w-auto">
           {canMoveStock && (
           <>
-          <Link
-            href="/dashboard/inventory/movements"
-            className="h-11 whitespace-nowrap bg-surface-container hover:bg-surface-container-high border border-outline-variant/20 text-on-surface text-sm font-semibold px-3 lg:px-5 rounded-xl transition-colors flex items-center justify-center gap-2"
-          >
-            <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-4 h-4">
-              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-            </svg>
-            Movimientos
-          </Link>
           <button
             onClick={() => { setAdjustProductId(undefined); setAdjustModalOpen(true); }}
             className="h-11 whitespace-nowrap bg-surface-container hover:bg-surface-container-high border border-outline-variant/20 text-on-surface text-sm font-semibold px-3 lg:px-5 rounded-xl transition-colors flex items-center justify-center gap-2"
@@ -197,7 +269,7 @@ export default function InventoryPage() {
             <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-4 h-4">
               <path d="M12 5v14M5 12h14" />
             </svg>
-            Añadir stock
+            Registrar movimiento
           </button>
           </>
           )}
@@ -219,7 +291,7 @@ export default function InventoryPage() {
             <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-4 h-4">
               <path d="M12 5v14M5 12h14" />
             </svg>
-            Nuevo Producto
+            Producto / Servicio
           </Link>
           </>
           )}
@@ -227,13 +299,15 @@ export default function InventoryPage() {
         )}
       </div>
 
+      {error && <CollectionError message={error} onRetry={fetchInventory} />}
+
       {/* Stats. La valorización del inventario es cifra financiera del negocio:
           solo el dueño, ni siquiera un empleado con `inventory_costs`. */}
       <div className={`grid grid-cols-1 gap-6 ${canSeeInventoryValue ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
         <div className="bg-surface-container rounded-2xl p-6 border border-outline-variant/10 shadow-sm flex justify-between items-center group hover:border-outline-variant/20 transition-colors">
           <div>
             <p className="text-on-surface-variant text-sm font-medium mb-1.5">Total Productos</p>
-            <h3 className="text-4xl font-bold text-on-surface tracking-tight">{products.length}</h3>
+            <h3 className="text-4xl font-bold text-on-surface tracking-tight">{sellableProducts.length}</h3>
           </div>
           <div className="w-14 h-14 shrink-0 rounded-xl bg-primary/10 text-primary flex items-center justify-center group-hover:scale-110 transition-transform">
             <IconBox className="w-7 h-7" />
@@ -246,7 +320,7 @@ export default function InventoryPage() {
             <p className="text-on-surface-variant text-sm font-medium mb-1.5">Valor del Inventario</p>
             {/* Cifra larga: en móvil baja de tamaño en vez de comerse el ícono. */}
             <h3 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-on-surface tracking-tight truncate">
-              ${products.reduce((sum, p) => sum + (p.purchase_price ?? 0) * p.stock_level, 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+              ${calculateInventoryValue(products).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </h3>
           </div>
           <div className="w-14 h-14 shrink-0 rounded-xl bg-[#8b5cf6]/10 text-[#8b5cf6] flex items-center justify-center group-hover:scale-110 transition-transform">
@@ -258,7 +332,7 @@ export default function InventoryPage() {
         <div className="bg-surface-container rounded-2xl p-6 border border-outline-variant/10 shadow-sm flex justify-between items-center group hover:border-outline-variant/20 transition-colors">
           <div>
             <p className="text-on-surface-variant text-sm font-medium mb-1.5">Stock Bajo</p>
-            <h3 className="text-4xl font-bold text-on-surface tracking-tight">{products.filter(p => p.stock_level > 0 && p.stock_level <= 5).length}</h3>
+            <h3 className="text-4xl font-bold text-on-surface tracking-tight">{sellableProducts.filter(p => p.stock_level > 0 && p.stock_level <= 5).length}</h3>
           </div>
           <div className="w-14 h-14 shrink-0 rounded-xl bg-error/10 text-error flex items-center justify-center group-hover:scale-110 transition-transform">
             <IconAlertTriangle className="w-7 h-7" />
@@ -276,7 +350,7 @@ export default function InventoryPage() {
               <input
                 type="text"
                 value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
+                onChange={e => { setSearchQuery(e.target.value); setCurrentPage(1); }}
                 placeholder="Buscar nombre, SKU o código..."
                 /* text-base en móvil: por debajo de 16px iOS hace zoom al enfocar. */
                 className="w-full h-11 bg-surface-container border border-outline-variant/20 rounded-xl pl-11 pr-4 text-base lg:text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-on-surface-variant/50"
@@ -289,7 +363,7 @@ export default function InventoryPage() {
               onClick={() => setScannerOpen(true)}
               aria-label="Escanear código de barras"
               title="Escanear código de barras"
-              className="shrink-0 w-11 h-11 flex items-center justify-center rounded-xl bg-primary/10 text-primary hover:bg-primary hover:text-on-primary transition-colors"
+              className="lg:hidden shrink-0 w-11 h-11 flex items-center justify-center rounded-xl bg-primary/10 text-primary hover:bg-primary hover:text-on-primary transition-colors"
             >
               <IconScanLine className="w-5 h-5" />
             </button>
@@ -301,7 +375,7 @@ export default function InventoryPage() {
               aria-label="Filtrar por categoría"
               containerClassName="flex-1 md:w-44"
               value={categoryFilter}
-              onChange={e => setCategoryFilter(e.target.value)}
+              onChange={e => { setCategoryFilter(e.target.value); setCurrentPage(1); }}
             >
               <option value="">Categor&iacute;a</option>
               {categories.map(cat => (
@@ -312,19 +386,13 @@ export default function InventoryPage() {
               aria-label="Filtrar por estado de stock"
               containerClassName="flex-1 md:w-40"
               value={stockFilter}
-              onChange={e => setStockFilter(e.target.value)}
+              onChange={e => { setStockFilter(e.target.value); setCurrentPage(1); }}
             >
               <option value="">Stock</option>
               <option value="Óptimo">&Oacute;ptimo</option>
               <option value="Stock Bajo">Stock Bajo</option>
               <option value="Agotado">Agotado</option>
             </Select>
-            <button
-              aria-label="Más filtros"
-              className="hidden lg:flex w-11 h-11 items-center justify-center rounded-xl bg-surface-container border border-outline-variant/20 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors shrink-0"
-            >
-              <IconFilter className="w-4 h-4" />
-            </button>
           </div>
         </div>
 
@@ -333,26 +401,20 @@ export default function InventoryPage() {
             El fondo alterno es lo que separa un producto del siguiente: la
             ficha ocupa tres líneas y una divisoria de 1px no da la señal. */}
         <ul className="lg:hidden divide-y divide-outline-variant/20">
-          {productGroups.length === 0 ? (
-            <li className="p-10 text-center text-sm text-on-surface-variant">
+          {loading ? (
+            <li><CollectionLoading label="Cargando productos…" /></li>
+          ) : productGroups.length === 0 ? (
+            <li>
               {products.length === 0 ? (
-                <span className="flex flex-col items-center gap-3">
-                  <IconBox className="w-10 h-10 text-on-surface-variant/30" />
-                  <span className="font-medium">No hay productos todav&iacute;a.</span>
-                  <Link
-                    href="/dashboard/inventory/product"
-                    className="text-primary hover:text-primary-dim font-semibold underline underline-offset-2"
-                  >
-                    Crear tu primer producto
-                  </Link>
-                </span>
+                <CollectionEmpty icon={<IconBox className="h-8 w-8" />} title="Aún no hay productos" description="Crea tu primer producto para empezar a gestionar inventario." action={{ label: "Crear tu primer producto", href: "/dashboard/inventory/product" }} />
               ) : (
-                "Ningún producto coincide con los filtros."
+                <CollectionFilteredEmpty title="Ningún producto coincide con los filtros" action={{ label: "Limpiar filtros", onClick: clearFilters }} />
               )}
             </li>
           ) : (
-            productGroups.map(({ parent: item, variants }) => {
+            paginatedGroups.map(({ parent: item, variants }) => {
               const status = stockStatusOf(item.stock_level);
+              const parentHasVariants = (item.variants?.length ?? 0) > 0;
               // El bandeado va en el <li> para que cada producto arrastre sus
               // variantes: el bloque entero se lee como una sola unidad.
               // La tarjeta entera es el objetivo táctil, no un ícono de 16px en
@@ -382,20 +444,26 @@ export default function InventoryPage() {
                           la línea del stock. Así lo primario no compite con lo
                           secundario y el nombre gana el ancho que necesita. */}
                       <p className="shrink-0 text-base font-bold text-on-surface tabular-nums leading-snug">
-                        ${item.price.toFixed(2)}
+                        {parentHasVariants ? "—" : `$${item.price.toFixed(2)}`}
                       </p>
                     </div>
 
                     <div className="mt-2.5 flex items-center justify-between gap-3">
-                      <span
-                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold border ${STOCK_CHIP[status]}`}
-                      >
-                        <span className={`w-1.5 h-1.5 rounded-full ${STOCK_DOT[status]}`} />
-                        {stockLabelOf(item.stock_level)}
-                      </span>
-                      {canSeeCosts && (
+                      {parentHasVariants ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-surface-container-high text-on-surface-variant border border-outline-variant/20">
+                          Agrupa {item.variants!.length} variante{item.variants!.length === 1 ? "" : "s"}
+                        </span>
+                      ) : (
+                        <span
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold border ${STOCK_CHIP[status]}`}
+                        >
+                          <span className={`w-1.5 h-1.5 rounded-full ${STOCK_DOT[status]}`} />
+                          {stockLabelOf(item.stock_level)}
+                        </span>
+                      )}
+                      {canSeeCosts && !parentHasVariants && (
                         <span className="text-[11px] text-on-surface-variant/70 tabular-nums shrink-0">
-                          costo ${(item.purchase_price ?? 0).toFixed(2)}
+                          costo ${getUnitCost(item).toFixed(2)}{(item.units_per_package ?? 1) > 1 ? " / u." : ""}
                         </span>
                       )}
                     </div>
@@ -478,42 +546,36 @@ export default function InventoryPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-outline-variant/5 text-sm">
-              {productGroups.length === 0 ? (
+              {loading ? (
+                <tr><td colSpan={5 + (canSeeCosts ? 1 : 0) + (canEdit ? 1 : 0)}><CollectionLoading label="Cargando productos…" /></td></tr>
+              ) : productGroups.length === 0 ? (
                 <tr>
-                  <td colSpan={5 + (canSeeCosts ? 1 : 0) + (canEdit ? 1 : 0)} className="p-16 text-center text-on-surface-variant text-sm">
+                  <td colSpan={5 + (canSeeCosts ? 1 : 0) + (canEdit ? 1 : 0)}>
                     {products.length === 0 ? (
-                      <div className="flex flex-col items-center gap-3">
-                        <IconBox className="w-10 h-10 text-on-surface-variant/30" />
-                        <p className="font-medium">No hay productos todav&iacute;a.</p>
-                        <Link
-                          href="/dashboard/inventory/product"
-                          className="text-primary hover:text-primary-dim font-semibold underline underline-offset-2"
-                        >
-                          Crear tu primer producto
-                        </Link>
-                      </div>
+                      <CollectionEmpty icon={<IconBox className="h-8 w-8" />} title="Aún no hay productos" description="Crea tu primer producto para empezar a gestionar inventario." action={{ label: "Crear tu primer producto", href: "/dashboard/inventory/product" }} />
                     ) : (
-                      <p>Ning&uacute;n producto coincide con los filtros.</p>
+                      <CollectionFilteredEmpty title="Ningún producto coincide con los filtros" action={{ label: "Limpiar filtros", onClick: clearFilters }} />
                     )}
                   </td>
                 </tr>
               ) : (
-                productGroups.map((group) => {
+                paginatedGroups.map((group) => {
                   const { parent: item, variants } = group;
+                  const parentHasVariants = (item.variants?.length ?? 0) > 0;
                   const stockStatus = stockStatusOf(item.stock_level);
                   const stockLabel = stockLabelOf(item.stock_level);
                   return (
                     <Fragment key={item.id}>
-                      <tr className="hover:bg-surface-container-lowest transition-colors group">
-                        <td className="px-7 py-4">
-                          <div className="flex items-center gap-4">
-                            <div className="relative w-11 h-11 rounded-xl bg-surface-container border border-outline-variant/10 flex items-center justify-center text-on-surface-variant/30 overflow-hidden shrink-0">
+                      <tr className={`transition-colors group ${parentHasVariants ? "bg-surface-container-low/70 border-t border-outline-variant/15" : "hover:bg-surface-container-lowest"}`}>
+                        <td className="px-7 py-3.5">
+                          <div className="flex items-center gap-3.5">
+                            <div className="relative w-10 h-10 rounded-xl bg-surface-container border border-outline-variant/10 flex items-center justify-center text-on-surface-variant/30 overflow-hidden shrink-0">
                               {item.image_url ? (
                                 <Image
                                   src={item.image_url}
                                   alt={item.name}
                                   fill
-                                  sizes="44px"
+                                  sizes="40px"
                                   unoptimized
                                   className="object-cover"
                                 />
@@ -521,25 +583,54 @@ export default function InventoryPage() {
                                 <IconImagePlaceholder className="w-5 h-5" />
                               )}
                             </div>
-                            <span className="font-medium text-on-surface">{item.name}</span>
+                            <div>
+                              <span className={`font-bold ${parentHasVariants ? "text-on-surface text-sm tracking-wide" : "text-on-surface text-sm font-semibold"}`}>{item.name}</span>
+                              {parentHasVariants && (
+                                <p className="text-[11px] text-on-surface-variant/70 font-medium">Producto Agrupador</p>
+                              )}
+                            </div>
                           </div>
                         </td>
-                        <td className="px-4 py-4 text-on-surface-variant">{item.categories?.name ?? "\u2014"}</td>
-                        <td className="px-4 py-4">
+                        <td className="px-4 py-3.5 text-on-surface-variant text-sm">{item.categories?.name ?? "—"}</td>
+                        <td className="px-4 py-3.5">
                           <span className="inline-block bg-surface-container-lowest border border-outline-variant/10 rounded-lg px-2.5 py-1 font-mono text-xs text-on-surface-variant">
                             {item.sku}
                           </span>
                         </td>
-                        {canSeeCosts && <td className="px-4 py-4 text-on-surface-variant font-mono text-sm">${(item.purchase_price ?? 0).toFixed(2)}</td>}
-                        <td className="px-4 py-4 text-on-surface font-semibold text-sm">${item.price.toFixed(2)}</td>
-                        <td className="px-4 py-4">
-                          <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-bold border ${STOCK_CHIP[stockStatus]}`}>
-                            <span className={`w-2 h-2 rounded-full ${STOCK_DOT[stockStatus]}`} />
-                            {stockLabel}
-                          </span>
+                        {canSeeCosts && (
+                          <td className="px-4 py-3.5 text-on-surface-variant font-mono text-sm">
+                            {parentHasVariants ? (
+                              "—"
+                            ) : (
+                              <>
+                                ${getUnitCost(item).toFixed(2)}
+                                {(item.units_per_package ?? 1) > 1 && (
+                                  <span className="text-[11px] text-on-surface-variant/60 block font-sans">
+                                    caja x{item.units_per_package} (${(item.purchase_price ?? 0).toFixed(2)})
+                                  </span>
+                                )}
+                              </>
+                            )}
+                          </td>
+                        )}
+                        <td className="px-4 py-3.5 text-on-surface font-semibold text-sm">
+                          {parentHasVariants ? "—" : `$${item.price.toFixed(2)}`}
+                        </td>
+                        <td className="px-4 py-3.5">
+                          {parentHasVariants ? (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold bg-primary/10 text-primary border border-primary/20">
+                              <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                              Agrupa {item.variants!.length} variante{item.variants!.length === 1 ? "" : "s"}
+                            </span>
+                          ) : (
+                            <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-bold border ${STOCK_CHIP[stockStatus]}`}>
+                              <span className={`w-2 h-2 rounded-full ${STOCK_DOT[stockStatus]}`} />
+                              {stockLabel}
+                            </span>
+                          )}
                         </td>
                         {canEdit && (
-                        <td className="px-7 py-4 text-center">
+                        <td className="px-7 py-3.5 text-center">
                           <div className="flex items-center justify-center gap-1">
                             <Link
                               href={`/dashboard/inventory/product?id=${item.id}`}
@@ -551,21 +642,6 @@ export default function InventoryPage() {
                                 <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                               </svg>
                             </Link>
-                            {canMoveStock && (
-                            <button
-                              onClick={(e) => {
-                                e.preventDefault();
-                                setAdjustProductId(item.id);
-                                setAdjustModalOpen(true);
-                              }}
-                              className="w-9 h-9 flex items-center justify-center rounded-xl text-on-surface-variant hover:text-success hover:bg-success/10 transition-colors"
-                              title="Añadir stock"
-                            >
-                              <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-4 h-4">
-                                <path d="M12 5v14M5 12h14" />
-                              </svg>
-                            </button>
-                            )}
                             <button
                               onClick={(e) => {
                                 e.preventDefault();
@@ -587,27 +663,36 @@ export default function InventoryPage() {
                           </div>
                         </td>
                         )}
+
                       </tr>
-                      {variants.map((v) => {
+                      {variants.map((v, vIdx) => {
                         const vStockStatus = stockStatusOf(v.stock_level);
                         const vStockLabel = stockLabelOf(v.stock_level);
+                        const isLast = vIdx === variants.length - 1;
                         return (
-                          <tr key={v.id} className="hover:bg-surface-container-lowest transition-colors group bg-surface-container-low/30">
-                            <td className="px-7 py-3 pl-14">
-                              <div className="flex items-center gap-3">
-                                <svg fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24" className="w-3.5 h-3.5 text-on-surface-variant/40 shrink-0">
-                                  <polyline points="9 18 15 12 9 6" />
-                                </svg>
-                                <span className="text-sm text-on-surface">{v.name}</span>
+                          <tr key={v.id} className={`hover:bg-surface-container-lowest transition-colors group bg-surface-container-lowest/60 ${isLast ? "border-b border-outline-variant/15" : ""}`}>
+                            <td className="px-7 py-3 pl-12">
+                              <div className="flex items-center gap-2.5">
+                                <span className="text-primary/70 font-mono text-sm select-none font-bold">↳</span>
+                                <span className="text-sm font-medium text-on-surface">{v.name}</span>
                               </div>
                             </td>
-                            <td className="px-4 py-3 text-xs text-on-surface-variant">{v.categories?.name ?? "\u2014"}</td>
+                            <td className="px-4 py-3 text-xs text-on-surface-variant">{v.categories?.name ?? "—"}</td>
                             <td className="px-4 py-3">
                               <span className="inline-block bg-surface-container-lowest border border-outline-variant/10 rounded-lg px-2 py-0.5 font-mono text-[11px] text-on-surface-variant">
                                 {v.sku}
                               </span>
                             </td>
-                            {canSeeCosts && <td className="px-4 py-3 text-on-surface-variant font-mono text-xs">${(v.purchase_price ?? 0).toFixed(2)}</td>}
+                            {canSeeCosts && (
+                              <td className="px-4 py-3 text-on-surface-variant font-mono text-xs">
+                                ${getUnitCost(v).toFixed(2)}
+                                {(v.units_per_package ?? 1) > 1 && (
+                                  <span className="text-[10px] text-on-surface-variant/60 block font-sans">
+                                    caja x{v.units_per_package} (${(v.purchase_price ?? 0).toFixed(2)})
+                                  </span>
+                                )}
+                              </td>
+                            )}
                             <td className="px-4 py-3 text-on-surface font-semibold text-xs">${v.price.toFixed(2)}</td>
                             <td className="px-4 py-3">
                               <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold border ${STOCK_CHIP[vStockStatus]}`}>
@@ -659,24 +744,21 @@ export default function InventoryPage() {
           </table>
         </div>
 
-        {/* Footer & Pagination */}
+        {/* Pagination */}
         {productGroups.length > 0 && (
-        <div className="px-7 py-4 border-t border-outline-variant/10 flex flex-col sm:flex-row items-center justify-between gap-4 bg-surface-container-lowest">
-          <p className="text-xs text-on-surface-variant font-medium">
-            Mostrando {productGroups.reduce((acc, g) => acc + 1 + g.variants.length, 0)} de {products.length} registro{products.length !== 1 ? "s" : ""}
-          </p>
-          <div className="flex gap-1.5 items-center">
-            <button className="px-3.5 py-2 rounded-lg text-xs font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors border border-transparent hover:border-outline-variant/10">
-              Anterior
-            </button>
-            <button className="w-9 h-9 flex items-center justify-center rounded-lg bg-primary text-on-primary text-xs font-bold shadow-md shadow-primary/20">
-              1
-            </button>
-            <button className="px-3.5 py-2 rounded-lg text-xs font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors border border-transparent hover:border-outline-variant/10">
-              Siguiente
-            </button>
-          </div>
-        </div>
+          <Pagination
+            currentPage={safeCurrentPage}
+            totalPages={totalPages}
+            totalItems={totalFilteredProductsCount}
+            startItem={pageStartItem}
+            endItem={pageEndItem}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={(newSize) => {
+              setPageSize(newSize);
+              setCurrentPage(1);
+            }}
+          />
         )}
       </div>
 
@@ -738,7 +820,7 @@ export default function InventoryPage() {
                   type="text"
                   value={newCategory.name}
                   onChange={e => setNewCategory({...newCategory, name: e.target.value})}
-                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50"
+                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface uppercase focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50"
                   placeholder="Ej. Accesorios, Muebles..."
                   required
                 />

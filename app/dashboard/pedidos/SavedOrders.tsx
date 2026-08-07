@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import type { PurchaseOrder, PurchaseOrderStatus } from "@/services/purchase-orders.service";
+import { CollectionLoading } from "@/components/CollectionState";
 
 const STATUS_LABEL: Record<PurchaseOrderStatus, string> = {
   draft: "Borrador",
@@ -48,8 +49,8 @@ export function SavedOrders({
 }) {
   if (loading && orders.length === 0) {
     return (
-      <div className="bg-surface-container rounded-2xl border border-outline-variant/10 p-6">
-        <p className="text-sm text-on-surface-variant">Cargando pedidos…</p>
+      <div className="bg-surface-container rounded-2xl border border-outline-variant/10">
+        <CollectionLoading label="Cargando pedidos…" />
       </div>
     );
   }

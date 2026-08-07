@@ -6,6 +6,7 @@ import { useVehiclesStore } from "@/stores/vehicles.store";
 import { useCustomersStore } from "@/stores/customers.store";
 import type { NewVehicleInput, Vehicle } from "@/services/vehicles.service";
 import { Select } from "@/components/ui/Select";
+import { CollectionEmpty, CollectionError, CollectionLoading } from "@/components/CollectionState";
 
 const EMPTY_VEHICLE: NewVehicleInput = {
   plate: "",
@@ -107,30 +108,12 @@ export default function VehiclesPage() {
         </button>
       </div>
 
-      {error && (
-        <div className="rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim">
-          {error}
-        </div>
-      )}
+      {error && <CollectionError message={error} onRetry={fetchVehicles} />}
 
       {loading ? (
-        <p className="text-center text-sm text-on-surface-variant py-12">Cargando vehículos…</p>
+        <CollectionLoading label="Cargando vehículos…" />
       ) : vehicles.length === 0 ? (
-        <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-3xl p-12 shadow-sm flex flex-col items-center justify-center text-center mt-8">
-          <div className="w-16 h-16 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant mb-4">
-            <IconCar className="w-8 h-8" />
-          </div>
-          <h2 className="text-lg font-bold text-on-surface mb-2">Aún no hay vehículos</h2>
-          <p className="text-sm text-on-surface-variant max-w-sm mb-6">
-            Los vehículos se registran solos al crear una cita con placa, o puedes añadirlos manualmente aquí.
-          </p>
-          <button
-            onClick={openCreate}
-            className="px-6 py-2.5 bg-surface-container border border-outline-variant/20 text-on-surface text-sm font-semibold rounded-xl hover:bg-surface-container-high transition-colors"
-          >
-            Registrar tu primer vehículo
-          </button>
-        </div>
+        <CollectionEmpty icon={<IconCar className="w-8 h-8" />} title="Aún no hay vehículos" description="Los vehículos se registran solos al crear una cita con placa, o puedes añadirlos manualmente aquí." action={{ label: "Registrar tu primer vehículo", onClick: openCreate }} />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {vehicles.map((v) => (

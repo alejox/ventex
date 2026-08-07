@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { IconPlus } from "@/app/assets/icons/DashboardIcons";
+import { IconPlus, IconShoppingCart } from "@/app/assets/icons/DashboardIcons";
 import { usePurchasesStore } from "@/stores/purchases.store";
 import type { PurchaseInvoice } from "@/services/purchases.service";
 import { useDistributorsStore } from "@/stores/distributors.store";
@@ -11,6 +11,7 @@ import { PurchaseInvoiceDetailModal } from "@/components/PurchaseInvoiceDetailMo
 import { DataTable, type DataColumn } from "@/components/DataTable";
 import { CancelConfirmModal } from "./components/CancelConfirmModal";
 import { StatusChangeModal } from "./components/StatusChangeModal";
+import { CollectionEmpty, CollectionError, CollectionFilteredEmpty, CollectionLoading } from "@/components/CollectionState";
 
 const money = (n: number) =>
   "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -235,11 +236,7 @@ export default function PurchasesPage() {
         </button>
       </div>
 
-      {error && (
-        <div className="rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim">
-          {error}
-        </div>
-      )}
+      {error && <CollectionError message={error} onRetry={fetchInvoices} />}
 
       <div className="bg-surface-container rounded-3xl border border-outline-variant/10 shadow-sm overflow-hidden">
         {/* El buscador queda a la vista incluso sin compras: es lo que muestra el
@@ -282,38 +279,11 @@ export default function PurchasesPage() {
         </div>
 
         {loading ? (
-          <p className="text-center text-sm text-on-surface-variant py-20">Cargando compras…</p>
+          <CollectionLoading label="Cargando compras…" />
         ) : !hasInvoices ? (
-          <div className="flex flex-col items-center justify-center text-center px-6 py-20">
-            <svg
-              aria-hidden="true"
-              className="w-14 h-14 text-on-surface-variant/50 mb-6"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              viewBox="0 0 24 24"
-            >
-              <circle cx="11" cy="11" r="7" />
-              <path d="m21 21-4.35-4.35" strokeLinecap="round" />
-            </svg>
-            <h2 className="text-lg font-bold text-on-surface mb-2">
-              ¡Aún no has creado tu primera factura de compra!
-            </h2>
-            <p className="text-sm text-on-surface-variant max-w-md mb-6">
-              Registra tus compras y mantén tu inventario actualizado.
-            </p>
-            <button
-              type="button"
-              onClick={() => router.push("/dashboard/purchases/new")}
-              className="px-6 py-2.5 bg-primary hover:bg-primary-dim text-on-primary text-sm font-semibold rounded-xl transition-colors"
-            >
-              Nueva compra
-            </button>
-          </div>
+          <CollectionEmpty icon={<IconShoppingCart className="h-8 w-8" />} title="Aún no has creado tu primera factura de compra" description="Registra tus compras y mantén tu inventario actualizado." action={{ label: "Nueva compra", onClick: () => router.push("/dashboard/purchases/new") }} />
         ) : filteredInvoices.length === 0 ? (
-          <p className="text-center text-sm text-on-surface-variant py-20">
-            Ninguna compra coincide con la búsqueda.
-          </p>
+          <CollectionFilteredEmpty title="Ninguna compra coincide con la búsqueda" action={{ label: "Limpiar filtros", onClick: () => { setSearchQuery(""); setFilterDistributorId(""); } }} />
         ) : (
           <DataTable
             rows={filteredInvoices}

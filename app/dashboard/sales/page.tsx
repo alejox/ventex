@@ -8,6 +8,7 @@ import { SALES_PERIODS, SALES_PAGE_SIZE, type SaleListItem } from "@/services/sa
 import { COLOMBIA_TRANSFER_METHODS, getTransferMethodName } from "@/config/transferMethods";
 import { getCardMethodName } from "@/config/cardMethods";
 import { DataTable, type DataColumn } from "@/components/DataTable";
+import { CollectionEmpty, CollectionError, CollectionFilteredEmpty, CollectionLoading } from "@/components/CollectionState";
 
 const money = (n: number) =>
   n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -152,6 +153,15 @@ export default function SalesPage() {
 
   // Lo que se está tecleando, que va por delante de la búsqueda aplicada.
   const [searchInput, setSearchInput] = useState(customerQuery);
+  const hasActiveFilters = period !== "all" || Boolean(customerQuery || paymentMethod || transferMethod);
+
+  const clearFilters = () => {
+    setPeriod("all");
+    setCustomerQuery("");
+    setSearchInput("");
+    setPaymentMethod("");
+    setTransferMethod("");
+  };
 
   useEffect(() => {
     if (!settings) fetchSettings();
@@ -337,21 +347,15 @@ export default function SalesPage() {
 
       {/* Tabla */}
       <div className="bg-surface-container rounded-3xl border border-outline-variant/10 shadow-sm overflow-hidden">
-        {error && (
-          <div className="m-5 rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim">
-            {error}
-          </div>
-        )}
+        {error && <div className="m-5"><CollectionError message={error} onRetry={fetchSales} /></div>}
         {loading ? (
-          <p className="p-12 text-center text-sm text-on-surface-variant">Cargando ventas…</p>
+          <CollectionLoading label="Cargando ventas…" />
         ) : sales.length === 0 ? (
-          <p className="p-12 text-center text-sm text-on-surface-variant">
-            {customerQuery
-              ? `Ninguna venta de este período es de un cliente que coincida con «${customerQuery}».`
-              : period === "all"
-                ? "Aún no hay ventas. Registra una desde el Punto de Venta."
-                : "No hay ventas en este período. Prueba con otro rango de fechas."}
-          </p>
+          hasActiveFilters ? (
+            <CollectionFilteredEmpty title="No hay ventas con estos filtros" action={{ label: "Limpiar filtros", onClick: clearFilters }} />
+          ) : (
+            <CollectionEmpty icon={<IconShoppingCart className="h-8 w-8" />} title="Aún no hay ventas" description="Registra una venta desde el Punto de Venta para verla en este historial." />
+          )
         ) : (
           <DataTable
             rows={sales}

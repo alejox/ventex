@@ -13,6 +13,8 @@ import {
 import { BUSINESS_OPTIONS } from "@/config/business";
 import { GrantCreditsModal } from "@/components/GrantCreditsModal";
 import { backdropProps } from "@/components/modal";
+import { IconUsers } from "@/app/assets/icons/DashboardIcons";
+import { CollectionEmpty, CollectionError, CollectionFilteredEmpty, CollectionLoading } from "@/components/CollectionState";
 import { Select } from "@/components/ui/Select";
 
 const STATUSES = ["active", "past_due", "cancelled"] as const;
@@ -198,11 +200,7 @@ export default function AdminCompaniesPage() {
         />
       </div>
 
-      {error && (
-        <div className="rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim mb-4">
-          {error}
-        </div>
-      )}
+      {error && <div className="mb-4"><CollectionError message={error} onRetry={fetchCompanies} /></div>}
       {companyActivityError && (
         <div className="rounded-xl bg-amber-500/10 border border-amber-500/25 px-4 py-3 text-sm text-amber-700 dark:text-amber-300 mb-4">
           {companyActivityError}
@@ -219,9 +217,18 @@ export default function AdminCompaniesPage() {
       </section>
 
       {loading && companies.length === 0 ? (
-        <p className="py-12 text-center text-sm text-on-surface-variant">Cargando empresas…</p>
+        <CollectionLoading label="Cargando empresas…" />
+      ) : visibleCompanies.length === 0 ? (
+        <CollectionEmpty
+          icon={<IconUsers className="h-8 w-8" />}
+          title="Aún no hay empresas"
+          description="Las empresas aparecerán aquí cuando completen su registro en la plataforma."
+        />
       ) : filtered.length === 0 ? (
-        <p className="py-12 text-center text-sm text-on-surface-variant">No hay empresas que coincidan.</p>
+        <CollectionFilteredEmpty
+          title="Ninguna empresa coincide con la búsqueda"
+          action={{ label: "Limpiar búsqueda", onClick: () => setQuery("") }}
+        />
       ) : (
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
           {filtered.map((company) => (

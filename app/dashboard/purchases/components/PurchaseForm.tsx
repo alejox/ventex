@@ -16,6 +16,7 @@ import { useProfile } from "@/components/ProfileProvider";
 import { can } from "@/lib/permissions";
 import { useBusinessTax } from "@/lib/useBusinessTax";
 import type { Product } from "@/services/inventory.service";
+import { getUnitCost } from "@/services/inventory.service";
 import type { PurchaseInvoice } from "@/services/purchases.service";
 import {
   fetchLastPurchaseFromDistributor,
@@ -240,9 +241,8 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
               // Valores de arranque tomados del producto, NO un vínculo: el
               // costo de la caja se propone como el unitario por su contenido,
               // y desde ahí cada campo se edita por su cuenta.
-              unit_price: product.purchase_price ?? product.price,
-              package_price:
-                (product.purchase_price ?? product.price) * Math.max(product.units_per_package ?? 1, 1),
+              unit_price: getUnitCost(product) || product.price,
+              package_price: product.purchase_price ?? product.price,
               units_per_package: Math.max(product.units_per_package ?? 1, 1),
             }
           : line

@@ -5,6 +5,8 @@ import { IconPlus } from "@/app/assets/icons/DashboardIcons";
 import { useDistributorsStore } from "@/stores/distributors.store";
 import { DataTable, type DataColumn } from "@/components/DataTable";
 import { Select } from "@/components/ui/Select";
+import { CitySelect } from "@/components/CitySelect";
+import { CollectionEmpty, CollectionError, CollectionLoading } from "@/components/CollectionState";
 import type { Distributor, NewDistributorInput } from "@/services/distributors.service";
 
 function IconTruck(props: React.SVGProps<SVGSVGElement>) {
@@ -27,6 +29,7 @@ const EMPTY_DISTRIBUTOR: NewDistributorInput = {
   phone: "",
   whatsapp: "",
   address: "",
+  city: "",
   rfc_rut: "",
   doc_type: "NIT",
   dv: "",
@@ -67,6 +70,7 @@ export default function DistributorsPage() {
       phone: d.phone ?? "",
       whatsapp: d.whatsapp ?? "",
       address: d.address ?? "",
+      city: d.city ?? "",
       rfc_rut: d.rfc_rut ?? "",
       doc_type: d.doc_type ?? "NIT",
       dv: d.dv ?? "",
@@ -113,6 +117,12 @@ export default function DistributorsPage() {
           <div className="text-xs text-on-surface-variant/70">{d.email ?? ""}</div>
         </>
       ),
+    },
+    {
+      header: "Ciudad",
+      sortKey: "ciudad",
+      className: "text-on-surface-variant",
+      cell: (d) => d.city ?? "—",
     },
     {
       header: "Teléfono",
@@ -199,30 +209,12 @@ export default function DistributorsPage() {
         </button>
       </div>
 
-      {error && (
-        <div className="rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim">
-          {error}
-        </div>
-      )}
+      {error && <CollectionError message={error} onRetry={fetchDistributors} />}
 
       {loading ? (
-        <p className="text-center text-sm text-on-surface-variant py-12">Cargando proveedores…</p>
+        <CollectionLoading label="Cargando proveedores…" />
       ) : distributors.length === 0 ? (
-        <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-3xl p-12 shadow-sm flex flex-col items-center justify-center text-center mt-8">
-          <div className="w-16 h-16 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant mb-4">
-            <IconTruck />
-          </div>
-          <h2 className="text-lg font-bold text-on-surface mb-2">Aún no hay proveedores</h2>
-          <p className="text-sm text-on-surface-variant max-w-sm mb-6">
-            Registra a tus proveedores para gestionar pedidos, pagos y stock de forma centralizada.
-          </p>
-          <button
-            onClick={openCreateModal}
-            className="px-6 py-2.5 bg-surface-container border border-outline-variant/20 text-on-surface text-sm font-semibold rounded-xl hover:bg-surface-container-high transition-colors"
-          >
-            Añadir tu primer proveedor
-          </button>
-        </div>
+        <CollectionEmpty icon={<IconTruck className="h-8 w-8" />} title="Aún no hay proveedores" description="Registra a tus proveedores para gestionar pedidos, pagos y stock de forma centralizada." action={{ label: "Añadir tu primer proveedor", onClick: openCreateModal }} />
       ) : (
         <div className="bg-surface-container rounded-3xl border border-outline-variant/10 shadow-sm overflow-hidden">
           <DataTable
@@ -303,7 +295,7 @@ export default function DistributorsPage() {
                   type="text"
                   required
                   value={form.business_name}
-                  onChange={(e) => setForm({ ...form, business_name: e.target.value })}
+                  onChange={(e) => setForm({ ...form, business_name: e.target.value.toUpperCase() })}
                   className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50"
                   placeholder="Ej. Proveedora del Norte S.A."
                 />
@@ -393,10 +385,19 @@ export default function DistributorsPage() {
                 <label className="text-[13px] font-semibold text-on-surface block">Dirección</label>
                 <textarea
                   value={form.address}
-                  onChange={(e) => setForm({ ...form, address: e.target.value })}
+                  onChange={(e) => setForm({ ...form, address: e.target.value.toUpperCase() })}
                   rows={3}
                   className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50 resize-none"
-                  placeholder="Calle, ciudad, estado, código postal"
+                  placeholder="Calle, código postal"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[13px] font-semibold text-on-surface block">Ciudad</label>
+                <CitySelect
+                  value={form.city}
+                  onChange={(city) => setForm({ ...form, city })}
+                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50"
                 />
               </div>
 

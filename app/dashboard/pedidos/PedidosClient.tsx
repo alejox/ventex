@@ -13,6 +13,8 @@ import { notifySuccess, notifyError } from "@/lib/notifications";
 import { ProductBrowser } from "./ProductBrowser";
 import { SavedOrders } from "./SavedOrders";
 import { Select } from "@/components/ui/Select";
+import { MoneyInput } from "@/components/ui/MoneyInput";
+import { Pagination } from "@/components/Pagination";
 
 function IconZap(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -87,10 +89,23 @@ export function PedidosClient({
    * nuevo y la lista se llenaría de copias del mismo.
    */
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   useEffect(() => {
     fetchOrders();
   }, [fetchOrders]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [items.length]);
+
+  const totalPages = Math.ceil(items.length / pageSize) || 1;
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const paginatedItems = items.slice(
+    (safeCurrentPage - 1) * pageSize,
+    safeCurrentPage * pageSize
+  );
 
   useEffect(() => {
     if (orderError) notifyError("No se pudo guardar el pedido", orderError);
@@ -469,7 +484,7 @@ export function PedidosClient({
                   </td>
                 </tr>
               ) : (
-                items.map((item) => {
+                paginatedItems.map((item) => {
                   const qty = quantities[item.productId] ?? item.suggestedQuantity;
                   const ratio = item.currentStock / item.minimumStock;
                   const isOut = ratio === 0;
@@ -573,10 +588,17 @@ export function PedidosClient({
         </div>
 
         {generated && items.length > 0 && (
-          <div className="px-7 py-4 border-t border-outline-variant/10 bg-surface-container-lowest text-sm text-on-surface-variant">
-            {items.length} producto{items.length !== 1 ? "s" : ""} en el pedido &middot;{" "}
-            {activeItems.length} con cantidad &gt; 0
-          </div>
+          <Pagination
+            currentPage={safeCurrentPage}
+            totalPages={totalPages}
+            totalItems={items.length}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={(newSize) => {
+              setPageSize(newSize);
+              setCurrentPage(1);
+            }}
+          />
         )}
       </div>
 

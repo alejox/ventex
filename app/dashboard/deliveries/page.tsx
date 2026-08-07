@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { useDeliveryStore } from "@/stores/delivery.store";
 import { STATUS_LABELS, STATUS_COLORS, type DeliveryStatus } from "@/services/delivery.service";
+import { IconTruck } from "@/app/assets/icons/DashboardIcons";
+import { CollectionEmpty, CollectionError, CollectionFilteredEmpty, CollectionLoading } from "@/components/CollectionState";
 
 const money = (n: number) =>
   n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -63,20 +65,18 @@ export default function DeliveriesPage() {
         ))}
       </div>
 
-      {error && (
-        <p className="text-sm text-error bg-error-container/10 rounded-xl px-4 py-3 border border-error-container/20">
-          {error}
-        </p>
-      )}
+      {error && <CollectionError message={error} onRetry={() => fetchDeliveries(filter || undefined)} />}
 
       {/* Lista */}
       <div className="bg-surface-container rounded-2xl sm:rounded-3xl border border-outline-variant/10 shadow-sm overflow-hidden">
         {loading ? (
-          <div className="p-12 text-center text-sm text-on-surface-variant">Cargando domicilios…</div>
+          <CollectionLoading label="Cargando domicilios…" />
         ) : deliveries.length === 0 ? (
-          <div className="p-12 text-center text-sm text-on-surface-variant">
-            {filter ? `No hay domicilios ${STATUS_LABELS[filter].toLowerCase()}` : "No hay domicilios aún"}
-          </div>
+          filter ? (
+            <CollectionFilteredEmpty title={`No hay domicilios ${STATUS_LABELS[filter].toLowerCase()}`} action={{ label: "Limpiar filtro", onClick: () => setFilter("") }} />
+          ) : (
+            <CollectionEmpty icon={<IconTruck className="h-8 w-8" />} title="Aún no hay domicilios" description="Los domicilios de tus ventas aparecerán aquí para que puedas gestionar su estado." />
+          )
         ) : (
           <div className="divide-y divide-outline-variant/10">
             {deliveries.map((d) => (

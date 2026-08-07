@@ -6,6 +6,7 @@ import { IconUsers, IconPlus, IconShoppingCart } from "@/app/assets/icons/Dashbo
 import { useCustomersStore } from "@/stores/customers.store";
 import { CustomerPaymentModal } from "@/components/CustomerPaymentModal";
 import { DataTable, type DataColumn } from "@/components/DataTable";
+import { CollectionEmpty, CollectionError, CollectionLoading } from "@/components/CollectionState";
 import { Select } from "@/components/ui/Select";
 import { fetchCustomerSales } from "@/services/customers.service";
 import type { Customer, NewCustomerInput, CustomerSale } from "@/services/customers.service";
@@ -251,30 +252,12 @@ export default function CustomersPage() {
         </button>
       </div>
 
-      {error && (
-        <div className="rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim">
-          {error}
-        </div>
-      )}
+      {error && <CollectionError message={error} onRetry={fetchCustomers} />}
 
       {loading ? (
-        <p className="text-center text-sm text-on-surface-variant py-12">Cargando clientes…</p>
+        <CollectionLoading label="Cargando clientes…" />
       ) : customers.length === 0 ? (
-        <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-3xl p-12 shadow-sm flex flex-col items-center justify-center text-center mt-8">
-          <div className="w-16 h-16 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant mb-4">
-            <IconUsers className="w-8 h-8" />
-          </div>
-          <h2 className="text-lg font-bold text-on-surface mb-2">Aún no hay clientes</h2>
-          <p className="text-sm text-on-surface-variant max-w-sm mb-6">
-            Comienza añadiendo a tu primer cliente para hacer seguimiento de sus compras y ofrecer un mejor servicio.
-          </p>
-          <button
-            onClick={openCreate}
-            className="px-6 py-2.5 bg-surface-container border border-outline-variant/20 text-on-surface text-sm font-semibold rounded-xl hover:bg-surface-container-high transition-colors"
-          >
-            Añadir tu primer cliente
-          </button>
-        </div>
+        <CollectionEmpty icon={<IconUsers className="w-8 h-8" />} title="Aún no hay clientes" description="Comienza añadiendo a tu primer cliente para hacer seguimiento de sus compras y ofrecer un mejor servicio." action={{ label: "Añadir tu primer cliente", onClick: openCreate }} />
       ) : (
         <div className="bg-surface-container rounded-3xl border border-outline-variant/10 shadow-sm overflow-hidden">
           <DataTable

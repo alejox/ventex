@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type React from "react";
+import { Pagination } from "./Pagination";
 
 /**
  * Papel que juega la columna cuando la fila se dibuja como tarjeta en móvil.
@@ -56,6 +57,12 @@ interface DataTableProps<T> {
    * muro de texto: se lee peor que la tabla que vino a reemplazar.
    */
   collapseAfter?: number;
+  /** Activar paginación (por defecto true). */
+  pagination?: boolean;
+  /** Tamaño de página inicial (por defecto 10). */
+  pageSize?: number;
+  /** Opciones de tamaño de página. */
+  pageSizeOptions?: number[];
 }
 
 const alignClass = {
@@ -89,12 +96,21 @@ export function DataTable<T>({
   caption,
   onRowClick,
   collapseAfter = 3,
+  pagination = true,
+  pageSize = 10,
+  pageSizeOptions = [10, 25, 50, 100],
 }: DataTableProps<T>) {
   // Qué tarjetas tienen el detalle abierto. Se guarda por clave de fila para
   // que abrir una no reordene ni cierre las demás.
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSizeState, setPageSizeState] = useState(pageSize);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [sortKey, sortDir]);
 
   const toggleSort = (key: string) => {
     if (sortKey === key) {
@@ -114,6 +130,13 @@ export function DataTable<T>({
     const cmp = va.localeCompare(vb, "es", { numeric: true, sensitivity: "base" });
     return sortDir === "asc" ? cmp : -cmp;
   });
+
+  const effectivePageSize = pagination ? pageSizeState : sortedRows.length;
+  const totalPages = Math.ceil(sortedRows.length / (effectivePageSize || 1)) || 1;
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const displayRows = pagination
+    ? sortedRows.slice((safeCurrentPage - 1) * effectivePageSize, safeCurrentPage * effectivePageSize)
+    : sortedRows;
 
   const renderSortIcon = (key: string) => {
     if (sortKey !== key) return null;
@@ -181,7 +204,7 @@ export function DataTable<T>({
             </tr>
           </thead>
           <tbody className="divide-y divide-outline-variant/5 text-sm">
-            {sortedRows.map((row) => {
+            {displayRows.map((row) => {
               const interaction = rowInteraction(row);
               return (
               <tr
@@ -202,19 +225,12 @@ export function DataTable<T>({
             })}
           </tbody>
         </table>
-        {renderExpanded && rows.map((row) => renderExpanded(row))}
+        {renderExpanded && displayRows.map((row) => renderExpanded(row))}
       </div>
 
-      {/* Móvil.
-          Bandeado: cada ficha ocupa tres líneas, así que una divisoria de 1px
-          al 10% no alcanza para que el ojo separe una de otra —en tema claro
-          directamente desaparece—. El fondo alterno agrupa cada registro sin
-          gastar un píxel de alto, que en el teléfono es lo que escasea.
-          Es un tinte del color de TEXTO, no un color fijo: en tema claro
-          oscurece y en oscuro aclara, con una sola clase. Alternar entre dos
-          tokens de superficie no servía: se llevan un 2% de diferencia. */}
+      {/* Móvil */}
       <ul className="lg:hidden divide-y divide-outline-variant/20">
-        {sortedRows.map((row) => {
+        {displayRows.map((row) => {
           const interaction = rowInteraction(row);
           const key = rowKey(row);
           const isOpen = expanded[key] ?? false;
@@ -224,8 +240,7 @@ export function DataTable<T>({
             {...interaction}
             className={`px-4 py-3.5 even:bg-on-surface/[0.05] ${interaction ? "active:bg-on-surface/10 cursor-pointer" : ""}`}
           >
-            {/* Encabezado: lo que se lee de un vistazo. El valor de la derecha
-                pesa más que el título porque es el dato que se busca. */}
+            {/* Encabezado */}
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
                 {titleCol && (
@@ -289,8 +304,6 @@ export function DataTable<T>({
                   type="button"
                   aria-expanded={isOpen}
                   onClick={(e) => {
-                    // La fila entera puede ser accionable: el desplegable no
-                    // debe disparar también la navegación al detalle.
                     e.stopPropagation();
                     setExpanded((prev) => ({ ...prev, [key]: !prev[key] }));
                   }}
@@ -325,6 +338,21 @@ export function DataTable<T>({
           );
         })}
       </ul>
+
+      {pagination && (
+        <Pagination
+          currentPage={safeCurrentPage}
+          totalPages={totalPages}
+          totalItems={sortedRows.length}
+          pageSize={pageSizeState}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={(newSize) => {
+            setPageSizeState(newSize);
+            setCurrentPage(1);
+          }}
+          pageSizeOptions={pageSizeOptions}
+        />
+      )}
     </>
   );
 }

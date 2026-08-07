@@ -15,7 +15,7 @@ interface ProductPresentationSectionProps {
   onPackagePriceChange: (v: string) => void;
   packageHint: string;
   stockLevel: string;
-  /** Si está presente, muestra un botón "Añadir stock" junto al stock actual. */
+  /** Si está presente, muestra un botón "Registrar movimiento" junto al stock actual. */
   onAdjustStock?: () => void;
 }
 
@@ -65,21 +65,6 @@ export function ProductPresentationSection({
       {presentation === "package" ? (
         <div className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
-            <div className="space-y-1.5">
-              <label htmlFor="units-per-package" className="text-[13px] font-semibold text-on-surface block">
-                Unidades por caja
-              </label>
-              <input
-                id="units-per-package"
-                type="number"
-                min="1"
-                value={unitsPerPackage}
-                onChange={(e) => onUnitsPerPackageChange(e.target.value)}
-                className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-base sm:text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-on-surface-variant/50"
-                placeholder="Ej. 60"
-              />
-            </div>
-
             {!editId && (
               <div className="space-y-1.5">
                 <label htmlFor="initial-packages" className="text-[13px] font-semibold text-on-surface block">
@@ -96,6 +81,21 @@ export function ProductPresentationSection({
                 />
               </div>
             )}
+
+            <div className="space-y-1.5">
+              <label htmlFor="units-per-package" className="text-[13px] font-semibold text-on-surface block">
+                Unidades por caja
+              </label>
+              <input
+                id="units-per-package"
+                type="number"
+                min="1"
+                value={unitsPerPackage}
+                onChange={(e) => onUnitsPerPackageChange(e.target.value)}
+                className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-base sm:text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-on-surface-variant/50"
+                placeholder="Ej. 60"
+              />
+            </div>
           </div>
 
           {!editId && (
@@ -103,7 +103,7 @@ export function ProductPresentationSection({
               Stock inicial:{" "}
               <strong className="font-mono text-primary">{initialStock}</strong> unidades
               <span className="text-xs text-on-surface-variant font-normal">
-                {" "}({initialPackages || "0"} × {unitsPerPackage || "1"})
+                {" "}({initialPackages || "0"} cajas × {unitsPerPackage || "1"} u.)
               </span>
             </p>
           )}
@@ -154,7 +154,7 @@ export function ProductPresentationSection({
               <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-3.5 h-3.5">
                 <path d="M12 5v14M5 12h14" />
               </svg>
-              Añadir stock
+              Registrar movimiento
             </button>
           )}
           <a

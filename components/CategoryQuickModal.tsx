@@ -65,7 +65,7 @@ export function CategoryQuickModal({ onClose, onCreated }: CategoryQuickModalPro
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full bg-surface-container-low border border-outline-variant/20 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
+              className="w-full bg-surface-container-low border border-outline-variant/20 rounded-xl py-2.5 px-3 text-sm text-on-surface uppercase focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
               placeholder="Ej. Pomadas, Shampoos, etc."
             />
           </div>

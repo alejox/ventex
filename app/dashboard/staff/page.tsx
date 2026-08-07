@@ -16,6 +16,7 @@ import { GrantAccessModal } from "./components/GrantAccessModal";
 import { EditAccessModal } from "./components/EditAccessModal";
 import { PermissionsPanel } from "./components/PermissionsPanel";
 import { ShiftHistorySection } from "./components/ShiftHistorySection";
+import { CollectionEmpty, CollectionError, CollectionLoading } from "@/components/CollectionState";
 
 // Los cargos NO se escriben acá: salen de STAFF_ROLES_BY_TYPE según el rubro
 // (config/business.ts). Una barbería ofrece Barbero y Estilista; una tienda,
@@ -242,31 +243,12 @@ export default function StaffPage() {
         </div>
       )}
 
-      {error && (
-        <div className="rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim">
-          {error}
-        </div>
-      )}
+      {error && <CollectionError message={error} onRetry={fetchStaff} />}
 
       {loading ? (
-        <p className="text-center text-sm text-on-surface-variant py-12">Cargando equipo…</p>
+        <CollectionLoading label="Cargando equipo…" />
       ) : staff.length === 0 ? (
-        <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-3xl p-12 shadow-sm flex flex-col items-center justify-center text-center mt-8">
-          <div className="w-16 h-16 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant mb-4">
-            <IconUserBadge className="w-8 h-8" />
-          </div>
-          <h2 className="text-lg font-bold text-on-surface mb-2">Aún no hay nadie en tu equipo</h2>
-          <p className="text-sm text-on-surface-variant max-w-sm mb-6">
-            Añade a tu personal para llevar sus comisiones y, si lo necesitas, darle
-            su propio usuario para entrar al sistema.
-          </p>
-          <button
-            onClick={openCreate}
-            className="px-6 py-2.5 bg-surface-container border border-outline-variant/20 text-on-surface text-sm font-semibold rounded-xl hover:bg-surface-container-high transition-colors"
-          >
-            Añadir tu primer miembro
-          </button>
-        </div>
+        <CollectionEmpty icon={<IconUserBadge className="w-8 h-8" />} title="Aún no hay nadie en tu equipo" description="Añade a tu personal para llevar sus comisiones y, si lo necesitas, darle su propio usuario para entrar al sistema." action={{ label: "Añadir tu primer miembro", onClick: openCreate }} />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {team.map((m) => (

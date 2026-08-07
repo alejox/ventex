@@ -269,7 +269,7 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
-                className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface uppercase focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
               />
             </div>
 

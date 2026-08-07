@@ -6,6 +6,9 @@ import type { ResellerClient } from "@/services/reseller.service";
 import { LICENSE_STATUS_LABELS, licenseAccent } from "@/config/plans";
 import { BUSINESS_OPTIONS } from "@/config/business";
 import { backdropProps } from "@/components/modal";
+import { IconUsers } from "@/app/assets/icons/DashboardIcons";
+import { CollectionEmpty, CollectionError, CollectionFilteredEmpty, CollectionLoading } from "@/components/CollectionState";
+import { Pagination } from "@/components/Pagination";
 import { Select } from "@/components/ui/Select";
 
 export default function ResellerClientsPage() {
@@ -34,6 +37,20 @@ export default function ResellerClientsPage() {
         (c.email ?? "").toLowerCase().includes(q),
     );
   }, [clients, query]);
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [query, filtered.length]);
+
+  const totalPages = Math.ceil(filtered.length / pageSize) || 1;
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const paginatedFiltered = filtered.slice(
+    (safeCurrentPage - 1) * pageSize,
+    safeCurrentPage * pageSize
+  );
 
   /** Saldos con el nombre del plan, no su id ("Básica: 38", no "basica 38"). */
   const balancesLabel = useMemo(() => {
@@ -72,24 +89,26 @@ export default function ResellerClientsPage() {
         </div>
       </div>
 
-      {error && (
-        <div className="rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim mb-6">
-          {error}
-        </div>
-      )}
+      {error && <div className="mb-6"><CollectionError message={error} onRetry={fetchOverview} /></div>}
 
       {/* Móvil: tarjetas. En la tabla, el botón "Gestionar" quedaba fuera de pantalla. */}
       <div className="lg:hidden space-y-3">
         {loading && clients.length === 0 ? (
-          <p className="py-10 text-center text-sm text-on-surface-variant">Cargando clientes…</p>
+          <CollectionLoading label="Cargando clientes…" />
+        ) : clients.length === 0 ? (
+          <CollectionEmpty
+            icon={<IconUsers className="h-8 w-8" />}
+            title="Aún no tienes clientes"
+            description="Crea tu primer cliente para asignarle un plan y gestionar su licencia."
+            action={{ label: "Nuevo cliente", onClick: () => setCreating(true) }}
+          />
         ) : filtered.length === 0 ? (
-          <p className="py-10 text-center text-sm text-on-surface-variant">
-            {clients.length === 0
-              ? "Aún no tienes clientes. Crea el primero con “Nuevo cliente”."
-              : "No hay clientes que coincidan."}
-          </p>
+          <CollectionFilteredEmpty
+            title="Ningún cliente coincide con la búsqueda"
+            action={{ label: "Limpiar búsqueda", onClick: () => setQuery("") }}
+          />
         ) : (
-          filtered.map((c) => {
+          paginatedFiltered.map((c) => {
             const accent = licenseAccent(c.license_status);
             return (
               <div
@@ -150,21 +169,29 @@ export default function ResellerClientsPage() {
             </thead>
             <tbody>
               {loading && clients.length === 0 ? (
+                <tr><td colSpan={5}><CollectionLoading label="Cargando clientes…" /></td></tr>
+              ) : clients.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-5 py-10 text-center text-on-surface-variant">
-                    Cargando clientes…
+                  <td colSpan={5}>
+                    <CollectionEmpty
+                      icon={<IconUsers className="h-8 w-8" />}
+                      title="Aún no tienes clientes"
+                      description="Crea tu primer cliente para asignarle un plan y gestionar su licencia."
+                      action={{ label: "Nuevo cliente", onClick: () => setCreating(true) }}
+                    />
                   </td>
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-5 py-10 text-center text-on-surface-variant">
-                    {clients.length === 0
-                      ? "Aún no tienes clientes. Crea el primero con “Nuevo cliente”."
-                      : "No hay clientes que coincidan."}
+                  <td colSpan={5}>
+                    <CollectionFilteredEmpty
+                      title="Ningún cliente coincide con la búsqueda"
+                      action={{ label: "Limpiar búsqueda", onClick: () => setQuery("") }}
+                    />
                   </td>
                 </tr>
               ) : (
-                filtered.map((c) => {
+                paginatedFiltered.map((c) => {
                   const accent = licenseAccent(c.license_status);
                   return (
                     <tr
@@ -197,7 +224,7 @@ export default function ResellerClientsPage() {
                       <td className="px-5 py-4 text-right">
                         <button
                           onClick={() => setManaging(c)}
-                          className="text-sm font-semibold text-primary hover:underline whitespace-nowrap"
+                          className="text-sm font-semibold text-primary hover:underline"
                         >
                           Gestionar
                         </button>
@@ -209,6 +236,19 @@ export default function ResellerClientsPage() {
             </tbody>
           </table>
         </div>
+        {filtered.length > 0 && (
+          <Pagination
+            currentPage={safeCurrentPage}
+            totalPages={totalPages}
+            totalItems={filtered.length}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={(newSize) => {
+              setPageSize(newSize);
+              setCurrentPage(1);
+            }}
+          />
+        )}
       </div>
 
       {creating && <CreateClientModal onClose={() => setCreating(false)} />}

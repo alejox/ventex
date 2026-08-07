@@ -5,6 +5,7 @@ import { IconSearch, IconScissors, IconPlus, IconClock } from "@/app/assets/icon
 import { useServicesStore } from "@/stores/services.store";
 import type { NewServiceInput, Service } from "@/services/services.service";
 import { Select } from "@/components/ui/Select";
+import { CollectionEmpty, CollectionError, CollectionFilteredEmpty, CollectionLoading } from "@/components/CollectionState";
 
 const EMPTY_SERVICE: NewServiceInput = {
   name: "",
@@ -99,30 +100,12 @@ export default function ServicesPage() {
         </button>
       </div>
 
-      {error && (
-        <div className="rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim">
-          {error}
-        </div>
-      )}
+      {error && <CollectionError message={error} onRetry={fetchServices} />}
 
       {loading ? (
-        <p className="text-center text-sm text-on-surface-variant py-12">Cargando servicios…</p>
+        <CollectionLoading label="Cargando servicios…" />
       ) : services.length === 0 ? (
-        <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-3xl p-12 shadow-sm flex flex-col items-center justify-center text-center mt-8">
-          <div className="w-16 h-16 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant mb-4">
-            <IconScissors className="w-8 h-8" />
-          </div>
-          <h2 className="text-lg font-bold text-on-surface mb-2">Aún no hay servicios</h2>
-          <p className="text-sm text-on-surface-variant max-w-sm mb-6">
-            Crea tu primer servicio para empezar a agendar citas y cobrar en el punto de venta.
-          </p>
-          <button
-            onClick={openCreate}
-            className="px-6 py-2.5 bg-surface-container border border-outline-variant/20 text-on-surface text-sm font-semibold rounded-xl hover:bg-surface-container-high transition-colors"
-          >
-            Crear tu primer servicio
-          </button>
-        </div>
+        <CollectionEmpty icon={<IconScissors className="w-8 h-8" />} title="Aún no hay servicios" description="Crea tu primer servicio para empezar a agendar citas y cobrar en el punto de venta." action={{ label: "Crear tu primer servicio", onClick: openCreate }} />
       ) : (
         <>
           <div className="relative w-full sm:max-w-xs">
@@ -136,7 +119,7 @@ export default function ServicesPage() {
             />
           </div>
           {filtered.length === 0 ? (
-            <p className="text-center text-sm text-on-surface-variant py-8">Ningún servicio coincide con la búsqueda.</p>
+            <CollectionFilteredEmpty title="Ningún servicio coincide con la búsqueda" action={{ label: "Limpiar búsqueda", onClick: () => setSearchQuery("") }} />
           ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map((s) => (
