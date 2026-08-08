@@ -203,7 +203,7 @@ export function PosCatalog({
         )}
 
         {loading ? (
-          <p className="text-center text-sm text-on-surface-variant py-12">Cargando cat\u00e1logo\u2026</p>
+          <p className="text-center text-sm text-on-surface-variant py-12">Cargando catálogo…</p>
         ) : filtered.length === 0 ? (
           <p className="text-center text-sm text-on-surface-variant py-12">
             {catalog.length === 0
