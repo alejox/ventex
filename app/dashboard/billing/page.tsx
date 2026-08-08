@@ -11,6 +11,7 @@ import type { Invoice, InvoiceItem, InvoiceLineInput, NewInvoiceInput } from "@/
 import { DataTable, type DataColumn } from "@/components/DataTable";
 import { Select } from "@/components/ui/Select";
 import { CollectionEmpty, CollectionError, CollectionLoading } from "@/components/CollectionState";
+import { formatDateOnly, todayISO } from "@/lib/date";
 
 const escapeHtml = (s: string) =>
   s.replace(/[&<>"']/g, (c) =>
@@ -21,9 +22,9 @@ const money = (n: number) =>
   n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const formatDate = (iso: string) =>
-  new Date(iso + "T00:00:00").toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric" });
+  formatDateOnly(iso, { day: "2-digit", month: "short", year: "numeric" }, "es-ES");
 
-const today = () => new Date().toISOString().split("T")[0];
+const today = todayISO;
 
 const EMPTY_LINE: InvoiceLineInput = { service_id: null, description: "", quantity: "1", unit_price: "" };
 

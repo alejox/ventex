@@ -1,3 +1,5 @@
+import { needsRestock } from "@/lib/stock";
+
 export interface SuggestedOrderItem {
   productId: string;
   productName: string;
@@ -33,7 +35,10 @@ export function buildSuggestedItems(
   }[],
 ): SuggestedOrderItem[] {
   return products
-    .filter((p) => p.stock_level < p.minimum_stock)
+    // Misma definición que Inventario y el Panel. `needsRestock` ya deja fuera
+    // a los servicios y a lo que no tiene mínimo configurado — eso último
+    // también evita la división por cero del orden de abajo.
+    .filter(needsRestock)
     .map((p) => ({
       productId: p.id,
       productName: p.name,

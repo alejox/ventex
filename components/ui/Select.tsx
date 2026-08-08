@@ -24,6 +24,13 @@ export interface SelectProps {
    * de factura, donde entran seis controles en una columna angosta.
    */
   size?: "sm" | "md";
+  /**
+   * Agrega un buscador arriba de la lista. Para catálogos largos —clientes,
+   * productos— donde bajar opción por opción no es una opción.
+   */
+  searchable?: boolean;
+  /** Texto del buscador. Solo aplica con `searchable`. */
+  searchPlaceholder?: string;
   /** Clases del contenedor (para el ancho o el `col-span` de una grilla). */
   containerClassName?: string;
   className?: string;
@@ -33,6 +40,9 @@ export interface SelectProps {
   id?: string;
   "aria-label"?: string;
 }
+
+/** Alto de la franja del buscador. Lo usan el cálculo de apertura y la lista. */
+const SEARCH_BOX_HEIGHT = 48;
 
 interface OptionData {
   value: string;
@@ -85,6 +95,8 @@ export function Select({
   hint,
   error,
   size = "md",
+  searchable = false,
+  searchPlaceholder = "Buscar…",
   containerClassName = "",
   className = "",
   disabled,
@@ -103,16 +115,32 @@ export function Select({
   const selected = options.find((o) => o.value === current);
 
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
+
+  /**
+   * Lo que se dibuja: todas las opciones, o las que coinciden con la búsqueda.
+   *
+   * Filtra por la ETIQUETA, que es donde el consumidor pone lo que la persona
+   * necesita reconocer. En el POS, por ejemplo, la etiqueta del cliente lleva
+   * también su documento, así que buscar por cédula funciona sin que este
+   * componente sepa qué es una cédula.
+   */
+  const trimmedQuery = query.trim().toLowerCase();
+  const visible =
+    searchable && trimmedQuery
+      ? options.filter((o) => o.label.toLowerCase().includes(trimmedQuery))
+      : options;
   const [rect, setRect] = useState<{ top: number; left: number; width: number; up: boolean } | null>(null);
 
   const buttonRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
   const typeahead = useRef({ query: "", at: 0 });
 
   const message = error ?? hint;
-  const enabledIndexes = options.map((o, i) => (o.disabled ? -1 : i)).filter((i) => i >= 0);
-  const optionCount = options.length;
+  const enabledIndexes = visible.map((o, i) => (o.disabled ? -1 : i)).filter((i) => i >= 0);
+  const optionCount = visible.length;
 
   // Sin `useCallback`: `options` y `enabledIndexes` se derivan en cada render,
   // así que la memoización manual no se puede preservar y el compilador de
@@ -122,8 +150,10 @@ export function Select({
     if (!el || disabled) return;
     const box = el.getBoundingClientRect();
     const below = window.innerHeight - box.bottom;
-    // Alto estimado del panel para decidir si se abre hacia arriba.
-    const height = Math.min(options.length * 40 + 8, 280);
+    // Alto estimado del panel para decidir si se abre hacia arriba. El buscador
+    // ocupa su propia franja y hay que contarla o el panel se abre para el lado
+    // equivocado justo cuando está pegado al borde.
+    const height = Math.min(options.length * 40 + 8, 280) + (searchable ? SEARCH_BOX_HEIGHT : 0);
     const up = below < height && box.top > below;
     setRect({
       top: up ? box.top - height - 4 : box.bottom + 4,
@@ -131,8 +161,11 @@ export function Select({
       width: box.width,
       up,
     });
+    // Cada apertura arranca sin filtro: un texto viejo escondería opciones que
+    // la persona espera ver.
+    setQuery("");
     const currentIndex = options.findIndex((o) => o.value === current);
-    setActiveIndex(currentIndex >= 0 ? currentIndex : (enabledIndexes[0] ?? 0));
+    setActiveIndex(currentIndex >= 0 ? currentIndex : 0);
     setOpen(true);
   };
 
@@ -159,7 +192,7 @@ export function Select({
       if (!el) return;
       const box = el.getBoundingClientRect();
       const below = window.innerHeight - box.bottom;
-      const height = Math.min(optionCount * 40 + 8, 280);
+      const height = Math.min(optionCount * 40 + 8, 280) + (searchable ? SEARCH_BOX_HEIGHT : 0);
       const up = below < height && box.top > below;
       setRect({
         top: up ? box.top - height - 4 : box.bottom + 4,
@@ -174,7 +207,13 @@ export function Select({
       window.removeEventListener("scroll", reposition, true);
       window.removeEventListener("resize", reposition);
     };
-  }, [open, optionCount]);
+  }, [open, optionCount, searchable]);
+
+  // El foco va al buscador apenas se abre: si no, hay que ir a buscarlo con el
+  // mouse y el buscador deja de ahorrar tiempo.
+  useEffect(() => {
+    if (open && searchable) searchRef.current?.focus();
+  }, [open, searchable]);
 
   // Mantiene la opción activa a la vista mientras se navega con el teclado.
   useEffect(() => {
@@ -208,19 +247,26 @@ export function Select({
       case "Escape": e.preventDefault(); setOpen(false); break;
       case "Tab": setOpen(false); break;
       case "Enter":
-      case " ":
         e.preventDefault();
-        if (options[activeIndex]) commit(options[activeIndex]);
+        if (visible[activeIndex]) commit(visible[activeIndex]);
+        break;
+      case " ":
+        // Con buscador el espacio es una letra más, no un atajo.
+        if (searchable) return;
+        e.preventDefault();
+        if (visible[activeIndex]) commit(visible[activeIndex]);
         break;
       default: {
         // Búsqueda por tecleo: el nativo la tiene y sin ella una lista larga
-        // obliga a bajar opción por opción.
+        // obliga a bajar opción por opción. Con buscador visible sobra: las
+        // teclas van al campo.
+        if (searchable) return;
         if (e.key.length !== 1) return;
         const now = Date.now();
         const state = typeahead.current;
         state.query = now - state.at > 800 ? e.key : state.query + e.key;
         state.at = now;
-        const hit = options.findIndex(
+        const hit = visible.findIndex(
           (o) => !o.disabled && o.label.toLowerCase().startsWith(state.query.toLowerCase()),
         );
         if (hit >= 0) setActiveIndex(hit);
@@ -291,17 +337,43 @@ export function Select({
       {open && rect && createPortal(
         <>
           <div className="fixed inset-0 z-[190]" onClick={() => setOpen(false)} />
+          {searchable && (
+            <div
+              style={{ top: rect.top, left: rect.left, minWidth: rect.width }}
+              className="fixed z-[201] p-1.5 rounded-t-xl bg-surface-container-lowest border border-b-0 border-outline-variant/20 shadow-2xl"
+            >
+              <input
+                ref={searchRef}
+                type="text"
+                role="combobox"
+                aria-expanded
+                aria-controls={listId}
+                aria-autocomplete="list"
+                aria-activedescendant={`${listId}-${activeIndex}`}
+                aria-label={searchPlaceholder}
+                value={query}
+                onChange={(e) => { setQuery(e.target.value); setActiveIndex(0); }}
+                onKeyDown={handleKeyDown}
+                placeholder={searchPlaceholder}
+                /* text-base en móvil: por debajo de 16px iOS hace zoom al enfocar. */
+                className="w-full h-9 rounded-lg bg-surface-container border border-outline-variant/20 px-3 text-base lg:text-sm text-on-surface focus:outline-none focus:border-primary placeholder:text-on-surface-variant/50"
+              />
+            </div>
+          )}
           <ul
             ref={listRef}
             id={listId}
             role="listbox"
             aria-labelledby={label ? selectId : undefined}
-            style={{ top: rect.top, left: rect.left, minWidth: rect.width }}
-            className={`fixed z-[200] max-h-[280px] overflow-y-auto py-1 rounded-xl
-              bg-surface-container-lowest border border-outline-variant/20 shadow-2xl
+            /* Con buscador la lista baja su propia altura: el campo ocupa la
+               franja de arriba del mismo panel. */
+            style={{ top: rect.top + (searchable ? SEARCH_BOX_HEIGHT : 0), left: rect.left, minWidth: rect.width }}
+            className={`fixed z-[200] max-h-[280px] overflow-y-auto py-1 shadow-2xl
+              bg-surface-container-lowest border border-outline-variant/20
+              ${searchable ? "rounded-b-xl border-t-0" : "rounded-xl"}
               animate-in fade-in duration-100 ${rect.up ? "slide-in-from-bottom-1" : "slide-in-from-top-1"}`}
           >
-            {options.map((option, index) => {
+            {visible.map((option, index) => {
               const isSelected = option.value === current;
               const isActive = index === activeIndex;
               return (
@@ -330,6 +402,11 @@ export function Select({
                 </li>
               );
             })}
+            {searchable && visible.length === 0 && (
+              <li className="px-3 py-3 text-sm text-on-surface-variant">
+                Sin resultados para &ldquo;{query.trim()}&rdquo;.
+              </li>
+            )}
           </ul>
         </>,
         document.body,

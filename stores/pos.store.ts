@@ -105,7 +105,13 @@ interface PosState {
   renameTab: (id: string, name: string) => void;
 
   // Gestión de clientes
-  addCustomer: (params: { name: string; doc_type?: string; identification?: string }) => Promise<boolean>;
+  addCustomer: (params: {
+    name: string;
+    doc_type?: string;
+    identification?: string;
+    phone?: string;
+    email?: string;
+  }) => Promise<boolean>;
 
   // Acciones sobre la pestaña activa
   /**

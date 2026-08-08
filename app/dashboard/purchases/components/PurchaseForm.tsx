@@ -16,7 +16,8 @@ import { useProfile } from "@/components/ProfileProvider";
 import { can } from "@/lib/permissions";
 import { useBusinessTax } from "@/lib/useBusinessTax";
 import type { Product } from "@/services/inventory.service";
-import { getUnitCost } from "@/services/inventory.service";
+import { getUnitCost, isServiceItem } from "@/services/inventory.service";
+import { needsRestock } from "@/lib/stock";
 import type { PurchaseInvoice } from "@/services/purchases.service";
 import {
   fetchLastPurchaseFromDistributor,
@@ -219,12 +220,15 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
   const handleLineChange = (idx: number, field: keyof PurchaseLineForm, value: string | number) =>
     setLines((prev) => prev.map((line, i) => (i === idx ? { ...line, [field]: value } : line)));
 
+  // Una compra ingresa mercadería al inventario. Un servicio no se le compra a
+  // un proveedor ni suma existencias, así que no aparece en el selector.
   const filteredProducts = useMemo(
     () =>
       products.filter(
         (p) =>
-          p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
-          p.sku.toLowerCase().includes(productSearch.toLowerCase())
+          !isServiceItem(p) &&
+          (p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
+            p.sku.toLowerCase().includes(productSearch.toLowerCase()))
       ),
     [products, productSearch]
   );
@@ -618,7 +622,7 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
                                 <span className="flex items-center gap-3 mt-0.5 text-xs text-on-surface-variant">
                                   <span>
                                     Stock:{" "}
-                                    <strong className={p.stock_level <= (p.minimum_stock ?? 0) ? "text-error" : "text-on-surface"}>
+                                    <strong className={needsRestock(p) ? "text-error" : "text-on-surface"}>
                                       {p.stock_level}
                                     </strong>
                                   </span>

@@ -1,10 +1,10 @@
 "use client";
 
-import { Suspense, useState, useEffect, useCallback } from "react";
+import { Suspense, useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useInventoryStore } from "@/stores/inventory.store";
-import type { NewProductInput, Product } from "@/services/inventory.service";
+import type { NewProductInput } from "@/services/inventory.service";
 import { calculateMargin, handlePresentationModeChange } from "@/services/inventory.service";
 import { DistributorQuickModal } from "@/components/DistributorQuickModal";
 import { CategoryQuickModal } from "@/components/CategoryQuickModal";
@@ -14,11 +14,14 @@ import { usePricePair } from "@/lib/usePricePair";
 import { useBusinessTax } from "@/lib/useBusinessTax";
 import { useBarcodeLookup } from "@/lib/useBarcodeLookup";
 import type { OpenFactsProduct } from "@/services/openfacts.service";
-import { StockAdjustmentModal } from "@/components/StockAdjustmentModal";
 import { ProductImageUpload } from "./components/ProductImageUpload";
-import { ParentProductSearch } from "./components/ParentProductSearch";
 import { ProductPricingSection } from "./components/ProductPricingSection";
 import { ProductPresentationSection } from "./components/ProductPresentationSection";
+
+interface FieldErrors {
+  name?: string;
+  price?: string;
+}
 
 const UNIT_MAP: Record<string, string> = {
   ml: "ml", cl: "ml", l: "L", dl: "L",
@@ -44,40 +47,10 @@ function formatAmount(value: number): string {
   });
 }
 
-const PARENT_SEPARATORS = [" - ", " – ", " — ", " -", "- ", "–", "—", "-"];
-
-/**
- * Detecta si el texto tipeado coincide con un producto padre existente (nombre
- * exacto, o nombre + separador + etiqueta), para preseleccionarlo en vez de
- * crear un padre nuevo.
- *
- * Gana el nombre más largo: "MEMORIA USB LITE" se detecta antes que
- * "MEMORIA USB" para un texto "MEMORIA USB LITE - ROJO".
- */
-function detectExistingParent(
-  text: string,
-  parents: Array<Pick<Product, "id" | "name">>
-): { parent: Pick<Product, "id" | "name">; label: string } | null {
-  const upper = text.trim().toUpperCase();
-  if (!upper) return null;
-  const sorted = [...parents].sort((a, b) => b.name.length - a.name.length);
-  for (const p of sorted) {
-    const pName = p.name.trim().toUpperCase();
-    if (upper === pName) return { parent: p, label: "" }; // coincidencia exacta
-    for (const sep of PARENT_SEPARATORS) {
-      if (upper.startsWith(pName + sep)) {
-        return { parent: p, label: upper.slice((pName + sep).length).trim() };
-      }
-    }
-  }
-  return null;
-}
-
 function ProductForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const editId = searchParams.get("id");
-  const parentId = searchParams.get("parent_id");
 
   /**
    * Vista desde la que se abrió el formulario: al volver (o al guardar) se
@@ -95,20 +68,11 @@ function ProductForm() {
   const fetchInventory = useInventoryStore((s) => s.fetchInventory);
   const addProduct = useInventoryStore((s) => s.addProduct);
   const updateProduct = useInventoryStore((s) => s.updateProduct);
-  const resetParentStock = useInventoryStore((s) => s.resetParentStock);
-
-  const [parentStockModal, setParentStockModal] = useState<{
-    parentProduct: Product;
-    pendingPayload: NewProductInput;
-  } | null>(null);
 
   const [form, setForm] = useState<NewProductInput>({
     name: "",
-    variant_label: "",
     category_id: "",
     distributor_id: "",
-    // Seeded from query param when coming from the "+ Variant" button.
-    parent_product_id: !editId && parentId ? parentId : "",
     sku: "",
     barcode: "",
     package_price: "",
@@ -121,11 +85,6 @@ function ProductForm() {
     commission_value: "",
     units_per_package: "1",
   });
-  // When a parent_id comes from the URL the product is already a variant.
-  const [isVariant, setIsVariant] = useState(!!(!editId && parentId));
-  const [variantLabel, setVariantLabel] = useState("");
-  // "Crear padre nuevo" es una decisión explícita del usuario, nunca el default.
-  const [createNewParent, setCreateNewParent] = useState(false);
   const handleDistributorCreated = () => {
     fetchInventory();
   };
@@ -133,12 +92,15 @@ function ProductForm() {
   const [imagePreview, setImagePreview] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const [saving, setSaving] = useState(false);
+  /** Errores por campo, en reemplazo del globo de validación del navegador. */
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const nameRef = useRef<HTMLInputElement>(null);
+  const priceRef = useRef<HTMLInputElement>(null);
   const [seededId, setSeededId] = useState<string | null>(null);
   const [distributorModalOpen, setDistributorModalOpen] = useState(false);
   const [categoryModalOpen, setCategoryModalOpen] = useState(false);
   const [itemType, setItemType] = useState<"Producto" | "Servicio">("Producto");
   const [serviceFinalPrice, setServiceFinalPrice] = useState("");
-  const [adjustModalOpen, setAdjustModalOpen] = useState(false);
   /**
    * Cómo se maneja el producto. Arranca en "unidad" porque es lo que aplica a
    * la mayoría; la caja es una decisión que se toma, no un default que se sufre.
@@ -194,91 +156,6 @@ function ProductForm() {
     }
   };
 
-  /** Candidatos a producto padre: sin variantes, sin servicios y sin el propio producto en edición. */
-  const parentCandidates = products.filter(
-    (p) => !p.parent_product_id && p.id !== editId && p.unit !== "Servicio"
-  );
-
-  const handleParentProductChange = (parentId: string) => {
-    const parent = products.find((p) => p.id === parentId);
-    let label = variantLabel.trim();
-    if (parent) {
-      // Derivar la etiqueta restando el nombre del padre elegido al texto
-      // tipeado; si el texto no empieza con ese nombre, conservar la actual.
-      const typedUpper = form.name.trim().toUpperCase();
-      const parentUpper = parent.name.trim().toUpperCase();
-      let derived = "";
-      for (const sep of PARENT_SEPARATORS) {
-        if (typedUpper.startsWith(parentUpper + sep)) {
-          derived = typedUpper.slice((parentUpper + sep).length).trim();
-          break;
-        }
-      }
-      // Sin separador, el resto del texto también puede ser la etiqueta:
-      // "MEMORIA USB 128GB - NEGRO" con padre "MEMORIA USB" → "128GB - NEGRO".
-      if (!derived && typedUpper.startsWith(parentUpper + " ")) {
-        derived = typedUpper.slice(parentUpper.length + 1).trim();
-      }
-      if (derived) label = derived;
-    }
-    const labelUpper = label.toUpperCase();
-    setVariantLabel(labelUpper);
-    setForm((prev) => ({
-      ...prev,
-      parent_product_id: parentId,
-      variant_label: labelUpper,
-      name: parent ? (labelUpper ? `${parent.name} - ${labelUpper}` : parent.name) : prev.name,
-    }));
-    setCreateNewParent(false);
-  };
-
-  const handleVariantLabelChange = (label: string) => {
-    const upperLabel = label.toUpperCase();
-    setVariantLabel(upperLabel);
-    setForm((prev) => {
-      let newName = prev.name;
-      if (prev.parent_product_id) {
-        const parent = products.find((p) => p.id === prev.parent_product_id);
-        if (parent) {
-          newName = upperLabel.trim() ? `${parent.name} - ${upperLabel.trim()}` : parent.name;
-        }
-      }
-      return {
-        ...prev,
-        name: newName,
-        variant_label: upperLabel,
-      };
-    });
-  };
-
-  const handleVariantToggle = () => {
-    const next = !isVariant;
-    setIsVariant(next);
-    setCreateNewParent(false);
-    if (!next) {
-      setVariantLabel("");
-      setForm((prev) => ({ ...prev, parent_product_id: "", variant_label: "" }));
-      return;
-    }
-    // Al activar, detectar si el nombre ya coincide con un padre existente: el
-    // "crear padre nuevo" NUNCA queda preseleccionado por defecto.
-    if (form.name.trim()) {
-      const match = detectExistingParent(form.name, parentCandidates);
-      if (
-        match &&
-        (match.label.trim() ||
-          form.name.trim().toUpperCase() === match.parent.name.trim().toUpperCase())
-      ) {
-        setForm((prev) => ({
-          ...prev,
-          parent_product_id: match.parent.id,
-          variant_label: match.label.toUpperCase(),
-        }));
-        setVariantLabel(match.label.toUpperCase());
-      }
-    }
-  };
-
   useEffect(() => {
     fetchInventory();
   }, [fetchInventory]);
@@ -314,16 +191,10 @@ function ProductForm() {
   if (editingProduct && seededId !== editingProduct.id) {
     setSeededId(editingProduct.id);
     if (editingProduct.unit === "Servicio") setItemType("Servicio");
-    const hasParent = !!editingProduct.parent_product_id;
-    if (hasParent) setIsVariant(true);
-    if (editingProduct.variant_label) setVariantLabel(editingProduct.variant_label);
-    setCreateNewParent(false);
     setForm({
       name: editingProduct.name,
-      variant_label: editingProduct.variant_label ?? "",
       category_id: editingProduct.category_id ?? "",
       distributor_id: editingProduct.distributor_id ?? "",
-      parent_product_id: editingProduct.parent_product_id ?? "",
       sku: editingProduct.sku,
       barcode: editingProduct.barcode ?? "",
       package_price: editingProduct.package_price != null ? String(editingProduct.package_price) : "",
@@ -392,41 +263,35 @@ function ProductForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Guardia contra duplicación: el nombre coincide con un padre existente
-    // pero el formulario crearía un padre nuevo y separado. Vale para el caso
-    // explícito (createNewParent) y para el accidental (sin padre elegido).
-    if (isVariant && !form.parent_product_id) {
-      const duplicateMatch = detectExistingParent(form.name, parentCandidates);
-      if (duplicateMatch) {
-        const ok = window.confirm(
-          `El nombre ingresado coincide con el producto existente "${duplicateMatch.parent.name}". Si guardas así, se creará un producto padre nuevo y separado. ¿Continuar?`
-        );
-        if (!ok) return; // no continuar, no setSaving
-      }
-    }
-    setSaving(true);
     const isService = itemType === "Servicio";
 
-    const parentProduct = isVariant && form.parent_product_id
-      ? products.find((p) => p.id === form.parent_product_id)
-      : null;
-
-    let composedName = form.name.trim().toUpperCase();
-    const labelUpper = variantLabel.trim().toUpperCase();
-
-    if (isVariant && labelUpper) {
-      if (parentProduct) {
-        composedName = `${parentProduct.name} - ${labelUpper}`;
-      } else if (composedName && !composedName.endsWith(` - ${labelUpper}`)) {
-        composedName = `${composedName} - ${labelUpper}`;
-      }
+    // Validación propia en vez de la del navegador.
+    //
+    // El globo nativo ("Completa este campo") se ancla debajo del campo y acá
+    // caía justo encima de la etiqueta "Proveedor", tapándola. Además se
+    // muestra en el idioma del navegador, no en el de la app, y desaparece solo
+    // a los pocos segundos. Un mensaje bajo el campo se queda hasta que se
+    // corrige y lo lee un lector de pantalla.
+    const errores: FieldErrors = {};
+    if (!form.name.trim()) {
+      errores.name = `Escribí el nombre del ${isService ? "servicio" : "producto"}.`;
     }
+    if (isService && !(parseFloat(serviceFinalPrice) > 0)) {
+      errores.price = "Indicá el precio del servicio.";
+    }
+    if (Object.keys(errores).length > 0) {
+      setFieldErrors(errores);
+      // Al primer campo con problema, que puede estar fuera de la pantalla.
+      (errores.name ? nameRef : priceRef).current?.focus();
+      return;
+    }
+
+    setFieldErrors({});
+    setSaving(true);
 
     const payload = {
       ...form,
-      name: composedName,
-      variant_label: isVariant && variantLabel.trim() ? variantLabel.trim().toUpperCase() : "",
-      parent_product_id: isVariant ? form.parent_product_id : "",
+      name: form.name.trim().toUpperCase(),
       purchase_price: isService ? "0" : purchasePriceTotal,
       price: isService ? serviceFinalPrice : sellingPriceTotal,
       stock_level: isService
@@ -440,12 +305,6 @@ function ProductForm() {
       sku: isService ? "" : form.sku,
       unit: isService ? "Servicio" : form.unit,
     };
-    // Transición de producto normal a agrupador: si el padre tiene stock previo y es su primera variante
-    if (!editId && parentProduct && parentProduct.stock_level > 0 && (!parentProduct.variants || parentProduct.variants.length === 0)) {
-      setSaving(false);
-      setParentStockModal({ parentProduct, pendingPayload: payload });
-      return;
-    }
 
     const ok = editId
       ? await updateProduct(editId, payload, isService ? null : imageFile)
@@ -536,7 +395,9 @@ function ProductForm() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      {/* `noValidate`: la validación la hace `handleSubmit` y se muestra bajo
+          cada campo. La nativa se dibujaba encima de la etiqueta "Proveedor". */}
+      <form onSubmit={handleSubmit} className="space-y-6" noValidate>
         {itemType === "Producto" && (
           <ProductImageUpload
             imagePreview={imagePreview}
@@ -559,58 +420,31 @@ function ProductForm() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5">
             <div className="space-y-3">
               <div className="space-y-1.5">
-                <label className="text-[13px] font-semibold text-on-surface block">
+                <label htmlFor="product-name" className="text-[13px] font-semibold text-on-surface block">
                   Nombre del {itemType === "Servicio" ? "servicio" : "producto"}
                 </label>
-                {isVariant ? (
-                  <div className="w-full bg-surface-container border border-outline-variant/20 rounded-xl py-3 px-4 text-sm text-on-surface-variant font-mono tracking-wide">
-                    {form.parent_product_id && variantLabel.trim()
-                      ? `${products.find((p) => p.id === form.parent_product_id)?.name ?? ""} - ${variantLabel.trim().toUpperCase()}`
-                      : <span className="italic text-on-surface-variant/50">Se genera al completar los campos de abajo</span>}
-                  </div>
-                ) : (
-                  <input
-                    type="text"
-                    value={form.name}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })}
-                    className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-sm text-on-surface uppercase focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-on-surface-variant/50"
-                    placeholder={itemType === "Servicio" ? "Ej. Baño para mascotas" : "Ej. Queso Fresco"}
-                    required={!isVariant}
-                  />
+                <input
+                  id="product-name"
+                  ref={nameRef}
+                  type="text"
+                  value={form.name}
+                  onChange={(e) => { setForm({ ...form, name: e.target.value }); setFieldErrors((p) => ({ ...p, name: undefined })); }}
+                  aria-invalid={!!fieldErrors.name}
+                  aria-describedby={fieldErrors.name ? "product-name-error" : undefined}
+                  className={`w-full bg-surface-container-lowest border rounded-xl py-3 px-4 text-sm text-on-surface uppercase focus:outline-none focus:ring-2 transition-all placeholder:text-on-surface-variant/50 ${
+                    fieldErrors.name
+                      ? "border-error focus:border-error focus:ring-error/20"
+                      : "border-outline-variant/30 focus:border-primary focus:ring-primary/20"
+                  }`}
+                  placeholder={itemType === "Servicio" ? "Ej. Baño para mascotas" : "Ej. Queso Fresco"}
+                  required
+                />
+                {fieldErrors.name && (
+                  <p id="product-name-error" className="text-xs font-medium text-error">
+                    {fieldErrors.name}
+                  </p>
                 )}
               </div>
-
-              {/* Variant toggle — only for products */}
-              {itemType === "Producto" && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    const next = !isVariant;
-                    setIsVariant(next);
-                    if (!next) {
-                      setVariantLabel("");
-                      setForm((prev) => ({ ...prev, parent_product_id: "", variant_label: "" }));
-                    }
-                  }}
-                  className="flex items-center gap-2.5 group"
-                  aria-expanded={isVariant}
-                >
-                  <span
-                    className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
-                      isVariant ? "bg-primary" : "bg-outline-variant/30"
-                    }`}
-                  >
-                    <span
-                      className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${
-                        isVariant ? "translate-x-[18px]" : "translate-x-0.5"
-                      }`}
-                    />
-                  </span>
-                  <span className="text-xs font-medium text-on-surface-variant group-hover:text-on-surface transition-colors">
-                    Es una variante de otro producto
-                  </span>
-                </button>
-              )}
             </div>
 
             <div className="space-y-1.5">
@@ -642,43 +476,6 @@ function ProductForm() {
               </div>
             </div>
           </div>
-
-          {/* Variant sub-form — full width, below name & category row */}
-          {itemType === "Producto" && isVariant && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-2xl border border-primary/20 bg-primary/5">
-              {/* Parent selector */}
-              <div className="space-y-1.5">
-                <label className="text-[13px] font-semibold text-on-surface block">Producto padre</label>
-                <Select
-                  value={form.parent_product_id}
-                  onChange={(e) => setForm({ ...form, parent_product_id: e.target.value })}
-                  containerClassName="w-full"
-                >
-                  <option value="" disabled>Selecciona...</option>
-                  {products
-                    .filter((p) => !p.parent_product_id && p.id !== editId && p.unit !== "Servicio")
-                    .map((p) => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                </Select>
-              </div>
-              {/* Variant label */}
-              <div className="space-y-1.5">
-                <label className="text-[13px] font-semibold text-on-surface block">Etiqueta de variante</label>
-                <input
-                  type="text"
-                  value={variantLabel}
-                  onChange={(e) => setVariantLabel(e.target.value.toUpperCase())}
-                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-sm text-on-surface uppercase focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-on-surface-variant/50"
-                  placeholder="Ej: ROJO / L"
-                  required={isVariant}
-                />
-                <p className="text-[11px] text-on-surface-variant">
-                  Lo que diferencia esta variante (talla, color, volumen…)
-                </p>
-              </div>
-            </div>
-          )}
 
           {/* Distributor & Unit of Measure — 2 column grid for products */}
           {itemType === "Producto" && (
@@ -794,47 +591,22 @@ function ProductForm() {
                 unitsPerPackage={form.units_per_package ?? "1"}
               />
 
-              {editingProduct && (editingProduct.variants?.length ?? 0) > 0 ? (
-                <div className="bg-surface-container rounded-2xl p-6 border border-outline-variant/15 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                  <div className="flex items-center gap-3.5">
-                    <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                      <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-5 h-5">
-                        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-                      </svg>
-                    </div>
-                    <div>
-                      <h3 className="text-base font-bold text-on-surface">Este producto agrupa variantes</h3>
-                      <p className="text-xs text-on-surface-variant mt-0.5">
-                        El stock y su presentación se gestionan desde cada variante individual.
-                      </p>
-                    </div>
-                  </div>
-                  <Link
-                    href={`/dashboard/inventory?search=${encodeURIComponent(form.name)}`}
-                    className="px-4 py-2.5 rounded-xl bg-primary text-on-primary hover:bg-primary-dim text-xs font-bold transition-colors shrink-0"
-                  >
-                    Ver variantes en inventario →
-                  </Link>
-                </div>
-              ) : (
-                <ProductPresentationSection
-                  presentation={presentation}
-                  setPresentation={handlePresentationChange}
-                  editId={editId}
-                  unitsPerPackage={form.units_per_package ?? "1"}
-                  onUnitsPerPackageChange={(v) => setForm({ ...form, units_per_package: v })}
-                  initialUnits={initialUnits}
-                  setInitialUnits={setInitialUnits}
-                  initialPackages={initialPackages}
-                  setInitialPackages={setInitialPackages}
-                  initialStock={initialStock}
-                  packagePrice={form.package_price ?? ""}
-                  onPackagePriceChange={(v) => setForm({ ...form, package_price: v })}
-                  packageHint={packageHint}
-                  stockLevel={form.stock_level ?? ""}
-                  onAdjustStock={editId ? () => setAdjustModalOpen(true) : undefined}
-                />
-              )}
+              <ProductPresentationSection
+                presentation={presentation}
+                setPresentation={handlePresentationChange}
+                editId={editId}
+                unitsPerPackage={form.units_per_package ?? "1"}
+                onUnitsPerPackageChange={(v) => setForm({ ...form, units_per_package: v })}
+                initialUnits={initialUnits}
+                setInitialUnits={setInitialUnits}
+                initialPackages={initialPackages}
+                setInitialPackages={setInitialPackages}
+                initialStock={initialStock}
+                packagePrice={form.package_price ?? ""}
+                onPackagePriceChange={(v) => setForm({ ...form, package_price: v })}
+                packageHint={packageHint}
+                stockLevel={form.stock_level ?? ""}
+              />
             </>
           ) : (
             <div className="pt-2">
@@ -845,20 +617,33 @@ function ProductForm() {
               <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.85fr)] gap-6 items-start">
                 <div className="flex items-end gap-3">
                   <div className="space-y-1.5 flex-1 max-w-[280px]">
-                    <label className="text-[13px] font-semibold text-on-surface block">Precio final</label>
+                    <label htmlFor="service-price" className="text-[13px] font-semibold text-on-surface block">Precio final</label>
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-on-surface-variant">$</span>
                       <input
+                        id="service-price"
+                        ref={priceRef}
                         type="number"
                         step="0.01"
                         min="0"
                         value={serviceFinalPrice}
-                        onChange={(e) => setServiceFinalPrice(e.target.value)}
-                        className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 pl-7 pr-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+                        onChange={(e) => { setServiceFinalPrice(e.target.value); setFieldErrors((p) => ({ ...p, price: undefined })); }}
+                        aria-invalid={!!fieldErrors.price}
+                        aria-describedby={fieldErrors.price ? "service-price-error" : undefined}
+                        className={`w-full bg-surface-container-lowest border rounded-xl py-3 pl-7 pr-4 text-sm text-on-surface focus:outline-none focus:ring-2 transition-all ${
+                          fieldErrors.price
+                            ? "border-error focus:border-error focus:ring-error/20"
+                            : "border-outline-variant/30 focus:border-primary focus:ring-primary/20"
+                        }`}
                         placeholder="0.00"
                         required
                       />
                     </div>
+                    {fieldErrors.price && (
+                      <p id="service-price-error" className="text-xs font-medium text-error">
+                        {fieldErrors.price}
+                      </p>
+                    )}
                   </div>
                   {taxRate > 0 && (
                     <div className="space-y-1.5">
@@ -892,40 +677,6 @@ function ProductForm() {
             </div>
           )}
 
-
-          {itemType === "Producto" && editId && (() => {
-            const currentProduct = products.find((p) => p.id === editId);
-            const variantList = currentProduct?.variants ?? [];
-            if (variantList.length === 0) return null;
-            return (
-              <div className="pt-4 border-t border-outline-variant/10">
-                <h3 className="text-sm font-bold text-on-surface mb-3">Variantes</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {variantList.map((v) => (
-                    <a
-                      key={v.id}
-                      href={`/dashboard/inventory/product?id=${v.id}`}
-                      className="flex items-center justify-between p-3 rounded-xl bg-surface-container-lowest border border-outline-variant/10 hover:border-primary/30 transition-colors"
-                    >
-                      <div>
-                        <p className="text-sm font-medium text-on-surface">{v.name}</p>
-                        <p className="text-xs text-on-surface-variant">
-                          {v.unit} — Stock: {v.stock_level}
-                        </p>
-                      </div>
-                      <span className="text-xs font-semibold text-primary">Editar →</span>
-                    </a>
-                  ))}
-                </div>
-                <a
-                  href={`/dashboard/inventory/product?parent_id=${editId}`}
-                  className="inline-flex items-center gap-1 mt-3 text-xs font-semibold text-primary hover:text-primary-dim transition-colors"
-                >
-                  + Agregar variante
-                </a>
-              </div>
-            );
-          })()}
 
           {/* Comisión */}
           <div className="pt-4 border-t border-outline-variant/10">
@@ -1020,88 +771,6 @@ function ProductForm() {
           onClose={() => setCategoryModalOpen(false)}
           onCreated={(id) => setForm((prev) => ({ ...prev, category_id: id }))}
         />
-      )}
-
-      {adjustModalOpen && editId && (
-        <StockAdjustmentModal
-          preselectedProductId={editId}
-          onClose={() => setAdjustModalOpen(false)}
-          onSuccess={() => {
-            setAdjustModalOpen(false);
-            fetchInventory();
-          }}
-        />
-      )}
-
-      {parentStockModal && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-surface-container rounded-3xl w-full max-w-md border border-outline-variant/10 shadow-2xl overflow-hidden p-6 space-y-4 animate-in zoom-in-95 duration-200">
-            <div className="flex items-center gap-3 text-primary">
-              <div className="w-10 h-10 rounded-2xl bg-primary/10 flex items-center justify-center shrink-0">
-                <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-5 h-5">
-                  <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
-              </div>
-              <h3 className="text-lg font-bold text-on-surface">Stock previo en el producto padre</h3>
-            </div>
-            <p className="text-sm text-on-surface-variant leading-relaxed">
-              El producto <strong className="text-on-surface">&ldquo;{parentStockModal.parentProduct.name}&rdquo;</strong> tiene actualmente{" "}
-              <strong className="text-on-surface font-semibold tabular-nums">{parentStockModal.parentProduct.stock_level}</strong> unidades en stock.
-              <br className="mb-2" />
-              Al crear su primera variante, este producto pasa a ser un agrupador sin stock propio. ¿Qué deseas hacer con ese stock?
-            </p>
-            <div className="space-y-2.5 pt-2">
-              <button
-                type="button"
-                onClick={async () => {
-                  setSaving(true);
-                  const isService = itemType === "Servicio";
-                  const parentId = parentStockModal.parentProduct.id;
-                  const parentStock = parentStockModal.parentProduct.stock_level;
-                  await resetParentStock(parentId);
-                  const updatedPayload = {
-                    ...parentStockModal.pendingPayload,
-                    stock_level: String(
-                      (parseInt(parentStockModal.pendingPayload.stock_level || "0") || 0) + parentStock
-                    ),
-                  };
-                  const ok = await addProduct(updatedPayload, isService ? null : imageFile);
-                  setSaving(false);
-                  setParentStockModal(null);
-                  if (ok) router.push(backTo);
-                }}
-                className="w-full py-3 px-4 rounded-xl bg-primary text-on-primary text-sm font-bold hover:bg-primary-dim shadow-md transition-colors text-left flex items-center justify-between"
-              >
-                <span>Transferir las {parentStockModal.parentProduct.stock_level} unidades a esta variante</span>
-                <span>→</span>
-              </button>
-              <button
-                type="button"
-                onClick={async () => {
-                  setSaving(true);
-                  const isService = itemType === "Servicio";
-                  const parentId = parentStockModal.parentProduct.id;
-                  await resetParentStock(parentId);
-                  const ok = await addProduct(parentStockModal.pendingPayload, isService ? null : imageFile);
-                  setSaving(false);
-                  setParentStockModal(null);
-                  if (ok) router.push(backTo);
-                }}
-                className="w-full py-3 px-4 rounded-xl bg-surface-container-high text-on-surface text-sm font-semibold hover:bg-surface-container-highest transition-colors text-left flex items-center justify-between border border-outline-variant/20"
-              >
-                <span>Anular / descartar el stock del padre (dejarlo en 0)</span>
-                <span>✕</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setParentStockModal(null)}
-                className="w-full py-2 text-center text-xs font-semibold text-on-surface-variant hover:text-on-surface transition-colors mt-1"
-              >
-                Cancelar y seguir editando
-              </button>
-            </div>
-          </div>
-        </div>
       )}
     </div>
   );

@@ -10,6 +10,7 @@ import {
   IconPlus,
 } from "@/app/assets/icons/DashboardIcons";
 import { CollectionError, CollectionFilteredEmpty, CollectionLoading } from "@/components/CollectionState";
+import { toISODate } from "@/lib/date";
 
 // ---- HELPERS ----
 const MONTHS_ES = [
@@ -18,9 +19,12 @@ const MONTHS_ES = [
 ];
 const DAYS_SHORT = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 
-function formatDate(d: Date): string {
-  return d.toISOString().split("T")[0];
-}
+/**
+ * La clave de un día en la grilla. Va por el reloj local: la grilla se arma con
+ * fechas locales, así que convertirlas a UTC para armar la clave desalineaba
+ * las citas de la tarde contra el casillero del día siguiente.
+ */
+const formatDate = toISODate;
 
 function getMonthGrid(year: number, month: number) {
   const firstDay = new Date(year, month, 1).getDay();

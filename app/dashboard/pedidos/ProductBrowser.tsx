@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import Image from "next/image";
 import { Select } from "@/components/ui/Select";
+import { needsRestock, stockStatusOf, STOCK_CHIP, STOCK_DOT } from "@/lib/stock";
 
 interface ProductItem {
   id: string;
@@ -36,9 +37,12 @@ export function ProductBrowser({ products, categories, addedIds, onAdd, onClose 
         if (!p.name.toLowerCase().includes(q) && !p.sku.toLowerCase().includes(q)) return false;
       }
       if (categoryFilter && p.categories?.name !== categoryFilter) return false;
-      if (stockFilter === "low" && (p.stock_level >= p.minimum_stock || p.stock_level === 0)) return false;
+      // Un solo predicado para toda la app: `needsRestock`. "Agotado" sigue
+      // siendo un filtro aparte para bajar el detalle, pero ya no contradice
+      // al de stock bajo.
+      if (stockFilter === "low" && !needsRestock(p)) return false;
       if (stockFilter === "out" && p.stock_level !== 0) return false;
-      if (stockFilter === "ok" && p.stock_level < p.minimum_stock) return false;
+      if (stockFilter === "ok" && needsRestock(p)) return false;
       return true;
     });
   }, [products, search, categoryFilter, stockFilter]);
@@ -123,22 +127,12 @@ export function ProductBrowser({ products, categories, addedIds, onAdd, onClose 
             <div className="space-y-2">
               {filtered.map((p) => {
                 const added = addedIds.has(p.id);
-                const isLow = p.stock_level < p.minimum_stock;
-                const badgeClass = p.stock_level === 0
-                  ? "bg-error-container/20 text-error-dim border border-error-container/30"
-                  : isLow
-                    ? "bg-[#f59e0b]/10 text-[#f59e0b] border border-[#f59e0b]/20"
-                    : "bg-[#10b981]/10 text-[#10b981] border border-[#10b981]/20";
-                const dotClass = p.stock_level === 0
-                  ? "bg-error"
-                  : isLow
-                    ? "bg-[#f59e0b]"
-                    : "bg-[#10b981]";
-                const stockLabel = p.stock_level === 0
-                  ? "Agotado"
-                  : isLow
-                    ? `${p.stock_level} ${p.unit}`
-                    : `${p.stock_level} ${p.unit}`;
+                const status = stockStatusOf(p.stock_level, p.minimum_stock);
+                const badgeClass = `${STOCK_CHIP[status]} border`;
+                const dotClass = STOCK_DOT[status];
+                // Acá la unidad del negocio ("Litro", "Caja") dice más que la
+                // etiqueta genérica: es una pantalla de reposición.
+                const stockLabel = status === "out" ? "Agotado" : `${p.stock_level} ${p.unit}`;
 
                 return (
                   <div

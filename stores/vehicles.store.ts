@@ -26,7 +26,9 @@ interface VehiclesState {
 
 export const useVehiclesStore = create<VehiclesState>((set) => ({
   vehicles: [],
-  loading: false,
+  // Arranca en `true`: el primer render es anterior al fetch del efecto, y con
+  // `false` mostraba el estado vacío sobre datos que sí existen.
+  loading: true,
   error: null,
   submitting: false,
   history: [],

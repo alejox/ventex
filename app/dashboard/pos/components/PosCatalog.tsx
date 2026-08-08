@@ -215,20 +215,20 @@ export function PosCatalog({
             <ul className="lg:hidden space-y-1.5">
               {filtered.map((item) => {
                 const qty = cartQty.get(item.id) ?? 0;
-                const outOfStock = item.kind === "product" && (item.stock_level ?? 0) <= 0;
+                // El que manda es `stock_level`, no `kind`: un servicio puede
+                // venir de `services` o ser un producto con unidad "Servicio".
+                // En los dos casos llega en null y no hay stock que mostrar.
+                const stock = item.stock_level;
+                const outOfStock = stock != null && stock <= 0;
                 const blocked = !allowOversell && outOfStock;
-                const atStockCap =
-                  !allowOversell &&
-                  item.kind === "product" &&
-                  item.stock_level != null &&
-                  qty >= item.stock_level;
+                const atStockCap = !allowOversell && stock != null && qty >= stock;
                 return (
                   <li key={item.id}>
                     <div
                       className={`flex items-center gap-2.5 p-2 rounded-xl border transition-colors ${
                         qty > 0
                           ? "border-primary bg-primary/5"
-                          : item.kind === "service"
+                          : stock == null
                             ? "border-emerald-500/20 bg-emerald-500/5"
                             : "border-outline-variant/10 bg-surface-container"
                       } ${blocked && qty === 0 ? "opacity-50" : ""}`}
@@ -249,12 +249,12 @@ export function PosCatalog({
                           ${money(item.price)}
                         </p>
                         <p className="text-[10px] font-semibold text-on-surface-variant uppercase tracking-wider">
-                          {item.kind === "service" ? (
+                          {stock == null ? (
                             <span className="text-emerald-500">Servicio</span>
                           ) : outOfStock ? (
                             <span className={allowOversell ? "text-amber-600" : "text-error"}>Sin stock</span>
                           ) : (
-                            `Stock: ${item.stock_level}`
+                            `Stock: ${stock}`
                           )}
                         </p>
                       </div>
@@ -301,19 +301,23 @@ export function PosCatalog({
             <div className="hidden lg:block">
               {viewMode === "grid" ? (
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3 xl:gap-4">
-                  {filtered.map((item) => (
+                  {filtered.map((item) => {
+                    // null = no lleva inventario (servicio). Ver `CatalogItem`.
+                    const stock = item.stock_level;
+                    const outOfStock = stock != null && stock <= 0;
+                    return (
                     <button
                       key={item.id}
                       type="button"
                       onClick={() => addToCart(item)}
-                      disabled={!allowOversell && item.kind === "product" && (item.stock_level ?? 0) <= 0}
+                      disabled={!allowOversell && outOfStock}
                       className={`text-left rounded-2xl p-3 border flex flex-col transition-colors group shadow-sm relative disabled:opacity-50 disabled:cursor-not-allowed ${
-                        item.kind === "service"
+                        stock == null
                           ? "bg-emerald-500/5 border-emerald-500/20 hover:border-emerald-400/40 disabled:hover:border-emerald-500/20"
                           : "bg-surface-container border-outline-variant/10 hover:border-primary/30 disabled:hover:border-outline-variant/10"
                       }`}
                     >
-                      {item.kind === "product" && (item.stock_level ?? 0) <= 0 && (
+                      {outOfStock && (
                         <span
                           className={`absolute top-2 right-2 z-10 text-[10px] font-bold px-2 py-1 rounded-md border ${
                             allowOversell
@@ -339,7 +343,7 @@ export function PosCatalog({
                         )}
                       </div>
                       <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1">
-                        {item.kind === "service" ? "Servicio" : `SKU: ${item.sku}`}
+                        {stock == null ? "Servicio" : `SKU: ${item.sku}`}
                       </p>
                       <h3 className="text-sm font-medium text-on-surface mb-2 line-clamp-2 leading-tight flex-1 group-hover:text-primary transition-colors">
                         {item.name}
@@ -348,36 +352,41 @@ export function PosCatalog({
                         <span className="text-sm sm:text-base text-on-surface font-bold tabular-nums">
                           ${money(item.price)}
                         </span>
-                        {item.kind === "service" ? (
+                        {stock == null ? (
                           <span className="text-[10px] font-bold text-on-surface-variant shrink-0">
                             Servicio
                           </span>
                         ) : (
                           <span
                             className={`text-[10px] font-bold shrink-0 ${
-                              (item.stock_level ?? 0) <= 0
+                              stock <= 0
                                 ? "text-amber-600"
-                                : (item.stock_level ?? 0) <= 5
+                                : stock <= 5
                                   ? "text-amber-500"
                                   : "text-on-surface-variant"
                             }`}
                           >
-                            Stock: {item.stock_level}
+                            Stock: {stock}
                           </span>
                         )}
                       </div>
                     </button>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-2">
-                  {filtered.map((item) => (
+                  {filtered.map((item) => {
+                    // null = no lleva inventario (servicio). Ver `CatalogItem`.
+                    const stock = item.stock_level;
+                    const outOfStock = stock != null && stock <= 0;
+                    return (
                     <button
                       key={item.id}
                       onClick={() => addToCart(item)}
-                      disabled={!allowOversell && item.kind === "product" && (item.stock_level ?? 0) <= 0}
+                      disabled={!allowOversell && outOfStock}
                       className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-colors text-left disabled:opacity-40 disabled:cursor-not-allowed ${
-                        item.kind === "service"
+                        stock == null
                           ? "bg-emerald-500/5 border-emerald-500/20 hover:border-emerald-400/40"
                           : "bg-surface-container border-outline-variant/10 hover:bg-surface-container-high"
                       }`}
@@ -398,28 +407,29 @@ export function PosCatalog({
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-[10px] text-on-surface-variant font-semibold uppercase tracking-wider truncate">
-                          {item.kind === "service" ? "Servicio" : item.sku}
+                          {stock == null ? "Servicio" : item.sku}
                         </p>
                         <h3 className="text-xs font-medium text-on-surface truncate">{item.name}</h3>
                       </div>
                       <div className="text-right shrink-0">
                         <p className="text-xs font-bold text-on-surface">${money(item.price)}</p>
-                        {item.kind !== "service" && (
+                        {stock != null && (
                           <span
                             className={`text-[9px] font-bold ${
-                              (item.stock_level ?? 0) <= 0
+                              stock <= 0
                                 ? "text-amber-600"
-                                : (item.stock_level ?? 0) <= 5
+                                : stock <= 5
                                   ? "text-amber-500"
                                   : "text-on-surface-variant"
                             }`}
                           >
-                            {item.stock_level} uds.
+                            {stock} uds.
                           </span>
                         )}
                       </div>
                     </button>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>

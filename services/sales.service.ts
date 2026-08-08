@@ -29,10 +29,20 @@ export interface SaleLine {
   unit_kind: "unit" | "package";
   /** Unidades sueltas que representaba cada ítem vendido. */
   units_per_item: number;
+  /**
+   * Quién se lleva la comisión de ESTA línea. Por defecto es el "Atendido por"
+   * de la venta, pero el carrito deja pisarlo ítem por ítem, así que puede
+   * diferir del vendedor de la cabecera.
+   */
+  staff_name: string | null;
+  /** Comisión congelada al momento de la venta (no se recalcula nunca). */
+  commission_amount: number;
 }
 
 export interface SaleDetail extends Omit<SaleListItem, "item_count"> {
   tax_rate: number;
+  /** El "Atendido por" de la venta. */
+  staff_name: string | null;
   items: SaleLine[];
 }
 
@@ -186,8 +196,11 @@ const LIST_SELECT_WITH_CUSTOMER =
 const likePattern = (raw: string) =>
   `%${raw.trim().replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_")}%`;
 
+// Los embeds de `staff` van con el nombre del FK explícito: desde `sales` se
+// llega a la tabla por dos caminos (la cabecera y cada línea) y PostgREST no
+// tiene por qué adivinar cuál es cuál.
 const DETAIL_SELECT =
-  "id, sale_number, created_at, payment_method, transfer_method, card_method, status, subtotal, discount_amount, tax_rate, tax_amount, total, customers(full_name), sale_items(id, product_name, sku, unit_price, quantity, line_total, unit_kind, units_per_item)";
+  "id, sale_number, created_at, payment_method, transfer_method, card_method, status, subtotal, discount_amount, tax_rate, tax_amount, total, customers(full_name), staff!sales_staff_id_fkey(full_name), sale_items(id, product_name, sku, unit_price, quantity, line_total, unit_kind, units_per_item, commission_amount, staff!sale_items_staff_id_fkey(full_name))";
 
 export const SALES_PAGE_SIZE = 50;
 
@@ -262,13 +275,26 @@ export async function fetchSaleDetail(saleId: string): Promise<SaleDetail> {
     .single();
   if (error) throw error;
   const customer = one<{ full_name: string }>(data.customers);
-  const items = (Array.isArray(data.sale_items) ? data.sale_items : []) as SaleLine[];
   const raw = data as Record<string, unknown>;
+  const rawItems = (Array.isArray(data.sale_items) ? data.sale_items : []) as Record<string, unknown>[];
+  const items: SaleLine[] = rawItems.map((it) => ({
+    id: it.id as string,
+    product_name: it.product_name as string,
+    sku: (it.sku as string) ?? null,
+    unit_price: it.unit_price as number,
+    quantity: it.quantity as number,
+    line_total: it.line_total as number,
+    unit_kind: (it.unit_kind as "unit" | "package") ?? "unit",
+    units_per_item: (it.units_per_item as number) ?? 1,
+    staff_name: one<{ full_name: string }>(it.staff)?.full_name ?? null,
+    commission_amount: (it.commission_amount as number) ?? 0,
+  }));
   return {
     id: data.id,
     sale_number: data.sale_number,
     created_at: data.created_at,
     customer_name: customer?.full_name ?? null,
+    staff_name: one<{ full_name: string }>(raw.staff)?.full_name ?? null,
     payment_method: data.payment_method,
     transfer_method: (raw.transfer_method as string) ?? null,
     card_method: (raw.card_method as string) ?? null,

@@ -7,6 +7,7 @@ import { DataTable, type DataColumn } from "@/components/DataTable";
 import { CollectionEmpty, CollectionFilteredEmpty, CollectionError, CollectionLoading } from "@/components/CollectionState";
 import { notifySuccess } from "@/lib/notifications";
 import type { Category, NewCategoryInput } from "@/services/inventory.service";
+import { findDuplicateCategory } from "@/services/inventory.service";
 
 function IconPencil(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -45,6 +46,8 @@ export default function CategoriesPage() {
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState<NewCategoryInput>(EMPTY_CATEGORY);
   const [saving, setSaving] = useState(false);
+  /** Error del formulario, no de la lista: se muestra DENTRO del modal. */
+  const [formError, setFormError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Category | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -93,12 +96,25 @@ export default function CategoriesPage() {
     setModalOpen(false);
     setEditId(null);
     setForm(EMPTY_CATEGORY);
+    setFormError(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name.trim()) return;
 
+    // Se comprueba acá antes de salir a la red: la respuesta es instantánea y
+    // el nombre repetido ni siquiera llega al servidor. El índice único de la
+    // base sigue siendo el que manda —entre que se cargó esta lista y este
+    // clic, otra persona del negocio pudo crear la misma categoría—, y ese caso
+    // lo atrapa el `catch` de más abajo.
+    const duplicada = findDuplicateCategory(categories, form.name, editId);
+    if (duplicada) {
+      setFormError(`Ya existe una categoría llamada "${duplicada.name}".`);
+      return;
+    }
+
+    setFormError(null);
     setSaving(true);
     let success = false;
     if (editId) {
@@ -117,7 +133,13 @@ export default function CategoriesPage() {
 
     if (success) {
       handleCloseModal();
+      return;
     }
+    // El modal se queda abierto con el nombre puesto para que la persona lo
+    // corrija. Antes fallaba sin decir nada: el store guardaba el error pero
+    // nadie lo mostraba, y un nombre repetido parecía no hacer absolutamente
+    // nada. Por eso QA lo leyó como "no hay validación de unicidad".
+    setFormError(useInventoryStore.getState().error ?? "No se pudo guardar la categoría.");
   };
 
   const handleDelete = async () => {
@@ -142,7 +164,12 @@ export default function CategoriesPage() {
             <IconTag className="w-5 h-5" />
           </div>
           <div>
-            <div className="font-semibold text-on-surface text-sm uppercase tracking-wide">
+            {/* Sin `uppercase` de CSS: el nombre se muestra COMO ESTÁ GUARDADO.
+                Ese maquillaje era el que hacía que esta pantalla mostrara
+                "ELECTRONICA" y el Inventario "Electronica" para la misma fila,
+                y escondía que el dato estaba sin normalizar. Ahora se normaliza
+                al guardar, así que no hay nada que disimular. */}
+            <div className="font-semibold text-on-surface text-sm tracking-wide">
               {cat.name}
             </div>
             {cat.description ? (
@@ -299,10 +326,21 @@ export default function CategoriesPage() {
                   type="text"
                   required
                   value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  className="w-full bg-surface-container-low border border-outline-variant/20 rounded-xl py-2.5 px-3 text-sm text-on-surface uppercase focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
+                  onChange={(e) => { setForm({ ...form, name: e.target.value }); setFormError(null); }}
+                  aria-invalid={!!formError}
+                  aria-describedby={formError ? "category-name-error" : undefined}
+                  className={`w-full bg-surface-container-low border rounded-xl py-2.5 px-3 text-sm text-on-surface uppercase focus:outline-none focus:ring-1 transition-all ${
+                    formError
+                      ? "border-error focus:border-error focus:ring-error"
+                      : "border-outline-variant/20 focus:border-primary focus:ring-primary"
+                  }`}
                   placeholder="Ej. CERAS, SHAMPOOS, BEBIDAS"
                 />
+                {formError && (
+                  <p id="category-name-error" className="text-xs font-medium text-error">
+                    {formError}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-1.5">

@@ -10,11 +10,12 @@ import { useProfile } from "@/components/ProfileProvider";
 import { Select } from "@/components/ui/Select";
 import { whatsappUrl, toWhatsappNumber } from "@/config/contact";
 import type { Appointment, NewAppointmentInput } from "@/services/appointments.service";
+import { toISODate, formatDateOnly } from "@/lib/date";
 
 /**
  * Mensaje de confirmación ya redactado para el cliente.
  *
- * La fecha se parsea a mano: `new Date("2026-08-05")` la interpreta como
+ * La fecha va por `formatDateOnly`: `new Date("2026-08-05")` la interpreta como
  * medianoche UTC y, en Colombia (UTC-5), se muestra como el día anterior.
  * Confirmarle a alguien el día equivocado es peor que no confirmarle nada.
  */
@@ -29,15 +30,9 @@ function buildConfirmationMessage({
   date: string;
   startTime: string;
 }): string {
-  const [year, month, day] = date.split("-").map(Number);
-  const readableDate =
-    year && month && day
-      ? new Intl.DateTimeFormat("es-CO", {
-          weekday: "long",
-          day: "numeric",
-          month: "long",
-        }).format(new Date(year, month - 1, day))
-      : date;
+  const readableDate = date
+    ? formatDateOnly(date, { weekday: "long", day: "numeric", month: "long" })
+    : date;
 
   const firstName = customerName.trim().split(" ")[0];
   const greeting = firstName ? `Hola ${firstName}` : "Hola";
@@ -101,7 +96,7 @@ function buildInitialForm(
 
   return {
     ...EMPTY_FORM,
-    appointment_date: (selectedDate ?? new Date()).toISOString().split("T")[0],
+    appointment_date: toISODate(selectedDate ?? new Date()),
     start_time: defaultStartTime || "09:00",
     end_time: defaultStartTime ? addMinutes(defaultStartTime, 60) : "10:00",
   };

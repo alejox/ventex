@@ -45,7 +45,7 @@ interface DataTableProps<T> {
   rowKey: (row: T) => string;
   /** Ancho mínimo de la tabla en escritorio, en píxeles. */
   minWidth?: number;
-  /** Contenido extra debajo de cada fila (variantes, detalle desplegado). */
+  /** Contenido extra debajo de cada fila (detalle desplegado). */
   renderExpanded?: (row: T) => React.ReactNode;
   /** Etiqueta accesible de la tabla. */
   caption?: string;

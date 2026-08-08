@@ -19,7 +19,9 @@ interface CustomersState {
 
 export const useCustomersStore = create<CustomersState>((set) => ({
   customers: [],
-  loading: false,
+  // Arranca en `true`: el primer render es anterior al fetch del efecto, y con
+  // `false` mostraba el estado vacío sobre datos que sí existen.
+  loading: true,
   error: null,
   submitting: false,
 

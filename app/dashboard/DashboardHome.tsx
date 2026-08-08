@@ -4,14 +4,17 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useFinanceStore } from "@/stores/finance.store";
 import { useInventoryStore } from "@/stores/inventory.store";
+import { needsRestock } from "@/lib/stock";
 import { backdropProps } from "@/components/modal";
 import type { NewExpenseInput } from "@/services/finance.service";
 import { IconTrendingUp, IconTrendingDown, IconDollar, IconShoppingCart, IconPlus } from "@/app/assets/icons/DashboardIcons";
+import { todayISO } from "@/lib/date";
 
 const money = (n: number) =>
   n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-const today = () => new Date().toISOString().slice(0, 10);
+// `expense_date` es una columna DATE: el día es el del mostrador, no el de UTC.
+const today = todayISO;
 
 const emptyExpense = (): NewExpenseInput => ({
   description: "",
@@ -52,7 +55,10 @@ export function DashboardHome({ canAddExpense = false }: { canAddExpense?: boole
     fetchInventory();
   }, [fetchOverview, fetchTodaySales, fetchInventory]);
 
-  const lowStock = products.filter((p) => p.stock_level != null && p.stock_level <= (p.minimum_stock ?? 0)).slice(0, 5);
+  // Misma definición que el KPI y el filtro de Inventario. Antes este widget
+  // usaba su propia comparación y listaba tres productos mientras el contador
+  // de Inventario decía 0.
+  const lowStock = products.filter(needsRestock).slice(0, 5);
 
   const overviewBusy = loading || !overview;
 

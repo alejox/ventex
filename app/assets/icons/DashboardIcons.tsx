@@ -372,3 +372,17 @@ export function IconTag(props: React.SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
+
+/** Movimiento de inventario: entrada/salida de stock. */
+export function IconMoveHorizontal(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" width="20" height="20" {...props}>
+      <polyline points="8 3 4 7 8 11" />
+      <polyline points="16 3 20 7 16 11" />
+      <line x1="4" y1="7" x2="20" y2="7" />
+      <polyline points="8 13 4 17 8 21" />
+      <polyline points="16 13 20 17 16 21" />
+      <line x1="4" y1="17" x2="20" y2="17" />
+    </svg>
+  );
+}

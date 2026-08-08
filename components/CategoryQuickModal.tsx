@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useInventoryStore } from "@/stores/inventory.store";
 import { notifySuccess } from "@/lib/notifications";
+import { findDuplicateCategory } from "@/services/inventory.service";
 
 interface CategoryQuickModalProps {
   onClose: () => void;
@@ -12,13 +13,25 @@ interface CategoryQuickModalProps {
 
 export function CategoryQuickModal({ onClose, onCreated }: CategoryQuickModalProps) {
   const addCategory = useInventoryStore((s) => s.addCategory);
+  const categories = useInventoryStore((s) => s.categories);
   const storeError = useInventoryStore((s) => s.error);
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  /** Duplicado detectado sin salir a la red. Tiene prioridad sobre el del store. */
+  const [localError, setLocalError] = useState<string | null>(null);
+  const shownError = localError ?? storeError;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const duplicada = findDuplicateCategory(categories, name);
+    if (duplicada) {
+      setLocalError(`Ya existe una categoría llamada "${duplicada.name}".`);
+      return;
+    }
+    setLocalError(null);
+
     const categoryId = await addCategory({ name, description });
     if (categoryId) {
       notifySuccess(
@@ -52,9 +65,9 @@ export function CategoryQuickModal({ onClose, onCreated }: CategoryQuickModalPro
         </div>
 
         <form onSubmit={handleSubmit} className="p-5 pt-2 space-y-4">
-          {storeError && (
+          {shownError && (
             <div className="rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim">
-              {storeError}
+              {shownError}
             </div>
           )}
 

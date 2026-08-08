@@ -29,7 +29,6 @@ interface InventoryState {
   deleteCategory: (id: string) => Promise<boolean>;
   archiveProduct: (id: string) => Promise<boolean>;
   activateProduct: (id: string) => Promise<boolean>;
-  resetParentStock: (parentId: string) => Promise<boolean>;
 }
 
 
@@ -37,7 +36,11 @@ export const useInventoryStore = create<InventoryState>((set) => ({
   products: [],
   categories: [],
   distributors: [],
-  loading: false,
+  // Arranca en `true` a propósito: el primer render ocurre ANTES de que el
+  // efecto dispare el fetch. Con `false`, esa primera pasada pintaba el estado
+  // vacío ("Aún no hay …") sobre datos que sí existen. Un falso "no tenés nada"
+  // asusta mucho más que un esqueleto de más.
+  loading: true,
   error: null,
 
   fetchInventory: async () => {
@@ -142,19 +145,6 @@ export const useInventoryStore = create<InventoryState>((set) => ({
         products: s.products.map((p) =>
           p.id === id ? { ...p, status: "active" } : p
         ),
-      }));
-      return true;
-    } catch (e) {
-      set({ error: toMessage(e) });
-      return false;
-    }
-  },
-
-  resetParentStock: async (parentId: string) => {
-    try {
-      await inventoryService.resetParentStock(parentId);
-      set((s) => ({
-        products: s.products.map((p) => (p.id === parentId ? { ...p, stock_level: 0 } : p)),
       }));
       return true;
     } catch (e) {

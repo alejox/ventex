@@ -7,6 +7,7 @@ import { useCustomersStore } from "@/stores/customers.store";
 import type { NewVehicleInput, Vehicle } from "@/services/vehicles.service";
 import { Select } from "@/components/ui/Select";
 import { CollectionEmpty, CollectionError, CollectionLoading } from "@/components/CollectionState";
+import { formatDateOnly } from "@/lib/date";
 
 const EMPTY_VEHICLE: NewVehicleInput = {
   plate: "",
@@ -24,7 +25,7 @@ const STATUS_LABELS: Record<string, { label: string; cls: string }> = {
 };
 
 const formatDate = (iso: string) =>
-  new Date(iso + "T00:00:00").toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric" });
+  formatDateOnly(iso, { day: "2-digit", month: "short", year: "numeric" }, "es-ES");
 
 export default function VehiclesPage() {
   const vehicles = useVehiclesStore((s) => s.vehicles);

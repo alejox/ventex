@@ -9,6 +9,7 @@ import { useDistributorsStore } from "@/stores/distributors.store";
 import { Select } from "@/components/ui/Select";
 import { PurchaseInvoiceDetailModal } from "@/components/PurchaseInvoiceDetailModal";
 import { DataTable, type DataColumn } from "@/components/DataTable";
+import { formatDateOnly } from "@/lib/date";
 import { CancelConfirmModal } from "./components/CancelConfirmModal";
 import { StatusChangeModal } from "./components/StatusChangeModal";
 import { CollectionEmpty, CollectionError, CollectionFilteredEmpty, CollectionLoading } from "@/components/CollectionState";
@@ -138,12 +139,12 @@ export default function PurchasesPage() {
     {
       header: "Fecha",
       className: "text-on-surface-variant",
-      cell: (inv) => new Date(inv.issue_date).toLocaleDateString("es-ES"),
+      cell: (inv) => formatDateOnly(inv.issue_date, {}, "es-ES"),
     },
     {
       header: "Vencimiento",
       className: "text-on-surface-variant",
-      cell: (inv) => (inv.due_date ? new Date(inv.due_date).toLocaleDateString("es-ES") : "—"),
+      cell: (inv) => (inv.due_date ? formatDateOnly(inv.due_date, {}, "es-ES") : "—"),
     },
     {
       header: "Acción",

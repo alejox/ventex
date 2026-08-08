@@ -16,11 +16,8 @@ export interface Category {
 export interface Product {
   id: string;
   name: string;
-  /** Short label that differentiates a variant from its parent (e.g. 'ROJO / L'). */
-  variant_label: string | null;
   category_id: string | null;
   distributor_id: string | null;
-  parent_product_id: string | null;
   sku: string;
   /** Código del fabricante (EAN-13 / UPC) impreso en el empaque. */
   barcode: string | null;
@@ -40,8 +37,27 @@ export interface Product {
   created_at: string;
   categories: { name: string } | null;
   distributors: { business_name: string } | null;
-  parent_product?: { name: string } | null;
-  variants?: Product[];
+}
+
+/**
+ * Unidad reservada del catálogo.
+ *
+ * `products` no tiene columna de tipo: la unidad "Servicio" ES el discriminador
+ * entre un producto y un servicio. Lo leen el inventario, el POS, las compras y
+ * `create_sale`, así que vive acá y nadie lo escribe a mano.
+ */
+export const SERVICE_UNIT = "Servicio";
+
+/**
+ * Un servicio se cobra pero NO se inventaría.
+ *
+ * No descuenta stock al venderse, no se repone, no admite movimientos manuales
+ * y no entra en la valorización. Un baño para mascotas no tiene existencias: si
+ * el POS le descontaba unidades, terminaba en negativo sin que eso significara
+ * nada.
+ */
+export function isServiceItem(item: { unit?: string | null }): boolean {
+  return item.unit === SERVICE_UNIT;
 }
 
 /**
@@ -80,11 +96,8 @@ function normalizeSku(raw: string): string {
 /** Datos del formulario de producto (campos en string tal como llegan del form). */
 export interface NewProductInput {
   name: string;
-  /** Short label for a variant (e.g. 'ROJO / L'). Empty string = not a variant. */
-  variant_label?: string;
   category_id: string;
   distributor_id: string;
-  parent_product_id?: string;
   sku: string;
   barcode?: string;
   unit: string;
@@ -107,6 +120,59 @@ export interface NewCategoryInput {
 }
 
 /**
+ * Nombre de categoría tal como se guarda: recortado y en mayúsculas.
+ *
+ * Mayúsculas para que "Electronica" y "ELECTRONICA" no convivan como dos
+ * categorías distintas fragmentando el inventario y los reportes.
+ *
+ * OJO: la Ñ y las tildes NO se tocan. Son letras del idioma, no ruido a
+ * limpiar. Un `normalize("NFD")` para "quitar acentos" convertiría BAÑO en
+ * BANO, que es un nombre distinto y además está mal escrito. Hay un test que
+ * lo custodia.
+ */
+export function normalizeCategoryName(raw: string): string {
+  return raw.trim().toUpperCase();
+}
+
+/**
+ * ¿Ya existe una categoría con ese nombre en la lista que el cliente tiene?
+ *
+ * Compara normalizado —igual que el índice único de la base—, así que
+ * "Electronica" choca con "ELECTRONICA". Al editar hay que pasar `exceptId`:
+ * si no, toda categoría choca consigo misma y nunca se la puede guardar.
+ *
+ * NO reemplaza al índice único: entre que la lista se cargó y el usuario
+ * guarda, otra persona del mismo negocio pudo crear la misma categoría. Esto
+ * evita el viaje al servidor y responde al instante; la base es la que decide.
+ */
+export function findDuplicateCategory(
+  categories: Category[],
+  name: string,
+  exceptId?: string | null,
+): Category | undefined {
+  const target = normalizeCategoryName(name);
+  return categories.find(
+    (c) => c.id !== exceptId && normalizeCategoryName(c.name) === target,
+  );
+}
+
+/**
+ * ¿El error es un choque contra un índice único?
+ *
+ * PostgREST propaga el código de Postgres en `code`; 23505 es
+ * `unique_violation`. Sin esto llegaba a la pantalla el texto crudo del índice
+ * ("duplicate key value violates unique constraint..."), que no le dice nada a
+ * un comerciante.
+ */
+export function isDuplicateName(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    (error as { code?: unknown }).code === "23505"
+  );
+}
+
+/**
  * Obtiene el costo unitario real normalizado.
  *
  * Si el producto tiene `units_per_package > 1`, `purchase_price` representa el costo
@@ -123,23 +189,22 @@ export function getUnitCost(product: { purchase_price?: number | null; units_per
 /**
  * Calcula el valor total del inventario de una lista de productos usando el
  * costo unitario real normalizado * stock_level.
+ *
+ * Los servicios quedan fuera: no son mercadería, así que no hay capital parado
+ * en ellos por más que la fila arrastre un stock viejo.
  */
 export function calculateInventoryValue(
-  products: Array<{ purchase_price?: number | null; units_per_package?: number | null; stock_level: number; variants?: any[] }>
+  products: Array<{
+    unit?: string | null;
+    purchase_price?: number | null;
+    units_per_package?: number | null;
+    stock_level: number;
+  }>
 ): number {
-  return products.reduce((sum, p) => {
-    if (p.variants && p.variants.length > 0) return sum;
-    return sum + getUnitCost(p) * (p.stock_level || 0);
-  }, 0);
-}
-
-export async function resetParentStock(parentId: string): Promise<void> {
-  const supabase = createClient();
-  const { error } = await supabase
-    .from("products")
-    .update({ stock_level: 0 })
-    .eq("id", parentId);
-  if (error) throw error;
+  return products.reduce(
+    (sum, p) => (isServiceItem(p) ? sum : sum + getUnitCost(p) * (p.stock_level || 0)),
+    0,
+  );
 }
 
 /**
@@ -180,11 +245,6 @@ export function handlePresentationModeChange(
 }
 
 /**
- * El producto padre es una auto-relación de `products`, así que el embed apunta
- * a la propia tabla con alias y se desambigua con la COLUMNA (`!parent_product_id`):
- * en auto-relaciones PostgREST no resuelve la pista por nombre de constraint.
- */
-/**
  * Columnas de `products` legibles con la clave pública.
  *
  * NO puede ser `*`: a `authenticated` se le revocó el SELECT sobre
@@ -195,12 +255,11 @@ export function handlePresentationModeChange(
  * Si agregás una columna a la tabla, agregala también acá y al GRANT.
  */
 const PRODUCT_COLUMNS =
-  "id, created_at, updated_at, user_id, name, variant_label, sku, barcode, price, package_price, stock_level, image_url, status, " +
+  "id, created_at, updated_at, user_id, name, sku, barcode, price, package_price, stock_level, image_url, status, " +
   "category_id, unit, distributor_id, minimum_stock, icon, has_commission, commission_type, " +
-  "commission_value, units_per_package, parent_product_id";
+  "commission_value, units_per_package";
 
-const PRODUCT_SELECT =
-  `${PRODUCT_COLUMNS}, categories(name), distributors(business_name), parent_product:products!parent_product_id(name)`;
+const PRODUCT_SELECT = `${PRODUCT_COLUMNS}, categories(name), distributors(business_name)`;
 
 /**
  * Completa los productos con su costo de compra.
@@ -285,43 +344,7 @@ export async function fetchProducts(): Promise<Product[]> {
     .select(PRODUCT_SELECT)
     .order("created_at", { ascending: false });
   if (error) throw error;
-  const all = await attachCosts(supabase, (data ?? []) as unknown as Product[]);
-
-  const variantsMap: Record<string, Product[]> = {};
-  for (const p of all) {
-    if (p.parent_product_id) {
-      if (!variantsMap[p.parent_product_id]) variantsMap[p.parent_product_id] = [];
-      variantsMap[p.parent_product_id].push(p);
-    }
-  }
-
-  const result = all.map((p) => {
-    const vars = variantsMap[p.id] ?? [];
-    if (vars.length > 0) {
-      if (p.stock_level > 0 || p.price > 0 || p.package_price !== null) {
-        // Fire-and-forget DB cleanup for parent products that group variants
-        supabase
-          .from("products")
-          .update({ stock_level: 0, price: 0, package_price: null })
-          .eq("id", p.id)
-          .then();
-      }
-      return {
-        ...p,
-        stock_level: 0,
-        price: 0,
-        package_price: null,
-        purchase_price: 0,
-        variants: vars,
-      };
-    }
-    return {
-      ...p,
-      variants: vars,
-    };
-  });
-
-  return result;
+  return attachCosts(supabase, (data ?? []) as unknown as Product[]);
 }
 
 /**
@@ -360,24 +383,36 @@ function normalizeBarcode(raw: string | undefined): string | null {
   return value === "" ? null : value;
 }
 
+/**
+ * Existencias con las que nace o se guarda el ítem.
+ *
+ * Un servicio siempre queda en cero, y además con mínimo cero: el `minimum_stock`
+ * por defecto es 10, y con ese valor un servicio aparecía eternamente en las
+ * sugerencias de reposición pidiendo que le compraran unidades a un proveedor.
+ * Se resuelve acá —la capa de I/O— y no en el formulario, porque hay dos altas
+ * distintas (la página completa y el modal rápido) y ninguna de las dos puede
+ * ser la que decide.
+ */
+function stockPatch(input: NewProductInput): { stock_level: number; minimum_stock?: number } {
+  if (isServiceItem(input)) return { stock_level: 0, minimum_stock: 0 };
+  return { stock_level: parseInt(input.stock_level || "0") };
+}
+
 export async function createProduct(input: NewProductInput): Promise<Product> {
   const supabase = createClient();
-  const variantLabel = input.variant_label?.trim().toUpperCase() || null;
   const { data, error } = await supabase
     .from("products")
     .insert({
       name: input.name.trim().toUpperCase(),
-      variant_label: variantLabel,
       category_id: input.category_id || null,
       distributor_id: input.distributor_id || null,
-      parent_product_id: input.parent_product_id || null,
       sku: normalizeSku(input.sku),
       barcode: normalizeBarcode(input.barcode),
       unit: input.unit,
       ...costPatch(input.purchase_price),
       price: parseFloat(input.price),
       package_price: normalizePackagePrice(input.package_price),
-      stock_level: parseInt(input.stock_level || "0"),
+      ...stockPatch(input),
       image_url: input.image_url || null,
       has_commission: input.has_commission,
       commission_type: input.has_commission ? input.commission_type : null,
@@ -411,22 +446,19 @@ export async function activateProduct(id: string): Promise<void> {
 
 export async function updateProduct(id: string, input: NewProductInput): Promise<Product> {
   const supabase = createClient();
-  const variantLabel = input.variant_label?.trim().toUpperCase() || null;
   const { data, error } = await supabase
     .from("products")
     .update({
       name: input.name.trim().toUpperCase(),
-      variant_label: variantLabel,
       category_id: input.category_id || null,
       distributor_id: input.distributor_id || null,
-      parent_product_id: input.parent_product_id || null,
       sku: normalizeSku(input.sku),
       barcode: normalizeBarcode(input.barcode),
       unit: input.unit,
       ...costPatch(input.purchase_price),
       price: parseFloat(input.price),
       package_price: normalizePackagePrice(input.package_price),
-      stock_level: parseInt(input.stock_level || "0"),
+      ...stockPatch(input),
       image_url: input.image_url || null,
       has_commission: input.has_commission,
       commission_type: input.has_commission ? input.commission_type : null,
@@ -443,17 +475,21 @@ export async function updateProduct(id: string, input: NewProductInput): Promise
   return withCost;
 }
 
+/** El índice único de la base rebota el duplicado; acá se traduce a español. */
+const DUPLICATE_CATEGORY = "Ya existe una categoría con ese nombre.";
+
 export async function createCategory(input: NewCategoryInput): Promise<Category> {
   const supabase = createClient();
   // user_id lo asigna el trigger/DEFAULT auth.uid().
   const { data, error } = await supabase
     .from("categories")
     .insert({
-      name: input.name.trim().toUpperCase(),
+      name: normalizeCategoryName(input.name),
       description: input.description?.trim() || null,
     })
     .select("id, name, description")
     .single();
+  if (isDuplicateName(error)) throw new Error(DUPLICATE_CATEGORY);
   if (error) throw error;
   return data as Category;
 }
@@ -463,12 +499,13 @@ export async function updateCategory(id: string, input: NewCategoryInput): Promi
   const { data, error } = await supabase
     .from("categories")
     .update({
-      name: input.name.trim().toUpperCase(),
+      name: normalizeCategoryName(input.name),
       description: input.description?.trim() || null,
     })
     .eq("id", id)
     .select("id, name, description")
     .single();
+  if (isDuplicateName(error)) throw new Error(DUPLICATE_CATEGORY);
   if (error) throw error;
   return data as Category;
 }

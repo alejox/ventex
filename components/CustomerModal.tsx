@@ -22,6 +22,8 @@ export function CustomerModal({ onClose }: CustomerModalProps) {
   const [name, setName] = useState("");
   const [docType, setDocType] = useState("CC");
   const [identification, setIdentification] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -29,7 +31,13 @@ export function CustomerModal({ onClose }: CustomerModalProps) {
     if (!name.trim()) return;
 
     setLoading(true);
-    const ok = await addCustomer({ name: name.trim(), doc_type: docType, identification: identification.trim() || undefined });
+    const ok = await addCustomer({
+      name: name.trim(),
+      doc_type: docType,
+      identification: identification.trim() || undefined,
+      phone: phone.trim() || undefined,
+      email: email.trim() || undefined,
+    });
     setLoading(false);
 
     if (ok) {
@@ -95,6 +103,42 @@ export function CustomerModal({ onClose }: CustomerModalProps) {
                 onChange={(e) => setIdentification(e.target.value)}
                 placeholder="Número"
                 inputMode="numeric"
+                className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+              />
+            </div>
+          </div>
+
+          {/* Opcionales, y sin asterisco: en el mostrador hay una fila esperando.
+              Pero cargarlos acá evita tener que ir a Clientes después para poder
+              mandar un domicilio o un comprobante. */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label htmlFor="customer-phone" className="text-sm font-semibold text-on-surface">
+                Tel&eacute;fono
+              </label>
+              <input
+                id="customer-phone"
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="Opcional"
+                inputMode="tel"
+                autoComplete="tel"
+                className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label htmlFor="customer-email" className="text-sm font-semibold text-on-surface">
+                Correo
+              </label>
+              <input
+                id="customer-email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Opcional"
+                inputMode="email"
+                autoComplete="email"
                 className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
               />
             </div>

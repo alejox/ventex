@@ -4,7 +4,8 @@ import { useState, useMemo, useEffect, useCallback } from "react";
 import Image from "next/image";
 import ExcelJS from "exceljs";
 import { IconAlertTriangle } from "@/app/assets/icons/DashboardIcons";
-import { buildSuggestedItems } from "@/services/abastecimiento.service";
+import { buildSuggestedItems, computeSuggestedQuantity } from "@/services/abastecimiento.service";
+import { needsRestock } from "@/lib/stock";
 import type { SuggestedOrderItem } from "@/services/abastecimiento.service";
 import { useDistributorsStore } from "@/stores/distributors.store";
 import { usePurchaseOrdersStore } from "@/stores/purchase-orders.store";
@@ -301,8 +302,10 @@ export function PedidosClient({
     const product = initialProducts.find((p) => p.id === productId);
     if (!product || items.some((i) => i.productId === productId)) return;
 
-    const suggested = product.stock_level < product.minimum_stock
-      ? Math.max(0, (product.minimum_stock * 2) - product.stock_level)
+    // Misma definición que el resto de la app. Si no hace falta reponerlo, se
+    // agrega con 1 porque el usuario lo eligió a mano.
+    const suggested = needsRestock(product)
+      ? computeSuggestedQuantity(product.stock_level, product.minimum_stock)
       : 1;
     const newItem: SuggestedOrderItem = {
       productId: product.id,

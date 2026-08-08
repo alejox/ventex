@@ -33,7 +33,7 @@ import { visibleNavItems, workerNavItems } from "@/config/business";
 import { backdropProps } from "@/components/modal";
 import { SIDEBAR_COOKIE, SIDEBAR_COOKIE_MAX_AGE } from "@/lib/sidebar";
 import { WorkspaceSwitcher } from "@/components/WorkspaceSwitcher";
-import { SupportFab } from "@/components/SupportFab";
+import { SupportFab, showsSupportFab, SUPPORT_FAB_CLEARANCE } from "@/components/SupportFab";
 
 type IconType = typeof IconHome;
 
@@ -264,7 +264,14 @@ export function DashboardShell({
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-auto bg-background p-6 lg:p-10 print:p-0 print:bg-white print:overflow-visible">
+        {/* El scroll del dashboard ocurre acá, no en la ventana. Por eso el
+            espacio para el botón flotante de soporte se reserva en ESTE
+            contenedor: es el que decide dónde termina el contenido. */}
+        <main
+          className={`flex-1 overflow-auto bg-background p-6 lg:p-10 print:p-0 print:bg-white print:overflow-visible ${
+            showsSupportFab(pathname) ? SUPPORT_FAB_CLEARANCE : ""
+          }`}
+        >
           <InstallPrompt />
           {children}
         </main>

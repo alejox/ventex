@@ -1,4 +1,5 @@
 import { createClient } from "@/utils/supabase/client";
+import { isServiceItem } from "@/services/inventory.service";
 import type { Database, Json } from "@/utils/supabase/database.types";
 
 // ---- Tipos del dominio del POS ----
@@ -15,6 +16,12 @@ export interface CatalogItem {
   package_price: number | null;
   /** Unidades sueltas que trae una caja. */
   units_per_package: number;
+  /**
+   * null = el ítem NO lleva inventario (un servicio, esté en `services` o sea
+   * un producto con unidad "Servicio"). No es lo mismo que cero: cero es
+   * "agotado" y null es "la pregunta no aplica". Todo lo que muestre o limite
+   * stock tiene que preguntar por null antes que por el número.
+   */
   stock_level: number | null;
   category_name: string | null;
   image_url: string | null;
@@ -64,6 +71,40 @@ export function linePrice(line: CartLine): number {
     return line.item.package_price;
   }
   return line.item.price;
+}
+
+/**
+ * Tope de un descuento porcentual.
+ *
+ * El modal de descuentos aceptaba cualquier número mayor a cero: con 150% sobre
+ * un ítem de $2.000 salía un descuento de $3.000 —más que el producto— y el
+ * total quedaba en $0 sin un solo aviso. El `max="100"` del input era
+ * decorativo: nada lo valida si el campo no está dentro de un form que se
+ * envíe.
+ */
+export const MAX_DISCOUNT_PERCENT = 100;
+
+/**
+ * El porcentaje si es utilizable, o null.
+ *
+ * Devuelve null y no un valor recortado a propósito: recortar 150 a 100 en
+ * silencio aplicaría un descuento que el cajero no pidió. Que falle y lo diga.
+ */
+export function parseDiscountPercent(raw: string): number | null {
+  const percent = parseFloat(raw);
+  if (!Number.isFinite(percent)) return null;
+  if (percent < 0 || percent > MAX_DISCOUNT_PERCENT) return null;
+  return percent;
+}
+
+/**
+ * Descuento en plata de una línea, para un porcentaje YA validado.
+ *
+ * Va por `linePrice` y no por `item.price`: si no, una caja de $24.000 se
+ * descontaría como si valiera lo que vale la unidad suelta.
+ */
+export function lineDiscountFor(line: CartLine, percent: number): number {
+  return (linePrice(line) * line.quantity * percent) / 100;
 }
 
 /** Unidades sueltas que consume una línea: una caja son N. */
@@ -198,7 +239,7 @@ export async function fetchCatalog(): Promise<CatalogItem[]> {
   const [productsRes, servicesRes] = await Promise.all([
     supabase
       .from("products")
-      .select("id, parent_product_id, name, sku, barcode, price, package_price, units_per_package, stock_level, image_url, has_commission, commission_type, commission_value, categories(name)")
+      .select("id, name, sku, barcode, unit, price, package_price, units_per_package, stock_level, image_url, has_commission, commission_type, commission_value, categories(name)")
       .order("name"),
     supabase
       .from("services")
@@ -210,19 +251,19 @@ export async function fetchCatalog(): Promise<CatalogItem[]> {
   if (servicesRes.error) throw servicesRes.error;
 
   const rawProducts = productsRes.data ?? [];
-  const parentIdsWithVariants = new Set<string>();
-  for (const p of rawProducts) {
-    if (p.parent_product_id) {
-      parentIdsWithVariants.add(p.parent_product_id);
-    }
-  }
 
-  const products: CatalogItem[] = rawProducts
-    .filter((p) => !parentIdsWithVariants.has(p.id))
-    .map((p) => {
+  const products: CatalogItem[] = rawProducts.map((p) => {
     // Supabase tipa el embed como array; en una relación to-one llega un objeto.
     const cat = p.categories as unknown as { name: string } | { name: string }[] | null;
     const category_name = Array.isArray(cat) ? (cat[0]?.name ?? null) : (cat?.name ?? null);
+    // Un servicio del catálogo de productos NO lleva inventario: viaja con
+    // `stock_level` en null, que es como el POS ya representa "acá no hay stock
+    // que controlar". Con eso el carrito, el panel de venta y la vitrina dejan
+    // de tratarlo como mercadería sin tocar una línea más.
+    //
+    // `kind` sigue siendo "product" a propósito: la fila vive en `products`, y
+    // es `kind` lo que decide si la venta viaja con `product_id` o `service_id`.
+    // Cambiarlo mandaría el id a `create_sale` a buscarse en `services`.
     return {
       id: p.id,
       kind: "product" as const,
@@ -232,7 +273,7 @@ export async function fetchCatalog(): Promise<CatalogItem[]> {
       price: p.price,
       package_price: p.package_price ?? null,
       units_per_package: p.units_per_package ?? 1,
-      stock_level: p.stock_level,
+      stock_level: isServiceItem(p) ? null : p.stock_level,
       category_name,
       image_url: p.image_url ?? null,
       has_commission: p.has_commission ?? false,
@@ -362,6 +403,9 @@ export async function createCustomer(params: {
   name: string;
   doc_type?: string;
   identification?: string;
+  /** Opcionales: sirven para el domicilio y para mandarle el comprobante. */
+  phone?: string;
+  email?: string;
 }): Promise<CustomerOption> {
   const supabase = createClient();
   const { data, error } = await supabase
@@ -370,6 +414,8 @@ export async function createCustomer(params: {
       full_name: params.name,
       doc_type: params.doc_type || null,
       identification: params.identification || null,
+      phone: params.phone || null,
+      email: params.email || null,
       tax_exempt: false,
     })
     .select("id, full_name, tax_exempt, doc_type, identification")

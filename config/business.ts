@@ -83,7 +83,7 @@ export const WORKER_PERMISSION_PARENT: Partial<Record<WorkerPermission, WorkerPe
 
 export const WORKER_PERMISSION_HINTS: Partial<Record<WorkerPermission, string>> = {
   inventory_costs: "Precio de compra, margen y valor total del inventario.",
-  inventory_edit: "Alta y edición de productos, variantes y categorías.",
+  inventory_edit: "Alta y edición de productos y categorías.",
   inventory_stock: "Ajustes de stock, historial de movimientos y recepción de compras.",
 };
 
@@ -240,10 +240,10 @@ export const NAV_ITEMS: NavItem[] = [
   { id: "distributors", name: "Proveedores", href: "/dashboard/distributors", modules: ["inventory"] },
   { id: "pedidos", name: "Pedidos", href: "/dashboard/pedidos", modules: ["inventory"] },
   // Antes un solo ítem "Catálogo" mezclaba productos y servicios en una
-  // pantalla más pobre que las dos de verdad (sin variantes, sin permisos
-  // por rol, sin escáner) y que terminaba mandando a /dashboard/inventory de
-  // todos modos para editar. Separados: cada uno lleva a su pantalla
-  // completa y el nombre dice qué es.
+  // pantalla más pobre que las dos de verdad (sin permisos por rol, sin
+  // escáner) y que terminaba mandando a /dashboard/inventory de todos modos
+  // para editar. Separados: cada uno lleva a su pantalla completa y el nombre
+  // dice qué es.
   { id: "inventory", name: "Inventario", href: "/dashboard/inventory", modules: ["inventory"] },
   { id: "categories", name: "Categorías", href: "/dashboard/categories", modules: ["inventory"] },
   { id: "services", name: "Servicios", href: "/dashboard/services", modules: ["services"] },

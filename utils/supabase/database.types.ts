@@ -1074,7 +1074,6 @@ export type Database = {
           minimum_stock: number
           name: string
           package_price: number | null
-          parent_product_id: string | null
           price: number
           purchase_price: number
           sku: string
@@ -1084,7 +1083,6 @@ export type Database = {
           units_per_package: number
           updated_at: string
           user_id: string
-          variant_label: string | null
         }
         Insert: {
           barcode?: string | null
@@ -1100,7 +1098,6 @@ export type Database = {
           minimum_stock?: number
           name: string
           package_price?: number | null
-          parent_product_id?: string | null
           price?: number
           purchase_price?: number
           sku: string
@@ -1110,7 +1107,6 @@ export type Database = {
           units_per_package?: number
           updated_at?: string
           user_id?: string
-          variant_label?: string | null
         }
         Update: {
           barcode?: string | null
@@ -1126,7 +1122,6 @@ export type Database = {
           minimum_stock?: number
           name?: string
           package_price?: number | null
-          parent_product_id?: string | null
           price?: number
           purchase_price?: number
           sku?: string
@@ -1136,7 +1131,6 @@ export type Database = {
           units_per_package?: number
           updated_at?: string
           user_id?: string
-          variant_label?: string | null
         }
         Relationships: [
           {
@@ -1151,13 +1145,6 @@ export type Database = {
             columns: ["distributor_id"]
             isOneToOne: false
             referencedRelation: "distributors"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "products_parent_product_id_fkey"
-            columns: ["parent_product_id"]
-            isOneToOne: false
-            referencedRelation: "products"
             referencedColumns: ["id"]
           },
         ]

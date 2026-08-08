@@ -290,7 +290,9 @@ export default function POSPage() {
         notifyError("C\u00f3digo no encontrado", `Ning\u00fan \u00edtem tiene el c\u00f3digo ${code}.`);
         return;
       }
-      if (!allowOversell && match.kind === "product" && (match.stock_level ?? 0) <= 0) {
+      // `stock_level` en null = el ítem no lleva inventario (servicio): no hay
+      // unidades que puedan faltar. Ver `CatalogItem`.
+      if (!allowOversell && match.stock_level != null && match.stock_level <= 0) {
         notifyError("Sin stock", `${match.name} no tiene unidades disponibles.`);
         return;
       }

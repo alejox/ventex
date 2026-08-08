@@ -5,6 +5,8 @@ import {
   calculateInventoryValue,
   calculateMargin,
   handlePresentationModeChange,
+  isServiceItem,
+  SERVICE_UNIT,
 } from "../services/inventory.service";
 
 test("1. Producto en modo Unidad (units_per_package = 1)", () => {
@@ -52,7 +54,23 @@ test("2. Producto en modo Caja con units_per_package > 1 (e.g. 10 unidades por c
   assert.equal(totalValue, 500, "El valor de inventario debe ser $500, no $5000");
 });
 
-test("3. Transición de presentación de Caja a Unidad y viceversa", () => {
+test("3. Un servicio no se inventaría: no suma al valor del inventario", () => {
+  const product = { unit: "Unidad", purchase_price: 50, units_per_package: 1, stock_level: 10 };
+  const service = { unit: SERVICE_UNIT, purchase_price: 0, units_per_package: 1, stock_level: 0 };
+
+  assert.equal(isServiceItem(service), true);
+  assert.equal(isServiceItem(product), false);
+
+  // Solo el producto aporta: 10 unidades * $50.
+  assert.equal(calculateInventoryValue([product, service]), 500);
+
+  // Ni siquiera si arrastra stock y costo de antes de la regla: un servicio no
+  // es mercadería, así que su "existencia" no es capital parado.
+  const dirtyService = { unit: SERVICE_UNIT, purchase_price: 300, units_per_package: 1, stock_level: -2 };
+  assert.equal(calculateInventoryValue([dirtyService]), 0);
+});
+
+test("4. Transición de presentación de Caja a Unidad y viceversa", () => {
   // Transición de Caja ("package") a Unidad ("unit")
   const transitionToUnit = handlePresentationModeChange("unit", "10");
   assert.equal(transitionToUnit.units_per_package, "1", "Al pasar a Unidad, units_per_package debe ser 1");
@@ -73,32 +91,4 @@ test("3. Transición de presentación de Caja a Unidad y viceversa", () => {
     "Al pasar a Caja desde Unidad, units_per_package debe limpiarse para forzar confirmacion del usuario"
   );
   assert.equal(transitionToPackage.package_price, "");
-});
-
-test("4. Exclusión de productos padre con variantes en el cálculo del valor del inventario", () => {
-  const parentProduct = {
-    purchase_price: 100,
-    units_per_package: 1,
-    stock_level: 50, // Stock viejo del padre que no debe duplicarse
-    variants: [{ id: "v1" }, { id: "v2" }], // Tiene 2 variantes
-  };
-
-  const variant1 = {
-    purchase_price: 50,
-    units_per_package: 1,
-    stock_level: 10,
-    variants: [],
-  };
-
-  const variant2 = {
-    purchase_price: 20,
-    units_per_package: 1,
-    stock_level: 5,
-    variants: [],
-  };
-
-  // Valor total del inventario solo debe sumar variant1 (10 * 50 = 500) + variant2 (5 * 20 = 100) = 600
-  // El producto padre es ignorado porque agrupa variantes.
-  const totalValue = calculateInventoryValue([parentProduct, variant1, variant2]);
-  assert.equal(totalValue, 600, "El valor del inventario debe ser 600 excluyendo el padre");
 });

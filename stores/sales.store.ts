@@ -50,7 +50,9 @@ export const useSalesStore = create<SalesState>((set, get) => ({
   sales: [],
   total: 0,
   page: 0,
-  loading: false,
+  // Arranca en `true`: el primer render es anterior al fetch del efecto, y con
+  // `false` mostraba el estado vacío sobre datos que sí existen.
+  loading: true,
   error: null,
   summary: null,
   // Arranca en el mes en curso: mostrar todo el histórico es caro y casi nunca

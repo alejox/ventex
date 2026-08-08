@@ -194,9 +194,16 @@ export function PosCartPanel({
               </Select>
 
               <div className="flex gap-2 items-end">
+                {/* Con buscador: un negocio con cientos de clientes no puede
+                    encontrar a nadie bajando por una lista. El documento va en
+                    la etiqueta a propósito — así se puede buscar por cédula,
+                    que es lo que la persona dice en el mostrador, y además
+                    distingue a dos clientes que se llaman igual. */}
                 <Select
                   label="Cliente"
                   size="sm"
+                  searchable
+                  searchPlaceholder="Buscar por nombre o documento…"
                   containerClassName="flex-1 min-w-0"
                   value={customerId ?? ""}
                   onChange={(e) => setCustomer(e.target.value || null)}
@@ -205,6 +212,7 @@ export function PosCartPanel({
                   {customers.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.full_name}
+                      {c.identification ? ` · ${c.doc_type ?? ""} ${c.identification}`.replace(/\s+/g, " ") : ""}
                       {c.tax_exempt ? " (exento)" : ""}
                     </option>
                   ))}

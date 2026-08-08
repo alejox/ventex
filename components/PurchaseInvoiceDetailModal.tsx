@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { PurchaseInvoice, PurchaseInvoiceItem } from "@/services/purchases.service";
 import * as purchasesService from "@/services/purchases.service";
 import { looseUnitsOf } from "@/services/purchases.service";
+import { formatDateOnly } from "@/lib/date";
 
 const money = (n: number) =>
   "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -58,7 +59,7 @@ export function PurchaseInvoiceDetailModal({ invoice, onClose }: Props) {
             <div>
               <span className="text-on-surface-variant text-xs font-medium">Fecha</span>
               <p className="text-on-surface font-semibold mt-0.5">
-                {new Date(invoice.issue_date).toLocaleDateString("es-ES")}
+                {formatDateOnly(invoice.issue_date, {}, "es-ES")}
               </p>
             </div>
             <div>

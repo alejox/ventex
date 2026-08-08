@@ -1,6 +1,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { buildSuggestedItems } from "@/services/abastecimiento.service";
-import { attachCosts } from "@/services/inventory.service";
+import { attachCosts, SERVICE_UNIT } from "@/services/inventory.service";
+import { needsRestock } from "@/lib/stock";
 import { PedidosClient } from "./PedidosClient";
 
 export default async function PedidosPage() {
@@ -10,6 +11,9 @@ export default async function PedidosPage() {
   const { data: products } = await supabase
     .from("products")
     .select("id, name, image_url, sku, stock_level, minimum_stock, unit, categories(name), distributors(business_name)")
+    // Pedidos es reposición: se le compra a un proveedor. Un servicio no tiene
+    // existencias que reponer, así que no entra en esta pantalla.
+    .neq("unit", SERVICE_UNIT)
     .order("name");
 
   const { data: categories } = await supabase
@@ -41,9 +45,8 @@ export default async function PedidosPage() {
 
   const allCategories = (categories ?? []) as { id: string; name: string }[];
 
-  const lowStockCount = initialProducts.filter(
-    (p) => p.stock_level < p.minimum_stock,
-  ).length;
+  // Misma definición que el KPI de Inventario y el widget del Panel.
+  const lowStockCount = initialProducts.filter(needsRestock).length;
 
   const preseeded = buildSuggestedItems(initialProducts);
 

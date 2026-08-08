@@ -2,7 +2,12 @@
 
 import { useState } from "react";
 import { usePosStore } from "@/stores/pos.store";
-import { cartLineKey as keyOf, linePrice } from "@/services/pos.service";
+import {
+  cartLineKey as keyOf,
+  lineDiscountFor,
+  parseDiscountPercent,
+  MAX_DISCOUNT_PERCENT,
+} from "@/services/pos.service";
 import { backdropProps } from "@/components/modal";
 
 interface DiscountModalProps {
@@ -27,18 +32,22 @@ export function DiscountModal({ onClose }: DiscountModalProps) {
     return new Set(activeTab.cart.map(keyOf));
   });
 
+  /** null = el valor tipeado no sirve. El botón se apaga y se explica por qué. */
+  const validPercent = parseDiscountPercent(percentage);
+  const invalid = validPercent === null;
+
   const handleApply = () => {
-    const p = parseFloat(percentage);
-    if (!Number.isNaN(p) && p >= 0 && activeTab) {
-      const discounts = activeTab.cart.map(line => {
-        if (selectedItems.has(keyOf(line))) {
-          const discountAmount = (linePrice(line) * line.quantity * p) / 100;
-          return { key: keyOf(line), discountAmount };
-        }
-        return { key: keyOf(line), discountAmount: line.discountAmount || 0 };
-      });
-      setLineDiscounts(discounts);
-    }
+    // Antes esto aceptaba cualquier número mayor a cero y, si no servía,
+    // cerraba el panel igual: el cajero creía haber aplicado un descuento que
+    // nunca se aplicó. Ahora un valor inválido no cierra nada.
+    if (invalid || !activeTab) return;
+    const discounts = activeTab.cart.map(line => {
+      if (selectedItems.has(keyOf(line))) {
+        return { key: keyOf(line), discountAmount: lineDiscountFor(line, validPercent) };
+      }
+      return { key: keyOf(line), discountAmount: line.discountAmount || 0 };
+    });
+    setLineDiscounts(discounts);
     onClose();
   };
 
@@ -83,15 +92,30 @@ export function DiscountModal({ onClose }: DiscountModalProps) {
 
         <div className="p-6 flex-1 overflow-y-auto">
           <div className="space-y-1.5 mb-6">
-            <label className="text-sm font-semibold text-on-surface">Porcentaje</label>
+            <label htmlFor="discount-percentage" className="text-sm font-semibold text-on-surface">
+              Porcentaje
+            </label>
             <input
+              id="discount-percentage"
               type="number"
               min="0"
-              max="100"
+              max={MAX_DISCOUNT_PERCENT}
+              step="0.01"
               value={percentage}
               onChange={(e) => setPercentage(e.target.value)}
-              className="w-full bg-transparent border border-outline-variant/30 rounded-xl px-4 py-3 text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+              aria-invalid={invalid}
+              aria-describedby={invalid ? "discount-percentage-error" : undefined}
+              className={`w-full bg-transparent border rounded-xl px-4 py-3 text-on-surface focus:outline-none focus:ring-1 ${
+                invalid
+                  ? "border-error focus:border-error focus:ring-error"
+                  : "border-outline-variant/30 focus:border-primary focus:ring-primary"
+              }`}
             />
+            {invalid && (
+              <p id="discount-percentage-error" className="text-xs font-medium text-error">
+                Ingres&aacute; un porcentaje entre 0 y {MAX_DISCOUNT_PERCENT}.
+              </p>
+            )}
           </div>
 
           <div className="bg-surface-container rounded-xl p-4 mb-4">
@@ -117,9 +141,8 @@ export function DiscountModal({ onClose }: DiscountModalProps) {
             {activeTab?.cart.map(line => {
               const hasExistingDiscount = (line.discountAmount || 0) > 0;
               const isSelected = selectedItems.has(keyOf(line));
-              const p = parseFloat(percentage);
-              const newDiscountAmount = (!Number.isNaN(p) && p >= 0) ? (linePrice(line) * line.quantity * p) / 100 : 0;
-              
+              const newDiscountAmount = validPercent === null ? 0 : lineDiscountFor(line, validPercent);
+
               return (
                 <label key={keyOf(line)} className="flex items-center justify-between p-3 hover:bg-surface-container-lowest cursor-pointer transition-colors rounded-lg">
                   <div className="flex items-center gap-3">
@@ -157,7 +180,8 @@ export function DiscountModal({ onClose }: DiscountModalProps) {
         <div className="p-6 border-t border-outline-variant/10">
           <button
             onClick={handleApply}
-            className="w-full py-3 rounded-xl bg-primary text-white font-bold transition-colors hover:bg-primary-dim shadow-sm hover:shadow-[0_0_20px_rgba(96,99,238,0.35)]"
+            disabled={invalid}
+            className="w-full py-3 rounded-xl bg-primary text-white font-bold transition-colors hover:bg-primary-dim shadow-sm hover:shadow-[0_0_20px_rgba(96,99,238,0.35)] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-primary disabled:hover:shadow-sm"
           >
             Aplicar descuento
           </button>

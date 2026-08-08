@@ -407,6 +407,13 @@ export default function SalesPage() {
                     {formatDate(detail.created_at)} · {detail.customer_name ?? "De Paso"}
                   </p>
                 )}
+                {/* Quién atendió. Se muestra solo si hay alguien atribuido: un
+                    "Atendido por: —" no le dice nada al dueño. */}
+                {detail.staff_name && (
+                  <p className="text-xs text-on-surface-variant mt-0.5">
+                    Atendido por: <span className="font-semibold text-on-surface">{detail.staff_name}</span>
+                  </p>
+                )}
               </div>
               <button
                 onClick={() => { closeDetail(); setVoidConfirm(false); }}
@@ -433,6 +440,23 @@ export default function SalesPage() {
                               ? ` · ${item.sku}`
                               : ""}
                         </p>
+                        {/* El vendedor por línea solo se nombra cuando difiere
+                            del de la cabecera: repetirlo en cada ítem no aporta
+                            y esconde el caso que sí importa. La comisión se
+                            muestra siempre que exista, porque es plata. */}
+                        {(item.staff_name && item.staff_name !== detail.staff_name) || item.commission_amount > 0 ? (
+                          <p className="text-[11px] text-on-surface-variant mt-0.5">
+                            {item.staff_name && item.staff_name !== detail.staff_name && (
+                              <span>Vendió: {item.staff_name}</span>
+                            )}
+                            {item.staff_name && item.staff_name !== detail.staff_name && item.commission_amount > 0 && " · "}
+                            {item.commission_amount > 0 && (
+                              <span className="text-[#10b981] font-medium">
+                                Comisión ${money(item.commission_amount)}
+                              </span>
+                            )}
+                          </p>
+                        ) : null}
                       </div>
                       <span className="text-sm font-bold text-on-surface shrink-0">${money(item.line_total)}</span>
                     </div>

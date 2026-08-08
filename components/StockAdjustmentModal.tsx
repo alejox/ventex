@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import { useMovementsStore } from "@/stores/inventory-movements.store";
 import { useInventoryStore } from "@/stores/inventory.store";
+import { isServiceItem } from "@/services/inventory.service";
 
 interface StockAdjustmentModalProps {
   preselectedProductId?: string;
@@ -50,12 +51,15 @@ export function StockAdjustmentModal({ preselectedProductId, onClose, onSuccess 
   // que la salida en exceso se bloquea acá en vez de dejar enviar y fallar.
   const quantityValid = quantityInRange && !exceedsStock;
 
+  // Los servicios no llevan inventario: no hay entrada, salida ni ajuste que
+  // registrarles. El RPC los rechaza, así que ni siquiera se ofrecen.
   const filteredProducts = useMemo(
     () =>
       products.filter(
         (p) =>
-          p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
-          p.sku.toLowerCase().includes(productSearch.toLowerCase())
+          !isServiceItem(p) &&
+          (p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
+            p.sku.toLowerCase().includes(productSearch.toLowerCase()))
       ),
     [products, productSearch]
   );

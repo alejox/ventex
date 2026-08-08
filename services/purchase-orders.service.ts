@@ -1,5 +1,6 @@
 import { createClient } from "@/utils/supabase/client";
 import { createPurchaseInvoice } from "@/services/purchases.service";
+import { todayISO } from "@/lib/date";
 
 /**
  * Órdenes de compra (pedidos de reposición a proveedor).
@@ -237,7 +238,9 @@ export async function receivePurchaseOrder(order: PurchaseOrder): Promise<string
 
   const invoice = await createPurchaseInvoice({
     distributor_id: order.distributor_id,
-    issue_date: new Date().toISOString().slice(0, 10),
+    // Día local: `toISOString()` habría fechado la recepción de la tarde en el
+    // día siguiente. `issued_at`/`received_at` sí son instantes y siguen en UTC.
+    issue_date: todayISO(),
     supplier_invoice_number: `PED-${order.order_number}`,
     status: "paid",
     items: order.items
