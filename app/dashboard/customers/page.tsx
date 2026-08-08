@@ -148,7 +148,7 @@ export default function CustomersPage() {
       className: "text-on-surface-variant font-mono text-xs",
       cell: (c) => (
         <span className="font-mono text-xs">
-          {c.doc_type ? `${c.doc_type} ${c.identification}` : (c.identification ?? "—")}
+          {c.doc_type && c.identification ? `${c.doc_type} ${c.identification}` : (c.identification ?? "—")}
         </span>
       ),
     },

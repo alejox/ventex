@@ -11,6 +11,8 @@ import {
 } from "@/app/assets/icons/DashboardIcons";
 import { CollectionError, CollectionFilteredEmpty, CollectionLoading } from "@/components/CollectionState";
 import { toISODate } from "@/lib/date";
+import { fetchStaff } from "@/services/pos.service";
+import { Select } from "@/components/ui/Select";
 
 // ---- HELPERS ----
 const MONTHS_ES = [
@@ -137,15 +139,27 @@ export default function CalendarPage() {
     fetchAppointments(start, end);
   }, [view, currentDate, currentMonth, currentYear, fetchAppointments]);
 
+  const [staffList, setStaffList] = useState<{ id: string; full_name: string }[]>([]);
+  const [selectedStaffId, setSelectedStaffId] = useState<string>("all");
+
+  useEffect(() => {
+    fetchStaff().then(setStaffList).catch(() => {});
+  }, []);
+
+  const filteredAppointments = useMemo(() => {
+    if (selectedStaffId === "all") return appointments;
+    return appointments.filter((a) => a.staff_id === selectedStaffId);
+  }, [appointments, selectedStaffId]);
+
   // Group appointments by date
   const appointmentsByDate = useMemo(() => {
     const map: Record<string, Appointment[]> = {};
-    appointments.forEach((a) => {
+    filteredAppointments.forEach((a) => {
       if (!map[a.appointment_date]) map[a.appointment_date] = [];
       map[a.appointment_date].push(a);
     });
     return map;
-  }, [appointments]);
+  }, [filteredAppointments]);
 
   // Navigate
   const navigatePrev = () => {
@@ -252,6 +266,22 @@ export default function CalendarPage() {
               </button>
             ))}
           </div>
+
+          {staffList.length > 0 && (
+            <div className="w-48 shrink-0">
+              <Select
+                size="sm"
+                value={selectedStaffId}
+                onChange={(e) => setSelectedStaffId(e.target.value)}
+              >
+                <option value="all">Todos los barberos</option>
+                {staffList.map((s) => (
+                  <option key={s.id} value={s.id}>{s.full_name}</option>
+                ))}
+              </Select>
+            </div>
+          )}
+
           {displayMode === "calendar" && (
           <div className="flex shrink-0 items-center bg-surface-container border border-outline-variant/10 rounded-xl p-1 shadow-sm">
             {(["month", "week", "day"] as const).map((v) => (

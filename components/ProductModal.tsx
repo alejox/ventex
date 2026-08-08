@@ -13,6 +13,8 @@ import { MoneyInput } from "@/components/ui/MoneyInput";
 import { Select } from "@/components/ui/Select";
 import { notifySuccess } from "@/lib/notifications";
 
+import { createService } from "@/services/services.service";
+
 interface ProductModalProps {
   onClose: () => void;
   onCreated?: (productId: string, productName: string) => void;
@@ -68,10 +70,6 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
   }, [categories.length, fetchInventory]);
 
   // La tasa sale de los ajustes del negocio, no de un 19% escrito a mano.
-  //
-  // COMPRA y VENTA usan tasas distintas a propósito: un negocio no responsable
-  // de IVA igual se lo paga al proveedor (`rawRate`), pero no lo cobra en sus
-  // propios precios (`rate`, que en ese caso vale 0).
   const { rate: taxRate, rawRate, includeTax, percentLabel, rawPercentLabel } = useBusinessTax();
 
   const [type, setType] = useState("Producto");
@@ -89,6 +87,8 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
   const [presentation, setPresentation] = useState<"unit" | "package">("unit");
   const [tax, setTax] = useState("IVA");
   const [packageSellingPrice, setPackageSellingPrice] = useState("");
+  const [serviceDuration, setServiceDuration] = useState("30");
+  const [serviceStatus, setServiceStatus] = useState<"active" | "inactive">("active");
 
   /** El stock siempre se guarda en unidades sueltas: una caja son N. */
   const initialStock =
@@ -121,6 +121,12 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
   const [packagePrice, setPackagePrice] = usePricePair(purchaseMultiplier);
   const [unitPrice, setUnitPrice] = usePricePair(taxMultiplier);
 
+  // For services, keep the old price logic
+  const [serviceTax, setServiceTax] = useState("Ninguno");
+  const serviceTaxMultiplier = serviceTax === "Ninguno" ? 1 : 1 + taxRate;
+  const [servicePrice, setServicePrice] = usePricePair(serviceTaxMultiplier);
+  const finalPriceValue = servicePrice.total;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (type === "Combo") return;
@@ -130,17 +136,30 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
     // Lo que se guarda es SIEMPRE el precio final de vitrina (IVA incluido).
     const sellingPrice = type === "Producto" ? unitPrice.total : finalPriceValue;
 
+    if (isService) {
+      try {
+        await createService({
+          name,
+          description: "",
+          price: sellingPrice,
+          duration_minutes: serviceDuration || "30",
+          status: serviceStatus,
+          has_commission: false,
+          commission_type: "percentage",
+          commission_value: "",
+        });
+      } catch {
+        // En caso de que ya exista en la tabla de servicios, continuar.
+      }
+    }
+
     const result = await addProduct(
       {
         name,
         category_id: categoryId,
         distributor_id: "",
-        // Vacío: el servicio genera el código interno. El alta rápida no pide
-        // SKU a propósito — es el camino de los 20 segundos.
         sku: "",
-        // Un servicio no tiene empaque, así que no lleva código de barras.
         barcode: isService ? "" : barcode,
-        // Vacío = este producto no se vende por caja.
         package_price: isService || presentation !== "package" ? "" : packageSellingPrice,
         unit,
         purchase_price: isService ? "0" : packagePrice.total,
@@ -152,26 +171,19 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
         commission_value: "",
         units_per_package: isService || presentation !== "package" ? "1" : (unitsPerPackage || "1"),
       },
-      // El store sube la foto y guarda su URL; el servicio la convierte a WebP.
       isService ? null : imageFile,
     );
-    if (result) {
+    if (result || isService) {
       notifySuccess(
         type === "Servicio" ? "¡Servicio creado con éxito!" : "¡Producto creado con éxito!",
         type === "Servicio"
-          ? "El servicio ya está disponible."
+          ? "El servicio ya está disponible para agendar y cobrar."
           : "El producto ya está disponible."
       );
       onCreated?.(typeof result === "string" ? result : "", name);
       onClose();
     }
   };
-
-  // For services, keep the old price logic
-  const [serviceTax, setServiceTax] = useState("Ninguno");
-  const serviceTaxMultiplier = serviceTax === "Ninguno" ? 1 : 1 + taxRate;
-  const [servicePrice, setServicePrice] = usePricePair(serviceTaxMultiplier);
-  const finalPriceValue = servicePrice.total;
 
   return (
     <div
@@ -537,39 +549,78 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
               </div>
             </div>
           ) : (
-            /* Servicios: precio base + impuesto = precio final */
-            <div className="flex flex-col sm:flex-row sm:items-end gap-3 pt-2">
-              <div className="space-y-1.5 flex-1 w-full">
-                <label className="flex items-center gap-1 text-sm font-semibold text-on-surface">
-                  Precio base <span className="text-primary">*</span>
-                </label>
-                <MoneyInput
-                  aria-label="Precio base del servicio"
-                  value={servicePrice.base}
-                  onChange={setServicePrice.fromBase}
-                  required
-                />
+            /* Servicios: precio base + impuesto = precio final + duración y estado */
+            <div className="space-y-4 pt-2">
+              <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+                <div className="space-y-1.5 flex-1 w-full">
+                  <label className="flex items-center gap-1 text-sm font-semibold text-on-surface">
+                    Precio base <span className="text-primary">*</span>
+                  </label>
+                  <MoneyInput
+                    aria-label="Precio base del servicio"
+                    value={servicePrice.base}
+                    onChange={setServicePrice.fromBase}
+                    required
+                  />
+                </div>
+                <div className="pb-3 text-primary font-bold text-lg hidden sm:block">+</div>
+                <Select
+                  label="Impuestos"
+                  containerClassName="flex-1 w-full"
+                  value={serviceTax}
+                  onChange={(e) => setServiceTax(e.target.value)}
+                >
+                  <option value="Ninguno">Ninguno</option>
+                  {includeTax && <option value="IVA">IVA {percentLabel}</option>}
+                </Select>
+                <div className="pb-3 text-primary font-bold text-lg hidden sm:block">=</div>
+                <div className="space-y-1.5 flex-1 w-full">
+                  <label className="flex items-center gap-1 text-sm font-semibold text-on-surface">
+                    Precio final <span className="text-primary">*</span>
+                  </label>
+                  <MoneyInput
+                    aria-label="Precio final del servicio"
+                    value={servicePrice.total}
+                    onChange={setServicePrice.fromTotal}
+                  />
+                </div>
               </div>
-              <div className="pb-3 text-primary font-bold text-lg hidden sm:block">+</div>
-              <Select
-                label="Impuestos"
-                containerClassName="flex-1 w-full"
-                value={serviceTax}
-                onChange={(e) => setServiceTax(e.target.value)}
-              >
-                <option value="Ninguno">Ninguno</option>
-                {includeTax && <option value="IVA">IVA {percentLabel}</option>}
-              </Select>
-              <div className="pb-3 text-primary font-bold text-lg hidden sm:block">=</div>
-              <div className="space-y-1.5 flex-1 w-full">
-                <label className="flex items-center gap-1 text-sm font-semibold text-on-surface">
-                  Precio final <span className="text-primary">*</span>
-                </label>
-                <MoneyInput
-                  aria-label="Precio final del servicio"
-                  value={servicePrice.total}
-                  onChange={setServicePrice.fromTotal}
-                />
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                <div className="space-y-1.5">
+                  <label className="text-[13px] font-semibold text-on-surface block">
+                    Duración (minutos) <span className="text-primary">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    required
+                    value={serviceDuration}
+                    onChange={(e) => setServiceDuration(e.target.value)}
+                    className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                    placeholder="30"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between p-3 bg-surface-container-low rounded-xl border border-outline-variant/10">
+                  <div>
+                    <p className="text-sm font-bold text-on-surface">Servicio Activo</p>
+                    <p className="text-xs text-on-surface-variant">Disponible en agenda</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setServiceStatus((s) => (s === "active" ? "inactive" : "active"))}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none shrink-0 ${
+                      serviceStatus === "active" ? "bg-[#6063ee]" : "bg-outline-variant/30"
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        serviceStatus === "active" ? "translate-x-6" : "translate-x-1"
+                      }`}
+                    />
+                  </button>
+                </div>
               </div>
             </div>
           )}

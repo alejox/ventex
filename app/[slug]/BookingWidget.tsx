@@ -266,7 +266,13 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
                   disabled={!isBookable}
                   aria-pressed={isSelected}
                   aria-label={`${longDateFmt.format(parsed)}, ${
-                    !day.isOpen ? "cerrado" : day.freeSlots === 0 ? "sin cupos" : `${day.freeSlots} turnos libres`
+                    !day.isOpen
+                      ? "cerrado"
+                      : day.freeSlots === 0
+                        ? isToday
+                          ? "cerrado por hoy"
+                          : "sin cupos"
+                        : `${day.freeSlots} turnos libres`
                   }`}
                   onClick={() => setPickedDate(day.date)}
                   className={`flex min-w-[4.25rem] shrink-0 snap-start flex-col items-center gap-1 rounded-[var(--site-radius)] border px-2 py-2.5 transition-all ${
@@ -285,7 +291,7 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
                   {!day.isOpen ? (
                     <span className="text-[0.55rem] uppercase">Cerrado</span>
                   ) : day.freeSlots === 0 ? (
-                    <span className="text-[0.55rem] uppercase">Lleno</span>
+                    <span className="text-[0.55rem] uppercase">{isToday ? "Cerrado" : "Lleno"}</span>
                   ) : (
                     <span className="text-[0.55rem] opacity-80">{day.freeSlots} libres</span>
                   )}

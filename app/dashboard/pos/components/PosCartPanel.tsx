@@ -14,6 +14,8 @@ import {
   type StaffOption,
 } from "@/services/pos.service";
 
+import { useProfile } from "@/components/ProfileProvider";
+
 const money = (n: number) =>
   n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -108,6 +110,7 @@ export function PosCartPanel({
   isDelivery,
   setDelivery,
 }: PosCartPanelProps) {
+  const profile = useProfile();
   return (
     <>
       {isCartOpen && (
@@ -249,7 +252,7 @@ export function PosCartPanel({
             )}
 
             {/* Domicilio toggle */}
-            {totals.total > 0 && (
+            {totals.total > 0 && profile?.businessType !== "salon" && (
               <label className="flex items-center gap-3 py-1.5 cursor-pointer">
                 <button
                   type="button"
@@ -296,6 +299,17 @@ export function PosCartPanel({
                 ))}
               </Select>
             )}
+
+            {/* Con un solo empleado no hay selector por línea: si la venta tiene
+                ítems que comisionan y "Atendido por" queda vacío, la comisión
+                se pierde en silencio. Por eso se avisa. */}
+            {cart.some((l) => l.item.kind === "service" || l.item.has_commission) &&
+              staff.length === 1 &&
+              !staffId && (
+                <p className="text-[10px] text-amber-600 dark:text-amber-400">
+                  Hay ítems que comisionan: elegí "Atendido por" para que la comisión se devengue.
+                </p>
+              )}
           </div>
 
           <div className="min-h-[9rem] lg:flex-1 lg:min-h-0 lg:overflow-y-auto p-5 space-y-4">
@@ -419,8 +433,12 @@ export function PosCartPanel({
               {/* Líneas que comisionan. La atribución es lo ÚNICO que decide si
                   la comisión se devenga: create_sale la congela en cero cuando
                   no hay persona, así que dejarla sin asignar la pierde para
-                  siempre. Por eso se avisa en vez de fallar en silencio. */}
-              {cart.some((l) => l.item.kind === "service" || l.item.has_commission) && (
+                  siempre. Por eso se avisa en vez de fallar en silencio.
+                  Con UN solo empleado activo el selector por línea sobra:
+                  "Atendido por" ya atribuye la venta entera. El selector por
+                  línea solo se muestra con 2+ empleados, que es cuando tiene
+                  sentido dividir las comisiones de una misma venta. */}
+              {cart.some((l) => l.item.kind === "service" || l.item.has_commission) && staff.length !== 1 && (
                 <div className="space-y-1.5 pt-1 border-t border-outline-variant/10">
                   {staff.length === 0 ? (
                     <p className="text-[10px] text-amber-600 dark:text-amber-400">

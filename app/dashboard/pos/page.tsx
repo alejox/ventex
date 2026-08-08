@@ -221,6 +221,18 @@ export default function POSPage() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Atajos globales solo cuando el cajero NO está escribiendo en un campo:
+      // un Enter en la búsqueda global (o en cualquier input) busca, no vende.
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT" ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
       if (e.key === "Escape") {
         setIsCustomerModalOpen(false);
         setIsDiscountModalOpen(false);

@@ -299,9 +299,9 @@ const UNIVERSAL_NAV_IDS = ["panel", "pos", "sales", "customers", "staff", "subsc
 // `services` ya les quedan `true` en `effectiveModules` y los ítems
 // correspondientes de NAV_ITEMS se muestran solos.
 const BASE_NAV_BY_TYPE: Record<BusinessType, string[]> = {
-  salon: ["calendar", "distributors", "purchases"],
+  salon: ["calendar"],
   tienda: ["inventory", "categories", "distributors", "purchases"],
-  lavaautos: ["calendar", "distributors", "purchases"],
+  lavaautos: ["calendar"],
   servicios: ["calendar"],
 };
 
@@ -316,19 +316,24 @@ const BASE_QUICK_BY_TYPE: Record<BusinessType, string[]> = {
 
 /**
  * Módulos efectivos de una cuenta: para los tipos "full module" se activan
- * todos los del rubro; el resto respeta lo guardado en el perfil (opt-in).
+ * todos los del rubro por defecto a menos que estén explícitamente desactivados
+ * en el perfil (`modules[id] === false`).
  */
 export function effectiveModules(
   businessType: BusinessType | null,
   modules: Modules | null,
 ): Modules {
   const stored = modules ?? {};
-  if (businessType && FULL_MODULE_TYPES.includes(businessType)) {
-    const all: Modules = { ...stored };
-    for (const id of modulesForType(businessType)) all[id] = true;
-    return all;
+  if (!businessType) return stored;
+  const result: Modules = { ...stored };
+  if (FULL_MODULE_TYPES.includes(businessType)) {
+    for (const id of modulesForType(businessType)) {
+      if (result[id] === undefined) {
+        result[id] = true;
+      }
+    }
   }
-  return stored;
+  return result;
 }
 
 export function visibleNavItems(

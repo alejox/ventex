@@ -197,17 +197,12 @@ function AppointmentModalBody({
     if (ok) onClose();
   };
 
-  const handleDelete = async () => {
-    if (!appointment) return;
-    if (!confirm("¿Eliminar esta cita?")) return;
-    const ok = await deleteAppointment(appointment.id);
-    if (ok) onClose();
-  };
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showChargeConfirm, setShowChargeConfirm] = useState(false);
 
   const handleStatusChange = async (status: string) => {
     if (!appointment || status === liveStatus) return;
     const ok = await updateStatus(appointment.id, status);
-    // Sin aviso, un cambio de estado correcto se ve igual que uno que falló.
     if (ok) {
       const label = STATUS_OPTIONS.find((o) => o.value === status)?.label ?? status;
       toast.success(`Cita marcada como ${label.toLowerCase()}.`);
@@ -222,11 +217,22 @@ function AppointmentModalBody({
     liveStatus !== "completed" &&
     liveStatus !== "cancelled";
 
-  const handleCharge = async () => {
+  const confirmDeleteAction = async () => {
     if (!appointment) return;
-    if (!confirm("¿Cobrar esta cita? Se registrará como venta y la cita quedará completada.")) return;
+    const ok = await deleteAppointment(appointment.id);
+    if (ok) {
+      setShowDeleteConfirm(false);
+      onClose();
+    }
+  };
+
+  const confirmChargeAction = async () => {
+    if (!appointment) return;
     const ok = await chargeAppointment(appointment);
-    if (ok) onClose();
+    if (ok) {
+      setShowChargeConfirm(false);
+      onClose();
+    }
   };
 
   const handleServiceChange = (id: string) => {
@@ -507,7 +513,7 @@ function AppointmentModalBody({
               {isEditing && (
                 <button
                   type="button"
-                  onClick={handleDelete}
+                  onClick={() => setShowDeleteConfirm(true)}
                   className="px-4 py-2.5 rounded-xl text-sm font-semibold text-error-dim hover:bg-error-container/20 transition-colors"
                 >
                   Eliminar
@@ -516,7 +522,7 @@ function AppointmentModalBody({
               {canCharge && (
                 <button
                   type="button"
-                  onClick={handleCharge}
+                  onClick={() => setShowChargeConfirm(true)}
                   disabled={submitting}
                   className="px-4 py-2.5 rounded-xl text-sm font-semibold text-emerald-600 bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors disabled:opacity-50"
                 >
@@ -547,6 +553,62 @@ function AppointmentModalBody({
           </div>
         </form>
       </div>
+
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-surface-container rounded-3xl w-full max-w-sm border border-outline-variant/10 shadow-2xl p-6 text-center animate-in zoom-in-95 duration-200">
+            <h3 className="text-lg font-bold text-on-surface mb-2">Eliminar Cita</h3>
+            <p className="text-sm text-on-surface-variant mb-6">
+              ¿Estás seguro de eliminar esta cita? Esta acción no se puede deshacer.
+            </p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirm(false)}
+                className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold text-on-surface-variant hover:bg-surface-container-highest transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmDeleteAction}
+                disabled={submitting}
+                className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold bg-error-dim hover:bg-error text-white transition-colors disabled:opacity-50"
+              >
+                {submitting ? "Eliminando…" : "Eliminar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showChargeConfirm && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-surface-container rounded-3xl w-full max-w-sm border border-outline-variant/10 shadow-2xl p-6 text-center animate-in zoom-in-95 duration-200">
+            <h3 className="text-lg font-bold text-on-surface mb-2">Cobrar Cita</h3>
+            <p className="text-sm text-on-surface-variant mb-6">
+              Se registrará como venta en el POS y la cita quedará marcada como completada.
+            </p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowChargeConfirm(false)}
+                className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold text-on-surface-variant hover:bg-surface-container-highest transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmChargeAction}
+                disabled={submitting}
+                className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold bg-emerald-600 hover:bg-emerald-500 text-white transition-colors disabled:opacity-50"
+              >
+                {submitting ? "Cobrando…" : "Cobrar Cita"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

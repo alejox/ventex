@@ -95,8 +95,62 @@ export function DashboardHome({ canAddExpense = false }: { canAddExpense?: boole
         </div>
       )}
 
-      {/* KPIs principales. Ojo: revenue/expenses/net son acumulados históricos,
-          no del mes — el corte por mes es el gráfico de abajo. */}
+      {/* Acciones Rápidas */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <Link
+          href="/dashboard/calendar"
+          className="flex items-center gap-3 p-3.5 rounded-2xl bg-surface-container-lowest border border-outline-variant/10 hover:border-primary/40 hover:bg-primary/5 transition-all group shadow-sm"
+        >
+          <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold text-lg group-hover:scale-105 transition-transform">
+            📅
+          </div>
+          <div>
+            <span className="text-xs font-bold text-on-surface block">Agendar Cita</span>
+            <span className="text-[11px] text-on-surface-variant">Agenda y turnos</span>
+          </div>
+        </Link>
+
+        <Link
+          href="/dashboard/pos"
+          className="flex items-center gap-3 p-3.5 rounded-2xl bg-surface-container-lowest border border-outline-variant/10 hover:border-emerald-500/40 hover:bg-emerald-500/5 transition-all group shadow-sm"
+        >
+          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center font-bold text-lg group-hover:scale-105 transition-transform">
+            ⚡
+          </div>
+          <div>
+            <span className="text-xs font-bold text-on-surface block">Punto de Venta</span>
+            <span className="text-[11px] text-on-surface-variant">Cobrar al instante</span>
+          </div>
+        </Link>
+
+        <Link
+          href="/dashboard/services"
+          className="flex items-center gap-3 p-3.5 rounded-2xl bg-surface-container-lowest border border-outline-variant/10 hover:border-amber-500/40 hover:bg-amber-500/5 transition-all group shadow-sm"
+        >
+          <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center font-bold text-lg group-hover:scale-105 transition-transform">
+            ✂️
+          </div>
+          <div>
+            <span className="text-xs font-bold text-on-surface block">Servicios</span>
+            <span className="text-[11px] text-on-surface-variant">Cortes y catálogo</span>
+          </div>
+        </Link>
+
+        <Link
+          href="/dashboard/customers"
+          className="flex items-center gap-3 p-3.5 rounded-2xl bg-surface-container-lowest border border-outline-variant/10 hover:border-purple-500/40 hover:bg-purple-500/5 transition-all group shadow-sm"
+        >
+          <div className="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-600 flex items-center justify-center font-bold text-lg group-hover:scale-105 transition-transform">
+            👤
+          </div>
+          <div>
+            <span className="text-xs font-bold text-on-surface block">Clientes</span>
+            <span className="text-[11px] text-on-surface-variant">Directorio y visitas</span>
+          </div>
+        </Link>
+      </div>
+
+      {/* KPIs principales */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
           icon={<IconDollar className="w-5 h-5" />}

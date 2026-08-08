@@ -158,112 +158,108 @@ function BusinessProfileForm({ settings }: { settings: Settings }) {
 
             <hr className="border-outline-variant/10" />
 
-            {/* Form Fields */}
+            {/* Form Fields: Essential contact info */}
             <div className="space-y-6">
-              {/* Tipo de persona */}
-              <div>
-                <label className="block text-sm font-semibold text-on-surface mb-2">Tipo de persona <span className="text-primary">*</span></label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {(["natural", "juridica"] as const).map((t) => (
-                    <label key={t} className={`flex items-center gap-3 p-4 rounded-xl border cursor-pointer transition-colors ${form.personType === t ? 'border-primary bg-primary/5 text-primary' : 'border-outline-variant/20 bg-surface-container-low text-on-surface-variant hover:bg-surface-container'}`}>
-                      <input type="radio" name="person_type" value={t} checked={form.personType === t} onChange={() => update("personType", t)} className="hidden" />
-                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${form.personType === t ? 'border-primary' : 'border-outline-variant/50'}`}>
-                        {form.personType === t && <div className="w-2 h-2 rounded-full bg-primary" />}
-                      </div>
-                      <span className="font-medium text-sm capitalize">{t === "natural" ? "Persona natural" : "Persona jurídica"}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              {/* Row 1 */}
-              <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
-                <div className="sm:col-span-4">
-                  <Select
-                    label="Tipo de identificación *"
-                    value={form.identificationType ?? ""}
-                    onChange={(e) => update("identificationType", e.target.value)}
-                  >
-                    <option value="">Seleccionar</option>
-                    <option value="NIT">NIT - Número de identificación tributaria</option>
-                    <option value="CC">CC - Cédula de ciudadanía</option>
-                  </Select>
-                </div>
-                <Field label="Número de identificación" required className="sm:col-span-3">
-                  <input type="text" value={form.identificationNumber ?? ""} onChange={(e) => update("identificationNumber", e.target.value)} placeholder="9012345678" className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field label="Nombre comercial" required>
+                  <input type="text" value={form.businessName ?? ""} onChange={(e) => update("businessName", e.target.value)} placeholder="Ej. Barbería El Galón" className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface" />
                 </Field>
-                <Field label="DV" required className="sm:col-span-2">
-                  <input type="text" value={form.dv ?? ""} onChange={(e) => update("dv", e.target.value)} className="w-full h-[42px] px-3 bg-surface-container border border-outline-variant/10 rounded-lg text-sm text-on-surface-variant focus:outline-none" />
-                </Field>
-                <div className="sm:col-span-3">
-                  <Select
-                    label="Tipo de persona según nacionalidad *"
-                    value={form.nationalityType ?? ""}
-                    onChange={(e) => update("nationalityType", e.target.value)}
-                  >
-                    <option value="">Seleccionar</option>
-                    <option value="Nacional">Nacional</option>
-                    <option value="Extranjero">Extranjero</option>
-                  </Select>
-                </div>
-              </div>
-
-              {/* Row 2 */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <Field label="Primer nombre" required>
-                  <input type="text" value={form.firstName ?? ""} onChange={(e) => update("firstName", e.target.value)} className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface" />
-                </Field>
-                <Field label="Segundo nombre">
-                  <input type="text" value={form.secondName ?? ""} onChange={(e) => update("secondName", e.target.value)} className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface" />
-                </Field>
-                <Field label="Apellidos" required>
-                  <input type="text" value={form.lastName ?? ""} onChange={(e) => update("lastName", e.target.value)} className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface" />
-                </Field>
-              </div>
-
-              {/* Row 3 */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <Field label="Nombre comercial">
-                  <input type="text" value={form.businessName ?? ""} onChange={(e) => update("businessName", e.target.value)} className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface" />
-                </Field>
-                <div>
-                  <Select
-                    label="Responsabilidad tributaria *"
-                    value={form.taxResponsibility ?? ""}
-                    onChange={(e) => update("taxResponsibility", e.target.value)}
-                  >
-                    <option value="">Seleccionar</option>
-                    <option value="Responsable de IVA">Responsable de IVA</option>
-                    <option value="No responsable de IVA">No responsable de IVA</option>
-                  </Select>
-                </div>
-                <Field label="Municipio / Departamento">
-                  <input type="text" value={form.municipality ?? ""} onChange={(e) => update("municipality", e.target.value)} className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface" />
-                </Field>
-              </div>
-
-              {/* Row 4 */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <Field label="Dirección">
-                  <input type="text" value={form.address ?? ""} onChange={(e) => update("address", e.target.value)} className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface" />
-                </Field>
-                <Field label="Código postal">
-                  <input type="text" value={form.postalCode ?? ""} onChange={(e) => update("postalCode", e.target.value)} className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface" />
-                </Field>
-                <Field label="Correo electrónico">
-                  <input type="email" value={form.email ?? ""} onChange={(e) => update("email", e.target.value)} className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface" />
-                </Field>
-              </div>
-
-              {/* Row 5 */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <Field label="Teléfono">
-                  <input type="tel" value={form.phone ?? ""} onChange={(e) => update("phone", e.target.value)} className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface" />
-                </Field>
-                <Field label="Sitio web">
-                  <input type="url" value={form.website ?? ""} onChange={(e) => update("website", e.target.value)} className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface" />
+                  <input type="tel" value={form.phone ?? ""} onChange={(e) => update("phone", e.target.value)} placeholder="Ej. +57 300 123 4567" className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface" />
                 </Field>
               </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <Field label="Correo electrónico">
+                  <input type="email" value={form.email ?? ""} onChange={(e) => update("email", e.target.value)} placeholder="contacto@minegocio.com" className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface" />
+                </Field>
+                <Field label="Dirección">
+                  <input type="text" value={form.address ?? ""} onChange={(e) => update("address", e.target.value)} placeholder="Calle 10 # 5-20" className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface" />
+                </Field>
+                <Field label="Municipio / Departamento">
+                  <input type="text" value={form.municipality ?? ""} onChange={(e) => update("municipality", e.target.value)} placeholder="Bogotá D.C." className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface" />
+                </Field>
+              </div>
+
+              {/* Accordion: DIAN / Legal tax fields */}
+              <details className="group border border-outline-variant/20 rounded-2xl p-4 bg-surface-container-low transition-all">
+                <summary className="font-semibold text-sm text-on-surface cursor-pointer flex items-center justify-between select-none">
+                  <span>¿Requieres facturación electrónica / DIAN? (Datos tributarios opcionales)</span>
+                  <span className="text-xs text-primary font-medium group-open:rotate-180 transition-transform">▼</span>
+                </summary>
+                <div className="mt-4 space-y-6 pt-4 border-t border-outline-variant/10">
+                  {/* Tipo de persona */}
+                  <div>
+                    <label className="block text-sm font-semibold text-on-surface mb-2">Tipo de persona</label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {(["natural", "juridica"] as const).map((t) => (
+                        <label key={t} className={`flex items-center gap-3 p-4 rounded-xl border cursor-pointer transition-colors ${form.personType === t ? 'border-primary bg-primary/5 text-primary' : 'border-outline-variant/20 bg-surface-container-low text-on-surface-variant hover:bg-surface-container'}`}>
+                          <input type="radio" name="person_type" value={t} checked={form.personType === t} onChange={() => update("personType", t)} className="hidden" />
+                          <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${form.personType === t ? 'border-primary' : 'border-outline-variant/50'}`}>
+                            {form.personType === t && <div className="w-2 h-2 rounded-full bg-primary" />}
+                          </div>
+                          <span className="font-medium text-sm capitalize">{t === "natural" ? "Persona natural" : "Persona jurídica"}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Identification Row */}
+                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
+                    <div className="sm:col-span-4">
+                      <Select
+                        label="Tipo de identificación"
+                        value={form.identificationType ?? ""}
+                        onChange={(e) => update("identificationType", e.target.value)}
+                      >
+                        <option value="">Seleccionar</option>
+                        <option value="NIT">NIT - Número de identificación tributaria</option>
+                        <option value="CC">CC - Cédula de ciudadanía</option>
+                      </Select>
+                    </div>
+                    <Field label="Número de identificación" className="sm:col-span-4">
+                      <input type="text" value={form.identificationNumber ?? ""} onChange={(e) => update("identificationNumber", e.target.value)} placeholder="9012345678" className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface" />
+                    </Field>
+                    <Field label="DV" className="sm:col-span-4">
+                      <input type="text" value={form.dv ?? ""} onChange={(e) => update("dv", e.target.value)} className="w-full h-[42px] px-3 bg-surface-container border border-outline-variant/10 rounded-lg text-sm text-on-surface-variant focus:outline-none" />
+                    </Field>
+                  </div>
+
+                  {/* Names Row */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <Field label="Primer nombre">
+                      <input type="text" value={form.firstName ?? ""} onChange={(e) => update("firstName", e.target.value)} className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface" />
+                    </Field>
+                    <Field label="Segundo nombre">
+                      <input type="text" value={form.secondName ?? ""} onChange={(e) => update("secondName", e.target.value)} className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface" />
+                    </Field>
+                    <Field label="Apellidos">
+                      <input type="text" value={form.lastName ?? ""} onChange={(e) => update("lastName", e.target.value)} className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface" />
+                    </Field>
+                  </div>
+
+                  {/* Tax Responsibility & Postal Code Row */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                      <Select
+                        label="Responsabilidad tributaria"
+                        value={form.taxResponsibility ?? ""}
+                        onChange={(e) => update("taxResponsibility", e.target.value)}
+                      >
+                        <option value="">Seleccionar</option>
+                        <option value="Responsable de IVA">Responsable de IVA</option>
+                        <option value="No responsable de IVA">No responsable de IVA</option>
+                      </Select>
+                    </div>
+                    <Field label="Código postal">
+                      <input type="text" value={form.postalCode ?? ""} onChange={(e) => update("postalCode", e.target.value)} className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface" />
+                    </Field>
+                    <Field label="Sitio web">
+                      <input type="url" value={form.website ?? ""} onChange={(e) => update("website", e.target.value)} className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface" />
+                    </Field>
+                  </div>
+                </div>
+              </details>
             </div>
           </div>
         </div>

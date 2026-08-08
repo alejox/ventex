@@ -423,11 +423,11 @@ export const usePosStore = create<PosState>((set, get) => {
             return {
               ...t,
               cart: t.cart.map((l) =>
-                keyOf(l) === key ? { ...l, quantity: l.quantity + 1 } : l,
+                keyOf(l) === key ? { ...l, quantity: l.quantity + 1, staffId: l.staffId ?? t.staffId } : l,
               ),
             };
           }
-          return { ...t, cart: [...t.cart, { item, unitKind, quantity: 1 }] };
+          return { ...t, cart: [...t.cart, { item, unitKind, quantity: 1, staffId: t.staffId ?? null }] };
         }),
       }));
     },
@@ -449,11 +449,11 @@ export const usePosStore = create<PosState>((set, get) => {
             return {
               ...t,
               cart: t.cart.map((l) =>
-                keyOf(l) === key ? { ...l, quantity: l.quantity + 1 } : l,
+                keyOf(l) === key ? { ...l, quantity: l.quantity + 1, staffId: l.staffId ?? t.staffId } : l,
               ),
             };
           }
-          return { ...t, cart: [...t.cart, { item, unitKind, quantity: 1 }] };
+          return { ...t, cart: [...t.cart, { item, unitKind, quantity: 1, staffId: t.staffId ?? null }] };
         }),
       }));
     },
@@ -591,7 +591,14 @@ export const usePosStore = create<PosState>((set, get) => {
 
     setStaff: (staffId) =>
       set((s) => ({
-        tabs: s.tabs.map((t) => (t.id === s.activeTabId ? { ...t, staffId } : t)),
+        tabs: s.tabs.map((t) => {
+          if (t.id !== s.activeTabId) return t;
+          return {
+            ...t,
+            staffId,
+            cart: t.cart.map((line) => ({ ...line, staffId: staffId ?? line.staffId })),
+          };
+        }),
       })),
 
     setLineDiscounts: (discounts) =>

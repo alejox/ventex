@@ -80,3 +80,23 @@ export async function deleteService(id: string): Promise<void> {
   const { error } = await supabase.from("services").delete().eq("id", id);
   if (error) throw error;
 }
+
+/**
+ * Actualiza el gemelo en `services` de un servicio creado/guardado desde el
+ * inventario o el POS: si ya existe una fila con el mismo nombre, la
+ * actualiza; si no, la crea. La búsqueda queda acotada al negocio por RLS.
+ */
+export async function upsertServiceByName(input: NewServiceInput): Promise<void> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("services")
+    .select("id")
+    .ilike("name", input.name);
+  if (error) throw error;
+  const found = data?.[0];
+  if (found) {
+    await updateService(found.id, input);
+  } else {
+    await createService(input);
+  }
+}

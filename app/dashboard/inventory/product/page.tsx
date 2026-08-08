@@ -4,8 +4,11 @@ import { Suspense, useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useInventoryStore } from "@/stores/inventory.store";
+import { useServicesStore } from "@/stores/services.store";
 import type { NewProductInput } from "@/services/inventory.service";
 import { calculateMargin, handlePresentationModeChange } from "@/services/inventory.service";
+import { createService, upsertServiceByName } from "@/services/services.service";
+import type { NewServiceInput } from "@/services/services.service";
 import { DistributorQuickModal } from "@/components/DistributorQuickModal";
 import { CategoryQuickModal } from "@/components/CategoryQuickModal";
 import { BarcodeField } from "@/components/BarcodeField";
@@ -68,6 +71,10 @@ function ProductForm() {
   const fetchInventory = useInventoryStore((s) => s.fetchInventory);
   const addProduct = useInventoryStore((s) => s.addProduct);
   const updateProduct = useInventoryStore((s) => s.updateProduct);
+  const archiveProduct = useInventoryStore((s) => s.archiveProduct);
+  const activateProduct = useInventoryStore((s) => s.activateProduct);
+  const services = useServicesStore((s) => s.services);
+  const fetchServices = useServicesStore((s) => s.fetchServices);
 
   const [form, setForm] = useState<NewProductInput>({
     name: "",
@@ -101,6 +108,8 @@ function ProductForm() {
   const [categoryModalOpen, setCategoryModalOpen] = useState(false);
   const [itemType, setItemType] = useState<"Producto" | "Servicio">("Producto");
   const [serviceFinalPrice, setServiceFinalPrice] = useState("");
+  const [serviceDuration, setServiceDuration] = useState("30");
+  const [serviceStatus, setServiceStatus] = useState<"active" | "inactive">("active");
   /**
    * Cómo se maneja el producto. Arranca en "unidad" porque es lo que aplica a
    * la mayoría; la caja es una decisión que se toma, no un default que se sufre.
@@ -158,7 +167,8 @@ function ProductForm() {
 
   useEffect(() => {
     fetchInventory();
-  }, [fetchInventory]);
+    fetchServices();
+  }, [fetchInventory, fetchServices]);
 
   /** Stock inicial en unidades sueltas: una caja son N. */
   const initialStock =
@@ -190,7 +200,15 @@ function ProductForm() {
   // usuario escribe no se pisa cuando el store se refresca.
   if (editingProduct && seededId !== editingProduct.id) {
     setSeededId(editingProduct.id);
-    if (editingProduct.unit === "Servicio") setItemType("Servicio");
+    if (editingProduct.unit === "Servicio") {
+      setItemType("Servicio");
+      // El gemelo en `services` puede tener otra duración: se siembra desde ahí.
+      const twin = services.find((s) => s.name.toLowerCase() === editingProduct.name.toLowerCase());
+      setServiceDuration(String(twin?.duration_minutes ?? 30));
+      setServiceStatus(
+        (twin?.status ?? editingProduct.status ?? "active") === "inactive" ? "inactive" : "active"
+      );
+    }
     setForm({
       name: editingProduct.name,
       category_id: editingProduct.category_id ?? "",
@@ -306,11 +324,65 @@ function ProductForm() {
       unit: isService ? "Servicio" : form.unit,
     };
 
+    // Duración del servicio: si no es un entero positivo, cae al default de 30.
+    const durationRaw = serviceDuration.trim();
+    const durationMinutes = /^\d+$/.test(durationRaw) && parseInt(durationRaw, 10) > 0 ? durationRaw : "30";
+
+    // Los servicios se guardan en `services` (agenda y POS) y además se reflejan
+    // en `products` con unidad "Servicio" para el inventario.
+    const serviceInput: NewServiceInput | null = isService
+      ? {
+          name: payload.name,
+          description: "",
+          price: serviceFinalPrice,
+          duration_minutes: durationMinutes,
+          status: serviceStatus,
+          has_commission: form.has_commission,
+          commission_type: form.commission_type,
+          commission_value: form.commission_value || "",
+        }
+      : null;
+
+    if (isService && !editId && serviceInput) {
+      try {
+        await createService(serviceInput);
+      } catch {
+        // En caso de que ya exista en la tabla de servicios, continuar.
+      }
+    }
+
     const ok = editId
       ? await updateProduct(editId, payload, isService ? null : imageFile)
       : await addProduct(payload, isService ? null : imageFile);
     const success = typeof ok === "string" || ok === true;
     setSaving(false);
+
+    if (success && isService && editId && serviceInput) {
+      try {
+        // Actualiza el gemelo en `services` si ya existe; si no, lo crea.
+        await upsertServiceByName(serviceInput);
+      } catch {
+        // El producto ya quedó guardado: la sincronización no bloquea.
+      }
+    }
+
+    if (success && isService) {
+      // El toggle "Servicio Activo" también se refleja en la fila de productos,
+      // para que el estado sea el mismo en las dos tablas.
+      const productId = editId ?? (typeof ok === "string" ? ok : null);
+      if (productId) {
+        try {
+          if (serviceStatus === "inactive") {
+            await archiveProduct(productId);
+          } else {
+            await activateProduct(productId);
+          }
+        } catch {
+          // La sincronización de estado no bloquea el guardado.
+        }
+      }
+    }
+
     if (success) router.push(backTo);
   };
 
@@ -436,7 +508,7 @@ function ProductForm() {
                       ? "border-error focus:border-error focus:ring-error/20"
                       : "border-outline-variant/30 focus:border-primary focus:ring-primary/20"
                   }`}
-                  placeholder={itemType === "Servicio" ? "Ej. Baño para mascotas" : "Ej. Queso Fresco"}
+                  placeholder={itemType === "Servicio" ? "Ej. CORTE TRADICIONAL + BARBA" : "Ej. CERA MATE FIJADORA"}
                   required
                 />
                 {fieldErrors.name && (
@@ -615,48 +687,63 @@ function ProductForm() {
                 Ingresa el precio que pagará el cliente. El IVA se discrimina sin cambiar ese total.
               </p>
               <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.85fr)] gap-6 items-start">
-                <div className="flex items-end gap-3">
-                  <div className="space-y-1.5 flex-1 max-w-[280px]">
-                    <label htmlFor="service-price" className="text-[13px] font-semibold text-on-surface block">Precio final</label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-on-surface-variant">$</span>
-                      <input
-                        id="service-price"
-                        ref={priceRef}
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={serviceFinalPrice}
-                        onChange={(e) => { setServiceFinalPrice(e.target.value); setFieldErrors((p) => ({ ...p, price: undefined })); }}
-                        aria-invalid={!!fieldErrors.price}
-                        aria-describedby={fieldErrors.price ? "service-price-error" : undefined}
-                        className={`w-full bg-surface-container-lowest border rounded-xl py-3 pl-7 pr-4 text-sm text-on-surface focus:outline-none focus:ring-2 transition-all ${
-                          fieldErrors.price
-                            ? "border-error focus:border-error focus:ring-error/20"
-                            : "border-outline-variant/30 focus:border-primary focus:ring-primary/20"
-                        }`}
-                        placeholder="0.00"
-                        required
-                      />
+                <div className="space-y-4">
+                  <div className="flex items-end gap-3">
+                    <div className="space-y-1.5 flex-1 max-w-[280px]">
+                      <label htmlFor="service-price" className="text-[13px] font-semibold text-on-surface block">Precio final</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-on-surface-variant">$</span>
+                        <input
+                          id="service-price"
+                          ref={priceRef}
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={serviceFinalPrice}
+                          onChange={(e) => { setServiceFinalPrice(e.target.value); setFieldErrors((p) => ({ ...p, price: undefined })); }}
+                          aria-invalid={!!fieldErrors.price}
+                          aria-describedby={fieldErrors.price ? "service-price-error" : undefined}
+                          className={`w-full bg-surface-container-lowest border rounded-xl py-3 pl-7 pr-4 text-sm text-on-surface focus:outline-none focus:ring-2 transition-all ${
+                            fieldErrors.price
+                              ? "border-error focus:border-error focus:ring-error/20"
+                              : "border-outline-variant/30 focus:border-primary focus:ring-primary/20"
+                          }`}
+                          placeholder="0.00"
+                          required
+                        />
+                      </div>
+                      {fieldErrors.price && (
+                        <p id="service-price-error" className="text-xs font-medium text-error">
+                          {fieldErrors.price}
+                        </p>
+                      )}
                     </div>
-                    {fieldErrors.price && (
-                      <p id="service-price-error" className="text-xs font-medium text-error">
-                        {fieldErrors.price}
-                      </p>
+                    {taxRate > 0 && (
+                      <div className="space-y-1.5">
+                        <label className="text-[13px] font-semibold text-on-surface block">IVA</label>
+                        <Select
+                          value={sellingPriceTax}
+                          onChange={(e) => setSellingPriceTax(e.target.value)}
+                        >
+                          <option value="IVA">{percentLabel}</option>
+                          <option value="Ninguno">Ninguno</option>
+                        </Select>
+                      </div>
                     )}
                   </div>
-                  {taxRate > 0 && (
-                    <div className="space-y-1.5">
-                      <label className="text-[13px] font-semibold text-on-surface block">IVA</label>
-                      <Select
-                        value={sellingPriceTax}
-                        onChange={(e) => setSellingPriceTax(e.target.value)}
-                      >
-                        <option value="IVA">{percentLabel}</option>
-                        <option value="Ninguno">Ninguno</option>
-                      </Select>
-                    </div>
-                  )}
+
+                  <div className="space-y-1.5 max-w-[280px]">
+                    <label htmlFor="service-duration" className="text-[13px] font-semibold text-on-surface block">Duración (minutos)</label>
+                    <input
+                      id="service-duration"
+                      type="number"
+                      min="1"
+                      value={serviceDuration}
+                      onChange={(e) => setServiceDuration(e.target.value)}
+                      className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-on-surface-variant/50"
+                      placeholder="30"
+                    />
+                  </div>
                 </div>
                 <div className="rounded-2xl border border-outline-variant/15 bg-surface-container-lowest px-5 py-4 text-sm">
                     <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-on-surface-variant">Desglose del precio</p>
@@ -673,6 +760,26 @@ function ProductForm() {
                       <span>${formatAmount(serviceFinalValue)}</span>
                     </div>
                 </div>
+              </div>
+
+              <div className="mt-4 flex items-center justify-between p-3 sm:p-4 bg-surface-container-low rounded-xl border border-outline-variant/10">
+                <div>
+                  <p className="text-sm font-bold text-on-surface">Servicio Activo</p>
+                  <p className="text-xs text-on-surface-variant mt-1">Disponible para agendar y cobrar.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setServiceStatus((s) => (s === "active" ? "inactive" : "active"))}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none shrink-0 ml-4 ${
+                    serviceStatus === "active" ? "bg-[#6063ee]" : "bg-outline-variant/30"
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      serviceStatus === "active" ? "translate-x-6" : "translate-x-1"
+                    }`}
+                  />
+                </button>
               </div>
             </div>
           )}

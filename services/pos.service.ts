@@ -252,36 +252,6 @@ export async function fetchCatalog(): Promise<CatalogItem[]> {
 
   const rawProducts = productsRes.data ?? [];
 
-  const products: CatalogItem[] = rawProducts.map((p) => {
-    // Supabase tipa el embed como array; en una relación to-one llega un objeto.
-    const cat = p.categories as unknown as { name: string } | { name: string }[] | null;
-    const category_name = Array.isArray(cat) ? (cat[0]?.name ?? null) : (cat?.name ?? null);
-    // Un servicio del catálogo de productos NO lleva inventario: viaja con
-    // `stock_level` en null, que es como el POS ya representa "acá no hay stock
-    // que controlar". Con eso el carrito, el panel de venta y la vitrina dejan
-    // de tratarlo como mercadería sin tocar una línea más.
-    //
-    // `kind` sigue siendo "product" a propósito: la fila vive en `products`, y
-    // es `kind` lo que decide si la venta viaja con `product_id` o `service_id`.
-    // Cambiarlo mandaría el id a `create_sale` a buscarse en `services`.
-    return {
-      id: p.id,
-      kind: "product" as const,
-      name: p.name,
-      sku: p.sku,
-      barcode: p.barcode ?? null,
-      price: p.price,
-      package_price: p.package_price ?? null,
-      units_per_package: p.units_per_package ?? 1,
-      stock_level: isServiceItem(p) ? null : p.stock_level,
-      category_name,
-      image_url: p.image_url ?? null,
-      has_commission: p.has_commission ?? false,
-      commission_type: (p.commission_type ?? null) as "percentage" | "fixed" | null,
-      commission_value: p.commission_value ?? null,
-    };
-  });
-
   const services: CatalogItem[] = (servicesRes.data ?? []).map((s) => ({
     id: s.id,
     kind: "service" as const,
@@ -298,6 +268,44 @@ export async function fetchCatalog(): Promise<CatalogItem[]> {
     commission_type: (s.commission_type ?? null) as "percentage" | "fixed" | null,
     commission_value: s.commission_value ?? null,
   }));
+
+  // Los servicios creados desde inventario/POS se guardan en las dos tablas
+  // (`services` y `products` con unidad "Servicio"): sin este filtro el
+  // catálogo los mostraría dos veces. Se compara por nombre sin importar
+  // mayúsculas porque cada entrada guarda el nombre en su propio caso.
+  const serviceNames = new Set(services.map((s) => s.name.trim().toLowerCase()));
+
+  const products: CatalogItem[] = rawProducts
+    .filter((p) => !(isServiceItem(p) && serviceNames.has(p.name.trim().toLowerCase())))
+    .map((p) => {
+      // Supabase tipa el embed como array; en una relación to-one llega un objeto.
+      const cat = p.categories as unknown as { name: string } | { name: string }[] | null;
+      const category_name = Array.isArray(cat) ? (cat[0]?.name ?? null) : (cat?.name ?? null);
+      // Un servicio del catálogo de productos NO lleva inventario: viaja con
+      // `stock_level` en null, que es como el POS ya representa "acá no hay stock
+      // que controlar". Con eso el carrito, el panel de venta y la vitrina dejan
+      // de tratarlo como mercadería sin tocar una línea más.
+      //
+      // `kind` sigue siendo "product" a propósito: la fila vive en `products`, y
+      // es `kind` lo que decide si la venta viaja con `product_id` o `service_id`.
+      // Cambiarlo mandaría el id a `create_sale` a buscarse en `services`.
+      return {
+        id: p.id,
+        kind: "product" as const,
+        name: p.name,
+        sku: p.sku,
+        barcode: p.barcode ?? null,
+        price: p.price,
+        package_price: p.package_price ?? null,
+        units_per_package: p.units_per_package ?? 1,
+        stock_level: isServiceItem(p) ? null : p.stock_level,
+        category_name,
+        image_url: p.image_url ?? null,
+        has_commission: p.has_commission ?? false,
+        commission_type: (p.commission_type ?? null) as "percentage" | "fixed" | null,
+        commission_value: p.commission_value ?? null,
+      };
+    });
 
   return [...products, ...services];
 }

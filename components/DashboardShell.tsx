@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState, useEffect } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { LogoHorizontal, LogoVertical } from "@/components/Logo";
 import {
   IconHome,
@@ -34,6 +34,8 @@ import { backdropProps } from "@/components/modal";
 import { SIDEBAR_COOKIE, SIDEBAR_COOKIE_MAX_AGE } from "@/lib/sidebar";
 import { WorkspaceSwitcher } from "@/components/WorkspaceSwitcher";
 import { SupportFab, showsSupportFab, SUPPORT_FAB_CLEARANCE } from "@/components/SupportFab";
+
+import { fetchSiteConfig } from "@/services/business-site.service";
 
 type IconType = typeof IconHome;
 
@@ -75,12 +77,47 @@ export function DashboardShell({
   defaultCollapsed?: boolean;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const profile = useProfile();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [calculatorOpen, setCalculatorOpen] = useState(false);
+  const [globalSearch, setGlobalSearch] = useState("");
   // Arranca con lo que ya pintó el servidor: el primer render del cliente tiene
   // que ser idéntico o React descarta el árbol y el menú "salta".
   const [sidebarCollapsed, setSidebarCollapsed] = useState(defaultCollapsed);
+
+  const handleGlobalSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!globalSearch.trim()) return;
+    const q = globalSearch.trim().toLowerCase();
+    if (q.includes("corta") || q.includes("corte") || q.includes("barba") || q.includes("servicio")) {
+      router.push("/dashboard/services");
+    } else if (q.includes("cita") || q.includes("agenda") || q.includes("turno") || q.includes("calendario")) {
+      router.push("/dashboard/calendar");
+    } else if (q.includes("cliente")) {
+      router.push("/dashboard/customers");
+    } else if (q.includes("venta") || q.includes("pos") || q.includes("cobrar")) {
+      router.push("/dashboard/pos");
+    } else {
+      router.push("/dashboard/inventory");
+    }
+  };
+
+  const handleHelpClick = () => {
+    const businessName = profile?.businessName?.trim();
+    const msg = businessName ? `Hola, soy "${businessName}". Necesito ayuda con la plataforma.` : "Hola, necesito ayuda con Ventex App.";
+    window.open(`https://wa.me/573000000000?text=${encodeURIComponent(msg)}`, "_blank");
+  };
+
+  const [siteSlug, setSiteSlug] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchSiteConfig()
+      .then((cfg) => {
+        if (cfg.site?.slug) setSiteSlug(cfg.site.slug);
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     document.cookie = `${SIDEBAR_COOKIE}=${sidebarCollapsed}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}; samesite=lax`;
@@ -223,22 +260,36 @@ export function DashboardShell({
             <LogoVertical className="w-[50px] h-[24px]" />
           </div>
 
-          <div className="hidden lg:flex items-center gap-4 flex-1 max-w-xl">
+          <form onSubmit={handleGlobalSearch} className="hidden lg:flex items-center gap-4 flex-1 max-w-xl">
             <div className="relative w-full">
               <IconSearch className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant" />
               <input
                 type="text"
+                value={globalSearch}
+                onChange={(e) => setGlobalSearch(e.target.value)}
                 placeholder="Buscar en Ventex..."
                 className="w-full bg-surface-container border border-outline-variant/20 rounded-full py-2.5 pl-11 pr-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50"
               />
             </div>
-          </div>
+          </form>
 
           <div className="flex items-center gap-2 sm:gap-4 md:gap-6 ml-auto min-w-0">
             <WorkspaceSwitcher />
+            <a
+              href={siteSlug ? `/${siteSlug}` : "/dashboard/settings/sitio"}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-semibold hover:bg-primary/20 transition-colors shrink-0"
+              title="Ver mi sitio público de reservas"
+            >
+              <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-3.5 h-3.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+              <span>Ver sitio web</span>
+            </a>
             <button
               onClick={() => setCalculatorOpen(true)}
-              className="shrink-0 text-on-surface-variant hover:text-on-surface transition-colors"
+              className="hidden md:block shrink-0 text-on-surface-variant hover:text-on-surface transition-colors"
               title="Calculadora"
             >
               <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-5 h-5">
@@ -255,7 +306,12 @@ export function DashboardShell({
             </button>
             <ThemeToggle />
             <NotificationsBell />
-            <button className="hidden sm:block text-on-surface-variant hover:text-on-surface transition-colors">
+            <button
+              type="button"
+              onClick={handleHelpClick}
+              title="Ayuda y Soporte"
+              className="hidden sm:block text-on-surface-variant hover:text-on-surface transition-colors"
+            >
               <IconHelpCircle className="w-5 h-5" />
             </button>
             <div className="w-px h-6 bg-outline-variant/20 hidden sm:block"></div>
