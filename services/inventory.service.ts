@@ -87,9 +87,15 @@ export function generateSku(): string {
 /**
  * El SKU es opcional PARA EL USUARIO, no en la base: la columna es NOT NULL y
  * tiene índice único por negocio. Si el campo llega vacío se genera uno.
+ *
+ * Va en MAYÚSCULAS, igual que el nombre y que los SKU autogenerados
+ * (`generateSku` devuelve `PRD-XXXXX`). Sin esto, "abc-1" y "ABC-1" son dos
+ * filas distintas para el índice único: el mismo rótulo pegado en el mismo
+ * estante, duplicado en el sistema. Un SKU es un rótulo alfanumérico, no texto
+ * de un idioma, así que `toUpperCase()` y no `toLocaleUpperCase()`.
  */
 function normalizeSku(raw: string): string {
-  const value = raw.trim();
+  const value = raw.trim().toUpperCase();
   return value === "" ? generateSku() : value;
 }
 

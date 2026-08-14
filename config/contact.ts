@@ -24,7 +24,22 @@ export function toWhatsappNumber(raw: string | null | undefined): string | null 
   return digits.length >= 10 ? digits : null;
 }
 
-/** Enlace wa.me con el mensaje ya redactado. */
+/**
+ * Enlace de WhatsApp con el mensaje ya redactado.
+ *
+ * Va a `api.whatsapp.com/send` y NO al acortador `wa.me`. No es cosmetico:
+ * wa.me DESTRUYE los emojis al redirigir. Comprobado pidiendole el 302 y
+ * leyendo su cabecera Location:
+ *
+ *   enviado:   ...text=%F0%9F%93%A6+caja+%E2%9C%89%EF%B8%8F+sobre   (box, sobre)
+ *   devuelto:  ...text=%EF%BF%BD+caja+%EF%BF%BD+sobre               (U+FFFD x2)
+ *
+ * Los acentos y el bullet pasan intactos; solo mata a los emojis, y llegan al
+ * chat como el rombo con signo de pregunta. `api.whatsapp.com/send` responde
+ * 200 directo, sin redirect que los toque — de hecho es el propio destino al
+ * que wa.me redirige, asi que no se pierde nada saltandoselo.
+ */
 export function whatsappUrl(message: string, phone: string = VENTEX_WHATSAPP): string {
-  return `https://wa.me/${toWhatsappNumber(phone) ?? phone}?text=${encodeURIComponent(message)}`;
+  const number = toWhatsappNumber(phone) ?? phone;
+  return `https://api.whatsapp.com/send?phone=${number}&text=${encodeURIComponent(message)}`;
 }

@@ -106,7 +106,12 @@ export function DashboardShell({
   const handleHelpClick = () => {
     const businessName = profile?.businessName?.trim();
     const msg = businessName ? `Hola, soy "${businessName}". Necesito ayuda con la plataforma.` : "Hola, necesito ayuda con Ventex App.";
-    window.open(`https://wa.me/573000000000?text=${encodeURIComponent(msg)}`, "_blank");
+    // api.whatsapp.com y no wa.me: el acortador rompe los emojis (ver
+    // whatsappUrl en config/contact.ts).
+    window.open(
+      `https://api.whatsapp.com/send?phone=573000000000&text=${encodeURIComponent(msg)}`,
+      "_blank",
+    );
   };
 
   const [siteSlug, setSiteSlug] = useState<string | null>(null);
@@ -114,7 +119,10 @@ export function DashboardShell({
   useEffect(() => {
     fetchSiteConfig()
       .then((cfg) => {
-        if (cfg.site?.slug) setSiteSlug(cfg.site.slug);
+        // Hace falta el slug Y que esté PUBLICADO. `public_site_by_slug`
+        // devuelve null para un sitio sin publicar y la página responde 404:
+        // un botón que lleva a un 404 es peor que no tener botón.
+        if (cfg.site?.slug && cfg.site.published) setSiteSlug(cfg.site.slug);
       })
       .catch(() => {});
   }, []);
@@ -275,18 +283,24 @@ export function DashboardShell({
 
           <div className="flex items-center gap-2 sm:gap-4 md:gap-6 ml-auto min-w-0">
             <WorkspaceSwitcher />
-            <a
-              href={siteSlug ? `/${siteSlug}` : "/dashboard/settings/sitio"}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-semibold hover:bg-primary/20 transition-colors shrink-0"
-              title="Ver mi sitio público de reservas"
-            >
-              <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-3.5 h-3.5">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-              </svg>
-              <span>Ver sitio web</span>
-            </a>
+            {/* Solo cuando el sitio existe y está publicado. Antes se mostraba
+                siempre y, sin sitio, llevaba a Ajustes: un botón que dice "Ver
+                sitio web" y no muestra ningún sitio. Crearlo se ofrece desde
+                Configuración, que es donde corresponde. */}
+            {siteSlug && (
+              <a
+                href={`/${siteSlug}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-semibold hover:bg-primary/20 transition-colors shrink-0"
+                title="Ver mi sitio público de reservas"
+              >
+                <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-3.5 h-3.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+                <span>Ver sitio web</span>
+              </a>
+            )}
             <button
               onClick={() => setCalculatorOpen(true)}
               className="hidden md:block shrink-0 text-on-surface-variant hover:text-on-surface transition-colors"

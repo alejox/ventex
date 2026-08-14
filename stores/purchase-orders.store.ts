@@ -17,6 +17,8 @@ interface PurchaseOrdersState {
   saveDraft: (input: SavePurchaseOrderInput, id?: string | null) => Promise<PurchaseOrder | null>;
   issue: (input: SavePurchaseOrderInput, id?: string | null) => Promise<PurchaseOrder | null>;
   receive: (order: PurchaseOrder) => Promise<boolean>;
+  /** Cierra el pedido sin crear compra ni mover stock. */
+  complete: (id: string) => Promise<boolean>;
   cancel: (id: string) => Promise<boolean>;
   clearError: () => void;
 }
@@ -80,6 +82,22 @@ export const usePurchaseOrdersStore = create<PurchaseOrdersState>((set, get) => 
     set({ submitting: true, error: null });
     try {
       await service.receivePurchaseOrder(order);
+      await get().fetchOrders();
+      set({ submitting: false });
+      return true;
+    } catch (e) {
+      set({ error: toMessage(e), submitting: false });
+      return false;
+    }
+  },
+
+  complete: async (id) => {
+    set({ submitting: true, error: null });
+    try {
+      await service.completePurchaseOrder(id);
+      // Se recarga en vez de parchear en memoria: el pedido cambia de estado
+      // pero SIGUE en la lista (a diferencia de cancelar, que lo saca), y hay
+      // que traer el `completed_at` que puso la base.
       await get().fetchOrders();
       set({ submitting: false });
       return true;

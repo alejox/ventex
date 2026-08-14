@@ -37,6 +37,15 @@ export interface DataColumn<T> {
   mobile?: MobileRole;
   /** Clave para ordenar. Si no se define, la columna no es ordenable. */
   sortKey?: string;
+  /**
+   * Valor por el que ordenar, cuando el texto que se ve NO sirve para eso.
+   *
+   * Sin esto se ordena por la celda ya renderizada, y hay dos casos donde ese
+   * texto miente: el dinero (`$1.234` cae antes que `$987`, porque el punto
+   * corta el número) y las fechas con mes abreviado (`13 ago` antes que
+   * `02 sep`). Devolver acá el número crudo o el ISO lo arregla.
+   */
+  sortValue?: (row: T) => string | number;
 }
 
 interface DataTableProps<T> {
@@ -125,6 +134,19 @@ export function DataTable<T>({
     if (!sortKey) return 0;
     const col = columns.find((c) => c.sortKey === sortKey);
     if (!col) return 0;
+
+    // Con `sortValue` se ordena por el dato; sin él, por el texto renderizado,
+    // que es como se comportaban todas las tablas antes de que existiera.
+    if (col.sortValue) {
+      const va = col.sortValue(a);
+      const vb = col.sortValue(b);
+      const cmp =
+        typeof va === "number" && typeof vb === "number"
+          ? va - vb
+          : String(va).localeCompare(String(vb), "es", { numeric: true, sensitivity: "base" });
+      return sortDir === "asc" ? cmp : -cmp;
+    }
+
     const va = stringify(col.cell(a));
     const vb = stringify(col.cell(b));
     const cmp = va.localeCompare(vb, "es", { numeric: true, sensitivity: "base" });

@@ -48,7 +48,24 @@ export default async function PedidosPage() {
   // Misma definición que el KPI de Inventario y el widget del Panel.
   const lowStockCount = initialProducts.filter(needsRestock).length;
 
-  const preseeded = buildSuggestedItems(initialProducts);
+  // Lo que ya está pedido no se vuelve a sugerir. La consulta va acá y no en el
+  // cliente porque `preseeded` siembra el estado inicial: filtrarlo después
+  // haría parpadear la lista y pelearía con las filas que el usuario ya tocó.
+  const { data: openOrderItems } = await supabase
+    .from("purchase_orders")
+    .select("status, purchase_order_items(product_id)")
+    .in("status", ["draft", "issued"]);
+
+  const alreadyOrdered = new Set<string>();
+  for (const order of (openOrderItems ?? []) as unknown as {
+    purchase_order_items: { product_id: string | null }[] | null;
+  }[]) {
+    for (const item of order.purchase_order_items ?? []) {
+      if (item.product_id) alreadyOrdered.add(item.product_id);
+    }
+  }
+
+  const preseeded = buildSuggestedItems(initialProducts, alreadyOrdered);
 
   return (
     <PedidosClient

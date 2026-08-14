@@ -9,7 +9,11 @@ import { needsRestock } from "@/lib/stock";
 import type { SuggestedOrderItem } from "@/services/abastecimiento.service";
 import { useDistributorsStore } from "@/stores/distributors.store";
 import { usePurchaseOrdersStore } from "@/stores/purchase-orders.store";
-import type { PurchaseOrder, PurchaseOrderLineInput } from "@/services/purchase-orders.service";
+import {
+  productIdsInOpenOrders,
+  type PurchaseOrder,
+  type PurchaseOrderLineInput,
+} from "@/services/purchase-orders.service";
 import { notifySuccess, notifyError } from "@/lib/notifications";
 import { ProductBrowser } from "./ProductBrowser";
 import { SavedOrders } from "./SavedOrders";
@@ -83,6 +87,7 @@ export function PedidosClient({
   const saveDraft = usePurchaseOrdersStore((s) => s.saveDraft);
   const issueOrder = usePurchaseOrdersStore((s) => s.issue);
   const receiveOrder = usePurchaseOrdersStore((s) => s.receive);
+  const completeOrder = usePurchaseOrdersStore((s) => s.complete);
   const cancelOrder = usePurchaseOrdersStore((s) => s.cancel);
 
   /**
@@ -275,7 +280,18 @@ export function PedidosClient({
   }, [items, quantities]);
 
   const handleGenerate = () => {
-    const result = buildSuggestedItems(initialProducts) as SuggestedOrderItem[];
+    // Mismo criterio que la carga inicial (ver page.tsx): lo que ya vive en un
+    // pedido abierto no se vuelve a sugerir. Acá la fuente son los pedidos que
+    // el store ya tiene, así que completar uno y regenerar devuelve sus
+    // productos a la lista sin recargar la página.
+    //
+    // El pedido que se está editando NO retiene nada: sus propias líneas son
+    // las que el usuario está por cambiar, y excluirlas vaciaría la sugerencia
+    // justo cuando la pide.
+    const blocked = productIdsInOpenOrders(
+      editingOrderId ? orders.filter((o) => o.id !== editingOrderId) : orders,
+    );
+    const result = buildSuggestedItems(initialProducts, blocked) as SuggestedOrderItem[];
     setItems(result);
     const q: Record<string, number> = {};
     for (const item of result) {
@@ -325,7 +341,11 @@ export function PedidosClient({
   };
 
   const buildWhatsAppText = () => {
-    const lines: string[] = ["*Pedido de Reposici\u00f3n*", ""];
+    // El emoji llega bien SIEMPRE Y CUANDO el enlace no pase por wa.me: ese
+    // acortador reemplaza todo emoji por U+FFFD al redirigir (ver whatsappUrl
+    // en config/contact.ts, que trae la evidencia). Por eso este mensaje se
+    // manda por api.whatsapp.com/send.
+    const lines: string[] = ["\u{1F4E6} *Pedido de Reposici\u00f3n*", ""];
     for (const item of items) {
       const qty = quantities[item.productId] ?? item.suggestedQuantity;
       if (qty > 0) {
@@ -338,7 +358,10 @@ export function PedidosClient({
   const handleSendWhatsApp = () => {
     if (!whatsappNumber) return;
     const text = buildWhatsAppText();
-    window.open(`https://wa.me/${whatsappNumber}?text=${text}`, "_blank");
+    window.open(
+      `https://api.whatsapp.com/send?phone=${whatsappNumber}&text=${text}`,
+      "_blank",
+    );
   };
 
   const activeItems = items.filter((item) => (quantities[item.productId] ?? item.suggestedQuantity) > 0);
@@ -729,6 +752,7 @@ export function PedidosClient({
         submitting={savingOrder}
         onResume={handleResume}
         onReceive={handleReceive}
+        onComplete={completeOrder}
         onCancel={cancelOrder}
       />
 

@@ -76,7 +76,12 @@ export function formatCOP(value: number): string {
   }).format(value);
 }
 
+/**
+ * `api.whatsapp.com/send` y no el acortador `wa.me`: wa.me reemplaza todo
+ * emoji por U+FFFD al redirigir (evidencia en `whatsappUrl`, config/contact.ts).
+ * Hoy este mensaje no lleva emojis, pero el dia que lleve uno fallaria igual.
+ */
 export function whatsappHref(phone: string, message: string): string {
   const digits = phone.replace(/[^0-9]/g, "");
-  return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
+  return `https://api.whatsapp.com/send?phone=${digits}&text=${encodeURIComponent(message)}`;
 }

@@ -275,8 +275,9 @@ export const QUICK_ACTIONS: QuickAction[] = [
 ];
 
 // ---- Modelo de visibilidad: el TIPO define un menú base, los MÓDULOS suman ----
-// Un ítem se muestra si: (1) es universal, (2) pertenece al menú base del tipo,
-// o (3) algún módulo opcional activado lo habilita.
+// Un ítem del SIDEBAR se muestra si: (1) es universal, (2) pertenece al menú
+// base del tipo, o (3) algún módulo opcional activado lo habilita. Las acciones
+// rápidas del panel siguen una regla más estrecha: ver UNIVERSAL_QUICK_IDS.
 
 /** Secciones que ve cualquier cuenta, sea cual sea su tipo. */
 // POS y Ventas son universales: los 4 rubros pueden cobrar (productos y/o servicios).
@@ -298,20 +299,39 @@ const UNIVERSAL_NAV_IDS = ["panel", "pos", "sales", "customers", "staff", "subsc
 // lavaautos NO lo necesitan acá: son FULL_MODULE_TYPES, así que `inventory` y
 // `services` ya les quedan `true` en `effectiveModules` y los ítems
 // correspondientes de NAV_ITEMS se muestran solos.
+//
+// `pedidos` cierra ese mismo ciclo: reponer es el otro medio día de una tienda
+// (qué falta → a quién se lo pido → qué me llegó). Quedaba afuera por el mismo
+// motivo que `inventory` —depende del módulo `inventory`, que tienda no tiene—
+// y el rubro terminaba con Compras y Proveedores pero sin la pantalla que los
+// alimenta.
 const BASE_NAV_BY_TYPE: Record<BusinessType, string[]> = {
   salon: ["calendar"],
-  tienda: ["inventory", "categories", "distributors", "purchases"],
+  tienda: ["inventory", "categories", "distributors", "purchases", "pedidos"],
   lavaautos: ["calendar"],
   servicios: ["calendar"],
 };
 
+// El sidebar y el panel NO siguen la misma regla, a propósito. El menú lista
+// todo lo que el negocio puede hacer (universales + base + lo que sumen los
+// módulos). El panel es una FILA CURADA: los 2 o 3 atajos que ese rubro usa
+// todos los días, y nada más. Por eso las acciones rápidas salen solo de
+// universales + base — un rubro "full module" como salón tiene 5 módulos
+// activos y dejar que cada uno sumara su acción convertía el panel en un
+// segundo menú de 7 tarjetas.
 const UNIVERSAL_QUICK_IDS = ["new-sale", "new-customer"];
 
+/**
+ * Los atajos propios de cada rubro (además de los universales). Máximo dos:
+ * junto a "Nueva Venta" y "Registrar Cliente" el panel queda en cuatro
+ * tarjetas, que es una fila. Sumar una quinta obliga a elegir cuál sale.
+ */
 const BASE_QUICK_BY_TYPE: Record<BusinessType, string[]> = {
-  salon: ["new-appointment", "new-product"],
-  tienda: ["new-product"],
-  lavaautos: ["new-appointment", "new-product"],
-  servicios: ["new-appointment"],
+  salon: ["new-appointment", "new-service"],
+  // Tienda no agenda ni presta servicios: su día es vender y reponer.
+  tienda: ["new-product", "replenish"],
+  lavaautos: ["new-appointment", "new-vehicle"],
+  servicios: ["new-appointment", "new-invoice"],
 };
 
 /**
@@ -380,16 +400,60 @@ export function workerNavItems(permissions: WorkerPermissions): NavItem[] {
   return NAV_ITEMS.filter((item) => granted.has(item.id));
 }
 
+/**
+ * Permiso que habilita cada acción rápida para un trabajador. Las acciones que
+ * no figuran acá son de dueño: no existe permiso que las otorgue (`staff` y
+ * `pedidos` no tienen permiso propio, igual que en el sidebar).
+ *
+ * `new-product` pide `inventory_edit`, no `inventory`: ver el catálogo no es
+ * poder dar de alta productos.
+ */
+const QUICK_ACTION_PERMISSION: Record<string, WorkerPermission> = {
+  "new-sale": "pos",
+  "new-product": "inventory_edit",
+  "new-customer": "customers",
+  "new-appointment": "calendar",
+  "new-service": "services",
+  "new-vehicle": "vehicles",
+  "new-invoice": "billing",
+};
+
+/**
+ * Acciones rápidas para un trabajador. Misma regla que `workerNavItems`: la
+ * única fuente de verdad son sus permisos, y `catalogo` se resuelve a los dos
+ * permisos de lectura que reemplazó (no otorga edición).
+ */
+export function workerQuickActions(permissions: WorkerPermissions): QuickAction[] {
+  const granted = new Set<WorkerPermission>(
+    (Object.keys(permissions) as WorkerPermission[]).filter((k) => permissions[k]),
+  );
+  if (granted.has("catalogo")) {
+    granted.add("inventory");
+    granted.add("services");
+  }
+  return QUICK_ACTIONS.filter((a) => {
+    const required = QUICK_ACTION_PERMISSION[a.id];
+    return required != null && granted.has(required);
+  });
+}
+
+/**
+ * Acciones rápidas del panel: universales + las del rubro. Un módulo activado
+ * ya NO suma su acción (ver el comentario de UNIVERSAL_QUICK_IDS); el módulo
+ * solo puede QUITAR: si el dueño apagó explícitamente el que sostiene una
+ * acción de su rubro, el atajo se va con la sección.
+ */
 export function visibleQuickActions(
   businessType: BusinessType | null,
   modules: Modules | null,
 ): QuickAction[] {
   const base = businessType ? BASE_QUICK_BY_TYPE[businessType] ?? [] : [];
   const active = effectiveModules(businessType, modules);
-  return QUICK_ACTIONS.filter(
-    (a) =>
-      UNIVERSAL_QUICK_IDS.includes(a.id) ||
-      base.includes(a.id) ||
-      (a.module != null && Boolean(active[a.module])),
-  );
+  return QUICK_ACTIONS.filter((a) => {
+    if (UNIVERSAL_QUICK_IDS.includes(a.id)) return true;
+    if (!base.includes(a.id)) return false;
+    // `!== false` y no `Boolean(...)`: tienda tiene `modules` vacío y su
+    // inventario es núcleo, así que "sin definir" significa disponible.
+    return a.module == null || active[a.module] !== false;
+  });
 }

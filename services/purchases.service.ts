@@ -203,15 +203,28 @@ export async function fetchPurchaseInvoiceItems(invoiceId: string): Promise<Purc
 }
 
 /**
- * Exige el N° de factura del proveedor.
+ * Exige y normaliza el N° de factura del proveedor: obligatorio, sin espacios
+ * al borde y en MAYÚSCULAS.
  *
  * Es lo único que ata la compra al papel que emitió el proveedor: sin él, dos
  * compras al mismo proveedor por el mismo monto son indistinguibles y no se
  * puede detectar que se cargó dos veces. El `invoice_number` no cubre eso: lo
  * genera Ventex, no el proveedor.
+ *
+ * La mayúscula va acá y no solo en el formulario porque este es el único punto
+ * por el que pasan las dos escrituras (alta y edición) y también los pedidos
+ * convertidos en compra. Normalizando solo en la UI, la base termina con
+ * "a-123" y "A-123" conviviendo: dos filas que para cualquier comparación
+ * —hoy a ojo, mañana un índice único— son números distintos, cuando para el
+ * proveedor son el mismo papel. Hoy NO hay chequeo automático de duplicados ni
+ * índice único sobre esta columna; esto deja el dato listo para cuando lo haya.
+ *
+ * `toUpperCase()` y no `toLocaleUpperCase()`: un N° de factura es alfanumérico,
+ * no texto de un idioma, y así el resultado no depende de la configuración
+ * regional de quien lo carga.
  */
 function requireSupplierNumber(value: string): string {
-  const trimmed = value.trim();
+  const trimmed = value.trim().toUpperCase();
   if (!trimmed) throw new Error("Ingresa el N° de factura del proveedor.");
   return trimmed;
 }

@@ -1306,6 +1306,7 @@ export type Database = {
       }
       purchase_orders: {
         Row: {
+          completed_at: string | null
           created_at: string
           distributor_id: string | null
           id: string
@@ -1319,6 +1320,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          completed_at?: string | null
           created_at?: string
           distributor_id?: string | null
           id?: string
@@ -1332,6 +1334,7 @@ export type Database = {
           user_id?: string
         }
         Update: {
+          completed_at?: string | null
           created_at?: string
           distributor_id?: string | null
           id?: string

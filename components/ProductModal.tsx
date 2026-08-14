@@ -75,6 +75,8 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
   const [type, setType] = useState("Producto");
   const [name, setName] = useState("");
   const [barcode, setBarcode] = useState(initialBarcode ?? "");
+  const [sku, setSku] = useState("");
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState("");
   const [categoryId, setCategoryId] = useState("");
@@ -131,6 +133,8 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
     e.preventDefault();
     if (type === "Combo") return;
 
+    setSubmitError(null);
+
     const isService = type === "Servicio";
 
     // Lo que se guarda es SIEMPRE el precio final de vitrina (IVA incluido).
@@ -158,7 +162,9 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
         name,
         category_id: categoryId,
         distributor_id: "",
-        sku: "",
+        // Un servicio nunca lleva el SKU tipeado: el campo ni se muestra, y
+        // dejarlo vacío hace que el servicio le genere uno.
+        sku: isService ? "" : sku,
         barcode: isService ? "" : barcode,
         package_price: isService || presentation !== "package" ? "" : packageSellingPrice,
         unit,
@@ -182,7 +188,18 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
       );
       onCreated?.(typeof result === "string" ? result : "", name);
       onClose();
+      return;
     }
+
+    // `addProduct` devuelve `false` y deja el motivo en el store. Sin esto el
+    // modal se quedaba mudo: ni mensaje ni cierre. Antes casi no pasaba porque
+    // el SKU siempre se autogeneraba (sin colisiones medidas); desde que se
+    // puede tipear, chocar con el índice único es un final normal y el usuario
+    // tiene que poder leerlo.
+    setSubmitError(
+      useInventoryStore.getState().error ??
+        "No se pudo crear. Revisa los datos e intenta de nuevo.",
+    );
   };
 
   return (
@@ -250,7 +267,11 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
               <IconInfo className="w-4 h-4 text-primary" />
             </label>
             <div className="flex gap-4">
-              {["Producto", "Servicio", "Combo"].map((t) => (
+              {/* "Combo" salió del selector: no se usa por ahora. Su alta vive
+                  igual en el formulario avanzado
+                  (/dashboard/inventory/product?type=combo), así que sacarlo de
+                  acá no elimina la función, solo deja de ofrecerla. */}
+              {["Producto", "Servicio"].map((t) => (
                 <button
                   key={t}
                   type="button"
@@ -308,6 +329,27 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
                     Info encontrada: {lookedUp.name}
                   </p>
                 )}
+              </div>
+            )}
+
+            {/* SKU: opcional PARA EL USUARIO. La columna es NOT NULL con índice
+                único por negocio, así que si el campo queda vacío el servicio
+                genera uno (`normalizeSku` → `generateSku`, formato PRD-XXXXX).
+                Solo para productos: un servicio no se cuenta ni se rotula. */}
+            {type === "Producto" && (
+              <div className="space-y-1.5">
+                <label htmlFor="quick-product-sku" className="flex items-center gap-1 text-sm font-semibold text-on-surface">
+                  SKU
+                  <span className="text-xs text-on-surface-variant font-normal">(opcional)</span>
+                </label>
+                <input
+                  id="quick-product-sku"
+                  type="text"
+                  value={sku}
+                  onChange={(e) => setSku(e.target.value)}
+                  placeholder="Se genera solo si lo dejas vacío"
+                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface uppercase placeholder:normal-case focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                />
               </div>
             )}
 
@@ -625,41 +667,34 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
             </div>
           )}
 
+          {submitError && (
+            <p
+              role="alert"
+              className="rounded-xl bg-error/10 border border-error/20 px-4 py-3 text-sm text-error"
+            >
+              {submitError}
+            </p>
+          )}
+
           {/* Botones */}
           <div className="pt-6 flex flex-col sm:flex-row justify-between gap-4 border-t border-outline-variant/10">
-            {type === "Combo" ? (
-              <button
-                type="button"
-                onClick={() => {
-                  onClose();
-                  router.push("/dashboard/inventory/product?type=combo");
-                }}
-                className="w-full px-8 py-3 rounded-xl bg-primary hover:bg-primary-dim text-white text-sm font-semibold transition-colors flex justify-center items-center gap-2"
-              >
-                <IconExternalLink className="w-4 h-4" />
-                Completar combo
-              </button>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onClose();
-                    router.push(`/dashboard/inventory/product?type=${type.toLowerCase()}`);
-                  }}
-                  className="px-6 py-3 rounded-xl border border-outline-variant/30 text-sm font-semibold text-on-surface hover:bg-surface-container-low transition-colors flex justify-center items-center gap-2"
-                >
-                  <IconExternalLink className="w-4 h-4" />
-                  Ir al formulario avanzado
-                </button>
-                <button
-                  type="submit"
-                  className="px-8 py-3 rounded-xl bg-primary hover:bg-primary-dim text-white text-sm font-semibold transition-colors flex justify-center items-center"
-                >
-                  {type === "Servicio" ? "Crear servicio" : "Crear producto"}
-                </button>
-              </>
-            )}
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                router.push(`/dashboard/inventory/product?type=${type.toLowerCase()}`);
+              }}
+              className="px-6 py-3 rounded-xl border border-outline-variant/30 text-sm font-semibold text-on-surface hover:bg-surface-container-low transition-colors flex justify-center items-center gap-2"
+            >
+              <IconExternalLink className="w-4 h-4" />
+              Ir al formulario avanzado
+            </button>
+            <button
+              type="submit"
+              className="px-8 py-3 rounded-xl bg-primary hover:bg-primary-dim text-white text-sm font-semibold transition-colors flex justify-center items-center"
+            >
+              {type === "Servicio" ? "Crear servicio" : "Crear producto"}
+            </button>
           </div>
         </form>
       </div>

@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useFinanceStore } from "@/stores/finance.store";
 import { useInventoryStore } from "@/stores/inventory.store";
+import { useProfile } from "@/components/ProfileProvider";
+import { visibleQuickActions, workerQuickActions } from "@/config/business";
 import { needsRestock } from "@/lib/stock";
 import { backdropProps } from "@/components/modal";
 import type { NewExpenseInput } from "@/services/finance.service";
@@ -15,6 +17,78 @@ const money = (n: number) =>
 
 // `expense_date` es una columna DATE: el día es el del mostrador, no el de UTC.
 const today = todayISO;
+
+/**
+ * Presentación de cada acción rápida (icono, subtítulo y color), por id. La
+ * lista y el gating viven en config/business.ts: acá no se decide qué se
+ * muestra, solo cómo se ve.
+ */
+const QUICK_ACTION_STYLE: Record<
+  string,
+  { emoji: string; hint: string; accent: string; hover: string }
+> = {
+  "new-sale": {
+    emoji: "⚡",
+    hint: "Cobrar al instante",
+    accent: "bg-emerald-500/10 text-emerald-500",
+    hover: "hover:border-emerald-500/40 hover:bg-emerald-500/5",
+  },
+  "new-appointment": {
+    emoji: "📅",
+    hint: "Agenda y turnos",
+    accent: "bg-primary/10 text-primary",
+    hover: "hover:border-primary/40 hover:bg-primary/5",
+  },
+  "new-service": {
+    emoji: "✂️",
+    hint: "Catálogo de servicios",
+    accent: "bg-amber-500/10 text-amber-500",
+    hover: "hover:border-amber-500/40 hover:bg-amber-500/5",
+  },
+  "new-customer": {
+    emoji: "👤",
+    hint: "Directorio y visitas",
+    accent: "bg-purple-500/10 text-purple-600",
+    hover: "hover:border-purple-500/40 hover:bg-purple-500/5",
+  },
+  "new-product": {
+    emoji: "📦",
+    hint: "Alta en inventario",
+    accent: "bg-sky-500/10 text-sky-500",
+    hover: "hover:border-sky-500/40 hover:bg-sky-500/5",
+  },
+  replenish: {
+    emoji: "🛒",
+    hint: "Reposición a proveedor",
+    accent: "bg-orange-500/10 text-orange-500",
+    hover: "hover:border-orange-500/40 hover:bg-orange-500/5",
+  },
+  "new-staff": {
+    emoji: "👥",
+    hint: "Equipo y comisiones",
+    accent: "bg-teal-500/10 text-teal-500",
+    hover: "hover:border-teal-500/40 hover:bg-teal-500/5",
+  },
+  "new-vehicle": {
+    emoji: "🚗",
+    hint: "Historial por placa",
+    accent: "bg-cyan-500/10 text-cyan-500",
+    hover: "hover:border-cyan-500/40 hover:bg-cyan-500/5",
+  },
+  "new-invoice": {
+    emoji: "🧾",
+    hint: "Facturas y cotizaciones",
+    accent: "bg-rose-500/10 text-rose-500",
+    hover: "hover:border-rose-500/40 hover:bg-rose-500/5",
+  },
+};
+
+const DEFAULT_QUICK_STYLE = {
+  emoji: "➕",
+  hint: "Abrir sección",
+  accent: "bg-primary/10 text-primary",
+  hover: "hover:border-primary/40 hover:bg-primary/5",
+};
 
 const emptyExpense = (): NewExpenseInput => ({
   description: "",
@@ -32,6 +106,7 @@ const emptyExpense = (): NewExpenseInput => ({
  * trabajador con permiso `panel` los ve pero no los crea.
  */
 export function DashboardHome({ canAddExpense = false }: { canAddExpense?: boolean }) {
+  const profile = useProfile();
   const overview = useFinanceStore((s) => s.overview);
   const loading = useFinanceStore((s) => s.loading);
   const error = useFinanceStore((s) => s.error);
@@ -59,6 +134,11 @@ export function DashboardHome({ canAddExpense = false }: { canAddExpense?: boole
   // usaba su propia comparación y listaba tres productos mientras el contador
   // de Inventario decía 0.
   const lowStock = products.filter(needsRestock).slice(0, 5);
+
+  // Una tienda no tiene citas ni servicios: el menú ya lo respetaba, el panel no.
+  const quickActions = profile?.isWorker
+    ? workerQuickActions(profile.workerPermissions ?? {})
+    : visibleQuickActions(profile?.businessType ?? null, profile?.modules ?? null);
 
   const overviewBusy = loading || !overview;
 
@@ -95,60 +175,31 @@ export function DashboardHome({ canAddExpense = false }: { canAddExpense?: boole
         </div>
       )}
 
-      {/* Acciones Rápidas */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <Link
-          href="/dashboard/calendar"
-          className="flex items-center gap-3 p-3.5 rounded-2xl bg-surface-container-lowest border border-outline-variant/10 hover:border-primary/40 hover:bg-primary/5 transition-all group shadow-sm"
-        >
-          <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold text-lg group-hover:scale-105 transition-transform">
-            📅
-          </div>
-          <div>
-            <span className="text-xs font-bold text-on-surface block">Agendar Cita</span>
-            <span className="text-[11px] text-on-surface-variant">Agenda y turnos</span>
-          </div>
-        </Link>
-
-        <Link
-          href="/dashboard/pos"
-          className="flex items-center gap-3 p-3.5 rounded-2xl bg-surface-container-lowest border border-outline-variant/10 hover:border-emerald-500/40 hover:bg-emerald-500/5 transition-all group shadow-sm"
-        >
-          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center font-bold text-lg group-hover:scale-105 transition-transform">
-            ⚡
-          </div>
-          <div>
-            <span className="text-xs font-bold text-on-surface block">Punto de Venta</span>
-            <span className="text-[11px] text-on-surface-variant">Cobrar al instante</span>
-          </div>
-        </Link>
-
-        <Link
-          href="/dashboard/services"
-          className="flex items-center gap-3 p-3.5 rounded-2xl bg-surface-container-lowest border border-outline-variant/10 hover:border-amber-500/40 hover:bg-amber-500/5 transition-all group shadow-sm"
-        >
-          <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center font-bold text-lg group-hover:scale-105 transition-transform">
-            ✂️
-          </div>
-          <div>
-            <span className="text-xs font-bold text-on-surface block">Servicios</span>
-            <span className="text-[11px] text-on-surface-variant">Cortes y catálogo</span>
-          </div>
-        </Link>
-
-        <Link
-          href="/dashboard/customers"
-          className="flex items-center gap-3 p-3.5 rounded-2xl bg-surface-container-lowest border border-outline-variant/10 hover:border-purple-500/40 hover:bg-purple-500/5 transition-all group shadow-sm"
-        >
-          <div className="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-600 flex items-center justify-center font-bold text-lg group-hover:scale-105 transition-transform">
-            👤
-          </div>
-          <div>
-            <span className="text-xs font-bold text-on-surface block">Clientes</span>
-            <span className="text-[11px] text-on-surface-variant">Directorio y visitas</span>
-          </div>
-        </Link>
-      </div>
+      {/* Acciones Rápidas: qué se muestra lo decide config/business.ts según el
+          tipo de negocio (o los permisos, si es trabajador). Acá solo vive la
+          presentación de cada id. */}
+      {quickActions.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {quickActions.map((action) => {
+            const style = QUICK_ACTION_STYLE[action.id] ?? DEFAULT_QUICK_STYLE;
+            return (
+              <Link
+                key={action.id}
+                href={action.href}
+                className={`flex items-center gap-3 p-3.5 rounded-2xl bg-surface-container-lowest border border-outline-variant/10 transition-all group shadow-sm ${style.hover}`}
+              >
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-lg shrink-0 group-hover:scale-105 transition-transform ${style.accent}`}>
+                  {style.emoji}
+                </div>
+                <div className="min-w-0">
+                  <span className="text-xs font-bold text-on-surface block truncate">{action.title}</span>
+                  <span className="text-[11px] text-on-surface-variant truncate block">{style.hint}</span>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      )}
 
       {/* KPIs principales */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

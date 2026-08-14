@@ -5,11 +5,52 @@ import { todayISO } from "@/lib/date";
 /**
  * Órdenes de compra (pedidos de reposición a proveedor).
  *
- * Ciclo: `draft` → `issued` → `received`. Al recibir se genera la factura de
- * compra, que es lo que suma stock y costo — este módulo no toca inventario
- * por su cuenta: reusa `createPurchaseInvoice`.
+ * Ciclo: `draft` → `issued` → `received` | `completed`. Al RECIBIR se genera la
+ * factura de compra, que es lo que suma stock y costo — este módulo no toca
+ * inventario por su cuenta: reusa `createPurchaseInvoice`.
+ *
+ * `completed` es el cierre SIN efectos: ni factura ni stock. Sirve para el
+ * pedido que ya se resolvió por fuera (se registró la compra a mano, el
+ * proveedor entregó parcial y se da por cerrado, etc.).
+ *
+ * Los dos estados ABIERTOS son `draft` e `issued` (ver `isOpenStatus`): son los
+ * que retienen a sus productos fuera de las sugerencias de reposición.
  */
-export type PurchaseOrderStatus = "draft" | "issued" | "received" | "cancelled";
+export type PurchaseOrderStatus =
+  | "draft"
+  | "issued"
+  | "received"
+  | "completed"
+  | "cancelled";
+
+/**
+ * Un pedido abierto es el que todavía espera mercadería. Mientras lo esté, sus
+ * productos NO se vuelven a sugerir: es lo único que evita pedir dos veces lo
+ * mismo. Recibido, completado y cancelado los liberan.
+ */
+export function isOpenStatus(status: PurchaseOrderStatus): boolean {
+  return status === "draft" || status === "issued";
+}
+
+/**
+ * Productos retenidos por un pedido abierto, para que no se vuelvan a sugerir.
+ *
+ * Se ignoran las líneas sin `product_id`: son productos escritos a mano que no
+ * existen en el catálogo, así que no hay nada que excluir de las sugerencias
+ * —que salen del catálogo— y meterlas rompería nada más que el tipo.
+ */
+export function productIdsInOpenOrders(
+  orders: readonly PurchaseOrder[],
+): Set<string> {
+  const ids = new Set<string>();
+  for (const order of orders) {
+    if (!isOpenStatus(order.status)) continue;
+    for (const item of order.items) {
+      if (item.product_id) ids.add(item.product_id);
+    }
+  }
+  return ids;
+}
 
 export interface PurchaseOrderItem {
   id: string;
@@ -28,6 +69,7 @@ export interface PurchaseOrder {
   notes: string | null;
   issued_at: string | null;
   received_at: string | null;
+  completed_at: string | null;
   invoice_id: string | null;
   created_at: string;
   updated_at: string;
@@ -53,7 +95,7 @@ export interface SavePurchaseOrderInput {
 
 const ORDER_SELECT = `
   id, order_number, distributor_id, status, notes, issued_at, received_at,
-  invoice_id, created_at, updated_at,
+  completed_at, invoice_id, created_at, updated_at,
   distributors(business_name),
   purchase_order_items(id, product_id, product_name, sku, quantity, unit_price)
 `;
@@ -67,6 +109,7 @@ interface OrderRow {
   notes: string | null;
   issued_at: string | null;
   received_at: string | null;
+  completed_at: string | null;
   invoice_id: string | null;
   created_at: string;
   updated_at: string;
@@ -83,6 +126,7 @@ function toOrder(row: OrderRow): PurchaseOrder {
     notes: row.notes,
     issued_at: row.issued_at,
     received_at: row.received_at,
+    completed_at: row.completed_at,
     invoice_id: row.invoice_id,
     created_at: row.created_at,
     updated_at: row.updated_at,
@@ -207,6 +251,30 @@ export async function issuePurchaseOrder(id: string): Promise<void> {
     })
     .eq("id", id)
     .eq("status", "draft");
+  if (error) throw error;
+}
+
+/**
+ * Cierra el pedido SIN efectos: no crea factura de compra ni mueve stock. Eso
+ * lo hace `receivePurchaseOrder`, que es una acción distinta a propósito.
+ *
+ * Sirve para el pedido que se resolvió por fuera: la compra se cargó a mano en
+ * Compras, el proveedor entregó parcial y se da por cerrado, etc. Lo que sí
+ * hace es LIBERAR sus productos: al dejar de estar abierto, vuelven a
+ * sugerirse como faltantes si el stock sigue bajo.
+ *
+ * El `.eq("status", "issued")` es la guarda: solo se completa lo que está
+ * pendiente. Un pedido ya recibido no se puede "completar" encima, y un
+ * borrador tampoco — ese se emite o se descarta.
+ */
+export async function completePurchaseOrder(id: string): Promise<void> {
+  const supabase = createClient();
+  const now = new Date().toISOString();
+  const { error } = await supabase
+    .from("purchase_orders")
+    .update({ status: "completed", completed_at: now, updated_at: now })
+    .eq("id", id)
+    .eq("status", "issued");
   if (error) throw error;
 }
 

@@ -7,6 +7,40 @@ import type { CatalogItem } from "@/services/pos.service";
 const money = (n: number) =>
   n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+/**
+ * Columnas de la grilla de productos (vista escritorio).
+ *
+ * Los breakpoints de Tailwind miden la VENTANA, pero esta grilla nunca la tiene
+ * entera: el sidebar (w-64 = 256px), la factura (480px fijos desde lg) y el
+ * padding del contenedor (pl-10 + pr-6 + pr-2 = 72px) se llevan 808px ANTES de
+ * que empiece el catálogo. Contando columnas por ventana, a 1450px pedía 5 y el
+ * precio se salía de la tarjeta e invadía la de al lado.
+ *
+ * Estos cortes se calcularon sobre el ancho REAL (ventana - 808 - gaps), para
+ * que la caja de texto nunca baje de ~106px — lo que mide un precio de 7 cifras
+ * a `text-base` bold:
+ *
+ *   1024 → 1 (192px)   1080 → 2 (106px)   1240 → 3 (109px)
+ *   1400 → 4 (124px)   1750 → 5 (151px)   2100 → 6 (178px)
+ *
+ * Son `min-[…]` propios porque los de Tailwind no sirven acá: `xl` abarca
+ * 1280-1535 y a 1280 no entran 4 columnas mientras que a 1450 sí.
+ *
+ * NO MEZCLAR con variantes con nombre (`lg:`, `xl:`) para las columnas.
+ * Tailwind v4 emite los `min-[…]` arbitrarios ANTES que los nombrados, así que
+ * a 1451px matcheaban los dos y ganaba el último del archivo: un `lg:grid-cols-1`
+ * pisaba a `min-[1400px]:grid-cols-4` y dejaba todo en una sola columna. Por eso
+ * la base es `grid-cols-1` sin variante y todos los cortes son arbitrarios: así
+ * se ordenan entre ellos por ancho y el más específico gana. (La grilla vive
+ * dentro de un `hidden lg:block`, así que abajo de 1024 no se dibuja nunca.)
+ *
+ * Si cambia el ancho de la factura o del sidebar, estos números cambian.
+ */
+const CATALOG_GRID_COLS =
+  "grid gap-3 xl:gap-4 grid-cols-1 " +
+  "min-[1080px]:grid-cols-2 min-[1240px]:grid-cols-3 min-[1400px]:grid-cols-4 " +
+  "min-[1750px]:grid-cols-5 min-[2100px]:grid-cols-6";
+
 
 interface PosCatalogProps {
   search: string;
@@ -300,18 +334,23 @@ export function PosCatalog({
 
             <div className="hidden lg:block">
               {viewMode === "grid" ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3 xl:gap-4">
+                <div className={CATALOG_GRID_COLS}>
                   {filtered.map((item) => {
                     // null = no lleva inventario (servicio). Ver `CatalogItem`.
                     const stock = item.stock_level;
                     const outOfStock = stock != null && stock <= 0;
+                    // `min-w-0 overflow-hidden` en la tarjeta: un <button> es
+                    // ítem de grilla con min-width:auto, así que sin eso el
+                    // contenido manda sobre el ancho de la columna en vez de al
+                    // revés — y como los botones no recortan, el precio
+                    // terminaba dibujado encima de la tarjeta vecina.
                     return (
                     <button
                       key={item.id}
                       type="button"
                       onClick={() => addToCart(item)}
                       disabled={!allowOversell && outOfStock}
-                      className={`text-left rounded-2xl p-3 border flex flex-col transition-colors group shadow-sm relative disabled:opacity-50 disabled:cursor-not-allowed ${
+                      className={`text-left rounded-2xl p-3 border flex flex-col min-w-0 overflow-hidden transition-colors group shadow-sm relative disabled:opacity-50 disabled:cursor-not-allowed ${
                         stock == null
                           ? "bg-emerald-500/5 border-emerald-500/20 hover:border-emerald-400/40 disabled:hover:border-emerald-500/20"
                           : "bg-surface-container border-outline-variant/10 hover:border-primary/30 disabled:hover:border-outline-variant/10"
@@ -345,11 +384,18 @@ export function PosCatalog({
                       <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1">
                         {stock == null ? "Servicio" : `SKU: ${item.sku}`}
                       </p>
-                      <h3 className="text-sm font-medium text-on-surface mb-2 line-clamp-2 leading-tight flex-1 group-hover:text-primary transition-colors">
+                      {/* `break-words`: line-clamp recorta de alto, no de ancho.
+                          Una palabra sola y larga (INALAMBRICO) se salía igual. */}
+                      <h3 className="text-sm font-medium text-on-surface mb-2 line-clamp-2 leading-tight flex-1 break-words group-hover:text-primary transition-colors">
                         {item.name}
                       </h3>
-                      <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5 mt-auto">
-                        <span className="text-sm sm:text-base text-on-surface font-bold tabular-nums">
+                      <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5 mt-auto w-full min-w-0">
+                        {/* El precio es un token sin puntos de corte: si no cabe
+                            no se parte, se sale. `min-w-0 truncate` es el último
+                            recurso — puntos suspensivos DENTRO de su tarjeta es
+                            peor que el precio completo, pero mucho mejor que
+                            pisar el producto de al lado. */}
+                        <span className="text-sm sm:text-base text-on-surface font-bold tabular-nums min-w-0 truncate">
                           ${money(item.price)}
                         </span>
                         {stock == null ? (

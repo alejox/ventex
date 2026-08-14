@@ -4,7 +4,7 @@ import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { IconPlus } from "@/app/assets/icons/DashboardIcons";
+import { IconPlus, IconTrash } from "@/app/assets/icons/DashboardIcons";
 import { Select } from "@/components/ui/Select";
 import { ProductModal } from "@/components/ProductModal";
 import { DistributorQuickModal } from "@/components/DistributorQuickModal";
@@ -214,6 +214,27 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
 
   const handleAddLine = () => setLines((prev) => [...prev, { ...EMPTY_LINE }]);
 
+  /**
+   * Inserta una fila JUSTO DEBAJO de aquella cuyo "+" se tocó, no al final.
+   * El botón vive en una fila concreta: mandar la nueva al fondo de una lista
+   * larga obliga a buscar dónde apareció.
+   */
+  const handleInsertLineAfter = (idx: number) =>
+    setLines((prev) => [...prev.slice(0, idx + 1), { ...EMPTY_LINE }, ...prev.slice(idx + 1)]);
+
+  /**
+   * Abre el modal de alta apuntando a la primera fila vacía; si no hay ninguna,
+   * agrega una y apunta a esa. Así "Crear producto" siempre deja el producto
+   * nuevo cargado en la compra, que es para lo que se lo abre.
+   */
+  const handleCreateProduct = () => {
+    const emptyIdx = lines.findIndex((l) => !l.product_id);
+    const targetIdx = emptyIdx === -1 ? lines.length : emptyIdx;
+    if (emptyIdx === -1) handleAddLine();
+    productModalLineIdxRef.current = targetIdx;
+    setProductModalLineIdx(targetIdx);
+  };
+
   const handleRemoveLine = (idx: number) =>
     setLines((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== idx) : prev));
 
@@ -376,7 +397,9 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
                 required
                 aria-required="true"
                 value={supplierInvoiceNumber}
-                onChange={(e) => setSupplierInvoiceNumber(e.target.value)}
+                // Se pasa a mayúsculas mientras se escribe. `toUpperCase()` no
+                // cambia el largo del texto, así que el cursor no salta.
+                onChange={(e) => setSupplierInvoiceNumber(e.target.value.toUpperCase())}
                 className={`${inputClass} sm:w-48`}
                 placeholder="N° del proveedor"
               />
@@ -509,13 +532,18 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
                 >
                   + Categoría
                 </button>
+                {/* Antes decía "Agregar producto" y agregaba una FILA vacía:
+                    dos cosas distintas con el mismo nombre. Ahora este botón
+                    crea el producto en el catálogo (abre el modal) y agregar
+                    filas es el "+" del final de cada fila, que es donde se lo
+                    busca. */}
                 <button
                   type="button"
-                  onClick={handleAddLine}
+                  onClick={handleCreateProduct}
                   className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary hover:bg-primary-dim text-on-primary text-sm font-semibold transition-colors"
                 >
                   <IconPlus className="w-4 h-4" />
-                  Agregar producto
+                  Crear producto
                 </button>
               </div>
             </div>
@@ -526,7 +554,7 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
                 las redondea la cabecera por su cuenta (15px = 16 del contenedor
                 menos su borde de 1px). */}
             <div className="border border-outline-variant/20 rounded-2xl">
-              <div className="hidden lg:grid grid-cols-[minmax(0,1.5fr)_80px_115px_90px_115px_minmax(0,1fr)_115px_40px] gap-3 px-3 py-2.5 bg-surface-container-low rounded-t-[15px] border-b border-outline-variant/20 text-xs font-semibold text-on-surface-variant">
+              <div className="hidden lg:grid grid-cols-[minmax(0,1.5fr)_80px_115px_90px_115px_minmax(0,1fr)_115px_76px] gap-3 px-3 py-2.5 bg-surface-container-low rounded-t-[15px] border-b border-outline-variant/20 text-xs font-semibold text-on-surface-variant">
                 <span>Producto</span>
                 <span className="text-center">Cajas</span>
                 <span className="text-right">Costo caja</span>
@@ -541,7 +569,7 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
                 {lines.map((line, idx) => (
                   <div
                     key={idx}
-                    className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.5fr)_80px_115px_90px_115px_minmax(0,1fr)_115px_40px] gap-3 p-3 items-start"
+                    className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.5fr)_80px_115px_90px_115px_minmax(0,1fr)_115px_76px] gap-3 p-3 items-start"
                   >
                     {/* Producto */}
                     <div className="relative min-w-0">
@@ -599,8 +627,18 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
                             width: dropdownRect.width,
                             maxHeight: PANEL_MAX_HEIGHT,
                           }}
-                          className="fixed z-[120] overflow-y-auto bg-surface-container-lowest border border-outline-variant/20 rounded-xl shadow-2xl animate-in fade-in duration-100"
+                          className="fixed z-[120] flex flex-col overflow-hidden bg-surface-container-lowest border border-outline-variant/20 rounded-xl shadow-2xl animate-in fade-in duration-100"
                         >
+                          {/* El que scrollea es ESTA lista, no el panel: así el
+                              pie "Crear producto" queda afuera del área
+                              desplazable y no puede solaparse con la última
+                              fila. Antes el pie era `sticky bottom-0` dentro del
+                              scroll: un sticky flota por encima del contenido
+                              que va tapando, y su fondo opaco lo disimulaba
+                              hasta que el hover (`bg-primary/10`) lo reemplazaba
+                              por un tinte del 10% y se transparentaba la fila de
+                              abajo. */}
+                          <div className="min-h-0 flex-1 overflow-y-auto">
                           {products.length === 0 ? (
                             <p className="px-3 py-2 text-xs text-on-surface-variant">
                               Todavía no tienes productos.
@@ -643,6 +681,7 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
                               Mostrando 10 de {filteredProducts.length}. Escribe para filtrar.
                             </p>
                           )}
+                          </div>
 
                           {/* Reemplaza al botón "+" que estaba al lado del campo:
                               se confundía con "Agregar producto", que agrega una
@@ -655,7 +694,7 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
                               setProductModalLineIdx(idx);
                               closeProductDropdown();
                             }}
-                            className="w-full flex items-center gap-2 px-3 py-2.5 text-sm font-semibold text-primary hover:bg-primary/10 transition-colors border-t border-outline-variant/10 sticky bottom-0 bg-surface-container-lowest"
+                            className="w-full shrink-0 flex items-center gap-2 px-3 py-2.5 text-sm font-semibold text-primary hover:bg-primary/10 transition-colors border-t border-outline-variant/10"
                           >
                             <IconPlus className="w-3.5 h-3.5" />
                             Crear producto{productSearch ? ` "${productSearch}"` : " nuevo"}
@@ -792,18 +831,29 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
                       </span>
                     </div>
 
-                    {/* Quitar */}
-                    <div className="flex lg:justify-center items-center lg:h-10">
+                    {/* Acciones de la fila: agregar otra debajo y quitar esta.
+                        El "+" va en TODAS las filas; el basurero desaparece en
+                        la última que queda, porque una compra sin ninguna línea
+                        no es un estado al que se pueda llegar. */}
+                    <div className="flex lg:justify-center items-center gap-1 lg:h-10">
+                      <button
+                        type="button"
+                        onClick={() => handleInsertLineAfter(idx)}
+                        className="w-10 h-10 lg:w-8 lg:h-8 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
+                        aria-label={`Agregar una línea debajo de la ${idx + 1}`}
+                        title="Agregar otra línea"
+                      >
+                        <IconPlus className="w-4 h-4" />
+                      </button>
                       {lines.length > 1 && (
                         <button
                           type="button"
                           onClick={() => handleRemoveLine(idx)}
-                          className="w-10 h-10 lg:w-8 lg:h-8 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-error hover:bg-error/10 transition-colors"
+                          className="w-10 h-10 lg:w-8 lg:h-8 flex items-center justify-center rounded-lg text-error hover:bg-error/10 transition-colors"
                           aria-label={`Quitar la línea ${idx + 1}`}
+                          title="Quitar esta línea"
                         >
-                          <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-4 h-4">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                          </svg>
+                          <IconTrash className="w-4 h-4" />
                         </button>
                       )}
                     </div>
@@ -911,25 +961,46 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
             setProductModalLineIdx(null);
             productModalLineIdxRef.current = null;
           }}
-          onCreated={(productId, productName) => {
+          onCreated={async (productId, productName) => {
             const idx = productModalLineIdxRef.current;
-            if (idx !== null) {
-              setLines((prev) =>
-                prev.map((line, i) =>
-                  i === idx
-                    ? {
-                        ...line,
-                        product_id: productId,
-                        product_name: productName,
-                        description: line.description || `Compra: ${productName}`,
-                      }
-                    : line
-                )
-              );
-            }
-            fetchInventory();
             productModalLineIdxRef.current = null;
             setProductModalLineIdx(null);
+
+            // Se recarga el catálogo ANTES de llenar la línea, y después se usa
+            // el MISMO camino que al elegir de la lista (`selectProduct`).
+            //
+            // El modal solo devuelve el id y el texto crudo que se tipeó: no el
+            // producto guardado. Y `addProduct` normaliza el nombre a mayúsculas
+            // (services/inventory.service.ts) y calcula/guarda los costos, así
+            // que llenar la línea con lo tipeado la dejaba en minúscula, con
+            // costo unidad en 0 y sin unidades por caja — mientras que elegir
+            // ese mismo producto de la lista traía todo bien.
+            await fetchInventory();
+            if (idx === null) return;
+
+            const created = useInventoryStore
+              .getState()
+              .products.find((p) => p.id === productId);
+
+            if (created) {
+              selectProduct(idx, created);
+              return;
+            }
+
+            // Respaldo: un servicio puede volver sin id utilizable. Al menos
+            // queda el nombre, como antes.
+            setLines((prev) =>
+              prev.map((line, i) =>
+                i === idx
+                  ? {
+                      ...line,
+                      product_id: productId,
+                      product_name: productName,
+                      description: line.description || `Compra: ${productName}`,
+                    }
+                  : line
+              )
+            );
           }}
         />
       )}
