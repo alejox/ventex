@@ -29,6 +29,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { ShellUserMenu } from "@/components/ShellUserMenu";
 import { NotificationsBell } from "@/components/NotificationsBell";
 import { InstallPrompt } from "@/components/InstallPrompt";
+import { ExpenseModal } from "@/components/ExpenseModal";
 import { useProfile } from "@/components/ProfileProvider";
 import { visibleNavItems, workerNavItems } from "@/config/business";
 import { backdropProps } from "@/components/modal";
@@ -83,6 +84,7 @@ export function DashboardShell({
   const profile = useProfile();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [calculatorOpen, setCalculatorOpen] = useState(false);
+  const [expenseOpen, setExpenseOpen] = useState(false);
   const [globalSearch, setGlobalSearch] = useState("");
   // Arranca con lo que ya pintó el servidor: el primer render del cliente tiene
   // que ser idéntico o React descarta el árbol y el menú "salta".
@@ -303,6 +305,20 @@ export function DashboardShell({
                 <span>Ver sitio web</span>
               </a>
             )}
+            {/* Registrar gasto es global: un gasto no pertenece a ninguna
+                pantalla, ocurre cuando ocurre. Estaba solo en el Panel, así que
+                había que navegar hasta ahí para anotarlo.
+                Solo el dueño: escribir gastos es suyo a nivel RLS. */}
+            {!isWorker && (
+              <button
+                onClick={() => setExpenseOpen(true)}
+                className="hidden sm:block shrink-0 text-on-surface-variant hover:text-on-surface transition-colors"
+                title="Registrar gasto"
+                aria-label="Registrar gasto"
+              >
+                <IconWallet className="w-5 h-5" />
+              </button>
+            )}
             <button
               onClick={() => setCalculatorOpen(true)}
               className="hidden md:block shrink-0 text-on-surface-variant hover:text-on-surface transition-colors"
@@ -353,6 +369,8 @@ export function DashboardShell({
       <SupportFab />
 
       {/* Calculator Modal */}
+      {expenseOpen && <ExpenseModal onClose={() => setExpenseOpen(false)} />}
+
       {calculatorOpen && (
         <CalculatorModal onClose={() => setCalculatorOpen(false)} />
       )}

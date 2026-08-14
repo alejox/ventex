@@ -31,6 +31,14 @@ export interface FinanceTransaction {
   day: string;
 }
 
+/** Una porción del desglose de gastos por categoría. */
+export interface ExpenseSlice {
+  id: string;
+  label: string;
+  color: string;
+  amount: number;
+}
+
 export interface FinanceOverview {
   revenue: number;
   expenses: number;
@@ -38,7 +46,21 @@ export interface FinanceOverview {
   salesCount: number;
   monthly: MonthlyPoint[];
   recent: FinanceTransaction[];
+  /**
+   * En qué se va la plata, ordenado de mayor a menor.
+   *
+   * Incluye las COMPRAS a proveedor como una porción más. Sin ellas el desglose
+   * no sumaría lo mismo que el KPI "Gastos totales" —que sí las cuenta— y el
+   * dueño vería dos números distintos para la misma pregunta en la misma
+   * pantalla. De paso, es la forma visual de mostrar que Compras también es
+   * gasto, que era un pendiente del informe de UX.
+   */
+  expensesByCategory: ExpenseSlice[];
 }
+
+/** Color de la porción de compras. No es una categoría editable: la elegimos
+ *  nosotros y está validada contra las sembradas en claro y en oscuro. */
+const PURCHASES_SLICE_COLOR = "#6366f1";
 
 /** Corte del día en curso para el KPI "Ventas hoy" del panel. */
 export interface TodaySales {
@@ -111,7 +133,9 @@ export async function fetchOverview(): Promise<FinanceOverview> {
       .order("created_at", { ascending: false }),
     supabase
       .from("expenses")
-      .select("id, description, category, amount, expense_date")
+      // La categoría viene embebida para el desglose del panel: sin ella habría
+      // que pedir la tabla de gastos dos veces.
+      .select("id, description, category, amount, expense_date, expense_categories(id, name, color)")
       .order("expense_date", { ascending: false }),
     // `type` es OBLIGATORIO en este select: la tabla `invoices` guarda las dos
     // puntas del negocio. `type = 'compra'` es lo que se le compra a un
@@ -211,6 +235,35 @@ export async function fetchOverview(): Promise<FinanceOverview> {
     .sort((a, b) => +new Date(b.date) - +new Date(a.date))
     .slice(0, 8);
 
+  // Desglose por categoría. Las compras entran como una porción propia para que
+  // el total del gráfico coincida con el KPI de Gastos totales.
+  const slices = new Map<string, ExpenseSlice>();
+  for (const e of expenses) {
+    const category = (e as { expense_categories?: { id: string; name: string; color: string } | null })
+      .expense_categories;
+    const id = category?.id ?? "sin-categoria";
+    const current = slices.get(id) ?? {
+      id,
+      label: category?.name ?? "Sin categoría",
+      color: category?.color ?? "#94a3b8",
+      amount: 0,
+    };
+    current.amount += e.amount;
+    slices.set(id, current);
+  }
+
+  const purchasesTotal = purchases.reduce((sum, i) => sum + i.total, 0);
+  if (purchasesTotal > 0) {
+    slices.set("compras", {
+      id: "compras",
+      label: "Compras a proveedores",
+      color: PURCHASES_SLICE_COLOR,
+      amount: purchasesTotal,
+    });
+  }
+
+  const expensesByCategory = [...slices.values()].sort((a, b) => b.amount - a.amount);
+
   return {
     revenue,
     expenses: totalExpenses,
@@ -218,6 +271,7 @@ export async function fetchOverview(): Promise<FinanceOverview> {
     salesCount: completed.length,
     monthly: months.map((m) => buckets.get(m.key)!),
     recent,
+    expensesByCategory,
   };
 }
 

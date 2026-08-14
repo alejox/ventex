@@ -309,6 +309,7 @@ export type Database = {
           amount: number
           created_at: string
           id: string
+          kind: string
           membership_id: string
           reason: string
           shift_id: string
@@ -319,6 +320,7 @@ export type Database = {
           amount: number
           created_at?: string
           id?: string
+          kind?: string
           membership_id: string
           reason: string
           shift_id: string
@@ -329,6 +331,7 @@ export type Database = {
           amount?: number
           created_at?: string
           id?: string
+          kind?: string
           membership_id?: string
           reason?: string
           shift_id?: string
@@ -731,6 +734,7 @@ export type Database = {
       expenses: {
         Row: {
           amount: number
+          cash_movement_id: string | null
           category: string | null
           category_id: string | null
           created_at: string
@@ -742,6 +746,7 @@ export type Database = {
         }
         Insert: {
           amount: number
+          cash_movement_id?: string | null
           category?: string | null
           category_id?: string | null
           created_at?: string
@@ -753,6 +758,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          cash_movement_id?: string | null
           category?: string | null
           category_id?: string | null
           created_at?: string
@@ -763,6 +769,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "expenses_cash_movement_id_fkey"
+            columns: ["cash_movement_id"]
+            isOneToOne: false
+            referencedRelation: "cash_movements"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "expenses_category_id_fkey"
             columns: ["category_id"]
@@ -2504,7 +2517,12 @@ export type Database = {
       }
       public_site_slug_taken: { Args: { p_slug: string }; Returns: boolean }
       register_cash_withdrawal: {
-        Args: { p_amount: number; p_reason: string }
+        Args: {
+          p_amount: number
+          p_category?: string
+          p_kind?: string
+          p_reason: string
+        }
         Returns: string
       }
       register_customer_payment: {

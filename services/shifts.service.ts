@@ -79,15 +79,33 @@ export async function openShift(openingCash: number): Promise<void> {
   if (error) throw error;
 }
 
+/** Qué se hizo con la plata que salió del cajón. */
+export type WithdrawalKind = "gasto" | "traslado";
+
 /**
  * Registra un retiro de caja (sangría) contra el turno abierto. Sin esto, el
  * dinero que sale de la caja durante el turno aparecería como faltante.
+ *
+ * `kind` decide si además se anota como GASTO del negocio. Son dos cosas
+ * distintas: el retiro siempre cuadra la caja, pero solo un "gasto" llega al
+ * estado de resultados. Mover plata a la caja fuerte es un "traslado" y no es
+ * una pérdida — por eso ese es el valor por defecto.
+ *
+ * El gasto lo inserta el RPC, que es `security definer`: el cajero no tiene
+ * permiso directo sobre `expenses` y no hace falta dárselo.
  */
-export async function registerWithdrawal(amount: number, reason: string): Promise<void> {
+export async function registerWithdrawal(
+  amount: number,
+  reason: string,
+  kind: WithdrawalKind = "traslado",
+  categoryId?: string | null,
+): Promise<void> {
   const supabase = createClient();
   const { error } = await supabase.rpc("register_cash_withdrawal", {
     p_amount: amount,
     p_reason: reason,
+    p_kind: kind,
+    p_category: categoryId ?? undefined,
   });
   if (error) throw error;
 }

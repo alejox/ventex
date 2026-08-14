@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { toMessage } from "@/lib/errors";
 import * as shiftsService from "@/services/shifts.service";
-import type { CurrentShift, Shift, ShiftSummary } from "@/services/shifts.service";
+import type { CurrentShift, Shift, ShiftSummary, WithdrawalKind } from "@/services/shifts.service";
 
 interface ShiftsState {
   /** Turno abierto del empleado autenticado (null = sin turno). */
@@ -21,7 +21,12 @@ interface ShiftsState {
   /** Cierra el turno y devuelve el resumen del arqueo (null si falló). */
   closeShift: (closingCash: number, notes?: string, shiftId?: string) => Promise<ShiftSummary | null>;
   /** Registra un retiro de caja contra el turno abierto. true si se guardó. */
-  registerWithdrawal: (amount: number, reason: string) => Promise<boolean>;
+  registerWithdrawal: (
+    amount: number,
+    reason: string,
+    kind?: WithdrawalKind,
+    categoryId?: string | null,
+  ) => Promise<boolean>;
   /** Baja la exigencia de justificación al volver a contar el efectivo. */
   resetJustification: () => void;
   fetchShifts: () => Promise<void>;
@@ -99,10 +104,10 @@ export const useShiftsStore = create<ShiftsState>((set) => ({
 
   resetJustification: () => set({ needsJustification: false, error: null }),
 
-  registerWithdrawal: async (amount, reason) => {
+  registerWithdrawal: async (amount, reason, kind = "traslado", categoryId = null) => {
     set({ submitting: true, error: null });
     try {
-      await shiftsService.registerWithdrawal(amount, reason);
+      await shiftsService.registerWithdrawal(amount, reason, kind, categoryId);
       // El retiro cambia el efectivo esperado: se recarga el turno en vivo.
       const currentShift = await shiftsService.fetchCurrentShift();
       set({ currentShift, submitting: false });
