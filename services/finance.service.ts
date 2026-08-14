@@ -1,4 +1,5 @@
 import { createClient } from "@/utils/supabase/client";
+import { toISODate } from "@/lib/date";
 
 // ---- Tipos del dominio de finanzas ----
 export interface MonthlyPoint {
@@ -13,7 +14,21 @@ export interface FinanceTransaction {
   kind: "sale" | "expense";
   label: string;
   amount: number; // positivo = ingreso, negativo = gasto
+  /** Instante o fecha cruda. Sirve para ORDENAR, no para mostrar. */
   date: string;
+  /**
+   * Día de calendario "YYYY-MM-DD" ya resuelto en hora local. Es lo único que
+   * se debe mostrar.
+   *
+   * Existe separado de `date` porque acá conviven dos cosas distintas: las
+   * ventas traen un `timestamptz` (un instante) y los gastos, facturas y
+   * compras traen columnas `date` (un día, sin hora). Formatear las dos con
+   * `new Date(...)` corría el día en una dirección; formatearlas todas con
+   * `parseDateOnly` lo corría en la otra, porque quedarse con los 10 primeros
+   * caracteres de un instante UTC devuelve el día de Greenwich y una venta de
+   * las 8 de la noche en UTC-5 ya es del día siguiente allá.
+   */
+  day: string;
 }
 
 export interface FinanceOverview {
@@ -42,6 +57,7 @@ export interface Expense {
 export interface NewExpenseInput {
   description: string;
   category: string;
+  category_id?: string;
   amount: string;
   expense_date: string;
 }
@@ -97,9 +113,16 @@ export async function fetchOverview(): Promise<FinanceOverview> {
       .from("expenses")
       .select("id, description, category, amount, expense_date")
       .order("expense_date", { ascending: false }),
+    // `type` es OBLIGATORIO en este select: la tabla `invoices` guarda las dos
+    // puntas del negocio. `type = 'compra'` es lo que se le compra a un
+    // proveedor (un GASTO); 'factura' y 'cotizacion' son lo que se le cobra a
+    // un cliente (un INGRESO). Los otros dos servicios que leen esta tabla ya
+    // discriminan —`purchases.service.ts` con .eq("type","compra") y
+    // `billing.service.ts` con .neq("type","compra")—; este era el único que
+    // no, y por eso sumaba las compras como ingreso.
     supabase
       .from("invoices")
-      .select("id, invoice_number, total, status, issue_date")
+      .select("id, invoice_number, type, total, status, issue_date")
       .eq("status", "paid")
       .order("issue_date", { ascending: false }),
   ]);
@@ -109,14 +132,22 @@ export async function fetchOverview(): Promise<FinanceOverview> {
 
   const sales = salesRes.data ?? [];
   const expenses = expRes.data ?? [];
-  // Facturas pagadas cuentan como ingreso (las cotizaciones/pendientes no).
-  const invoices = invRes.data ?? [];
+  const paidInvoices = invRes.data ?? [];
+
+  // Facturas de VENTA pagadas: ingreso. Las pendientes y las cotizaciones sin
+  // pagar ya quedaron afuera por el filtro de status.
+  const salesInvoices = paidInvoices.filter((i) => i.type !== "compra");
+  // Compras pagadas: gasto. Se cuentan las pagadas y no todas, por coherencia
+  // con el lado del ingreso: una compra a crédito todavía no salió de la caja.
+  const purchases = paidInvoices.filter((i) => i.type === "compra");
 
   const completed = sales.filter((s) => s.status === "completed");
   const revenue =
     completed.reduce((sum, s) => sum + s.total, 0) +
-    invoices.reduce((sum, i) => sum + i.total, 0);
-  const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+    salesInvoices.reduce((sum, i) => sum + i.total, 0);
+  const totalExpenses =
+    expenses.reduce((sum, e) => sum + e.amount, 0) +
+    purchases.reduce((sum, i) => sum + i.total, 0);
 
   const months = lastMonths(MONTHS);
   const buckets = new Map(months.map((m) => [m.key, { ...m, income: 0, expense: 0 }]));
@@ -124,13 +155,19 @@ export async function fetchOverview(): Promise<FinanceOverview> {
     const b = buckets.get(monthKeyOf(s.created_at));
     if (b) b.income += s.total;
   }
-  for (const i of invoices) {
+  for (const i of salesInvoices) {
     const b = buckets.get(monthKeyOf(i.issue_date));
     if (b) b.income += i.total;
   }
   for (const e of expenses) {
     const b = buckets.get(monthKeyOf(e.expense_date));
     if (b) b.expense += e.amount;
+  }
+  // Las compras van a la barra de gastos del mes. Sin esto el gráfico mostraba
+  // seis meses sin una sola barra roja aunque el negocio comprara mercadería.
+  for (const i of purchases) {
+    const b = buckets.get(monthKeyOf(i.issue_date));
+    if (b) b.expense += i.total;
   }
 
   const recent: FinanceTransaction[] = [
@@ -140,13 +177,27 @@ export async function fetchOverview(): Promise<FinanceOverview> {
       label: `Venta #${s.sale_number}`,
       amount: s.total,
       date: s.created_at,
+      // Instante → día del mostrador. Una venta de las 8 de la noche en UTC-5
+      // es del día siguiente en UTC, y así se mostraba corrida.
+      day: toISODate(new Date(s.created_at)),
     })),
-    ...invoices.slice(0, 8).map((i) => ({
+    ...salesInvoices.slice(0, 8).map((i) => ({
       id: i.id,
       kind: "sale" as const,
       label: `Factura #${i.invoice_number}`,
       amount: i.total,
       date: i.issue_date,
+      day: i.issue_date,
+    })),
+    // El signo negativo es lo que la fila usa para pintarse en rojo con una
+    // flecha hacia abajo: una compra tiene que LEERSE como plata que sale.
+    ...purchases.slice(0, 8).map((i) => ({
+      id: i.id,
+      kind: "expense" as const,
+      label: `Compra #${i.invoice_number}`,
+      amount: -i.total,
+      date: i.issue_date,
+      day: i.issue_date,
     })),
     ...expenses.slice(0, 8).map((e) => ({
       id: e.id,
@@ -154,6 +205,7 @@ export async function fetchOverview(): Promise<FinanceOverview> {
       label: e.description,
       amount: -e.amount,
       date: e.expense_date,
+      day: e.expense_date,
     })),
   ]
     .sort((a, b) => +new Date(b.date) - +new Date(a.date))
@@ -171,12 +223,23 @@ export async function fetchOverview(): Promise<FinanceOverview> {
 
 export async function createExpense(input: NewExpenseInput): Promise<Expense> {
   const supabase = createClient();
+  const amount = parseFloat(input.amount);
+  if (!input.description.trim()) throw new Error("La descripción es obligatoria.");
+  if (!Number.isFinite(amount) || amount <= 0) throw new Error("El monto debe ser mayor que cero.");
+  let categoryId = input.category_id;
+  if (!categoryId) {
+    const { data: defaultCategory } = await supabase.from("expense_categories").select("id").eq("is_default", true).eq("is_active", true).maybeSingle();
+    categoryId = defaultCategory?.id;
+  }
   const { data, error } = await supabase
     .from("expenses")
     .insert({
       description: input.description,
-      category: input.category || null,
-      amount: parseFloat(input.amount),
+      // New records use the FK; the legacy text column is left empty instead
+      // of storing a UUID where old reports expect a human-readable label.
+      category: input.category_id ? null : input.category || null,
+      category_id: categoryId || null,
+      amount,
       expense_date: input.expense_date,
     })
     .select("id, description, category, amount, expense_date")

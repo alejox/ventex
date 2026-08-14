@@ -236,6 +236,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: "calendar", name: "Calendario", href: "/dashboard/calendar", modules: ["appointments"] },
   { id: "customers", name: "Clientes", href: "/dashboard/customers", modules: [] },
   { id: "sales", name: "Ventas", href: "/dashboard/sales", modules: [] },
+  { id: "expenses", name: "Gastos", href: "/dashboard/expenses", modules: [] },
   { id: "purchases", name: "Compras", href: "/dashboard/purchases", modules: ["inventory"] },
   { id: "distributors", name: "Proveedores", href: "/dashboard/distributors", modules: ["inventory"] },
   { id: "pedidos", name: "Pedidos", href: "/dashboard/pedidos", modules: ["inventory"] },
@@ -286,7 +287,7 @@ export const QUICK_ACTIONS: QuickAction[] = [
 // Antes dependía del módulo `staff`, que la tienda no tiene — dejarlo así habría
 // dejado sin administración de empleados justo al único rubro con registro
 // abierto. El módulo `staff` sigue existiendo para las comisiones por servicio.
-const UNIVERSAL_NAV_IDS = ["panel", "pos", "sales", "customers", "staff", "subscription"];
+const UNIVERSAL_NAV_IDS = ["panel", "pos", "sales", "expenses", "customers", "staff", "subscription"];
 
 /** Menú base por tipo de negocio (además de las universales). */
 // `purchases` acompaña a `distributors`: son el mismo dominio (a quién le

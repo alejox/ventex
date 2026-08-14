@@ -11,6 +11,8 @@ import { backdropProps } from "@/components/modal";
 import type { NewExpenseInput } from "@/services/finance.service";
 import { IconTrendingUp, IconTrendingDown, IconDollar, IconShoppingCart, IconPlus } from "@/app/assets/icons/DashboardIcons";
 import { todayISO } from "@/lib/date";
+import { formatDateOnly } from "@/lib/date";
+import { useExpensesStore } from "@/stores/expenses.store";
 
 const money = (n: number) =>
   n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -113,6 +115,8 @@ export function DashboardHome({ canAddExpense = false }: { canAddExpense?: boole
   const submitting = useFinanceStore((s) => s.submitting);
   const fetchOverview = useFinanceStore((s) => s.fetchOverview);
   const addExpense = useFinanceStore((s) => s.addExpense);
+  const expenseCategories = useExpensesStore((s) => s.categories);
+  const fetchExpenseCategories = useExpensesStore((s) => s.fetchCategories);
 
   const todaySales = useFinanceStore((s) => s.todaySales);
   const fetchTodaySales = useFinanceStore((s) => s.fetchTodaySales);
@@ -128,7 +132,8 @@ export function DashboardHome({ canAddExpense = false }: { canAddExpense?: boole
     fetchOverview();
     fetchTodaySales();
     fetchInventory();
-  }, [fetchOverview, fetchTodaySales, fetchInventory]);
+    fetchExpenseCategories();
+  }, [fetchOverview, fetchTodaySales, fetchInventory, fetchExpenseCategories]);
 
   // Misma definición que el KPI y el filtro de Inventario. Antes este widget
   // usaba su propia comparación y listaba tres productos mientras el contador
@@ -309,7 +314,7 @@ export function DashboardHome({ canAddExpense = false }: { canAddExpense?: boole
                     <div className="min-w-0">
                       <p className="text-xs font-medium text-on-surface truncate">{t.label}</p>
                       <p className="text-[10px] text-on-surface-variant">
-                        {new Date(t.date).toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit" })}
+                        {formatDateOnly(t.day, { day: "2-digit", month: "2-digit" })}
                       </p>
                     </div>
                   </div>
@@ -398,7 +403,7 @@ export function DashboardHome({ canAddExpense = false }: { canAddExpense?: boole
                   <input
                     type="number"
                     step="0.01"
-                    min="0"
+                    min="0.01"
                     value={form.amount}
                     onChange={(e) => setForm({ ...form, amount: e.target.value })}
                     className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
@@ -419,14 +424,15 @@ export function DashboardHome({ canAddExpense = false }: { canAddExpense?: boole
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[13px] font-semibold text-on-surface block">Categoría (opcional)</label>
-                <input
-                  type="text"
+                <label className="text-[13px] font-semibold text-on-surface block">Categoría</label>
+                <select
                   value={form.category}
-                  onChange={(e) => setForm({ ...form, category: e.target.value })}
+                  onChange={(e) => setForm({ ...form, category: e.target.value, category_id: e.target.value })}
                   className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
-                  placeholder="Ej. Inventario, Servicios, Renta"
-                />
+                >
+                  <option value="">Otros</option>
+                  {expenseCategories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+                </select>
               </div>
 
               <div className="pt-4 flex justify-end gap-3 border-t border-outline-variant/10">
