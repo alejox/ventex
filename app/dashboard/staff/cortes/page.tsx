@@ -72,15 +72,24 @@ export default function HaircutsPage() {
       className: "text-on-surface-variant tabular-nums",
       cell: (h) => (totalCortes > 0 ? `${Math.round((h.cortes / totalCortes) * 100)}%` : "—"),
     },
+    // En móvil `DataTable` deja a la vista los primeros tres campos y colapsa el
+    // resto. Con cuatro, el que caía adentro era Vendido —la plata— por ser el
+    // último de la lista. En una pantalla que contesta "¿quién trabaja más?",
+    // los dos números que pesan son la participación y lo que trajo; cuántas
+    // cabezas distintas y en cuántas ventas es contexto. Por eso estos dos van
+    // marcados `detail`: siempre al desplegable, sin tocar el orden en la tabla
+    // de escritorio, donde entran las seis columnas sin pelearse.
     {
       header: "Clientes",
       align: "center",
+      mobile: "detail",
       className: "text-on-surface-variant tabular-nums",
       cell: (h) => h.clientes,
     },
     {
       header: "Ventas",
       align: "center",
+      mobile: "detail",
       className: "text-on-surface-variant tabular-nums",
       cell: (h) => h.ventas,
     },
