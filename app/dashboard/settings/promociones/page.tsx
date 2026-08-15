@@ -9,7 +9,7 @@ import {
   DEFAULT_PROMO_MESSAGE,
   PROMO_VARIABLES,
   renderPromoMessage,
-  milestoneFor,
+  availableReward,
   businessDisplayName,
 } from "@/services/promos.service";
 import { CollectionError, CollectionLoading } from "@/components/CollectionState";
@@ -48,7 +48,6 @@ export default function PromocionesPage() {
 
   const [threshold, setThreshold] = useState("10");
   const [reward, setReward] = useState("");
-  const [recurring, setRecurring] = useState(true);
 
   useEffect(() => {
     fetchSettings();
@@ -69,12 +68,17 @@ export default function PromocionesPage() {
     setServiceIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
 
-  /** La vista previa usa un caso realista, no "Lorem": 10 cortes y su premio. */
+  /**
+   * La vista previa usa el hito más bajo configurado, no un 10 inventado: si el
+   * negocio premia a los 5, mostrarle un ejemplo con 10 no le dice cómo se va a
+   * ver su mensaje.
+   */
   const preview = useMemo(() => {
-    const hito = milestoneFor(10, milestones);
+    const umbral = milestones.filter((m) => m.is_active).map((m) => m.threshold).sort((a, b) => a - b)[0] ?? 10;
+    const hito = availableReward(umbral, milestones);
     return renderPromoMessage(message, {
       cliente: "Juan",
-      cortes: 10,
+      cortes: umbral,
       negocio: businessDisplayName(settings?.business_profile?.businessName, profile?.businessName),
       premio: hito?.reward ?? null,
     });
@@ -97,7 +101,7 @@ export default function PromocionesPage() {
       notifyError("Falta el premio", "Escribí qué gana el cliente al llegar a ese hito.");
       return;
     }
-    const ok = await addMilestone({ threshold: n, reward, recurring });
+    const ok = await addMilestone({ threshold: n, reward });
     if (ok) {
       setReward("");
       notifySuccess("Hito agregado", `A los ${n} cortes: ${reward.trim()}`);
@@ -216,6 +220,17 @@ export default function PromocionesPage() {
           ))}
         </div>
 
+        {/* Un mensaje sin {premio} NO puede anunciar el corte gratis, por más
+            hitos que haya configurados. Pasó de verdad: el editor precarga el
+            texto por defecto, guardarlo lo congela, y una mejora posterior del
+            default ya no lo alcanza. */}
+        {milestones.length > 0 && !message.includes("{premio}") && (
+          <p role="alert" className="mt-3 text-xs rounded-lg border border-[#f59e0b]/30 bg-[#f59e0b]/10 px-3 py-2 text-on-surface">
+            <strong>Tenés hitos configurados pero el mensaje no incluye {"{premio}"}</strong>, así que
+            el cliente nunca se va a enterar de que ganó. Agregalo con el botón de abajo.
+          </p>
+        )}
+
         <div className="mt-4 rounded-xl bg-[#075E54]/10 border border-[#25D366]/20 px-4 py-3">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">
             Vista previa
@@ -242,7 +257,7 @@ export default function PromocionesPage() {
                 <div className="min-w-0 flex-1">
                   <p className="text-sm text-on-surface truncate">{m.reward}</p>
                   <p className="text-xs text-on-surface-variant">
-                    {m.recurring ? `Se repite cada ${m.threshold} cortes` : "Una sola vez"}
+                    Al canjearlo, el contador del cliente vuelve a cero.
                   </p>
                 </div>
                 <button
@@ -286,15 +301,6 @@ export default function PromocionesPage() {
             />
           </div>
           <div className="flex items-end gap-3">
-            <label className="flex items-center gap-2 pb-3 text-sm text-on-surface-variant whitespace-nowrap">
-              <input
-                type="checkbox"
-                checked={recurring}
-                onChange={(e) => setRecurring(e.target.checked)}
-                className="w-4 h-4 accent-[#6063ee]"
-              />
-              Se repite
-            </label>
             <button
               type="submit"
               disabled={submitting}

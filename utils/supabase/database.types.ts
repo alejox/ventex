@@ -1413,7 +1413,6 @@ export type Database = {
           created_at: string
           id: string
           is_active: boolean
-          recurring: boolean
           reward: string
           threshold: number
           user_id: string
@@ -1422,7 +1421,6 @@ export type Database = {
           created_at?: string
           id?: string
           is_active?: boolean
-          recurring?: boolean
           reward: string
           threshold: number
           user_id?: string
@@ -1431,12 +1429,59 @@ export type Database = {
           created_at?: string
           id?: string
           is_active?: boolean
-          recurring?: boolean
           reward?: string
           threshold?: number
           user_id?: string
         }
         Relationships: []
+      }
+      promo_redemptions: {
+        Row: {
+          customer_id: string
+          id: string
+          milestone_id: string | null
+          redeemed_at: string
+          redeemed_by: string | null
+          reward: string
+          threshold: number
+          user_id: string
+        }
+        Insert: {
+          customer_id: string
+          id?: string
+          milestone_id?: string | null
+          redeemed_at?: string
+          redeemed_by?: string | null
+          reward: string
+          threshold: number
+          user_id?: string
+        }
+        Update: {
+          customer_id?: string
+          id?: string
+          milestone_id?: string | null
+          redeemed_at?: string
+          redeemed_by?: string | null
+          reward?: string
+          threshold?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "promo_redemptions_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "promo_redemptions_milestone_id_fkey"
+            columns: ["milestone_id"]
+            isOneToOne: false
+            referencedRelation: "promo_milestones"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       purchase_order_items: {
         Row: {
@@ -2673,6 +2718,7 @@ export type Database = {
       }
       public_site_slug_taken: { Args: { p_slug: string }; Returns: boolean }
       recalc_haircut_counts: { Args: never; Returns: number }
+      redeem_promo: { Args: { p_customer_id: string }; Returns: Json }
       register_cash_withdrawal: {
         Args: {
           p_amount: number

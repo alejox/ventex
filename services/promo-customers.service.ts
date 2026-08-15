@@ -1,13 +1,16 @@
 import { createClient } from "@/utils/supabase/client";
 import type { PromoMilestone } from "@/services/promos.service";
-import { milestoneFor } from "@/services/promos.service";
+import { availableReward } from "@/services/promos.service";
 
 /** Un cliente en la tabla de promociones, con lo que le falta para el premio. */
 export interface PromoCustomer {
   id: string;
   full_name: string;
   phone: string | null;
+  /** De por vida. Es el número de la relación con el cliente. */
   haircut_count: number;
+  /** Progreso hacia el premio: sube al cortar, vuelve a 0 al canjear. */
+  progress: number;
   /** Premio que le corresponde AHORA, si le corresponde alguno. */
   reward: string | null;
   /** Cuántos cortes le faltan para el próximo hito. null = no hay próximo. */
@@ -23,58 +26,59 @@ export interface PromoCustomer {
  * un puñado con cortes acumulados, y traerlos a todos para descartarlos acá
  * sería pedir la agenda entera para mostrar una decena de filas.
  */
-export async function fetchPromoCustomers(): Promise<
-  Pick<PromoCustomer, "id" | "full_name" | "phone" | "haircut_count">[]
-> {
+export type PromoCustomerRow = Pick<PromoCustomer, "id" | "full_name" | "phone" | "haircut_count" | "progress">;
+
+export async function fetchPromoCustomers(): Promise<PromoCustomerRow[]> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("customers")
-    .select("id, full_name, phone, haircut_count")
+    .select("id, full_name, phone, haircut_count, haircuts_since_reward")
     .gt("haircut_count", 0)
     .order("haircut_count", { ascending: false });
   if (error) throw error;
-  return (data ?? []) as Pick<PromoCustomer, "id" | "full_name" | "phone" | "haircut_count">[];
+  return (data ?? []).map((c) => ({
+    id: c.id,
+    full_name: c.full_name,
+    phone: c.phone,
+    haircut_count: c.haircut_count,
+    progress: c.haircuts_since_reward,
+  }));
 }
 
 /**
- * Cuántos cortes le faltan al cliente para el próximo premio.
- *
- * Un hito que se repite marca el siguiente múltiplo; uno de una sola vez, el
- * umbral exacto si todavía no lo pasó. Gana el que esté MÁS CERCA: es el que
- * responde la pregunta que el mostrador hace ("¿a este cuánto le falta?").
+ * Cuántos cortes le faltan para el próximo premio, contra el PROGRESO.
  *
  * Pura y exportada para poder testearla sin base de datos.
  */
 export function nextMilestone(
-  count: number,
+  progress: number,
   milestones: PromoMilestone[],
 ): { threshold: number; missing: number; reward: string } | null {
-  const candidatos = milestones
-    .filter((m) => m.is_active && m.threshold > 0)
-    .map((m) => {
-      if (m.recurring) {
-        // El próximo múltiplo estricto: con 20 cortes y un hito cada 10, el que
-        // viene es 30, no 20 — ese ya lo alcanzó.
-        const siguiente = (Math.floor(count / m.threshold) + 1) * m.threshold;
-        return { threshold: siguiente, missing: siguiente - count, reward: m.reward };
-      }
-      if (m.threshold <= count) return null;
-      return { threshold: m.threshold, missing: m.threshold - count, reward: m.reward };
-    })
-    .filter((x): x is { threshold: number; missing: number; reward: string } => x !== null);
-
-  if (candidatos.length === 0) return null;
-  return candidatos.reduce((a, b) => (b.missing < a.missing ? b : a));
+  // El más bajo que todavía no alcanzó. Ya no hay múltiplos que calcular: el
+  // canje reinicia el progreso, así que los hitos son escalones de una sola
+  // cuenta que arranca de cero cada vez.
+  const pendientes = milestones
+    .filter((m) => m.is_active && m.threshold > progress)
+    .sort((a, b) => a.threshold - b.threshold);
+  if (pendientes.length === 0) return null;
+  const siguiente = pendientes[0];
+  return {
+    threshold: siguiente.threshold,
+    missing: siguiente.threshold - progress,
+    reward: siguiente.reward,
+  };
 }
 
 /** Arma las filas de la tabla: el premio de ahora y el que viene. */
 export function toPromoRows(
-  customers: Pick<PromoCustomer, "id" | "full_name" | "phone" | "haircut_count">[],
+  customers: PromoCustomerRow[],
   milestones: PromoMilestone[],
 ): PromoCustomer[] {
   return customers.map((c) => {
-    const alcanzado = milestoneFor(c.haircut_count, milestones);
-    const proximo = nextMilestone(c.haircut_count, milestones);
+    // Contra el PROGRESO y no contra el histórico: el premio se gana sobre lo
+    // acumulado desde el último canje.
+    const alcanzado = availableReward(c.progress, milestones);
+    const proximo = nextMilestone(c.progress, milestones);
     return {
       ...c,
       reward: alcanzado?.reward ?? null,

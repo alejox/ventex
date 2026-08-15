@@ -24,15 +24,20 @@ export interface PromoMilestone {
   id: string;
   threshold: number;
   reward: string;
-  /** true = se repite (cada 10). false = se alcanza una sola vez (a los 50). */
-  recurring: boolean;
   is_active: boolean;
 }
 
 export interface NewMilestoneInput {
   threshold: number;
   reward: string;
-  recurring: boolean;
+}
+
+/** Lo que se le entregó a un cliente, congelado el día del canje. */
+export interface PromoRedemption {
+  id: string;
+  threshold: number;
+  reward: string;
+  redeemed_at: string;
 }
 
 /**
@@ -40,14 +45,15 @@ export interface NewMilestoneInput {
  * Configuración, pero desde el minuto cero hay algo que mandar.
  */
 export const DEFAULT_PROMO_MESSAGE =
-  "¡Hola {cliente}! Gracias por tu visita 💈 Ya llevás {cortes} cortes con nosotros en {negocio}.";
+  "¡Hola {cliente}! Gracias por tu visita 💈 Ya llevás {cortes} cortes en {negocio}. {premio}";
 
 /** Las variables que el negocio puede usar, con qué significan. */
 export const PROMO_VARIABLES: { token: string; help: string }[] = [
   { token: "{cliente}", help: "Nombre del cliente" },
-  { token: "{cortes}", help: "Cuántos cortes lleva" },
+  { token: "{cortes}", help: "Cortes acumulados hacia el premio" },
+  { token: "{total}", help: "Cortes de por vida, sin reiniciar" },
   { token: "{negocio}", help: "Nombre de tu negocio" },
-  { token: "{premio}", help: "El premio del hito alcanzado, si alcanzó uno" },
+  { token: "{premio}", help: "El premio ganado. Vacío si todavía no le toca" },
 ];
 
 /**
@@ -127,7 +133,7 @@ export async function fetchMilestones(): Promise<PromoMilestone[]> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("promo_milestones")
-    .select("id, threshold, reward, recurring, is_active")
+    .select("id, threshold, reward, is_active")
     .order("threshold");
   if (error) throw error;
   return (data ?? []) as PromoMilestone[];
@@ -137,11 +143,25 @@ export async function createMilestone(input: NewMilestoneInput): Promise<PromoMi
   const supabase = createClient();
   const { data, error } = await supabase
     .from("promo_milestones")
-    .insert({ threshold: input.threshold, reward: input.reward.trim(), recurring: input.recurring })
-    .select("id, threshold, reward, recurring, is_active")
+    .insert({ threshold: input.threshold, reward: input.reward.trim() })
+    .select("id, threshold, reward, is_active")
     .single();
   if (error) throw error;
   return data as PromoMilestone;
+}
+
+/**
+ * Canjea el premio: lo registra y pone el progreso en cero, todo junto.
+ *
+ * Va en un RPC porque las dos cosas tienen que pasar o no pasar. Sueltas, si
+ * fallara el reinicio el cliente se llevaría el corte gratis con el contador
+ * intacto y podría reclamarlo de nuevo.
+ */
+export async function redeemPromo(customerId: string): Promise<{ threshold: number; reward: string }> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("redeem_promo", { p_customer_id: customerId });
+  if (error) throw error;
+  return data as unknown as { threshold: number; reward: string };
 }
 
 export async function deleteMilestone(id: string): Promise<void> {
@@ -159,18 +179,22 @@ export async function deleteMilestone(id: string): Promise<void> {
  */
 export async function fetchCustomerPromoTarget(
   customerId: string,
-): Promise<{ count: number; phone: string | null }> {
+): Promise<{ count: number; progress: number; phone: string | null }> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("customers")
-    .select("haircut_count, phone")
+    .select("haircut_count, haircuts_since_reward, phone")
     .eq("id", customerId)
     .maybeSingle();
   if (error) throw error;
   // El telefono viene de acá y no del selector del POS: `CustomerOption` trae
   // solo lo que el cobro necesita, y agregarle un campo para esto obligaría a
   // que cada venta lo traiga aunque no haya promociones activas.
-  return { count: data?.haircut_count ?? 0, phone: data?.phone ?? null };
+  return {
+    count: data?.haircut_count ?? 0,
+    progress: data?.haircuts_since_reward ?? 0,
+    phone: data?.phone ?? null,
+  };
 }
 
 /** Recalcula el contador de todos los clientes desde el histórico de ventas. */
@@ -182,21 +206,22 @@ export async function recalcHaircutCounts(): Promise<number> {
 }
 
 /**
- * El hito que le corresponde a un conteo, si le corresponde alguno.
+ * El premio que el cliente YA GANÓ con su progreso, si ganó alguno.
  *
- * Un hito `recurring` se cumple en cada múltiplo (cada 10: 10, 20, 30…); uno
- * que no, solo en el número exacto. Si dos aplican al mismo tiempo gana el
- * umbral MÁS ALTO: llegar a 50 es la noticia, no que 50 también es múltiplo de
- * 10. Se exporta suelta y pura para poder testearla sin base de datos.
+ * Es el hito más alto cuyo umbral el progreso alcanzó o pasó. No exige
+ * coincidencia exacta a propósito: un cliente que llegó a 12 sin canjear tiene
+ * ganado el premio de 10, y decirle que lo perdió por no haber venido justo en
+ * el décimo es la forma más rápida de que no vuelva.
+ *
+ * Antes esto se calculaba con aritmética de múltiplos sobre el total de por
+ * vida. Con el canje reiniciando el progreso, esa cuenta dejó de tener sentido:
+ * el premio sale del progreso.
  */
-export function milestoneFor(count: number, milestones: PromoMilestone[]): PromoMilestone | null {
-  if (count <= 0) return null;
-  const alcanzados = milestones.filter((m) => {
-    if (!m.is_active || m.threshold <= 0) return false;
-    return m.recurring ? count % m.threshold === 0 : count === m.threshold;
-  });
-  if (alcanzados.length === 0) return null;
-  return alcanzados.reduce((a, b) => (b.threshold > a.threshold ? b : a));
+export function availableReward(progress: number, milestones: PromoMilestone[]): PromoMilestone | null {
+  if (progress <= 0) return null;
+  const ganados = milestones.filter((m) => m.is_active && m.threshold > 0 && m.threshold <= progress);
+  if (ganados.length === 0) return null;
+  return ganados.reduce((a, b) => (b.threshold > a.threshold ? b : a));
 }
 
 /**
@@ -207,11 +232,12 @@ export function milestoneFor(count: number, milestones: PromoMilestone[]): Promo
  */
 export function renderPromoMessage(
   template: string | null,
-  vars: { cliente: string; cortes: number; negocio: string; premio?: string | null },
+  vars: { cliente: string; cortes: number; negocio: string; premio?: string | null; total?: number },
 ): string {
   const base = template?.trim() || DEFAULT_PROMO_MESSAGE;
   return base
     .replace(/\{cliente\}/g, vars.cliente)
+    .replace(/\{total\}/g, String(vars.total ?? vars.cortes))
     .replace(/\{cortes\}/g, String(vars.cortes))
     .replace(/\{negocio\}/g, vars.negocio)
     .replace(/\{premio\}/g, vars.premio ?? "")

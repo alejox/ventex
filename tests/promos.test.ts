@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { nextMilestone } from "../services/promo-customers.service";
 import {
-  milestoneFor,
+  availableReward,
   renderPromoMessage,
   whatsappNumber,
   whatsappLink,
@@ -14,40 +15,43 @@ const hito = (over: Partial<PromoMilestone> = {}): PromoMilestone => ({
   id: "m1",
   threshold: 10,
   reward: "Corte gratis",
-  recurring: true,
   is_active: true,
   ...over,
 });
 
-test("1. Un hito que se repite cae en cada múltiplo; uno que no, solo en el número exacto", () => {
-  const cada10 = [hito({ threshold: 10, recurring: true })];
-  assert.equal(milestoneFor(10, cada10)?.reward, "Corte gratis");
-  assert.equal(milestoneFor(20, cada10)?.reward, "Corte gratis");
-  assert.equal(milestoneFor(9, cada10), null);
-  assert.equal(milestoneFor(11, cada10), null);
-
-  const soloA50 = [hito({ threshold: 50, recurring: false, reward: "Kit de barba" })];
-  assert.equal(milestoneFor(50, soloA50)?.reward, "Kit de barba");
-  assert.equal(milestoneFor(100, soloA50), null, "no se repite: 100 no lo vuelve a otorgar");
+test("1. El premio se gana con el PROGRESO, y no exige llegar justo", () => {
+  const cada10 = [hito({ threshold: 10 })];
+  assert.equal(availableReward(10, cada10)?.reward, "Corte gratis");
+  // Clave: el que llegó a 12 sin canjear NO perdió el premio de 10. Con la
+  // aritmética de múltiplos que había antes, 12 no daba nada y el cliente se
+  // enteraba de que su premio se evaporó por no venir el día exacto.
+  assert.equal(availableReward(12, cada10)?.reward, "Corte gratis");
+  assert.equal(availableReward(9, cada10), null);
+  assert.equal(availableReward(0, cada10), null, "sin cortes no hay premio");
 });
 
-test("2. Con dos hitos a la vez gana el umbral MÁS ALTO", () => {
-  // A los 50 cortes aplican los dos: 50 es múltiplo de 10 y además es el hito
-  // propio de 50. La noticia es haber llegado a 50, no que sea múltiplo de 10.
-  const milestones = [
-    hito({ id: "a", threshold: 10, recurring: true, reward: "Corte gratis" }),
-    hito({ id: "b", threshold: 50, recurring: false, reward: "Kit de barba" }),
+test("2. Con varios hitos ganados, gana el MÁS ALTO", () => {
+  const escalones = [
+    hito({ id: "a", threshold: 5, reward: "10% off" }),
+    hito({ id: "b", threshold: 10, reward: "Corte gratis" }),
   ];
-  assert.equal(milestoneFor(50, milestones)?.reward, "Kit de barba");
-  assert.equal(milestoneFor(30, milestones)?.reward, "Corte gratis", "a los 30 solo aplica el de 10");
+  assert.equal(availableReward(7, escalones)?.reward, "10% off");
+  assert.equal(availableReward(10, escalones)?.reward, "Corte gratis");
+  assert.equal(availableReward(4, escalones), null);
 });
 
-test("3. Un hito inactivo no otorga nada, y cero cortes nunca es un hito", () => {
-  assert.equal(milestoneFor(10, [hito({ is_active: false })]), null);
-  // Sin este corte, `0 % 10 === 0` haría que un cliente sin un solo corte
-  // "alcanzara" el hito y le llegara el mensaje de premio.
-  assert.equal(milestoneFor(0, [hito()]), null);
-  assert.equal(milestoneFor(10, []), null);
+test("3. Un hito inactivo no otorga nada", () => {
+  assert.equal(availableReward(10, [hito({ is_active: false })]), null);
+  assert.equal(availableReward(10, []), null);
+});
+
+test("3b. Lo que falta para el próximo es el escalón más bajo por encima", () => {
+  const escalones = [hito({ id: "a", threshold: 5 }), hito({ id: "b", threshold: 10 })];
+  assert.deepEqual(nextMilestone(0, escalones)?.missing, 5);
+  assert.deepEqual(nextMilestone(3, escalones)?.missing, 2);
+  // Con 5 alcanzado, lo que viene es el de 10 — no el de 5 otra vez.
+  assert.deepEqual(nextMilestone(5, escalones)?.threshold, 10);
+  assert.equal(nextMilestone(10, escalones), null, "no hay más escalones");
 });
 
 test("4. El mensaje reemplaza las variables y no deja huecos visibles", () => {
@@ -61,9 +65,23 @@ test("4. El mensaje reemplaza las variables y no deja huecos visibles", () => {
   assert.ok(!texto.includes("{"), "ninguna variable puede llegarle al cliente sin reemplazar");
 
   // Una plantilla vacía cae en el default en vez de mandar un mensaje en blanco.
-  assert.equal(
-    renderPromoMessage("   ", { cliente: "Ana", cortes: 3, negocio: "X" }),
-    DEFAULT_PROMO_MESSAGE.replace("{cliente}", "Ana").replace("{cortes}", "3").replace("{negocio}", "X"),
+  const porDefecto = renderPromoMessage("   ", { cliente: "Ana", cortes: 3, negocio: "X" });
+  assert.ok(porDefecto.startsWith("¡Hola Ana!"));
+  assert.ok(porDefecto.includes("3 cortes"));
+  assert.ok(!porDefecto.includes("{"), "el default tampoco puede dejar variables sin reemplazar");
+  assert.ok(DEFAULT_PROMO_MESSAGE.includes("{premio}"), "el default trae el premio");
+
+  // El caso del pedido: a los 10 el mensaje anuncia el premio.
+  const conPremio = renderPromoMessage(null, {
+    cliente: "Juan", cortes: 10, negocio: "labarbe", premio: "Tu próximo corte es gratis 🎉",
+  });
+  assert.ok(conPremio.includes("10 cortes"));
+  assert.ok(conPremio.includes("Tu próximo corte es gratis 🎉"));
+
+  // `{total}` es el histórico y cae al progreso si no se pasa.
+  assert.ok(
+    renderPromoMessage("{cortes} de {total}", { cliente: "A", cortes: 2, negocio: "X", total: 47 })
+      === "2 de 47",
   );
 });
 

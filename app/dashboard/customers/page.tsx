@@ -11,7 +11,7 @@ import { Select } from "@/components/ui/Select";
 import { fetchCustomerSales } from "@/services/customers.service";
 import type { Customer, NewCustomerInput, CustomerSale } from "@/services/customers.service";
 import { usePromosStore } from "@/stores/promos.store";
-import { milestoneFor, renderPromoMessage, whatsappLink, businessDisplayName } from "@/services/promos.service";
+import { availableReward, renderPromoMessage, whatsappLink, businessDisplayName } from "@/services/promos.service";
 import { useProfile } from "@/components/ProfileProvider";
 import { useSettingsStore } from "@/stores/settings.store";
 
@@ -536,29 +536,30 @@ export default function CustomersPage() {
                 <div className="rounded-xl border border-[#25D366]/25 bg-[#25D366]/5 p-4 flex flex-col sm:flex-row sm:items-center gap-4">
                   <div className="flex-1 min-w-0">
                     <p className="text-2xl font-bold text-on-surface tabular-nums">
-                      {detailCustomer.haircut_count}
+                      {detailCustomer.haircuts_since_reward}
                       <span className="text-sm font-medium text-on-surface-variant ml-2">
-                        corte{detailCustomer.haircut_count !== 1 ? "s" : ""}
+                        corte{detailCustomer.haircuts_since_reward !== 1 ? "s" : ""} hacia el premio
                       </span>
                     </p>
                     {(() => {
-                      const hito = milestoneFor(detailCustomer.haircut_count, milestones);
+                      const hito = availableReward(detailCustomer.haircuts_since_reward, milestones);
                       return hito ? (
                         <p className="text-xs font-semibold text-[#16a34a] mt-1">
                           🎉 Le toca premio: {hito.reward}
                         </p>
                       ) : (
                         <p className="text-xs text-on-surface-variant mt-1">
-                          Acumulados con vos. Se actualiza solo en cada venta.
+                          {detailCustomer.haircut_count} en total con vos. Se actualiza solo en cada venta.
                         </p>
                       );
                     })()}
                   </div>
                   {(() => {
-                    const hito = milestoneFor(detailCustomer.haircut_count, milestones);
+                    const hito = availableReward(detailCustomer.haircuts_since_reward, milestones);
                     const texto = renderPromoMessage(promoConfig.message, {
                       cliente: detailCustomer.full_name.split(" ")[0],
-                      cortes: detailCustomer.haircut_count,
+                      cortes: detailCustomer.haircuts_since_reward,
+                      total: detailCustomer.haircut_count,
                       negocio: businessDisplayName(settings?.business_profile?.businessName, profile?.businessName),
                       premio: hito?.reward ?? null,
                     });

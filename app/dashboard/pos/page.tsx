@@ -34,7 +34,7 @@ import { SuccessModal } from "./components/SuccessModal";
 import { usePromosStore } from "@/stores/promos.store";
 import {
   fetchCustomerPromoTarget,
-  milestoneFor,
+  availableReward,
   renderPromoMessage,
   whatsappLink as buildWhatsappLink,
   businessDisplayName,
@@ -415,11 +415,13 @@ export default function POSPage() {
 
       if (cobroCortes && selectedCustomer) {
         try {
-          const { count, phone } = await fetchCustomerPromoTarget(selectedCustomer.id);
-          const hito = milestoneFor(count, promoMilestones);
+          const { count, progress, phone } = await fetchCustomerPromoTarget(selectedCustomer.id);
+          // El premio sale del PROGRESO; el histórico va como `{total}`.
+          const hito = availableReward(progress, promoMilestones);
           const texto = renderPromoMessage(promoConfig.message, {
             cliente: selectedCustomer.full_name.split(" ")[0],
-            cortes: count,
+            cortes: progress,
+            total: count,
             negocio: businessDisplayName(businessProfile?.businessName, profile?.businessName),
             premio: hito?.reward ?? null,
           });

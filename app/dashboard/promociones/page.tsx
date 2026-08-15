@@ -6,11 +6,13 @@ import { usePromosStore } from "@/stores/promos.store";
 import { useProfile } from "@/components/ProfileProvider";
 import { useSettingsStore } from "@/stores/settings.store";
 import { fetchPromoCustomers, toPromoRows } from "@/services/promo-customers.service";
-import type { PromoCustomer } from "@/services/promo-customers.service";
-import { renderPromoMessage, whatsappLink, milestoneFor, businessDisplayName } from "@/services/promos.service";
+import type { PromoCustomer, PromoCustomerRow } from "@/services/promo-customers.service";
+import { redeemPromo } from "@/services/promos.service";
+import { renderPromoMessage, whatsappLink, availableReward, businessDisplayName } from "@/services/promos.service";
 import { DataTable, type DataColumn } from "@/components/DataTable";
 import { CollectionEmpty, CollectionError, CollectionLoading } from "@/components/CollectionState";
 import { IconSearch, IconUsers } from "@/app/assets/icons/DashboardIcons";
+import { notifySuccess, notifyError } from "@/lib/notifications";
 
 /**
  * Promociones: quién está cerca del premio y a quién escribirle.
@@ -28,10 +30,13 @@ export default function PromocionesClientesPage() {
   const settings = useSettingsStore((s) => s.settings);
   const fetchSettings = useSettingsStore((s) => s.fetchSettings);
 
-  const [raw, setRaw] = useState<Pick<PromoCustomer, "id" | "full_name" | "phone" | "haircut_count">[]>([]);
+  const [raw, setRaw] = useState<PromoCustomerRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  /** Cliente sobre el que se está confirmando el canje. */
+  const [confirmar, setConfirmar] = useState<PromoCustomer | null>(null);
+  const [canjeando, setCanjeando] = useState(false);
 
   /**
    * Carga sin tocar estado de forma síncrona: `loading` arranca en true y solo
@@ -72,10 +77,11 @@ export default function PromocionesClientesPage() {
   const totalCortes = rows.reduce((sum, c) => sum + c.haircut_count, 0);
 
   const linkFor = (c: PromoCustomer): string | null => {
-    const hito = milestoneFor(c.haircut_count, milestones);
+    const hito = availableReward(c.progress, milestones);
     const texto = renderPromoMessage(config.message, {
       cliente: c.full_name.split(" ")[0],
-      cortes: c.haircut_count,
+      cortes: c.progress,
+      total: c.haircut_count,
       negocio: businessDisplayName(settings?.business_profile?.businessName, profile?.businessName),
       premio: hito?.reward ?? null,
     });
@@ -95,7 +101,19 @@ export default function PromocionesClientesPage() {
       align: "right",
       mobile: "trailing",
       className: "font-bold text-on-surface tabular-nums",
-      cell: (c) => c.haircut_count,
+      // El progreso, que es el número que decide el premio. El histórico va
+      // abajo en gris: son dos cosas distintas y confundirlas hace que un
+      // cliente que canjeó ayer parezca que nunca vino.
+      cell: (c) => (
+        <span>
+          {c.progress}
+          {c.haircut_count !== c.progress && (
+            <span className="block text-[10px] font-normal text-on-surface-variant">
+              {c.haircut_count} en total
+            </span>
+          )}
+        </span>
+      ),
     },
     {
       header: "Estado",
@@ -121,22 +139,37 @@ export default function PromocionesClientesPage() {
       headerClassName: "pr-6",
       cell: (c) => {
         const link = linkFor(c);
+        const puedeCanjear = Boolean(c.reward);
         // Sin teléfono no hay a dónde escribir: se dice por qué en vez de
         // ofrecer un botón que no puede hacer nada.
-        return link ? (
-          <a
-            href={link}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#25D366]/10 text-[#16a34a] text-[11px] font-bold hover:bg-[#25D366] hover:text-white transition-colors whitespace-nowrap"
-          >
-            <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5">
-              <path d="M12 2a10 10 0 0 0-8.6 15L2 22l5.2-1.4A10 10 0 1 0 12 2zm0 18.2c-1.6 0-3.1-.4-4.4-1.2l-.3-.2-3.1.8.8-3-.2-.3A8.2 8.2 0 1 1 12 20.2z" />
-            </svg>
-            Escribir
-          </a>
-        ) : (
-          <span className="text-[11px] text-on-surface-variant/60 whitespace-nowrap">Sin teléfono</span>
+        return (
+          <div className="flex items-center justify-end gap-2 whitespace-nowrap">
+            {link ? (
+              <a
+                href={link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#25D366]/10 text-[#16a34a] text-[11px] font-bold hover:bg-[#25D366] hover:text-white transition-colors"
+              >
+                <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5">
+                  <path d="M12 2a10 10 0 0 0-8.6 15L2 22l5.2-1.4A10 10 0 1 0 12 2zm0 18.2c-1.6 0-3.1-.4-4.4-1.2l-.3-.2-3.1.8.8-3-.2-.3A8.2 8.2 0 1 1 12 20.2z" />
+                </svg>
+                Escribir
+              </a>
+            ) : (
+              <span className="text-[11px] text-on-surface-variant/60">Sin teléfono</span>
+            )}
+            {/* Solo aparece cuando el premio está ganado: un botón de canjear
+                siempre visible invita a entregar lo que todavía no corresponde. */}
+            {puedeCanjear && (
+              <button
+                onClick={() => setConfirmar(c)}
+                className="px-3 py-1.5 rounded-lg bg-primary/10 text-primary text-[11px] font-bold hover:bg-primary hover:text-on-primary transition-colors"
+              >
+                Canjear
+              </button>
+            )}
+          </div>
         );
       },
     },
@@ -227,6 +260,63 @@ export default function PromocionesClientesPage() {
           <DataTable rows={rows} rowKey={(c) => c.id} minWidth={640} caption="Clientes por cortes acumulados" columns={columns} />
         )}
       </div>
+
+      {confirmar && (
+        <div className="fixed inset-0 z-[130] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-surface-container rounded-t-3xl sm:rounded-3xl w-full sm:max-w-sm border border-outline-variant/10 shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200">
+            <div className="p-6 text-center">
+              <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-[#10b981]/10 flex items-center justify-center text-2xl">
+                🎁
+              </div>
+              <h3 className="text-lg font-bold text-on-surface mb-2">Canjear premio</h3>
+              <p className="text-sm text-on-surface-variant mb-2">
+                <strong className="text-on-surface">{confirmar.full_name}</strong> llegó a{" "}
+                {confirmar.progress} cortes y gana: <strong className="text-on-surface">{confirmar.reward}</strong>.
+              </p>
+              {/* Que el contador vuelva a cero es la consecuencia que hay que
+                  entender ANTES de confirmar, no descubrir después. */}
+              <p className="text-xs text-on-surface-variant mb-6 rounded-lg border border-outline-variant/20 bg-surface-container-lowest px-3 py-2">
+                Este corte <strong>no se cobra</strong>: no lo pases por el punto de venta. Al
+                confirmar, su contador vuelve a <strong>0</strong> y empieza a acumular de nuevo.
+                Los {confirmar.haircut_count} cortes de su historial no se tocan.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setConfirmar(null)}
+                  className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  disabled={canjeando}
+                  onClick={async () => {
+                    setCanjeando(true);
+                    try {
+                      const r = await redeemPromo(confirmar.id);
+                      notifySuccess(
+                        "Premio canjeado",
+                        `${confirmar.full_name}: ${r.reward}. Su contador arranca de cero.`,
+                      );
+                      setConfirmar(null);
+                      reintentar();
+                    } catch (e) {
+                      notifyError(
+                        "No se pudo canjear",
+                        e instanceof Error ? e.message : "Intentá de nuevo.",
+                      );
+                    } finally {
+                      setCanjeando(false);
+                    }
+                  }}
+                  className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold bg-primary hover:bg-primary-dim text-on-primary transition-colors disabled:opacity-50"
+                >
+                  {canjeando ? "Canjeando…" : "Confirmar canje"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
