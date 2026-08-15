@@ -240,14 +240,20 @@ export const NAV_ITEMS: NavItem[] = [
   { id: "purchases", name: "Compras", href: "/dashboard/purchases", modules: ["inventory"] },
   { id: "distributors", name: "Proveedores", href: "/dashboard/distributors", modules: ["inventory"] },
   { id: "pedidos", name: "Pedidos", href: "/dashboard/pedidos", modules: ["inventory"] },
-  // Antes un solo ítem "Catálogo" mezclaba productos y servicios en una
-  // pantalla más pobre que las dos de verdad (sin permisos por rol, sin
-  // escáner) y que terminaba mandando a /dashboard/inventory de todos modos
-  // para editar. Separados: cada uno lleva a su pantalla completa y el nombre
-  // dice qué es.
-  { id: "inventory", name: "Inventario", href: "/dashboard/inventory", modules: ["inventory"] },
+  // Un solo ítem para el catálogo, otra vez — pero ahora sí.
+  //
+  // El intento anterior de unificar ("Catálogo") se revirtió porque la pantalla
+  // única era MÁS POBRE que las dos que reemplazaba: sin permisos por rol, sin
+  // escáner, y para editar mandaba igual a /dashboard/inventory. El problema no
+  // era unificar, era la pantalla. Ahora la unión se hace sobre la pantalla
+  // completa de inventario, que conserva escáner, costos, stock, movimientos y
+  // permisos, y le suma los servicios leídos de `services`.
+  //
+  // `modules` lleva los dos: alcanza con tener uno para que el ítem aparezca.
+  // Un salón sin inventario igual necesita su catálogo de servicios, y una
+  // tienda sin servicios igual necesita el de productos.
+  { id: "inventory", name: "Producto - Servicio", href: "/dashboard/inventory", modules: ["inventory", "services"] },
   { id: "categories", name: "Categorías", href: "/dashboard/categories", modules: ["inventory"] },
-  { id: "services", name: "Servicios", href: "/dashboard/services", modules: ["services"] },
   { id: "vehicles", name: "Vehículos", href: "/dashboard/vehicles", modules: ["vehicles"] },
   { id: "staff", name: "Personal", href: "/dashboard/staff", modules: ["staff"] },
   { id: "billing", name: "Facturación", href: "/dashboard/billing", modules: ["billing"] },
@@ -266,9 +272,11 @@ export interface QuickAction {
 export const QUICK_ACTIONS: QuickAction[] = [
   { id: "new-sale", title: "Nueva Venta", href: "/dashboard/pos", module: null },
   { id: "new-product", title: "Añadir Producto", href: "/dashboard/inventory/product", module: "inventory" },
+  // El mismo formulario, abierto en la pestaña Servicio. Es lo que ya hacía el
+  // enlace del modal rápido, salvo que ese `?type=` nunca se leía.
   { id: "new-customer", title: "Registrar Cliente", href: "/dashboard/customers", module: null },
   { id: "new-appointment", title: "Nueva Cita", href: "/dashboard/calendar", module: "appointments" },
-  { id: "new-service", title: "Nuevo Servicio", href: "/dashboard/services", module: "services" },
+  { id: "new-service", title: "Nuevo Servicio", href: "/dashboard/inventory/product?type=servicio", module: "services" },
   { id: "new-staff", title: "Añadir Personal", href: "/dashboard/staff", module: "staff" },
   { id: "new-vehicle", title: "Registrar Vehículo", href: "/dashboard/vehicles", module: "vehicles" },
   { id: "new-invoice", title: "Nueva Factura", href: "/dashboard/billing", module: "billing" },
@@ -388,16 +396,18 @@ export function workerNavItems(permissions: WorkerPermissions): NavItem[] {
       (k) => permissions[k] && !NON_NAV_PERMISSIONS.includes(k),
     ),
   );
-  // `catalogo` sigue siendo un permiso otorgable (acceso amplio a productos Y
-  // servicios de una sola vez), pero ya no hay un ítem de nav con ese id —
-  // se resuelve a los dos ítems reales que reemplazaron al catálogo unificado.
-  if (granted.has("catalogo")) {
-    granted.add("inventory");
-    granted.add("services");
-  }
-  if (granted.has("inventory")) {
-    granted.add("categories");
-  }
+  // `catalogo` es el permiso amplio: productos Y servicios de una sola vez.
+  const verProductos = granted.has("inventory") || granted.has("catalogo");
+  const verServicios = granted.has("services") || granted.has("catalogo");
+
+  // Productos y servicios comparten UN ítem de menú, así que cualquiera de los
+  // dos permisos lo abre. Sin esto, quien solo tiene `services` —la recepción
+  // de un salón, que no toca mercadería— se quedaba sin ninguna pantalla donde
+  // ver el catálogo, porque el ítem con id "services" dejó de existir.
+  if (verProductos || verServicios) granted.add("inventory");
+  // Categorías sí es de inventario: quien solo administra servicios no las usa.
+  if (verProductos) granted.add("categories");
+
   return NAV_ITEMS.filter((item) => granted.has(item.id));
 }
 

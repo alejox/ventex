@@ -1703,6 +1703,7 @@ export type Database = {
       }
       services: {
         Row: {
+          category_id: string | null
           commission_type: string | null
           commission_value: number | null
           created_at: string
@@ -1717,6 +1718,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          category_id?: string | null
           commission_type?: string | null
           commission_value?: number | null
           created_at?: string
@@ -1731,6 +1733,7 @@ export type Database = {
           user_id?: string
         }
         Update: {
+          category_id?: string | null
           commission_type?: string | null
           commission_value?: number | null
           created_at?: string
@@ -1744,7 +1747,15 @@ export type Database = {
           status?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "services_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       settings: {
         Row: {

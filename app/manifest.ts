@@ -34,8 +34,8 @@ export default function manifest(): MetadataRoute.Manifest {
         icons: [{ src: "/icon-192.png", sizes: "192x192" }],
       },
       {
-        name: "Inventario",
-        short_name: "Inventario",
+        name: "Productos y servicios",
+        short_name: "Catálogo",
         url: "/dashboard/inventory",
         icons: [{ src: "/icon-192.png", sizes: "192x192" }],
       },

@@ -9,10 +9,14 @@ import {
   IconAlertTriangle,
   IconImagePlaceholder,
   IconMoveHorizontal,
+  IconScissors,
 } from "@/app/assets/icons/DashboardIcons";
 import { useInventoryStore } from "@/stores/inventory.store";
-import type { NewCategoryInput, Product } from "@/services/inventory.service";
-import { getUnitCost, calculateInventoryValue, isServiceItem, findDuplicateCategory } from "@/services/inventory.service";
+import { useServicesStore } from "@/stores/services.store";
+import type { NewCategoryInput } from "@/services/inventory.service";
+import { getUnitCost, calculateInventoryValue, findDuplicateCategory } from "@/services/inventory.service";
+import type { CatalogRow } from "@/lib/catalog";
+import { catalogRowsOf, catalogEditHref, catalogMatchesQuery } from "@/lib/catalog";
 import { stockStatusOf, stockLabelOf, needsRestock, STOCK_CHIP, STOCK_DOT, SERVICE_CHIP } from "@/lib/stock";
 import { useProfile } from "@/components/ProfileProvider";
 import { can } from "@/lib/permissions";
@@ -49,13 +53,29 @@ function IconLayers(props: React.SVGProps<SVGSVGElement>) {
 
 const EMPTY_CATEGORY: NewCategoryInput = { name: "", description: "" };
 
-export default function InventoryPage() {
+/**
+ * El catálogo del negocio: productos y servicios en una sola pantalla.
+ *
+ * Eran dos ("Inventario" y "Servicios") y el dueño tenía que saber de antemano
+ * en cuál de las dos estaba lo que buscaba. Peor: un servicio se guardaba en las
+ * DOS tablas para poder aparecer en las dos pantallas, con una sincronización
+ * por nombre que en producción no funcionaba en ningún caso.
+ *
+ * Ahora cada mitad se guarda donde corresponde —`products` y `services`— y se
+ * juntan acá, al leer. Lo que la pantalla no puede hacer es tratarlas igual: un
+ * servicio no tiene stock, ni costo, ni SKU, ni movimientos de inventario, y
+ * cada columna que no le aplica dice "—" en vez de inventarle un cero.
+ */
+export default function CatalogPage() {
   // Espejo de la RLS: acá se esconde lo que la persona no puede usar, pero
   // quien corta de verdad es la base (policies, trigger y RPC).
   const profile = useProfile();
   const canSeeCosts = can(profile, "inventory_costs");
   const canEdit = can(profile, "inventory_edit");
   const canMoveStock = can(profile, "inventory_stock");
+  // Escribir en `services` pide su propio permiso: la policy de esa tabla exige
+  // `worker_can('services')`, no `inventory_edit`.
+  const canEditServices = can(profile, "services");
 
   /**
    * El VALOR TOTAL del inventario es solo del dueño, ni siquiera con
@@ -69,22 +89,31 @@ export default function InventoryPage() {
   const canSeeInventoryValue = !profile?.isWorker;
 
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
-  const [confirmArchive, setConfirmArchive] = useState<string | null>(null);
+  const [confirmArchive, setConfirmArchive] = useState<CatalogRow | null>(null);
 
   const [newCategory, setNewCategory] = useState<NewCategoryInput>(EMPTY_CATEGORY);
-  /** Error del modal de categoría: se muestra ahí, no en la lista de productos. */
+  /** Error del modal de categoría: se muestra ahí, no en la lista del catálogo. */
   const [categoryError, setCategoryError] = useState<string | null>(null);
 
   const products = useInventoryStore((s) => s.products);
   const categories = useInventoryStore((s) => s.categories);
-  const loading = useInventoryStore((s) => s.loading);
+  const loadingProducts = useInventoryStore((s) => s.loading);
   const error = useInventoryStore((s) => s.error);
   const fetchInventory = useInventoryStore((s) => s.fetchInventory);
   const addCategory = useInventoryStore((s) => s.addCategory);
   const archiveProduct = useInventoryStore((s) => s.archiveProduct);
   const activateProduct = useInventoryStore((s) => s.activateProduct);
 
+  const services = useServicesStore((s) => s.services);
+  const loadingServices = useServicesStore((s) => s.loading);
+  const serviceError = useServicesStore((s) => s.error);
+  const fetchServices = useServicesStore((s) => s.fetchServices);
+  const setServiceStatus = useServicesStore((s) => s.setServiceStatus);
+
+  const loading = loadingProducts || loadingServices;
+
   const [searchQuery, setSearchQuery] = useState("");
+  const [typeFilter, setTypeFilter] = useState<"" | "product" | "service">("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [stockFilter, setStockFilter] = useState("");
   const [scannerOpen, setScannerOpen] = useState(false);
@@ -93,8 +122,12 @@ export default function InventoryPage() {
   /** Código escaneado que no existe en el catálogo: abre el alta con él puesto. */
   const [newProductBarcode, setNewProductBarcode] = useState<string | null>(null);
 
+  const rows = catalogRowsOf(products, services);
+  const productCount = products.length;
+  const serviceCount = services.length;
+
   /**
-   * Un escaneo desde el inventario responde una de dos cosas: "acá está" o
+   * Un escaneo desde el catálogo responde una de dos cosas: "acá está" o
    * "no lo tenés". Antes solo hacía lo primero y, si el código no existía, el
    * buscador quedaba vacío sin decir nada. Ahora la segunda respuesta abre el
    * alta rápida con el código ya cargado: escanear el empaque ES la forma de
@@ -126,64 +159,55 @@ export default function InventoryPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
-  /** Filtro por fila: búsqueda y categoría. */
-  const matchesRow = (p: Product): boolean => {
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      // También por código de barras: lo que llega del escáner cae en este mismo
-      // campo, y ese código no es el SKU.
-      if (
-        !p.name.toLowerCase().includes(q) &&
-        !p.sku.toLowerCase().includes(q) &&
-        !(p.barcode ?? "").toLowerCase().includes(q)
-      )
-        return false;
-    }
-    if (categoryFilter && p.categories?.name !== categoryFilter) return false;
+  /** Filtro por fila: búsqueda, tipo y categoría. */
+  const matchesRow = (row: CatalogRow): boolean => {
+    if (!catalogMatchesQuery(row, searchQuery)) return false;
+    if (typeFilter && row.kind !== typeFilter) return false;
+    if (categoryFilter && row.categoryName !== categoryFilter) return false;
     return true;
   };
 
-  const matchesStock = (p: Product): boolean => {
+  const matchesStock = (row: CatalogRow): boolean => {
     // Un servicio no tiene stock, así que no puede estar agotado, bajo ni
     // óptimo: en cuanto se filtra por estado de inventario, queda afuera.
-    if (stockFilter && isServiceItem(p)) return false;
+    if (!stockFilter) return true;
+    if (row.kind !== "product") return false;
     // El filtro devuelve EXACTAMENTE lo que cuenta el KPI de arriba. Que ese
     // número y esta lista se contradigan es el bug que reportó QA.
-    if (stockFilter === "Agotado" && p.stock_level !== 0) return false;
-    if (stockFilter === "Stock Bajo" && !needsRestock(p)) return false;
-    if (stockFilter === "Óptimo" && needsRestock(p)) return false;
+    if (stockFilter === "Agotado" && row.product.stock_level !== 0) return false;
+    if (stockFilter === "Stock Bajo" && !needsRestock(row.product)) return false;
+    if (stockFilter === "Óptimo" && needsRestock(row.product)) return false;
     return true;
   };
 
   /**
-   * El producto es la unidad que se dibuja y se pagina: cada fila es un
-   * producto, y el filtro (búsqueda, categoría y stock) se aplica sobre él
-   * directamente. Cada página es un corte plano de la lista filtrada.
+   * El ítem es la unidad que se dibuja y se pagina: cada fila es un producto o
+   * un servicio, y el filtro se aplica sobre él directamente. Cada página es un
+   * corte plano de la lista filtrada.
    */
-  const filteredProducts = products.filter((p) => matchesRow(p) && matchesStock(p));
+  const filteredRows = rows.filter((row) => matchesRow(row) && matchesStock(row));
 
-  const totalFilteredProductsCount = filteredProducts.length;
+  const totalFilteredCount = filteredRows.length;
 
-  const pageAssignments: Product[][] = [];
-  for (let i = 0; i < filteredProducts.length; i += pageSize) {
-    pageAssignments.push(filteredProducts.slice(i, i + pageSize));
+  const pageAssignments: CatalogRow[][] = [];
+  for (let i = 0; i < filteredRows.length; i += pageSize) {
+    pageAssignments.push(filteredRows.slice(i, i + pageSize));
   }
 
   const totalPages = pageAssignments.length || 1;
   const safeCurrentPage = Math.min(currentPage, totalPages);
-  const paginatedGroups = pageAssignments[safeCurrentPage - 1] ?? [];
+  const paginatedRows = pageAssignments[safeCurrentPage - 1] ?? [];
 
   const rowsBeforePage = pageAssignments
     .slice(0, safeCurrentPage - 1)
     .reduce((acc, page) => acc + page.length, 0);
 
-  const rowsInPage = paginatedGroups.length;
-
-  const pageStartItem = totalFilteredProductsCount > 0 ? rowsBeforePage + 1 : 0;
-  const pageEndItem = rowsBeforePage + rowsInPage;
+  const pageStartItem = totalFilteredCount > 0 ? rowsBeforePage + 1 : 0;
+  const pageEndItem = rowsBeforePage + paginatedRows.length;
 
   const clearFilters = () => {
     setSearchQuery("");
+    setTypeFilter("");
     setCategoryFilter("");
     setStockFilter("");
     setCurrentPage(1);
@@ -191,7 +215,8 @@ export default function InventoryPage() {
 
   useEffect(() => {
     fetchInventory();
-  }, [fetchInventory]);
+    fetchServices();
+  }, [fetchInventory, fetchServices]);
 
   const handleSaveCategory = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -214,23 +239,34 @@ export default function InventoryPage() {
     setCategoryError(useInventoryStore.getState().error ?? "No se pudo crear la categoría.");
   };
 
-  const sellableProducts = products;
+  /** Archivar y activar viven en tablas distintas; la fila dice en cuál. */
+  const setRowActive = async (row: CatalogRow, active: boolean) => {
+    if (row.kind === "product") {
+      await (active ? activateProduct(row.id) : archiveProduct(row.id));
+      return;
+    }
+    await setServiceStatus(row.id, active ? "active" : "inactive");
+  };
+
+  const canArchive = (row: CatalogRow) => (row.kind === "product" ? canEdit : canEditServices);
 
   return (
     <div className="space-y-8">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
         <div>
-          <h1 className="text-3xl font-bold text-on-surface tracking-tight">Gesti&oacute;n de Inventario</h1>
+          <h1 className="text-3xl font-bold text-on-surface tracking-tight">Productos y Servicios</h1>
           <p className="text-on-surface-variant text-sm mt-1.5">
-            {sellableProducts.length} producto{sellableProducts.length !== 1 ? "s" : ""} registrado{sellableProducts.length !== 1 ? "s" : ""}
+            {productCount} producto{productCount !== 1 ? "s" : ""} y {serviceCount} servicio
+            {serviceCount !== 1 ? "s" : ""} en tu catálogo
           </p>
         </div>
         {/* Móvil: secundarios a dos columnas y el primario debajo, a ancho completo.
             Cada acción se muestra solo si la persona puede ejecutarla: un botón
             que siempre falla es peor que un botón ausente. */}
-        {canEdit && (
+        {(canEdit || canEditServices) && (
         <div className="grid grid-cols-2 gap-3 w-full lg:flex lg:w-auto">
+          {canEdit && (
           <button
             onClick={() => setIsCategoryModalOpen(true)}
             className="h-11 whitespace-nowrap bg-surface-container hover:bg-surface-container-high border border-outline-variant/20 text-on-surface text-sm font-semibold px-3 lg:px-5 rounded-xl transition-colors flex items-center justify-center gap-2"
@@ -240,6 +276,7 @@ export default function InventoryPage() {
             </svg>
             Nueva Categor&iacute;a
           </button>
+          )}
           <Link
             href="/dashboard/inventory/product"
             className="h-11 col-span-2 lg:col-span-1 whitespace-nowrap bg-primary hover:bg-primary-dim text-on-primary text-sm font-semibold px-5 rounded-xl shadow-[0_0_20px_rgba(96,99,238,0.25)] transition-all flex items-center justify-center gap-2 hover:shadow-[0_0_25px_rgba(96,99,238,0.35)]"
@@ -254,14 +291,18 @@ export default function InventoryPage() {
       </div>
 
       {error && <CollectionError message={error} onRetry={fetchInventory} />}
+      {serviceError && <CollectionError message={serviceError} onRetry={fetchServices} />}
 
       {/* Stats. La valorización del inventario es cifra financiera del negocio:
           solo el dueño, ni siquiera un empleado con `inventory_costs`. */}
       <div className={`grid grid-cols-1 gap-6 ${canSeeInventoryValue ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
         <div className="bg-surface-container rounded-2xl p-6 border border-outline-variant/10 shadow-sm flex justify-between items-center group hover:border-outline-variant/20 transition-colors">
           <div>
-            <p className="text-on-surface-variant text-sm font-medium mb-1.5">Total Productos</p>
-            <h3 className="text-4xl font-bold text-on-surface tracking-tight">{sellableProducts.length}</h3>
+            <p className="text-on-surface-variant text-sm font-medium mb-1.5">Total en Cat&aacute;logo</p>
+            <h3 className="text-4xl font-bold text-on-surface tracking-tight">{productCount + serviceCount}</h3>
+            <p className="text-xs text-on-surface-variant mt-1">
+              {productCount} producto{productCount !== 1 ? "s" : ""} &middot; {serviceCount} servicio{serviceCount !== 1 ? "s" : ""}
+            </p>
           </div>
           <div className="w-14 h-14 shrink-0 rounded-xl bg-primary/10 text-primary flex items-center justify-center group-hover:scale-110 transition-transform">
             <IconBox className="w-7 h-7" />
@@ -276,6 +317,8 @@ export default function InventoryPage() {
             <h3 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-on-surface tracking-tight truncate">
               ${calculateInventoryValue(products).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </h3>
+            {/* Un servicio no es capital parado: no hay mercadería que valorizar. */}
+            <p className="text-xs text-on-surface-variant mt-1">Solo mercader&iacute;a</p>
           </div>
           <div className="w-14 h-14 shrink-0 rounded-xl bg-[#8b5cf6]/10 text-[#8b5cf6] flex items-center justify-center group-hover:scale-110 transition-transform">
             <IconLayers className="w-7 h-7" />
@@ -286,7 +329,7 @@ export default function InventoryPage() {
         <div className="bg-surface-container rounded-2xl p-6 border border-outline-variant/10 shadow-sm flex justify-between items-center group hover:border-outline-variant/20 transition-colors">
           <div>
             <p className="text-on-surface-variant text-sm font-medium mb-1.5">Stock Bajo</p>
-            <h3 className="text-4xl font-bold text-on-surface tracking-tight">{sellableProducts.filter(needsRestock).length}</h3>
+            <h3 className="text-4xl font-bold text-on-surface tracking-tight">{products.filter(needsRestock).length}</h3>
           </div>
           <div className="w-14 h-14 shrink-0 rounded-xl bg-error/10 text-error flex items-center justify-center group-hover:scale-110 transition-transform">
             <IconAlertTriangle className="w-7 h-7" />
@@ -326,6 +369,16 @@ export default function InventoryPage() {
               "Todas las C" y dejaba de decir qué filtra. */}
           <div className="flex w-full md:w-auto gap-2 lg:gap-3">
             <Select
+              aria-label="Filtrar por tipo"
+              containerClassName="flex-1 md:w-36"
+              value={typeFilter}
+              onChange={e => { setTypeFilter(e.target.value as "" | "product" | "service"); setCurrentPage(1); }}
+            >
+              <option value="">Tipo</option>
+              <option value="product">Productos</option>
+              <option value="service">Servicios</option>
+            </Select>
+            <Select
               aria-label="Filtrar por categoría"
               containerClassName="flex-1 md:w-44"
               value={categoryFilter}
@@ -351,24 +404,26 @@ export default function InventoryPage() {
         </div>
 
         {/* Móvil: la tabla de 7 columnas no entra en un teléfono, así que cada
-            producto se dibuja como tarjeta. El fondo alterno es lo que separa
-            un producto del siguiente: la ficha ocupa tres líneas y una
-            divisoria de 1px no da la señal. */}
+            ítem se dibuja como tarjeta. El fondo alterno es lo que separa
+            uno del siguiente: la ficha ocupa tres líneas y una divisoria de
+            1px no da la señal. */}
         <ul className="lg:hidden divide-y divide-outline-variant/20">
           {loading ? (
-            <li><CollectionLoading label="Cargando productos…" /></li>
-          ) : filteredProducts.length === 0 ? (
+            <li><CollectionLoading label="Cargando catálogo…" /></li>
+          ) : filteredRows.length === 0 ? (
             <li>
-              {products.length === 0 ? (
-                <CollectionEmpty icon={<IconBox className="h-8 w-8" />} title="Aún no hay productos" description="Crea tu primer producto para empezar a gestionar inventario." action={{ label: "Crear tu primer producto", href: "/dashboard/inventory/product" }} />
+              {rows.length === 0 ? (
+                <CollectionEmpty icon={<IconBox className="h-8 w-8" />} title="Aún no hay nada en tu catálogo" description="Crea tu primer producto o servicio para empezar a vender." action={{ label: "Crear el primero", href: "/dashboard/inventory/product" }} />
               ) : (
-                <CollectionFilteredEmpty title="Ningún producto coincide con los filtros" action={{ label: "Limpiar filtros", onClick: clearFilters }} />
+                <CollectionFilteredEmpty title="Nada coincide con los filtros" action={{ label: "Limpiar filtros", onClick: clearFilters }} />
               )}
             </li>
           ) : (
-            paginatedGroups.map((item) => {
-              const service = isServiceItem(item);
-              const status = stockStatusOf(item.stock_level, item.minimum_stock);
+            paginatedRows.map((row) => {
+              const isService = row.kind === "service";
+              const status = row.kind === "product"
+                ? stockStatusOf(row.product.stock_level, row.product.minimum_stock)
+                : null;
               // La tarjeta entera es el objetivo táctil, no un ícono de 16px en
               // la esquina: en el teléfono se toca con el pulgar. Sin permiso de
               // edición se dibuja igual pero no navega: un enlace que lleva a un
@@ -377,31 +432,37 @@ export default function InventoryPage() {
                 <>
                   <div className="flex items-start gap-3">
                       <div className="relative w-11 h-11 shrink-0 rounded-xl bg-surface-container-lowest border border-outline-variant/10 flex items-center justify-center text-on-surface-variant/30 overflow-hidden">
-                        {item.image_url ? (
-                          <Image src={item.image_url} alt="" fill sizes="44px" unoptimized className="object-cover" />
+                        {row.kind === "product" && row.product.image_url ? (
+                          <Image src={row.product.image_url} alt="" fill sizes="44px" unoptimized className="object-cover" />
+                        ) : isService ? (
+                          <IconScissors className="w-5 h-5 text-[#8b5cf6]" />
                         ) : (
                           <IconImagePlaceholder className="w-5 h-5" />
                         )}
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="text-[15px] leading-snug font-semibold text-on-surface break-words">
-                          {item.name}
+                          {row.name}
                         </p>
                         <p className="text-xs text-on-surface-variant mt-0.5 truncate">
-                          <span className="font-mono">{item.sku}</span>
-                          {item.categories?.name ? ` · ${item.categories.name}` : ""}
+                          {row.kind === "product" ? (
+                            <span className="font-mono">{row.product.sku}</span>
+                          ) : (
+                            <span>{row.service.duration_minutes} min</span>
+                          )}
+                          {row.categoryName ? ` · ${row.categoryName}` : ""}
                         </p>
                       </div>
                       {/* El precio de venta acompaña al nombre; el costo baja a
                           la línea del stock. Así lo primario no compite con lo
                           secundario y el nombre gana el ancho que necesita. */}
                       <p className="shrink-0 text-base font-bold text-on-surface tabular-nums leading-snug">
-                        ${item.price.toFixed(2)}
+                        ${row.price.toFixed(2)}
                       </p>
                     </div>
 
                     <div className="mt-2.5 flex items-center justify-between gap-3">
-                      {service ? (
+                      {row.kind === "service" || status === null ? (
                         <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-[11px] font-bold border ${SERVICE_CHIP}`}>
                           Servicio
                         </span>
@@ -410,23 +471,25 @@ export default function InventoryPage() {
                           className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold border ${STOCK_CHIP[status]}`}
                         >
                           <span className={`w-1.5 h-1.5 rounded-full ${STOCK_DOT[status]}`} />
-                          {stockLabelOf(item.stock_level, item.minimum_stock)}
+                          {stockLabelOf(row.product.stock_level, row.product.minimum_stock)}
                         </span>
                       )}
-                      {canSeeCosts && !service && (
+                      {canSeeCosts && row.kind === "product" && (
                         <span className="text-[11px] text-on-surface-variant/70 tabular-nums shrink-0">
-                          costo ${getUnitCost(item).toFixed(2)}{(item.units_per_package ?? 1) > 1 ? " / u." : ""}
+                          costo ${getUnitCost(row.product).toFixed(2)}{(row.product.units_per_package ?? 1) > 1 ? " / u." : ""}
                         </span>
                       )}
                     </div>
                 </>
               );
 
+              const canOpen = row.kind === "product" ? canEdit : canEditServices;
+
               return (
-                <li key={item.id} className={`even:bg-on-surface/[0.05] ${canMoveStock ? "flex items-stretch" : ""}`}>
-                  {canEdit ? (
+                <li key={`${row.kind}-${row.id}`} className={`even:bg-on-surface/[0.05] ${canMoveStock ? "flex items-stretch" : ""}`}>
+                  {canOpen ? (
                     <Link
-                      href={`/dashboard/inventory/product?id=${item.id}`}
+                      href={catalogEditHref(row)}
                       className="flex-1 block px-4 py-3.5 active:bg-on-surface/10 transition-colors"
                     >
                       {cardBody}
@@ -434,13 +497,13 @@ export default function InventoryPage() {
                   ) : (
                     <div className="flex-1 px-4 py-3.5">{cardBody}</div>
                   )}
-                  {canMoveStock && !service && (
+                  {canMoveStock && row.kind === "product" && (
                     <button
                       type="button"
-                      onClick={() => { setAdjustProductId(item.id); setAdjustModalOpen(true); }}
+                      onClick={() => { setAdjustProductId(row.id); setAdjustModalOpen(true); }}
                       className="shrink-0 px-4 flex items-center justify-center text-on-surface-variant hover:text-primary active:text-primary transition-colors"
                       title="Registrar movimiento"
-                      aria-label={`Registrar movimiento de ${item.name}`}
+                      aria-label={`Registrar movimiento de ${row.name}`}
                     >
                       <IconMoveHorizontal className="w-5 h-5" />
                     </button>
@@ -456,95 +519,116 @@ export default function InventoryPage() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-surface-container-low border-b border-outline-variant/10 text-[11px] uppercase tracking-wider text-on-surface-variant font-bold">
-                <th className="px-7 py-4 font-bold">Producto</th>
+                <th className="px-7 py-4 font-bold">&Iacute;tem</th>
                 <th className="px-4 py-4 font-bold">Categor&iacute;a</th>
                 <th className="px-4 py-4 font-bold">SKU</th>
                 {canSeeCosts && <th className="px-4 py-4 font-bold">Costo</th>}
                 <th className="px-4 py-4 font-bold">Precio</th>
                 <th className="px-4 py-4 font-bold">Stock</th>
-                {(canEdit || canMoveStock) && <th className="px-7 py-4 text-center font-bold">Acciones</th>}
+                {(canEdit || canEditServices || canMoveStock) && <th className="px-7 py-4 text-center font-bold">Acciones</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-outline-variant/5 text-sm">
               {loading ? (
-                <tr><td colSpan={5 + (canSeeCosts ? 1 : 0) + (canEdit || canMoveStock ? 1 : 0)}><CollectionLoading label="Cargando productos…" /></td></tr>
-              ) : filteredProducts.length === 0 ? (
+                <tr><td colSpan={5 + (canSeeCosts ? 1 : 0) + (canEdit || canEditServices || canMoveStock ? 1 : 0)}><CollectionLoading label="Cargando catálogo…" /></td></tr>
+              ) : filteredRows.length === 0 ? (
                 <tr>
-                  <td colSpan={5 + (canSeeCosts ? 1 : 0) + (canEdit || canMoveStock ? 1 : 0)}>
-                    {products.length === 0 ? (
-                      <CollectionEmpty icon={<IconBox className="h-8 w-8" />} title="Aún no hay productos" description="Crea tu primer producto para empezar a gestionar inventario." action={{ label: "Crear tu primer producto", href: "/dashboard/inventory/product" }} />
+                  <td colSpan={5 + (canSeeCosts ? 1 : 0) + (canEdit || canEditServices || canMoveStock ? 1 : 0)}>
+                    {rows.length === 0 ? (
+                      <CollectionEmpty icon={<IconBox className="h-8 w-8" />} title="Aún no hay nada en tu catálogo" description="Crea tu primer producto o servicio para empezar a vender." action={{ label: "Crear el primero", href: "/dashboard/inventory/product" }} />
                     ) : (
-                      <CollectionFilteredEmpty title="Ningún producto coincide con los filtros" action={{ label: "Limpiar filtros", onClick: clearFilters }} />
+                      <CollectionFilteredEmpty title="Nada coincide con los filtros" action={{ label: "Limpiar filtros", onClick: clearFilters }} />
                     )}
                   </td>
                 </tr>
               ) : (
-                paginatedGroups.map((item) => {
-                  const service = isServiceItem(item);
-                  const stockStatus = stockStatusOf(item.stock_level, item.minimum_stock);
-                  const stockLabel = stockLabelOf(item.stock_level, item.minimum_stock);
+                paginatedRows.map((row) => {
+                  const stockStatus = row.kind === "product"
+                    ? stockStatusOf(row.product.stock_level, row.product.minimum_stock)
+                    : null;
+                  const canOpen = row.kind === "product" ? canEdit : canEditServices;
                   return (
-                    <tr key={item.id} className="transition-colors group hover:bg-surface-container-lowest">
+                    <tr key={`${row.kind}-${row.id}`} className="transition-colors group hover:bg-surface-container-lowest">
                         <td className="px-7 py-3.5">
                           <div className="flex items-center gap-3.5">
                             <div className="relative w-10 h-10 rounded-xl bg-surface-container border border-outline-variant/10 flex items-center justify-center text-on-surface-variant/30 overflow-hidden shrink-0">
-                              {item.image_url ? (
+                              {row.kind === "product" && row.product.image_url ? (
                                 <Image
-                                  src={item.image_url}
-                                  alt={item.name}
+                                  src={row.product.image_url}
+                                  alt={row.name}
                                   fill
                                   sizes="40px"
                                   unoptimized
                                   className="object-cover"
                                 />
+                              ) : row.kind === "service" ? (
+                                <IconScissors className="w-5 h-5 text-[#8b5cf6]" />
                               ) : (
                                 <IconImagePlaceholder className="w-5 h-5" />
                               )}
                             </div>
                             <div>
-                              <span className="text-on-surface text-sm font-semibold">{item.name}</span>
+                              <span className="text-on-surface text-sm font-semibold">{row.name}</span>
+                              {row.kind === "service" && (
+                                <span className="block text-xs text-on-surface-variant">
+                                  {row.service.duration_minutes} min
+                                </span>
+                              )}
                             </div>
                           </div>
                         </td>
-                        <td className="px-4 py-3.5 text-on-surface-variant text-sm">{item.categories?.name ?? "—"}</td>
+                        <td className="px-4 py-3.5 text-on-surface-variant text-sm">{row.categoryName ?? "—"}</td>
                         <td className="px-4 py-3.5">
-                          <span className="inline-block bg-surface-container-lowest border border-outline-variant/10 rounded-lg px-2.5 py-1 font-mono text-xs text-on-surface-variant">
-                            {item.sku}
-                          </span>
+                          {row.kind === "product" ? (
+                            <span className="inline-block bg-surface-container-lowest border border-outline-variant/10 rounded-lg px-2.5 py-1 font-mono text-xs text-on-surface-variant">
+                              {row.product.sku}
+                            </span>
+                          ) : (
+                            <span className="text-on-surface-variant/60">—</span>
+                          )}
                         </td>
                         {canSeeCosts && (
                           <td className="px-4 py-3.5 text-on-surface-variant font-mono text-sm">
-                            ${getUnitCost(item).toFixed(2)}
-                            {(item.units_per_package ?? 1) > 1 && (
-                              <span className="text-[11px] text-on-surface-variant/60 block font-sans">
-                                caja x{item.units_per_package} (${(item.purchase_price ?? 0).toFixed(2)})
-                              </span>
+                            {row.kind === "product" ? (
+                              <>
+                                ${getUnitCost(row.product).toFixed(2)}
+                                {(row.product.units_per_package ?? 1) > 1 && (
+                                  <span className="text-[11px] text-on-surface-variant/60 block font-sans">
+                                    caja x{row.product.units_per_package} (${(row.product.purchase_price ?? 0).toFixed(2)})
+                                  </span>
+                                )}
+                              </>
+                            ) : (
+                              /* Un servicio no se compra a un proveedor: no hay
+                                 costo unitario que mostrar, y un $0.00 sería una
+                                 afirmación falsa sobre su margen. */
+                              <span className="text-on-surface-variant/60">—</span>
                             )}
                           </td>
                         )}
                         <td className="px-4 py-3.5 text-on-surface font-semibold text-sm">
-                          ${item.price.toFixed(2)}
+                          ${row.price.toFixed(2)}
                         </td>
                         <td className="px-4 py-3.5">
-                          {service ? (
+                          {stockStatus === null || row.kind !== "product" ? (
                             <span className={`inline-flex items-center px-3 py-1.5 rounded-lg text-[12px] font-bold border ${SERVICE_CHIP}`}>
                               Servicio
                             </span>
                           ) : (
                             <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-bold border ${STOCK_CHIP[stockStatus]}`}>
                               <span className={`w-2 h-2 rounded-full ${STOCK_DOT[stockStatus]}`} />
-                              {stockLabel}
+                              {stockLabelOf(row.product.stock_level, row.product.minimum_stock)}
                             </span>
                           )}
                         </td>
-                        {(canEdit || canMoveStock) && (
+                        {(canEdit || canEditServices || canMoveStock) && (
                         <td className="px-7 py-3.5 text-center">
                           <div className="flex items-center justify-center gap-1">
-                            {canEdit && (
+                            {canOpen && (
                             <Link
-                              href={`/dashboard/inventory/product?id=${item.id}`}
+                              href={catalogEditHref(row)}
                               className="w-9 h-9 flex items-center justify-center rounded-xl text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
-                              title="Editar producto"
+                              title={row.kind === "product" ? "Editar producto" : "Editar servicio"}
                             >
                               <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-4 h-4">
                                 <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
@@ -552,29 +636,29 @@ export default function InventoryPage() {
                               </svg>
                             </Link>
                             )}
-                            {canMoveStock && !service && (
+                            {canMoveStock && row.kind === "product" && (
                             <button
                               type="button"
-                              onClick={() => { setAdjustProductId(item.id); setAdjustModalOpen(true); }}
+                              onClick={() => { setAdjustProductId(row.id); setAdjustModalOpen(true); }}
                               className="w-9 h-9 flex items-center justify-center rounded-xl text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
                               title="Registrar movimiento"
-                              aria-label={`Registrar movimiento de ${item.name}`}
+                              aria-label={`Registrar movimiento de ${row.name}`}
                             >
                               <IconMoveHorizontal className="w-4 h-4" />
                             </button>
                             )}
-                            {canEdit && (
+                            {canArchive(row) && (
                             <button
                               onClick={(e) => {
                                 e.preventDefault();
-                                if (item.status === "inactive") {
-                                  activateProduct(item.id);
+                                if (row.status === "inactive") {
+                                  setRowActive(row, true);
                                 } else {
-                                  setConfirmArchive(item.id);
+                                  setConfirmArchive(row);
                                 }
                               }}
                               className="w-9 h-9 flex items-center justify-center rounded-xl text-on-surface-variant hover:text-error-dim hover:bg-error-container/10 transition-colors"
-                              title={item.status === "inactive" ? "Activar producto" : "Archivar producto"}
+                              title={row.status === "inactive" ? "Activar" : "Archivar"}
                             >
                               <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-4 h-4">
                                 <polyline points="21 8 21 21 3 21 3 8" />
@@ -595,11 +679,11 @@ export default function InventoryPage() {
         </div>
 
         {/* Pagination */}
-        {filteredProducts.length > 0 && (
+        {filteredRows.length > 0 && (
           <Pagination
             currentPage={safeCurrentPage}
             totalPages={totalPages}
-            totalItems={totalFilteredProductsCount}
+            totalItems={totalFilteredCount}
             startItem={pageStartItem}
             endItem={pageEndItem}
             pageSize={pageSize}
@@ -621,9 +705,13 @@ export default function InventoryPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                 </svg>
               </div>
-              <h3 className="text-lg font-bold text-on-surface mb-2">Archivar Producto</h3>
+              <h3 className="text-lg font-bold text-on-surface mb-2">
+                Archivar {confirmArchive.kind === "product" ? "Producto" : "Servicio"}
+              </h3>
               <p className="text-sm text-on-surface-variant mb-6">
-                El producto se desactivará y no aparecerá en el catálogo activo ni en el POS. Puedes activarlo de nuevo después.
+                {confirmArchive.kind === "product"
+                  ? "El producto se desactivará y no aparecerá en el catálogo activo ni en el POS. Puedes activarlo de nuevo después."
+                  : "El servicio se desactivará y no se podrá agendar ni cobrar. Puedes activarlo de nuevo después."}
               </p>
               <div className="flex gap-3">
                 <button
@@ -634,7 +722,7 @@ export default function InventoryPage() {
                 </button>
                 <button
                   onClick={async () => {
-                    await archiveProduct(confirmArchive);
+                    await setRowActive(confirmArchive, false);
                     setConfirmArchive(null);
                   }}
                   className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold bg-error-dim hover:bg-error text-white transition-colors"

@@ -94,15 +94,15 @@ export function DashboardShell({
     e.preventDefault();
     if (!globalSearch.trim()) return;
     const q = globalSearch.trim().toLowerCase();
-    if (q.includes("corta") || q.includes("corte") || q.includes("barba") || q.includes("servicio")) {
-      router.push("/dashboard/services");
-    } else if (q.includes("cita") || q.includes("agenda") || q.includes("turno") || q.includes("calendario")) {
+    if (q.includes("cita") || q.includes("agenda") || q.includes("turno") || q.includes("calendario")) {
       router.push("/dashboard/calendar");
     } else if (q.includes("cliente")) {
       router.push("/dashboard/customers");
     } else if (q.includes("venta") || q.includes("pos") || q.includes("cobrar")) {
       router.push("/dashboard/pos");
     } else {
+      // El resto cae en el catálogo, que ahora incluye los servicios: buscar
+      // "corte" ya no necesita su propia rama porque llega al mismo lugar.
       router.push("/dashboard/inventory");
     }
   };

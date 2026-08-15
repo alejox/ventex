@@ -84,8 +84,9 @@ const ROUTES: Array<[string, string]> = [
   ["Pedidos", "/dashboard/pedidos"],
   ["Compras", "/dashboard/purchases"],
   ["POS", "/dashboard/pos"],
-  ["Inventario", "/dashboard/inventory"],
-  ["Servicios", "/dashboard/services"],
+  // Productos y servicios comparten pantalla: /dashboard/services solo redirige.
+  ["Catálogo", "/dashboard/inventory"],
+  ["Alta de servicio", "/dashboard/inventory/product?type=servicio"],
   ["Proveedores", "/dashboard/distributors"],
   ["Personal", "/dashboard/staff"],
   ["Calendario", "/dashboard/calendar"],
@@ -123,7 +124,7 @@ test.describe("responsive movil 375px", () => {
   for (const [label, route] of [
     ["Dashboard", "/dashboard"],
     ["Ventas", "/dashboard/sales"],
-    ["Inventario", "/dashboard/inventory"],
+    ["Catálogo", "/dashboard/inventory"],
   ] as Array<[string, string]>) {
     test(`cifras largas no desbordan: ${label}`, async ({ page }) => {
       await page.goto(route, { waitUntil: "domcontentloaded" });
@@ -160,7 +161,9 @@ test.describe("responsive movil 375px", () => {
    */
   const MODALS: Array<[string, string, RegExp]> = [
     ["Clientes", "/dashboard/customers", /a[ñn]adir cliente|nuevo cliente/i],
-    ["Servicios", "/dashboard/services", /a[ñn]adir servicio|nuevo servicio/i],
+    // Servicios ya no tiene modal propio: su alta es el formulario compartido
+    // del catálogo, que no es un modal y se cubre en el barrido de rutas.
+    ["Catálogo", "/dashboard/inventory", /nueva categor[ií]a/i],
     ["Proveedores", "/dashboard/distributors", /a[ñn]adir proveedor|nuevo proveedor/i],
   ];
 

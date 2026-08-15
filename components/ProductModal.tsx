@@ -13,8 +13,16 @@ import { MoneyInput } from "@/components/ui/MoneyInput";
 import { Select } from "@/components/ui/Select";
 import { notifySuccess } from "@/lib/notifications";
 
-import { createService } from "@/services/services.service";
-
+/**
+ * Alta RÁPIDA de un producto. Solo producto.
+ *
+ * Se abre en dos lugares y los dos son inequívocamente mercadería: al escanear
+ * en el inventario un código que no está en el catálogo, y al cargar una línea
+ * de compra a un proveedor. Ofrecer "Servicio" acá era un tercer formulario de
+ * alta de servicios —más pobre que el de verdad: sin comisión, sin descripción,
+ * sin duración editable después— que además escribía el servicio en dos tablas.
+ * El alta de servicios vive en /dashboard/inventory/product, que es completa.
+ */
 interface ProductModalProps {
   onClose: () => void;
   onCreated?: (productId: string, productName: string) => void;
@@ -72,7 +80,6 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
   // La tasa sale de los ajustes del negocio, no de un 19% escrito a mano.
   const { rate: taxRate, rawRate, includeTax, percentLabel, rawPercentLabel } = useBusinessTax();
 
-  const [type, setType] = useState("Producto");
   const [name, setName] = useState("");
   const [barcode, setBarcode] = useState(initialBarcode ?? "");
   const [sku, setSku] = useState("");
@@ -89,8 +96,6 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
   const [presentation, setPresentation] = useState<"unit" | "package">("unit");
   const [tax, setTax] = useState("IVA");
   const [packageSellingPrice, setPackageSellingPrice] = useState("");
-  const [serviceDuration, setServiceDuration] = useState("30");
-  const [serviceStatus, setServiceStatus] = useState<"active" | "inactive">("active");
 
   /** El stock siempre se guarda en unidades sueltas: una caja son N. */
   const initialStock =
@@ -112,10 +117,7 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
     [name, unit, imagePreview],
   );
 
-  const { product: lookedUp, searching } = useBarcodeLookup(
-    type === "Producto" ? barcode : "",
-    handleBarcodeFound,
-  );
+  const { product: lookedUp, searching } = useBarcodeLookup(barcode, handleBarcodeFound);
 
   // Base y total, editables por los dos lados: escribir uno recalcula el otro.
   const purchaseMultiplier = tax === "Ninguno" ? 1 : 1 + rawRate;
@@ -123,69 +125,33 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
   const [packagePrice, setPackagePrice] = usePricePair(purchaseMultiplier);
   const [unitPrice, setUnitPrice] = usePricePair(taxMultiplier);
 
-  // For services, keep the old price logic
-  const [serviceTax, setServiceTax] = useState("Ninguno");
-  const serviceTaxMultiplier = serviceTax === "Ninguno" ? 1 : 1 + taxRate;
-  const [servicePrice, setServicePrice] = usePricePair(serviceTaxMultiplier);
-  const finalPriceValue = servicePrice.total;
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (type === "Combo") return;
-
     setSubmitError(null);
-
-    const isService = type === "Servicio";
-
-    // Lo que se guarda es SIEMPRE el precio final de vitrina (IVA incluido).
-    const sellingPrice = type === "Producto" ? unitPrice.total : finalPriceValue;
-
-    if (isService) {
-      try {
-        await createService({
-          name,
-          description: "",
-          price: sellingPrice,
-          duration_minutes: serviceDuration || "30",
-          status: serviceStatus,
-          has_commission: false,
-          commission_type: "percentage",
-          commission_value: "",
-        });
-      } catch {
-        // En caso de que ya exista en la tabla de servicios, continuar.
-      }
-    }
 
     const result = await addProduct(
       {
         name,
         category_id: categoryId,
         distributor_id: "",
-        // Un servicio nunca lleva el SKU tipeado: el campo ni se muestra, y
-        // dejarlo vacío hace que el servicio le genere uno.
-        sku: isService ? "" : sku,
-        barcode: isService ? "" : barcode,
-        package_price: isService || presentation !== "package" ? "" : packageSellingPrice,
+        sku,
+        barcode,
+        package_price: presentation === "package" ? packageSellingPrice : "",
         unit,
-        purchase_price: isService ? "0" : packagePrice.total,
-        price: sellingPrice,
-        stock_level: isService ? "0" : String(initialStock),
+        purchase_price: packagePrice.total,
+        // Lo que se guarda es SIEMPRE el precio final de vitrina (IVA incluido).
+        price: unitPrice.total,
+        stock_level: String(initialStock),
         image_url: "",
         has_commission: false,
         commission_type: "percentage",
         commission_value: "",
-        units_per_package: isService || presentation !== "package" ? "1" : (unitsPerPackage || "1"),
+        units_per_package: presentation === "package" ? (unitsPerPackage || "1") : "1",
       },
-      isService ? null : imageFile,
+      imageFile,
     );
-    if (result || isService) {
-      notifySuccess(
-        type === "Servicio" ? "¡Servicio creado con éxito!" : "¡Producto creado con éxito!",
-        type === "Servicio"
-          ? "El servicio ya está disponible para agendar y cobrar."
-          : "El producto ya está disponible."
-      );
+    if (result) {
+      notifySuccess("¡Producto creado con éxito!", "El producto ya está disponible.");
       onCreated?.(typeof result === "string" ? result : "", name);
       onClose();
       return;
@@ -225,8 +191,7 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
         <form onSubmit={handleSubmit} onKeyDown={(e) => { if (e.key === "Enter") e.preventDefault(); }} className="p-6 pt-0 space-y-6 flex-1 overflow-y-auto">
           {/* Foto. `capture="environment"` hace que el celular abra la cámara
               trasera directo; en escritorio el mismo input abre el explorador. */}
-          {type !== "Servicio" && (
-            <label className="flex items-center gap-4 p-3 rounded-2xl border border-dashed border-outline-variant/40 cursor-pointer hover:bg-surface-container-low transition-colors">
+          <label className="flex items-center gap-4 p-3 rounded-2xl border border-dashed border-outline-variant/40 cursor-pointer hover:bg-surface-container-low transition-colors">
               <div className="w-16 h-16 shrink-0 rounded-xl bg-surface-container-high overflow-hidden flex items-center justify-center text-on-surface-variant">
                 {imagePreview ? (
                   // eslint-disable-next-line @next/next/no-img-element -- blob local, no pasa por el optimizador
@@ -257,39 +222,7 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
                   setImagePreview(file ? URL.createObjectURL(file) : "");
                 }}
               />
-            </label>
-          )}
-
-          {/* Tipo de producto */}
-          <div className="space-y-3">
-            <label className="flex items-center gap-1 text-sm font-semibold text-on-surface">
-              Tipo de producto <span className="text-primary">*</span>
-              <IconInfo className="w-4 h-4 text-primary" />
-            </label>
-            <div className="flex gap-4">
-              {/* "Combo" salió del selector: no se usa por ahora. Su alta vive
-                  igual en el formulario avanzado
-                  (/dashboard/inventory/product?type=combo), así que sacarlo de
-                  acá no elimina la función, solo deja de ofrecerla. */}
-              {["Producto", "Servicio"].map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => setType(t)}
-                  className={`flex-1 py-2.5 rounded-xl text-sm font-medium border transition-colors ${
-                    type === t
-                      ? "border-primary text-primary bg-primary/5"
-                      : "border-outline-variant/30 text-on-surface hover:bg-surface-container-low"
-                  }`}
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
-            <p className="text-xs text-on-surface-variant">
-              Ten en cuenta que, una vez creado, no podrás cambiar el tipo de producto ni su condición variable.
-            </p>
-          </div>
+          </label>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             {/* Nombre */}
@@ -308,7 +241,6 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
 
             {/* Código de barras: se escanea con la cámara del celular o se
                 escribe (los lectores láser de mostrador teclean en el campo). */}
-              {type === "Producto" && (
               <div className="space-y-1.5">
                 <label htmlFor="product-barcode" className="flex items-center gap-1 text-sm font-semibold text-on-surface">
                   Código de barras
@@ -330,13 +262,10 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
                   </p>
                 )}
               </div>
-            )}
 
             {/* SKU: opcional PARA EL USUARIO. La columna es NOT NULL con índice
                 único por negocio, así que si el campo queda vacío el servicio
-                genera uno (`normalizeSku` → `generateSku`, formato PRD-XXXXX).
-                Solo para productos: un servicio no se cuenta ni se rotula. */}
-            {type === "Producto" && (
+                genera uno (`normalizeSku` → `generateSku`, formato PRD-XXXXX). */}
               <div className="space-y-1.5">
                 <label htmlFor="quick-product-sku" className="flex items-center gap-1 text-sm font-semibold text-on-surface">
                   SKU
@@ -351,7 +280,6 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
                   className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface uppercase placeholder:normal-case focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
                 />
               </div>
-            )}
 
             {/* Categoría */}
             <div className="space-y-1.5">
@@ -396,26 +324,20 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
               <option value="Litro">Litro</option>
             </Select>
 
-            {type === "Producto" && (
-              <>
-                {/* Bodega */}
-                <Select
-                  label="Bodega"
-                  value={bodega}
-                  onChange={(e) => setBodega(e.target.value)}
-                >
-                  <option value="Principal">Principal</option>
-                </Select>
-
-              </>
-            )}
+            {/* Bodega */}
+            <Select
+              label="Bodega"
+              value={bodega}
+              onChange={(e) => setBodega(e.target.value)}
+            >
+              <option value="Principal">Principal</option>
+            </Select>
           </div>
 
           {/* Presentación y stock. Mismo lenguaje que el formulario avanzado:
               el stock se cuenta en unidades sueltas y la caja solo dice cuántas
               trae cada una. */}
-          {type === "Producto" && (
-            <div className="space-y-3">
+          <div className="space-y-3">
               <label className="flex items-center gap-1 text-sm font-semibold text-on-surface">
                 Presentación y stock inicial <span className="text-primary">*</span>
               </label>
@@ -479,12 +401,10 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
                   </span>
                 </p>
               )}
-            </div>
-          )}
+          </div>
 
           {/* Sección de precios */}
-          {type === "Producto" ? (
-            <div className="space-y-4">
+          <div className="space-y-4">
               <div>
                 <h3 className="text-sm font-bold text-on-surface">Precio del paquete (compra)</h3>
                 <p className="text-xs text-on-surface-variant mt-0.5">
@@ -590,82 +510,6 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
                 )}
               </div>
             </div>
-          ) : (
-            /* Servicios: precio base + impuesto = precio final + duración y estado */
-            <div className="space-y-4 pt-2">
-              <div className="flex flex-col sm:flex-row sm:items-end gap-3">
-                <div className="space-y-1.5 flex-1 w-full">
-                  <label className="flex items-center gap-1 text-sm font-semibold text-on-surface">
-                    Precio base <span className="text-primary">*</span>
-                  </label>
-                  <MoneyInput
-                    aria-label="Precio base del servicio"
-                    value={servicePrice.base}
-                    onChange={setServicePrice.fromBase}
-                    required
-                  />
-                </div>
-                <div className="pb-3 text-primary font-bold text-lg hidden sm:block">+</div>
-                <Select
-                  label="Impuestos"
-                  containerClassName="flex-1 w-full"
-                  value={serviceTax}
-                  onChange={(e) => setServiceTax(e.target.value)}
-                >
-                  <option value="Ninguno">Ninguno</option>
-                  {includeTax && <option value="IVA">IVA {percentLabel}</option>}
-                </Select>
-                <div className="pb-3 text-primary font-bold text-lg hidden sm:block">=</div>
-                <div className="space-y-1.5 flex-1 w-full">
-                  <label className="flex items-center gap-1 text-sm font-semibold text-on-surface">
-                    Precio final <span className="text-primary">*</span>
-                  </label>
-                  <MoneyInput
-                    aria-label="Precio final del servicio"
-                    value={servicePrice.total}
-                    onChange={setServicePrice.fromTotal}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-                <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-on-surface block">
-                    Duración (minutos) <span className="text-primary">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    required
-                    value={serviceDuration}
-                    onChange={(e) => setServiceDuration(e.target.value)}
-                    className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-                    placeholder="30"
-                  />
-                </div>
-
-                <div className="flex items-center justify-between p-3 bg-surface-container-low rounded-xl border border-outline-variant/10">
-                  <div>
-                    <p className="text-sm font-bold text-on-surface">Servicio Activo</p>
-                    <p className="text-xs text-on-surface-variant">Disponible en agenda</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setServiceStatus((s) => (s === "active" ? "inactive" : "active"))}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none shrink-0 ${
-                      serviceStatus === "active" ? "bg-[#6063ee]" : "bg-outline-variant/30"
-                    }`}
-                  >
-                    <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                        serviceStatus === "active" ? "translate-x-6" : "translate-x-1"
-                      }`}
-                    />
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
 
           {submitError && (
             <p
@@ -682,7 +526,7 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
               type="button"
               onClick={() => {
                 onClose();
-                router.push(`/dashboard/inventory/product?type=${type.toLowerCase()}`);
+                router.push("/dashboard/inventory/product");
               }}
               className="px-6 py-3 rounded-xl border border-outline-variant/30 text-sm font-semibold text-on-surface hover:bg-surface-container-low transition-colors flex justify-center items-center gap-2"
             >
@@ -693,7 +537,7 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
               type="submit"
               className="px-8 py-3 rounded-xl bg-primary hover:bg-primary-dim text-white text-sm font-semibold transition-colors flex justify-center items-center"
             >
-              {type === "Servicio" ? "Crear servicio" : "Crear producto"}
+              Crear producto
             </button>
           </div>
         </form>

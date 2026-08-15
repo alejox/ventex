@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { tryLogin } from "./helpers/auth";
 
-test.describe("Inventario", () => {
+test.describe("Catálogo (productos y servicios)", () => {
   test.beforeEach(async ({ page }) => {
     const loggedIn = await tryLogin(page);
     test.skip(!loggedIn, "No se pudo autenticar - saltando prueba");
@@ -9,21 +9,15 @@ test.describe("Inventario", () => {
     await page.waitForLoadState("networkidle");
   });
 
-  test("carga la página de inventario con todos los elementos", async ({ page }) => {
-    await expect(page.getByRole("heading", { name: "Gestión de Inventario", exact: true })).toBeVisible({ timeout: 15000 });
-    await expect(page.getByText("Total Productos")).toBeVisible({ timeout: 10000 });
+  test("carga el catálogo con todos los elementos", async ({ page }) => {
+    await expect(page.getByRole("heading", { name: "Productos y Servicios", exact: true })).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText("Total en Catálogo")).toBeVisible({ timeout: 10000 });
     await expect(page.getByText("Valor del Inventario")).toBeVisible({ timeout: 10000 });
     await expect(page.getByRole("paragraph").filter({ hasText: "Stock Bajo" }).first()).toBeVisible({ timeout: 10000 });
   });
 
-  test("navega a movimientos desde inventario", async ({ page }) => {
-    await page.getByRole("link", { name: "Movimientos" }).click();
-    await page.waitForLoadState("networkidle");
-    await expect(page).toHaveURL(/\/dashboard\/inventory\/movements/);
-  });
-
-  test("navega a nuevo producto", async ({ page }) => {
-    await page.getByRole("button", { name: "Nuevo Producto" }).click();
+  test("navega al alta compartida de producto o servicio", async ({ page }) => {
+    await page.getByRole("link", { name: "Producto / Servicio" }).click();
     await page.waitForLoadState("networkidle");
     await expect(page).toHaveURL(/\/dashboard\/inventory\/product/);
   });
@@ -36,28 +30,27 @@ test.describe("Inventario", () => {
   });
 
   test("filtro de búsqueda funciona", async ({ page }) => {
-    const searchInput = page.getByPlaceholder("Buscar productos o SKU...");
+    const searchInput = page.getByPlaceholder("Buscar nombre, SKU o código...");
     await searchInput.fill("Producto de prueba");
     await expect(searchInput).toHaveValue("Producto de prueba");
   });
 
+  test("filtro por tipo separa productos de servicios", async ({ page }) => {
+    const typeSelect = page.getByLabel("Filtrar por tipo");
+    await typeSelect.selectOption("product");
+    await expect(typeSelect).toHaveValue("product");
+    await typeSelect.selectOption("service");
+    await expect(typeSelect).toHaveValue("service");
+  });
+
   test("filtro por categoría está presente", async ({ page }) => {
-    const categorySelect = page.getByRole("combobox").filter({ hasText: /Todas las Categorías/i });
-    if (await categorySelect.isVisible()) {
-      await categorySelect.selectOption("");
-    }
+    await page.getByLabel("Filtrar por categoría").selectOption("");
   });
 
   test("filtro por estado de stock está presente", async ({ page }) => {
-    const stockSelects = page.locator("select");
-    const count = await stockSelects.count();
-    for (let i = 0; i < count; i++) {
-      const text = await stockSelects.nth(i).textContent();
-      if (text?.includes("Estado de Stock")) {
-        await stockSelects.nth(i).selectOption("Agotado");
-        break;
-      }
-    }
+    const stockSelect = page.getByLabel("Filtrar por estado de stock");
+    await stockSelect.selectOption("Agotado");
+    await expect(stockSelect).toHaveValue("Agotado");
   });
 
   test("navega a editar producto desde tabla (si hay productos)", async ({ page }) => {

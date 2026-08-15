@@ -40,21 +40,25 @@ export interface Product {
 }
 
 /**
- * Unidad reservada del catálogo.
+ * Unidad reservada del catálogo. Marca una fila LEGADA, no un tipo vigente.
  *
- * `products` no tiene columna de tipo: la unidad "Servicio" ES el discriminador
- * entre un producto y un servicio. Lo leen el inventario, el POS, las compras y
- * `create_sale`, así que vive acá y nadie lo escribe a mano.
+ * Hasta la migración `20260815000000_services_single_source_of_truth.sql` un
+ * servicio se guardaba dos veces: en `services` y acá, como producto con la
+ * unidad "Servicio". Ya no: un servicio vive solo en `services`, y la base
+ * rechaza cualquier producto nuevo con esta unidad
+ * (constraint `products_unit_is_not_service`).
+ *
+ * Las filas viejas siguen existiendo porque `sale_items.product_id` las
+ * referencia y borrarlas dejaría el histórico de ventas apuntando a NULL. Esta
+ * constante es lo que las mantiene fuera de toda consulta que lea el catálogo.
  */
 export const SERVICE_UNIT = "Servicio";
 
 /**
- * Un servicio se cobra pero NO se inventaría.
- *
- * No descuenta stock al venderse, no se repone, no admite movimientos manuales
- * y no entra en la valorización. Un baño para mascotas no tiene existencias: si
- * el POS le descontaba unidades, terminaba en negativo sin que eso significara
- * nada.
+ * ¿Es una de esas filas legadas? Un servicio no se inventaría —no descuenta
+ * stock, no se repone, no admite movimientos manuales, no entra en la
+ * valorización—, así que allí donde una lista de productos pueda arrastrar una,
+ * este predicado la deja afuera.
  */
 export function isServiceItem(item: { unit?: string | null }): boolean {
   return item.unit === SERVICE_UNIT;
@@ -348,6 +352,10 @@ export async function fetchProducts(): Promise<Product[]> {
   const { data, error } = await supabase
     .from("products")
     .select(PRODUCT_SELECT)
+    // Las filas legadas de servicio quedan afuera: ese servicio ya vive en
+    // `services` y el catálogo lo lista desde ahí. Sin este filtro aparecería
+    // dos veces, que es exactamente el problema que se vino a cerrar.
+    .neq("unit", SERVICE_UNIT)
     .order("created_at", { ascending: false });
   if (error) throw error;
   return attachCosts(supabase, (data ?? []) as unknown as Product[]);

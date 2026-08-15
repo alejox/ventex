@@ -7,7 +7,6 @@ import { useInventoryStore } from "@/stores/inventory.store";
 import { useServicesStore } from "@/stores/services.store";
 import type { NewProductInput } from "@/services/inventory.service";
 import { calculateMargin, handlePresentationModeChange } from "@/services/inventory.service";
-import { createService, upsertServiceByName } from "@/services/services.service";
 import type { NewServiceInput } from "@/services/services.service";
 import { DistributorQuickModal } from "@/components/DistributorQuickModal";
 import { CategoryQuickModal } from "@/components/CategoryQuickModal";
@@ -50,10 +49,23 @@ function formatAmount(value: number): string {
   });
 }
 
+/**
+ * Un único formulario para las dos mitades del catálogo.
+ *
+ * Qué se está editando lo dice el parámetro de la URL, no una adivinanza sobre
+ * el uuid: `?id=` es un producto (tabla `products`), `?serviceId=` es un
+ * servicio (tabla `services`). Sin `?type=servicio` el alta arranca en
+ * Producto, que es el caso mayoritario.
+ *
+ * Lo que este formulario ya NO hace: escribir el servicio en las dos tablas.
+ * Ese gemelo se emparejaba por nombre, se sincronizaba con `catch {}` vacíos y
+ * en producción no había un solo par completo.
+ */
 function ProductForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const editId = searchParams.get("id");
+  const editServiceId = searchParams.get("serviceId");
 
   /**
    * Vista desde la que se abrió el formulario: al volver (o al guardar) se
@@ -71,10 +83,11 @@ function ProductForm() {
   const fetchInventory = useInventoryStore((s) => s.fetchInventory);
   const addProduct = useInventoryStore((s) => s.addProduct);
   const updateProduct = useInventoryStore((s) => s.updateProduct);
-  const archiveProduct = useInventoryStore((s) => s.archiveProduct);
-  const activateProduct = useInventoryStore((s) => s.activateProduct);
   const services = useServicesStore((s) => s.services);
+  const serviceError = useServicesStore((s) => s.error);
   const fetchServices = useServicesStore((s) => s.fetchServices);
+  const addService = useServicesStore((s) => s.addService);
+  const updateService = useServicesStore((s) => s.updateService);
 
   const [form, setForm] = useState<NewProductInput>({
     name: "",
@@ -106,9 +119,14 @@ function ProductForm() {
   const [seededId, setSeededId] = useState<string | null>(null);
   const [distributorModalOpen, setDistributorModalOpen] = useState(false);
   const [categoryModalOpen, setCategoryModalOpen] = useState(false);
-  const [itemType, setItemType] = useState<"Producto" | "Servicio">("Producto");
+  const [itemType, setItemType] = useState<"Producto" | "Servicio">(
+    editServiceId || searchParams.get("type")?.toLowerCase() === "servicio"
+      ? "Servicio"
+      : "Producto",
+  );
   const [serviceFinalPrice, setServiceFinalPrice] = useState("");
   const [serviceDuration, setServiceDuration] = useState("30");
+  const [serviceDescription, setServiceDescription] = useState("");
   const [serviceStatus, setServiceStatus] = useState<"active" | "inactive">("active");
   /**
    * Cómo se maneja el producto. Arranca en "unidad" porque es lo que aplica a
@@ -192,23 +210,33 @@ function ProductForm() {
   })();
 
   const editingProduct = editId ? products.find((p) => p.id === editId) : undefined;
+  const editingService = editServiceId ? services.find((s) => s.id === editServiceId) : undefined;
 
   // Siembra del formulario en edición. Se hace DURANTE el render (patrón oficial
   // de React para ajustar estado cuando cambia una entrada) y no en un efecto:
   // copiar el producto al estado desde un efecto dispara renders en cascada.
-  // `seededId` garantiza que solo corra una vez por producto, así lo que el
+  // `seededId` garantiza que solo corra una vez por ítem, así lo que el
   // usuario escribe no se pisa cuando el store se refresca.
+  if (editingService && seededId !== editingService.id) {
+    setSeededId(editingService.id);
+    setItemType("Servicio");
+    setForm((prev) => ({
+      ...prev,
+      name: editingService.name,
+      category_id: editingService.category_id ?? "",
+      price: String(editingService.price),
+      has_commission: editingService.has_commission ?? false,
+      commission_type: editingService.commission_type ?? "percentage",
+      commission_value: editingService.commission_value ? String(editingService.commission_value) : "",
+    }));
+    setServiceFinalPrice(String(editingService.price));
+    setServiceDuration(String(editingService.duration_minutes));
+    setServiceDescription(editingService.description ?? "");
+    setServiceStatus(editingService.status === "inactive" ? "inactive" : "active");
+  }
+
   if (editingProduct && seededId !== editingProduct.id) {
     setSeededId(editingProduct.id);
-    if (editingProduct.unit === "Servicio") {
-      setItemType("Servicio");
-      // El gemelo en `services` puede tener otra duración: se siembra desde ahí.
-      const twin = services.find((s) => s.name.toLowerCase() === editingProduct.name.toLowerCase());
-      setServiceDuration(String(twin?.duration_minutes ?? 30));
-      setServiceStatus(
-        (twin?.status ?? editingProduct.status ?? "active") === "inactive" ? "inactive" : "active"
-      );
-    }
     setForm({
       name: editingProduct.name,
       category_id: editingProduct.category_id ?? "",
@@ -229,18 +257,24 @@ function ProductForm() {
     setPresentation((editingProduct.units_per_package ?? 1) > 1 ? "package" : "unit");
     setPurchase.fromTotal(String(editingProduct.purchase_price ?? "0"));
     setSelling.fromTotal(String(editingProduct.price ?? "0"));
-    setServiceFinalPrice(String(editingProduct.price ?? ""));
     if (editingProduct.image_url) setImagePreview(editingProduct.image_url);
   }
 
-  // El id no existe en el inventario del negocio: navegar es un efecto, no estado.
+  // El id no existe en el catálogo del negocio: navegar es un efecto, no estado.
   useEffect(() => {
     if (editId && products.length > 0 && !editingProduct) {
       router.push("/dashboard/inventory");
     }
   }, [editId, products.length, editingProduct, router]);
 
-  const loadingProduct = !!editId && seededId !== editId;
+  useEffect(() => {
+    if (editServiceId && services.length > 0 && !editingService) {
+      router.push("/dashboard/inventory");
+    }
+  }, [editServiceId, services.length, editingService, router]);
+
+  const editingId = editId ?? editServiceId;
+  const loadingProduct = !!editingId && seededId !== editingId;
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] ?? null;
@@ -307,83 +341,52 @@ function ProductForm() {
     setFieldErrors({});
     setSaving(true);
 
+    // Un servicio va a `services` y NADA MÁS. Antes esta misma función escribía
+    // también una fila en `products` con unidad "Servicio" para que apareciera
+    // en el inventario; hoy el catálogo lee las dos tablas y las muestra juntas,
+    // así que la copia dejó de tener para qué existir.
+    if (isService) {
+      // Duración: si no es un entero positivo, cae al default de 30.
+      const durationRaw = serviceDuration.trim();
+      const durationMinutes =
+        /^\d+$/.test(durationRaw) && parseInt(durationRaw, 10) > 0 ? durationRaw : "30";
+
+      const serviceInput: NewServiceInput = {
+        name: form.name.trim().toUpperCase(),
+        description: serviceDescription,
+        price: serviceFinalPrice,
+        duration_minutes: durationMinutes,
+        status: serviceStatus,
+        has_commission: form.has_commission,
+        commission_type: form.commission_type,
+        commission_value: form.commission_value || "",
+        category_id: form.category_id,
+      };
+
+      const savedService = editServiceId
+        ? await updateService(editServiceId, serviceInput)
+        : await addService(serviceInput);
+      setSaving(false);
+      if (savedService) router.push(backTo);
+      return;
+    }
+
     const payload = {
       ...form,
       name: form.name.trim().toUpperCase(),
-      purchase_price: isService ? "0" : purchasePriceTotal,
-      price: isService ? serviceFinalPrice : sellingPriceTotal,
-      stock_level: isService
-        ? "0"
-        : editId
-          ? String(form.stock_level || "0")
-          : String(initialStock),
-      units_per_package: isService ? "1" : (presentation === "package" ? (form.units_per_package || "1") : "1"),
-      package_price: isService ? "" : (presentation === "package" ? form.package_price : ""),
-      barcode: isService ? "" : form.barcode,
-      sku: isService ? "" : form.sku,
-      unit: isService ? "Servicio" : form.unit,
+      purchase_price: purchasePriceTotal,
+      price: sellingPriceTotal,
+      stock_level: editId ? String(form.stock_level || "0") : String(initialStock),
+      units_per_package: presentation === "package" ? (form.units_per_package || "1") : "1",
+      package_price: presentation === "package" ? form.package_price : "",
     };
 
-    // Duración del servicio: si no es un entero positivo, cae al default de 30.
-    const durationRaw = serviceDuration.trim();
-    const durationMinutes = /^\d+$/.test(durationRaw) && parseInt(durationRaw, 10) > 0 ? durationRaw : "30";
-
-    // Los servicios se guardan en `services` (agenda y POS) y además se reflejan
-    // en `products` con unidad "Servicio" para el inventario.
-    const serviceInput: NewServiceInput | null = isService
-      ? {
-          name: payload.name,
-          description: "",
-          price: serviceFinalPrice,
-          duration_minutes: durationMinutes,
-          status: serviceStatus,
-          has_commission: form.has_commission,
-          commission_type: form.commission_type,
-          commission_value: form.commission_value || "",
-        }
-      : null;
-
-    if (isService && !editId && serviceInput) {
-      try {
-        await createService(serviceInput);
-      } catch {
-        // En caso de que ya exista en la tabla de servicios, continuar.
-      }
-    }
-
     const ok = editId
-      ? await updateProduct(editId, payload, isService ? null : imageFile)
-      : await addProduct(payload, isService ? null : imageFile);
-    const success = typeof ok === "string" || ok === true;
+      ? await updateProduct(editId, payload, imageFile)
+      : await addProduct(payload, imageFile);
     setSaving(false);
 
-    if (success && isService && editId && serviceInput) {
-      try {
-        // Actualiza el gemelo en `services` si ya existe; si no, lo crea.
-        await upsertServiceByName(serviceInput);
-      } catch {
-        // El producto ya quedó guardado: la sincronización no bloquea.
-      }
-    }
-
-    if (success && isService) {
-      // El toggle "Servicio Activo" también se refleja en la fila de productos,
-      // para que el estado sea el mismo en las dos tablas.
-      const productId = editId ?? (typeof ok === "string" ? ok : null);
-      if (productId) {
-        try {
-          if (serviceStatus === "inactive") {
-            await archiveProduct(productId);
-          } else {
-            await activateProduct(productId);
-          }
-        } catch {
-          // La sincronización de estado no bloquea el guardado.
-        }
-      }
-    }
-
-    if (success) router.push(backTo);
+    if (typeof ok === "string" || ok === true) router.push(backTo);
   };
 
   const handleBarcodeFound = useCallback(
@@ -433,17 +436,20 @@ function ProductForm() {
         </Link>
         <div className="min-w-0">
           <h1 className="text-2xl sm:text-3xl font-bold text-on-surface tracking-tight">
-            {editId ? "Editar" : "Nuevo"} {itemType === "Servicio" ? "Servicio" : "Producto"}
+            {editingId ? "Editar" : "Nuevo"} {itemType === "Servicio" ? "Servicio" : "Producto"}
           </h1>
           <p className="text-sm text-on-surface-variant mt-1">
-            {editId
+            {editingId
               ? "Actualiza los datos"
               : "Registra un nuevo producto o servicio en tu catálogo"}
           </p>
         </div>
       </div>
 
-      {!editId && (
+      {/* El tipo se elige al crear, no al editar: un producto no se convierte en
+          servicio: son tablas distintas y el cambio sería una mudanza, no una
+          edición. */}
+      {!editingId && (
         <div className="flex gap-3 mb-6">
           {(["Producto", "Servicio"] as const).map((t) => (
             <button
@@ -743,6 +749,26 @@ function ProductForm() {
                       className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-on-surface-variant/50"
                       placeholder="30"
                     />
+                    <p className="text-xs text-on-surface-variant">
+                      Es lo que ocupa en la agenda al reservarlo.
+                    </p>
+                  </div>
+
+                  {/* La descripción es lo que lee el cliente en el sitio público
+                      antes de reservar. Un producto no la tiene: para eso está
+                      la foto. */}
+                  <div className="space-y-1.5">
+                    <label htmlFor="service-description" className="text-[13px] font-semibold text-on-surface block">
+                      Descripción <span className="text-on-surface-variant font-normal">(opcional)</span>
+                    </label>
+                    <textarea
+                      id="service-description"
+                      rows={3}
+                      value={serviceDescription}
+                      onChange={(e) => setServiceDescription(e.target.value)}
+                      className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-on-surface-variant/50 resize-none"
+                      placeholder="Qué incluye el servicio. Se muestra a tus clientes al reservar."
+                    />
                   </div>
                 </div>
                 <div className="rounded-2xl border border-outline-variant/15 bg-surface-container-lowest px-5 py-4 text-sm">
@@ -835,11 +861,18 @@ function ProductForm() {
           </div>
         </div>
 
-        {error && <p className="text-sm text-error bg-error-container/10 rounded-xl px-4 py-3 border border-error-container/20">{error}</p>}
+        {/* Cada mitad guarda en su tabla, así que el fallo llega por el store
+            que corresponde. Antes el servicio se guardaba con `catch {}` vacíos
+            y un error de la base no llegaba nunca a la pantalla. */}
+        {(itemType === "Servicio" ? serviceError : error) && (
+          <p className="text-sm text-error bg-error-container/10 rounded-xl px-4 py-3 border border-error-container/20">
+            {itemType === "Servicio" ? serviceError : error}
+          </p>
+        )}
 
         <div className="flex justify-between items-center pt-2">
           <Link
-            href="/dashboard/inventory"
+            href={backTo}
             className="px-5 py-3 rounded-xl text-sm font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors"
           >
             Cancelar
@@ -857,7 +890,7 @@ function ProductForm() {
                 </svg>
                 Guardando…
               </>
-            ) : editId
+            ) : editingId
               ? "Guardar Cambios"
               : itemType === "Servicio"
                 ? "Guardar Servicio"

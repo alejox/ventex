@@ -13,7 +13,11 @@ interface ServicesState {
   /** Devuelve true si el alta fue correcta (para que el componente cierre el modal). */
   addService: (input: NewServiceInput) => Promise<boolean>;
   updateService: (id: string, input: NewServiceInput) => Promise<boolean>;
-  deleteService: (id: string) => Promise<boolean>;
+  /**
+   * Activa o archiva sin abrir el formulario (acción de fila del catálogo).
+   * Reemplaza al borrado: ver el comentario en `services.service.ts`.
+   */
+  setServiceStatus: (id: string, status: "active" | "inactive") => Promise<boolean>;
 }
 
 
@@ -62,12 +66,12 @@ export const useServicesStore = create<ServicesState>((set) => ({
     }
   },
 
-  deleteService: async (id) => {
+  setServiceStatus: async (id, status) => {
     set({ submitting: true, error: null });
     try {
-      await servicesService.deleteService(id);
+      await servicesService.setServiceStatus(id, status);
       set((s) => ({
-        services: s.services.filter((x) => x.id !== id),
+        services: s.services.map((x) => (x.id === id ? { ...x, status } : x)),
         submitting: false,
       }));
       return true;
@@ -76,4 +80,5 @@ export const useServicesStore = create<ServicesState>((set) => ({
       return false;
     }
   },
+
 }));

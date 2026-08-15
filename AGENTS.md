@@ -46,6 +46,15 @@ Workers (`profiles.is_worker`) log in with their **own** auth account, but their
 - **`create_sale` RPC**: transactional sale creation (calculates totals server-side, applies IVA from `settings`, decrements stock, freezes staff commission). Employees without an open shift (`public.shifts`) are rejected — enforced inside the RPC, not just gated in the POS UI. Owners are exempt. Shift model: `README-turnos.md`.
 - Env vars: see `.env.example` for the full list. Required: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`; `SUPABASE_SERVICE_ROLE_KEY` for the admin client; `NEXT_PUBLIC_SITE_URL` (auth email redirects + the URLs handed to dLocal, defaults to `http://localhost:3000`); `NEXT_PUBLIC_API_URL` optional (axios base).
 
+# Catálogo: un servicio vive SOLO en `services`
+
+A service is one row in `public.services` — never also a `products` row. It used to be both, matched by name with `ilike`, and the sync was one-way and swallowed by empty `catch {}`; measured in production before `20260815000000_services_single_source_of_truth.sql`, **zero** pairs were actually in sync. `services` wins because it holds `duration_minutes`/`description` and is the FK target of `appointments.service_id`, `sale_items.service_id`, and the public booking site.
+
+- **Never write a product with `unit = 'Servicio'`.** The constraint `products_unit_is_not_service` rejects it. Rows predating the migration survive only because `sale_items.product_id` references them; `SERVICE_UNIT`/`isServiceItem` exist to keep those out of every products query (`fetchProducts`, `fetchCatalog`, the Pedidos query).
+- **One screen, one form.** `/dashboard/inventory` is the catalog (`lib/catalog.ts` merges both tables in memory) and `/dashboard/inventory/product` is the only creation form: `?id=` edits a product, `?serviceId=` edits a service, `?type=servicio` opens the Servicio tab. `/dashboard/services` is a permanent redirect; nav item `inventory` is named "Producto - Servicio" and shows for either the `inventory` or `services` module.
+- **Services are archived, never deleted.** `sale_items.service_id` and `appointments.service_id` are `ON DELETE SET NULL`, so deleting detaches history instead of removing the service. Use `setServiceStatus`.
+- Writing to `services` requires `worker_can('services')`, not `inventory_edit` — the two halves of the catalog have separate write permissions.
+
 # Subscription billing (dLocal **Go**)
 
 Not the dLocal Payins/Direct API — a different product with a different contract. `services/dlocalgo.service.ts` is the only place that talks to it.

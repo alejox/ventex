@@ -241,7 +241,7 @@ export function PosCatalog({
         ) : filtered.length === 0 ? (
           <p className="text-center text-sm text-on-surface-variant py-12">
             {catalog.length === 0
-              ? "No hay productos ni servicios. Agr\u00e9galos en Inventario o Servicios."
+              ? "No hay productos ni servicios. Agr\u00e9galos en Productos y Servicios."
               : "Ning\u00fan \u00edtem coincide con el filtro."}
           </p>
         ) : (
