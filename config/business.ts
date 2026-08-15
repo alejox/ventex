@@ -236,24 +236,42 @@ export const NAV_ITEMS: NavItem[] = [
   { id: "calendar", name: "Calendario", href: "/dashboard/calendar", modules: ["appointments"] },
   { id: "customers", name: "Clientes", href: "/dashboard/customers", modules: [] },
   { id: "sales", name: "Ventas", href: "/dashboard/sales", modules: [] },
+  // Ventas y Gastos son las dos caras de la misma pregunta —cuánto entra y
+  // cuánto sale—, así que van juntas. Gastos ya incluye las compras pagadas
+  // (`listExpenses` junta `expenses` con las `invoices` de tipo compra), así
+  // que es LA vista financiera: no hace falta ir a otro lado a sumar.
   { id: "expenses", name: "Gastos", href: "/dashboard/expenses", modules: [] },
-  { id: "purchases", name: "Compras", href: "/dashboard/purchases", modules: ["inventory"] },
-  { id: "distributors", name: "Proveedores", href: "/dashboard/distributors", modules: ["inventory"] },
-  { id: "pedidos", name: "Pedidos", href: "/dashboard/pedidos", modules: ["inventory"] },
-  // Un solo ítem para el catálogo, otra vez — pero ahora sí.
+
+  // ---- Abastecimiento: el otro medio día del negocio ----
   //
-  // El intento anterior de unificar ("Catálogo") se revirtió porque la pantalla
-  // única era MÁS POBRE que las dos que reemplazaba: sin permisos por rol, sin
-  // escáner, y para editar mandaba igual a /dashboard/inventory. El problema no
-  // era unificar, era la pantalla. Ahora la unión se hace sobre la pantalla
-  // completa de inventario, que conserva escáner, costos, stock, movimientos y
-  // permisos, y le suma los servicios leídos de `services`.
+  // Compras estaba acá arriba, pegada a Gastos, y eso las hacía leer como
+  // alternativas: "¿anoto esto en Gastos o en Compras?". No son alternativas y
+  // no se pueden unificar. Un gasto es un número y una fecha; una COMPRA es un
+  // documento que mueve inventario —líneas con producto, cajas y sueltas,
+  // costo por caja y por unidad— y que al anularse DEVUELVE el stock. Además
+  // una compra a crédito todavía no salió de la caja, por eso Gastos solo
+  // muestra las pagadas: ni siquiera cubren el mismo conjunto.
   //
-  // `modules` lleva los dos: alcanza con tener uno para que el ítem aparezca.
-  // Un salón sin inventario igual necesita su catálogo de servicios, y una
-  // tienda sin servicios igual necesita el de productos.
+  // Su dominio real es este ciclo, y en este orden: qué vendo → qué me falta →
+  // a quién se lo pido → qué me llegó.
+  //
+  // Sobre el primero: es UN solo ítem para el catálogo, otra vez — pero ahora
+  // sí. El intento anterior de unificar ("Catálogo") se revirtió porque la
+  // pantalla única era MÁS POBRE que las dos que reemplazaba: sin permisos por
+  // rol, sin escáner, y para editar mandaba igual a /dashboard/inventory. El
+  // problema no era unificar, era la pantalla. Ahora la unión se hace sobre la
+  // pantalla completa de inventario, que conserva escáner, costos, stock,
+  // movimientos y permisos, y le suma los servicios leídos de `services`.
+  // Su `modules` lleva los dos: alcanza con tener uno para que aparezca. Un
+  // salón sin inventario igual necesita su catálogo de servicios, y una tienda
+  // sin servicios igual necesita el de productos.
   { id: "inventory", name: "Producto - Servicio", href: "/dashboard/inventory", modules: ["inventory", "services"] },
   { id: "categories", name: "Categorías", href: "/dashboard/categories", modules: ["inventory"] },
+  { id: "pedidos", name: "Pedidos", href: "/dashboard/pedidos", modules: ["inventory"] },
+  { id: "distributors", name: "Proveedores", href: "/dashboard/distributors", modules: ["inventory"] },
+  { id: "purchases", name: "Compras", href: "/dashboard/purchases", modules: ["inventory"] },
+
+  // ---- El negocio, no la operación diaria ----
   { id: "vehicles", name: "Vehículos", href: "/dashboard/vehicles", modules: ["vehicles"] },
   { id: "staff", name: "Personal", href: "/dashboard/staff", modules: ["staff"] },
   { id: "billing", name: "Facturación", href: "/dashboard/billing", modules: ["billing"] },
