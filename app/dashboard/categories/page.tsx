@@ -230,10 +230,14 @@ export default function CategoriesPage() {
         <div>
           <h1 className="text-2xl sm:text-3xl font-black text-on-surface tracking-tight flex items-center gap-3">
             <IconTag className="w-8 h-8 text-primary" />
-            Categorías
+            Categorías de producto
           </h1>
+          {/* "de producto" explícito: en Gastos hay OTRA entidad llamada
+              "categorías de gasto", con su propio alta. Dos tablas distintas
+              con el mismo nombre en dos pantallas invitan a crear la categoría
+              en el lugar equivocado, o a suponer que están sincronizadas. */}
           <p className="text-sm text-on-surface-variant mt-1">
-            Organiza y administra las categorías de tu catálogo de productos.
+            Organizan tu catálogo. No tienen relación con las categorías de gasto.
           </p>
         </div>
 
@@ -242,7 +246,7 @@ export default function CategoriesPage() {
           className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-primary hover:bg-primary-dim text-on-primary font-semibold text-sm shadow-[0_0_20px_rgba(96,99,238,0.25)] transition-all shrink-0"
         >
           <IconPlus className="w-4 h-4" />
-          Nueva Categoría
+          Nueva categoría de producto
         </button>
       </div>
 
@@ -305,7 +309,7 @@ export default function CategoriesPage() {
           >
             <div className="p-5 pb-3 flex justify-between items-center border-b border-outline-variant/10">
               <h2 className="text-lg font-bold text-on-surface">
-                {editId ? "Editar Categoría" : "Nueva Categoría"}
+                {editId ? "Editar categoría de producto" : "Nueva categoría de producto"}
               </h2>
               <button
                 onClick={handleCloseModal}

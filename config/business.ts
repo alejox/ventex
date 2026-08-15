@@ -266,14 +266,18 @@ export const NAV_ITEMS: NavItem[] = [
   // salón sin inventario igual necesita su catálogo de servicios, y una tienda
   // sin servicios igual necesita el de productos.
   { id: "inventory", name: "Producto - Servicio", href: "/dashboard/inventory", modules: ["inventory", "services"] },
-  { id: "categories", name: "Categorías", href: "/dashboard/categories", modules: ["inventory"] },
   { id: "pedidos", name: "Pedidos", href: "/dashboard/pedidos", modules: ["inventory"] },
   { id: "distributors", name: "Proveedores", href: "/dashboard/distributors", modules: ["inventory"] },
   { id: "purchases", name: "Compras", href: "/dashboard/purchases", modules: ["inventory"] },
 
   // ---- El negocio, no la operación diaria ----
   { id: "vehicles", name: "Vehículos", href: "/dashboard/vehicles", modules: ["vehicles"] },
-  { id: "staff", name: "Personal", href: "/dashboard/staff", modules: ["staff"] },
+  { id: "staff", name: "Miembros", href: "/dashboard/staff", modules: ["staff"] },
+  // Liquidar comisiones estaba enterrado al final de la página de Personal,
+  // debajo del roster y del control de accesos: tres trabajos distintos —
+  // administrar gente, dar acceso, conciliar plata— en una sola pantalla larga.
+  // Conciliar plata es del dueño y merece su propia entrada.
+  { id: "commissions", name: "Comisiones", href: "/dashboard/staff/comisiones", modules: [] },
   { id: "billing", name: "Facturación", href: "/dashboard/billing", modules: ["billing"] },
   { id: "subscription", name: "Mi Plan", href: "/dashboard/subscription", modules: [] },
 ];
@@ -313,7 +317,11 @@ export const QUICK_ACTIONS: QuickAction[] = [
 // Antes dependía del módulo `staff`, que la tienda no tiene — dejarlo así habría
 // dejado sin administración de empleados justo al único rubro con registro
 // abierto. El módulo `staff` sigue existiendo para las comisiones por servicio.
-const UNIVERSAL_NAV_IDS = ["panel", "pos", "sales", "expenses", "customers", "staff", "subscription"];
+// `commissions` acompaña a `staff`: todo negocio con gente puede tener que
+// liquidarle. Liquidar es acto del DUEÑO —el RPC revalida `is_tenant_owner()`—
+// y por eso no figura como permiso de trabajador: un empleado nunca ve el ítem,
+// porque `workerNavItems` solo muestra lo que sus permisos nombran.
+const UNIVERSAL_NAV_IDS = ["panel", "pos", "sales", "expenses", "customers", "staff", "commissions", "subscription"];
 
 /** Menú base por tipo de negocio (además de las universales). */
 // `purchases` acompaña a `distributors`: son el mismo dominio (a quién le
@@ -383,6 +391,76 @@ export function effectiveModules(
   return result;
 }
 
+// ---- Agrupación del menú ----
+//
+// Trece ítems planos obligaban a escanear la lista entera cada vez, y colapsada
+// la barra quedaban trece iconos casi iguales sin nada que los separe.
+//
+// Los grupos SOLO ordenan. Qué ítems se ven lo siguen decidiendo
+// `visibleNavItems` (por módulo) y `workerNavItems` (por permiso): agrupar no
+// puede mostrarle a nadie algo que su rol no habilita. Un grupo que queda sin
+// hijos visibles desaparece entero, con su encabezado.
+
+/** Un clúster del menú, ya resuelto contra lo que la persona puede ver. */
+export interface NavGroup {
+  id: string;
+  /** Encabezado del clúster. null = va suelto, sin título (el Panel). */
+  label: string | null;
+  items: NavItem[];
+}
+
+/**
+ * El orden canónico de los clústeres y qué cae en cada uno.
+ *
+ * El criterio es el TRABAJO, no la tabla: "Compras" junta pedir, a quién y qué
+ * llegó, que es un solo proceso vivido en tres pantallas. Dos ubicaciones que
+ * la auditoría no asignó y acá se resuelven: Vehículos va con Clientes (es el
+ * historial por placa de un cliente, no una herramienta aparte) y Facturación
+ * va con Ventas (facturar es cobrarle al cliente).
+ */
+const NAV_GROUP_ORDER: { id: string; label: string | null; itemIds: string[] }[] = [
+  { id: "inicio", label: null, itemIds: ["panel"] },
+  { id: "ventas", label: "Ventas", itemIds: ["pos", "sales", "billing"] },
+  { id: "agenda", label: "Agenda y clientes", itemIds: ["calendar", "customers", "vehicles"] },
+  { id: "catalogo", label: "Catálogo", itemIds: ["inventory"] },
+  { id: "abastecimiento", label: "Compras", itemIds: ["pedidos", "distributors", "purchases"] },
+  { id: "finanzas", label: "Finanzas", itemIds: ["expenses"] },
+  { id: "equipo", label: "Equipo", itemIds: ["staff", "commissions"] },
+  { id: "negocio", label: "Negocio", itemIds: ["subscription"] },
+];
+
+/**
+ * Reparte en clústeres los ítems YA filtrados por rol y módulos.
+ *
+ * Recibe la salida de `visibleNavItems`/`workerNavItems` en vez de filtrar por
+ * su cuenta, para que exista una sola fuente de verdad sobre la visibilidad.
+ * Un ítem que no esté en ningún grupo igual se muestra —al final, sin
+ * encabezado— para que agregar uno nuevo a `NAV_ITEMS` y olvidarse de este
+ * mapa no lo haga desaparecer del menú.
+ */
+export function groupNavItems(items: NavItem[]): NavGroup[] {
+  const byId = new Map(items.map((item) => [item.id, item]));
+  const asignados = new Set<string>();
+
+  const groups: NavGroup[] = [];
+  for (const group of NAV_GROUP_ORDER) {
+    const hijos = group.itemIds
+      .map((id) => {
+        const item = byId.get(id);
+        if (item) asignados.add(id);
+        return item;
+      })
+      .filter((item): item is NavItem => item !== undefined);
+    if (hijos.length > 0) groups.push({ id: group.id, label: group.label, items: hijos });
+  }
+
+  const huerfanos = items.filter((item) => !asignados.has(item.id));
+  if (huerfanos.length > 0) {
+    groups.push({ id: "otros", label: null, items: huerfanos });
+  }
+  return groups;
+}
+
 export function visibleNavItems(
   businessType: BusinessType | null,
   modules: Modules | null,
@@ -423,8 +501,8 @@ export function workerNavItems(permissions: WorkerPermissions): NavItem[] {
   // de un salón, que no toca mercadería— se quedaba sin ninguna pantalla donde
   // ver el catálogo, porque el ítem con id "services" dejó de existir.
   if (verProductos || verServicios) granted.add("inventory");
-  // Categorías sí es de inventario: quien solo administra servicios no las usa.
-  if (verProductos) granted.add("categories");
+  // Categorías dejó de ser un ítem de menú: su administración vive dentro del
+  // catálogo, que es donde se usan. Quien tiene `inventory` ya llega ahí.
 
   return NAV_ITEMS.filter((item) => granted.has(item.id));
 }

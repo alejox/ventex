@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { LogoHorizontal, LogoVertical } from "@/components/Logo";
 import {
@@ -24,6 +24,7 @@ import {
   IconReceipt,
   IconTag,
   IconWallet,
+  IconDollar,
 } from "@/app/assets/icons/DashboardIcons";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ShellUserMenu } from "@/components/ShellUserMenu";
@@ -31,7 +32,7 @@ import { NotificationsBell } from "@/components/NotificationsBell";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { ExpenseModal } from "@/components/ExpenseModal";
 import { useProfile } from "@/components/ProfileProvider";
-import { visibleNavItems, workerNavItems } from "@/config/business";
+import { visibleNavItems, workerNavItems, groupNavItems } from "@/config/business";
 import { backdropProps } from "@/components/modal";
 import { SIDEBAR_COOKIE, SIDEBAR_COOKIE_MAX_AGE } from "@/lib/sidebar";
 import { WorkspaceSwitcher } from "@/components/WorkspaceSwitcher";
@@ -58,6 +59,7 @@ const NAV_ICONS: Record<string, IconType> = {
   sales: IconShoppingCart,
   expenses: IconWallet,
   staff: IconUserBadge,
+  commissions: IconDollar,
   vehicles: IconCar,
   billing: IconFileText,
   inventory: IconBox,
@@ -143,6 +145,31 @@ export function DashboardShell({
   const navigation = isWorker
     ? workerNavItems(workerPerms)
     : visibleNavItems(profile?.businessType ?? null, profile?.modules ?? null);
+  // Agrupar es solo presentación: `navigation` ya trae únicamente lo que esta
+  // persona puede ver, y `groupNavItems` no agrega ni quita nada.
+  const navGroups = useMemo(() => groupNavItems(navigation), [navigation]);
+
+  /**
+   * Qué ítem se pinta como activo: el de la ruta MÁS ESPECÍFICA que coincide.
+   *
+   * Con `startsWith` a secas, estando en /dashboard/staff/comisiones se
+   * encendían dos ítems a la vez —Miembros y Comisiones—, porque el href del
+   * primero es prefijo del segundo. Se resuelve una sola vez acá y no dentro
+   * del map, que no tiene forma de saber si otro ítem le gana.
+   */
+  const activeNavId = useMemo(() => {
+    let best: { id: string; len: number } | null = null;
+    for (const item of navigation) {
+      const matches =
+        item.href === "/dashboard"
+          ? pathname === "/dashboard"
+          : pathname === item.href || pathname.startsWith(`${item.href}/`);
+      if (matches && (!best || item.href.length > best.len)) {
+        best = { id: item.id, len: item.href.length };
+      }
+    }
+    return best?.id ?? null;
+  }, [navigation, pathname]);
 
   const isSuperAdmin = !isWorker && (profile?.isSuperAdmin ?? false);
   const isReseller = !isWorker && (profile?.isReseller ?? false);
@@ -189,27 +216,46 @@ export function DashboardShell({
                 </svg>
               </button>
             </div>
-            {navigation.map((item) => {
-              const Icon = NAV_ICONS[item.id];
-              const isActive = pathname === item.href;
-              return (
-                <Link
-                  key={item.id}
-                  href={item.href}
-                  className={`flex items-center gap-3 py-3 rounded-xl transition-all text-sm font-medium overflow-hidden ${
-                    sidebarCollapsed ? "justify-center px-0" : "px-4"
-                  } ${
-                    isActive
-                      ? "bg-primary/10 text-primary"
-                      : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
-                  }`}
-                  title={sidebarCollapsed ? item.name : undefined}
-                >
-                  {Icon && <Icon className="w-5 h-5 shrink-0" />}
-                  {!sidebarCollapsed && <span className="whitespace-nowrap">{item.name}</span>}
-                </Link>
-              );
-            })}
+            {/* Un bloque por clúster. Colapsada la barra el encabezado no cabe,
+                así que lo reemplaza una divisoria: sin ninguna de las dos cosas
+                quedan trece iconos casi iguales y nada que los agrupe. */}
+            {navGroups.map((group, i) => (
+              <div key={group.id} className={i > 0 ? "pt-3 mt-3 border-t border-outline-variant/10" : ""}>
+                {group.label && !sidebarCollapsed && (
+                  <p className="px-4 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/60">
+                    {group.label}
+                  </p>
+                )}
+                {group.items.map((item) => {
+                  const Icon = NAV_ICONS[item.id];
+                  const isActive = item.id === activeNavId;
+                  return (
+                    <Link
+                      key={item.id}
+                      href={item.href}
+                      aria-current={isActive ? "page" : undefined}
+                      className={`relative flex items-center gap-3 py-3 rounded-xl transition-all text-sm font-medium overflow-hidden ${
+                        sidebarCollapsed ? "justify-center px-0" : "px-4"
+                      } ${
+                        isActive
+                          ? "bg-primary/10 text-primary"
+                          : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
+                      }`}
+                      title={sidebarCollapsed ? item.name : undefined}
+                    >
+                      {/* Barra de acento: con grupos hay dos cosas que
+                          distinguir —en qué clúster estoy y en qué pantalla—, y
+                          un fondo tenue solo no alcanza para las dos. */}
+                      {isActive && (
+                        <span className="absolute left-0 top-1/2 -translate-y-1/2 h-6 w-1 rounded-r-full bg-primary" />
+                      )}
+                      {Icon && <Icon className="w-5 h-5 shrink-0" />}
+                      {!sidebarCollapsed && <span className="whitespace-nowrap">{item.name}</span>}
+                    </Link>
+                  );
+                })}
+              </div>
+            ))}
           </nav>
         </div>
 
@@ -392,25 +438,41 @@ export function DashboardShell({
                 <div className="text-[10px] font-bold text-on-surface-variant uppercase tracking-[0.2em] mb-4 px-4 mt-4">
                   Menú Principal
                 </div>
-                {navigation.map((item) => {
-                  const Icon = NAV_ICONS[item.id];
-                  const isActive = pathname === item.href;
-                  return (
-                    <Link
-                      key={item.id}
-                      href={item.href}
-                      onClick={() => setMobileMenuOpen(false)}
-                      className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-sm font-medium ${
-                        isActive
-                          ? "bg-primary/10 text-primary"
-                          : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
-                      }`}
-                    >
-                      {Icon && <Icon className="w-5 h-5" />}
-                      {item.name}
-                    </Link>
-                  );
-                })}
+                {/* Mismos clústeres que en escritorio: si el menú del teléfono
+                    quedara plano, la agrupación sería una convención que solo
+                    existe en una de las dos pantallas. */}
+                {navGroups.map((group, i) => (
+                  <div key={group.id} className={i > 0 ? "pt-3 mt-3 border-t border-outline-variant/10" : ""}>
+                    {group.label && (
+                      <p className="px-4 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/60">
+                        {group.label}
+                      </p>
+                    )}
+                    {group.items.map((item) => {
+                      const Icon = NAV_ICONS[item.id];
+                      const isActive = item.id === activeNavId;
+                      return (
+                        <Link
+                          key={item.id}
+                          href={item.href}
+                          onClick={() => setMobileMenuOpen(false)}
+                          aria-current={isActive ? "page" : undefined}
+                          className={`relative flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-sm font-medium ${
+                            isActive
+                              ? "bg-primary/10 text-primary"
+                              : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
+                          }`}
+                        >
+                          {isActive && (
+                            <span className="absolute left-0 top-1/2 -translate-y-1/2 h-6 w-1 rounded-r-full bg-primary" />
+                          )}
+                          {Icon && <Icon className="w-5 h-5" />}
+                          {item.name}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                ))}
               </nav>
             </div>
             {showAdminLinks && (

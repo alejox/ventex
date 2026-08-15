@@ -13,8 +13,7 @@ import {
 } from "@/app/assets/icons/DashboardIcons";
 import { useInventoryStore } from "@/stores/inventory.store";
 import { useServicesStore } from "@/stores/services.store";
-import type { NewCategoryInput } from "@/services/inventory.service";
-import { getUnitCost, calculateInventoryValue, findDuplicateCategory } from "@/services/inventory.service";
+import { getUnitCost, calculateInventoryValue } from "@/services/inventory.service";
 import type { CatalogRow } from "@/lib/catalog";
 import { catalogRowsOf, catalogEditHref, catalogMatchesQuery } from "@/lib/catalog";
 import { stockStatusOf, stockLabelOf, needsRestock, STOCK_CHIP, STOCK_DOT, SERVICE_CHIP } from "@/lib/stock";
@@ -51,8 +50,6 @@ function IconLayers(props: React.SVGProps<SVGSVGElement>) {
   );
 }
 
-const EMPTY_CATEGORY: NewCategoryInput = { name: "", description: "" };
-
 /**
  * El catálogo del negocio: productos y servicios en una sola pantalla.
  *
@@ -88,19 +85,14 @@ export default function CatalogPage() {
    */
   const canSeeInventoryValue = !profile?.isWorker;
 
-  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [confirmArchive, setConfirmArchive] = useState<CatalogRow | null>(null);
 
-  const [newCategory, setNewCategory] = useState<NewCategoryInput>(EMPTY_CATEGORY);
-  /** Error del modal de categoría: se muestra ahí, no en la lista del catálogo. */
-  const [categoryError, setCategoryError] = useState<string | null>(null);
 
   const products = useInventoryStore((s) => s.products);
   const categories = useInventoryStore((s) => s.categories);
   const loadingProducts = useInventoryStore((s) => s.loading);
   const error = useInventoryStore((s) => s.error);
   const fetchInventory = useInventoryStore((s) => s.fetchInventory);
-  const addCategory = useInventoryStore((s) => s.addCategory);
   const archiveProduct = useInventoryStore((s) => s.archiveProduct);
   const activateProduct = useInventoryStore((s) => s.activateProduct);
 
@@ -218,27 +210,6 @@ export default function CatalogPage() {
     fetchServices();
   }, [fetchInventory, fetchServices]);
 
-  const handleSaveCategory = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    // Mismo chequeo que en la pantalla de Categorías: se responde sin salir a
-    // la red. El índice único de la base sigue siendo el que decide.
-    const duplicada = findDuplicateCategory(categories, newCategory.name);
-    if (duplicada) {
-      setCategoryError(`Ya existe una categoría llamada "${duplicada.name}".`);
-      return;
-    }
-    setCategoryError(null);
-
-    const ok = await addCategory(newCategory);
-    if (ok) {
-      setIsCategoryModalOpen(false);
-      setNewCategory(EMPTY_CATEGORY);
-      return;
-    }
-    setCategoryError(useInventoryStore.getState().error ?? "No se pudo crear la categoría.");
-  };
-
   /** Archivar y activar viven en tablas distintas; la fila dice en cuál. */
   const setRowActive = async (row: CatalogRow, active: boolean) => {
     if (row.kind === "product") {
@@ -266,16 +237,23 @@ export default function CatalogPage() {
             que siempre falla es peor que un botón ausente. */}
         {(canEdit || canEditServices) && (
         <div className="grid grid-cols-2 gap-3 w-full lg:flex lg:w-auto">
+          {/* Categorías dejó de ser un ítem del menú principal: es una tabla
+              auxiliar de baja frecuencia y ocupaba un lugar de primer nivel.
+              Su puerta es esta, que está donde las categorías se usan.
+              Antes acá había un botón que SOLO creaba; editar y borrar vivían
+              en la otra pantalla. Un solo destino con las tres acciones evita
+              que el usuario tenga que adivinar cuál de las dos abre. */}
           {canEdit && (
-          <button
-            onClick={() => setIsCategoryModalOpen(true)}
+          <Link
+            href="/dashboard/categories"
             className="h-11 whitespace-nowrap bg-surface-container hover:bg-surface-container-high border border-outline-variant/20 text-on-surface text-sm font-semibold px-3 lg:px-5 rounded-xl transition-colors flex items-center justify-center gap-2"
           >
             <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-4 h-4">
-              <path d="M12 5v14M5 12h14" />
+              <path d="M20.6 13.4 12 4.8V2H9.2L2 9.2v2.8l8.6 8.6a2 2 0 0 0 2.8 0l7.2-7.2a2 2 0 0 0 0-2.8Z" />
+              <circle cx="6.5" cy="6.5" r="1.5" />
             </svg>
-            Nueva Categor&iacute;a
-          </button>
+            Categor&iacute;as
+          </Link>
           )}
           <Link
             href="/dashboard/inventory/product"
@@ -731,73 +709,6 @@ export default function CatalogPage() {
                 </button>
               </div>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal Nueva Categoría */}
-      {isCategoryModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-surface-container rounded-3xl w-full max-w-sm border border-outline-variant/10 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="p-6 border-b border-outline-variant/10 flex justify-between items-center bg-surface-container-low">
-              <h2 className="text-xl font-bold text-on-surface">Nueva Categor&iacute;a</h2>
-              <button
-                onClick={() => setIsCategoryModalOpen(false)}
-                className="w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors"
-              >
-                <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="20" height="20">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveCategory} className="p-6 space-y-5">
-              <div className="space-y-1.5">
-                <label className="text-[13px] font-semibold text-on-surface block">Nombre de Categor&iacute;a</label>
-                <input
-                  type="text"
-                  value={newCategory.name}
-                  onChange={e => { setNewCategory({...newCategory, name: e.target.value}); setCategoryError(null); }}
-                  aria-invalid={!!categoryError}
-                  className={`w-full bg-surface-container-lowest border rounded-xl py-2.5 px-4 text-sm text-on-surface uppercase focus:outline-none focus:ring-1 transition-all placeholder:text-on-surface-variant/50 ${
-                    categoryError
-                      ? "border-error focus:border-error focus:ring-error"
-                      : "border-outline-variant/30 focus:border-primary focus:ring-primary"
-                  }`}
-                  placeholder="Ej. Accesorios, Muebles..."
-                  required
-                />
-                {categoryError && (
-                  <p className="text-xs font-medium text-error">{categoryError}</p>
-                )}
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-[13px] font-semibold text-on-surface block">Descripci&oacute;n (Opcional)</label>
-                <textarea
-                  value={newCategory.description}
-                  onChange={e => setNewCategory({...newCategory, description: e.target.value})}
-                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50 resize-none h-24"
-                  placeholder="Breve descripci&oacute;n de los productos..."
-                />
-              </div>
-
-              <div className="pt-2 flex justify-end gap-3 border-t border-outline-variant/10">
-                <button
-                  type="button"
-                  onClick={() => setIsCategoryModalOpen(false)}
-                  className="px-5 py-2.5 rounded-xl text-sm font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-colors"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2.5 rounded-xl text-sm font-semibold bg-primary hover:bg-primary-dim text-on-primary shadow-[0_0_15px_rgba(96,99,238,0.2)] transition-all flex items-center gap-2"
-                >
-                  Crear
-                </button>
-              </div>
-            </form>
           </div>
         </div>
       )}
