@@ -485,7 +485,13 @@ export default function POSPage() {
       // conserve el premio, y el cajero se entera.
       if (outcome === "sold" && promoAplicado && selectedCustomer) {
         try {
-          const r = await redeemPromo(selectedCustomer.id, promoAplicado.amount);
+          // El id de la venta ata el canje a ella: sin eso, anularla dejaría al
+          // cliente sin premio y sin progreso por una venta que no existió.
+          const r = await redeemPromo(
+            selectedCustomer.id,
+            promoAplicado.amount,
+            usePosStore.getState().lastSaleId,
+          );
           notifySuccess("Premio canjeado", `${r.reward}. El contador vuelve a cero.`);
         } catch (e) {
           notifyError(

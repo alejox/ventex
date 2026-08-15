@@ -235,11 +235,13 @@ export async function createMilestone(input: NewMilestoneInput): Promise<PromoMi
 export async function redeemPromo(
   customerId: string,
   discountApplied?: number | null,
+  saleId?: string | null,
 ): Promise<{ threshold: number; reward: string }> {
   const supabase = createClient();
   const { data, error } = await supabase.rpc("redeem_promo", {
     p_customer_id: customerId,
     p_discount_applied: discountApplied ?? undefined,
+    p_sale_id: saleId ?? undefined,
   });
   if (error) throw error;
   return data as unknown as { threshold: number; reward: string };

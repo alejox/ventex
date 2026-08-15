@@ -1447,11 +1447,13 @@ export type Database = {
           discount_applied: number | null
           id: string
           milestone_id: string | null
+          progress_before: number | null
           redeemed_at: string
           redeemed_by: string | null
           reward: string
           reward_kind: string | null
           reward_value: number | null
+          sale_id: string | null
           threshold: number
           user_id: string
         }
@@ -1460,11 +1462,13 @@ export type Database = {
           discount_applied?: number | null
           id?: string
           milestone_id?: string | null
+          progress_before?: number | null
           redeemed_at?: string
           redeemed_by?: string | null
           reward: string
           reward_kind?: string | null
           reward_value?: number | null
+          sale_id?: string | null
           threshold: number
           user_id?: string
         }
@@ -1473,11 +1477,13 @@ export type Database = {
           discount_applied?: number | null
           id?: string
           milestone_id?: string | null
+          progress_before?: number | null
           redeemed_at?: string
           redeemed_by?: string | null
           reward?: string
           reward_kind?: string | null
           reward_value?: number | null
+          sale_id?: string | null
           threshold?: number
           user_id?: string
         }
@@ -1494,6 +1500,13 @@ export type Database = {
             columns: ["milestone_id"]
             isOneToOne: false
             referencedRelation: "promo_milestones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "promo_redemptions_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales"
             referencedColumns: ["id"]
           },
         ]
@@ -2734,7 +2747,11 @@ export type Database = {
       public_site_slug_taken: { Args: { p_slug: string }; Returns: boolean }
       recalc_haircut_counts: { Args: never; Returns: number }
       redeem_promo: {
-        Args: { p_customer_id: string; p_discount_applied?: number }
+        Args: {
+          p_customer_id: string
+          p_discount_applied?: number
+          p_sale_id?: string
+        }
         Returns: Json
       }
       register_cash_withdrawal: {

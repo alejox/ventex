@@ -58,6 +58,8 @@ export interface SaleTab {
 }
 
 interface PosState {
+  /** Id de la última venta registrada en el servidor. null si se encoló offline. */
+  lastSaleId: string | null;
   /** Contexto de autoridad congelado al inicializar este POS. */
   executionContext: WorkspaceExecutionContext | null;
   // Datos del catálogo (vienen de services)
@@ -297,6 +299,7 @@ export const usePosStore = create<PosState>((set, get) => {
     activeTabId: "", // se inicializará luego o en la primera tab
     submitting: false,
     stockAlert: null,
+  lastSaleId: null,
     planLimitHit: false,
 
     includeTax: true,
@@ -784,6 +787,9 @@ export const usePosStore = create<PosState>((set, get) => {
 
       try {
         const saleId = await posService.createSale(input);
+        // Se guarda para que el canje del premio pueda atarse a ESTA venta: sin
+        // el vínculo, anularla dejaría al cliente sin premio y sin progreso.
+        set({ lastSaleId: saleId });
 
         if (isDelivery && deliveryData.personId) {
           await deliveryService.createDelivery({
