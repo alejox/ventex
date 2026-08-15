@@ -451,9 +451,17 @@ export default function SalesPage() {
                             )}
                             {item.staff_name && item.staff_name !== detail.staff_name && item.commission_amount > 0 && " · "}
                             {item.commission_amount > 0 && (
-                              <span className="text-[#10b981] font-medium">
-                                Comisión ${money(item.commission_amount)}
-                              </span>
+                              <>
+                                <span className="text-[#10b981] font-medium">
+                                  Comisión ${money(item.commission_amount)}
+                                </span>
+                                {/* Si la comisión ya se liquidó, anular esta
+                                    venta implica plata que ya salió: decirlo acá
+                                    es lo que evita el descuadre silencioso. */}
+                                <span className={item.commission_settlement_id ? "text-[#10b981]" : "text-[#b45309]"}>
+                                  {item.commission_settlement_id ? " · pagada" : " · sin liquidar"}
+                                </span>
+                              </>
                             )}
                           </p>
                         ) : null}
@@ -501,6 +509,23 @@ export default function SalesPage() {
                         <p className="text-xs text-on-surface-variant">
                           Se devolverá el stock al inventario. Esta acción no se puede deshacer.
                         </p>
+                        {/* La comisión ya liquidada NO se reversa sola: esa plata
+                            ya se le entregó a la persona. Anular igual es válido
+                            —la venta puede estar mal de verdad—, pero el dueño
+                            tiene que saber que queda un saldo a favor suyo. */}
+                        {(() => {
+                          const paid = detail.items
+                            .filter((i) => i.commission_settlement_id)
+                            .reduce((sum, i) => sum + i.commission_amount, 0);
+                          if (paid <= 0) return null;
+                          return (
+                            <p role="alert" className="text-xs rounded-lg border border-[#f59e0b]/30 bg-[#f59e0b]/10 px-3 py-2 text-on-surface">
+                              <strong className="font-bold">Ojo:</strong> ${money(paid)} de comisión de
+                              esta venta ya se liquidaron y se pagaron. Anularla no devuelve ese dinero:
+                              descontalo en la próxima liquidación.
+                            </p>
+                          );
+                        })()}
                         <div className="flex gap-2">
                           <button
                             type="button"

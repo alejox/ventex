@@ -445,6 +445,82 @@ export type Database = {
         }
         Relationships: []
       }
+      commission_settlements: {
+        Row: {
+          cash_movement_id: string | null
+          created_at: string
+          created_by: string | null
+          expense_id: string | null
+          id: string
+          items_count: number
+          paid_on: string
+          payment_method: string
+          period_from: string
+          period_to: string
+          staff_id: string
+          status: string
+          total_amount: number
+          user_id: string
+          voided_at: string | null
+        }
+        Insert: {
+          cash_movement_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          expense_id?: string | null
+          id?: string
+          items_count: number
+          paid_on?: string
+          payment_method: string
+          period_from: string
+          period_to: string
+          staff_id: string
+          status?: string
+          total_amount: number
+          user_id?: string
+          voided_at?: string | null
+        }
+        Update: {
+          cash_movement_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          expense_id?: string | null
+          id?: string
+          items_count?: number
+          paid_on?: string
+          payment_method?: string
+          period_from?: string
+          period_to?: string
+          staff_id?: string
+          status?: string
+          total_amount?: number
+          user_id?: string
+          voided_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "commission_settlements_cash_movement_id_fkey"
+            columns: ["cash_movement_id"]
+            isOneToOne: false
+            referencedRelation: "cash_movements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commission_settlements_expense_id_fkey"
+            columns: ["expense_id"]
+            isOneToOne: false
+            referencedRelation: "expenses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commission_settlements_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       credit_packs: {
         Row: {
           bonus_credits: number
@@ -737,6 +813,7 @@ export type Database = {
           cash_movement_id: string | null
           category: string | null
           category_id: string | null
+          commission_settlement_id: string | null
           created_at: string
           description: string
           expense_date: string
@@ -749,6 +826,7 @@ export type Database = {
           cash_movement_id?: string | null
           category?: string | null
           category_id?: string | null
+          commission_settlement_id?: string | null
           created_at?: string
           description: string
           expense_date?: string
@@ -761,6 +839,7 @@ export type Database = {
           cash_movement_id?: string | null
           category?: string | null
           category_id?: string | null
+          commission_settlement_id?: string | null
           created_at?: string
           description?: string
           expense_date?: string
@@ -781,6 +860,13 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "expense_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_commission_settlement_id_fkey"
+            columns: ["commission_settlement_id"]
+            isOneToOne: false
+            referencedRelation: "commission_settlements"
             referencedColumns: ["id"]
           },
         ]
@@ -1488,6 +1574,7 @@ export type Database = {
       sale_items: {
         Row: {
           commission_amount: number
+          commission_settlement_id: string | null
           created_at: string
           id: string
           line_total: number
@@ -1505,6 +1592,7 @@ export type Database = {
         }
         Insert: {
           commission_amount?: number
+          commission_settlement_id?: string | null
           created_at?: string
           id?: string
           line_total: number
@@ -1522,6 +1610,7 @@ export type Database = {
         }
         Update: {
           commission_amount?: number
+          commission_settlement_id?: string | null
           created_at?: string
           id?: string
           line_total?: number
@@ -1538,6 +1627,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "sale_items_commission_settlement_id_fkey"
+            columns: ["commission_settlement_id"]
+            isOneToOne: false
+            referencedRelation: "commission_settlements"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "sale_items_product_id_fkey"
             columns: ["product_id"]
@@ -2475,6 +2571,10 @@ export type Database = {
       is_tenant_owner: { Args: never; Returns: boolean }
       my_subscription: { Args: never; Returns: Json }
       open_shift: { Args: { p_opening_cash: number }; Returns: Json }
+      open_shift_for_commission: {
+        Args: { p_staff_id: string }
+        Returns: string
+      }
       public_site_availability: {
         Args: {
           p_days?: number
@@ -2596,6 +2696,19 @@ export type Database = {
         Args: { p_workspace_id: string }
         Returns: Json
       }
+      settle_commissions: {
+        Args: {
+          p_exclude_item_ids?: string[]
+          p_from: string
+          p_from_ts: string
+          p_paid_on?: string
+          p_payment_method: string
+          p_staff_id: string
+          p_to: string
+          p_to_ts: string
+        }
+        Returns: string
+      }
       staff_can: { Args: { section: string }; Returns: boolean }
       staff_can_action: {
         Args: { action?: string; section: string }
@@ -2604,6 +2717,10 @@ export type Database = {
       sync_billing_schedule: {
         Args: { p_months: number; p_user_id: string }
         Returns: string
+      }
+      void_commission_settlement: {
+        Args: { p_settlement_id: string }
+        Returns: Json
       }
       void_sale: { Args: { p_sale_id: string }; Returns: undefined }
       worker_can: { Args: { perm: string }; Returns: boolean }

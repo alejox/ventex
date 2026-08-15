@@ -6,7 +6,9 @@ import { IconUserBadge, IconPlus, IconLogOut } from "@/app/assets/icons/Dashboar
 import { useStaffStore } from "@/stores/staff.store";
 import { useSubscriptionStore } from "@/stores/subscription.store";
 import { fetchStaffSales } from "@/services/staff.service";
-import type { CommissionRow, NewStaffInput, StaffMember, StaffSaleItem } from "@/services/staff.service";
+import type { CommissionRow, CommissionSettlement, NewStaffInput, StaffMember, StaffSaleItem } from "@/services/staff.service";
+import { SettleCommissionModal } from "@/components/SettleCommissionModal";
+import { CommissionReceiptModal } from "@/components/CommissionReceiptModal";
 import { DataTable, type DataColumn } from "@/components/DataTable";
 import { Select } from "@/components/ui/Select";
 import { useProfile } from "@/components/ProfileProvider";
@@ -17,6 +19,7 @@ import { EditAccessModal } from "./components/EditAccessModal";
 import { PermissionsPanel } from "./components/PermissionsPanel";
 import { ShiftHistorySection } from "./components/ShiftHistorySection";
 import { CollectionEmpty, CollectionError, CollectionLoading } from "@/components/CollectionState";
+import { notifySuccess, notifyError } from "@/lib/notifications";
 
 // Los cargos NO se escriben acá: salen de STAFF_ROLES_BY_TYPE según el rubro
 // (config/business.ts). Una barbería ofrece Barbero y Estilista; una tienda,
@@ -33,6 +36,13 @@ const EMPTY_STAFF: NewStaffInput = {
 const money = (n: number) =>
   n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+/**
+ * La columna que manda es PENDIENTE, no devengado.
+ *
+ * "¿Cuánto le debo?" es la pregunta que el dueño trae a esta pantalla. El
+ * devengado del mes es contexto; lo que decide si hay que sacar plata de la
+ * caja es lo que todavía no se liquidó.
+ */
 const COMMISSION_COLUMNS: DataColumn<CommissionRow>[] = [
   {
     header: "Miembro",
@@ -42,11 +52,27 @@ const COMMISSION_COLUMNS: DataColumn<CommissionRow>[] = [
     cell: (c) => c.full_name,
   },
   {
-    header: "Comisión",
+    header: "Por pagar",
     align: "right",
     mobile: "trailing",
-    className: "pr-6 font-bold text-on-surface tabular-nums",
+    className: "pr-6 font-bold tabular-nums",
     headerClassName: "pr-6",
+    cell: (c) => (
+      <span className={c.pending > 0 ? "text-on-surface" : "text-on-surface-variant"}>
+        ${money(c.pending)}
+      </span>
+    ),
+  },
+  {
+    header: "Liquidado",
+    align: "right",
+    className: "text-on-surface-variant tabular-nums",
+    cell: (c) => `$${money(c.settled)}`,
+  },
+  {
+    header: "Devengado",
+    align: "right",
+    className: "text-on-surface-variant tabular-nums",
     cell: (c) => `$${money(c.commission)}`,
   },
   {
@@ -55,13 +81,16 @@ const COMMISSION_COLUMNS: DataColumn<CommissionRow>[] = [
     className: "text-on-surface-variant",
     cell: (c) => c.salesCount,
   },
-  {
-    header: "Vendido",
-    align: "right",
-    className: "text-on-surface-variant tabular-nums",
-    cell: (c) => `$${money(c.soldTotal)}`,
-  },
 ];
+
+const SETTLEMENT_PAYMENT_LABELS: Record<string, string> = {
+  efectivo: "Efectivo",
+  transferencia: "Transferencia",
+  tarjeta: "Datáfono",
+};
+
+const settlementDate = (iso: string) =>
+  new Date(`${iso}T00:00:00`).toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "numeric" });
 
 export default function StaffPage() {
   const staff = useStaffStore((s) => s.staff);
@@ -74,6 +103,10 @@ export default function StaffPage() {
   const commissions = useStaffStore((s) => s.commissions);
   const commissionsLoading = useStaffStore((s) => s.commissionsLoading);
   const fetchCommissions = useStaffStore((s) => s.fetchCommissions);
+  const settlements = useStaffStore((s) => s.settlements);
+  const settlementsLoading = useStaffStore((s) => s.settlementsLoading);
+  const fetchSettlements = useStaffStore((s) => s.fetchSettlements);
+  const voidSettlement = useStaffStore((s) => s.voidSettlement);
 
   const subscription = useSubscriptionStore((s) => s.subscription);
   const fetchSubscription = useSubscriptionStore((s) => s.fetchAll);
@@ -106,9 +139,19 @@ export default function StaffPage() {
   const team = useMemo(() => mergeTeam(staff, accounts), [staff, accounts]);
 
   const commissionByStaff = useMemo(
-    () => new Map(commissions.map((c) => [c.staff_id, c.commission])),
+    () => new Map(commissions.map((c) => [c.staff_id, c])),
     [commissions],
   );
+
+  /** Sobre quién está abierto el modal de liquidación / el comprobante. */
+  const [settleFor, setSettleFor] = useState<StaffMember | null>(null);
+  const [receiptFor, setReceiptFor] = useState<CommissionSettlement | null>(null);
+  const [confirmVoid, setConfirmVoid] = useState<CommissionSettlement | null>(null);
+
+  // Liquidar CREA UN GASTO, y escribir gastos es del dueño (así lo exige la
+  // policy de `expenses`, y el RPC lo revalida). Un empleado ve la pantalla,
+  // pero el botón que siempre le fallaría no se le dibuja.
+  const canSettle = !profile?.isWorker;
 
   const grantMember = grantFor ? team.find((m) => m.id === grantFor) ?? null : null;
   const accountToEdit = editAccessFor ? accounts.find((a) => a.id === editAccessFor) ?? null : null;
@@ -138,8 +181,9 @@ export default function StaffPage() {
     fetchStaff();
     fetchAccounts();
     fetchCommissions();
+    fetchSettlements();
     fetchSubscription();
-  }, [fetchStaff, fetchAccounts, fetchCommissions, fetchSubscription]);
+  }, [fetchStaff, fetchAccounts, fetchCommissions, fetchSettlements, fetchSubscription]);
 
   const handleRevoke = useCallback(
     async (accountId: string, name: string) => {
@@ -282,15 +326,45 @@ export default function StaffPage() {
                 {m.email && <div className="truncate text-xs">{m.email}</div>}
               </div>
               {/* La comisión se configura por producto/servicio, no por
-                  persona: acá se muestra lo DEVENGADO en el mes, que es la
-                  pregunta real ("¿cuánto le debo?"). La tasa de la ficha no se
-                  muestra porque no la usa nadie para calcular. */}
-              <div className="flex items-center justify-between mt-4 pt-4 border-t border-outline-variant/10">
-                <span className="text-xs font-medium text-on-surface-variant">Comisión del mes</span>
-                <span className="text-base font-bold text-on-surface tabular-nums">
-                  ${money(commissionByStaff.get(m.id) ?? 0)}
-                </span>
-              </div>
+                  persona. Lo que se muestra grande es lo PENDIENTE, que es la
+                  pregunta real ("¿cuánto le debo?"); el devengado del mes queda
+                  como contexto. Antes solo existía el devengado, y después de
+                  pagarle al barbero seguía mostrando el mismo número. */}
+              {(() => {
+                const c = commissionByStaff.get(m.id);
+                const pending = c?.pending ?? 0;
+                const settled = c?.settled ?? 0;
+                return (
+                  <div className="mt-4 pt-4 border-t border-outline-variant/10">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium text-on-surface-variant">
+                        Comisión por pagar
+                      </span>
+                      <span className={`text-base font-bold tabular-nums ${pending > 0 ? "text-on-surface" : "text-on-surface-variant"}`}>
+                        ${money(pending)}
+                      </span>
+                    </div>
+                    {settled > 0 && (
+                      <div className="flex items-center justify-between mt-1">
+                        <span className="text-[11px] text-on-surface-variant">Ya liquidado este mes</span>
+                        <span className="text-[11px] text-emerald-600 font-semibold tabular-nums">
+                          ${money(settled)}
+                        </span>
+                      </div>
+                    )}
+                    {canSettle && hasStaffRecord(m) && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setSettleFor(m); }}
+                        disabled={pending <= 0}
+                        title={pending > 0 ? undefined : "No hay comisión pendiente en el mes en curso"}
+                        className="mt-3 w-full py-2 rounded-lg bg-primary/10 text-primary text-[11px] font-bold hover:bg-primary hover:text-on-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-primary/10 disabled:hover:text-primary"
+                      >
+                        Liquidar comisión
+                      </button>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* Acceso al sistema: la mitad que antes vivía en Ajustes. */}
               <div className="mt-3 pt-3 border-t border-outline-variant/10">
@@ -397,6 +471,149 @@ export default function StaffPage() {
         </div>
       )}
 
+      {/* Historial de liquidaciones. Es lo que hace que "ya le pagué" sea una
+          afirmación verificable y no una memoria: cada fila tiene comprobante. */}
+      {(settlementsLoading || settlements.length > 0) && (
+        <div className="bg-surface-container rounded-3xl border border-outline-variant/10 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-outline-variant/10 bg-surface-container-low">
+            <h2 className="text-sm font-bold text-on-surface">Liquidaciones</h2>
+            <p className="text-xs text-on-surface-variant mt-0.5">
+              Cada una generó su gasto en la categoría Comisiones. Tocá una para ver el comprobante.
+            </p>
+          </div>
+          {settlementsLoading ? (
+            <p className="text-center text-sm text-on-surface-variant py-8">Cargando…</p>
+          ) : (
+            <ul className="divide-y divide-outline-variant/10">
+              {settlements.map((s) => (
+                <li key={s.id} className="flex items-center gap-3 px-4 sm:px-6 py-3.5 hover:bg-surface-container-lowest transition-colors">
+                  <button
+                    onClick={() => setReceiptFor(s)}
+                    className="flex-1 min-w-0 text-left"
+                  >
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`text-sm font-semibold ${s.status === "void" ? "text-on-surface-variant line-through" : "text-on-surface"}`}>
+                        {s.staff_name}
+                      </span>
+                      {s.status === "void" && (
+                        <span className="inline-flex px-2 py-0.5 rounded-md text-[10px] font-bold bg-surface-variant text-on-surface-variant">
+                          Anulada
+                        </span>
+                      )}
+                      {s.voidedSalesCount > 0 && s.status !== "void" && (
+                        <span
+                          className="inline-flex px-2 py-0.5 rounded-md text-[10px] font-bold bg-[#f59e0b]/15 text-[#b45309] border border-[#f59e0b]/30"
+                          title={`${s.voidedSalesCount} venta(s) de esta liquidación se anularon después de pagarla`}
+                        >
+                          {s.voidedSalesCount} venta{s.voidedSalesCount !== 1 ? "s" : ""} anulada{s.voidedSalesCount !== 1 ? "s" : ""}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-on-surface-variant mt-0.5 truncate">
+                      {settlementDate(s.period_from)} al {settlementDate(s.period_to)} ·{" "}
+                      {s.items_count} línea{s.items_count !== 1 ? "s" : ""} ·{" "}
+                      {SETTLEMENT_PAYMENT_LABELS[s.payment_method] ?? s.payment_method} ·{" "}
+                      pagada el {settlementDate(s.paid_on)}
+                    </p>
+                  </button>
+                  <span className={`shrink-0 text-sm font-bold tabular-nums ${s.status === "void" ? "text-on-surface-variant/50 line-through" : "text-on-surface"}`}>
+                    ${money(s.total_amount)}
+                  </span>
+                  {canSettle && s.status !== "void" && (
+                    <button
+                      onClick={() => setConfirmVoid(s)}
+                      title="Anular liquidación"
+                      aria-label={`Anular la liquidación de ${s.staff_name}`}
+                      className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-error hover:bg-error/10 transition-colors"
+                    >
+                      <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24" className="w-4 h-4">
+                        <path d="M3 12a9 9 0 1 0 9-9" />
+                        <polyline points="3 4 3 12 11 12" />
+                      </svg>
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {settleFor && (
+        <SettleCommissionModal
+          member={settleFor}
+          onClose={() => setSettleFor(null)}
+          onSettled={(id) => {
+            setSettleFor(null);
+            // El comprobante se abre solo: liquidar sin poder mostrar el papel
+            // deja al dueño con el pago hecho y sin nada que entregar.
+            const created = useStaffStore.getState().settlements.find((s) => s.id === id);
+            if (created) setReceiptFor(created);
+          }}
+        />
+      )}
+
+      {receiptFor && (
+        <CommissionReceiptModal
+          settlement={receiptFor}
+          onClose={() => setReceiptFor(null)}
+        />
+      )}
+
+      {confirmVoid && (
+        <div className="fixed inset-0 z-[125] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-surface-container rounded-t-3xl sm:rounded-3xl w-full sm:max-w-sm border border-outline-variant/10 shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200">
+            <div className="p-6 text-center">
+              <h3 className="text-lg font-bold text-on-surface mb-2">Anular liquidación</h3>
+              <p className="text-sm text-on-surface-variant mb-4">
+                Las comisiones de {confirmVoid.staff_name} (${money(confirmVoid.total_amount)}) vuelven a
+                quedar pendientes y el gasto asociado se elimina.
+              </p>
+              {confirmVoid.cash_movement_id && (
+                <p className="text-xs text-on-surface-variant mb-6 rounded-lg border border-outline-variant/20 bg-surface-container-lowest px-3 py-2 text-left">
+                  Se pagó en efectivo. Si el turno del que salió sigue <strong>abierto</strong>, la plata
+                  vuelve al arqueo. Si ya se <strong>cerró y se contó</strong>, ese arqueo no se reescribe
+                  y el desfase queda para resolver a mano.
+                </p>
+              )}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setConfirmVoid(null)}
+                  className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={async () => {
+                    const result = await voidSettlement(confirmVoid.id);
+                    if (result?.cash_returned) {
+                      notifySuccess(
+                        "Liquidación anulada",
+                        "El efectivo volvió al arqueo del turno abierto.",
+                      );
+                    } else if (result?.cash_locked_in_closed_shift) {
+                      // No es un fallo: es una consecuencia que el dueño tiene
+                      // que conocer para poder resolverla.
+                      notifyError(
+                        "Anulada, pero el efectivo ya se contó",
+                        "Salió de un turno que ya se cerró: ese arqueo no se reescribe. Ajustalo a mano.",
+                      );
+                    } else if (result) {
+                      notifySuccess("Liquidación anulada", "Las comisiones vuelven a quedar pendientes.");
+                    }
+                    setConfirmVoid(null);
+                  }}
+                  disabled={submitting}
+                  className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold bg-error-dim hover:bg-error text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {submitting ? "Anulando…" : "Anular"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {confirmDelete && (
         <div className="fixed inset-0 z-[110] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-surface-container rounded-t-3xl sm:rounded-3xl w-full sm:max-w-sm border border-outline-variant/10 shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200">
@@ -442,7 +659,9 @@ export default function StaffPage() {
                 <h2 className="text-lg sm:text-xl font-bold text-on-surface">
                   {salesStaff?.full_name}
                 </h2>
-                <p className="text-xs text-on-surface-variant mt-0.5">Ventas realizadas</p>
+                <p className="text-xs text-on-surface-variant mt-0.5">
+                  Ventas del mes en curso
+                </p>
               </div>
               <button
                 onClick={() => setSalesModalOpen(false)}
@@ -471,7 +690,8 @@ export default function StaffPage() {
                         <th className="p-3">Producto</th>
                         <th className="p-3 text-center">Cant</th>
                         <th className="p-3 text-right">Total</th>
-                        <th className="p-3 pr-0 text-right">Comisión</th>
+                        <th className="p-3 text-right">Comisión</th>
+                        <th className="p-3 pr-0 text-right">Estado</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-outline-variant/5 text-sm">
@@ -489,20 +709,43 @@ export default function StaffPage() {
                           <td className="p-3 text-right text-xs font-bold text-on-surface tabular-nums">
                             ${money(s.line_total)}
                           </td>
-                          <td className="p-3 pr-0 text-right text-xs font-semibold text-emerald-600 tabular-nums">
+                          <td className="p-3 text-right text-xs font-semibold text-emerald-600 tabular-nums">
                             ${money(s.commissionAmount)}
+                          </td>
+                          <td className="p-3 pr-0 text-right">
+                            {s.commissionAmount <= 0 ? (
+                              <span className="text-[10px] text-on-surface-variant/60">Sin comisión</span>
+                            ) : s.settlementId ? (
+                              <span className="inline-flex px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                                Pagada
+                              </span>
+                            ) : (
+                              <span className="inline-flex px-2 py-0.5 rounded-md text-[10px] font-bold bg-[#f59e0b]/10 text-[#b45309] border border-[#f59e0b]/20">
+                                Pendiente
+                              </span>
+                            )}
                           </td>
                         </tr>
                       ))}
                     </tbody>
                     <tfoot>
                       <tr className="border-t border-outline-variant/10">
-                        <td colSpan={6} className="p-3 pl-0 text-right text-xs font-bold text-on-surface">
-                          Total comisiones
+                        <td colSpan={5} className="p-3 pl-0 text-right text-xs font-bold text-on-surface">
+                          Pendiente por liquidar
                         </td>
-                        <td className="p-3 pr-0 text-right text-sm font-bold text-emerald-600 tabular-nums">
+                        <td className="p-3 text-right text-sm font-bold text-[#b45309] tabular-nums">
+                          ${money(sales.filter((i) => !i.settlementId).reduce((s, i) => s + i.commissionAmount, 0))}
+                        </td>
+                        <td className="p-3 pr-0" />
+                      </tr>
+                      <tr>
+                        <td colSpan={5} className="p-3 pl-0 text-right text-xs text-on-surface-variant">
+                          Devengado en el mes
+                        </td>
+                        <td className="p-3 text-right text-xs font-semibold text-on-surface-variant tabular-nums">
                           ${money(sales.reduce((s, i) => s + i.commissionAmount, 0))}
                         </td>
+                        <td className="p-3 pr-0" />
                       </tr>
                     </tfoot>
                   </table>

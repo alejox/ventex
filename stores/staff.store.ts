@@ -2,7 +2,15 @@ import { create } from "zustand";
 import { toMessage } from "@/lib/errors";
 import * as staffService from "@/services/staff.service";
 import * as workerService from "@/services/worker.service";
-import type { StaffMember, NewStaffInput, CommissionRow } from "@/services/staff.service";
+import type {
+  StaffMember,
+  NewStaffInput,
+  CommissionRow,
+  CommissionPeriod,
+  CommissionSettlement,
+  SettleCommissionsInput,
+  VoidSettlementResult,
+} from "@/services/staff.service";
 import type {
   WorkerMember,
   InviteWorkerInput,
@@ -31,9 +39,23 @@ interface StaffState {
   commissions: CommissionRow[];
   commissionsLoading: boolean;
 
+  /** Historial de liquidaciones del negocio. */
+  settlements: CommissionSettlement[];
+  settlementsLoading: boolean;
+
   fetchStaff: () => Promise<void>;
   fetchAccounts: () => Promise<void>;
-  fetchCommissions: () => Promise<void>;
+  fetchCommissions: (period?: CommissionPeriod) => Promise<void>;
+  fetchSettlements: () => Promise<void>;
+
+  /**
+   * Liquida y devuelve el id de la liquidación (para abrir su comprobante), o
+   * null si falló. Relee comisiones e historial: después de pagar, el pendiente
+   * de esa persona cambió y la pantalla tiene que decirlo.
+   */
+  settleCommissions: (input: SettleCommissionsInput) => Promise<string | null>;
+  /** Devuelve qué se pudo reversar (incluido el efectivo), o null si falló. */
+  voidSettlement: (settlementId: string) => Promise<VoidSettlementResult | null>;
 
   /** Devuelve true si el alta fue correcta (para que el componente cierre el modal). */
   addStaff: (input: NewStaffInput) => Promise<boolean>;
@@ -60,6 +82,8 @@ export const useStaffStore = create<StaffState>((set) => ({
   accountsLoading: false,
   commissions: [],
   commissionsLoading: false,
+  settlements: [],
+  settlementsLoading: false,
 
   fetchStaff: async () => {
     set({ loading: true, error: null });
@@ -81,13 +105,55 @@ export const useStaffStore = create<StaffState>((set) => ({
     }
   },
 
-  fetchCommissions: async () => {
+  fetchCommissions: async (period) => {
     set({ commissionsLoading: true });
     try {
-      const commissions = await staffService.fetchCommissions();
+      const commissions = await staffService.fetchCommissions(period);
       set({ commissions, commissionsLoading: false });
     } catch (e) {
       set({ error: toMessage(e), commissionsLoading: false });
+    }
+  },
+
+  fetchSettlements: async () => {
+    set({ settlementsLoading: true });
+    try {
+      const settlements = await staffService.fetchSettlements();
+      set({ settlements, settlementsLoading: false });
+    } catch (e) {
+      set({ error: toMessage(e), settlementsLoading: false });
+    }
+  },
+
+  settleCommissions: async (input) => {
+    set({ submitting: true, error: null });
+    try {
+      const id = await staffService.settleCommissions(input);
+      const [commissions, settlements] = await Promise.all([
+        staffService.fetchCommissions(input.period),
+        staffService.fetchSettlements(),
+      ]);
+      set({ commissions, settlements, submitting: false });
+      return id;
+    } catch (e) {
+      set({ error: toMessage(e), submitting: false });
+      return null;
+    }
+  },
+
+  voidSettlement: async (settlementId) => {
+    set({ submitting: true, error: null });
+    try {
+      const result = await staffService.voidCommissionSettlement(settlementId);
+      const [commissions, settlements] = await Promise.all([
+        staffService.fetchCommissions(),
+        staffService.fetchSettlements(),
+      ]);
+      set({ commissions, settlements, submitting: false });
+      return result;
+    } catch (e) {
+      set({ error: toMessage(e), submitting: false });
+      return null;
     }
   },
 

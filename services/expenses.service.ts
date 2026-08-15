@@ -23,6 +23,13 @@ export interface ExpenseRecord {
    * que un gasto puede no ser borrable (hay un trigger que lo impide).
    */
   cash_movement_id: string | null;
+  /**
+   * Liquidación de comisiones que lo originó, si nació de pagarle al personal.
+   * Igual que `cash_movement_id`, es a la vez discriminador de origen y el
+   * motivo por el que el gasto no se puede editar ni borrar a mano: su monto lo
+   * fija el comprobante, y hay un trigger que lo sostiene.
+   */
+  commission_settlement_id: string | null;
   /** De dónde salió. Se deriva, no es una columna. */
   origin: Exclude<ExpenseOrigin, "">;
   /** Solo en las filas de compra: su factura, para poder ir a verla. */
@@ -30,7 +37,7 @@ export interface ExpenseRecord {
 }
 
 /** De dónde salió el gasto. "" = sin filtrar. */
-export type ExpenseOrigin = "" | "manual" | "caja" | "compra";
+export type ExpenseOrigin = "" | "manual" | "caja" | "compra" | "comision";
 
 /**
  * Categoría sintética de las compras a proveedor.
@@ -137,19 +144,23 @@ export async function listExpenses(period: ExpensePeriod, search = "", categoryI
   const term = search.trim();
 
   // Filtrar por una categoría real deja fuera a las compras: no tienen una.
-  const skipPurchases = origin === "manual" || origin === "caja" || Boolean(categoryId);
+  const skipPurchases =
+    origin === "manual" || origin === "caja" || origin === "comision" || Boolean(categoryId);
   const skipExpenses = origin === "compra";
 
   let query = supabase
     .from("expenses")
-    .select("id, description, amount, expense_date, category_id, cash_movement_id, expense_categories(id, name, description, color, is_default, is_active)")
+    .select("id, description, amount, expense_date, category_id, cash_movement_id, commission_settlement_id, expense_categories(id, name, description, color, is_default, is_active)")
     .order("expense_date", { ascending: false });
   if (range.from) query = query.gte("expense_date", range.from);
   if (range.to) query = query.lt("expense_date", range.to);
   if (categoryId) query = query.eq("category_id", categoryId);
-  // El origen se deduce del vínculo con el retiro, sin columna extra.
+  // El origen se deduce de los dos vínculos, sin columna extra.
   if (origin === "caja") query = query.not("cash_movement_id", "is", null);
-  if (origin === "manual") query = query.is("cash_movement_id", null);
+  if (origin === "comision") query = query.not("commission_settlement_id", "is", null);
+  if (origin === "manual") {
+    query = query.is("cash_movement_id", null).is("commission_settlement_id", null);
+  }
   if (term) query = query.ilike("description", `%${term}%`);
 
   let purchasesQuery = supabase
@@ -171,14 +182,16 @@ export async function listExpenses(period: ExpensePeriod, search = "", categoryI
   const operativos: ExpenseRecord[] = ((expensesRes.data ?? []) as unknown as Record<string, unknown>[]).map((row) => {
     const embedded = row.expense_categories;
     const category = (Array.isArray(embedded) ? embedded[0] ?? null : embedded ?? null) as ExpenseCategory | null;
+    const settlementId = (row.commission_settlement_id as string | null) ?? null;
     return {
       id: row.id as string,
       description: row.description as string,
       amount: row.amount as number,
       expense_date: row.expense_date as string,
       cash_movement_id: (row.cash_movement_id as string | null) ?? null,
+      commission_settlement_id: settlementId,
       category,
-      origin: row.cash_movement_id ? "caja" : "manual",
+      origin: settlementId ? "comision" : row.cash_movement_id ? "caja" : "manual",
     };
   });
 
@@ -191,6 +204,7 @@ export async function listExpenses(period: ExpensePeriod, search = "", categoryI
         amount: row.total as number,
         expense_date: row.issue_date as string,
         cash_movement_id: null,
+        commission_settlement_id: null,
         category: PURCHASES_CATEGORY,
         origin: "compra" as const,
         invoice_id: row.id as string,

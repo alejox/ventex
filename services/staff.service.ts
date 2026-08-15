@@ -25,7 +25,7 @@ export interface NewStaffInput {
 }
 
 /**
- * Fila del reporte de comisiones (mes en curso) por miembro del equipo.
+ * Fila del reporte de comisiones por miembro del equipo.
  *
  * No lleva tasa: la comisión se configura POR PRODUCTO/SERVICIO
  * (`products.has_commission`, `commission_type`, `commission_value`), no por
@@ -33,6 +33,11 @@ export interface NewStaffInput {
  * `sale_items.commission_amount` al vender. Dos personas pueden vender lo mismo
  * y ganar distinto según qué vendió cada una, así que una tasa única por
  * persona no describe nada.
+ *
+ * `commission` se parte en dos porque son dos preguntas distintas: cuánto
+ * devengó en el período (`commission`) y cuánto de eso todavía se le debe
+ * (`pending`). Antes solo existía la primera, y el dueño le pagaba al barbero y
+ * al día siguiente veía el mismo número sin saber si ya lo había pagado.
  */
 export interface CommissionRow {
   staff_id: string;
@@ -40,7 +45,12 @@ export interface CommissionRow {
   salesCount: number;
   /** Total vendido atribuido a la persona (productos y servicios). */
   soldTotal: number;
+  /** Devengado en el período: pendiente + liquidado. */
   commission: number;
+  /** Lo que todavía se le debe: las líneas sin liquidación. */
+  pending: number;
+  /** Lo ya pagado de ese mismo período. */
+  settled: number;
 }
 
 export interface StaffSaleItem {
@@ -55,6 +65,85 @@ export interface StaffSaleItem {
   customer_name: string | null;
   payment_method: string;
   commissionAmount: number;
+  /** Liquidación que ya pagó esta comisión. null = sigue pendiente. */
+  settlementId: string | null;
+}
+
+/**
+ * Rango de fechas que el usuario eligió, en los dos formatos que hacen falta.
+ *
+ * `from`/`to` son las fechas tal cual, para imprimirlas en el comprobante.
+ * `fromTs`/`toTs` son el MISMO rango en instantes, calculados en la zona del
+ * navegador y con `toTs` exclusivo. Los dos viajan porque `sales.created_at` es
+ * timestamptz y la base corre en UTC: cortar por `created_at::date` metería la
+ * venta de las 20:00 en Colombia dentro del día siguiente.
+ */
+export interface CommissionPeriod {
+  from: string;
+  to: string;
+  fromTs: string;
+  toTs: string;
+}
+
+/**
+ * Construye el período a partir de dos fechas `YYYY-MM-DD` del formulario.
+ * `to` es inclusivo para el usuario ("del 1 al 15" incluye el 15), así que el
+ * instante de corte es el arranque del día siguiente.
+ */
+export function commissionPeriodOf(from: string, to: string): CommissionPeriod {
+  const [fy, fm, fd] = from.split("-").map(Number);
+  const [ty, tm, td] = to.split("-").map(Number);
+  return {
+    from,
+    to,
+    fromTs: new Date(fy, fm - 1, fd, 0, 0, 0, 0).toISOString(),
+    toTs: new Date(ty, tm - 1, td + 1, 0, 0, 0, 0).toISOString(),
+  };
+}
+
+/** El mes en curso, que es el período por defecto de la pantalla. */
+export function currentMonthPeriod(): CommissionPeriod {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const first = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-01`;
+  const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  return commissionPeriodOf(first, today);
+}
+
+/** Una liquidación ya hecha. */
+export interface CommissionSettlement {
+  id: string;
+  staff_id: string;
+  staff_name: string;
+  period_from: string;
+  period_to: string;
+  total_amount: number;
+  items_count: number;
+  payment_method: string;
+  paid_on: string;
+  status: string;
+  expense_id: string | null;
+  /**
+   * Retiro de caja que descontó del arqueo. Solo existe si se pagó en efectivo
+   * y había un turno abierto donde anotarlo.
+   */
+  cash_movement_id: string | null;
+  created_at: string;
+  /**
+   * Ventas que se anularon DESPUÉS de que esta liquidación las pagara. No es un
+   * error del sistema: es plata que ya salió por una venta que dejó de existir,
+   * y el dueño tiene que enterarse en vez de que cuadre solo.
+   */
+  voidedSalesCount: number;
+}
+
+export interface SettleCommissionsInput {
+  staffId: string;
+  period: CommissionPeriod;
+  paymentMethod: "efectivo" | "transferencia" | "tarjeta";
+  paidOn: string;
+  /** Líneas que el dueño sacó de esta liquidación (disputa, error, etc.). */
+  excludedItemIds?: string[];
 }
 
 const SELECT = "id, full_name, role, phone, email, status, created_at";
@@ -83,16 +172,18 @@ export async function createStaff(input: NewStaffInput): Promise<StaffMember> {
   return data as StaffMember;
 }
 
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
 /**
- * Comisiones del mes en curso por miembro del equipo.
+ * Comisiones de un período por miembro del equipo, separando lo pendiente de
+ * lo ya liquidado.
  *
  * Suma lo ya congelado en cada línea al vender; no recalcula nada. Cambiar hoy
  * la comisión de un producto no puede mover lo que ya se devengó.
  */
-export async function fetchCommissions(): Promise<CommissionRow[]> {
+export async function fetchCommissions(period?: CommissionPeriod): Promise<CommissionRow[]> {
   const supabase = createClient();
-  const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  const range = period ?? currentMonthPeriod();
 
   const [staffRes, itemsRes] = await Promise.all([
     supabase.from("staff").select("id, full_name"),
@@ -101,10 +192,11 @@ export async function fetchCommissions(): Promise<CommissionRow[]> {
       // Sin filtro por service_id: antes solo sumaba SERVICIOS, así que en una
       // tienda —que no los tiene— el reporte salía vacío por definición. Los
       // productos también comisionan.
-      .select("sale_id, staff_id, line_total, commission_amount, sales!inner(status, created_at)")
+      .select("sale_id, staff_id, line_total, commission_amount, commission_settlement_id, sales!inner(status, created_at)")
       .not("staff_id", "is", null)
       .eq("sales.status", "completed")
-      .gte("sales.created_at", start),
+      .gte("sales.created_at", range.fromTs)
+      .lt("sales.created_at", range.toTs),
   ]);
   if (staffRes.error) throw staffRes.error;
   if (itemsRes.error) throw itemsRes.error;
@@ -115,14 +207,27 @@ export async function fetchCommissions(): Promise<CommissionRow[]> {
     staff_id: string;
     line_total: number;
     commission_amount: number;
+    commission_settlement_id: string | null;
   }[];
 
-  const byStaff = new Map<string, { soldTotal: number; commission: number; sales: Set<string> }>();
+  interface Acc {
+    soldTotal: number;
+    commission: number;
+    pending: number;
+    settled: number;
+    sales: Set<string>;
+  }
+  const byStaff = new Map<string, Acc>();
   for (const it of items) {
-    const prev = byStaff.get(it.staff_id) ?? { soldTotal: 0, commission: 0, sales: new Set<string>() };
+    const prev: Acc =
+      byStaff.get(it.staff_id) ??
+      { soldTotal: 0, commission: 0, pending: 0, settled: 0, sales: new Set<string>() };
     prev.soldTotal += it.line_total ?? 0;
     // La comisión NO se recalcula: se suma la que quedó congelada al vender.
-    prev.commission += it.commission_amount ?? 0;
+    const amount = it.commission_amount ?? 0;
+    prev.commission += amount;
+    if (it.commission_settlement_id) prev.settled += amount;
+    else prev.pending += amount;
     prev.sales.add(it.sale_id);
     byStaff.set(it.staff_id, prev);
   }
@@ -135,27 +240,41 @@ export async function fetchCommissions(): Promise<CommissionRow[]> {
         staff_id: m.id,
         full_name: m.full_name,
         salesCount: a.sales.size,
-        soldTotal: Math.round(a.soldTotal * 100) / 100,
-        commission: Math.round(a.commission * 100) / 100,
+        soldTotal: round2(a.soldTotal),
+        commission: round2(a.commission),
+        pending: round2(a.pending),
+        settled: round2(a.settled),
       };
     })
     .filter((r): r is CommissionRow => r !== null && r.soldTotal > 0)
-    .sort((a, b) => b.commission - a.commission);
+    .sort((a, b) => b.pending - a.pending || b.commission - a.commission);
 }
 
 /**
- * Ventas (líneas) atribuidas a un miembro del personal, con comisión calculada.
+ * Ventas (líneas) atribuidas a un miembro del personal, con su comisión y con
+ * el estado de liquidación de cada una.
+ *
+ * `period` es obligatorio de hecho aunque sea opcional en la firma: sin él
+ * devuelve el mes en curso. Antes NO filtraba por fecha y traía el histórico
+ * completo, mientras la tarjeta "Comisión del mes" sí recortaba al mes: la
+ * tarjeta y este detalle mostraban números distintos para la misma pregunta.
  */
-export async function fetchStaffSales(staffId: string): Promise<StaffSaleItem[]> {
+export async function fetchStaffSales(
+  staffId: string,
+  period?: CommissionPeriod,
+): Promise<StaffSaleItem[]> {
   const supabase = createClient();
+  const range = period ?? currentMonthPeriod();
   const { data, error } = await supabase
     .from("sale_items")
-    .select("id, product_name, sku, unit_price, quantity, line_total, commission_amount, sales!inner(sale_number, created_at, payment_method, status, customers(full_name))")
+    .select("id, product_name, sku, unit_price, quantity, line_total, commission_amount, commission_settlement_id, sales!inner(sale_number, created_at, payment_method, status, customers(full_name))")
     .eq("staff_id", staffId)
     // Mismo filtro que fetchCommissions: una venta anulada (void_sale la deja en
     // 'void') no se paga. Sin esto, este detalle sumaba más comisión que el
     // reporte del mes y el dueño no sabía cuál de los dos creer.
-    .eq("sales.status", "completed");
+    .eq("sales.status", "completed")
+    .gte("sales.created_at", range.fromTs)
+    .lt("sales.created_at", range.toTs);
   if (error) throw error;
 
   // El embed anidado de PostgREST (sale_items → sales → customers) no queda bien
@@ -168,6 +287,7 @@ export async function fetchStaffSales(staffId: string): Promise<StaffSaleItem[]>
     quantity: number;
     line_total: number;
     commission_amount: number;
+    commission_settlement_id: string | null;
     sales: {
       sale_number: number | null;
       created_at: string | null;
@@ -189,10 +309,134 @@ export async function fetchStaffSales(staffId: string): Promise<StaffSaleItem[]>
     customer_name: r.sales?.customers?.full_name ?? null,
     payment_method: r.sales?.payment_method ?? "",
     commissionAmount: r.commission_amount ?? 0,
+    settlementId: r.commission_settlement_id ?? null,
   }));
 
   result.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   return result;
+}
+
+// ---- Liquidación de comisiones ----
+
+/**
+ * Paga las comisiones pendientes de una persona en un período.
+ *
+ * Todo ocurre dentro del RPC `settle_commissions`, en UNA transacción: suma las
+ * líneas pendientes, crea la liquidación, crea el gasto en la categoría
+ * "Comisiones" y estampa cada línea con el id de la liquidación. Que sea una
+ * sola transacción es lo que garantiza los tres criterios de aceptación que
+ * importan: no se paga dos veces (solo entra lo que tiene el campo NULL, y va
+ * bloqueado), el total del comprobante es la suma exacta del detalle, y el
+ * gasto no puede quedar sin su liquidación ni al revés.
+ */
+export async function settleCommissions(input: SettleCommissionsInput): Promise<string> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("settle_commissions", {
+    p_staff_id: input.staffId,
+    p_from: input.period.from,
+    p_to: input.period.to,
+    p_from_ts: input.period.fromTs,
+    p_to_ts: input.period.toTs,
+    p_payment_method: input.paymentMethod,
+    p_paid_on: input.paidOn,
+    p_exclude_item_ids: input.excludedItemIds ?? [],
+  });
+  if (error) throw error;
+  return data as unknown as string;
+}
+
+/** Qué se pudo reversar al anular. */
+export interface VoidSettlementResult {
+  /** El retiro de caja se borró: el efectivo vuelve al arqueo del turno. */
+  cash_returned: boolean;
+  /**
+   * Salió efectivo de un turno que YA se cerró y se contó. Ese arqueo no se
+   * reescribe —alguien lo firmó—, así que el desfase se resuelve a mano.
+   */
+  cash_locked_in_closed_shift: boolean;
+}
+
+/**
+ * Anula una liquidación: las comisiones vuelven a pendiente, el gasto se borra
+ * y, si el turno sigue abierto, el efectivo vuelve al arqueo.
+ */
+export async function voidCommissionSettlement(
+  settlementId: string,
+): Promise<VoidSettlementResult> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("void_commission_settlement", {
+    p_settlement_id: settlementId,
+  });
+  if (error) throw error;
+  return (data ?? { cash_returned: false, cash_locked_in_closed_shift: false }) as unknown as VoidSettlementResult;
+}
+
+/**
+ * ¿De qué turno abierto saldría el efectivo si se liquidara ahora?
+ *
+ * Devuelve el id, o null si no hay dónde anotarlo (nadie con turno abierto, o
+ * varios turnos abiertos y ninguno de la persona a la que se le paga). Se usa
+ * solo para AVISAR en el formulario: quien decide de verdad es el RPC, que
+ * vuelve a resolverlo dentro de su transacción.
+ */
+export async function openShiftForCommission(staffId: string): Promise<string | null> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("open_shift_for_commission", {
+    p_staff_id: staffId,
+  });
+  if (error) throw error;
+  return (data as unknown as string | null) ?? null;
+}
+
+/**
+ * Historial de liquidaciones. Sin `staffId` trae las de todo el negocio.
+ *
+ * La segunda consulta busca ventas anuladas DESPUÉS de haber sido liquidadas.
+ * Es el caso del checklist de QA: si se anula una venta ya pagada, el sistema
+ * tiene que avisar, no cuadrar en silencio. `void_sale` no bloquea la anulación
+ * a propósito —la venta puede estar mal de verdad—, así que la inconsistencia
+ * se muestra donde se puede resolver: en la liquidación.
+ */
+export async function fetchSettlements(staffId?: string): Promise<CommissionSettlement[]> {
+  const supabase = createClient();
+  let query = supabase
+    .from("commission_settlements")
+    .select("id, staff_id, period_from, period_to, total_amount, items_count, payment_method, paid_on, status, expense_id, cash_movement_id, created_at, staff(full_name)")
+    .order("paid_on", { ascending: false })
+    .order("created_at", { ascending: false });
+  if (staffId) query = query.eq("staff_id", staffId);
+
+  const { data, error } = await query;
+  if (error) throw error;
+
+  const rows = (data ?? []) as unknown as (Omit<CommissionSettlement, "staff_name" | "voidedSalesCount"> & {
+    staff: { full_name: string } | { full_name: string }[] | null;
+  })[];
+  if (rows.length === 0) return [];
+
+  const { data: voided } = await supabase
+    .from("sale_items")
+    .select("commission_settlement_id, sales!inner(status)")
+    .in("commission_settlement_id", rows.map((r) => r.id))
+    .eq("sales.status", "void");
+
+  const voidedBySettlement = new Map<string, number>();
+  for (const row of (voided ?? []) as unknown as { commission_settlement_id: string }[]) {
+    voidedBySettlement.set(
+      row.commission_settlement_id,
+      (voidedBySettlement.get(row.commission_settlement_id) ?? 0) + 1,
+    );
+  }
+
+  return rows.map((r) => {
+    // El embed to-one llega como objeto, pero el generador lo tipa como array.
+    const staff = Array.isArray(r.staff) ? r.staff[0] ?? null : r.staff;
+    return {
+      ...r,
+      staff_name: staff?.full_name ?? "—",
+      voidedSalesCount: voidedBySettlement.get(r.id) ?? 0,
+    };
+  });
 }
 
 export async function deleteStaff(id: string): Promise<void> {

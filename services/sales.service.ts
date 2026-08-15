@@ -37,6 +37,13 @@ export interface SaleLine {
   staff_name: string | null;
   /** Comisión congelada al momento de la venta (no se recalcula nunca). */
   commission_amount: number;
+  /**
+   * Liquidación que ya pagó esta comisión. null = todavía se le debe.
+   *
+   * Importa acá y no solo en Personal: al anular una venta, esto es lo que dice
+   * si además de deshacer la venta hay plata que ya salió por ella.
+   */
+  commission_settlement_id: string | null;
 }
 
 export interface SaleDetail extends Omit<SaleListItem, "item_count"> {
@@ -200,7 +207,7 @@ const likePattern = (raw: string) =>
 // llega a la tabla por dos caminos (la cabecera y cada línea) y PostgREST no
 // tiene por qué adivinar cuál es cuál.
 const DETAIL_SELECT =
-  "id, sale_number, created_at, payment_method, transfer_method, card_method, status, subtotal, discount_amount, tax_rate, tax_amount, total, customers(full_name), staff!sales_staff_id_fkey(full_name), sale_items(id, product_name, sku, unit_price, quantity, line_total, unit_kind, units_per_item, commission_amount, staff!sale_items_staff_id_fkey(full_name))";
+  "id, sale_number, created_at, payment_method, transfer_method, card_method, status, subtotal, discount_amount, tax_rate, tax_amount, total, customers(full_name), staff!sales_staff_id_fkey(full_name), sale_items(id, product_name, sku, unit_price, quantity, line_total, unit_kind, units_per_item, commission_amount, commission_settlement_id, staff!sale_items_staff_id_fkey(full_name))";
 
 export const SALES_PAGE_SIZE = 50;
 
@@ -288,6 +295,7 @@ export async function fetchSaleDetail(saleId: string): Promise<SaleDetail> {
     units_per_item: (it.units_per_item as number) ?? 1,
     staff_name: one<{ full_name: string }>(it.staff)?.full_name ?? null,
     commission_amount: (it.commission_amount as number) ?? 0,
+    commission_settlement_id: (it.commission_settlement_id as string | null) ?? null,
   }));
   return {
     id: data.id,

@@ -101,7 +101,13 @@ export default function ExpensesPage() {
         sortValue: (item) => item.origin,
         cell: (item) => (
           <span className="text-[11px] text-on-surface-variant whitespace-nowrap">
-            {item.origin === "compra" ? "Compra" : item.origin === "caja" ? "Retiro de caja" : "A mano"}
+            {item.origin === "compra"
+              ? "Compra"
+              : item.origin === "caja"
+                ? "Retiro de caja"
+                : item.origin === "comision"
+                  ? "Liquidación de comisión"
+                  : "A mano"}
           </span>
         ),
       },
@@ -126,9 +132,19 @@ export default function ExpensesPage() {
           <div className="flex items-center justify-end gap-3 whitespace-nowrap">
             {/* Una compra es una factura, no un gasto suelto: se edita donde
                 vive, con sus ítems y su impuesto. Acá solo se la mira. */}
+            {/* Una compra es una factura, no un gasto suelto: se edita donde
+                vive, con sus ítems y su impuesto. Acá solo se la mira. */}
             {item.origin === "compra" ? (
               <Link href="/dashboard/purchases" className="text-primary text-xs font-semibold">
                 Ver compra
+              </Link>
+            ) : item.origin === "comision" ? (
+              /* Su monto lo fija el comprobante de la liquidación: si acá se
+                 pudiera cambiar, el papel que se le entregó al colaborador y la
+                 contabilidad dirían cosas distintas. Se anula la liquidación
+                 —que reversa el gasto— o no se toca. */
+              <Link href="/dashboard/staff" className="text-primary text-xs font-semibold">
+                Ver liquidación
               </Link>
             ) : (
               <button className="text-primary text-xs font-semibold" onClick={() => startEdit(item)}>
@@ -138,8 +154,15 @@ export default function ExpensesPage() {
             {/* Un gasto nacido de un retiro no se borra: es la contracara de
                 plata que salió del cajón contra un turno. La base lo impide con
                 un trigger; acá se oculta el botón para no ofrecer una acción
-                que va a fallar. */}
-            {item.origin === "compra" ? null : item.cash_movement_id ? (
+                que va a fallar. Lo mismo el de una liquidación. */}
+            {item.origin === "compra" ? null : item.origin === "comision" ? (
+              <span
+                className="text-xs text-on-surface-variant"
+                title="Viene de una liquidación de comisiones: se corrige anulándola en Personal"
+              >
+                Desde Personal
+              </span>
+            ) : item.cash_movement_id ? (
               <span
                 className="text-xs text-on-surface-variant"
                 title="Viene de un retiro de caja: se corrige desde el turno"
@@ -231,7 +254,7 @@ export default function ExpensesPage() {
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4"><Kpi label="Gasto total" value={`$${money(total)}`} note="Incluye compras a proveedores" /><Kpi label="N.º de gastos" value={String(expenses.length)} /><Kpi label="Mayor categoría" value={top?.category.name ?? "—"} /><Kpi label="Ticket promedio" value={`$${money(average)}`} /></div>
     <div className="flex flex-wrap gap-2">{PERIODS.map((item) => <button key={item.id} onClick={() => setPeriod(item.id)} className={`px-3 py-2 rounded-xl text-xs font-semibold border ${period === item.id ? "border-primary/40 bg-primary/10 text-primary" : "border-outline-variant/10 bg-surface-container text-on-surface-variant"}`}>{item.label}</button>)}</div>
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <section className="lg:col-span-2 bg-surface-container-lowest border border-outline-variant/10 rounded-2xl p-5 shadow-sm"><div className="flex flex-col sm:flex-row gap-3 mb-4"><div className="relative flex-1"><IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant" /><input value={searchInput} onChange={(e) => setSearchInput(e.target.value)} placeholder="Buscar por descripción…" className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-surface-container border border-outline-variant/20 text-sm text-on-surface" /></div><select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className="rounded-xl bg-surface-container border border-outline-variant/20 px-3 py-2.5 text-sm text-on-surface"><option value="">Todas las categorías</option>{categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select><select value={origin} onChange={(e) => setOrigin(e.target.value as ExpenseOrigin)} className="rounded-xl bg-surface-container border border-outline-variant/20 px-3 py-2.5 text-sm text-on-surface" aria-label="Filtrar por origen"><option value="">Todo origen</option><option value="manual">Cargado a mano</option><option value="caja">Retiro de caja</option><option value="compra">Compra a proveedor</option></select></div>
+      <section className="lg:col-span-2 bg-surface-container-lowest border border-outline-variant/10 rounded-2xl p-5 shadow-sm"><div className="flex flex-col sm:flex-row gap-3 mb-4"><div className="relative flex-1"><IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant" /><input value={searchInput} onChange={(e) => setSearchInput(e.target.value)} placeholder="Buscar por descripción…" className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-surface-container border border-outline-variant/20 text-sm text-on-surface" /></div><select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className="rounded-xl bg-surface-container border border-outline-variant/20 px-3 py-2.5 text-sm text-on-surface"><option value="">Todas las categorías</option>{categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select><select value={origin} onChange={(e) => setOrigin(e.target.value as ExpenseOrigin)} className="rounded-xl bg-surface-container border border-outline-variant/20 px-3 py-2.5 text-sm text-on-surface" aria-label="Filtrar por origen"><option value="">Todo origen</option><option value="manual">Cargado a mano</option><option value="caja">Retiro de caja</option><option value="comision">Liquidación de comisión</option><option value="compra">Compra a proveedor</option></select></div>
         {loading ? (
           <p className="py-12 text-center text-sm text-on-surface-variant">Cargando gastos…</p>
         ) : expenses.length === 0 ? (
