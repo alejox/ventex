@@ -4,11 +4,13 @@ import { useEffect, useMemo, useState } from "react";
 import { usePromosStore } from "@/stores/promos.store";
 import { useServicesStore } from "@/stores/services.store";
 import { useProfile } from "@/components/ProfileProvider";
+import { useSettingsStore } from "@/stores/settings.store";
 import {
   DEFAULT_PROMO_MESSAGE,
   PROMO_VARIABLES,
   renderPromoMessage,
   milestoneFor,
+  businessDisplayName,
 } from "@/services/promos.service";
 import { CollectionError, CollectionLoading } from "@/components/CollectionState";
 import { notifySuccess, notifyError } from "@/lib/notifications";
@@ -36,6 +38,8 @@ export default function PromocionesPage() {
   const services = useServicesStore((s) => s.services);
   const fetchServices = useServicesStore((s) => s.fetchServices);
   const profile = useProfile();
+  const settings = useSettingsStore((s) => s.settings);
+  const fetchSettings = useSettingsStore((s) => s.fetchSettings);
 
   const [enabled, setEnabled] = useState(false);
   const [serviceIds, setServiceIds] = useState<string[]>([]);
@@ -47,9 +51,10 @@ export default function PromocionesPage() {
   const [recurring, setRecurring] = useState(true);
 
   useEffect(() => {
+    fetchSettings();
     fetchAll();
     fetchServices();
-  }, [fetchAll, fetchServices]);
+  }, [fetchAll, fetchServices, fetchSettings]);
 
   // Siembra desde lo guardado, una sola vez: si corriera en cada render, lo que
   // el usuario está escribiendo se pisaría cuando el store se refresque.
@@ -70,10 +75,10 @@ export default function PromocionesPage() {
     return renderPromoMessage(message, {
       cliente: "Juan",
       cortes: 10,
-      negocio: profile?.businessName || "Mi Negocio",
+      negocio: businessDisplayName(settings?.business_profile?.businessName, profile?.businessName),
       premio: hito?.reward ?? null,
     });
-  }, [message, milestones, profile?.businessName]);
+  }, [message, milestones, profile?.businessName, settings?.business_profile?.businessName]);
 
   const handleSave = async () => {
     const ok = await saveConfig({ enabled, serviceIds, message });

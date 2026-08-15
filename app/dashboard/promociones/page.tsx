@@ -4,9 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePromosStore } from "@/stores/promos.store";
 import { useProfile } from "@/components/ProfileProvider";
+import { useSettingsStore } from "@/stores/settings.store";
 import { fetchPromoCustomers, toPromoRows } from "@/services/promo-customers.service";
 import type { PromoCustomer } from "@/services/promo-customers.service";
-import { renderPromoMessage, whatsappLink, milestoneFor } from "@/services/promos.service";
+import { renderPromoMessage, whatsappLink, milestoneFor, businessDisplayName } from "@/services/promos.service";
 import { DataTable, type DataColumn } from "@/components/DataTable";
 import { CollectionEmpty, CollectionError, CollectionLoading } from "@/components/CollectionState";
 import { IconSearch, IconUsers } from "@/app/assets/icons/DashboardIcons";
@@ -24,6 +25,8 @@ export default function PromocionesClientesPage() {
   const configLoading = usePromosStore((s) => s.loading);
   const fetchAll = usePromosStore((s) => s.fetchAll);
   const profile = useProfile();
+  const settings = useSettingsStore((s) => s.settings);
+  const fetchSettings = useSettingsStore((s) => s.fetchSettings);
 
   const [raw, setRaw] = useState<Pick<PromoCustomer, "id" | "full_name" | "phone" | "haircut_count">[]>([]);
   const [loading, setLoading] = useState(true);
@@ -54,9 +57,10 @@ export default function PromocionesClientesPage() {
   };
 
   useEffect(() => {
+    fetchSettings();
     fetchAll();
     cargar();
-  }, [fetchAll, cargar]);
+  }, [fetchAll, cargar, fetchSettings]);
 
   const rows = useMemo(() => {
     const conHitos = toPromoRows(raw, milestones);
@@ -72,7 +76,7 @@ export default function PromocionesClientesPage() {
     const texto = renderPromoMessage(config.message, {
       cliente: c.full_name.split(" ")[0],
       cortes: c.haircut_count,
-      negocio: profile?.businessName || "nuestro local",
+      negocio: businessDisplayName(settings?.business_profile?.businessName, profile?.businessName),
       premio: hito?.reward ?? null,
     });
     return whatsappLink(c.phone, texto);

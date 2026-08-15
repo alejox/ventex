@@ -6,6 +6,7 @@ import {
   whatsappNumber,
   whatsappLink,
   DEFAULT_PROMO_MESSAGE,
+  businessDisplayName,
 } from "../services/promos.service";
 import type { PromoMilestone } from "../services/promos.service";
 
@@ -85,4 +86,16 @@ test("6. Sin teléfono no hay enlace, y el texto viaja escapado", () => {
   assert.ok(link.includes("text="));
   assert.ok(!link.includes(" "), "un espacio sin escapar corta la URL");
   assert.ok(link.includes(encodeURIComponent("💈")), "el emoji tiene que sobrevivir el escapado");
+});
+
+test("7. El nombre del negocio cae en cadena, no directo al genérico", () => {
+  // Hay DOS fuentes: lo que el dueño escribió en Ajustes y el nombre con el que
+  // se registró. El POS leía SOLO la primera —que arranca vacía hasta que
+  // alguien abre esa pestaña— y le mandaba "nuestro local" al cliente teniendo
+  // "labarbe" a un campo de distancia.
+  assert.equal(businessDisplayName("La Barbería", "labarbe"), "La Barbería");
+  assert.equal(businessDisplayName(null, "labarbe"), "labarbe");
+  assert.equal(businessDisplayName("", "labarbe"), "labarbe");
+  assert.equal(businessDisplayName("   ", "labarbe"), "labarbe", "en blanco no es un nombre");
+  assert.equal(businessDisplayName(undefined, undefined), "nuestro local");
 });

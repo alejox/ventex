@@ -50,6 +50,25 @@ export const PROMO_VARIABLES: { token: string; help: string }[] = [
   { token: "{premio}", help: "El premio del hito alcanzado, si alcanzó uno" },
 ];
 
+/**
+ * El nombre del negocio tal como lo tiene que leer el cliente.
+ *
+ * Hay DOS fuentes y no siempre coinciden: `settings.business_profile.businessName`
+ * —lo que el dueño escribió en Ajustes → Datos de tu negocio— y
+ * `profiles.business_name`, que es el nombre con el que se registró. La primera
+ * manda porque es la que el negocio eligió mostrar; la segunda es el respaldo.
+ *
+ * Sin esta cadena el POS caía directo al genérico: lee de `settings`, que
+ * arranca vacío hasta que alguien abre esa pestaña, y le mandaba al cliente
+ * "en nuestro local" teniendo el nombre real a un campo de distancia.
+ */
+export function businessDisplayName(
+  fromSettings?: string | null,
+  fromProfile?: string | null,
+): string {
+  return fromSettings?.trim() || fromProfile?.trim() || "nuestro local";
+}
+
 export const EMPTY_PROMO_CONFIG: PromoConfig = { enabled: false, serviceIds: [], message: null };
 
 export async function fetchPromoConfig(): Promise<PromoConfig> {

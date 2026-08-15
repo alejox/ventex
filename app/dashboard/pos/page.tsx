@@ -37,6 +37,7 @@ import {
   milestoneFor,
   renderPromoMessage,
   whatsappLink as buildWhatsappLink,
+  businessDisplayName,
 } from "@/services/promos.service";
 import { TabRenameModal } from "./components/TabRenameModal";
 import { TabCloseConfirmModal } from "./components/TabCloseConfirmModal";
@@ -419,7 +420,7 @@ export default function POSPage() {
           const texto = renderPromoMessage(promoConfig.message, {
             cliente: selectedCustomer.full_name.split(" ")[0],
             cortes: count,
-            negocio: businessProfile?.businessName || "nuestro local",
+            negocio: businessDisplayName(businessProfile?.businessName, profile?.businessName),
             premio: hito?.reward ?? null,
           });
           const link = buildWhatsappLink(phone, texto);

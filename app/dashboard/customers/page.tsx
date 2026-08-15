@@ -11,8 +11,9 @@ import { Select } from "@/components/ui/Select";
 import { fetchCustomerSales } from "@/services/customers.service";
 import type { Customer, NewCustomerInput, CustomerSale } from "@/services/customers.service";
 import { usePromosStore } from "@/stores/promos.store";
-import { milestoneFor, renderPromoMessage, whatsappLink } from "@/services/promos.service";
+import { milestoneFor, renderPromoMessage, whatsappLink, businessDisplayName } from "@/services/promos.service";
 import { useProfile } from "@/components/ProfileProvider";
+import { useSettingsStore } from "@/stores/settings.store";
 
 const DOC_TYPES = ["CC", "NIT", "RUT", "RFC"];
 
@@ -58,14 +59,17 @@ export default function CustomersPage() {
   const milestones = usePromosStore((s) => s.milestones);
   const fetchPromos = usePromosStore((s) => s.fetchAll);
   const profile = useProfile();
+  const settings = useSettingsStore((s) => s.settings);
+  const fetchSettings = useSettingsStore((s) => s.fetchSettings);
   const [paymentCustomer, setPaymentCustomer] = useState<Customer | null>(null);
   const [customerSales, setCustomerSales] = useState<CustomerSale[]>([]);
   const [salesLoading, setSalesLoading] = useState(false);
 
   useEffect(() => {
+    fetchSettings();
     fetchCustomers();
     fetchPromos();
-  }, [fetchCustomers, fetchPromos]);
+  }, [fetchCustomers, fetchPromos, fetchSettings]);
 
   const openCreate = () => {
     setEditingId(null);
@@ -555,7 +559,7 @@ export default function CustomersPage() {
                     const texto = renderPromoMessage(promoConfig.message, {
                       cliente: detailCustomer.full_name.split(" ")[0],
                       cortes: detailCustomer.haircut_count,
-                      negocio: profile?.businessName || "nuestro local",
+                      negocio: businessDisplayName(settings?.business_profile?.businessName, profile?.businessName),
                       premio: hito?.reward ?? null,
                     });
                     const link = whatsappLink(detailCustomer.phone, texto);
