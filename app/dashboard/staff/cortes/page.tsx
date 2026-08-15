@@ -138,23 +138,31 @@ export default function HaircutsPage() {
         </button>
       </div>
 
+      {/* Mientras recarga, las tarjetas NO muestran el total anterior.
+          Al cambiar el rango la tabla pasa a "Contando…" pero los KPI seguían
+          firmes con los números del período viejo: un total afirmado con toda
+          confianza sobre fechas que ya no son las de la pantalla. Dura poco en
+          local y bastante más con red lenta, que es justo cuando alguien
+          alcanza a leerlo y a creerlo. */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-surface-container rounded-2xl p-5 border border-outline-variant/10 shadow-sm">
           <p className="text-on-surface-variant text-sm font-medium mb-1">Cortes del período</p>
-          <h3 className="text-3xl font-bold text-on-surface tracking-tight tabular-nums">{totalCortes}</h3>
+          <h3 className="text-3xl font-bold text-on-surface tracking-tight tabular-nums">
+            {loading ? <span className="text-on-surface-variant/40">—</span> : totalCortes}
+          </h3>
         </div>
         <div className="bg-surface-container rounded-2xl p-5 border border-outline-variant/10 shadow-sm">
           <p className="text-on-surface-variant text-sm font-medium mb-1">Facturado en cortes</p>
           <h3 className="text-3xl font-bold text-on-surface tracking-tight tabular-nums">
-            ${money(totalVendido)}
+            {loading ? <span className="text-on-surface-variant/40">—</span> : `$${money(totalVendido)}`}
           </h3>
         </div>
         <div className="bg-surface-container rounded-2xl p-5 border border-outline-variant/10 shadow-sm">
           <p className="text-on-surface-variant text-sm font-medium mb-1">Quien más cortó</p>
           <h3 className="text-xl font-bold text-on-surface tracking-tight truncate">
-            {lider ? lider.full_name : "—"}
+            {loading ? <span className="text-on-surface-variant/40">—</span> : lider ? lider.full_name : "—"}
           </h3>
-          {lider && (
+          {!loading && lider && (
             <p className="text-xs text-on-surface-variant mt-0.5 tabular-nums">
               {lider.cortes} corte{lider.cortes !== 1 ? "s" : ""}
             </p>
