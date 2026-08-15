@@ -32,7 +32,7 @@ import { NotificationsBell } from "@/components/NotificationsBell";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { ExpenseModal } from "@/components/ExpenseModal";
 import { useProfile } from "@/components/ProfileProvider";
-import { visibleNavItems, workerNavItems, groupNavItems } from "@/config/business";
+import { visibleNavItems, workerNavItems, groupNavItems, footerNavItems } from "@/config/business";
 import { backdropProps } from "@/components/modal";
 import { SIDEBAR_COOKIE, SIDEBAR_COOKIE_MAX_AGE } from "@/lib/sidebar";
 import { WorkspaceSwitcher } from "@/components/WorkspaceSwitcher";
@@ -148,6 +148,9 @@ export function DashboardShell({
   // Agrupar es solo presentación: `navigation` ya trae únicamente lo que esta
   // persona puede ver, y `groupNavItems` no agrega ni quita nada.
   const navGroups = useMemo(() => groupNavItems(navigation), [navigation]);
+  // Mi Plan baja al pie, con Configuración: los dos son "cosas de mi cuenta",
+  // no herramientas del día. Salen de la MISMA lista ya filtrada por rol.
+  const footerNav = useMemo(() => footerNavItems(navigation), [navigation]);
 
   /**
    * Qué ítem se pinta como activo: el de la ruta MÁS ESPECÍFICA que coincide.
@@ -175,7 +178,11 @@ export function DashboardShell({
   const isReseller = !isWorker && (profile?.isReseller ?? false);
   // Los Ajustes son del dueño; un trabajador solo los ve con permiso explícito.
   const canSeeSettings = !isWorker || Boolean(workerPerms.settings);
-  const showAdminLinks = isSuperAdmin || isReseller || canSeeSettings;
+  // `footerNav.length` también cuenta: sin esto, un perfil sin acceso a Ajustes
+  // ni a paneles administrativos no renderizaría el bloque y Mi Plan se
+  // perdería al bajarlo acá. Hoy no pasa (todo dueño ve Ajustes), pero el ítem
+  // no puede depender de eso.
+  const showAdminLinks = isSuperAdmin || isReseller || canSeeSettings || footerNav.length > 0;
   const userName = profile?.fullName ?? "Admin";
   const userEmail = profile?.email ?? "";
 
@@ -287,6 +294,30 @@ export function DashboardShell({
               {!sidebarCollapsed && <span className="whitespace-nowrap">Panel Revendedor</span>}
             </Link>
           )}
+          {footerNav.map((item) => {
+            const Icon = NAV_ICONS[item.id];
+            return (
+              <Link
+                key={item.id}
+                href={item.href}
+                aria-current={item.id === activeNavId ? "page" : undefined}
+                className={`relative flex items-center gap-3 py-3 rounded-xl transition-all text-sm font-medium overflow-hidden ${
+                  sidebarCollapsed ? "justify-center px-0" : "px-4"
+                } ${
+                  item.id === activeNavId
+                    ? "bg-primary/10 text-primary"
+                    : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
+                }`}
+                title={sidebarCollapsed ? item.name : undefined}
+              >
+                {item.id === activeNavId && (
+                  <span className="absolute left-0 top-1/2 -translate-y-1/2 h-6 w-1 rounded-r-full bg-primary" />
+                )}
+                {Icon && <Icon className="w-5 h-5 shrink-0" />}
+                {!sidebarCollapsed && <span className="whitespace-nowrap">{item.name}</span>}
+              </Link>
+            );
+          })}
           {canSeeSettings && (
             <Link
               href="/dashboard/settings"
@@ -497,6 +528,28 @@ export function DashboardShell({
                   Panel Revendedor
                 </Link>
               )}
+              {footerNav.map((item) => {
+                const Icon = NAV_ICONS[item.id];
+                return (
+                  <Link
+                    key={item.id}
+                    href={item.href}
+                    onClick={() => setMobileMenuOpen(false)}
+                    aria-current={item.id === activeNavId ? "page" : undefined}
+                    className={`relative flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-sm font-medium ${
+                      item.id === activeNavId
+                        ? "bg-primary/10 text-primary"
+                        : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
+                    }`}
+                  >
+                    {item.id === activeNavId && (
+                      <span className="absolute left-0 top-1/2 -translate-y-1/2 h-6 w-1 rounded-r-full bg-primary" />
+                    )}
+                    {Icon && <Icon className="w-5 h-5" />}
+                    {item.name}
+                  </Link>
+                );
+              })}
               {canSeeSettings && (
                 <Link
                   href="/dashboard/settings"

@@ -426,8 +426,26 @@ const NAV_GROUP_ORDER: { id: string; label: string | null; itemIds: string[] }[]
   { id: "abastecimiento", label: "Compras", itemIds: ["pedidos", "distributors", "purchases"] },
   { id: "finanzas", label: "Finanzas", itemIds: ["expenses"] },
   { id: "equipo", label: "Equipo", itemIds: ["staff", "commissions"] },
-  { id: "negocio", label: "Negocio", itemIds: ["subscription"] },
 ];
+
+/**
+ * Ítems que NO van en el menú principal sino en el bloque del pie, junto a
+ * Configuración.
+ *
+ * "Mi Plan" es administrativo —la factura de la suscripción, no una herramienta
+ * de mostrador— y estaba entre las que se usan a diario. Su vecino natural es
+ * Configuración, que ya vive abajo: los dos responden "cosas de mi cuenta", no
+ * "cosas de hoy".
+ *
+ * Siguen pasando por el mismo filtro de visibilidad que el resto: esto decide
+ * DÓNDE se dibujan, no si se ven.
+ */
+const NAV_FOOTER_IDS = ["subscription"];
+
+/** Los ítems visibles que van al pie, en el orden de `NAV_ITEMS`. */
+export function footerNavItems(items: NavItem[]): NavItem[] {
+  return items.filter((item) => NAV_FOOTER_IDS.includes(item.id));
+}
 
 /**
  * Reparte en clústeres los ítems YA filtrados por rol y módulos.
@@ -439,7 +457,10 @@ const NAV_GROUP_ORDER: { id: string; label: string | null; itemIds: string[] }[]
  * mapa no lo haga desaparecer del menú.
  */
 export function groupNavItems(items: NavItem[]): NavGroup[] {
-  const byId = new Map(items.map((item) => [item.id, item]));
+  // Los del pie se dibujan aparte: si cayeran en el saco de huérfanos volverían
+  // al menú principal por la puerta de atrás.
+  const enMenu = items.filter((item) => !NAV_FOOTER_IDS.includes(item.id));
+  const byId = new Map(enMenu.map((item) => [item.id, item]));
   const asignados = new Set<string>();
 
   const groups: NavGroup[] = [];
@@ -454,7 +475,7 @@ export function groupNavItems(items: NavItem[]): NavGroup[] {
     if (hijos.length > 0) groups.push({ id: group.id, label: group.label, items: hijos });
   }
 
-  const huerfanos = items.filter((item) => !asignados.has(item.id));
+  const huerfanos = enMenu.filter((item) => !asignados.has(item.id));
   if (huerfanos.length > 0) {
     groups.push({ id: "otros", label: null, items: huerfanos });
   }
