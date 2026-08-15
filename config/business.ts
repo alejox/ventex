@@ -235,6 +235,10 @@ export const NAV_ITEMS: NavItem[] = [
   { id: "pos", name: "Punto de Venta", href: "/dashboard/pos", modules: [] },
   { id: "calendar", name: "Calendario", href: "/dashboard/calendar", modules: ["appointments"] },
   { id: "customers", name: "Clientes", href: "/dashboard/customers", modules: [] },
+  // Va con Clientes y no con Configuración: acá NO se configura nada, se mira
+  // quién está cerca del premio y se le escribe. Configurarlo es otra tarea y
+  // vive en Ajustes.
+  { id: "promociones", name: "Promociones", href: "/dashboard/promociones", modules: ["services"] },
   { id: "sales", name: "Ventas", href: "/dashboard/sales", modules: [] },
   // Ventas y Gastos son las dos caras de la misma pregunta —cuánto entra y
   // cuánto sale—, así que van juntas. Gastos ya incluye las compras pagadas
@@ -421,7 +425,7 @@ export interface NavGroup {
 const NAV_GROUP_ORDER: { id: string; label: string | null; itemIds: string[] }[] = [
   { id: "inicio", label: null, itemIds: ["panel"] },
   { id: "ventas", label: "Ventas", itemIds: ["pos", "sales", "billing"] },
-  { id: "agenda", label: "Agenda y clientes", itemIds: ["calendar", "customers", "vehicles"] },
+  { id: "agenda", label: "Agenda y clientes", itemIds: ["calendar", "customers", "promociones", "vehicles"] },
   { id: "catalogo", label: "Catálogo", itemIds: ["inventory"] },
   { id: "abastecimiento", label: "Compras", itemIds: ["pedidos", "distributors", "purchases"] },
   { id: "finanzas", label: "Finanzas", itemIds: ["expenses"] },

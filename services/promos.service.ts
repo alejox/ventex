@@ -131,6 +131,29 @@ export async function deleteMilestone(id: string): Promise<void> {
   if (error) throw error;
 }
 
+/**
+ * El contador de UN cliente, recién leído.
+ *
+ * Se usa justo después de cobrar: el trigger ya sumó en la base, pero la copia
+ * que tiene el POS en memoria quedó vieja. Mandar el número viejo sería
+ * decirle al cliente que lleva uno menos del que acaba de hacerse.
+ */
+export async function fetchCustomerPromoTarget(
+  customerId: string,
+): Promise<{ count: number; phone: string | null }> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("customers")
+    .select("haircut_count, phone")
+    .eq("id", customerId)
+    .maybeSingle();
+  if (error) throw error;
+  // El telefono viene de acá y no del selector del POS: `CustomerOption` trae
+  // solo lo que el cobro necesita, y agregarle un campo para esto obligaría a
+  // que cada venta lo traiga aunque no haya promociones activas.
+  return { count: data?.haircut_count ?? 0, phone: data?.phone ?? null };
+}
+
 /** Recalcula el contador de todos los clientes desde el histórico de ventas. */
 export async function recalcHaircutCounts(): Promise<number> {
   const supabase = createClient();

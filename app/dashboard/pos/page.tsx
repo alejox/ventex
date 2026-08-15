@@ -31,6 +31,13 @@ import { CheckoutModal } from "./components/CheckoutModal";
 import { DeliveryModal } from "./components/DeliveryModal";
 import { PosTabsBar } from "./components/PosTabsBar";
 import { SuccessModal } from "./components/SuccessModal";
+import { usePromosStore } from "@/stores/promos.store";
+import {
+  fetchCustomerPromoTarget,
+  milestoneFor,
+  renderPromoMessage,
+  whatsappLink as buildWhatsappLink,
+} from "@/services/promos.service";
 import { TabRenameModal } from "./components/TabRenameModal";
 import { TabCloseConfirmModal } from "./components/TabCloseConfirmModal";
 import { PlanLimitModal } from "./components/PlanLimitModal";
@@ -166,6 +173,11 @@ export default function POSPage() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
+  /** Mensaje listo para mandarle al cliente que se acaba de cortar. */
+  const [promoSend, setPromoSend] = useState<{ link: string; name: string } | null>(null);
+  const promoConfig = usePromosStore((s) => s.config);
+  const promoMilestones = usePromosStore((s) => s.milestones);
+  const fetchPromos = usePromosStore((s) => s.fetchAll);
   /** La última venta quedó en la cola del dispositivo, no en el servidor. */
   const [lastSaleQueued, setLastSaleQueued] = useState(false);
   const [isRejectedModalOpen, setIsRejectedModalOpen] = useState(false);
@@ -187,11 +199,16 @@ export default function POSPage() {
   // Reenvía solo las ventas que quedaron cobradas sin conexión.
   useOfflineSync();
   useEffect(() => {
-    if (isSuccessModalOpen) {
+    // Con un mensaje para mandar, el modal NO se cierra solo: cinco segundos no
+    // alcanzan para leer, decidir y tocar el botón, y que se evapore en la mano
+    // es peor que no ofrecerlo.
+    if (isSuccessModalOpen && !promoSend) {
       const timer = setTimeout(() => setIsSuccessModalOpen(false), 5000);
       return () => clearTimeout(timer);
     }
-  }, [isSuccessModalOpen]);
+  }, [isSuccessModalOpen, promoSend]);
+
+  useEffect(() => { fetchPromos(); }, [fetchPromos]);
 
   const activeTab = useMemo(() => tabs.find(t => t.id === activeTabId) || tabs[0], [tabs, activeTabId]);
   const { cart, customerId, staffId, paymentMethod, transferMethod, cardMethod, splits, isDelivery, deliveryData } = activeTab;
@@ -380,6 +397,39 @@ export default function POSPage() {
       setActiveCategory("Todos");
       setAmountTendered("");
       setIsCartOpen(false);
+
+      // El mensaje del contador. Se arma DESPUÉS de cobrar y leyendo la base,
+      // porque el trigger ya sumó allá y la copia en memoria quedó vieja.
+      //
+      // `!queued` es la condición que más importa: una venta cobrada sin
+      // conexión todavía no llegó al servidor, así que el contador no subió y
+      // el mensaje diría un número que no corresponde.
+      setPromoSend(null);
+      const cobroCortes =
+        outcome === "sold" &&
+        promoConfig.enabled &&
+        promoConfig.serviceIds.length > 0 &&
+        Boolean(selectedCustomer) &&
+        cart.some((l) => l.item.kind === "service" && promoConfig.serviceIds.includes(l.item.id));
+
+      if (cobroCortes && selectedCustomer) {
+        try {
+          const { count, phone } = await fetchCustomerPromoTarget(selectedCustomer.id);
+          const hito = milestoneFor(count, promoMilestones);
+          const texto = renderPromoMessage(promoConfig.message, {
+            cliente: selectedCustomer.full_name.split(" ")[0],
+            cortes: count,
+            negocio: businessProfile?.businessName || "nuestro local",
+            premio: hito?.reward ?? null,
+          });
+          const link = buildWhatsappLink(phone, texto);
+          if (link) setPromoSend({ link, name: selectedCustomer.full_name.split(" ")[0] });
+        } catch {
+          // Que falle leer el contador no puede ensuciar una venta que ya se
+          // cobró: se pierde el botón, no la venta.
+        }
+      }
+
       setIsSuccessModalOpen(true);
     }
   };
@@ -657,8 +707,10 @@ export default function POSPage() {
             window.print();
             setIsSuccessModalOpen(false);
           }}
-          onClose={() => setIsSuccessModalOpen(false)}
+          onClose={() => { setIsSuccessModalOpen(false); setPromoSend(null); }}
           offline={lastSaleQueued}
+          whatsappLink={promoSend?.link ?? null}
+          customerName={promoSend?.name ?? null}
         />
       )}
 

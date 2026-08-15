@@ -67,6 +67,7 @@ const NAV_ICONS: Record<string, IconType> = {
   services: IconScissors,
   pedidos: IconRefreshCw,
   customers: IconUsers,
+  promociones: IconTag,
   distributors: IconTruck,
   purchases: IconReceipt,
   calendar: IconCalendar,
