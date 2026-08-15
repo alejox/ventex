@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { fetchStaffSales, commissionPeriodOf } from "@/services/staff.service";
 import type { CommissionSettlement, StaffSaleItem } from "@/services/staff.service";
 import { useProfile } from "@/components/ProfileProvider";
@@ -66,16 +67,59 @@ export function CommissionReceiptModal({ settlement, onClose }: Props) {
   // ventas se anularon después. Se DICE, no se maquilla.
   const missing = Math.round((settlement.total_amount - detailTotal) * 100) / 100;
 
-  return (
-    <div className="fixed inset-0 z-[130] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200 print:static print:bg-transparent print:p-0 print:block">
+  /**
+   * El comprobante se monta en un PORTAL colgado de `<body>`, no donde vive el
+   * componente.
+   *
+   * Es lo que hace imprimible al comprobante. Estando anidado dentro del layout
+   * del dashboard no hay forma limpia de aislarlo: ocultar los ancestros con
+   * `display:none` se lo lleva puesto (la hoja salía en blanco), y ocultarlos
+   * con `visibility:hidden` los deja ocupando su espacio (la hoja arrancaba con
+   * media página vacía). Colgado de `body` es hermano del resto de la app, y
+   * una sola regla los apaga a todos sin tocarlo a él.
+   *
+   * Solo se renderiza tras un click, así que nunca corre en el servidor; el
+   * guard de `document` es por las dudas.
+   */
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
+    <div className="commission-print-overlay fixed inset-0 z-[130] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
       <style
         dangerouslySetInnerHTML={{
           __html: `
           @media print {
             @page { margin: 14mm; size: A4; }
-            body > *:not(.commission-print-root) { display: none !important; }
-            .commission-print-root { position: static !important; }
-            [data-sonner-toaster] { display: none !important; }
+
+            /* Ahora sí: el comprobante ES hijo directo de body, así que apagar
+               a sus hermanos no lo afecta y tampoco deja su espacio reservado. */
+            body > *:not(.commission-print-overlay) { display: none !important; }
+
+            /* El overlay es \`fixed\` y del alto de la pantalla: si se deja así,
+               un comprobante con muchas líneas se corta en la primera hoja.
+               Vuelve al flujo normal para que el detalle pagine solo. */
+            .commission-print-overlay {
+              position: static !important;
+              display: block !important;
+              padding: 0 !important;
+              background: none !important;
+              backdrop-filter: none !important;
+            }
+            .commission-print-root {
+              max-width: none !important;
+              max-height: none !important;
+              overflow: visible !important;
+              border: 0 !important;
+              border-radius: 0 !important;
+              box-shadow: none !important;
+              background: #fff !important;
+              color: #000 !important;
+            }
+            /* El cuerpo scrollea en pantalla; en papel tiene que fluir entero. */
+            .commission-print-body {
+              max-height: none !important;
+              overflow: visible !important;
+            }
           }
         `,
         }}
@@ -84,7 +128,7 @@ export function CommissionReceiptModal({ settlement, onClose }: Props) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="receipt-title"
-        className="commission-print-root bg-surface-container rounded-t-3xl sm:rounded-3xl w-full sm:max-w-2xl max-h-[92dvh] border border-outline-variant/10 shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200 flex flex-col print:max-h-none print:border-0 print:shadow-none print:rounded-none print:bg-white print:text-black"
+        className="commission-print-root bg-surface-container rounded-t-3xl sm:rounded-3xl w-full sm:max-w-2xl max-h-[92dvh] border border-outline-variant/10 shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200 flex flex-col"
       >
         <div className="p-4 sm:p-6 border-b border-outline-variant/10 flex justify-between items-start gap-4 bg-surface-container-low shrink-0 print:hidden">
           <h2 id="receipt-title" className="text-lg sm:text-xl font-bold text-on-surface">
@@ -101,7 +145,7 @@ export function CommissionReceiptModal({ settlement, onClose }: Props) {
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-5 sm:p-8 space-y-6 print:overflow-visible">
+        <div className="commission-print-body flex-1 overflow-y-auto p-5 sm:p-8 space-y-6">
           <div className="text-center space-y-1 pb-5 border-b border-outline-variant/15 print:border-black">
             <h1 className="text-xl font-bold text-on-surface print:text-black">
               {profile?.businessName || "Mi Negocio"}
@@ -240,6 +284,7 @@ export function CommissionReceiptModal({ settlement, onClose }: Props) {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
