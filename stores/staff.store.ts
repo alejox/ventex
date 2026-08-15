@@ -8,6 +8,7 @@ import type {
   CommissionRow,
   CommissionPeriod,
   CommissionSettlement,
+  HaircutByStaff,
   SettleCommissionsInput,
   VoidSettlementResult,
 } from "@/services/staff.service";
@@ -43,10 +44,15 @@ interface StaffState {
   settlements: CommissionSettlement[];
   settlementsLoading: boolean;
 
+  /** Reporte de cortes por miembro. Va aparte de `commissions` a propósito. */
+  haircuts: HaircutByStaff[];
+  haircutsLoading: boolean;
+
   fetchStaff: () => Promise<void>;
   fetchAccounts: () => Promise<void>;
   fetchCommissions: (period?: CommissionPeriod) => Promise<void>;
   fetchSettlements: () => Promise<void>;
+  fetchHaircuts: (period: CommissionPeriod) => Promise<void>;
 
   /**
    * Liquida y devuelve el id de la liquidación (para abrir su comprobante), o
@@ -84,6 +90,8 @@ export const useStaffStore = create<StaffState>((set) => ({
   commissionsLoading: false,
   settlements: [],
   settlementsLoading: false,
+  haircuts: [],
+  haircutsLoading: false,
 
   fetchStaff: async () => {
     set({ loading: true, error: null });
@@ -112,6 +120,16 @@ export const useStaffStore = create<StaffState>((set) => ({
       set({ commissions, commissionsLoading: false });
     } catch (e) {
       set({ error: toMessage(e), commissionsLoading: false });
+    }
+  },
+
+  fetchHaircuts: async (period) => {
+    set({ haircutsLoading: true });
+    try {
+      const haircuts = await staffService.fetchHaircutsByStaff(period);
+      set({ haircuts, haircutsLoading: false });
+    } catch (e) {
+      set({ error: toMessage(e), haircutsLoading: false });
     }
   },
 

@@ -316,6 +316,125 @@ export async function fetchStaffSales(
   return result;
 }
 
+/** Fila del reporte de cortes por barbero. */
+export interface HaircutByStaff {
+  staff_id: string;
+  full_name: string;
+  /** Cortes hechos: suma de cantidades, no de líneas. */
+  cortes: number;
+  /** Personas distintas atendidas. Dos cortes al mismo cliente son un cliente. */
+  clientes: number;
+  /** Ventas distintas en las que participó. */
+  ventas: number;
+  /** Plata que dejaron esos cortes, al precio del día. */
+  vendido: number;
+}
+
+/** Una línea de venta cruda, como la devuelve PostgREST, para agregar. */
+export interface HaircutLine {
+  sale_id: string;
+  staff_id: string;
+  quantity: number;
+  line_total: number;
+  customer_id: string | null;
+}
+
+/**
+ * Agrega líneas de corte por miembro. Pura, para poder testear el conteo —que
+ * es lo único que este reporte hace— sin base de datos de por medio.
+ *
+ * Se agrupa en memoria porque PostgREST no hace GROUP BY; es el mismo camino
+ * que ya usa `fetchCommissions`.
+ */
+export function aggregateHaircuts(
+  lines: HaircutLine[],
+  staff: { id: string; full_name: string }[],
+): HaircutByStaff[] {
+  const acc = new Map<string, { cortes: number; vendido: number; ventas: Set<string>; clientes: Set<string> }>();
+  for (const it of lines) {
+    const prev =
+      acc.get(it.staff_id) ?? { cortes: 0, vendido: 0, ventas: new Set<string>(), clientes: new Set<string>() };
+    prev.cortes += it.quantity ?? 0;
+    prev.vendido += it.line_total ?? 0;
+    prev.ventas.add(it.sale_id);
+    // Sin cliente registrado no se puede saber si es la misma persona: cada
+    // venta anónima cuenta como una, que es lo más cerca de la verdad.
+    prev.clientes.add(it.customer_id ?? `anon-${it.sale_id}`);
+    acc.set(it.staff_id, prev);
+  }
+
+  return staff
+    .map((m) => {
+      const a = acc.get(m.id);
+      if (!a) return null;
+      return {
+        staff_id: m.id,
+        full_name: m.full_name,
+        cortes: a.cortes,
+        clientes: a.clientes.size,
+        ventas: a.ventas.size,
+        vendido: Math.round(a.vendido * 100) / 100,
+      };
+    })
+    .filter((r): r is HaircutByStaff => r !== null && r.cortes > 0)
+    .sort((a, b) => b.cortes - a.cortes || a.full_name.localeCompare(b.full_name));
+}
+
+/**
+ * Cuántos cortes hizo cada quien en un período.
+ *
+ * Es una métrica APARTE de las comisiones, y a propósito. Comisiones responde
+ * "¿cuánto le debo?" —plata, congelada al vender, y solo de lo que comisiona—.
+ * Esto responde "¿quién trabaja más?": cuenta cabezas, incluye los cortes que
+ * no dejan comisión, y no cambia si mañana se ajusta un porcentaje. Mezclarlas
+ * daría un número que no contesta bien ninguna de las dos.
+ *
+ * Cuenta lo mismo que el contador del cliente: los servicios que el negocio
+ * eligió en Configuración → Promociones. Si no eligió ninguno, esto sale vacío
+ * — y eso es correcto, porque "corte" es una definición del negocio.
+ */
+export async function fetchHaircutsByStaff(period: CommissionPeriod): Promise<HaircutByStaff[]> {
+  const supabase = createClient();
+
+  const [staffRes, settingsRes] = await Promise.all([
+    supabase.from("staff").select("id, full_name"),
+    supabase.from("settings").select("promo_service_ids").maybeSingle(),
+  ]);
+  if (staffRes.error) throw staffRes.error;
+  if (settingsRes.error) throw settingsRes.error;
+
+  const cuentan = settingsRes.data?.promo_service_ids ?? [];
+  if (cuentan.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from("sale_items")
+    .select("sale_id, staff_id, quantity, line_total, sales!inner(status, created_at, customer_id)")
+    .not("staff_id", "is", null)
+    .in("service_id", cuentan)
+    .eq("sales.status", "completed")
+    .gte("sales.created_at", period.fromTs)
+    .lt("sales.created_at", period.toTs);
+  if (error) throw error;
+
+  interface Row {
+    sale_id: string;
+    staff_id: string;
+    quantity: number;
+    line_total: number;
+    sales: { customer_id: string | null } | null;
+  }
+
+  const lines: HaircutLine[] = ((data ?? []) as unknown as Row[]).map((it) => ({
+    sale_id: it.sale_id,
+    staff_id: it.staff_id,
+    quantity: it.quantity,
+    line_total: it.line_total,
+    customer_id: it.sales?.customer_id ?? null,
+  }));
+
+  return aggregateHaircuts(lines, staffRes.data ?? []);
+}
+
 // ---- Liquidación de comisiones ----
 
 /**

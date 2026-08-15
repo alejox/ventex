@@ -63,6 +63,7 @@ Workers (`profiles.is_worker`) log in with their **own** auth account, but their
 - `recalc_haircut_counts()` reconstruye los contadores desde el histórico. Es el backfill Y la red de seguridad si cambian qué servicios cuentan.
 - `settings` se crea PEREZOSAMENTE: un negocio que nunca abrió Ajustes no tiene fila. Todo lo que escriba ahí tiene que leer-e-insertar-o-actualizar (ver `savePromoConfig`).
 - La lógica pura —qué hito aplica, cómo se arma el mensaje, cómo se normaliza el teléfono— vive en `services/promos.service.ts` y está testeada sin base (`tests/promos.test.ts`).
+- **El reporte de cortes (`/dashboard/staff/cortes`) es una métrica APARTE de las comisiones, no una vista de ellas.** Comisiones contesta "¿cuánto le debo?" (pesos, congelados al vender, solo de lo que comisiona); Cortes contesta "¿quién trabaja más?" (cabezas, incluidos los cortes sin comisión, y no cambia si mañana se ajusta un porcentaje). Cruzarlas daría un número que no contesta bien ninguna de las dos. Cuenta lo MISMO que el contador del cliente —`settings.promo_service_ids`—, así que sin servicios elegidos sale vacío, y eso es correcto: "corte" es una definición del negocio, no del código. La agregación (`aggregateHaircuts`) es pura y está testeada (`tests/haircuts-by-staff.test.ts`); el rango es abierto porque comparar períodos ES el uso.
 
 # Comisiones: el estado vive en la LÍNEA de venta
 

@@ -60,6 +60,9 @@ const NAV_ICONS: Record<string, IconType> = {
   expenses: IconWallet,
   staff: IconUserBadge,
   commissions: IconDollar,
+  // Tijera: el reporte de producción. `services` ya no tiene entrada propia
+  // desde que el catálogo unificado la absorbió, así que el icono queda libre.
+  haircuts: IconScissors,
   vehicles: IconCar,
   billing: IconFileText,
   inventory: IconBox,

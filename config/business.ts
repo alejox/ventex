@@ -282,6 +282,9 @@ export const NAV_ITEMS: NavItem[] = [
   // administrar gente, dar acceso, conciliar plata— en una sola pantalla larga.
   // Conciliar plata es del dueño y merece su propia entrada.
   { id: "commissions", name: "Comisiones", href: "/dashboard/staff/comisiones", modules: [] },
+  // Producción, no plata. Depende de `services` porque "corte" se define
+  // eligiendo servicios en Promociones: sin servicios no hay nada que contar.
+  { id: "haircuts", name: "Cortes", href: "/dashboard/staff/cortes", modules: ["services"] },
   { id: "billing", name: "Facturación", href: "/dashboard/billing", modules: ["billing"] },
   { id: "subscription", name: "Mi Plan", href: "/dashboard/subscription", modules: [] },
 ];
@@ -429,7 +432,7 @@ const NAV_GROUP_ORDER: { id: string; label: string | null; itemIds: string[] }[]
   { id: "catalogo", label: "Catálogo", itemIds: ["inventory"] },
   { id: "abastecimiento", label: "Compras", itemIds: ["pedidos", "distributors", "purchases"] },
   { id: "finanzas", label: "Finanzas", itemIds: ["expenses"] },
-  { id: "equipo", label: "Equipo", itemIds: ["staff", "commissions"] },
+  { id: "equipo", label: "Equipo", itemIds: ["staff", "commissions", "haircuts"] },
 ];
 
 /**
