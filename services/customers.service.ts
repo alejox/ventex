@@ -6,6 +6,12 @@ export interface Customer {
   full_name: string;
   email: string | null;
   phone: string | null;
+  /**
+   * Cortes acumulados. Lo mantienen los triggers de la base a partir de las
+   * ventas, no la app: por eso solo se lee (ver la migración 20260815200000).
+   */
+  haircut_count: number;
+  haircuts_since_reward: number;
   identification: string | null;
   doc_type: string | null;
   tax_exempt: boolean;
@@ -41,7 +47,7 @@ export interface CustomerSale {
   item_count: number;
 }
 
-const SELECT = "id, full_name, email, phone, identification, doc_type, tax_exempt, credit_balance, credit_limit, created_at";
+const SELECT = "id, full_name, email, phone, identification, doc_type, tax_exempt, credit_balance, credit_limit, haircut_count, haircuts_since_reward, created_at";
 
 export async function fetchCustomers(): Promise<Customer[]> {
   const supabase = createClient();

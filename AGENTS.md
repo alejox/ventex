@@ -46,6 +46,16 @@ Workers (`profiles.is_worker`) log in with their **own** auth account, but their
 - **`create_sale` RPC**: transactional sale creation (calculates totals server-side, applies IVA from `settings`, decrements stock, freezes staff commission). Employees without an open shift (`public.shifts`) are rejected — enforced inside the RPC, not just gated in the POS UI. Owners are exempt. Shift model: `README-turnos.md`.
 - Env vars: see `.env.example` for the full list. Required: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`; `SUPABASE_SERVICE_ROLE_KEY` for the admin client; `NEXT_PUBLIC_SITE_URL` (auth email redirects + the URLs handed to dLocal, defaults to `http://localhost:3000`); `NEXT_PUBLIC_API_URL` optional (axios base).
 
+# Promociones: el contador lo escribe la base, WhatsApp lo manda una persona
+
+`customers.haircut_count` y `haircuts_since_reward` los mantienen TRIGGERS sobre `sale_items` (suma al vender) y `sales` (resta al anular) — nunca la app, que solo tiene GRANT de SELECT. Qué cuenta como corte sale de `settings.promo_service_ids` y arranca vacío: adivinar que el servicio llamado "Corte" es el que cuenta sería hardcodear el catálogo de un negocio en la base de todos.
+
+- **No se tocó `create_sale`.** Es la función más crítica de la app —cobra, descuenta stock, congela comisiones, valida turnos— y sumarle contar cortes es la clase de cambio que rompe una venta por un feature de marketing. Los triggers son aditivos.
+- **El envío es un enlace `wa.me`, no la API de Meta.** Abre WhatsApp con el mensaje escrito y lo manda una persona desde la ficha del cliente. Sin BSP, sin plantillas aprobadas, sin costo por conversación. Consecuencia: el texto es libre (con la API habría que ceñirse a una plantilla aprobada) y no hay estado de entrega que registrar.
+- `recalc_haircut_counts()` reconstruye los contadores desde el histórico. Es el backfill Y la red de seguridad si cambian qué servicios cuentan.
+- `settings` se crea PEREZOSAMENTE: un negocio que nunca abrió Ajustes no tiene fila. Todo lo que escriba ahí tiene que leer-e-insertar-o-actualizar (ver `savePromoConfig`).
+- La lógica pura —qué hito aplica, cómo se arma el mensaje, cómo se normaliza el teléfono— vive en `services/promos.service.ts` y está testeada sin base (`tests/promos.test.ts`).
+
 # Comisiones: el estado vive en la LÍNEA de venta
 
 `sale_items.commission_amount` es el monto congelado al vender; `sale_items.commission_settlement_id` dice si ya se pagó. No hay total "pendiente" guardado en ninguna parte — se deriva sumando las líneas sin liquidación, y eso es lo que impide que el número y el detalle se contradigan.

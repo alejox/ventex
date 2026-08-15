@@ -10,6 +10,9 @@ import { CollectionEmpty, CollectionError, CollectionLoading } from "@/component
 import { Select } from "@/components/ui/Select";
 import { fetchCustomerSales } from "@/services/customers.service";
 import type { Customer, NewCustomerInput, CustomerSale } from "@/services/customers.service";
+import { usePromosStore } from "@/stores/promos.store";
+import { milestoneFor, renderPromoMessage, whatsappLink } from "@/services/promos.service";
+import { useProfile } from "@/components/ProfileProvider";
 
 const DOC_TYPES = ["CC", "NIT", "RUT", "RFC"];
 
@@ -48,13 +51,21 @@ export default function CustomersPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const [detailCustomer, setDetailCustomer] = useState<Customer | null>(null);
+
+  // El contador y el mensaje salen de Configuración → Promociones. Si el
+  // negocio no lo encendió, esta pantalla no cambia en nada.
+  const promoConfig = usePromosStore((s) => s.config);
+  const milestones = usePromosStore((s) => s.milestones);
+  const fetchPromos = usePromosStore((s) => s.fetchAll);
+  const profile = useProfile();
   const [paymentCustomer, setPaymentCustomer] = useState<Customer | null>(null);
   const [customerSales, setCustomerSales] = useState<CustomerSale[]>([]);
   const [salesLoading, setSalesLoading] = useState(false);
 
   useEffect(() => {
     fetchCustomers();
-  }, [fetchCustomers]);
+    fetchPromos();
+  }, [fetchCustomers, fetchPromos]);
 
   const openCreate = () => {
     setEditingId(null);
@@ -512,6 +523,65 @@ export default function CustomersPage() {
                   <p className="text-[11px] text-on-surface-variant mt-1 font-medium uppercase tracking-wider truncate">Última Visita</p>
                 </div>
               </div>
+
+              {/* Cortes acumulados + el mensaje de WhatsApp.
+                  Solo aparece si el negocio encendió el contador y eligió qué
+                  servicios cuentan: en una tienda de barrio esto no significa
+                  nada, y una tarjeta que siempre dice 0 es ruido. */}
+              {promoConfig.enabled && promoConfig.serviceIds.length > 0 && (
+                <div className="rounded-xl border border-[#25D366]/25 bg-[#25D366]/5 p-4 flex flex-col sm:flex-row sm:items-center gap-4">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-2xl font-bold text-on-surface tabular-nums">
+                      {detailCustomer.haircut_count}
+                      <span className="text-sm font-medium text-on-surface-variant ml-2">
+                        corte{detailCustomer.haircut_count !== 1 ? "s" : ""}
+                      </span>
+                    </p>
+                    {(() => {
+                      const hito = milestoneFor(detailCustomer.haircut_count, milestones);
+                      return hito ? (
+                        <p className="text-xs font-semibold text-[#16a34a] mt-1">
+                          🎉 Le toca premio: {hito.reward}
+                        </p>
+                      ) : (
+                        <p className="text-xs text-on-surface-variant mt-1">
+                          Acumulados con vos. Se actualiza solo en cada venta.
+                        </p>
+                      );
+                    })()}
+                  </div>
+                  {(() => {
+                    const hito = milestoneFor(detailCustomer.haircut_count, milestones);
+                    const texto = renderPromoMessage(promoConfig.message, {
+                      cliente: detailCustomer.full_name.split(" ")[0],
+                      cortes: detailCustomer.haircut_count,
+                      negocio: profile?.businessName || "nuestro local",
+                      premio: hito?.reward ?? null,
+                    });
+                    const link = whatsappLink(detailCustomer.phone, texto);
+                    // Sin teléfono no hay a dónde mandar: se dice por qué en vez
+                    // de ofrecer un botón que no puede hacer nada.
+                    return link ? (
+                      <a
+                        href={link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="shrink-0 inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#25D366] hover:bg-[#1da851] text-white text-sm font-bold transition-colors"
+                      >
+                        <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
+                          <path d="M17.5 14.4c-.3-.2-1.7-.9-2-1-.3-.1-.5-.1-.7.1-.2.3-.7 1-.9 1.2-.2.2-.3.2-.6.1-1.6-.8-2.7-1.5-3.8-3.4-.3-.5.3-.5.8-1.5.1-.2 0-.4 0-.5 0-.2-.7-1.6-.9-2.2-.2-.6-.5-.5-.7-.5h-.6c-.2 0-.5.1-.8.4-.3.3-1 1-1 2.5s1.1 2.9 1.2 3.1c.2.2 2.1 3.2 5.1 4.4 1.9.8 2.6.9 3.5.8.6-.1 1.7-.7 1.9-1.4.2-.7.2-1.2.2-1.4-.1-.1-.3-.2-.6-.3z" />
+                          <path d="M12 2a10 10 0 0 0-8.6 15L2 22l5.2-1.4A10 10 0 1 0 12 2zm0 18.2c-1.6 0-3.1-.4-4.4-1.2l-.3-.2-3.1.8.8-3-.2-.3A8.2 8.2 0 1 1 12 20.2z" />
+                        </svg>
+                        Enviar por WhatsApp
+                      </a>
+                    ) : (
+                      <span className="shrink-0 text-xs text-on-surface-variant">
+                        Sin teléfono: agregalo para poder escribirle.
+                      </span>
+                    );
+                  })()}
+                </div>
+              )}
 
               {/* Historial de Ventas */}
               <div>

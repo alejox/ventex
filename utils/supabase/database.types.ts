@@ -611,6 +611,8 @@ export type Database = {
           doc_type: string | null
           email: string | null
           full_name: string
+          haircut_count: number
+          haircuts_since_reward: number
           id: string
           identification: string | null
           phone: string | null
@@ -624,6 +626,8 @@ export type Database = {
           doc_type?: string | null
           email?: string | null
           full_name: string
+          haircut_count?: number
+          haircuts_since_reward?: number
           id?: string
           identification?: string | null
           phone?: string | null
@@ -637,6 +641,8 @@ export type Database = {
           doc_type?: string | null
           email?: string | null
           full_name?: string
+          haircut_count?: number
+          haircuts_since_reward?: number
           id?: string
           identification?: string | null
           phone?: string | null
@@ -1402,6 +1408,36 @@ export type Database = {
           },
         ]
       }
+      promo_milestones: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          recurring: boolean
+          reward: string
+          threshold: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          recurring?: boolean
+          reward: string
+          threshold: number
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          recurring?: boolean
+          reward?: string
+          threshold?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       purchase_order_items: {
         Row: {
           created_at: string
@@ -1864,6 +1900,9 @@ export type Database = {
           currency: string
           id: string
           include_tax: boolean
+          promo_enabled: boolean
+          promo_message: string | null
+          promo_service_ids: string[]
           tax_rate: number
           transfer_methods_enabled: Json
           updated_at: string
@@ -1879,6 +1918,9 @@ export type Database = {
           currency?: string
           id?: string
           include_tax?: boolean
+          promo_enabled?: boolean
+          promo_message?: string | null
+          promo_service_ids?: string[]
           tax_rate?: number
           transfer_methods_enabled?: Json
           updated_at?: string
@@ -1894,6 +1936,9 @@ export type Database = {
           currency?: string
           id?: string
           include_tax?: boolean
+          promo_enabled?: boolean
+          promo_message?: string | null
+          promo_service_ids?: string[]
           tax_rate?: number
           transfer_methods_enabled?: Json
           updated_at?: string
@@ -2627,6 +2672,7 @@ export type Database = {
         }[]
       }
       public_site_slug_taken: { Args: { p_slug: string }; Returns: boolean }
+      recalc_haircut_counts: { Args: never; Returns: number }
       register_cash_withdrawal: {
         Args: {
           p_amount: number
@@ -2682,6 +2728,10 @@ export type Database = {
         Returns: undefined
       }
       reseller_stats: { Args: never; Returns: Json }
+      sale_item_is_haircut: {
+        Args: { p_service_id: string; p_user_id: string }
+        Returns: boolean
+      }
       sales_summary: {
         Args: {
           p_customer?: string
