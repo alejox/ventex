@@ -38,6 +38,8 @@ import {
   renderPromoMessage,
   whatsappLink as buildWhatsappLink,
   businessDisplayName,
+  promoDiscountFor,
+  redeemPromo,
 } from "@/services/promos.service";
 import { TabRenameModal } from "./components/TabRenameModal";
 import { TabCloseConfirmModal } from "./components/TabCloseConfirmModal";
@@ -141,6 +143,7 @@ export default function POSPage() {
   const setQuantity = usePosStore((s) => s.setQuantity);
   const removeFromCart = usePosStore((s) => s.removeFromCart);
   const setLineKind = usePosStore((s) => s.setLineKind);
+  const setLineDiscounts = usePosStore((s) => s.setLineDiscounts);
   const setCustomer = usePosStore((s) => s.setCustomer);
   const setStaff = usePosStore((s) => s.setStaff);
   const setPaymentMethod = usePosStore((s) => s.setPaymentMethod);
@@ -176,6 +179,17 @@ export default function POSPage() {
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
   /** Mensaje listo para mandarle al cliente que se acaba de cortar. */
   const [promoSend, setPromoSend] = useState<{ link: string; name: string } | null>(null);
+  const money = (n: number) =>
+    n.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+
+  /** Premio ganado por el cliente elegido, ya resuelto contra su progreso. */
+  const [promoGanadoRaw, setPromoGanado] = useState<
+    { progress: number; milestoneId: string; forCustomer: string } | null
+  >(null);
+  /** Descuento del premio ya aplicado a una línea de ESTE carrito. */
+  const [promoAplicadoRaw, setPromoAplicado] = useState<
+    { key: string; amount: number; forCustomer: string; forTab: string } | null
+  >(null);
   const promoConfig = usePromosStore((s) => s.config);
   const promoMilestones = usePromosStore((s) => s.milestones);
   const fetchPromos = usePromosStore((s) => s.fetchAll);
@@ -349,6 +363,66 @@ export default function POSPage() {
 
   const isTaxExempt = selectedCustomer?.tax_exempt ?? false;
 
+  /**
+   * El premio del cliente elegido. Se relee de la base y no del listado del POS:
+   * `CustomerOption` no trae el progreso, y ese número cambia con cada venta.
+   */
+  useEffect(() => {
+    // Sin cliente o con el contador apagado no hay nada que leer. No se limpia
+    // el estado acá —eso sería un setState en el cuerpo del efecto—: el premio
+    // se DERIVA abajo contra el cliente actual, así que uno viejo no aplica.
+    if (!promoConfig.enabled || !customerId) return;
+    let cancel = false;
+    fetchCustomerPromoTarget(customerId)
+      .then(({ progress }) => {
+        if (cancel) return;
+        const hito = availableReward(progress, promoMilestones);
+        setPromoGanado(hito ? { progress, milestoneId: hito.id, forCustomer: customerId } : null);
+      })
+      .catch(() => { if (!cancel) setPromoGanado(null); });
+    return () => { cancel = true; };
+  }, [customerId, promoConfig.enabled, promoMilestones]);
+
+  /**
+   * Lo aplicado vale solo para el cliente y el carrito en los que se aplicó.
+   *
+   * Se DERIVA en vez de limpiarse desde un efecto: un `setState` en el cuerpo
+   * de un efecto dispara renders en cascada, y acá además llegaría tarde — por
+   * un instante el banner mostraría el descuento de otro cliente.
+   */
+  const promoAplicado =
+    promoAplicadoRaw &&
+    promoAplicadoRaw.forCustomer === customerId &&
+    promoAplicadoRaw.forTab === activeTabId
+      ? promoAplicadoRaw
+      : null;
+
+  /** Vale solo para el cliente que está elegido ahora. */
+  const promoGanado =
+    promoConfig.enabled && promoGanadoRaw && promoGanadoRaw.forCustomer === customerId
+      ? promoGanadoRaw
+      : null;
+
+  const hitoGanado = promoGanado
+    ? promoMilestones.find((m) => m.id === promoGanado.milestoneId) ?? null
+    : null;
+
+  /** Qué descontaría el premio sobre el carrito de ahora. null = nada aplicable. */
+  const promoSugerido = useMemo(() => {
+    if (!hitoGanado || promoAplicado) return null;
+    return promoDiscountFor(
+      hitoGanado,
+      cart.map((l) => ({
+        key: lineKey(l.item.id),
+        itemId: l.item.id,
+        isService: l.item.kind === "service",
+        unitPrice: linePrice(l),
+        quantity: l.quantity,
+      })),
+      promoConfig.serviceIds,
+    );
+  }, [hitoGanado, promoAplicado, cart, promoConfig.serviceIds]);
+
   const totals = useMemo(
     () => computeTotals(cart, taxRate, isTaxExempt, includeTax),
     [cart, taxRate, includeTax, isTaxExempt],
@@ -405,6 +479,23 @@ export default function POSPage() {
       // `!queued` es la condición que más importa: una venta cobrada sin
       // conexión todavía no llegó al servidor, así que el contador no subió y
       // el mensaje diría un número que no corresponde.
+      // El canje va DESPUÉS de que la venta quedó registrada, nunca antes: si
+      // fallara el cobro, un canje adelantado le habría quemado el premio al
+      // cliente por una venta que no existió. Al revés el peor caso es que
+      // conserve el premio, y el cajero se entera.
+      if (outcome === "sold" && promoAplicado && selectedCustomer) {
+        try {
+          const r = await redeemPromo(selectedCustomer.id, promoAplicado.amount);
+          notifySuccess("Premio canjeado", `${r.reward}. El contador vuelve a cero.`);
+        } catch (e) {
+          notifyError(
+            "La venta quedó, pero el premio NO se canjeó",
+            e instanceof Error ? e.message : "Canjealo a mano desde Promociones.",
+          );
+        }
+      }
+      setPromoAplicado(null);
+
       setPromoSend(null);
       const cobroCortes =
         outcome === "sold" &&
@@ -540,6 +631,47 @@ export default function POSPage() {
           </div>
 
           <PosCartPanel
+            promoSlot={
+              (promoSugerido || promoAplicado) && hitoGanado ? (
+            <div className="mx-4 mt-3 rounded-xl border border-[#10b981]/30 bg-[#10b981]/10 px-4 py-3 flex items-center gap-3">
+              <span className="text-xl shrink-0">🎁</span>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-bold text-on-surface truncate">{hitoGanado.reward}</p>
+                <p className="text-xs text-on-surface-variant">
+                  {promoAplicado
+                    ? `Aplicado: −$${money(promoAplicado.amount)}. Se canjea al cobrar.`
+                    : `Ganado con ${promoGanado?.progress} cortes`}
+                </p>
+              </div>
+              {promoAplicado ? (
+                <button
+                  onClick={() => {
+                    setLineDiscounts([{ key: promoAplicado.key, discountAmount: 0 }]);
+                    setPromoAplicado(null);
+                  }}
+                  className="shrink-0 text-[11px] font-bold text-on-surface-variant hover:text-error transition-colors"
+                >
+                  Quitar
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    setLineDiscounts([promoSugerido!]);
+                    setPromoAplicado({
+                      key: promoSugerido!.key,
+                      amount: promoSugerido!.discountAmount,
+                      forCustomer: customerId!,
+                      forTab: activeTabId,
+                    });
+                  }}
+                  className="shrink-0 px-3 py-1.5 rounded-lg bg-[#10b981] text-white text-[11px] font-bold hover:bg-[#059669] transition-colors"
+                >
+                  Aplicar −${money(promoSugerido!.discountAmount)}
+                </button>
+              )}
+            </div>
+                        ) : null
+            }
             cart={cart}
             totals={totals}
             paymentMethod={paymentMethod}

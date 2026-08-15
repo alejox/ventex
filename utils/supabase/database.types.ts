@@ -1414,6 +1414,8 @@ export type Database = {
           id: string
           is_active: boolean
           reward: string
+          reward_kind: string
+          reward_value: number | null
           threshold: number
           user_id: string
         }
@@ -1422,6 +1424,8 @@ export type Database = {
           id?: string
           is_active?: boolean
           reward: string
+          reward_kind?: string
+          reward_value?: number | null
           threshold: number
           user_id?: string
         }
@@ -1430,6 +1434,8 @@ export type Database = {
           id?: string
           is_active?: boolean
           reward?: string
+          reward_kind?: string
+          reward_value?: number | null
           threshold?: number
           user_id?: string
         }
@@ -1438,31 +1444,40 @@ export type Database = {
       promo_redemptions: {
         Row: {
           customer_id: string
+          discount_applied: number | null
           id: string
           milestone_id: string | null
           redeemed_at: string
           redeemed_by: string | null
           reward: string
+          reward_kind: string | null
+          reward_value: number | null
           threshold: number
           user_id: string
         }
         Insert: {
           customer_id: string
+          discount_applied?: number | null
           id?: string
           milestone_id?: string | null
           redeemed_at?: string
           redeemed_by?: string | null
           reward: string
+          reward_kind?: string | null
+          reward_value?: number | null
           threshold: number
           user_id?: string
         }
         Update: {
           customer_id?: string
+          discount_applied?: number | null
           id?: string
           milestone_id?: string | null
           redeemed_at?: string
           redeemed_by?: string | null
           reward?: string
+          reward_kind?: string | null
+          reward_value?: number | null
           threshold?: number
           user_id?: string
         }
@@ -2718,7 +2733,10 @@ export type Database = {
       }
       public_site_slug_taken: { Args: { p_slug: string }; Returns: boolean }
       recalc_haircut_counts: { Args: never; Returns: number }
-      redeem_promo: { Args: { p_customer_id: string }; Returns: Json }
+      redeem_promo: {
+        Args: { p_customer_id: string; p_discount_applied?: number }
+        Returns: Json
+      }
       register_cash_withdrawal: {
         Args: {
           p_amount: number

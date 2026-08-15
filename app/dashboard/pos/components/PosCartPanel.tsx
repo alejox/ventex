@@ -20,6 +20,12 @@ const money = (n: number) =>
   n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 interface PosCartPanelProps {
+  /**
+   * Aviso del premio del cliente, si ganó uno. Entra como slot y no se arma
+   * acá porque depende del progreso del cliente y de la configuración de
+   * promociones, dos cosas que este panel no conoce ni tiene por qué conocer.
+   */
+  promoSlot?: React.ReactNode;
   cart: CartLine[];
   totals: SaleTotals;
   paymentMethod: PaymentMethod;
@@ -66,6 +72,7 @@ interface PosCartPanelProps {
 }
 
 export function PosCartPanel({
+  promoSlot,
   cart,
   totals,
   paymentMethod,
@@ -311,6 +318,8 @@ export function PosCartPanel({
                 </p>
               )}
           </div>
+
+          {promoSlot}
 
           <div className="min-h-[9rem] lg:flex-1 lg:min-h-0 lg:overflow-y-auto p-5 space-y-4">
             {cart.length === 0 ? (

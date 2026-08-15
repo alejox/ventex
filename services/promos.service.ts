@@ -20,16 +20,86 @@ export interface PromoConfig {
   message: string | null;
 }
 
+/**
+ * Qué FORMA tiene el premio, que es lo que decide si la caja puede aplicarlo.
+ *
+ * `texto` existe a propósito y es el default: "una cerveza" o "un producto de
+ * regalo" no se descuentan de la cuenta, y forzarlos a un porcentaje sería
+ * inventarles un precio. Esos se anuncian y se entregan a mano.
+ */
+export type RewardKind = "texto" | "gratis" | "porcentaje" | "monto";
+
+export const REWARD_KIND_LABELS: Record<RewardKind, string> = {
+  texto: "Solo anunciarlo (se entrega a mano)",
+  gratis: "El servicio va gratis",
+  porcentaje: "Descuento por porcentaje",
+  monto: "Descuento de un monto fijo",
+};
+
 export interface PromoMilestone {
   id: string;
   threshold: number;
   reward: string;
+  reward_kind: RewardKind;
+  /** Solo para `porcentaje` (1-100) y `monto`. Null en los otros. */
+  reward_value: number | null;
   is_active: boolean;
 }
 
 export interface NewMilestoneInput {
   threshold: number;
   reward: string;
+  reward_kind: RewardKind;
+  reward_value: number | null;
+}
+
+/** Una línea del carrito, en lo mínimo que el cálculo del premio necesita. */
+export interface DiscountableLine {
+  key: string;
+  /** Id del servicio o producto, para saber si cuenta como corte. */
+  itemId: string;
+  isService: boolean;
+  /** Precio de UNA unidad. */
+  unitPrice: number;
+  quantity: number;
+}
+
+/**
+ * Cuánto descontar y de qué línea, para un premio ya ganado.
+ *
+ * Devuelve null cuando no hay nada que aplicar: premio de tipo `texto`, o un
+ * carrito sin ninguna línea de las que cuentan. Que no aplique NO significa que
+ * el cliente no ganó — significa que esa cuenta no es donde se cobra el premio.
+ *
+ * Se elige la línea MÁS CARA de las que cuentan. "Tu próximo corte es gratis"
+ * lo lee el cliente sobre el corte que se hizo, y si se hizo el de barba
+ * también, regalarle el más barato es la clase de detalle que se discute en el
+ * mostrador.
+ *
+ * El descuento es siempre por UNA unidad y nunca supera el precio de la línea:
+ * un premio no puede terminar devolviéndole plata al cliente.
+ */
+export function promoDiscountFor(
+  milestone: Pick<PromoMilestone, "reward_kind" | "reward_value">,
+  lines: DiscountableLine[],
+  countingServiceIds: string[],
+): { key: string; discountAmount: number } | null {
+  if (milestone.reward_kind === "texto") return null;
+
+  const elegibles = lines.filter((l) => l.isService && countingServiceIds.includes(l.itemId));
+  if (elegibles.length === 0) return null;
+
+  const linea = elegibles.reduce((a, b) => (b.unitPrice > a.unitPrice ? b : a));
+  const tope = linea.unitPrice;
+
+  let bruto: number;
+  if (milestone.reward_kind === "gratis") bruto = tope;
+  else if (milestone.reward_kind === "porcentaje") bruto = (tope * (milestone.reward_value ?? 0)) / 100;
+  else bruto = milestone.reward_value ?? 0;
+
+  const discountAmount = Math.round(Math.min(bruto, tope) * 100) / 100;
+  if (discountAmount <= 0) return null;
+  return { key: linea.key, discountAmount };
 }
 
 /** Lo que se le entregó a un cliente, congelado el día del canje. */
@@ -133,7 +203,7 @@ export async function fetchMilestones(): Promise<PromoMilestone[]> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("promo_milestones")
-    .select("id, threshold, reward, is_active")
+    .select("id, threshold, reward, reward_kind, reward_value, is_active")
     .order("threshold");
   if (error) throw error;
   return (data ?? []) as PromoMilestone[];
@@ -143,8 +213,13 @@ export async function createMilestone(input: NewMilestoneInput): Promise<PromoMi
   const supabase = createClient();
   const { data, error } = await supabase
     .from("promo_milestones")
-    .insert({ threshold: input.threshold, reward: input.reward.trim() })
-    .select("id, threshold, reward, is_active")
+    .insert({
+      threshold: input.threshold,
+      reward: input.reward.trim(),
+      reward_kind: input.reward_kind,
+      reward_value: input.reward_value,
+    })
+    .select("id, threshold, reward, reward_kind, reward_value, is_active")
     .single();
   if (error) throw error;
   return data as PromoMilestone;
@@ -157,9 +232,15 @@ export async function createMilestone(input: NewMilestoneInput): Promise<PromoMi
  * fallara el reinicio el cliente se llevaría el corte gratis con el contador
  * intacto y podría reclamarlo de nuevo.
  */
-export async function redeemPromo(customerId: string): Promise<{ threshold: number; reward: string }> {
+export async function redeemPromo(
+  customerId: string,
+  discountApplied?: number | null,
+): Promise<{ threshold: number; reward: string }> {
   const supabase = createClient();
-  const { data, error } = await supabase.rpc("redeem_promo", { p_customer_id: customerId });
+  const { data, error } = await supabase.rpc("redeem_promo", {
+    p_customer_id: customerId,
+    p_discount_applied: discountApplied ?? undefined,
+  });
   if (error) throw error;
   return data as unknown as { threshold: number; reward: string };
 }

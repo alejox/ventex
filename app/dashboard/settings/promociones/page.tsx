@@ -5,7 +5,9 @@ import { usePromosStore } from "@/stores/promos.store";
 import { useServicesStore } from "@/stores/services.store";
 import { useProfile } from "@/components/ProfileProvider";
 import { useSettingsStore } from "@/stores/settings.store";
+import type { RewardKind } from "@/services/promos.service";
 import {
+  REWARD_KIND_LABELS,
   DEFAULT_PROMO_MESSAGE,
   PROMO_VARIABLES,
   renderPromoMessage,
@@ -48,6 +50,8 @@ export default function PromocionesPage() {
 
   const [threshold, setThreshold] = useState("10");
   const [reward, setReward] = useState("");
+  const [rewardKind, setRewardKind] = useState<RewardKind>("gratis");
+  const [rewardValue, setRewardValue] = useState("");
 
   useEffect(() => {
     fetchSettings();
@@ -101,9 +105,18 @@ export default function PromocionesPage() {
       notifyError("Falta el premio", "Escribí qué gana el cliente al llegar a ese hito.");
       return;
     }
-    const ok = await addMilestone({ threshold: n, reward });
+    // Un porcentaje o un monto sin valor deja una promo que la caja va a
+    // ignorar en silencio. La base lo rechaza; acá se explica antes.
+    const necesitaValor = rewardKind === "porcentaje" || rewardKind === "monto";
+    const valor = necesitaValor ? parseFloat(rewardValue) : null;
+    if (necesitaValor && (!Number.isFinite(valor as number) || (valor as number) <= 0)) {
+      notifyError("Falta el valor", "Un descuento por porcentaje o monto necesita un número mayor que cero.");
+      return;
+    }
+    const ok = await addMilestone({ threshold: n, reward, reward_kind: rewardKind, reward_value: valor });
     if (ok) {
       setReward("");
+      setRewardValue("");
       notifySuccess("Hito agregado", `A los ${n} cortes: ${reward.trim()}`);
     } else {
       notifyError("No se pudo agregar", usePromosStore.getState().error ?? "¿Ya existe un hito con ese número?");

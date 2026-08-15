@@ -3,18 +3,21 @@ import assert from "node:assert/strict";
 import { nextMilestone } from "../services/promo-customers.service";
 import {
   availableReward,
+  promoDiscountFor,
   renderPromoMessage,
   whatsappNumber,
   whatsappLink,
   DEFAULT_PROMO_MESSAGE,
   businessDisplayName,
 } from "../services/promos.service";
-import type { PromoMilestone } from "../services/promos.service";
+import type { PromoMilestone, DiscountableLine } from "../services/promos.service";
 
 const hito = (over: Partial<PromoMilestone> = {}): PromoMilestone => ({
   id: "m1",
   threshold: 10,
   reward: "Corte gratis",
+  reward_kind: "gratis",
+  reward_value: null,
   is_active: true,
   ...over,
 });
@@ -116,4 +119,63 @@ test("7. El nombre del negocio cae en cadena, no directo al genérico", () => {
   assert.equal(businessDisplayName("", "labarbe"), "labarbe");
   assert.equal(businessDisplayName("   ", "labarbe"), "labarbe", "en blanco no es un nombre");
   assert.equal(businessDisplayName(undefined, undefined), "nuestro local");
+});
+
+const linea = (over: Partial<DiscountableLine> = {}): DiscountableLine => ({
+  key: "l1",
+  itemId: "svc-corte",
+  isService: true,
+  unitPrice: 18000,
+  quantity: 1,
+  ...over,
+});
+
+test("8. El premio 'gratis' descuenta UNA unidad de la línea más cara que cuenta", () => {
+  const cuentan = ["svc-corte", "svc-barba"];
+  const carrito = [
+    linea({ key: "a", itemId: "svc-corte", unitPrice: 18000, quantity: 2 }),
+    linea({ key: "b", itemId: "svc-barba", unitPrice: 24000 }),
+  ];
+  const d = promoDiscountFor({ reward_kind: "gratis", reward_value: null }, carrito, cuentan);
+  // La más cara: "tu próximo corte es gratis" lo lee el cliente sobre el que se
+  // hizo, y regalarle el más barato se discute en el mostrador.
+  assert.equal(d?.key, "b");
+  // UNA unidad, aunque la línea traiga dos: es un corte gratis, no la línea.
+  assert.equal(d?.discountAmount, 24000);
+});
+
+test("9. Porcentaje y monto se topan en el precio de la unidad", () => {
+  const cuentan = ["svc-corte"];
+  const carrito = [linea({ unitPrice: 18000 })];
+
+  assert.equal(
+    promoDiscountFor({ reward_kind: "porcentaje", reward_value: 50 }, carrito, cuentan)?.discountAmount,
+    9000,
+  );
+  assert.equal(
+    promoDiscountFor({ reward_kind: "monto", reward_value: 5000 }, carrito, cuentan)?.discountAmount,
+    5000,
+  );
+  // Un monto mayor al precio no puede devolverle plata al cliente.
+  assert.equal(
+    promoDiscountFor({ reward_kind: "monto", reward_value: 999999 }, carrito, cuentan)?.discountAmount,
+    18000,
+  );
+});
+
+test("10. No aplica cuando no hay dónde aplicarlo", () => {
+  const cuentan = ["svc-corte"];
+  // Premio informativo: se entrega a mano, no se descuenta.
+  assert.equal(promoDiscountFor({ reward_kind: "texto", reward_value: null }, [linea()], cuentan), null);
+  // Carrito sin servicios que cuenten: el cliente ganó, pero no en esta cuenta.
+  assert.equal(
+    promoDiscountFor({ reward_kind: "gratis", reward_value: null }, [linea({ itemId: "otro" })], cuentan),
+    null,
+  );
+  assert.equal(promoDiscountFor({ reward_kind: "gratis", reward_value: null }, [], cuentan), null);
+  // Un producto con el mismo id que un servicio no cuenta: `isService` manda.
+  assert.equal(
+    promoDiscountFor({ reward_kind: "gratis", reward_value: null }, [linea({ isService: false })], cuentan),
+    null,
+  );
 });
