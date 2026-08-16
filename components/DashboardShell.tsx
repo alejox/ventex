@@ -256,9 +256,14 @@ export function DashboardShell({
                         href={item.href}
                         aria-current={isActive ? "page" : undefined}
                         title={item.name}
+                        // Mas tinte que en el menu desplegado, y a proposito:
+                        // ahi el nombre del item tambien se pinta de primary y
+                        // el color viaja en dos lugares. Aca el icono es lo
+                        // unico que hay, asi que el fondo tiene que sostener
+                        // solo el "estas aca".
                         className={`flex items-center justify-center py-3 rounded-xl transition-all ${
                           isActive
-                            ? "bg-primary/10 text-primary"
+                            ? "bg-primary/20 text-primary"
                             : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
                         }`}
                       >
