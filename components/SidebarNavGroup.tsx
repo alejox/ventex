@@ -171,15 +171,12 @@ export function SidebarNavGroup({
               href={item.href}
               onClick={onNavigate}
               aria-current={activo ? "page" : undefined}
-              className={`relative flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-sm font-medium ${
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-sm font-medium ${
                 activo
                   ? "bg-primary/10 text-primary"
                   : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
               }`}
             >
-              {activo && (
-                <span className="absolute left-0 top-1/2 -translate-y-1/2 h-6 w-1 rounded-r-full bg-primary" />
-              )}
               {Icon && <Icon className="w-5 h-5 shrink-0" />}
               <span className="whitespace-nowrap">{item.name}</span>
             </Link>
