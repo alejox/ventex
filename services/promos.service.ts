@@ -308,6 +308,28 @@ export function availableReward(progress: number, milestones: PromoMilestone[]):
 }
 
 /**
+ * Con cuántos cortes queda el cliente después de canjear.
+ *
+ * El premio CONSUME su umbral y nada más: quien llegó a 11 y canjea uno de 10
+ * arranca el conteo siguiente en 1. Ese corte lo hizo y lo pagó; ponerlo en
+ * cero sería cobrarle por haber vuelto antes de pasar por el mostrador, que es
+ * justo lo contrario de lo que un programa de fidelidad debería premiar.
+ *
+ * Descuenta el umbral ENTREGADO, no el más bajo: con hitos de 10 y 20 y un
+ * progreso de 21 se entrega el de 20 y queda 1. Descontar 10 dejaría 11 y le
+ * regalaría un segundo premio por el mismo mostrador.
+ *
+ * La cuenta autoritativa vive en `redeem_promo` (la base es la que escribe el
+ * contador). Esta existe para poder DECIRLO antes de confirmar: el cajero tiene
+ * que saber con qué número queda el cliente antes de apretar, no después.
+ */
+export function progressAfterRedeem(progress: number, milestones: PromoMilestone[]): number {
+  const hito = availableReward(progress, milestones);
+  if (!hito) return progress;
+  return Math.max(progress - hito.threshold, 0);
+}
+
+/**
  * Reemplaza las variables de la plantilla.
  *
  * Una variable sin valor se va a la cadena vacía en vez de quedar como

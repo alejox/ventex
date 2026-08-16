@@ -9,6 +9,7 @@ import {
   whatsappLink,
   DEFAULT_PROMO_MESSAGE,
   businessDisplayName,
+  progressAfterRedeem,
 } from "../services/promos.service";
 import type { PromoMilestone, DiscountableLine } from "../services/promos.service";
 
@@ -178,4 +179,33 @@ test("10. No aplica cuando no hay dónde aplicarlo", () => {
     promoDiscountFor({ reward_kind: "gratis", reward_value: null }, [linea({ isService: false })], cuentan),
     null,
   );
+});
+
+// ---------------------------------------------------------------------------
+// El excedente del canje arranca el conteo siguiente.
+// ---------------------------------------------------------------------------
+
+test("El premio consume su umbral, no todo el progreso", () => {
+  // Llegó a 11 antes de pasar por el mostrador: el corte 11 es suyo.
+  assert.equal(progressAfterRedeem(11, [hito({ threshold: 10 })]), 1);
+});
+
+test("Justo en el umbral queda en cero", () => {
+  assert.equal(progressAfterRedeem(10, [hito({ threshold: 10 })]), 0);
+});
+
+test("Con varios hitos descuenta el ENTREGADO, no el más bajo", () => {
+  // Progreso 21 con hitos de 10 y 20: se entrega el de 20 y queda 1.
+  // Descontar 10 dejaría 11 y le regalaría un segundo premio al toque.
+  const hitos = [hito({ threshold: 10 }), hito({ id: "m2", threshold: 20 })];
+  assert.equal(progressAfterRedeem(21, hitos), 1);
+});
+
+test("Sin premio que corresponda, el progreso no se toca", () => {
+  assert.equal(progressAfterRedeem(9, [hito({ threshold: 10 })]), 9);
+});
+
+test("Un hito inactivo no consume nada", () => {
+  const inactivo = hito({ threshold: 10, is_active: false });
+  assert.equal(progressAfterRedeem(12, [inactivo]), 12);
 });

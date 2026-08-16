@@ -7,7 +7,7 @@ import { useProfile } from "@/components/ProfileProvider";
 import { useSettingsStore } from "@/stores/settings.store";
 import { fetchPromoCustomers, toPromoRows } from "@/services/promo-customers.service";
 import type { PromoCustomer, PromoCustomerRow } from "@/services/promo-customers.service";
-import { redeemPromo } from "@/services/promos.service";
+import { redeemPromo, progressAfterRedeem } from "@/services/promos.service";
 import { renderPromoMessage, whatsappLink, availableReward, businessDisplayName } from "@/services/promos.service";
 import { DataTable, type DataColumn } from "@/components/DataTable";
 import { CollectionEmpty, CollectionError, CollectionLoading } from "@/components/CollectionState";
@@ -273,11 +273,15 @@ export default function PromocionesClientesPage() {
                 <strong className="text-on-surface">{confirmar.full_name}</strong> llegó a{" "}
                 {confirmar.progress} cortes y gana: <strong className="text-on-surface">{confirmar.reward}</strong>.
               </p>
-              {/* Que el contador vuelva a cero es la consecuencia que hay que
-                  entender ANTES de confirmar, no descubrir después. */}
+              {/* Con cuántos cortes queda es la consecuencia que hay que
+                  entender ANTES de confirmar, no descubrir después. Y no
+                  siempre es cero: el premio consume su umbral y lo que sobra
+                  arranca el conteo siguiente. */}
               <p className="text-xs text-on-surface-variant mb-6 rounded-lg border border-outline-variant/20 bg-surface-container-lowest px-3 py-2">
                 Este corte <strong>no se cobra</strong>: no lo pases por el punto de venta. Al
-                confirmar, su contador vuelve a <strong>0</strong> y empieza a acumular de nuevo.
+                confirmar, su contador queda en{" "}
+                <strong>{progressAfterRedeem(confirmar.progress, milestones)}</strong> y empieza a
+                acumular de nuevo.
                 Los {confirmar.haircut_count} cortes de su historial no se tocan.
               </p>
               <div className="flex gap-3">
