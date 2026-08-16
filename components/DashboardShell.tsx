@@ -33,6 +33,7 @@ import { InstallPrompt } from "@/components/InstallPrompt";
 import { ExpenseModal } from "@/components/ExpenseModal";
 import { useProfile } from "@/components/ProfileProvider";
 import { visibleNavItems, workerNavItems, groupNavItems, footerNavItems } from "@/config/business";
+import { SidebarNavGroup, useClosedNavGroups } from "@/components/SidebarNavGroup";
 import { backdropProps } from "@/components/modal";
 import { SIDEBAR_COOKIE, SIDEBAR_COOKIE_MAX_AGE } from "@/lib/sidebar";
 import { WorkspaceSwitcher } from "@/components/WorkspaceSwitcher";
@@ -152,6 +153,7 @@ export function DashboardShell({
   // Agrupar es solo presentación: `navigation` ya trae únicamente lo que esta
   // persona puede ver, y `groupNavItems` no agrega ni quita nada.
   const navGroups = useMemo(() => groupNavItems(navigation), [navigation]);
+  const { cerrados, toggle: toggleNavGroup } = useClosedNavGroups();
   // Mi Plan baja al pie, con Configuración: los dos son "cosas de mi cuenta",
   // no herramientas del día. Salen de la MISMA lista ya filtrada por rol.
   const footerNav = useMemo(() => footerNavItems(navigation), [navigation]);
@@ -232,39 +234,42 @@ export function DashboardShell({
                 quedan trece iconos casi iguales y nada que los agrupe. */}
             {navGroups.map((group, i) => (
               <div key={group.id} className={i > 0 ? "pt-3 mt-3 border-t border-outline-variant/10" : ""}>
-                {group.label && !sidebarCollapsed && (
-                  <p className="px-4 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/60">
-                    {group.label}
-                  </p>
+                {sidebarCollapsed ? (
+                  // Riel de iconos: no hay dónde poner una cabecera ni un
+                  // chevron, así que el acordeón no aplica y los ítems vuelven a
+                  // ser iconos sueltos separados por la divisoria. Plegar lo que
+                  // no se puede desplegar dejaría pantallas inalcanzables.
+                  group.items.map((item) => {
+                    const Icon = NAV_ICONS[item.id];
+                    const isActive = item.id === activeNavId;
+                    return (
+                      <Link
+                        key={item.id}
+                        href={item.href}
+                        aria-current={isActive ? "page" : undefined}
+                        title={item.name}
+                        className={`relative flex items-center justify-center py-3 rounded-xl transition-all ${
+                          isActive
+                            ? "bg-primary/10 text-primary"
+                            : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
+                        }`}
+                      >
+                        {isActive && (
+                          <span className="absolute left-0 top-1/2 -translate-y-1/2 h-6 w-1 rounded-r-full bg-primary" />
+                        )}
+                        {Icon && <Icon className="w-5 h-5 shrink-0" />}
+                      </Link>
+                    );
+                  })
+                ) : (
+                  <SidebarNavGroup
+                    group={group}
+                    activeNavId={activeNavId}
+                    closed={cerrados.has(group.id)}
+                    onToggle={toggleNavGroup}
+                    icons={NAV_ICONS}
+                  />
                 )}
-                {group.items.map((item) => {
-                  const Icon = NAV_ICONS[item.id];
-                  const isActive = item.id === activeNavId;
-                  return (
-                    <Link
-                      key={item.id}
-                      href={item.href}
-                      aria-current={isActive ? "page" : undefined}
-                      className={`relative flex items-center gap-3 py-3 rounded-xl transition-all text-sm font-medium overflow-hidden ${
-                        sidebarCollapsed ? "justify-center px-0" : "px-4"
-                      } ${
-                        isActive
-                          ? "bg-primary/10 text-primary"
-                          : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
-                      }`}
-                      title={sidebarCollapsed ? item.name : undefined}
-                    >
-                      {/* Barra de acento: con grupos hay dos cosas que
-                          distinguir —en qué clúster estoy y en qué pantalla—, y
-                          un fondo tenue solo no alcanza para las dos. */}
-                      {isActive && (
-                        <span className="absolute left-0 top-1/2 -translate-y-1/2 h-6 w-1 rounded-r-full bg-primary" />
-                      )}
-                      {Icon && <Icon className="w-5 h-5 shrink-0" />}
-                      {!sidebarCollapsed && <span className="whitespace-nowrap">{item.name}</span>}
-                    </Link>
-                  );
-                })}
               </div>
             ))}
           </nav>
@@ -478,34 +483,14 @@ export function DashboardShell({
                     existe en una de las dos pantallas. */}
                 {navGroups.map((group, i) => (
                   <div key={group.id} className={i > 0 ? "pt-3 mt-3 border-t border-outline-variant/10" : ""}>
-                    {group.label && (
-                      <p className="px-4 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/60">
-                        {group.label}
-                      </p>
-                    )}
-                    {group.items.map((item) => {
-                      const Icon = NAV_ICONS[item.id];
-                      const isActive = item.id === activeNavId;
-                      return (
-                        <Link
-                          key={item.id}
-                          href={item.href}
-                          onClick={() => setMobileMenuOpen(false)}
-                          aria-current={isActive ? "page" : undefined}
-                          className={`relative flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-sm font-medium ${
-                            isActive
-                              ? "bg-primary/10 text-primary"
-                              : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
-                          }`}
-                        >
-                          {isActive && (
-                            <span className="absolute left-0 top-1/2 -translate-y-1/2 h-6 w-1 rounded-r-full bg-primary" />
-                          )}
-                          {Icon && <Icon className="w-5 h-5" />}
-                          {item.name}
-                        </Link>
-                      );
-                    })}
+                    <SidebarNavGroup
+                      group={group}
+                      activeNavId={activeNavId}
+                      closed={cerrados.has(group.id)}
+                      onToggle={toggleNavGroup}
+                      onNavigate={() => setMobileMenuOpen(false)}
+                      icons={NAV_ICONS}
+                    />
                   </div>
                 ))}
               </nav>
