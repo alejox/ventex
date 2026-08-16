@@ -233,7 +233,15 @@ export function DashboardShell({
                 así que lo reemplaza una divisoria: sin ninguna de las dos cosas
                 quedan trece iconos casi iguales y nada que los agrupe. */}
             {navGroups.map((group, i) => (
-              <div key={group.id} className={i > 0 ? "pt-3 mt-3 border-t border-outline-variant/10" : ""}>
+              <div
+                key={group.id}
+                className={
+                  // Colapsada, la divisoria es lo unico que agrupa trece iconos
+                  // casi iguales. Desplegada, las cabeceras de modulo ya son la
+                  // estructura y la linea solo agrega un corte mas al borde.
+                  i > 0 ? (sidebarCollapsed ? "pt-3 mt-3 border-t border-outline-variant/10" : "mt-1") : ""
+                }
+              >
                 {sidebarCollapsed ? (
                   // Riel de iconos: no hay dónde poner una cabecera ni un
                   // chevron, así que el acordeón no aplica y los ítems vuelven a
@@ -482,7 +490,7 @@ export function DashboardShell({
                     quedara plano, la agrupación sería una convención que solo
                     existe en una de las dos pantallas. */}
                 {navGroups.map((group, i) => (
-                  <div key={group.id} className={i > 0 ? "pt-3 mt-3 border-t border-outline-variant/10" : ""}>
+                  <div key={group.id} className={i > 0 ? "mt-1" : ""}>
                     <SidebarNavGroup
                       group={group}
                       activeNavId={activeNavId}

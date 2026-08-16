@@ -201,17 +201,12 @@ export function SidebarNavGroup({
         aria-controls={panelId}
         // El grupo activo no se pliega, así que tampoco finge ser un botón.
         aria-disabled={contieneActivo || undefined}
-        className={`relative w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-sm font-semibold ${
+        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-sm font-semibold ${
           contieneActivo
             ? "bg-primary/10 text-primary cursor-default"
             : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
         }`}
       >
-        {/* La barra de acento pasa a marcar el MÓDULO. Con el grupo plegado es
-            lo único que te dice dónde estás parado. */}
-        {contieneActivo && (
-          <span className="absolute left-0 top-1/2 -translate-y-1/2 h-6 w-1 rounded-r-full bg-primary" />
-        )}
         {GroupIcon && <GroupIcon className="w-5 h-5 shrink-0" />}
         <span className="whitespace-nowrap">{group.label}</span>
         <Chevron abierto={abierto} />
@@ -220,7 +215,7 @@ export function SidebarNavGroup({
       {abierto && (
         <div
           id={panelId}
-          className="mt-0.5 mb-1 ml-[1.65rem] pl-3 border-l border-outline-variant/25 flex flex-col"
+          className="ml-[1.625rem] pl-3 pt-1 pb-1 border-l border-outline-variant/20 flex flex-col gap-0.5"
         >
           {group.items.map((item) => {
             const activo = item.id === activeNavId;
@@ -232,7 +227,7 @@ export function SidebarNavGroup({
                 aria-current={activo ? "page" : undefined}
                 className={`rounded-lg px-3 py-2 text-[13px] transition-colors ${
                   activo
-                    ? "text-primary font-bold"
+                    ? "bg-primary/[0.07] text-primary font-bold"
                     : "text-on-surface-variant/80 font-medium hover:text-on-surface hover:bg-surface-container-low"
                 }`}
               >
