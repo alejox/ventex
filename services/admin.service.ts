@@ -356,7 +356,7 @@ export async function deletePlanPeriod(id: string): Promise<void> {
 // ---- Ventas de la plataforma (cobros de la pasarela) ----
 
 /**
- * Una orden de cobro de dLocal Go: lo que Ventex le vendió a alguien.
+ * Una orden de cobro de la pasarela: lo que Ventex le vendió a alguien.
  *
  * OJO con el nombre: acá "venta" es una cuenta vendida, NO una venta del POS de
  * un inquilino. Eso último es el GMV que muestra `admin_stats`.

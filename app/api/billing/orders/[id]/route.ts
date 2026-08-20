@@ -2,17 +2,22 @@ import { type NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { requireSelectedWorkspaceOwner } from "@/services/workspace.server";
 import {
-  reconcileOrderFromDlocal,
+  reconcileOrderFromEpayco,
   type BillingOrderRow,
 } from "@/services/subscription-billing.server";
 
 /**
  * Estado de una orden de pago (polling del checkout).
  *
- * Si la orden sigue `pending`, se RELEE el pago en dLocal antes de contestar.
- * Es lo que hace que el flujo no dependa del webhook: en desarrollo `localhost`
- * no es alcanzable para dLocal, y en producción una notificación se puede
- * perder. Con esto, abrir la pantalla alcanza para resolver el pago.
+ * Si la orden sigue `pending`, se RELEE la transacción en ePayco antes de
+ * contestar. Es lo que hace que el flujo no dependa del webhook: en desarrollo
+ * `localhost` no es alcanzable para ePayco, y en producción una notificación se
+ * puede perder. Con esto, abrir la pantalla alcanza para resolver el pago.
+ *
+ * No hace falta que la orden tenga guardada una referencia de la pasarela: se
+ * consulta por NUESTRA referencia (`order_id`), que existe desde que se creó la
+ * orden. Por eso el pago se resuelve aunque no haya llegado NUNCA una sola
+ * notificación.
  *
  * Autorización:
  *  - Con sesión de dueño: la orden tiene que ser suya.
@@ -35,7 +40,9 @@ export async function GET(
 
   const scoped = admin
     .from("billing_orders")
-    .select(`${PUBLIC_SELECT}, user_id, guest_email, payer_name, dlocal_payment_id, checkout_token`)
+    .select(
+      `${PUBLIC_SELECT}, user_id, guest_email, payer_name, epayco_ref, epayco_transaction_id, epayco_status_code`,
+    )
     .eq("id", id);
 
   if (owner) {
@@ -53,11 +60,11 @@ export async function GET(
     return NextResponse.json({ error: "Orden no encontrada." }, { status: 404 });
   }
 
-  if (order.status === "pending" && order.dlocal_payment_id) {
+  if (order.status === "pending") {
     try {
-      await reconcileOrderFromDlocal(admin, order as BillingOrderRow);
+      await reconcileOrderFromEpayco(admin, order as BillingOrderRow);
     } catch (reconcileError) {
-      // Reconciliar es un extra: si dLocal no contesta, devolvemos el estado
+      // Reconciliar es un extra: si ePayco no contesta, devolvemos el estado
       // guardado y el próximo intento del polling reintenta.
       console.error("reconcile order failed", id, reconcileError);
     }

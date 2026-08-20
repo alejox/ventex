@@ -1,32 +1,35 @@
 import "server-only";
 import { createAdminClient } from "@/utils/supabase/admin";
+import { findTransactionByReference } from "@/services/epayco.service";
 import {
-  getPayment,
-  isPaidStatus,
-  isRejectedStatus,
-  type DlocalPayment,
-} from "@/services/dlocalgo.service";
+  amountMatches,
+  outcomeFromStatusText,
+  type EpaycoOutcome,
+  type TransactionRow,
+} from "@/services/epayco-protocol";
 import { sendGuestCheckoutEmail } from "@/services/guest-checkout-email.server";
 
 /**
- * Acreditación de un pago de dLocal Go, compartida por los tres caminos que
- * pueden enterarse de que una orden se pagó:
+ * Acreditación de un pago de ePayco, compartida por los caminos que pueden
+ * enterarse de que una orden se pagó:
  *
- *  1. el webhook (`/api/billing/webhook`),
- *  2. el polling del checkout (`/api/billing/orders/[id]`),
- *  3. el cron de renovaciones (`/api/billing/recurring`).
+ *  1. la confirmación (`/api/billing/webhook`),
+ *  2. el polling del checkout (`/api/billing/orders/[id]`).
  *
- * Que el polling también reconcilie no es redundancia: la notificación de
- * dLocal Go trae sólo un `payment_id` y puede perderse o no llegar nunca (en
- * desarrollo, `localhost` no es alcanzable). Con esto el estado del pago se
- * resuelve igual con sólo abrir la pantalla. `apply_billing_charge` es
- * idempotente, así que los tres caminos pueden pisarse sin acreditar dos veces.
+ * Que el polling también reconcilie NO es redundancia, y con ePayco importa más
+ * que antes: `x_ref_payco` no existe hasta que alguien paga, así que si la
+ * confirmación se pierde no queda ningún identificador con el que preguntar.
+ * Lo que rescata el caso es consultar por NUESTRA referencia
+ * (`findTransactionByReference`), que funciona sin haber recibido nada.
+ *
+ * `apply_billing_charge` es idempotente, así que los dos caminos pueden pisarse
+ * sin acreditar dos veces.
  */
 
 type Admin = ReturnType<typeof createAdminClient>;
 
 export const BILLING_ORDER_SELECT =
-  "id, order_id, user_id, guest_email, payer_name, period_name, status, dlocal_payment_id, checkout_token";
+  "id, order_id, user_id, guest_email, payer_name, period_name, amount, currency, status, epayco_ref, epayco_transaction_id, epayco_status_code";
 
 export interface BillingOrderRow {
   id: string;
@@ -35,12 +38,33 @@ export interface BillingOrderRow {
   guest_email: string | null;
   payer_name: string | null;
   period_name: string;
+  amount: number;
+  currency: string;
   status: string;
-  dlocal_payment_id: string | null;
-  checkout_token: string | null;
+  epayco_ref: string | null;
+  epayco_transaction_id: string | null;
+  epayco_status_code: string | null;
 }
 
-export type ReconcileOutcome = "paid" | "failed" | "pending";
+/**
+ * `mismatch` no es un pago fallido: es una confirmación bien firmada cuyo monto
+ * o moneda NO son los de esta orden. Merece su propio valor porque el
+ * tratamiento es distinto — no se acredita, pero tampoco se marca la orden como
+ * "el pago no se completó", que es mentira y esconde el problema.
+ */
+export type ReconcileOutcome = "paid" | "failed" | "pending" | "reversed" | "mismatch";
+
+/** Lo que se pudo observar de una transacción, venga de donde venga. */
+export interface EpaycoObservation {
+  outcome: EpaycoOutcome;
+  ref: string | null;
+  transactionId: string | null;
+  statusCode: string | null;
+  amount: string | number | null;
+  currency: string | null;
+  methodLabel: string | null;
+  reason: string | null;
+}
 
 export async function markOrderFailed(
   admin: Admin,
@@ -65,40 +89,78 @@ export async function markOrderFailed(
   }
 }
 
+/** Normaliza una fila del listado de transacciones a una observación. */
+export function observationFromTransaction(row: TransactionRow): EpaycoObservation {
+  return {
+    outcome: outcomeFromStatusText(row.status),
+    ref: row.referencePayco != null ? String(row.referencePayco) : null,
+    transactionId: null,
+    statusCode: null,
+    amount: row.amount ?? null,
+    currency: row.currency ?? null,
+    methodLabel: row.paymentMethod ?? row.franchise ?? null,
+    reason: row.response ?? null,
+  };
+}
+
 /**
- * Aplica el estado de un pago de dLocal sobre su orden.
+ * Aplica una observación sobre su orden.
  *
  * Lanza si `apply_billing_charge` falla: el pago está cobrado y la licencia no,
- * así que el llamador tiene que devolver un 5xx para que dLocal reintente la
+ * así que el llamador tiene que devolver un 5xx para que ePayco reintente la
  * notificación en vez de dar el caso por cerrado.
  */
-export async function applyPaymentToOrder(
+export async function applyObservationToOrder(
   admin: Admin,
   order: BillingOrderRow,
-  payment: DlocalPayment,
+  observation: EpaycoObservation,
   options: { planName?: string | null } = {},
 ): Promise<ReconcileOutcome> {
-  const status = String(payment.status ?? "");
+  // Las referencias se estampan SIEMPRE, incluso con el pago pendiente: es lo
+  // que permite consultar después por `getTransaction` y lo que hace que un
+  // reclamo de soporte con una ref de ePayco encuentre su orden.
+  const stamp: {
+    updated_at: string;
+    epayco_ref?: string;
+    epayco_transaction_id?: string;
+    epayco_status_code?: string;
+    payment_method_type?: string;
+    method?: string;
+  } = { updated_at: new Date().toISOString() };
+  if (observation.ref) stamp.epayco_ref = observation.ref;
+  if (observation.transactionId) stamp.epayco_transaction_id = observation.transactionId;
+  if (observation.statusCode) stamp.epayco_status_code = observation.statusCode;
+  if (observation.methodLabel) {
+    stamp.payment_method_type = observation.methodLabel;
+    stamp.method = observation.methodLabel;
+  }
+  await admin.from("billing_orders").update(stamp).eq("id", order.id);
 
-  if (isPaidStatus(status)) {
-    // El token va a la orden ANTES de acreditar: `apply_billing_charge` lee
-    // `checkout_token` de la fila para dejarlo como medio de cobro de la
-    // suscripción. Si se guardara después, la renovación quedaría sin token.
-    await admin
-      .from("billing_orders")
-      .update({
-        dlocal_payment_id: payment.id,
-        checkout_token: payment.merchant_checkout_token ?? order.checkout_token,
-        payment_method_type: payment.payment_method_type ?? null,
-        method: payment.payment_method_type ?? "checkout",
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", order.id);
+  if (observation.outcome === "paid") {
+    // La firma prueba que el mensaje es auténtico, NO que el monto sea el que
+    // esta orden tenía que cobrar. Sin este cruce, una confirmación legítima de
+    // un pago chico podría activar el plan más caro.
+    const okAmount = amountMatches(observation.amount, Number(order.amount));
+    const okCurrency =
+      !observation.currency ||
+      observation.currency.toUpperCase() === String(order.currency).toUpperCase();
+
+    if (!okAmount || !okCurrency) {
+      const detail = `Se esperaba ${order.amount} ${order.currency} y llegó ${observation.amount} ${observation.currency ?? "?"}.`;
+      console.error("epayco amount mismatch", order.id, observation.ref, detail);
+      // NO se marca "failed": el pago pudo ser perfectamente exitoso, lo que no
+      // cuadra es a qué orden se lo están imputando. Se deja pendiente y se
+      // registra, que es lo que permite que alguien lo mire.
+      await admin
+        .from("billing_orders")
+        .update({ error: `Monto no coincide. ${detail}`, updated_at: new Date().toISOString() })
+        .eq("id", order.id);
+      return "mismatch";
+    }
 
     // La función resuelve el dueño leyendo la orden, así que no se le pasa: el
     // `user_id` que tenemos acá es de una lectura anterior y puede haber quedado
-    // viejo (un registro con `claim_guest_orders` en el medio), además de que su
-    // nulabilidad no se podía expresar en los tipos generados.
+    // viejo (un registro con `claim_guest_orders` en el medio).
     const { data: charged, error: chargeError } = await admin.rpc("apply_billing_charge", {
       p_order_id: order.id,
     });
@@ -110,18 +172,17 @@ export async function applyPaymentToOrder(
     const result = charged as { applied?: boolean; guest?: boolean } | null;
     const applied = result?.applied === true;
 
-    // Sólo el PRIMER PAID de una orden de invitado manda el correo: en los
-    // reintentos `applied` ya vuelve false. Que siga siendo de invitado lo dice
-    // la función (`guest`), no la fila que leímos antes: si la cuenta se creó
-    // mientras el pago viajaba, la orden ya tiene dueño y la licencia se activó.
+    // Sólo el PRIMER pago acreditado de una orden de invitado manda el correo:
+    // en los reintentos `applied` ya vuelve false. Que siga siendo de invitado
+    // lo dice la función (`guest`), no la fila que leímos antes.
     if (applied && result?.guest === true && order.guest_email) {
       await sendGuestCheckoutEmail({
         email: order.guest_email,
         fullName: order.payer_name,
         planName: options.planName ?? order.period_name,
       }).catch((error) => {
-        // El pago ya está acreditado y la landing muestra el paso siguiente en
-        // pantalla, así que un correo caído no puede tumbar la notificación.
+        // El pago ya está acreditado y la pantalla muestra el paso siguiente, así
+        // que un correo caído no puede tumbar la notificación.
         console.error("guest checkout email failed", error);
       });
     }
@@ -129,28 +190,45 @@ export async function applyPaymentToOrder(
     return "paid";
   }
 
-  if (isRejectedStatus(status)) {
+  if (observation.outcome === "failed") {
     await markOrderFailed(
       admin,
       order.id,
-      payment.status_detail ?? `El pago no se completó (${status}).`,
+      observation.reason ?? "El pago no se completó.",
       order.user_id,
     );
     return "failed";
+  }
+
+  if (observation.outcome === "reversed") {
+    // Devolución sobre un pago YA acreditado. NO se revoca la licencia sola:
+    // quitarle el acceso a alguien de forma automática por un mensaje del
+    // proveedor es una decisión de negocio, no de este código. Se registra para
+    // que se vea, que es lo que hoy no existiría.
+    console.error("epayco reversal", order.id, observation.ref, observation.reason);
+    await admin
+      .from("billing_orders")
+      .update({
+        error: `Pago reversado en ePayco. ${observation.reason ?? ""}`.trim(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", order.id);
+    return "reversed";
   }
 
   return "pending";
 }
 
 /**
- * Relee el pago en dLocal y reconcilia la orden. Devuelve null si la orden no
- * tiene un pago asociado todavía (nunca llegó a crearse en dLocal).
+ * Relee la transacción en ePayco por NUESTRA referencia y reconcilia la orden.
+ * Devuelve null si ePayco todavía no tiene ninguna transacción para ella (nadie
+ * llegó a pagar).
  */
-export async function reconcileOrderFromDlocal(
+export async function reconcileOrderFromEpayco(
   admin: Admin,
   order: BillingOrderRow,
 ): Promise<ReconcileOutcome | null> {
-  if (!order.dlocal_payment_id) return null;
-  const payment = await getPayment(order.dlocal_payment_id);
-  return applyPaymentToOrder(admin, order, payment);
+  const row = await findTransactionByReference(order.order_id);
+  if (!row) return null;
+  return applyObservationToOrder(admin, order, observationFromTransaction(row));
 }

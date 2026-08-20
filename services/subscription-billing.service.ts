@@ -1,8 +1,10 @@
 /**
- * Cliente del ciclo de pago de la suscripción (dLocal Go).
- * Solo habla con las rutas `/api/billing/*`: todo el I/O con dLocal ocurre
- * server-side y ningún dato de tarjeta pasa por acá — el checkout de dLocal Go
- * es hosteado, así que el flujo termina en un redirect.
+ * Cliente del ciclo de pago de la suscripción (ePayco).
+ * Solo habla con las rutas `/api/billing/*`: todo el I/O con ePayco ocurre
+ * server-side y ningún dato de tarjeta pasa por acá — el checkout es hosteado.
+ *
+ * Abrir el checkout NO es cosa de este archivo: la sesión se crea acá pero
+ * quien la abre es `epayco-checkout.service.ts`, que carga el script de ePayco.
  */
 
 export interface SubscribePayer {
@@ -11,10 +13,17 @@ export interface SubscribePayer {
   phone?: string;
 }
 
-/** El checkout hosteado siempre redirige: no hay variante síncrona. */
+/**
+ * Lo que devuelve crear la sesión de checkout.
+ *
+ * No hay `redirectUrl`: ePayco entrega un `sessionId` que sólo sabe abrir su
+ * propio script en el navegador. `testMode` viene del servidor porque ePayco no
+ * tiene host de sandbox — el modo se le pasa al checkout como flag.
+ */
 export interface SubscribeResult {
-  action: "redirect";
-  redirectUrl: string;
+  action: "checkout";
+  sessionId: string;
+  testMode: boolean;
   orderId: string;
 }
 
@@ -69,7 +78,7 @@ export async function subscribeToPlan(params: {
     body: JSON.stringify(params),
   });
   const data = await readJson<SubscribeResult>(response);
-  if (!response.ok || !data.redirectUrl) {
+  if (!response.ok || !data.sessionId) {
     throw new Error(data.error ?? "No se pudo iniciar el pago. Intentá de nuevo.");
   }
   return data as SubscribeResult;

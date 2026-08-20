@@ -5,8 +5,8 @@ import { requireSelectedWorkspaceOwner } from "@/services/workspace.server";
 /**
  * Prende o apaga la renovación automática mensual.
  *
- * En dLocal Go el cobro recurrente lo inicia el comercio (no hay suscripción
- * viva del lado de dLocal que haya que cancelar): dar de baja es, literalmente,
+ * El cobro recurrente lo inicia el comercio (no hay una suscripción viva del
+ * lado de la pasarela que haya que cancelar): dar de baja es, literalmente,
  * dejar de cobrar. El plan sigue activo hasta `current_period_end` y recién ahí
  * se vence.
  *

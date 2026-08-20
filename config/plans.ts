@@ -42,17 +42,31 @@ export const SUBSCRIPTION_STATUS_LABELS: Record<string, string> = {
 };
 
 /**
- * Nombres legibles de los medios de pago que informa dLocal Go.
+ * Nombres legibles de los medios de pago que informa la pasarela.
  * Los usan la pantalla del dueño y el panel de super admin: si divergen, dos
  * pantallas llaman distinto al mismo cobro.
+ *
+ * Las claves son los códigos de ePayco, tomados de `GET /client/payment/methods`
+ * de la propia cuenta — no inventados. Sin este mapa la pantalla le muestra al
+ * dueño "VS" en lugar de "Tarjeta Visa".
  */
 export const PAYMENT_METHOD_LABELS: Record<string, string> = {
-  CREDIT_CARD: "Tarjeta de crédito",
-  DEBIT_CARD: "Tarjeta débito",
-  BANK_TRANSFER: "Transferencia / PSE",
-  WALLET: "Billetera (Nequi)",
-  VOUCHER: "Efectivo",
-  TICKET: "Efectivo",
+  VS: "Tarjeta Visa",
+  DV: "Tarjeta débito Visa",
+  MC: "Tarjeta Mastercard",
+  DM: "Tarjeta débito Mastercard",
+  AM: "American Express",
+  DC: "Diners Club",
+  CR: "Crédito Credencial",
+  COD: "Codensa",
+  PSE: "PSE",
+  DP: "Daviplata",
+  EF: "Efectivo (Efecty)",
+  GA: "Efectivo (Gana)",
+  PR: "Efectivo (Punto Red)",
+  RS: "Efectivo (Red Servi)",
+  SP: "SafetyPay",
+  QR: "Código QR",
 };
 
 export function paymentMethodLabel(type: string | null | undefined): string {

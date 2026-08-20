@@ -3,21 +3,29 @@ import { type NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { requireSelectedWorkspaceOwner } from "@/services/workspace.server";
 import {
-  DLOCAL_CONFIGURED,
-  DLOCAL_CURRENCY,
-  createPayment,
-  DlocalApiError,
-} from "@/services/dlocalgo.service";
+  EPAYCO_CONFIGURED,
+  EPAYCO_TEST_MODE,
+  EpaycoApiError,
+  createSession,
+} from "@/services/epayco.service";
+import { EPAYCO_CURRENCY, publicUrlBase } from "@/services/epayco-protocol";
 import { markOrderFailed } from "@/services/subscription-billing.server";
 
 /**
- * Inicia el cobro de un periodo (`plan_periods`) con dLocal Go.
+ * Inicia el cobro de un periodo (`plan_periods`) con el Smart Checkout de ePayco.
  *
- * El checkout de dLocal Go es HOSTEADO: acá no se elige medio de pago ni se
- * tocan datos de tarjeta. Se crea el pago, se devuelve `redirectUrl` y el
- * pagador elige allá entre Nequi, PSE, tarjeta o efectivo. El resultado vuelve
- * por dos vías independientes: la notificación al webhook y el polling de la
- * orden al volver del checkout.
+ * El checkout es HOSTEADO: acá no se elige medio de pago ni se tocan datos de
+ * tarjeta. Se crea la sesión, se devuelve el `sessionId` y el pagador elige allá
+ * entre PSE, Nequi, tarjeta o efectivo.
+ *
+ * Diferencia con lo que había: ePayco NO devuelve una URL de redirección, así
+ * que esta ruta ya no responde `redirectUrl`. Devuelve el `sessionId` que el
+ * navegador le entrega a `checkout-v2.js` (ver `epayco-checkout.service.ts`).
+ *
+ * Tampoco se guarda una referencia de pago al crear la orden, porque todavía no
+ * existe: `x_ref_payco` nace recién cuando alguien paga. Lo que ata la
+ * transacción a la orden viaja EN la sesión — `invoice` con el `order_id` y
+ * `extras.extra1` con el uuid — y vuelve en la confirmación.
  *
  * Dos modos:
  *  - Con sesión de dueño: la orden se ata al usuario y la licencia se activa al
@@ -29,13 +37,19 @@ import { markOrderFailed } from "@/services/subscription-billing.server";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** Base pública del sitio: dLocal tiene que poder alcanzar estas URLs. */
+/**
+ * Base pública del sitio: ePayco tiene que poder alcanzar estas URLs.
+ *
+ * Pasa por `publicUrlBase` porque ePayco RECHAZA el hostname `localhost` al
+ * crear la sesión, con un error que no lo menciona. Sin eso, el checkout no se
+ * puede probar en desarrollo.
+ */
 function publicBase(request: NextRequest): string {
-  return (process.env.NEXT_PUBLIC_SITE_URL ?? request.nextUrl.origin).replace(/\/$/, "");
+  return publicUrlBase(process.env.NEXT_PUBLIC_SITE_URL ?? request.nextUrl.origin);
 }
 
 export async function POST(request: NextRequest) {
-  if (!DLOCAL_CONFIGURED) {
+  if (!EPAYCO_CONFIGURED) {
     return NextResponse.json(
       { error: "Los pagos en línea no están disponibles por ahora. Escribinos por WhatsApp." },
       { status: 503 },
@@ -124,7 +138,7 @@ export async function POST(request: NextRequest) {
       period_name: periodName,
       period_months: period.months,
       amount,
-      currency: DLOCAL_CURRENCY,
+      currency: EPAYCO_CURRENCY,
       method: "checkout",
       status: "pending",
       payer_name: payerName,
@@ -145,38 +159,21 @@ export async function POST(request: NextRequest) {
   const separator = returnPath.includes("?") ? "&" : "?";
 
   try {
-    const payment = await createPayment({
+    const session = await createSession({
       amount,
       orderId,
+      orderUuid: order.id,
       description: `Ventex · ${periodName}`,
-      notificationUrl: `${base}/api/billing/webhook`,
-      successUrl: `${base}${returnPath}${separator}pay=${order.id}`,
-      backUrl: `${base}${returnPath}`,
+      confirmationUrl: `${base}/api/billing/webhook`,
+      responseUrl: `${base}${returnPath}${separator}pay=${order.id}`,
       payer: {
         name: payerName,
         email: payerEmail,
         document: payerDocument,
-        document_type: payerDocument.length > 10 ? "NIT" : "CC",
-        ...(payerPhone ? { phone: payerPhone } : {}),
+        documentType: payerDocument.length > 10 ? "NIT" : "CC",
+        phone: payerPhone,
       },
     });
-
-    await admin
-      .from("billing_orders")
-      .update({
-        dlocal_payment_id: payment.id,
-        checkout_token: payment.merchant_checkout_token ?? null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", order.id);
-
-    if (!payment.redirect_url) {
-      await markOrderFailed(admin, order.id, "dLocal no devolvió el checkout.", userId);
-      return NextResponse.json(
-        { error: "No pudimos abrir el checkout. Intentá de nuevo en un momento." },
-        { status: 502 },
-      );
-    }
 
     // Los datos del titular quedan guardados para la próxima renovación, pero
     // sólo cuando hay usuario: un invitado todavía no tiene suscripción.
@@ -194,17 +191,20 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({
-      action: "redirect",
-      redirectUrl: payment.redirect_url,
+      action: "checkout",
+      sessionId: session.sessionId,
+      // El modo de prueba lo decide el servidor y viaja al cliente porque
+      // `checkout-v2.js` lo necesita: ePayco no tiene host de sandbox aparte.
+      testMode: EPAYCO_TEST_MODE,
       orderId: order.id,
     });
   } catch (error) {
     const message =
-      error instanceof DlocalApiError || error instanceof Error
+      error instanceof EpaycoApiError || error instanceof Error
         ? error.message
         : "No se pudo procesar el pago.";
     await markOrderFailed(admin, order.id, message, userId);
-    const status = error instanceof DlocalApiError ? error.status : 502;
+    const status = error instanceof EpaycoApiError ? error.status : 502;
     return NextResponse.json({ error: message }, { status: status >= 500 ? status : 502 });
   }
 }

@@ -393,7 +393,7 @@ function CalendarIcon({ className }: { className?: string }) {
  * Estado del cobro automático: cuándo se cobra, con qué se pagó la última vez y
  * el botón de baja.
  *
- * En dLocal Go el cobro recurrente lo inicia el comercio, así que "dar de baja"
+ * El cobro recurrente lo inicia el comercio, así que "dar de baja"
  * es dejar de cobrar: el plan sigue vivo hasta el fin del periodo ya pagado, y
  * eso es justo lo que dice el texto para que nadie crea que pierde los días que
  * pagó.

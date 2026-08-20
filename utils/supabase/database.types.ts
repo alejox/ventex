@@ -106,12 +106,11 @@ export type Database = {
       billing_orders: {
         Row: {
           amount: number
-          card_id: string | null
-          checkout_token: string | null
           created_at: string
           currency: string
-          dlocal_enrollment_id: string | null
-          dlocal_payment_id: string | null
+          epayco_ref: string | null
+          epayco_status_code: string | null
+          epayco_transaction_id: string | null
           error: string | null
           guest_email: string | null
           id: string
@@ -133,12 +132,11 @@ export type Database = {
         }
         Insert: {
           amount: number
-          card_id?: string | null
-          checkout_token?: string | null
           created_at?: string
           currency?: string
-          dlocal_enrollment_id?: string | null
-          dlocal_payment_id?: string | null
+          epayco_ref?: string | null
+          epayco_status_code?: string | null
+          epayco_transaction_id?: string | null
           error?: string | null
           guest_email?: string | null
           id?: string
@@ -160,12 +158,11 @@ export type Database = {
         }
         Update: {
           amount?: number
-          card_id?: string | null
-          checkout_token?: string | null
           created_at?: string
           currency?: string
-          dlocal_enrollment_id?: string | null
-          dlocal_payment_id?: string | null
+          epayco_ref?: string | null
+          epayco_status_code?: string | null
+          epayco_transaction_id?: string | null
           error?: string | null
           guest_email?: string | null
           id?: string

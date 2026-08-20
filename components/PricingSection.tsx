@@ -15,11 +15,11 @@ import { useSearchParam, useStoredValue, stripSearchParams } from "@/lib/useUrlS
  *
  * Es Client Component porque el visitante ELIGE la duración antes de comprar:
  * esa elección cambia los precios de todas las tarjetas. Con la pasarela activa
- * el botón abre el checkout de dLocal Go; sin sesión se paga como INVITADO (se
+ * el botón abre el checkout de la pasarela; sin sesión se paga como INVITADO (se
  * pide el correo y al volver se crea la cuenta, que reclama el pago). Sin
  * pasarela configurada, la venta se cierra por WhatsApp como antes.
  *
- * El `?pay=` con el que vuelve dLocal se lee ACÁ, en el cliente, y no como
+ * El `?pay=` con el que se vuelve del checkout se lee ACÁ, en el cliente, y no como
  * `searchParams` de la página: leerlo en el server convertía la landing en
  * dinámica y anulaba su `revalidate = 300`.
  */

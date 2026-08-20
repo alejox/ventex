@@ -120,7 +120,7 @@ export default function AdminSalesPage() {
             {sale.contact_email ?? "—"}
           </span>
           {/* El id de la orden va acá y no en su propia columna: hace falta para
-              cruzar con dLocal, pero una columna más obliga a scrollear. */}
+              cruzar con la pasarela, pero una columna más obliga a scrollear. */}
           <span className="block text-[11px] font-mono text-on-surface-variant/70 truncate">
             {sale.order_id}
           </span>

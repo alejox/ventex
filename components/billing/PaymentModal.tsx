@@ -3,22 +3,25 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useSubscriptionBillingStore } from "@/stores/subscription-billing.store";
+import { openEpaycoCheckout } from "@/services/epayco-checkout.service";
 import { formatMoney } from "@/config/plans";
 import { formatLongDate } from "@/lib/planValidity";
 import type { PlanPeriod } from "@/services/subscription.service";
 
 /**
- * Checkout de suscripción con dLocal Go.
+ * Checkout de suscripción con ePayco.
  *
  * El checkout es HOSTEADO: acá sólo se piden los datos del titular (y el correo
- * si es un invitado de la landing) y se redirige a dLocal, donde el pagador
- * elige Nequi, PSE, tarjeta o efectivo. Ningún dato de tarjeta pasa por Ventex,
- * así que no hay Smart Fields ni superficie PCI.
+ * si es un invitado de la landing). El pagador elige PSE, Nequi, tarjeta o
+ * efectivo del lado de ePayco. Ningún dato de tarjeta pasa por Ventex, así que
+ * no hay tokenización ni superficie PCI.
  *
- * Al volver, dLocal manda a `?pay=<orderId>` y el modal reabre en modo polling.
- * El polling consulta `/api/billing/orders/[id]`, que además RELEE el pago en
- * dLocal si sigue pendiente: por eso el flujo cierra aunque la notificación
- * nunca llegue.
+ * Abrir el checkout ya NO es navegar a una URL: el servidor devuelve un
+ * `sessionId` y lo abre el script de ePayco (`epayco-checkout.service.ts`). Por
+ * eso este componente puede fallar en un paso que antes no existía —que el
+ * script de un tercero no cargue—, y ese caso vuelve al formulario con mensaje.
+ *
+ * Al volver, ePayco manda a `?pay=<orderId>` y el modal reabre en modo polling.
  */
 
 /** Clave del correo del invitado, compartida con la landing. */
@@ -190,8 +193,16 @@ export function PaymentModal({
         email: guest ? guestEmail.trim() : undefined,
       });
       setPhase("redirecting");
-      window.location.href = result.redirectUrl;
+      // Con el checkout `standard` esto navega fuera de Ventex y lo que sigue
+      // no llega a correr. Si el script no carga, en cambio, tira y hay que
+      // devolver al formulario: dejar el spinner puesto sería mentirle a
+      // alguien que nunca va a ver un checkout.
+      await openEpaycoCheckout({
+        sessionId: result.sessionId,
+        test: result.testMode,
+      });
     } catch (e) {
+      setPhase("form");
       setError(e instanceof Error ? e.message : "No se pudo iniciar el pago.");
     }
   };
@@ -259,7 +270,7 @@ export function PaymentModal({
           <div className="text-center py-10">
             <Spinner size="lg" />
             <p className="text-sm text-on-surface-variant mt-5">
-              Te estamos llevando al checkout seguro de dLocal…
+              Te estamos llevando al checkout seguro de ePayco…
             </p>
           </div>
         ) : !period ? (
@@ -357,7 +368,7 @@ export function PaymentModal({
                 <div className="mt-5 rounded-xl bg-surface-container-low border border-outline-variant/20 px-4 py-3">
                   <p className="text-[13px] text-on-surface-variant leading-relaxed">
                     En el siguiente paso elegís cómo pagar:{" "}
-                    <strong className="text-on-surface">Nequi, PSE, tarjeta o efectivo</strong>.
+                    <strong className="text-on-surface">PSE, Nequi, tarjeta o efectivo</strong>.
                   </p>
                 </div>
 
@@ -383,10 +394,10 @@ export function PaymentModal({
                 )}
 
                 <p className="text-[11px] text-on-surface-variant mt-3 text-center leading-relaxed">
-                  Pagos procesados de forma segura por dLocal Go. Los datos de tu
-                  pago se comparten con dLocal.{" "}
+                  Pagos procesados de forma segura por ePayco. Los datos de tu
+                  pago se comparten con ePayco.{" "}
                   <a
-                    href="https://www.dlocal.com/legal/privacy-hub/"
+                    href="https://epayco.com/politicas-de-confidencialidad-y-privacidad-epayco/"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-primary hover:underline"
@@ -513,8 +524,8 @@ function WaitingState({ onCancel }: { onCancel: () => void }) {
         Confirmando tu pago
       </h3>
       <p className="text-sm text-on-surface-variant leading-relaxed">
-        Estamos esperando la confirmación de dLocal. Si pagaste con Nequi o PSE
-        puede tardar unos segundos.
+        Estamos esperando la confirmación de ePayco. Si pagaste con PSE puede
+        tardar varios minutos.
       </p>
       <button
         onClick={onCancel}
