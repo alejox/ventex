@@ -270,7 +270,9 @@ export default function PromocionesPage() {
                 <div className="min-w-0 flex-1">
                   <p className="text-sm text-on-surface truncate">{m.reward}</p>
                   <p className="text-xs text-on-surface-variant">
-                    Al canjearlo, el contador del cliente vuelve a cero.
+                    Al canjearlo se descuentan {m.threshold} cortes. El corte que
+                    paga el premio no cuenta; lo que el cliente haya pagado de
+                    más arranca el conteo siguiente.
                   </p>
                 </div>
                 <button

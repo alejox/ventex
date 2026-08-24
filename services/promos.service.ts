@@ -123,8 +123,60 @@ export const PROMO_VARIABLES: { token: string; help: string }[] = [
   { token: "{cortes}", help: "Cortes acumulados hacia el premio" },
   { token: "{total}", help: "Cortes de por vida, sin reiniciar" },
   { token: "{negocio}", help: "Nombre de tu negocio" },
-  { token: "{premio}", help: "El premio ganado. Vacío si todavía no le toca" },
+  { token: "{premio}", help: "Avisa que ya ganó el premio y lo nombra. Vacío si todavía no le toca" },
 ];
+
+/**
+ * El mensaje de la visita en la que se CANJEA, que es otra cosa que el del contador.
+ *
+ * Después de canjear el progreso queda en 0 —y está bien—, pero el POS ofrecía
+ * igual el botón de WhatsApp con "Ya llevás 0 cortes en La Barbe": lo último que
+ * hay que mandarle a alguien a quien se le acaba de entregar un premio. El
+ * contador arranca de nuevo en la visita SIGUIENTE; el de esta visita es este.
+ *
+ * Se llega acá por DOS caminos, y los dos hacen falta. El POS lo llama directo
+ * con el premio que acaba de entregar, porque es el único que lo sabe. Las
+ * demás pantallas caen solas desde `renderPromoMessage` cuando el contador está
+ * en cero con historial detrás — ahí no se sabe QUÉ premio fue, solo que hubo
+ * uno, y el mensaje se arma igual sin nombrarlo.
+ */
+export const DEFAULT_REDEEM_MESSAGE =
+  "¡Listo {cliente}! 🎉 Canjeaste tu promoción en {negocio}. {premio}Tu contador arranca de nuevo — ¡gracias por la fidelidad! 💈";
+
+/**
+ * El premio va en su PROPIA oración, no incrustado con dos puntos.
+ *
+ * Desde Clientes y Promociones no se sabe qué premio se entregó —solo que el
+ * progreso volvió a cero—, y un premio vacío incrustado dejaba "en labarbe: ."
+ * en el mensaje. Con oración propia, ausente simplemente no aparece.
+ */
+function redeemAward(reward: string | null | undefined): string {
+  const premio = reward?.trim();
+  if (!premio) return "";
+  const cierre = /[.!?…]$/.test(premio) ? "" : ".";
+  return `Te llevaste: ${premio}${cierre} `;
+}
+
+/**
+ * Igual que `renderPromoMessage` pero para el canje, y con una diferencia que
+ * importa: acá el premio NO se anuncia como pendiente. Reusar la otra función
+ * le diría "te espera en tu próxima visita" sobre un premio que el cliente
+ * acaba de llevarse.
+ */
+export function renderRedeemMessage(
+  template: string | null,
+  vars: { cliente: string; negocio: string; premio?: string | null; total?: number },
+): string {
+  const base = template?.trim() || DEFAULT_REDEEM_MESSAGE;
+  const literal = (valor: string) => () => valor;
+  return base
+    .replace(/\{cliente\}/g, literal(vars.cliente))
+    .replace(/\{negocio\}/g, literal(vars.negocio))
+    .replace(/\{premio\}/g, literal(redeemAward(vars.premio)))
+    .replace(/\{total\}/g, literal(String(vars.total ?? 0)))
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+}
 
 /**
  * El nombre del negocio tal como lo tiene que leer el cliente.
@@ -226,17 +278,21 @@ export async function createMilestone(input: NewMilestoneInput): Promise<PromoMi
 }
 
 /**
- * Canjea el premio: lo registra y pone el progreso en cero, todo junto.
+ * Canjea el premio: lo registra y reinicia el progreso, todo junto.
  *
  * Va en un RPC porque las dos cosas tienen que pasar o no pasar. Sueltas, si
  * fallara el reinicio el cliente se llevaría el corte gratis con el contador
  * intacto y podría reclamarlo de nuevo.
+ *
+ * Devuelve `progress_after` porque el número final no siempre es cero y el
+ * cajero tiene que poder decírselo al cliente: el corte que pagó el premio no
+ * cuenta, pero el que pagó el cliente arranca el conteo siguiente.
  */
 export async function redeemPromo(
   customerId: string,
   discountApplied?: number | null,
   saleId?: string | null,
-): Promise<{ threshold: number; reward: string }> {
+): Promise<{ threshold: number; reward: string; progress_after: number; rewarded_haircuts: number }> {
   const supabase = createClient();
   const { data, error } = await supabase.rpc("redeem_promo", {
     p_customer_id: customerId,
@@ -244,7 +300,12 @@ export async function redeemPromo(
     p_sale_id: saleId ?? undefined,
   });
   if (error) throw error;
-  return data as unknown as { threshold: number; reward: string };
+  return data as unknown as {
+    threshold: number;
+    reward: string;
+    progress_after: number;
+    rewarded_haircuts: number;
+  };
 }
 
 export async function deleteMilestone(id: string): Promise<void> {
@@ -308,12 +369,53 @@ export function availableReward(progress: number, milestones: PromoMilestone[]):
 }
 
 /**
+ * Cuántos cortes de esta cuenta los pagó el premio, y por lo tanto NO cuentan.
+ *
+ * El contador lo sube un trigger sobre `sale_items` que no pregunta quién pagó,
+ * y el canje corre después de registrar la venta (si corriera antes, un cobro
+ * fallido le quemaría el premio al cliente). Resultado: el corte gratis se
+ * contaba solo, y el cliente arrancaba el ciclo siguiente con un crédito por un
+ * corte que nunca pagó.
+ *
+ * La señal es el descuento contra el precio de la unidad: `promoDiscountFor`
+ * elige la línea más cara que cuenta y descuenta UNA unidad topada en su
+ * precio, así que el premio cubrió un corte entero solo si el descuento llegó a
+ * ese precio. Un 50% no cubre nada: el cliente puso la otra mitad y ese corte
+ * es suyo. Mirar el descuento y no `reward_kind` cubre de una los tres casos
+ * que valen lo mismo — `gratis`, `porcentaje` de 100 y un `monto` que iguala o
+ * pasa el precio.
+ */
+export function haircutsPaidByReward(
+  discountApplied: number | null | undefined,
+  lines: DiscountableLine[],
+  countingServiceIds: string[],
+): number {
+  const descuento = discountApplied ?? 0;
+  if (descuento <= 0) return 0;
+
+  const elegibles = lines.filter((l) => l.isService && countingServiceIds.includes(l.itemId));
+  if (elegibles.length === 0) return 0;
+
+  const tope = Math.max(...elegibles.map((l) => l.unitPrice));
+  if (tope <= 0) return 0;
+  // Un centavo de tolerancia: los precios se redondean a dos decimales y una
+  // comparación exacta contra un float dejaría el corte gratis contando.
+  return descuento >= tope - 0.005 ? 1 : 0;
+}
+
+/**
  * Con cuántos cortes queda el cliente después de canjear.
  *
- * El premio CONSUME su umbral y nada más: quien llegó a 11 y canjea uno de 10
- * arranca el conteo siguiente en 1. Ese corte lo hizo y lo pagó; ponerlo en
- * cero sería cobrarle por haber vuelto antes de pasar por el mostrador, que es
- * justo lo contrario de lo que un programa de fidelidad debería premiar.
+ * Dos reglas, y el orden entre ellas importa:
+ *
+ * 1. El corte que PAGÓ EL PREMIO no cuenta (`rewardedHaircuts`). Se descuenta
+ *    ANTES de elegir el hito, no solo del sobrante: con hitos de 10 y 11, el
+ *    corte gratis empujaba el progreso a 11 y entregaba un premio que el
+ *    cliente no había ganado con cortes propios.
+ * 2. El premio CONSUME su umbral y nada más: quien llegó a 11 PAGANDO y canjea
+ *    uno de 10 arranca el conteo siguiente en 1. Ese corte lo hizo y lo pagó;
+ *    ponerlo en cero sería cobrarle por haber vuelto antes de pasar por el
+ *    mostrador.
  *
  * Descuenta el umbral ENTREGADO, no el más bajo: con hitos de 10 y 20 y un
  * progreso de 21 se entrega el de 20 y queda 1. Descontar 10 dejaría 11 y le
@@ -323,10 +425,72 @@ export function availableReward(progress: number, milestones: PromoMilestone[]):
  * contador). Esta existe para poder DECIRLO antes de confirmar: el cajero tiene
  * que saber con qué número queda el cliente antes de apretar, no después.
  */
-export function progressAfterRedeem(progress: number, milestones: PromoMilestone[]): number {
-  const hito = availableReward(progress, milestones);
-  if (!hito) return progress;
-  return Math.max(progress - hito.threshold, 0);
+export function progressAfterRedeem(
+  progress: number,
+  milestones: PromoMilestone[],
+  rewardedHaircuts = 0,
+): number {
+  const efectivo = Math.max(progress - rewardedHaircuts, 0);
+  const hito = availableReward(efectivo, milestones);
+  if (!hito) return efectivo;
+  return Math.max(efectivo - hito.threshold, 0);
+}
+
+/**
+ * Cómo se ANUNCIA el premio ganado dentro del mensaje.
+ *
+ * `{premio}` rendereaba el nombre pelado, así que al llegar al hito al cliente
+ * le llegaba "...Ya llevás 10 cortes en La Barbe. Corte gratis": una etiqueta
+ * colgando al final de una frase que no la presenta.
+ *
+ * El texto INVITA, nunca confirma. Con un hito de 10, el corte 10 es el último
+ * que el cliente paga y el 11 es el premio: decirle "¡Completaste tu
+ * promoción!" —como decía— se lee como si ya se lo hubiera llevado, un corte
+ * antes de que pase, y hace ver el sistema disparando la promo corrida cuando
+ * lo único corrido es la palabra. "Canjeaste" es del otro mensaje.
+ *
+ * Va acá dentro y no en cada pantalla por una razón concreta: el editor de
+ * Ajustes precarga el texto por defecto y guardarlo lo CONGELA, así que mejorar
+ * el default no le llega a quien ya guardó. Envolver la variable es lo único
+ * que alcanza a las plantillas que ya están en la base.
+ */
+export const PROMO_ACHIEVED_LEAD = "🎉 ¡Ya te ganaste tu premio! En tu próxima visita te espera:";
+
+function promoAward(reward: string | null | undefined): string {
+  const premio = reward?.trim();
+  if (!premio) return "";
+  // Un premio que ya trae su propio cierre no lleva otro: "Corte gratis!." se
+  // lee como un error de la app, no del negocio que lo escribió.
+  const cierre = /[.!?…]$/.test(premio) ? "" : ".";
+  return `${PROMO_ACHIEVED_LEAD} ${premio}${cierre}`;
+}
+
+/**
+ * Con un solo corte, la palabra que sigue al contador va en singular.
+ *
+ * "Ya llevás 1 cortes" pasa en CADA reinicio de ciclo, así que no es un caso de
+ * borde. Se corrige sobre la PLANTILLA y no sobre el texto ya armado por dos
+ * razones: la palabra la escribe el negocio —la variable solo aporta el número,
+ * y por eso no alcanza con cambiar el default—, y tocando solo la palabra pegada
+ * al token no hay forma de arruinar otro "1 algo" del mensaje ("y 1 más" no se
+ * vuelve "y 1 má").
+ *
+ * El plural en `-ces` vuelve a `-z` ("veces" → "vez"); el resto pierde la `s`.
+ * No pretende ser un pluralizador del español: cubre lo que un negocio escribe
+ * al lado de un contador, y una palabra ya en singular no se toca.
+ */
+function singularizarJuntoAl(template: string, token: string, valor: number): string {
+  if (valor !== 1) return template;
+  return template.replace(
+    new RegExp(`\\{${token}\\}(\\s+)(\\p{L}+)`, "gu"),
+    (match, espacio: string, palabra: string) => {
+      if (!palabra.endsWith("s")) return match;
+      const singular = palabra.endsWith("ces")
+        ? `${palabra.slice(0, -3)}z`
+        : palabra.slice(0, -1);
+      return `{${token}}${espacio}${singular}`;
+    },
+  );
 }
 
 /**
@@ -334,18 +498,52 @@ export function progressAfterRedeem(progress: number, milestones: PromoMilestone
  *
  * Una variable sin valor se va a la cadena vacía en vez de quedar como
  * `{premio}` en el mensaje: al cliente le llegaría el nombre de la variable.
+ *
+ * Los valores se insertan con una función de reemplazo y no como string:
+ * `String.replace` interpreta `$&`, `$'` y `$1` en el reemplazo, y el premio y
+ * el nombre del negocio los escribe una persona. Un premio llamado
+ * "50% off $& extra" se corrompía solo al insertarse.
  */
 export function renderPromoMessage(
   template: string | null,
   vars: { cliente: string; cortes: number; negocio: string; premio?: string | null; total?: number },
 ): string {
-  const base = template?.trim() || DEFAULT_PROMO_MESSAGE;
+  // Contador en cero = se canjeó, y mandar "Ya llevás 0 cortes" a quien acaba
+  // de llevarse el premio es lo contrario de lo que un programa de fidelidad
+  // tiene que decir.
+  //
+  // La regla del negocio es "la promoción no se puede canjear si no hay
+  // cortes", y `total` —el histórico de por vida— es esa misma regla en código:
+  // es lo único que separa los DOS ceros que existen, el del que acaba de
+  // canjear y el del que nunca pisó el local. Sin él, a un cliente nuevo se le
+  // anuncia un premio que no existió.
+  //
+  // Va acá y no en cada pantalla: el mensaje sale del POS, de Clientes y de
+  // Promociones, y arreglar una sola fue lo que dejó el problema vivo.
+  if (vars.cortes === 0 && (vars.total ?? 0) > 0) {
+    return renderRedeemMessage(null, {
+      cliente: vars.cliente,
+      negocio: vars.negocio,
+      // Desde Clientes y Promociones no se sabe cuál se entregó; el POS sí, y
+      // por eso llama a `renderRedeemMessage` directo con el premio en la mano.
+      premio: vars.premio,
+      total: vars.total,
+    });
+  }
+
+  const total = vars.total ?? vars.cortes;
+  const base = singularizarJuntoAl(
+    singularizarJuntoAl(template?.trim() || DEFAULT_PROMO_MESSAGE, "cortes", vars.cortes),
+    "total",
+    total,
+  );
+  const literal = (valor: string) => () => valor;
   return base
-    .replace(/\{cliente\}/g, vars.cliente)
-    .replace(/\{total\}/g, String(vars.total ?? vars.cortes))
-    .replace(/\{cortes\}/g, String(vars.cortes))
-    .replace(/\{negocio\}/g, vars.negocio)
-    .replace(/\{premio\}/g, vars.premio ?? "")
+    .replace(/\{cliente\}/g, literal(vars.cliente))
+    .replace(/\{total\}/g, literal(String(vars.total ?? vars.cortes)))
+    .replace(/\{cortes\}/g, literal(String(vars.cortes)))
+    .replace(/\{negocio\}/g, literal(vars.negocio))
+    .replace(/\{premio\}/g, literal(promoAward(vars.premio)))
     // Dos espacios seguidos son la huella de una variable que quedó vacía.
     .replace(/[ \t]{2,}/g, " ")
     .trim();

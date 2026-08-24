@@ -1450,6 +1450,7 @@ export type Database = {
           reward: string
           reward_kind: string | null
           reward_value: number | null
+          rewarded_haircuts: number
           sale_id: string | null
           threshold: number
           user_id: string
@@ -1465,6 +1466,7 @@ export type Database = {
           reward: string
           reward_kind?: string | null
           reward_value?: number | null
+          rewarded_haircuts?: number
           sale_id?: string | null
           threshold: number
           user_id?: string
@@ -1480,6 +1482,7 @@ export type Database = {
           reward?: string
           reward_kind?: string | null
           reward_value?: number | null
+          rewarded_haircuts?: number
           sale_id?: string | null
           threshold?: number
           user_id?: string

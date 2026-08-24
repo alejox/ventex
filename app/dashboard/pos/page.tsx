@@ -40,6 +40,7 @@ import {
   businessDisplayName,
   promoDiscountFor,
   redeemPromo,
+  renderRedeemMessage,
 } from "@/services/promos.service";
 import { TabRenameModal } from "./components/TabRenameModal";
 import { TabCloseConfirmModal } from "./components/TabCloseConfirmModal";
@@ -483,6 +484,13 @@ export default function POSPage() {
       // fallara el cobro, un canje adelantado le habría quemado el premio al
       // cliente por una venta que no existió. Al revés el peor caso es que
       // conserve el premio, y el cajero se entera.
+
+      // Qué premio se entregó en ESTA venta, si se entregó alguno. Solo el POS
+      // lo sabe con nombre y apellido, y por eso su mensaje puede nombrarlo:
+      // desde Clientes o Promociones el contador en cero dice que hubo un canje
+      // pero no cuál.
+      let premioEntregado: string | null = null;
+
       if (outcome === "sold" && promoAplicado && selectedCustomer) {
         try {
           // El id de la venta ata el canje a ella: sin eso, anularla dejaría al
@@ -492,7 +500,16 @@ export default function POSPage() {
             promoAplicado.amount,
             usePosStore.getState().lastSaleId,
           );
-          notifySuccess("Premio canjeado", `${r.reward}. El contador vuelve a cero.`);
+          premioEntregado = r.reward;
+          // El número lo dice la base, no una promesa fija: "vuelve a cero" era
+          // mentira cuando el cliente había pagado un corte de más antes de
+          // canjear, y el cajero se enteraba recién en la ficha del cliente.
+          notifySuccess(
+            "Premio canjeado",
+            r.progress_after === 0
+              ? `${r.reward}. El contador arranca de cero.`
+              : `${r.reward}. El contador arranca en ${r.progress_after}.`,
+          );
         } catch (e) {
           notifyError(
             "La venta quedó, pero el premio NO se canjeó",
@@ -510,18 +527,32 @@ export default function POSPage() {
         Boolean(selectedCustomer) &&
         cart.some((l) => l.item.kind === "service" && promoConfig.serviceIds.includes(l.item.id));
 
-      if (cobroCortes && selectedCustomer) {
+      // El canje también manda mensaje aunque el premio no haya sido un corte:
+      // lo que se le cuenta al cliente es que lo canjeó, no qué se descontó.
+      if ((cobroCortes || premioEntregado) && selectedCustomer) {
         try {
           const { count, progress, phone } = await fetchCustomerPromoTarget(selectedCustomer.id);
-          // El premio sale del PROGRESO; el histórico va como `{total}`.
-          const hito = availableReward(progress, promoMilestones);
-          const texto = renderPromoMessage(promoConfig.message, {
-            cliente: selectedCustomer.full_name.split(" ")[0],
-            cortes: progress,
-            total: count,
-            negocio: businessDisplayName(businessProfile?.businessName, profile?.businessName),
-            premio: hito?.reward ?? null,
-          });
+          const nombre = selectedCustomer.full_name.split(" ")[0];
+          const negocio = businessDisplayName(businessProfile?.businessName, profile?.businessName);
+          // Dos mensajes distintos para dos momentos distintos. En la visita del
+          // canje el contador quedó en 0 y contarlo sería mandarle "Ya llevás 0
+          // cortes" a quien se acaba de llevar el premio; el contador vuelve a
+          // ser noticia en la visita siguiente.
+          const texto = premioEntregado
+            ? renderRedeemMessage(null, {
+                cliente: nombre,
+                negocio,
+                premio: premioEntregado,
+                total: count,
+              })
+            : renderPromoMessage(promoConfig.message, {
+                cliente: nombre,
+                // El premio sale del PROGRESO; el histórico va como `{total}`.
+                cortes: progress,
+                total: count,
+                negocio,
+                premio: availableReward(progress, promoMilestones)?.reward ?? null,
+              });
           const link = buildWhatsappLink(phone, texto);
           if (link) setPromoSend({ link, name: selectedCustomer.full_name.split(" ")[0] });
         } catch {

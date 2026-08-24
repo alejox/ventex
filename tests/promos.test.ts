@@ -10,6 +10,8 @@ import {
   DEFAULT_PROMO_MESSAGE,
   businessDisplayName,
   progressAfterRedeem,
+  haircutsPaidByReward,
+  renderRedeemMessage,
 } from "../services/promos.service";
 import type { PromoMilestone, DiscountableLine } from "../services/promos.service";
 
@@ -208,4 +210,322 @@ test("Sin premio que corresponda, el progreso no se toca", () => {
 test("Un hito inactivo no consume nada", () => {
   const inactivo = hito({ threshold: 10, is_active: false });
   assert.equal(progressAfterRedeem(12, [inactivo]), 12);
+});
+
+// ---------------------------------------------------------------------------
+// El corte que paga el premio no cuenta para el premio siguiente.
+//
+// Medido en produccion: los 5 canjes de la base tenian `progress_before = 11`
+// contra un umbral de 10, y en los 4 que salieron del POS la venta se cobro en
+// $0.00 con un corte que cuenta adentro. Ese 11 no era un cliente que volvio y
+// pago de mas: era el corte gratis, contado por el trigger antes de que el
+// canje corriera. El cliente quedaba con un credito por un corte que nunca
+// pago.
+// ---------------------------------------------------------------------------
+
+test("El corte que el premio pago no cuenta: 10 + corte gratis queda en 0", () => {
+  // El trigger ya sumo el corte gratis (progreso 11), pero lo pago el premio.
+  assert.equal(progressAfterRedeem(11, [hito({ threshold: 10 })], 1), 0);
+});
+
+test("El corte que el cliente PAGO sigue arrastrando", () => {
+  // Mismo 11, pero nadie regalo nada: el corte de mas es suyo y queda 1.
+  assert.equal(progressAfterRedeem(11, [hito({ threshold: 10 })], 0), 1);
+});
+
+test("El hito se elige sobre el progreso EFECTIVO, no sobre el inflado", () => {
+  // Con hitos de 10 y 11, el corte gratis empujaba el progreso a 11 y entregaba
+  // el premio de 11 — uno que el cliente no habia ganado con cortes propios.
+  const hitos = [hito({ threshold: 10, reward: "Corte gratis" }), hito({ id: "m2", threshold: 11, reward: "Barba gratis" })];
+  assert.equal(progressAfterRedeem(11, hitos, 1), 0);
+});
+
+test("Un premio que cubre la unidad entera paga el corte; uno parcial no", () => {
+  const cuentan = ["svc-corte"];
+  const carrito = [linea({ unitPrice: 18000 })];
+
+  // Gratis: el descuento iguala el precio de la unidad. Ese corte lo pago el premio.
+  assert.equal(haircutsPaidByReward(18000, carrito, cuentan), 1);
+  // 50%: el cliente puso la otra mitad, asi que ese corte es suyo y cuenta.
+  assert.equal(haircutsPaidByReward(9000, carrito, cuentan), 0);
+  // Un monto mayor al precio sigue siendo UN corte, no dos.
+  assert.equal(haircutsPaidByReward(25000, carrito, cuentan), 1);
+});
+
+test("Sin descuento o sin cortes en la cuenta, el premio no pago ningun corte", () => {
+  const cuentan = ["svc-corte"];
+  // Premio de tipo `texto`: se entrega a mano y no toca la cuenta.
+  assert.equal(haircutsPaidByReward(null, [linea()], cuentan), 0);
+  // El premio se aplico sobre una cuenta sin cortes que cuenten.
+  assert.equal(haircutsPaidByReward(18000, [linea({ itemId: "otro" })], cuentan), 0);
+  assert.equal(haircutsPaidByReward(18000, [], cuentan), 0);
+});
+
+// ---------------------------------------------------------------------------
+// Al completar la promo, el mensaje lo ANUNCIA.
+//
+// `{premio}` renderizaba el nombre pelado del premio, asi que al llegar al hito
+// al cliente le llegaba "...Ya llevas 10 cortes en La Barbe. Corte gratis" — una
+// etiqueta colgando al final de una frase que no la presenta. El anuncio se
+// arma DENTRO de `renderPromoMessage` y no en cada pantalla: es lo unico que
+// alcanza a las plantillas YA GUARDADAS. El editor precarga el default y
+// guardarlo lo congela, asi que mejorar el default no le llega a quien ya
+// guardo — y el unico negocio con promos activas guardo exactamente el default.
+// ---------------------------------------------------------------------------
+
+test("Al llegar al hito el mensaje anuncia la promo completada", () => {
+  const texto = renderPromoMessage(DEFAULT_PROMO_MESSAGE, {
+    cliente: "Juan",
+    cortes: 10,
+    negocio: "La Barbe",
+    premio: "Corte gratis",
+  });
+  assert.ok(/te espera|próxima/i.test(texto), "tiene que anunciarlo, no solo nombrarlo");
+  assert.ok(texto.includes("Corte gratis"), "y el premio sigue nombrado");
+  assert.ok(texto.includes("10 cortes"), "el contador sigue estando");
+});
+
+test("Sin premio ganado no se anuncia nada", () => {
+  const texto = renderPromoMessage(DEFAULT_PROMO_MESSAGE, {
+    cliente: "Ana",
+    cortes: 3,
+    negocio: "La Barbe",
+    premio: null,
+  });
+  assert.ok(!/te espera|te ganaste/i.test(texto), "a los 3 cortes no gano nada");
+  assert.ok(!texto.includes("{"), "y la variable no le llega cruda al cliente");
+});
+
+test("El anuncio alcanza a la plantilla YA GUARDADA", () => {
+  // El texto exacto que el negocio tiene guardado hoy en `settings`.
+  const guardada = "¡Hola {cliente}! Gracias por tu visita 💈 Ya llevás {cortes} cortes en {negocio}. {premio}";
+  const texto = renderPromoMessage(guardada, {
+    cliente: "Juan",
+    cortes: 10,
+    negocio: "La Barbe",
+    premio: "Corte gratis",
+  });
+  assert.ok(/te espera/i.test(texto));
+});
+
+test("El anuncio no duplica el cierre que el premio ya trae", () => {
+  const con = (premio: string) =>
+    renderPromoMessage("{premio}", { cliente: "J", cortes: 10, negocio: "X", premio });
+
+  assert.ok(!con("Corte gratis.").includes(".."), "un premio que ya termina en punto no lleva otro");
+  assert.ok(!con("¡Corte gratis!").includes("!."), "ni uno que termina en signo");
+  assert.ok(con("Corte gratis").endsWith("."), "y al que no trae cierre se le pone");
+});
+
+test("Un premio con caracteres de reemplazo no rompe el mensaje", () => {
+  // `String.replace` interpreta `$&` y `$'` en el string de reemplazo: un premio
+  // llamado "50% off $& mas" se corrompia solo al insertarse.
+  const texto = renderPromoMessage("{premio}", {
+    cliente: "J", cortes: 10, negocio: "X", premio: "Corte $& gratis",
+  });
+  assert.ok(texto.includes("Corte $& gratis"), "el premio se inserta literal");
+});
+
+// ---------------------------------------------------------------------------
+// Al canjear, el mensaje dice que CANJEO — no cuenta cortes.
+//
+// Despues de canjear el progreso queda en 0, y eso esta bien. Lo que estaba mal
+// era el mensaje: el POS ofrecia igual el boton "Enviar a Juan" con el texto
+// "Ya llevas 0 cortes en La Barbe", que es lo ultimo que hay que mandarle a
+// alguien a quien se le acaba de entregar un premio. El contador arranca de
+// nuevo en la visita SIGUIENTE; el mensaje de esta visita es otro.
+// ---------------------------------------------------------------------------
+
+test("El mensaje de canje dice que canjeo y nombra el premio", () => {
+  const texto = renderRedeemMessage(null, {
+    cliente: "Juan",
+    negocio: "La Barbe",
+    premio: "Corte gratis",
+    total: 41,
+  });
+  assert.ok(/[Cc]anjeaste/.test(texto), "tiene que decir que lo canjeo");
+  assert.ok(texto.includes("Corte gratis"), "y nombrar el premio entregado");
+  assert.ok(texto.includes("La Barbe"));
+  assert.ok(!texto.includes("{"), "ninguna variable puede llegarle cruda al cliente");
+});
+
+test("El mensaje de canje NO cuenta cortes ni anuncia una promo ganada", () => {
+  const texto = renderRedeemMessage(null, {
+    cliente: "Juan", negocio: "La Barbe", premio: "Corte gratis", total: 41,
+  });
+  assert.ok(!texto.includes("0 cortes"), "el cero no se le menciona al cliente");
+  assert.ok(!/te espera/i.test(texto), "eso es el mensaje del hito, no el del canje");
+});
+
+test("El premio del canje se nombra, pero NO se anuncia como ganado", () => {
+  // `renderPromoMessage` envuelve `{premio}` en "¡Ya te ganaste tu premio!".
+  // Reusar esa funcion para el canje diria que gano un premio que acaba de usar.
+  const texto = renderRedeemMessage("{premio}", {
+    cliente: "J", negocio: "X", premio: "Corte gratis", total: 1,
+  });
+  assert.equal(texto, "Te llevaste: Corte gratis.");
+  assert.ok(!/te espera/i.test(texto), "ya lo uso: no lo esta esperando");
+});
+
+test("El canje tambien inserta literal y cae al default", () => {
+  assert.ok(
+    renderRedeemMessage("{premio}", { cliente: "J", negocio: "X", premio: "Corte $& gratis", total: 1 })
+      .includes("Corte $& gratis"),
+  );
+  // Una plantilla en blanco cae al default en vez de mandar un mensaje vacio.
+  assert.ok(renderRedeemMessage("   ", { cliente: "Ana", negocio: "X", premio: "P", total: 2 }).length > 0);
+  // `{total}` es el historico de por vida: el canje no lo toca.
+  assert.equal(
+    renderRedeemMessage("{cliente} lleva {total}", { cliente: "Ana", negocio: "X", premio: "P", total: 41 }),
+    "Ana lleva 41",
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Progreso 0 CON historial = la ultima visita fue la del canje.
+//
+// El dueno lo pidio explicito despues de que le plantee el riesgo del cero
+// ambiguo, asi que se implementa — pero se cierra el agujero que ese riesgo
+// senalaba con el dato que la funcion YA recibe: `{total}`, el historico de por
+// vida. Progreso 0 con total 0 es el cliente nuevo que nunca vino, y a ese no se
+// le dice que canjeo nada. Progreso 0 con total > 0 solo lo deja un canje.
+//
+// Va en `renderPromoMessage` y no en cada pantalla porque el mensaje sale de
+// TRES lugares —POS, Clientes y Promociones— y arreglar uno solo fue justamente
+// lo que dejo el problema vivo.
+// ---------------------------------------------------------------------------
+
+test("Progreso 0 con historial dice que canjeo, no '0 cortes'", () => {
+  const texto = renderPromoMessage(DEFAULT_PROMO_MESSAGE, {
+    cliente: "Luis",
+    cortes: 0,
+    total: 44,
+    negocio: "labarbe",
+    premio: null,
+  });
+  assert.ok(/[Cc]anjeaste/.test(texto), "tiene que decir que canjeo");
+  assert.ok(!texto.includes("0 cortes"), "el cero no se le menciona al cliente");
+});
+
+test("El cliente que nunca vino no canjeo nada: hace falta HABER hecho cortes", () => {
+  // "La promocion nunca se podra canjear si no hay cortes, eso es imposible."
+  // Es la regla del negocio, y esta es esa misma regla puesta en codigo: sin
+  // cortes no hubo canje. `total` es el historico de por vida, el unico dato
+  // que separa los dos ceros — el del que acaba de canjear y el del que nunca
+  // piso el local. Decirle a un cliente nuevo que canjeo algo es la clase de
+  // mensaje que lo hace desconfiar del negocio, no del sistema.
+  const texto = renderPromoMessage(DEFAULT_PROMO_MESSAGE, {
+    cliente: "Ana",
+    cortes: 0,
+    total: 0,
+    negocio: "labarbe",
+    premio: null,
+  });
+  assert.ok(!/[Cc]anjeaste/.test(texto), "nunca vino: decirle que canjeo es mentirle");
+});
+
+test("El aviso de canje tambien alcanza a la plantilla ya guardada", () => {
+  const guardada = "¡Hola {cliente}! Gracias por tu visita 💈 Ya llevás {cortes} cortes en {negocio}. {premio}";
+  const texto = renderPromoMessage(guardada, {
+    cliente: "Luis", cortes: 0, total: 44, negocio: "labarbe", premio: null,
+  });
+  assert.ok(/[Cc]anjeaste/.test(texto));
+  assert.ok(!texto.includes("0 cortes"));
+});
+
+test("Sin premio conocido el mensaje de canje igual se entiende", () => {
+  // Desde Clientes o Promociones no se sabe QUE premio se entrego —solo que el
+  // progreso volvio a cero—, y el mensaje tiene que funcionar igual.
+  const texto = renderRedeemMessage(null, { cliente: "Luis", negocio: "labarbe", premio: "", total: 44 });
+  assert.ok(/[Cc]anjeaste/.test(texto));
+  assert.ok(!texto.includes(": ."), "no puede quedar el hueco del premio ausente");
+  assert.ok(!texto.includes("  "), "ni dos espacios seguidos");
+});
+
+// ---------------------------------------------------------------------------
+// El hito AVISA, el hito + 1 CANJEA. Dos palabras distintas.
+//
+// Con un hito de 10, el corte 10 es el ultimo que el cliente PAGA y el 11 es el
+// premio. El mensaje del 10 decia "¡Completaste tu promocion!", que se lee como
+// si ya la hubiera canjeado — un corte antes de que pase. Desde afuera parece
+// que el sistema dispara la promo corrida, cuando lo unico corrido es el texto.
+// ---------------------------------------------------------------------------
+
+test("En el hito el mensaje AVISA que le espera el premio, no que lo canjeo", () => {
+  const texto = renderPromoMessage(DEFAULT_PROMO_MESSAGE, {
+    cliente: "Luis", cortes: 10, total: 10, negocio: "labarbe", premio: "Corte gratis",
+  });
+  assert.ok(!/[Cc]anjeaste/.test(texto), "todavia no canjeo nada: eso pasa en el corte 11");
+  assert.ok(/te espera|próxima/i.test(texto), "tiene que invitarlo a venir a buscarlo");
+  assert.ok(texto.includes("Corte gratis"), "y decirle que se gano");
+  assert.ok(texto.includes("10 cortes"), "el contador sigue estando");
+});
+
+test("En el hito + 1 el mensaje dice que CANJEO, y ahi el contador reinicia", () => {
+  const texto = renderRedeemMessage(null, {
+    cliente: "Luis", negocio: "labarbe", premio: "Corte gratis", total: 11,
+  });
+  assert.ok(/[Cc]anjeaste/.test(texto));
+  assert.ok(!/te espera/i.test(texto), "ya no lo espera: se lo llevo");
+  // Y el contador queda en cero, no en 1: el corte 11 lo pago el premio.
+  assert.equal(progressAfterRedeem(11, [hito({ threshold: 10 })], 1), 0);
+});
+
+// ---------------------------------------------------------------------------
+// Con un solo corte, la palabra va en singular.
+//
+// "Ya llevas 1 cortes" pasa en CADA reinicio de ciclo, asi que no es un caso
+// raro. La palabra la escribe el negocio en su plantilla —la variable solo
+// aporta el numero—, asi que se singulariza la palabra que sigue al token, no
+// cualquier "1 algo" del texto: "Ya llevas 1 mas" no se toca.
+// ---------------------------------------------------------------------------
+
+test("Un solo corte va en singular", () => {
+  const g = "¡Hola {cliente}! Ya llevás {cortes} cortes en {negocio}.";
+  assert.ok(
+    renderPromoMessage(g, { cliente:"Luis", cortes:1, total:1, negocio:"labarbe", premio:null })
+      .includes("1 corte en"),
+  );
+});
+
+test("Del 2 en adelante sigue en plural, y el 0 tambien", () => {
+  const g = "{cortes} cortes";
+  const v = (n: number) => renderPromoMessage(g, { cliente:"L", cortes:n, total:n, negocio:"X", premio:null });
+  assert.equal(v(2), "2 cortes");
+  assert.equal(v(7), "7 cortes");
+  // "0 cortes" es correcto en español: el cero va en plural.
+  assert.equal(v(0), "0 cortes");
+});
+
+test("Los que TERMINAN en 1 siguen en plural", () => {
+  // 11 y 21 son la trampa de cualquier regla que mire solo el ultimo digito.
+  const g = "{cortes} cortes";
+  assert.equal(renderPromoMessage(g, { cliente:"L", cortes:11, total:11, negocio:"X", premio:null }), "11 cortes");
+  assert.equal(renderPromoMessage(g, { cliente:"L", cortes:21, total:21, negocio:"X", premio:null }), "21 cortes");
+});
+
+test("Funciona con la palabra que el negocio haya escrito, no solo 'cortes'", () => {
+  const uno = (plantilla: string) =>
+    renderPromoMessage(plantilla, { cliente:"L", cortes:1, total:1, negocio:"X", premio:null });
+  assert.equal(uno("{cortes} visitas"), "1 visita");
+  assert.equal(uno("{cortes} servicios"), "1 servicio");
+  // El plural en -ces vuelve a -z: "1 veces" seria peor que el problema original.
+  assert.equal(uno("{cortes} veces"), "1 vez");
+  // Una palabra que ya esta en singular no se toca.
+  assert.equal(uno("{cortes} corte"), "1 corte");
+});
+
+test("Solo se toca la palabra pegada al token, no cualquier 1 del mensaje", () => {
+  // "1 más" no puede volverse "1 má".
+  const texto = renderPromoMessage("{cortes} cortes y 1 más", {
+    cliente:"L", cortes:1, total:1, negocio:"X", premio:null,
+  });
+  assert.equal(texto, "1 corte y 1 más");
+});
+
+test("El historico tambien se singulariza", () => {
+  assert.equal(
+    renderPromoMessage("{total} cortes de por vida", { cliente:"L", cortes:5, total:1, negocio:"X", premio:null }),
+    "1 corte de por vida",
+  );
 });
