@@ -545,9 +545,11 @@ export default async function LandingPage() {
         <div className="max-w-6xl mx-auto px-6 py-10 flex flex-col sm:flex-row items-center justify-between gap-4">
           <LogoHorizontal className="w-[96px] h-[26px]" />
           <p className="text-xs text-on-surface-variant">© 2026 Ventex. Todos los derechos reservados.</p>
-          <div className="flex gap-6 text-xs font-medium text-on-surface-variant">
+          <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-xs font-medium text-on-surface-variant">
             <Link href="/login" className="hover:text-on-surface transition-colors">Iniciar sesión</Link>
             <Link href="/register" className="hover:text-on-surface transition-colors">Registro</Link>
+            <Link href="/privacidad" className="hover:text-on-surface transition-colors">Privacidad</Link>
+            <Link href="/terminos" className="hover:text-on-surface transition-colors">Términos</Link>
           </div>
         </div>
       </footer>

@@ -201,9 +201,12 @@ export default function RegisterPage() {
             <span className="text-[13px] text-on-surface-variant font-medium mb-4">
               Paso 1 de {totalSteps}: Perfil de Negocio
             </span>
+            {/* En pestaña nueva a propósito: el registro es un formulario de
+                varios pasos con estado en el cliente, y navegar fuera para leer
+                un documento legal le borra al visitante todo lo que ya escribió. */}
             <div className="flex gap-4 text-[12px] text-on-surface-variant/70">
-              <Link href="#" className="hover:text-on-surface transition-colors">Términos y Condiciones</Link>
-              <Link href="#" className="hover:text-on-surface transition-colors">Privacidad</Link>
+              <Link href="/terminos" target="_blank" rel="noreferrer" className="hover:text-on-surface transition-colors">Términos y Condiciones</Link>
+              <Link href="/privacidad" target="_blank" rel="noreferrer" className="hover:text-on-surface transition-colors">Privacidad</Link>
               <Link href="#" className="hover:text-on-surface transition-colors">Ayuda</Link>
             </div>
           </div>
@@ -484,7 +487,14 @@ export default function RegisterPage() {
                 </svg>
               </div>
               <label htmlFor="terms" className="text-[12px] text-on-surface-variant cursor-pointer select-none">
-                Acepto los <Link href="#" className="text-primary hover:underline">Términos y Condiciones</Link>
+                Acepto los{" "}
+                <Link href="/terminos" target="_blank" rel="noreferrer" className="text-primary hover:underline">
+                  Términos y Condiciones
+                </Link>{" "}
+                y la{" "}
+                <Link href="/privacidad" target="_blank" rel="noreferrer" className="text-primary hover:underline">
+                  Política de Privacidad
+                </Link>
               </label>
             </div>
 
