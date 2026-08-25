@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useInventoryStore } from "@/stores/inventory.store";
 import { CategoryQuickModal } from "@/components/CategoryQuickModal";
 import { BarcodeField } from "@/components/BarcodeField";
 import { useBarcodeLookup } from "@/lib/useBarcodeLookup";
+import { canAutofill } from "@/lib/autofill";
 import type { OpenFactsProduct } from "@/services/openfacts.service";
 import { useBusinessTax } from "@/lib/useBusinessTax";
 import { usePricePair } from "@/lib/usePricePair";
@@ -103,18 +104,46 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
       ? (parseFloat(quantity || "0") || 0) * Math.max(parseInt(unitsPerPackage || "1") || 1, 1)
       : parseFloat(quantity || "0") || 0;
 
+  /**
+   * Qué autocompletamos nosotros. Distingue un campo que llenó un escaneo
+   * anterior —que se puede reemplazar— de uno que tipeó la persona, que no.
+   * Sin esto, el segundo código escaneado no cambiaba nada.
+   */
+  const autoFilledRef = useRef<{ name?: string; unit?: string; image?: string }>({});
+
   const handleBarcodeFound = useCallback(
     (product: OpenFactsProduct) => {
-      if (!name.trim() && product.name) setName(product.name);
-      if (unit === "Unidad" && product.quantity) {
+      const auto = autoFilledRef.current;
+
+      setName((prev) => {
+        if (!product.name || !canAutofill(prev, auto.name)) return prev;
+        auto.name = product.name;
+        return product.name;
+      });
+
+      if (product.quantity) {
         const u = parseQuantityUnit(product.quantity);
-        if (u) setUnit(u);
+        if (u) {
+          setUnit((prev) => {
+            // "Unidad" es el default del formulario: nadie lo eligió.
+            if (prev !== "Unidad" && !canAutofill(prev, auto.unit)) return prev;
+            auto.unit = u;
+            return u;
+          });
+        }
       }
-      if (product.imageUrl && !imagePreview) {
-        setImagePreview(product.imageUrl);
+
+      const imageUrl = product.imageUrl;
+      if (imageUrl) {
+        setImagePreview((prev) => {
+          // Si eligió una imagen a mano, `prev` es un blob suyo y no se toca.
+          if (!canAutofill(prev, auto.image)) return prev;
+          auto.image = imageUrl;
+          return imageUrl;
+        });
       }
     },
-    [name, unit, imagePreview],
+    [],
   );
 
   const { product: lookedUp, searching } = useBarcodeLookup(barcode, handleBarcodeFound);

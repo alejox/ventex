@@ -36,6 +36,10 @@ import {
  *    servicio.
  */
 
+/** `billing_orders.id` es uuid: lo que no tenga esta forma no se consulta. */
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /**
  * ePayco postea la confirmación como formulario, pero hay integraciones que la
  * reciben en JSON. Se aceptan las dos: equivocarse acá no da un error visible,
@@ -90,20 +94,50 @@ export async function POST(request: NextRequest) {
   const orderUuid = (fields.x_extra1 ?? "").trim();
   const invoice = (fields.x_id_invoice ?? fields.x_id_factura ?? "").trim();
 
-  const query = admin.from("billing_orders").select(BILLING_ORDER_SELECT);
-  const { data: order } = orderUuid
-    ? await query.eq("id", orderUuid).maybeSingle()
-    : invoice
-      ? await query.eq("order_id", invoice).maybeSingle()
-      : { data: null };
+  let order: BillingOrderRow | null = null;
+
+  // El uuid se valida ANTES de consultar. `.eq('id', <no-uuid>)` contra una
+  // columna uuid no devuelve cero filas: revienta con 22P02, y como acá sólo se
+  // desestructuraba `data`, el error quedaba invisible y la confirmación de un
+  // pago REAL se respondía 200 —o sea, ePayco dejaba de reintentar— por venir
+  // con un extra1 mal formado.
+  if (UUID_PATTERN.test(orderUuid)) {
+    const { data, error } = await admin
+      .from("billing_orders")
+      .select(BILLING_ORDER_SELECT)
+      .eq("id", orderUuid)
+      .maybeSingle();
+    if (error) console.error("webhook order lookup by uuid failed", orderUuid, error);
+    order = (data as BillingOrderRow | null) ?? null;
+  }
+
+  // El respaldo por `invoice` corre siempre que el uuid no haya resuelto, no
+  // sólo cuando viene vacío: ese ES el caso que el respaldo existe para cubrir
+  // —que ePayco no devuelva los extras en algún medio de pago—, y antes nunca
+  // llegaba a ejecutarse porque bastaba con que `extra1` trajera algo.
+  if (!order && invoice) {
+    const { data, error } = await admin
+      .from("billing_orders")
+      .select(BILLING_ORDER_SELECT)
+      .eq("order_id", invoice)
+      .maybeSingle();
+    if (error) console.error("webhook order lookup by invoice failed", invoice, error);
+    order = (data as BillingOrderRow | null) ?? null;
+  }
 
   if (!order) {
     // Puede ser un cobro que no nació en Ventex. Cerrar con 200 para que ePayco
-    // no reintente contra una orden que no existe.
+    // no reintente contra una orden que no existe. Se registra igual: si esto
+    // aparece con una referencia nuestra, es una confirmación que se perdió.
+    console.warn("epayco confirmation without order", {
+      ref: fields.x_ref_payco,
+      extra1: orderUuid || null,
+      invoice: invoice || null,
+    });
     return NextResponse.json({ ok: true });
   }
 
-  const row = order as BillingOrderRow;
+  const row = order;
   const code = confirmationCode(fields);
   const ref = (fields.x_ref_payco ?? "").trim() || null;
 
@@ -126,6 +160,10 @@ export async function POST(request: NextRequest) {
     currency: (fields.x_currency_code ?? "").trim() || null,
     methodLabel: (fields.x_franchise ?? "").trim() || null,
     reason: (fields.x_response_reason_text ?? fields.x_response ?? "").trim() || null,
+    // Redundante con el corte de arriba —que ya devolvió 200 para una prueba en
+    // producción— y así tiene que quedar: la guarda de verdad vive en
+    // `applyObservationToOrder`, que es por donde pasan los DOS caminos.
+    test: isTestTransaction(fields),
   };
 
   try {

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParam } from "@/lib/useUrlState";
 import { LogoVertical } from "@/components/Logo";
 import { GoogleButton } from "@/components/GoogleButton";
 import { useActionState, useState } from "react";
@@ -11,6 +12,16 @@ const initialState: LoginState = { error: null };
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [state, formAction, pending] = useActionState(login, initialState);
+  /**
+   * A dónde volver después de entrar. Lo pone `proxy.ts` cuando manda acá a
+   * alguien sin sesión, y el caso que importa es el regreso del checkout: sin
+   * esto se entraba al POS y la orden recién pagada quedaba huérfana.
+   *
+   * Se lee con el helper del repo y no con `useSearchParams`: ese exige un
+   * límite de Suspense en una página estática como esta y rompería el build.
+   * La acción lo valida con `isSafeNext` antes de redirigir.
+   */
+  const next = useSearchParam("next") ?? "";
 
   return (
     <div className="w-full max-w-[480px] mx-auto">
@@ -29,6 +40,7 @@ export default function LoginPage() {
       </div>
 
       <form action={formAction} className="space-y-5">
+        {next && <input type="hidden" name="next" value={next} />}
         {state.error && (
           <div className="bg-error-container/20 text-error-dim text-[13px] px-4 py-3 rounded-lg border border-error-container/30">
             {state.error}

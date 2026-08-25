@@ -126,6 +126,25 @@ export async function setRecurring(enabled: boolean): Promise<void> {
 }
 
 /**
+ * Relee en ePayco las órdenes pendientes del dueño y acredita las pagadas.
+ *
+ * Es la red para el pago que se cobró y cuya notificación nunca llegó: sin
+ * esto, sólo se reconciliaba la orden que viniera en `?pay=` de la URL.
+ * Idempotente, así que la pantalla la llama en cada carga.
+ */
+export async function reconcilePendingOrders(): Promise<{
+  checked: number;
+  activated: number;
+}> {
+  const response = await fetch("/api/billing/reconcile", { method: "POST" });
+  const data = await readJson<{ checked: number; activated: number }>(response);
+  if (!response.ok) {
+    throw new Error(data.error ?? "No se pudo revisar el estado de tus pagos.");
+  }
+  return { checked: data.checked ?? 0, activated: data.activated ?? 0 };
+}
+
+/**
  * Reclama los pagos hechos como invitado. Idempotente: se puede llamar en cada
  * carga sin efecto si no hay nada pendiente.
  */

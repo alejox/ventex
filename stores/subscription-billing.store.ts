@@ -6,6 +6,7 @@ import {
   fetchBillingStatus,
   setRecurring as setRecurringRequest,
   claimGuestOrders,
+  reconcilePendingOrders,
   type SubscribePayer,
   type SubscribeResult,
   type BillingOrder,
@@ -41,6 +42,8 @@ interface BillingState {
   loadBilling: () => Promise<void>;
   setRecurring: (enabled: boolean) => Promise<void>;
   claim: () => Promise<number>;
+  /** Relee las órdenes pendientes en ePayco. Devuelve cuántas se acreditaron. */
+  reconcile: () => Promise<number>;
   reset: () => void;
 }
 
@@ -113,6 +116,21 @@ export const useSubscriptionBillingStore = create<BillingState>((set, get) => ({
     } catch {
       // No es un error accionable para el usuario: si no había nada que
       // reclamar, o la sesión no corresponde, la pantalla sigue igual.
+      return 0;
+    }
+  },
+
+  /**
+   * Igual que `claim`: se traga el error a propósito. Es una red de seguridad
+   * que corre sola en cada carga, no una acción que alguien pidió — si ePayco
+   * no contesta, la pantalla muestra el estado guardado y no un error que el
+   * dueño no puede accionar.
+   */
+  reconcile: async () => {
+    try {
+      const { activated } = await reconcilePendingOrders();
+      return activated;
+    } catch {
       return 0;
     }
   },

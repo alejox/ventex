@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 import { authMessage } from "@/lib/errors";
 import { REGISTRABLE_BUSINESS_TYPES, type BusinessType, type Modules } from "@/config/business";
+import { isSafeNext } from "@/lib/safe-next";
 
 /**
  * Acciones de auth unificadas: tanto login como registro se hacen EXCLUSIVAMENTE
@@ -28,7 +29,18 @@ export async function login(
   if (error) return { error: authMessage(error) };
 
   revalidatePath("/", "layout");
-  redirect("/dashboard/pos");
+
+  // Volver a donde iba, no al POS.
+  //
+  // El destino lo puso `proxy.ts` al mandar acá a alguien sin sesión. El caso
+  // que lo hizo necesario: se vuelve del checkout de ePayco a
+  // `/dashboard/subscription?pay=<orden>`, la cookie no viaja, y aterrizar en el
+  // POS dejaba la orden recién PAGADA sin que nadie la mirara.
+  //
+  // `isSafeNext` no es opcional: este valor viene de la URL y redirigir a ciegas
+  // a donde diga un parámetro es un redirect abierto.
+  const next = String(formData.get("next") ?? "");
+  redirect(isSafeNext(next) ? next : "/dashboard/pos");
 }
 
 export type SignupState = { success: boolean; error: string | null };
