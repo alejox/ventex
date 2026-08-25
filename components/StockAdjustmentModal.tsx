@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import { useMovementsStore } from "@/stores/inventory-movements.store";
 import { useInventoryStore } from "@/stores/inventory.store";
-import { isServiceItem } from "@/services/inventory.service";
+import { tracksStock } from "@/services/inventory.service";
 import { applyMovement, stockUnitsOf } from "@/lib/stock";
 import { StockQuantityFields } from "@/components/StockQuantityFields";
 
@@ -58,13 +58,13 @@ export function StockAdjustmentModal({ preselectedProductId, onClose, onSuccess 
   // que la salida en exceso se bloquea acá en vez de dejar enviar y fallar.
   const quantityValid = quantityInRange && !exceedsStock;
 
-  // Los servicios no llevan inventario: no hay entrada, salida ni ajuste que
-  // registrarles. El RPC los rechaza, así que ni siquiera se ofrecen.
   const filteredProducts = useMemo(
     () =>
       products.filter(
         (p) =>
-          !isServiceItem(p) &&
+          // Sin inventario no hay entrada, salida ni ajuste que registrar: el
+          // RPC los rechaza, así que ni siquiera se ofrecen.
+          tracksStock(p) &&
           (p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
             p.sku.toLowerCase().includes(productSearch.toLowerCase()))
       ),
@@ -198,6 +198,7 @@ export function StockAdjustmentModal({ preselectedProductId, onClose, onSuccess 
               onPackagesChange={setPackages}
               loose={loose}
               onLooseChange={setLoose}
+              allowsFractions={selectedProduct?.allows_fractions ?? false}
               idPrefix="adjust"
             />
             {type === "adjust" && (

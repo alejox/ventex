@@ -28,6 +28,16 @@ export interface Product {
   package_price: number | null;
   stock_level: number;
   minimum_stock: number;
+  /** false = no se le cuentan existencias (verduras, granel). */
+  tracks_stock: boolean;
+  /** true = el precio se asigna al vender; `price` queda como sugerido. */
+  open_price: boolean;
+  /**
+   * Si admite media unidad. Lo decide la UNIDAD DE MEDIDA, no una preferencia:
+   * es una columna generada en la base (`kg`, `g`, `lb`, `L`, `ml`, `m`, `cm`),
+   * así que no se escribe desde acá y no puede divergir entre pantallas.
+   */
+  allows_fractions: boolean;
   image_url: string | null;
   has_commission: boolean;
   commission_type: string | null;
@@ -120,6 +130,8 @@ export interface NewProductInput {
   commission_type: string;
   commission_value: string;
   units_per_package?: string;
+  tracks_stock?: boolean;
+  open_price?: boolean;
 }
 
 
@@ -197,6 +209,29 @@ export function getUnitCost(product: { purchase_price?: number | null; units_per
 }
 
 /**
+ * Si a este ítem se le cuentan las existencias.
+ *
+ * Dos motivos para que no: es un servicio, o el negocio marcó el producto como
+ * "no lleva inventario". El segundo existe por las verduras — las papas llegan
+ * y una parte se pudre, y el conteo no da nunca. Un número que no significa
+ * nada es peor que no tener número: aparece en el KPI, dispara reposiciones
+ * falsas y valoriza capital que no existe.
+ *
+ * El campo ausente es `true`, no `false`: `tracks_stock` no existía antes de la
+ * migración, y asumir lo contrario apagaría el inventario de todo el catálogo.
+ *
+ * Es el ÚNICO predicado de esto en la app. Toda pantalla que muestre, limite o
+ * sume stock tiene que preguntar por acá.
+ */
+export function tracksStock(item: {
+  unit?: string | null;
+  tracks_stock?: boolean | null;
+}): boolean {
+  if (isServiceItem(item)) return false;
+  return item.tracks_stock !== false;
+}
+
+/**
  * Calcula el valor total del inventario de una lista de productos usando el
  * costo unitario real normalizado * stock_level.
  *
@@ -209,10 +244,11 @@ export function calculateInventoryValue(
     purchase_price?: number | null;
     units_per_package?: number | null;
     stock_level: number;
+    tracks_stock?: boolean | null;
   }>
 ): number {
   return products.reduce(
-    (sum, p) => (isServiceItem(p) ? sum : sum + getUnitCost(p) * (p.stock_level || 0)),
+    (sum, p) => (tracksStock(p) ? sum + getUnitCost(p) * (p.stock_level || 0) : sum),
     0,
   );
 }
@@ -267,7 +303,7 @@ export function handlePresentationModeChange(
 const PRODUCT_COLUMNS =
   "id, created_at, updated_at, user_id, name, sku, barcode, price, package_price, stock_level, image_url, status, " +
   "category_id, unit, distributor_id, minimum_stock, icon, has_commission, commission_type, " +
-  "commission_value, units_per_package";
+  "commission_value, units_per_package, tracks_stock, open_price, allows_fractions";
 
 const PRODUCT_SELECT = `${PRODUCT_COLUMNS}, categories(name), distributors(business_name)`;
 
@@ -408,8 +444,22 @@ function normalizeBarcode(raw: string | undefined): string | null {
  * ser la que decide.
  */
 function stockPatch(input: NewProductInput): { stock_level: number; minimum_stock?: number } {
-  if (isServiceItem(input)) return { stock_level: 0, minimum_stock: 0 };
-  return { stock_level: parseInt(input.stock_level || "0") };
+  // Sin inventario el conteo arranca —y se queda— en cero, con mínimo cero: si
+  // no, un producto que nadie va a contar pediría reposición para siempre.
+  if (isServiceItem(input) || input.tracks_stock === false) {
+    return { stock_level: 0, minimum_stock: 0 };
+  }
+  // `parseFloat`: lo que se vende por peso también se da de alta por peso, y
+  // `parseInt("0.75")` es 0 — el medio kilo desaparecía sin un solo aviso.
+  return { stock_level: parseFloat(input.stock_level || "0") || 0 };
+}
+
+/** Las dos banderas, con el default seguro: producto normal, precio de catálogo. */
+function flagsPatch(input: NewProductInput): { tracks_stock: boolean; open_price: boolean } {
+  return {
+    tracks_stock: input.tracks_stock !== false,
+    open_price: input.open_price === true,
+  };
 }
 
 export async function createProduct(input: NewProductInput): Promise<Product> {
@@ -427,6 +477,7 @@ export async function createProduct(input: NewProductInput): Promise<Product> {
       price: parseFloat(input.price),
       package_price: normalizePackagePrice(input.package_price),
       ...stockPatch(input),
+      ...flagsPatch(input),
       image_url: input.image_url || null,
       has_commission: input.has_commission,
       commission_type: input.has_commission ? input.commission_type : null,
@@ -481,6 +532,7 @@ export async function updateProduct(id: string, input: NewProductInput): Promise
       ...costPatch(input.purchase_price),
       price: parseFloat(input.price),
       package_price: normalizePackagePrice(input.package_price),
+      ...flagsPatch(input),
       image_url: input.image_url || null,
       has_commission: input.has_commission,
       commission_type: input.has_commission ? input.commission_type : null,

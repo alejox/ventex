@@ -1213,6 +1213,7 @@ export type Database = {
       }
       products: {
         Row: {
+          allows_fractions: boolean | null
           barcode: string | null
           category_id: string | null
           commission_type: string | null
@@ -1225,12 +1226,14 @@ export type Database = {
           image_url: string | null
           minimum_stock: number
           name: string
+          open_price: boolean
           package_price: number | null
           price: number
           purchase_price: number
           sku: string
           status: string | null
           stock_level: number
+          tracks_stock: boolean
           unit: string
           units_per_package: number
           updated_at: string
@@ -1249,12 +1252,14 @@ export type Database = {
           image_url?: string | null
           minimum_stock?: number
           name: string
+          open_price?: boolean
           package_price?: number | null
           price?: number
           purchase_price?: number
           sku: string
           status?: string | null
           stock_level?: number
+          tracks_stock?: boolean
           unit?: string
           units_per_package?: number
           updated_at?: string
@@ -1273,12 +1278,14 @@ export type Database = {
           image_url?: string | null
           minimum_stock?: number
           name?: string
+          open_price?: boolean
           package_price?: number | null
           price?: number
           purchase_price?: number
           sku?: string
           status?: string | null
           stock_level?: number
+          tracks_stock?: boolean
           unit?: string
           units_per_package?: number
           updated_at?: string

@@ -151,6 +151,7 @@ export default function POSPage() {
   const setTransferMethod = usePosStore((s) => s.setTransferMethod);
   const setCardMethod = usePosStore((s) => s.setCardMethod);
   const setLineStaff = usePosStore((s) => s.setLineStaff);
+  const setLinePrice = usePosStore((s) => s.setLinePrice);
   const clearCart = usePosStore((s) => s.clearCart);
   const checkout = usePosStore((s) => s.checkout);
   const addSplit = usePosStore((s) => s.addSplit);
@@ -738,6 +739,7 @@ export default function POSPage() {
             setIsCartOpen={setIsCartOpen}
             setLineKind={setLineKind}
             setLineStaff={setLineStaff}
+            setLinePrice={setLinePrice}
             increment={increment}
             decrement={decrement}
             setQuantity={setQuantity}

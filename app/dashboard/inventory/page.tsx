@@ -16,7 +16,7 @@ import { useServicesStore } from "@/stores/services.store";
 import { getUnitCost, calculateInventoryValue } from "@/services/inventory.service";
 import type { CatalogRow } from "@/lib/catalog";
 import { catalogRowsOf, catalogEditHref, catalogMatchesQuery } from "@/lib/catalog";
-import { stockStatusOf, stockLabelOf, needsRestock, STOCK_CHIP, STOCK_DOT, SERVICE_CHIP } from "@/lib/stock";
+import { stockStatusOf, stockLabelOf, needsRestock, STOCK_CHIP, STOCK_DOT, SERVICE_CHIP, tracksStock, NO_STOCK_LABEL } from "@/lib/stock";
 import { useProfile } from "@/components/ProfileProvider";
 import { can } from "@/lib/permissions";
 import { Select } from "@/components/ui/Select";
@@ -166,7 +166,7 @@ export default function CatalogPage() {
     if (row.kind !== "product") return false;
     // El filtro devuelve EXACTAMENTE lo que cuenta el KPI de arriba. Que ese
     // número y esta lista se contradigan es el bug que reportó QA.
-    if (stockFilter === "Agotado" && row.product.stock_level !== 0) return false;
+    if (stockFilter === "Agotado" && (!tracksStock(row.product) || row.product.stock_level !== 0)) return false;
     if (stockFilter === "Stock Bajo" && !needsRestock(row.product)) return false;
     if (stockFilter === "Óptimo" && needsRestock(row.product)) return false;
     return true;
@@ -399,7 +399,11 @@ export default function CatalogPage() {
           ) : (
             paginatedRows.map((row) => {
               const isService = row.kind === "service";
-              const status = row.kind === "product"
+              // `null` = no hay estado de stock que mostrar. Un servicio nunca
+              // lo tuvo; un producto marcado "sin inventario" dejó de tenerlo, y
+              // pintarle "Agotado" sobre un cero que nadie mantiene sería
+              // afirmar algo falso.
+              const status = row.kind === "product" && tracksStock(row.product)
                 ? stockStatusOf(row.product.stock_level, row.product.minimum_stock)
                 : null;
               // La tarjeta entera es el objetivo táctil, no un ícono de 16px en
@@ -442,7 +446,7 @@ export default function CatalogPage() {
                     <div className="mt-2.5 flex items-center justify-between gap-3">
                       {row.kind === "service" || status === null ? (
                         <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-[11px] font-bold border ${SERVICE_CHIP}`}>
-                          Servicio
+                          {row.kind === "service" ? "Servicio" : NO_STOCK_LABEL}
                         </span>
                       ) : (
                         <span
@@ -521,7 +525,7 @@ export default function CatalogPage() {
                 </tr>
               ) : (
                 paginatedRows.map((row) => {
-                  const stockStatus = row.kind === "product"
+                  const stockStatus = row.kind === "product" && tracksStock(row.product)
                     ? stockStatusOf(row.product.stock_level, row.product.minimum_stock)
                     : null;
                   const canOpen = row.kind === "product" ? canEdit : canEditServices;
@@ -590,7 +594,7 @@ export default function CatalogPage() {
                         <td className="px-4 py-3.5">
                           {stockStatus === null || row.kind !== "product" ? (
                             <span className={`inline-flex items-center px-3 py-1.5 rounded-lg text-[12px] font-bold border ${SERVICE_CHIP}`}>
-                              Servicio
+                              {row.kind === "service" ? "Servicio" : NO_STOCK_LABEL}
                             </span>
                           ) : (
                             <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-bold border ${STOCK_CHIP[stockStatus]}`}>

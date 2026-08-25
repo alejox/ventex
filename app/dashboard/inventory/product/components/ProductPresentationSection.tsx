@@ -15,9 +15,15 @@ interface ProductPresentationSectionProps {
   packagePrice: string;
   onPackagePriceChange: (v: string) => void;
   packageHint: string;
+  tracksStock: boolean;
+  onTracksStockChange: (v: boolean) => void;
+  openPrice: boolean;
+  onOpenPriceChange: (v: boolean) => void;
   /** Stock guardado, en unidades sueltas. Solo se muestra en edición. */
   currentStock: number;
   canMoveStock: boolean;
+  /** Del producto en edición: si su unidad de medida admite fracción. */
+  allowsFractions: boolean;
   entryPackages: string;
   setEntryPackages: (v: string) => void;
   entryLoose: string;
@@ -39,8 +45,13 @@ export function ProductPresentationSection({
   packagePrice,
   onPackagePriceChange,
   packageHint,
+  tracksStock,
+  onTracksStockChange,
+  openPrice,
+  onOpenPriceChange,
   currentStock,
   canMoveStock,
+  allowsFractions,
   entryPackages,
   setEntryPackages,
   entryLoose,
@@ -60,6 +71,45 @@ export function ProductPresentationSection({
         <p className="text-xs text-on-surface-variant mt-1">
           ¿Este producto se maneja suelto o por caja?
         </p>
+      </div>
+
+      {/* Las dos excepciones del catálogo, juntas y explicadas.
+          Nacen de las verduras: las papas llegan y una parte se pudre, así que
+          el conteo no da nunca, y el precio cambia todas las semanas. Siguen
+          siendo productos —con costo, proveedor y margen—; lo único que se
+          apaga es la parte que no se puede sostener. */}
+      <div className="rounded-2xl border border-outline-variant/20 bg-surface-container-low/40 p-4 space-y-3">
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={!tracksStock}
+            onChange={(e) => onTracksStockChange(!e.target.checked)}
+            className="mt-0.5 w-4 h-4 accent-[var(--primary)]"
+          />
+          <span>
+            <span className="text-[13px] font-semibold text-on-surface block">No lleva inventario</span>
+            <span className="text-xs text-on-surface-variant">
+              Para verduras, granel o todo lo que no se pueda contar. No descuenta al vender,
+              no pide reposición y no entra en la valorización. El costo y el margen se siguen midiendo.
+            </span>
+          </span>
+        </label>
+
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={openPrice}
+            onChange={(e) => onOpenPriceChange(e.target.checked)}
+            className="mt-0.5 w-4 h-4 accent-[var(--primary)]"
+          />
+          <span>
+            <span className="text-[13px] font-semibold text-on-surface block">Precio abierto</span>
+            <span className="text-xs text-on-surface-variant">
+              El precio se asigna en el momento de la venta. El precio de venta de arriba queda
+              como sugerido, y el cajero tiene que confirmarlo o cambiarlo para poder cobrar.
+            </span>
+          </span>
+        </label>
       </div>
 
       <div className="flex gap-2 sm:gap-3 max-w-sm">
@@ -121,7 +171,7 @@ export function ProductPresentationSection({
       {/* Cajas y unidades sueltas juntas, porque así llega la mercadería: "me
           entraron 2 cajas y 20 unidades". La línea del total es la que deja ver
           que «unidades por caja» define el empaque y no suma stock por sí sola. */}
-      {!editId && (
+      {!editId && tracksStock && (
         <div className="space-y-2">
           <p className="text-[13px] font-semibold text-on-surface">Stock inicial</p>
           <StockQuantityFields
@@ -140,7 +190,7 @@ export function ProductPresentationSection({
         </div>
       )}
 
-      {editId && (
+      {editId && tracksStock && (
         <div className="rounded-2xl border border-outline-variant/20 bg-surface-container-low/40 p-4 space-y-4">
           <div className="text-sm text-on-surface-variant">
             Stock actual: <strong className="text-on-surface font-mono">{currentStock}</strong> unidades
@@ -158,6 +208,7 @@ export function ProductPresentationSection({
                   onPackagesChange={setEntryPackages}
                   loose={entryLoose}
                   onLooseChange={setEntryLoose}
+                  allowsFractions={allowsFractions}
                   idPrefix="entry"
                 />
               </div>

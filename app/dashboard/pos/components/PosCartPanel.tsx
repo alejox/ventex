@@ -15,6 +15,7 @@ import {
 } from "@/services/pos.service";
 
 import { useProfile } from "@/components/ProfileProvider";
+import { quantityIsValid } from "@/lib/stock";
 
 const money = (n: number) =>
   n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -55,6 +56,7 @@ interface PosCartPanelProps {
   setIsCartOpen: (v: boolean) => void;
   setLineKind: (key: string, kind: "unit" | "package") => void;
   setLineStaff: (key: string, staffId: string | null) => void;
+  setLinePrice: (key: string, price: number | null) => void;
   increment: (key: string) => void;
   decrement: (key: string) => void;
   setQuantity: (key: string, v: number) => void;
@@ -102,6 +104,7 @@ export function PosCartPanel({
   setIsCartOpen,
   setLineKind,
   setLineStaff,
+  setLinePrice,
   increment,
   decrement,
   setQuantity,
@@ -118,6 +121,10 @@ export function PosCartPanel({
   setDelivery,
 }: PosCartPanelProps) {
   const profile = useProfile();
+  const unpriced = cart.filter((l) => l.item.open_price && l.customPrice == null);
+  const missingPrice = unpriced.length > 0;
+  const missingPriceNames = unpriced.map((l) => l.item.name).join(", ");
+
   return (
     <>
       {isCartOpen && (
@@ -345,16 +352,25 @@ export function PosCartPanel({
                       >
                         <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-3 h-3"><path strokeLinecap="round" d="M5 12h14" /></svg>
                       </button>
+                      {/* `step` y `parseFloat` salen de la unidad de medida del
+                          producto: 1,5 kg es una venta y media unidad de un
+                          televisor es un error de tipeo. El servidor revalida
+                          con la misma regla (CANTIDAD_ENTERA). */}
                       <input
                         type="number"
-                        min={1}
+                        min={line.item.allows_fractions ? 0.001 : 1}
+                        step={line.item.allows_fractions ? 0.001 : 1}
                         max={allowOversell ? undefined : line.item.stock_level ?? undefined}
                         value={line.quantity}
                         onChange={(e) => {
-                          const v = parseInt(e.target.value, 10);
-                          if (Number.isFinite(v)) setQuantity(cartLineKey(line), v);
+                          const v = parseFloat(e.target.value);
+                          if (quantityIsValid(v, line.item.allows_fractions)) {
+                            setQuantity(cartLineKey(line), v);
+                          }
                         }}
-                        className="w-8 text-center text-xs font-semibold text-on-surface bg-transparent outline-none tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        className={`text-center text-xs font-semibold text-on-surface bg-transparent outline-none tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                          line.item.allows_fractions ? "w-14" : "w-8"
+                        }`}
                       />
                       <button
                         onClick={() => increment(cartLineKey(line))}
@@ -391,7 +407,38 @@ export function PosCartPanel({
                       </div>
                     </div>
 
-                    <span className="text-xs font-bold text-on-surface tabular-nums shrink-0">${money(linePrice(line) * line.quantity)}</span>
+                    {/* Precio abierto: el importe es un campo, no una etiqueta.
+                        Vacío NO cae al precio del catálogo — el servidor rechaza
+                        la venta (PRECIO_REQUERIDO) antes que cobrar el precio de
+                        la semana pasada sin que nadie lo haya mirado. */}
+                    {line.item.open_price ? (
+                      <div className="flex items-center gap-1 shrink-0">
+                        <span className="text-[10px] text-on-surface-variant">$</span>
+                        <input
+                          type="number"
+                          min="0"
+                          inputMode="decimal"
+                          aria-label={`Precio de ${line.item.name}`}
+                          value={line.customPrice ?? ""}
+                          placeholder={String(line.item.price)}
+                          onChange={(e) => {
+                            const raw = e.target.value;
+                            const v = parseFloat(raw);
+                            setLinePrice(cartLineKey(line), raw === "" || !Number.isFinite(v) ? null : v);
+                          }}
+                          className={`w-16 text-right text-xs font-bold text-on-surface bg-surface-container-lowest border rounded-md px-1.5 py-1 outline-none tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                            line.customPrice == null
+                              ? "border-amber-500/60 focus:border-amber-500"
+                              : "border-outline-variant/30 focus:border-primary"
+                          }`}
+                        />
+                        <span className="text-xs font-bold text-on-surface tabular-nums w-14 text-right">
+                          ${money(linePrice(line) * line.quantity)}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-xs font-bold text-on-surface tabular-nums shrink-0">${money(linePrice(line) * line.quantity)}</span>
+                    )}
 
                     <button
                       onClick={() => removeFromCart(cartLineKey(line))}
@@ -542,12 +589,21 @@ export function PosCartPanel({
             </div>
           )}
 
+          {/* Un ítem de precio abierto sin precio no se puede cobrar. El
+              servidor lo rechaza igual; esto es para que el cajero se entere
+              ANTES de apretar, con el ítem a la vista. */}
+          {missingPrice && (
+            <p className="text-xs text-amber-600 dark:text-amber-500 mb-2">
+              Falta asignarle precio a {missingPriceNames}.
+            </p>
+          )}
+
           <div className="flex gap-2">
             <button
               onClick={onCheckout}
-              disabled={cart.length === 0 || submitting}
+              disabled={cart.length === 0 || submitting || missingPrice}
               className={`flex-1 flex items-center justify-center gap-2 rounded-xl px-4 py-3 font-semibold transition-all ${
-                cart.length === 0
+                cart.length === 0 || missingPrice
                   ? "bg-surface-container-highest cursor-not-allowed opacity-70 text-on-surface-variant/50"
                   : "bg-primary text-white hover:bg-primary-dim shadow-sm"
               }`}

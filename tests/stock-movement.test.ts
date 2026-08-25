@@ -24,11 +24,14 @@ test("3. Unidades por caja inválidas caen a 1, nunca a 0", () => {
   assert.equal(movementUnits(10, "package", NaN), 10);
 });
 
-test("4. Una cantidad que no es un entero positivo no mueve nada", () => {
+test("4. Una cantidad que no es un número positivo no mueve nada", () => {
+  // El decimal SÍ mueve: lo que se vende por peso se carga por peso. Quién
+  // puede usarlo lo decide la unidad de medida del producto —ver
+  // `quantityIsValid` en tests/fractional-quantity.test.ts—, no esta función.
   assert.equal(movementUnits(0, "unit", 24), 0);
   assert.equal(movementUnits(-3, "unit", 24), 0);
-  assert.equal(movementUnits(2.5, "package", 24), 0);
   assert.equal(movementUnits(NaN, "package", 24), 0);
+  assert.equal(movementUnits(2.5, "unit", 24), 2.5);
 });
 
 test("5. Cajas y unidades sueltas se suman: 2 cajas de 24 y 20 sueltas son 68", () => {

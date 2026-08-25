@@ -10,7 +10,7 @@ export default async function PedidosPage() {
   // Sin `*`: a `authenticated` se le revocó el SELECT sobre `purchase_price`.
   const { data: products } = await supabase
     .from("products")
-    .select("id, name, image_url, sku, stock_level, minimum_stock, unit, categories(name), distributors(business_name)")
+    .select("id, name, image_url, sku, stock_level, minimum_stock, unit, tracks_stock, categories(name), distributors(business_name)")
     // Pedidos es reposición: se le compra a un proveedor. Un servicio no tiene
     // existencias que reponer, así que no entra en esta pantalla.
     .neq("unit", SERVICE_UNIT)

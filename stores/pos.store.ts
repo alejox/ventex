@@ -134,6 +134,8 @@ interface PosState {
   setStaff: (staffId: string | null) => void;
   setLineDiscounts: (discounts: { key: string; discountAmount: number }[]) => void;
   setLineStaff: (key: string, staffId: string | null) => void;
+  /** Precio del mostrador para una línea de precio abierto. `null` lo borra. */
+  setLinePrice: (key: string, price: number | null) => void;
   setPaymentMethod: (method: PaymentMethod) => void;
   setTransferMethod: (method: string | null) => void;
   setCardMethod: (method: string | null) => void;
@@ -509,7 +511,10 @@ export const usePosStore = create<PosState>((set, get) => {
       set((s) => ({
         tabs: s.tabs.map((t) => {
           if (t.id !== s.activeTabId) return t;
-          if (quantity < 1) {
+          // `<= 0` y no `< 1`: media unidad es una cantidad válida para lo que
+          // se vende por peso, y con el corte en 1 escribir "0,5" borraba la
+          // línea del carrito.
+          if (quantity <= 0) {
             return { ...t, cart: t.cart.filter((l) => keyOf(l) !== key) };
           }
           return {
@@ -519,9 +524,14 @@ export const usePosStore = create<PosState>((set, get) => {
               // Con la sobreventa apagada se capea al stock disponible; con ella
               // encendida no hay tope y el cajero decide.
               const perItem = l.unitKind === "package" ? Math.max(l.item.units_per_package || 1, 1) : 1;
+              // El tope se reparte igual que la venta: en enteros para lo que
+              // se cuenta, con decimales para lo que se pesa. Redondear 2,5 kg
+              // hacia abajo a 2 dejaría medio kilo invendible en el estante.
+              const available =
+                l.item.stock_level != null ? l.item.stock_level / perItem : quantity;
               const capped =
                 oversold && !s.allowOversell && l.item.stock_level != null
-                  ? Math.floor(l.item.stock_level / perItem)
+                  ? (l.item.allows_fractions ? Math.round(available * 1000) / 1000 : Math.floor(available))
                   : quantity;
               return { ...l, quantity: capped };
             }),
@@ -614,6 +624,24 @@ export const usePosStore = create<PosState>((set, get) => {
               const d = discounts.find((x) => x.key === keyOf(line));
               return d ? { ...line, discountAmount: d.discountAmount } : line;
             }),
+          };
+        }),
+      })),
+
+    setLinePrice: (key, price) =>
+      set((s) => ({
+        tabs: s.tabs.map((t) => {
+          if (t.id !== s.activeTabId) return t;
+          return {
+            ...t,
+            cart: t.cart.map((line) =>
+              keyOf(line) === key
+                // `undefined` y no `null`: es "sin asignar", que es lo que la
+                // línea tiene que volver a ser si se borra el precio. Un 0 sí es
+                // un precio, así que no puede confundirse con vacío.
+                ? { ...line, customPrice: price ?? undefined }
+                : line,
+            ),
           };
         }),
       })),
@@ -745,6 +773,17 @@ export const usePosStore = create<PosState>((set, get) => {
 
       const { cart, customerId, staffId, paymentMethod, transferMethod, cardMethod, splits, isDelivery, deliveryData } = activeTab;
 
+      // Un ítem de precio abierto sin precio asignado no es una venta a medias:
+      // es una venta que el servidor va a rechazar (PRECIO_REQUERIDO). Se corta
+      // acá para no gastar el intento ni consumir la clave de idempotencia.
+      const unpriced = cart.filter((l) => l.item.open_price && l.customPrice == null);
+      if (unpriced.length > 0) {
+        set({
+          error: `Falta asignarle precio a ${unpriced.map((l) => l.item.name).join(", ")}.`,
+        });
+        return "failed";
+      }
+
       // La clave se acuña UNA vez por carrito y se guarda en la pestaña antes
       // de salir a la red. Si este intento muere sin respuesta y el cajero
       // vuelve a tocar "Cobrar", viaja la misma clave y el servidor devuelve la
@@ -779,6 +818,11 @@ export const usePosStore = create<PosState>((set, get) => {
             quantity: l.quantity,
             staff_id: l.staffId ?? null,
             kind: l.unitKind ?? "unit",
+            // Solo viaja si el ítem lo admite: el RPC rechaza un precio en
+            // cualquier otro producto, y con razón.
+            ...(l.item.open_price && l.customPrice != null
+              ? { unit_price: l.customPrice }
+              : {}),
           };
         }),
         splits: splits.length > 0 ? splits : undefined,

@@ -100,8 +100,8 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
   /** El stock siempre se guarda en unidades sueltas: una caja son N. */
   const initialStock =
     presentation === "package"
-      ? (parseInt(quantity || "0") || 0) * Math.max(parseInt(unitsPerPackage || "1") || 1, 1)
-      : parseInt(quantity || "0") || 0;
+      ? (parseFloat(quantity || "0") || 0) * Math.max(parseInt(unitsPerPackage || "1") || 1, 1)
+      : parseFloat(quantity || "0") || 0;
 
   const handleBarcodeFound = useCallback(
     (product: OpenFactsProduct) => {

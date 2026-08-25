@@ -1,5 +1,5 @@
 import { createClient } from "@/utils/supabase/client";
-import { SERVICE_UNIT } from "@/services/inventory.service";
+import { SERVICE_UNIT, tracksStock } from "@/services/inventory.service";
 import type { Database, Json } from "@/utils/supabase/database.types";
 
 // ---- Tipos del dominio del POS ----
@@ -22,6 +22,10 @@ export interface CatalogItem {
    * limite stock tiene que preguntar por null antes que por el número.
    */
   stock_level: number | null;
+  /** true = el precio se asigna al vender; `price` es solo el sugerido. */
+  open_price: boolean;
+  /** Si admite media unidad. Sale de la unidad de medida del producto. */
+  allows_fractions: boolean;
   category_name: string | null;
   image_url: string | null;
   has_commission: boolean;
@@ -55,6 +59,15 @@ export interface CartLine {
   quantity: number;
   discountAmount?: number;
   staffId?: string | null;
+  /**
+   * Precio asignado en el mostrador. Solo lo aceptan los ítems `open_price`:
+   * el RPC rechaza con PRECIO_NO_EDITABLE cualquier otro.
+   *
+   * `undefined` es "todavía no se asignó"; 0 es un precio válido —regalar una
+   * unidad es una decisión del mostrador—, así que la comparación es contra
+   * null y nunca un `||`.
+   */
+  customPrice?: number;
 }
 
 /**
@@ -66,6 +79,7 @@ export interface CartLine {
  * cajero antes de cobrar.
  */
 export function linePrice(line: CartLine): number {
+  if (line.customPrice != null) return line.customPrice;
   if (line.unitKind === "package" && line.item.package_price != null) {
     return line.item.package_price;
   }
@@ -151,6 +165,8 @@ export interface CheckoutItem {
   staff_id?: string | null;
   /** "package" cobra el precio de caja y descuenta sus unidades. */
   kind?: SaleUnitKind;
+  /** Precio asignado al vender. Solo para productos `open_price`. */
+  unit_price?: number;
 }
 
 export interface CheckoutInput {
@@ -238,7 +254,7 @@ export async function fetchCatalog(): Promise<CatalogItem[]> {
   const [productsRes, servicesRes] = await Promise.all([
     supabase
       .from("products")
-      .select("id, name, sku, barcode, unit, price, package_price, units_per_package, stock_level, image_url, has_commission, commission_type, commission_value, categories(name)")
+      .select("id, name, sku, barcode, unit, price, package_price, units_per_package, stock_level, tracks_stock, open_price, allows_fractions, image_url, has_commission, commission_type, commission_value, categories(name)")
       // Un servicio entra por `services`, nunca por acá: las filas con unidad
       // "Servicio" son legadas y su servicio ya viaja en la otra consulta.
       .neq("unit", SERVICE_UNIT)
@@ -264,6 +280,10 @@ export async function fetchCatalog(): Promise<CatalogItem[]> {
     package_price: null,
     units_per_package: 1,
     stock_level: null,
+    open_price: false,
+    // Medio corte de pelo no existe, y los contadores de promociones suman
+    // `quantity` sobre columnas enteras.
+    allows_fractions: false,
     category_name: "Servicios",
     image_url: null,
     has_commission: s.has_commission ?? false,
@@ -288,7 +308,12 @@ export async function fetchCatalog(): Promise<CatalogItem[]> {
       price: p.price,
       package_price: p.package_price ?? null,
       units_per_package: p.units_per_package ?? 1,
-      stock_level: p.stock_level,
+      // `null` es el contrato del POS para "no lleva inventario", y ya lo
+      // entienden la vitrina, el carrito y el control de sobreventa. Un producto
+      // sin inventario entra por esa misma puerta en vez de abrir otra.
+      stock_level: tracksStock(p) ? p.stock_level : null,
+      open_price: p.open_price ?? false,
+      allows_fractions: p.allows_fractions ?? false,
       category_name,
       image_url: p.image_url ?? null,
       has_commission: p.has_commission ?? false,

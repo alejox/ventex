@@ -1,4 +1,9 @@
-import { isServiceItem } from "@/services/inventory.service";
+import { tracksStock } from "@/services/inventory.service";
+
+// `tracksStock` vive junto a `isServiceItem` —en la capa que conoce el catálogo—
+// y se reexporta acá porque este es el módulo al que pregunta todo lo que
+// muestra o limita stock. Definirlo de los dos lados sería tener dos reglas.
+export { tracksStock };
 
 /**
  * Estado de stock de un producto, en un solo lugar para que la tabla de
@@ -45,14 +50,15 @@ export function stockStatusOf(level: number, minimumStock: number): StockStatus 
  * producto con mínimo 10 está por debajo del mínimo, y es MÁS urgente que estar
  * en 7, no menos. "Agotado" sigue existiendo como filtro para bajar el detalle.
  *
- * Un servicio nunca entra: no tiene existencias que reponer.
+ * Lo que no lleva inventario nunca entra: no tiene existencias que reponer.
  */
 export function needsRestock(product: {
   stock_level: number;
   minimum_stock: number;
   unit?: string | null;
+  tracks_stock?: boolean | null;
 }): boolean {
-  if (isServiceItem(product)) return false;
+  if (!tracksStock(product)) return false;
   return stockStatusOf(product.stock_level, product.minimum_stock) !== "optimal";
 }
 
@@ -80,13 +86,17 @@ export const STOCK_CHIP: Record<StockStatus, string> = {
 };
 
 /**
- * Chip de un ítem que NO lleva inventario (un servicio).
+ * Chip de un ítem que NO lleva inventario (un servicio, o un producto marcado
+ * como tal).
  *
- * Tiene color propio a propósito: un servicio no está "agotado" ni "óptimo",
- * simplemente no tiene existencias. Pintarlo con cualquiera de los cuatro
- * estados de stock sería afirmar algo falso sobre él.
+ * Tiene color propio a propósito: no está "agotado" ni "óptimo", simplemente no
+ * tiene existencias. Pintarlo con cualquiera de los cuatro estados de stock
+ * sería afirmar algo falso sobre él.
  */
 export const SERVICE_CHIP = "bg-[#8b5cf6]/10 text-[#8b5cf6] border-[#8b5cf6]/20";
+
+/** Lo que se muestra en lugar del conteo cuando no hay inventario que contar. */
+export const NO_STOCK_LABEL = "Sin inventario";
 
 export const STOCK_DOT: Record<StockStatus, string> = {
   optimal: "bg-[#10b981]",
@@ -109,6 +119,44 @@ export const STOCK_DOT: Record<StockStatus, string> = {
  */
 export type StockUnitMode = "unit" | "package";
 
+/**
+ * Precisión con la que la base guarda una cantidad: `numeric(12,3)`.
+ *
+ * Redondear acá y no al mostrar es lo que evita que 0.1 + 0.2 termine escrito
+ * como 0.30000000000000004 — un número que nadie tecleó y que ninguna lectura
+ * posterior va a poder igualar.
+ */
+export const QTY_DECIMALS = 3;
+
+/** Cantidad normalizada a la precisión de la base. */
+function round3(n: number): number {
+  return Math.round(n * 1000) / 1000;
+}
+
+/**
+ * Cómo se escribe una cantidad para una persona.
+ *
+ * `numeric(12,3)` vuelve como "2.000", y "2.000 unidades" en la vitrina de un
+ * producto que se vende de a uno se lee como dos mil. Los ceros de relleno se
+ * caen; los decimales que significan algo se quedan.
+ */
+export function formatQty(quantity: number): string {
+  if (!Number.isFinite(quantity)) return "0";
+  return String(round3(quantity));
+}
+
+/**
+ * Si esta cantidad se puede vender o mover.
+ *
+ * `allowsFractions` sale del producto —lo decide su unidad de medida, no una
+ * preferencia—: medio kilo de papa es una venta, media unidad de un televisor
+ * es un error de tipeo.
+ */
+export function quantityIsValid(quantity: number, allowsFractions: boolean): boolean {
+  if (!Number.isFinite(quantity) || quantity <= 0) return false;
+  return allowsFractions || Number.isInteger(quantity);
+}
+
 /** Unidades por caja utilizables: nunca 0, o el movimiento se anularía. */
 function packSize(unitsPerPackage: number | null | undefined): number {
   const n = Number(unitsPerPackage);
@@ -127,8 +175,8 @@ export function movementUnits(
   mode: StockUnitMode,
   unitsPerPackage: number | null | undefined,
 ): number {
-  if (!Number.isInteger(quantity) || quantity <= 0) return 0;
-  return mode === "package" ? quantity * packSize(unitsPerPackage) : quantity;
+  if (!Number.isFinite(quantity) || quantity <= 0) return 0;
+  return round3(mode === "package" ? quantity * packSize(unitsPerPackage) : quantity);
 }
 
 /**
@@ -150,13 +198,18 @@ export function applyMovement(
   type: "in" | "out" | "adjust",
   units: number,
 ): number {
-  if (type === "adjust") return units;
-  return type === "in" ? current + units : current - units;
+  if (type === "adjust") return round3(units);
+  return round3(type === "in" ? current + units : current - units);
 }
 
-/** Entero no negativo de un campo de formulario. Vacío y basura valen 0. */
+/**
+ * Cantidad no negativa de un campo de formulario. Vacío y basura valen 0.
+ *
+ * `parseFloat` y no `parseInt`: lo que se vende por peso se carga por peso, y
+ * `parseInt("0.75")` es 0 — el medio kilo desaparecía sin un solo aviso.
+ */
 function countOf(raw: string | null | undefined): number {
-  const n = parseInt(String(raw ?? "").trim(), 10);
+  const n = parseFloat(String(raw ?? "").trim());
   return Number.isFinite(n) && n > 0 ? n : 0;
 }
 
@@ -176,8 +229,8 @@ export function stockUnitsOf(
   looseUnitsRaw: string,
   unitsPerPackageRaw: string,
 ): number {
-  return (
+  return round3(
     movementUnits(countOf(packagesRaw), "package", countOf(unitsPerPackageRaw)) +
-    movementUnits(countOf(looseUnitsRaw), "unit", 1)
+    movementUnits(countOf(looseUnitsRaw), "unit", 1),
   );
 }

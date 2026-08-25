@@ -17,6 +17,8 @@ const item: CatalogItem = {
   package_price: 24000,
   units_per_package: 12,
   stock_level: 10,
+  open_price: false,
+  allows_fractions: false,
   category_name: null,
   image_url: null,
   has_commission: false,

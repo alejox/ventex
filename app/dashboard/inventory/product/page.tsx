@@ -111,6 +111,8 @@ function ProductForm() {
     commission_type: "percentage",
     commission_value: "",
     units_per_package: "1",
+    tracks_stock: true,
+    open_price: false,
   });
   const handleDistributorCreated = () => {
     fetchInventory();
@@ -214,7 +216,8 @@ function ProductForm() {
    * 23, o queda un resto del mes pasado. Sin el campo suelto la única salida era
    * cargar la caja entera y arrancar el inventario con una unidad que no existe.
    */
-  const initialStock = stockUnitsOf(
+  const noStock = form.tracks_stock === false;
+  const initialStock = noStock ? 0 : stockUnitsOf(
     presentation === "package" ? initialPackages : "",
     initialLoose,
     form.units_per_package ?? "1",
@@ -243,7 +246,7 @@ function ProductForm() {
   // mostrar un campo que va a rebotar no es avisar, es hacer perder el tiempo.
   const canMoveStock = can(profile, "inventory_stock");
   const currentStock = editingProduct?.stock_level ?? 0;
-  const entryUnits = stockUnitsOf(
+  const entryUnits = noStock ? 0 : stockUnitsOf(
     presentation === "package" ? entryPackages : "",
     entryLoose,
     form.units_per_package ?? "1",
@@ -290,6 +293,8 @@ function ProductForm() {
       commission_type: editingProduct.commission_type ?? "percentage",
       commission_value: editingProduct.commission_value ? String(editingProduct.commission_value) : "",
       units_per_package: editingProduct.units_per_package ? String(editingProduct.units_per_package) : "1",
+      tracks_stock: editingProduct.tracks_stock !== false,
+      open_price: editingProduct.open_price === true,
     });
     setPresentation((editingProduct.units_per_package ?? 1) > 1 ? "package" : "unit");
     setPurchase.fromTotal(String(editingProduct.purchase_price ?? "0"));
@@ -747,8 +752,13 @@ function ProductForm() {
                 packagePrice={form.package_price ?? ""}
                 onPackagePriceChange={(v) => setForm({ ...form, package_price: v })}
                 packageHint={packageHint}
+                tracksStock={form.tracks_stock !== false}
+                onTracksStockChange={(v) => setForm((prev) => ({ ...prev, tracks_stock: v }))}
+                openPrice={form.open_price === true}
+                onOpenPriceChange={(v) => setForm((prev) => ({ ...prev, open_price: v }))}
                 currentStock={currentStock}
                 canMoveStock={canMoveStock}
+                allowsFractions={editingProduct?.allows_fractions ?? false}
                 entryPackages={entryPackages}
                 setEntryPackages={setEntryPackages}
                 entryLoose={entryLoose}

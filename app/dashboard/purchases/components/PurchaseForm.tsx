@@ -16,7 +16,7 @@ import { useProfile } from "@/components/ProfileProvider";
 import { can } from "@/lib/permissions";
 import { useBusinessTax } from "@/lib/useBusinessTax";
 import type { Product } from "@/services/inventory.service";
-import { getUnitCost, isServiceItem } from "@/services/inventory.service";
+import { getUnitCost, isServiceItem, tracksStock } from "@/services/inventory.service";
 import { needsRestock } from "@/lib/stock";
 import type { PurchaseInvoice } from "@/services/purchases.service";
 import {
@@ -661,7 +661,7 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
                                   <span>
                                     Stock:{" "}
                                     <strong className={needsRestock(p) ? "text-error" : "text-on-surface"}>
-                                      {p.stock_level}
+                                      {tracksStock(p) ? p.stock_level : "—"}
                                     </strong>
                                   </span>
                                   {canSeeCosts && (

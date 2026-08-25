@@ -1,6 +1,6 @@
 "use client";
 
-import { stockUnitsOf } from "@/lib/stock";
+import { stockUnitsOf, formatQty } from "@/lib/stock";
 
 interface StockQuantityFieldsProps {
   /** Unidades que trae una caja. En 1 no hay caja: solo se piden unidades. */
@@ -14,6 +14,14 @@ interface StockQuantityFieldsProps {
   /** Cómo se llaman las unidades sueltas en este contexto. */
   looseLabel?: string;
   autoFocus?: boolean;
+  /**
+   * Si el producto admite media unidad. Lo decide su unidad de medida.
+   *
+   * Por defecto `true` —permisivo— porque en el ALTA el producto todavía no
+   * existe y la unidad la resuelve la base: la venta la valida el servidor
+   * (CANTIDAD_ENTERA), así que acá no hace falta repetir esa lista.
+   */
+  allowsFractions?: boolean;
 }
 
 const FIELD_CLASS =
@@ -44,11 +52,17 @@ export function StockQuantityFields({
   idPrefix,
   looseLabel = "Unidades sueltas",
   autoFocus = false,
+  allowsFractions = true,
 }: StockQuantityFieldsProps) {
   const packed = packSize > 1;
+  // Las cajas no se fraccionan: media caja no es una presentación.
+  const looseStep = allowsFractions ? "any" : "1";
   const total = stockUnitsOf(packed ? packages : "", loose, String(packSize));
   const packagesCount = parseInt(packages || "0", 10) || 0;
-  const looseCount = parseInt(loose || "0", 10) || 0;
+  // `parseFloat`: con `parseInt` el desglose decía "20 sueltas" mientras el
+  // total contaba 20,5 — dos números distintos para el mismo campo, uno al lado
+  // del otro.
+  const looseCount = parseFloat(loose || "0") || 0;
 
   if (!packed) {
     return (
@@ -60,6 +74,7 @@ export function StockQuantityFields({
           id={`${idPrefix}-loose`}
           type="number"
           min="0"
+          step={looseStep}
           value={loose}
           onChange={(e) => onLooseChange(e.target.value)}
           autoFocus={autoFocus}
@@ -81,6 +96,7 @@ export function StockQuantityFields({
             id={`${idPrefix}-packages`}
             type="number"
             min="0"
+            step="1"
             value={packages}
             onChange={(e) => onPackagesChange(e.target.value)}
             autoFocus={autoFocus}
@@ -96,6 +112,7 @@ export function StockQuantityFields({
             id={`${idPrefix}-loose`}
             type="number"
             min="0"
+            step={looseStep}
             value={loose}
             onChange={(e) => onLooseChange(e.target.value)}
             className={FIELD_CLASS}
@@ -109,10 +126,10 @@ export function StockQuantityFields({
           <span className="text-xs text-on-surface-variant font-normal">
             {packagesCount > 0 && `${packagesCount} × ${packSize}`}
             {packagesCount > 0 && looseCount > 0 && " + "}
-            {looseCount > 0 && `${looseCount} ${packagesCount > 0 ? "sueltas" : "unidades"}`}
+            {looseCount > 0 && `${formatQty(looseCount)} ${packagesCount > 0 ? "sueltas" : "unidades"}`}
             {" = "}
           </span>
-          <strong className="font-mono text-primary">{total}</strong> unidades
+          <strong className="font-mono text-primary">{formatQty(total)}</strong> unidades
         </p>
       )}
     </div>
