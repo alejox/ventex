@@ -19,6 +19,7 @@ import { useProfile } from "@/components/ProfileProvider";
 import { can } from "@/lib/permissions";
 import { useBusinessTax } from "@/lib/useBusinessTax";
 import { useBarcodeLookup } from "@/lib/useBarcodeLookup";
+import { canAutofill } from "@/lib/autofill";
 import type { OpenFactsProduct } from "@/services/openfacts.service";
 import { ProductImageUpload } from "./components/ProductImageUpload";
 import { ProductPricingSection } from "./components/ProductPricingSection";
@@ -459,24 +460,51 @@ function ProductForm() {
     if (saved) router.push(backTo);
   };
 
+  /**
+   * Lo último que autocompletamos, para saber qué es NUESTRO y se puede pisar.
+   * Sin esta memoria, un campo lleno por un escaneo previo es indistinguible de
+   * uno tipeado, y escanear un segundo código no cambiaba nada.
+   */
+  const autoFilledRef = useRef<{ name?: string; unit?: string; image?: string }>({});
+
   const handleBarcodeFound = useCallback(
     (product: OpenFactsProduct) => {
       if (editingProduct) return;
+      const auto = autoFilledRef.current;
+
       setForm((prev) => {
         const next = { ...prev };
-        if (!prev.name.trim() && product.name) next.name = product.name;
-        if (prev.unit === "Unidad" && product.quantity) {
-          const u = parseQuantityUnit(product.quantity);
-          if (u) next.unit = u;
+
+        if (product.name && canAutofill(prev.name, auto.name)) {
+          next.name = product.name;
+          auto.name = product.name;
         }
-        if (product.imageUrl && !prev.image_url) next.image_url = product.imageUrl;
+
+        if (product.quantity) {
+          const u = parseQuantityUnit(product.quantity);
+          // "Unidad" es el valor por defecto del formulario, así que cuenta como
+          // vacío: nadie lo eligió, vino puesto.
+          if (u && (prev.unit === "Unidad" || canAutofill(prev.unit, auto.unit))) {
+            next.unit = u;
+            auto.unit = u;
+          }
+        }
+
+        if (product.imageUrl && canAutofill(prev.image_url, auto.image)) {
+          next.image_url = product.imageUrl;
+          auto.image = product.imageUrl;
+        }
+
         return next;
       });
-      if (product.imageUrl && !imagePreview) {
+
+      // La vista previa sigue a la imagen: si la de este producto entró, la que
+      // se muestra tiene que ser esa y no la del código anterior.
+      if (product.imageUrl && auto.image === product.imageUrl) {
         setImagePreview(product.imageUrl);
       }
     },
-    [editingProduct, imagePreview],
+    [editingProduct],
   );
 
   const { searching, product: lookedUp } = useBarcodeLookup(
