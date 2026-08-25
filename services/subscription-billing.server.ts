@@ -1,6 +1,6 @@
 import "server-only";
 import { createAdminClient } from "@/utils/supabase/admin";
-import { findTransactionByReference } from "@/services/epayco.service";
+import { EPAYCO_TEST_MODE, findTransactionByReference } from "@/services/epayco.service";
 import {
   amountMatches,
   outcomeFromStatusText,
@@ -52,7 +52,13 @@ export interface BillingOrderRow {
  * tratamiento es distinto — no se acredita, pero tampoco se marca la orden como
  * "el pago no se completó", que es mentira y esconde el problema.
  */
-export type ReconcileOutcome = "paid" | "failed" | "pending" | "reversed" | "mismatch";
+export type ReconcileOutcome =
+  | "paid"
+  | "failed"
+  | "pending"
+  | "reversed"
+  | "mismatch"
+  | "test_rejected";
 
 /** Lo que se pudo observar de una transacción, venga de donde venga. */
 export interface EpaycoObservation {
@@ -64,6 +70,11 @@ export interface EpaycoObservation {
   currency: string | null;
   methodLabel: string | null;
   reason: string | null;
+  /**
+   * ¿La transacción se hizo en modo PRUEBA? El listado lo devuelve como
+   * `test: true` y la confirmación como `x_test_request: "TRUE"`.
+   */
+  test: boolean;
 }
 
 export async function markOrderFailed(
@@ -100,6 +111,9 @@ export function observationFromTransaction(row: TransactionRow): EpaycoObservati
     currency: row.currency ?? null,
     methodLabel: row.paymentMethod ?? row.franchise ?? null,
     reason: row.response ?? null,
+    // El listado trae `test` y hasta ahora NADIE lo leía: el tipo lo declaraba
+    // y la observación lo tiraba. Ver la guarda en `applyObservationToOrder`.
+    test: row.test === true,
   };
 }
 
@@ -137,6 +151,27 @@ export async function applyObservationToOrder(
   await admin.from("billing_orders").update(stamp).eq("id", order.id);
 
   if (observation.outcome === "paid") {
+    // Una transacción de PRUEBA no activa nada en un deploy de producción.
+    //
+    // El webhook ya cortaba esto, pero el polling NO: el listado devuelve
+    // `test: true`, `TransactionRow` lo declaraba, y la observación lo
+    // descartaba en silencio. O sea que el mismo pago de prueba se rechazaba si
+    // llegaba por notificación y se acreditaba si se leía por polling — bastaba
+    // con volver a la pantalla con `?pay=` para cobrarse una licencia real con
+    // la tarjeta de pruebas. La guarda va ACÁ, en el único punto por el que
+    // pasan los dos caminos, para que un tercero no pueda volver a olvidarla.
+    if (observation.test && !EPAYCO_TEST_MODE) {
+      console.error("epayco test transaction on production deploy", order.id, observation.ref);
+      await admin
+        .from("billing_orders")
+        .update({
+          error: "Transacción de PRUEBA recibida en producción. No se activó ninguna licencia.",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", order.id);
+      return "test_rejected";
+    }
+
     // La firma prueba que el mensaje es auténtico, NO que el monto sea el que
     // esta orden tenía que cobrar. Sin este cruce, una confirmación legítima de
     // un pago chico podría activar el plan más caro.
@@ -231,4 +266,58 @@ export async function reconcileOrderFromEpayco(
   const row = await findTransactionByReference(order.order_id);
   if (!row) return null;
   return applyObservationToOrder(admin, order, observationFromTransaction(row));
+}
+
+/** Ventana y tope del barrido: ni revisar el historial entero ni castigar a ePayco. */
+const SWEEP_WINDOW_DAYS = 30;
+const SWEEP_MAX_ORDERS = 5;
+
+/**
+ * Relee TODAS las órdenes pendientes recientes de un dueño.
+ *
+ * Existe porque hasta ahora una orden pendiente sólo se reconciliaba si la
+ * persona volvía a caer en la pantalla CON `?pay=<uuid>` en la URL. Quien pagaba
+ * y cerraba la pestaña —o volvía al día siguiente por su cuenta— no tenía
+ * absolutamente nada que mirara su orden: ni cron, ni barrido, ni el webhook si
+ * esa notificación se había perdido. La orden quedaba pendiente PARA SIEMPRE con
+ * la plata ya cobrada, que es el peor final posible de este flujo.
+ *
+ * Depender de que el usuario conserve un parámetro de query es apoyar la
+ * acreditación de un pago en la navegación del navegador. Esto lo desacopla: con
+ * abrir la pantalla de suscripción alcanza.
+ *
+ * Se recorre en serie a propósito: son llamadas de red a un tercero y el
+ * paralelo acá sólo serviría para que ePayco nos limite por ráfaga.
+ */
+export async function reconcilePendingOrders(
+  admin: Admin,
+  userId: string,
+): Promise<{ checked: number; activated: number }> {
+  const since = new Date(
+    Date.now() - SWEEP_WINDOW_DAYS * 24 * 60 * 60 * 1000,
+  ).toISOString();
+
+  const { data: orders } = await admin
+    .from("billing_orders")
+    .select(BILLING_ORDER_SELECT)
+    .eq("user_id", userId)
+    .eq("status", "pending")
+    .gte("created_at", since)
+    .order("created_at", { ascending: false })
+    .limit(SWEEP_MAX_ORDERS);
+
+  if (!orders?.length) return { checked: 0, activated: 0 };
+
+  let activated = 0;
+  for (const order of orders as BillingOrderRow[]) {
+    try {
+      if ((await reconcileOrderFromEpayco(admin, order)) === "paid") activated += 1;
+    } catch (error) {
+      // Una orden que ePayco no puede resolver no puede tumbar el barrido de
+      // las demás: la siguiente puede ser justamente la que sí está pagada.
+      console.error("sweep reconcile failed", order.id, order.order_id, error);
+    }
+  }
+
+  return { checked: orders.length, activated };
 }

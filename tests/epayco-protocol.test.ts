@@ -10,6 +10,7 @@ import {
   outcomeFromStatusText,
   pickRelevantTransaction,
   publicUrlBase,
+  transactionRows,
   signConfirmation,
   verifyConfirmation,
   type ConfirmationFields,
@@ -487,4 +488,47 @@ test("41. 'pre-procesada' (OTP de Daviplata) queda pendiente", () => {
   assert.equal(outcomeFromStatusText("pre-procesada"), "pending");
   assert.equal(outcomeFromStatusText("Pre-Procesada"), "pending");
   assert.equal(outcomeFromStatusText("preprocesada"), "pending");
+});
+
+// ---------------------------------------------------------------------------
+// Desanidado del listado de transacciones
+// ---------------------------------------------------------------------------
+
+test("42. El listado se desanida venga como venga el sobre", () => {
+  // La colección oficial NO documenta este endpoint, así que la forma de su
+  // respuesta nunca se pudo verificar. Las tres se aceptan porque el costo de
+  // equivocarse es un pago cobrado que nunca se acredita.
+  const fila: TransactionRow = { referenceClient: "ventex-1", status: "Aceptada" };
+
+  assert.deepEqual(transactionRows([fila]), [fila], "array pelado");
+  assert.deepEqual(transactionRows({ data: [fila] }), [fila], "anidado en data");
+  assert.deepEqual(transactionRows({ records: [fila] }), [fila], "anidado en records");
+});
+
+test("43. Lo que no es un listado devuelve vacío, no explota", () => {
+  // Cae en la ruta de cobro: una excepción acá deja la orden sin conciliar.
+  assert.deepEqual(transactionRows(null), []);
+  assert.deepEqual(transactionRows(undefined), []);
+  assert.deepEqual(transactionRows("Aceptada"), []);
+  assert.deepEqual(transactionRows(42), []);
+  assert.deepEqual(transactionRows({}), []);
+  assert.deepEqual(transactionRows({ data: null }), []);
+  assert.deepEqual(transactionRows({ data: { total: 0 } }), []);
+});
+
+test("44. Un listado vacío NO es un pago: no inventa una transacción", () => {
+  assert.deepEqual(transactionRows({ data: [] }), []);
+  assert.equal(pickRelevantTransaction(transactionRows({ data: [] })), null);
+});
+
+test("45. Desanidar y elegir se componen: gana el aprobado", () => {
+  // El caso real: alguien abandona, reintenta y paga. Las dos filas vuelven
+  // bajo el mismo referenceClient y la acreditada tiene que ganar.
+  const sobre = {
+    data: [
+      { referenceClient: "ventex-1", status: "Cancelada", transactionDateTime: "2026-08-20 18:10:00" },
+      { referenceClient: "ventex-1", status: "Aceptada", transactionDateTime: "2026-08-20 17:20:00" },
+    ],
+  };
+  assert.equal(pickRelevantTransaction(transactionRows(sobre))?.status, "Aceptada");
 });

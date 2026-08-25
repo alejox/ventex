@@ -2,6 +2,7 @@ import "server-only";
 import {
   buildSessionPayload,
   pickRelevantTransaction,
+  transactionRows,
   type EpaycoSecrets,
   type EpaycoSessionParams,
   type TransactionRow,
@@ -354,16 +355,26 @@ export function getTransaction(referencePayco: string): Promise<EpaycoTransactio
 export async function findTransactionByReference(
   reference: string,
 ): Promise<TransactionRow | null> {
-  const data = await request<{ data?: TransactionRow[] }>("/transaction", {
-    filter: {
-      transactionInitialDate: "2020-01-01 00:00:00",
-      transactionEndDate: "2100-01-01 00:00:00",
-      referenceClient: reference,
-    },
-    pagination: { page: 1, limit: 50 },
-  });
+  let data: unknown;
+  try {
+    data = await request<unknown>("/transaction", {
+      filter: {
+        transactionInitialDate: "2020-01-01 00:00:00",
+        transactionEndDate: "2100-01-01 00:00:00",
+        referenceClient: reference,
+      },
+      pagination: { page: 1, limit: 50 },
+    });
+  } catch (error) {
+    // Un sobre sin `data` es la forma en que este endpoint dice "no hay
+    // transacciones para esa referencia". Dejarlo pasar como excepción hacía
+    // que el llamador no pudiera distinguir "todavía nadie pagó" de "ePayco se
+    // cayó", y las dos terminaban igual: la orden pendiente sin explicación.
+    if (error instanceof EpaycoApiError && error.code === "empty") return null;
+    throw error;
+  }
 
-  return pickRelevantTransaction(data.data ?? []);
+  return pickRelevantTransaction(transactionRows(data));
 }
 
 /** Sólo para tests de integración: obliga a pedir un JWT nuevo. */

@@ -33,6 +33,7 @@ export default function SubscriptionPage() {
   const billing = useSubscriptionBillingStore((s) => s.billing);
   const loadBilling = useSubscriptionBillingStore((s) => s.loadBilling);
   const claim = useSubscriptionBillingStore((s) => s.claim);
+  const reconcile = useSubscriptionBillingStore((s) => s.reconcile);
   const setRecurring = useSubscriptionBillingStore((s) => s.setRecurring);
   const billingBusy = useSubscriptionBillingStore((s) => s.submitting);
   const billingError = useSubscriptionBillingStore((s) => s.error);
@@ -58,8 +59,23 @@ export default function SubscriptionPage() {
     void claim().then((activated) => {
       if (activated > 0) fetchAll();
     });
+
+    /**
+     * Y la red del pago YA COBRADO que quedó pendiente: relee las órdenes
+     * pendientes en ePayco. Antes esto sólo pasaba si la persona volvía con
+     * `?pay=<uuid>` en la URL, así que quien pagaba y cerraba la pestaña se
+     * quedaba sin plan con la plata cobrada. Corre después de `claim` en el
+     * mismo efecto porque son el mismo tipo de red, y ambas son idempotentes.
+     */
+    void reconcile().then((activated) => {
+      if (activated > 0) {
+        fetchAll();
+        void loadBilling();
+      }
+    });
+
     void loadBilling();
-  }, [claim, fetchAll, loadBilling]);
+  }, [claim, reconcile, fetchAll, loadBilling]);
 
   /** Vuelta del checkout: `?pay=<orderId>` reabre el modal en modo polling. */
   const returningOrderId = useSearchParam("pay");

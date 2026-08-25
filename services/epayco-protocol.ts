@@ -302,6 +302,35 @@ export interface TransactionRow {
 }
 
 /**
+ * Saca el array de transacciones del sobre del listado.
+ *
+ * **La forma real, verificada contra la API el 2026-08-25**, es
+ * `{success, data: {pagination, data: [filas], aggregations}}`. O sea que el
+ * anidamiento `data.data` que el código asumía era el CORRECTO — se comprobó
+ * golpeando `POST /transaction` con una referencia real y leyendo el cuerpo
+ * crudo. Queda escrito acá porque la colección que el proyecto declara
+ * autoritativa **no documenta este endpoint** (no lo trae), así que esta
+ * función es hoy el único registro de su contrato.
+ *
+ * Se aceptan igual las otras dos formas plausibles. No es indecisión: el modo
+ * en que fallaba era mudo —cero filas, `null`, y el polling informando
+ * "pendiente" para siempre sobre un pago APROBADO— y un contrato que nadie
+ * publica puede moverse sin aviso. Tolerar el desanidado no afloja ninguna
+ * validación: quienes deciden si se acredita son `outcomeFromStatusText`, el
+ * cruce de monto y la guarda de modo prueba, y siguen intactos.
+ */
+export function transactionRows(data: unknown): TransactionRow[] {
+  if (Array.isArray(data)) return data as TransactionRow[];
+  if (!data || typeof data !== "object") return [];
+
+  const envelope = data as { data?: unknown; records?: unknown };
+  if (Array.isArray(envelope.data)) return envelope.data as TransactionRow[];
+  if (Array.isArray(envelope.records)) return envelope.records as TransactionRow[];
+
+  return [];
+}
+
+/**
  * Elige qué transacción representa a la orden cuando el listado devuelve varias
  * para el mismo `referenceClient`.
  *
