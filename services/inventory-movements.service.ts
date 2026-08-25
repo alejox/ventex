@@ -1,4 +1,5 @@
 import { createClient } from "@/utils/supabase/client";
+import type { StockUnitMode } from "@/lib/stock";
 
 export interface InventoryMovement {
   id: string;
@@ -20,6 +21,11 @@ export interface ManualMovementInput {
   product_id: string;
   type: "in" | "out" | "adjust";
   quantity: number;
+  /**
+   * En qué está expresada `quantity`. Por omisión, cajas: es lo que el RPC hacía
+   * cuando no existía la opción, así que omitirlo no cambia nada de lo anterior.
+   */
+  unit_mode?: StockUnitMode;
   notes?: string;
 }
 
@@ -61,6 +67,11 @@ export async function fetchMovements(productId?: string): Promise<InventoryMovem
  *
  * El RPC también es donde vive el permiso `inventory_stock`: es SECURITY
  * DEFINER, así que la RLS no lo cubre.
+ *
+ * `unit_mode` decide si la cantidad son unidades sueltas o cajas. La conversión
+ * la hace la base, no el cliente: mandar las unidades ya multiplicadas dejaría
+ * el número de cajas fuera del libro y obligaría a que cada pantalla repitiera
+ * la misma cuenta.
  */
 export async function createManualMovement(input: ManualMovementInput): Promise<void> {
   const supabase = createClient();
@@ -69,6 +80,7 @@ export async function createManualMovement(input: ManualMovementInput): Promise<
     p_type: input.type,
     p_quantity: input.quantity,
     p_notes: input.notes || undefined,
+    p_unit_mode: input.unit_mode ?? "package",
   });
   if (error) throw error;
 }

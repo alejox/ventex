@@ -2773,6 +2773,7 @@ export type Database = {
           p_product_id: string
           p_quantity: number
           p_type: string
+          p_unit_mode?: string
         }
         Returns: undefined
       }

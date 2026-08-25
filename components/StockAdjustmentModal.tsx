@@ -4,6 +4,8 @@ import { useState, useMemo } from "react";
 import { useMovementsStore } from "@/stores/inventory-movements.store";
 import { useInventoryStore } from "@/stores/inventory.store";
 import { isServiceItem } from "@/services/inventory.service";
+import { applyMovement, stockUnitsOf } from "@/lib/stock";
+import { StockQuantityFields } from "@/components/StockQuantityFields";
 
 interface StockAdjustmentModalProps {
   preselectedProductId?: string;
@@ -26,26 +28,31 @@ export function StockAdjustmentModal({ preselectedProductId, onClose, onSuccess 
   const [productSearch, setProductSearch] = useState("");
   const [productId, setProductId] = useState(preselectedProductId ?? "");
   const [type, setType] = useState<"in" | "out" | "adjust">("in");
-  const [quantity, setQuantity] = useState("1");
+  // Cajas y unidades sueltas, igual que en el alta del producto. Antes era un
+  // solo número que la base multiplicaba SIEMPRE por las unidades por caja, sin
+  // decirlo: mover 5 de un producto que viene de a 24 movía 120.
+  const [packages, setPackages] = useState("");
+  const [loose, setLoose] = useState("");
   const [notes, setNotes] = useState("");
 
   const selectedProduct = products.find((p) => p.id === productId);
 
-  // "Ajustar a" fija el stock absoluto (el servicio hace
-  // `update products set stock_level = quantity`), así que 0 es un valor
-  // legítimo: es como se registra un producto agotado. Entrada y salida son
-  // deltas y sí necesitan ser mayores a cero.
-  const minQuantity = type === "adjust" ? 0 : 1;
-  const parsedQuantity = parseInt(quantity);
-  const quantityInRange = Number.isInteger(parsedQuantity) && parsedQuantity >= minQuantity;
+  // "Ajustar a" fija el stock absoluto, así que 0 es un valor legítimo: es como
+  // se registra un producto agotado. Pero cero ESCRITO y cero por no haber
+  // escrito nada son cosas distintas, y dejar vaciar el inventario sin haber
+  // tecleado un número no es un ajuste: es un accidente.
+  const touched = packages.trim() !== "" || loose.trim() !== "";
 
-  // `increment_stock` aplica el movimiento en unidades sueltas: multiplica la
-  // cantidad por `units_per_package`. Comparar la cantidad cruda contra el
-  // stock daba un aviso mal calibrado para productos que vienen por paquete.
+  // El stock vive en unidades sueltas. La caja es solo cómo habla el
+  // comerciante, y la conversión ocurre en `lib/stock` —una sola vez— para que
+  // el aviso de acá y la cuenta de la base no puedan decir cosas distintas.
   const unitsPerPackage = selectedProduct?.units_per_package ?? 1;
-  const unitsMoved = quantityInRange ? parsedQuantity * unitsPerPackage : 0;
-  const exceedsStock =
-    type === "out" && !!selectedProduct && unitsMoved > selectedProduct.stock_level;
+  const unitsMoved = stockUnitsOf(packages, loose, String(unitsPerPackage));
+  const projectedStock = selectedProduct
+    ? applyMovement(selectedProduct.stock_level, type, unitsMoved)
+    : 0;
+  const exceedsStock = type === "out" && !!selectedProduct && projectedStock < 0;
+  const quantityInRange = type === "adjust" ? touched : unitsMoved > 0;
 
   // El servidor rechaza dejar el stock en negativo (STOCK_INSUFICIENTE), así
   // que la salida en exceso se bloquea acá en vez de dejar enviar y fallar.
@@ -68,10 +75,13 @@ export function StockAdjustmentModal({ preselectedProductId, onClose, onSuccess 
     e.preventDefault();
     if (!productId || !quantityValid) return;
 
+    // Ya convertido a unidades: una fila en el libro por ingreso, y la cuenta
+    // que se ve en pantalla es exactamente la que se manda.
     const ok = await addMovement({
       product_id: productId,
       type,
-      quantity: parsedQuantity,
+      quantity: unitsMoved,
+      unit_mode: "unit",
       notes: notes || undefined,
     });
 
@@ -178,27 +188,28 @@ export function StockAdjustmentModal({ preselectedProductId, onClose, onSuccess 
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <label className="text-sm font-semibold text-on-surface block">
+          <div className="space-y-2">
+            <p className="text-sm font-semibold text-on-surface">
               {type === "adjust" ? "Nuevo stock" : "Cantidad"}
-            </label>
-            <input
-              type="number"
-              min={minQuantity}
-              step="1"
-              value={quantity}
-              onChange={(e) => setQuantity(e.target.value)}
-              required
-              className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+            </p>
+            <StockQuantityFields
+              packSize={unitsPerPackage}
+              packages={packages}
+              onPackagesChange={setPackages}
+              loose={loose}
+              onLooseChange={setLoose}
+              idPrefix="adjust"
             />
             {type === "adjust" && (
               <p className="text-xs text-on-surface-variant">
-                El stock queda exactamente en este número. Usa 0 para marcar el producto como agotado.
+                El stock queda exactamente en ese total. Escribe 0 para marcar el producto como agotado.
               </p>
             )}
-            {type !== "adjust" && unitsPerPackage > 1 && quantityInRange && (
-              <p className="text-xs text-on-surface-variant">
-                {parsedQuantity} × {unitsPerPackage} unidades por paquete = {unitsMoved} unidades.
+            {/* El número que importa es en cuánto queda el producto: es lo que
+                el comerciante va a contar en el estante después de confirmar. */}
+            {selectedProduct && quantityInRange && !exceedsStock && (
+              <p className="text-sm text-on-surface">
+                Queda en <strong className="text-primary font-mono">{projectedStock}</strong> unidades.
               </p>
             )}
           </div>

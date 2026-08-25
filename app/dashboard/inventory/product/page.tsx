@@ -4,6 +4,7 @@ import { Suspense, useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useInventoryStore } from "@/stores/inventory.store";
+import { useMovementsStore } from "@/stores/inventory-movements.store";
 import { useServicesStore } from "@/stores/services.store";
 import type { NewProductInput } from "@/services/inventory.service";
 import { calculateMargin, handlePresentationModeChange } from "@/services/inventory.service";
@@ -13,6 +14,9 @@ import { CategoryQuickModal } from "@/components/CategoryQuickModal";
 import { BarcodeField } from "@/components/BarcodeField";
 import { Select } from "@/components/ui/Select";
 import { usePricePair } from "@/lib/usePricePair";
+import { stockUnitsOf } from "@/lib/stock";
+import { useProfile } from "@/components/ProfileProvider";
+import { can } from "@/lib/permissions";
 import { useBusinessTax } from "@/lib/useBusinessTax";
 import { useBarcodeLookup } from "@/lib/useBarcodeLookup";
 import type { OpenFactsProduct } from "@/services/openfacts.service";
@@ -76,6 +80,7 @@ function ProductForm() {
   const backTo =
     from && /^\/dashboard\/[a-z0-9/-]*$/i.test(from) ? from : "/dashboard/inventory";
 
+  const profile = useProfile();
   const products = useInventoryStore((s) => s.products);
   const categories = useInventoryStore((s) => s.categories);
   const distributors = useInventoryStore((s) => s.distributors);
@@ -83,6 +88,8 @@ function ProductForm() {
   const fetchInventory = useInventoryStore((s) => s.fetchInventory);
   const addProduct = useInventoryStore((s) => s.addProduct);
   const updateProduct = useInventoryStore((s) => s.updateProduct);
+  const addMovement = useMovementsStore((s) => s.addMovement);
+  const movementError = useMovementsStore((s) => s.error);
   const services = useServicesStore((s) => s.services);
   const serviceError = useServicesStore((s) => s.error);
   const fetchServices = useServicesStore((s) => s.fetchServices);
@@ -134,8 +141,18 @@ function ProductForm() {
    * En edición se siembra según lo que ya tenga guardado.
    */
   const [presentation, setPresentation] = useState<"unit" | "package">("unit");
-  const [initialUnits, setInitialUnits] = useState("");
+  /** Stock del alta: cajas y unidades sueltas, que se suman. */
   const [initialPackages, setInitialPackages] = useState("");
+  const [initialLoose, setInitialLoose] = useState("");
+  /**
+   * Entrada de stock desde la ficha, en edición.
+   *
+   * No es un campo del producto: se manda como movimiento `in` al RPC, que es
+   * lo que deja rastro en el libro. Escribir `stock_level` desde el formulario
+   * sería pisar el conteo con el número que la pantalla leyó al abrirse.
+   */
+  const [entryPackages, setEntryPackages] = useState("");
+  const [entryLoose, setEntryLoose] = useState("");
   const [purchasePriceTax, setPurchasePriceTax] = useState("IVA");
   const [sellingPriceTax, setSellingPriceTax] = useState("IVA");
 
@@ -178,6 +195,8 @@ function ProductForm() {
       ...prev,
       ...patch,
     }));
+    // Sin caja no hay cajas que cargar: lo que se hubiera escrito ahí no puede
+    // quedar sumando en silencio al volver a la presentación suelta.
     if (newMode === "unit") {
       setInitialPackages("");
     }
@@ -188,11 +207,18 @@ function ProductForm() {
     fetchServices();
   }, [fetchInventory, fetchServices]);
 
-  /** Stock inicial en unidades sueltas: una caja son N. */
-  const initialStock =
-    presentation === "package"
-      ? (parseInt(initialPackages || "0") || 0) * Math.max(parseInt(form.units_per_package || "1") || 1, 1)
-      : parseInt(initialUnits || "0") || 0;
+  /**
+   * Stock inicial en unidades sueltas: cajas enteras MÁS unidades sueltas.
+   *
+   * La caja incompleta es la regla, no la excepción: llega una caja de 24 con
+   * 23, o queda un resto del mes pasado. Sin el campo suelto la única salida era
+   * cargar la caja entera y arrancar el inventario con una unidad que no existe.
+   */
+  const initialStock = stockUnitsOf(
+    presentation === "package" ? initialPackages : "",
+    initialLoose,
+    form.units_per_package ?? "1",
+  );
 
   const packageHint = (() => {
     const boxPrice = parseFloat(form.package_price ?? "");
@@ -211,6 +237,17 @@ function ProductForm() {
 
   const editingProduct = editId ? products.find((p) => p.id === editId) : undefined;
   const editingService = editServiceId ? services.find((s) => s.id === editServiceId) : undefined;
+
+  // Mover stock tiene su propio permiso: un empleado que puede corregir un
+  // precio no necesariamente puede cargar mercadería. El RPC lo revalida, pero
+  // mostrar un campo que va a rebotar no es avisar, es hacer perder el tiempo.
+  const canMoveStock = can(profile, "inventory_stock");
+  const currentStock = editingProduct?.stock_level ?? 0;
+  const entryUnits = stockUnitsOf(
+    presentation === "package" ? entryPackages : "",
+    entryLoose,
+    form.units_per_package ?? "1",
+  );
 
   // Siembra del formulario en edición. Se hace DURANTE el render (patrón oficial
   // de React para ajustar estado cuando cambia una entrada) y no en un efecto:
@@ -376,7 +413,9 @@ function ProductForm() {
       name: form.name.trim().toUpperCase(),
       purchase_price: purchasePriceTotal,
       price: sellingPriceTotal,
-      stock_level: editId ? String(form.stock_level || "0") : String(initialStock),
+      // El stock solo se define en el alta: `updateProduct` ya no escribe la
+      // columna, y en edición la entrada va por el RPC de movimientos.
+      stock_level: String(initialStock),
       units_per_package: presentation === "package" ? (form.units_per_package || "1") : "1",
       package_price: presentation === "package" ? form.package_price : "",
     };
@@ -384,9 +423,35 @@ function ProductForm() {
     const ok = editId
       ? await updateProduct(editId, payload, imageFile)
       : await addProduct(payload, imageFile);
-    setSaving(false);
+    const saved = typeof ok === "string" || ok === true;
 
-    if (typeof ok === "string" || ok === true) router.push(backTo);
+    // La entrada de stock va DESPUÉS de guardar el producto y por su propio RPC.
+    //
+    // Ese orden importa: si el movimiento fuera primero y el guardado fallara,
+    // la mercadería ya habría entrado y el comerciante reintentaría el guardado
+    // sumándola de nuevo. Al revés, lo peor que pasa es que el producto quede
+    // guardado y la entrada no: se ve el error y se vuelve a intentar solo eso.
+    if (saved && editId && entryUnits > 0) {
+      // Cajas y sueltas viajan sumadas, en unidades: partirlo en dos llamadas
+      // dejaría dos filas en el libro para un mismo ingreso, y la segunda podría
+      // fallar con la primera ya aplicada.
+      const moved = await addMovement({
+        product_id: editId,
+        type: "in",
+        quantity: entryUnits,
+        unit_mode: "unit",
+        notes: "Entrada desde la ficha del producto",
+      });
+      setSaving(false);
+      if (!moved) return;
+      setEntryPackages("");
+      setEntryLoose("");
+      router.push(backTo);
+      return;
+    }
+
+    setSaving(false);
+    if (saved) router.push(backTo);
   };
 
   const handleBarcodeFound = useCallback(
@@ -675,15 +740,20 @@ function ProductForm() {
                 editId={editId}
                 unitsPerPackage={form.units_per_package ?? "1"}
                 onUnitsPerPackageChange={(v) => setForm({ ...form, units_per_package: v })}
-                initialUnits={initialUnits}
-                setInitialUnits={setInitialUnits}
                 initialPackages={initialPackages}
                 setInitialPackages={setInitialPackages}
-                initialStock={initialStock}
+                initialLoose={initialLoose}
+                setInitialLoose={setInitialLoose}
                 packagePrice={form.package_price ?? ""}
                 onPackagePriceChange={(v) => setForm({ ...form, package_price: v })}
                 packageHint={packageHint}
-                stockLevel={form.stock_level ?? ""}
+                currentStock={currentStock}
+                canMoveStock={canMoveStock}
+                entryPackages={entryPackages}
+                setEntryPackages={setEntryPackages}
+                entryLoose={entryLoose}
+                setEntryLoose={setEntryLoose}
+                entryUnits={entryUnits}
               />
             </>
           ) : (
@@ -867,6 +937,15 @@ function ProductForm() {
         {(itemType === "Servicio" ? serviceError : error) && (
           <p className="text-sm text-error bg-error-container/10 rounded-xl px-4 py-3 border border-error-container/20">
             {itemType === "Servicio" ? serviceError : error}
+          </p>
+        )}
+
+        {/* El movimiento tiene store propio: si el producto se guardó y la
+            entrada falló, decirlo con el error del inventario sería mentir sobre
+            qué quedó guardado. */}
+        {itemType === "Producto" && movementError && (
+          <p className="text-sm text-error bg-error-container/10 rounded-xl px-4 py-3 border border-error-container/20">
+            El producto se guardó, pero la entrada de stock no: {movementError}
           </p>
         )}
 

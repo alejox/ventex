@@ -94,3 +94,90 @@ export const STOCK_DOT: Record<StockStatus, string> = {
   out: "bg-error",
   oversold: "bg-error",
 };
+
+/**
+ * En qué está expresada la cantidad de un movimiento de stock.
+ *
+ * El stock SIEMPRE vive en unidades sueltas: `products.stock_level` cuenta
+ * unidades y la venta descuenta unidades. La caja es solo la forma en que el
+ * comerciante habla ("me entraron 3 cajas"), y la conversión ocurre acá, una
+ * sola vez, antes de tocar el conteo.
+ *
+ * Existe porque hasta ahora no había elección: el movimiento manual multiplicaba
+ * SIEMPRE por `units_per_package`, así que en un producto que viene de a 24 no
+ * había manera de cargar 5 unidades sueltas — entraban 120.
+ */
+export type StockUnitMode = "unit" | "package";
+
+/** Unidades por caja utilizables: nunca 0, o el movimiento se anularía. */
+function packSize(unitsPerPackage: number | null | undefined): number {
+  const n = Number(unitsPerPackage);
+  return Number.isFinite(n) && n >= 1 ? Math.floor(n) : 1;
+}
+
+/**
+ * Unidades sueltas que mueve una cantidad expresada en `mode`.
+ *
+ * Una cantidad que no es un entero positivo devuelve 0: media caja no es un
+ * movimiento, y dejarla pasar escribiría un stock fraccionario en una columna
+ * de enteros.
+ */
+export function movementUnits(
+  quantity: number,
+  mode: StockUnitMode,
+  unitsPerPackage: number | null | undefined,
+): number {
+  if (!Number.isInteger(quantity) || quantity <= 0) return 0;
+  return mode === "package" ? quantity * packSize(unitsPerPackage) : quantity;
+}
+
+/**
+ * Stock que queda tras aplicar un movimiento, en unidades sueltas.
+ *
+ * `units` ya viene convertido: la conversión de cajas a unidades ocurre una vez,
+ * al leer los campos, y de ahí en adelante todo el sistema habla en unidades.
+ *
+ * `adjust` NO es un delta: reemplaza el conteo. Por eso el 0 es un valor
+ * legítimo —así se registra un producto agotado—, mientras que la entrada y la
+ * salida en 0 no mueven nada.
+ *
+ * La salida en exceso devuelve el negativo en vez de recortarlo a cero: la base
+ * la rechaza con STOCK_INSUFICIENTE, y la UI necesita ver el número real para
+ * avisar ANTES de enviar.
+ */
+export function applyMovement(
+  current: number,
+  type: "in" | "out" | "adjust",
+  units: number,
+): number {
+  if (type === "adjust") return units;
+  return type === "in" ? current + units : current - units;
+}
+
+/** Entero no negativo de un campo de formulario. Vacío y basura valen 0. */
+function countOf(raw: string | null | undefined): number {
+  const n = parseInt(String(raw ?? "").trim(), 10);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+/**
+ * Unidades sueltas que representan unas cajas MÁS un resto suelto.
+ *
+ * Es la cuenta de todo ingreso de mercadería del sistema —el alta del producto,
+ * la entrada desde la ficha y el ajuste manual—, porque así es como llega la
+ * mercadería: "me entraron 2 cajas y 20 unidades".
+ *
+ * `unitsPerPackageRaw` NO aporta stock por sí solo: describe el empaque, no la
+ * mercadería. Sin cajas cargadas no multiplica nada, y un producto definido como
+ * caja de 24 al que se le cargan 23 unidades tiene 23, no 47.
+ */
+export function stockUnitsOf(
+  packagesRaw: string,
+  looseUnitsRaw: string,
+  unitsPerPackageRaw: string,
+): number {
+  return (
+    movementUnits(countOf(packagesRaw), "package", countOf(unitsPerPackageRaw)) +
+    movementUnits(countOf(looseUnitsRaw), "unit", 1)
+  );
+}

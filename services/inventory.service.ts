@@ -398,7 +398,7 @@ function normalizeBarcode(raw: string | undefined): string | null {
 }
 
 /**
- * Existencias con las que nace o se guarda el ítem.
+ * Existencias con las que NACE el ítem. Solo el alta: ver `updateProduct`.
  *
  * Un servicio siempre queda en cero, y además con mínimo cero: el `minimum_stock`
  * por defecto es 10, y con ese valor un servicio aparecía eternamente en las
@@ -458,6 +458,15 @@ export async function activateProduct(id: string): Promise<void> {
   if (error) throw error;
 }
 
+/**
+ * Editar un producto NO toca su stock.
+ *
+ * Antes escribía `stock_level` con el valor que el formulario había leído al
+ * abrirse: si alguien vendía dos unidades en el POS mientras el dueño corregía
+ * un precio, guardar revertía esas ventas en silencio. El conteo se mueve por
+ * `register_manual_movement` —que además deja el movimiento con fecha y
+ * responsable—, por la recepción de compras y por la venta. Nunca por acá.
+ */
 export async function updateProduct(id: string, input: NewProductInput): Promise<Product> {
   const supabase = createClient();
   const { data, error } = await supabase
@@ -472,7 +481,6 @@ export async function updateProduct(id: string, input: NewProductInput): Promise
       ...costPatch(input.purchase_price),
       price: parseFloat(input.price),
       package_price: normalizePackagePrice(input.package_price),
-      ...stockPatch(input),
       image_url: input.image_url || null,
       has_commission: input.has_commission,
       commission_type: input.has_commission ? input.commission_type : null,

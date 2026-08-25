@@ -1,4 +1,5 @@
 import { MoneyInput } from "@/components/ui/MoneyInput";
+import { StockQuantityFields } from "@/components/StockQuantityFields";
 
 interface ProductPresentationSectionProps {
   presentation: "unit" | "package";
@@ -6,15 +7,23 @@ interface ProductPresentationSectionProps {
   editId: string | null;
   unitsPerPackage: string;
   onUnitsPerPackageChange: (v: string) => void;
-  initialUnits: string;
-  setInitialUnits: (v: string) => void;
+  /** Cajas y unidades sueltas del alta. Se suman. */
   initialPackages: string;
   setInitialPackages: (v: string) => void;
-  initialStock: number;
+  initialLoose: string;
+  setInitialLoose: (v: string) => void;
   packagePrice: string;
   onPackagePriceChange: (v: string) => void;
   packageHint: string;
-  stockLevel: string;
+  /** Stock guardado, en unidades sueltas. Solo se muestra en edición. */
+  currentStock: number;
+  canMoveStock: boolean;
+  entryPackages: string;
+  setEntryPackages: (v: string) => void;
+  entryLoose: string;
+  setEntryLoose: (v: string) => void;
+  /** Unidades que sumaría la entrada, cajas ya convertidas. */
+  entryUnits: number;
 }
 
 export function ProductPresentationSection({
@@ -23,16 +32,27 @@ export function ProductPresentationSection({
   editId,
   unitsPerPackage,
   onUnitsPerPackageChange,
-  initialUnits,
-  setInitialUnits,
   initialPackages,
   setInitialPackages,
-  initialStock,
+  initialLoose,
+  setInitialLoose,
   packagePrice,
   onPackagePriceChange,
   packageHint,
-  stockLevel,
+  currentStock,
+  canMoveStock,
+  entryPackages,
+  setEntryPackages,
+  entryLoose,
+  setEntryLoose,
+  entryUnits,
 }: ProductPresentationSectionProps) {
+  // En presentación suelta no hay caja que ofrecer, por más que el producto
+  // arrastre un `units_per_package` de una edición anterior.
+  const packSize = presentation === "package"
+    ? Math.max(parseInt(unitsPerPackage || "1", 10) || 1, 1)
+    : 1;
+
   return (
     <div className="border-t border-outline-variant/10 pt-6 space-y-5">
       <div>
@@ -59,51 +79,29 @@ export function ProductPresentationSection({
         ))}
       </div>
 
-      {presentation === "package" ? (
+      {presentation === "package" && (
         <div className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
-            {!editId && (
-              <div className="space-y-1.5">
-                <label htmlFor="initial-packages" className="text-[13px] font-semibold text-on-surface block">
-                  Cajas que estás cargando
-                </label>
-                <input
-                  id="initial-packages"
-                  type="number"
-                  min="0"
-                  value={initialPackages}
-                  onChange={(e) => setInitialPackages(e.target.value)}
-                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-base sm:text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-on-surface-variant/50"
-                  placeholder="Ej. 4"
-                />
-              </div>
-            )}
-
-            <div className="space-y-1.5">
-              <label htmlFor="units-per-package" className="text-[13px] font-semibold text-on-surface block">
-                Unidades por caja
-              </label>
-              <input
-                id="units-per-package"
-                type="number"
-                min="1"
-                value={unitsPerPackage}
-                onChange={(e) => onUnitsPerPackageChange(e.target.value)}
-                className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-base sm:text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-on-surface-variant/50"
-                placeholder="Ej. 60"
-              />
-            </div>
-          </div>
-
-          {!editId && (
-            <p className="text-sm text-on-surface">
-              Stock inicial:{" "}
-              <strong className="font-mono text-primary">{initialStock}</strong> unidades
-              <span className="text-xs text-on-surface-variant font-normal">
-                {" "}({initialPackages || "0"} cajas × {unitsPerPackage || "1"} u.)
-              </span>
+          <div className="space-y-1.5 max-w-sm">
+            <label htmlFor="units-per-package" className="text-[13px] font-semibold text-on-surface block">
+              Unidades por caja
+            </label>
+            <input
+              id="units-per-package"
+              type="number"
+              min="1"
+              value={unitsPerPackage}
+              onChange={(e) => onUnitsPerPackageChange(e.target.value)}
+              className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-base sm:text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-on-surface-variant/50"
+              placeholder="Ej. 60"
+            />
+            {/* Define el EMPAQUE —cuánto trae una caja, para venderla y para
+                prorratear el costo—, no cuánta mercadería hay. Cuando sumaba al
+                stock, un producto con caja de 24 al que se le cargaban 23
+                unidades nacía con 47. */}
+            <p className="text-xs text-on-surface-variant">
+              Cuántas unidades trae una caja. Es la definición del empaque: no suma stock.
             </p>
-          )}
+          </div>
 
           <div className="space-y-1.5 max-w-sm">
             <label className="text-[13px] font-semibold text-on-surface block">
@@ -118,30 +116,77 @@ export function ProductPresentationSection({
             {packageHint && <p className="text-xs text-on-surface-variant">{packageHint}</p>}
           </div>
         </div>
-      ) : (
-        !editId && (
-          <div className="space-y-1.5 max-w-sm">
-            <label htmlFor="initial-units" className="text-[13px] font-semibold text-on-surface block">
-              Stock inicial <span className="text-on-surface-variant font-normal">(unidades)</span>
-            </label>
-            <input
-              id="initial-units"
-              type="number"
-              min="0"
-              value={initialUnits}
-              onChange={(e) => setInitialUnits(e.target.value)}
-              className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-base sm:text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-on-surface-variant/50"
-              placeholder="Ej. 25"
-            />
-          </div>
-        )
+      )}
+
+      {/* Cajas y unidades sueltas juntas, porque así llega la mercadería: "me
+          entraron 2 cajas y 20 unidades". La línea del total es la que deja ver
+          que «unidades por caja» define el empaque y no suma stock por sí sola. */}
+      {!editId && (
+        <div className="space-y-2">
+          <p className="text-[13px] font-semibold text-on-surface">Stock inicial</p>
+          <StockQuantityFields
+            packSize={packSize}
+            packages={initialPackages}
+            onPackagesChange={setInitialPackages}
+            loose={initialLoose}
+            onLooseChange={setInitialLoose}
+            idPrefix="initial"
+          />
+          <p className="text-xs text-on-surface-variant">
+            {packSize > 1
+              ? "Cuánta mercadería tienes hoy. Una caja incompleta va en unidades sueltas."
+              : "Cuántas unidades tienes hoy."}
+          </p>
+        </div>
       )}
 
       {editId && (
-        <div className="flex flex-wrap items-center gap-4 px-1">
+        <div className="rounded-2xl border border-outline-variant/20 bg-surface-container-low/40 p-4 space-y-4">
           <div className="text-sm text-on-surface-variant">
-            Stock actual: <strong className="text-on-surface">{stockLevel || "0"}</strong> unidades
+            Stock actual: <strong className="text-on-surface font-mono">{currentStock}</strong> unidades
           </div>
+
+          {canMoveStock ? (
+            <>
+              <div className="space-y-2">
+                <p className="text-[13px] font-semibold text-on-surface">
+                  Agregar stock <span className="text-on-surface-variant font-normal">(opcional)</span>
+                </p>
+                <StockQuantityFields
+                  packSize={packSize}
+                  packages={entryPackages}
+                  onPackagesChange={setEntryPackages}
+                  loose={entryLoose}
+                  onLooseChange={setEntryLoose}
+                  idPrefix="entry"
+                />
+              </div>
+
+              {entryUnits > 0 ? (
+                <p className="text-sm text-on-surface">
+                  Queda en{" "}
+                  <strong className="font-mono text-primary">{currentStock + entryUnits}</strong> unidades
+                  <span className="text-xs text-on-surface-variant font-normal">
+                    {" "}({currentStock} + {entryUnits})
+                  </span>
+                </p>
+              ) : (
+                /* El stock NO se edita a mano: se registra la entrada y queda en
+                   Movimientos con fecha y responsable. Escribir el conteo desde
+                   acá pisaría lo que el POS vendió mientras la ficha estaba
+                   abierta. Para descontar o corregir el conteo está «Ajustar
+                   stock», que registra salida o ajuste. */
+                <p className="text-xs text-on-surface-variant">
+                  Se registra como entrada en Movimientos al guardar. Para descontar o corregir
+                  el conteo, usa «Ajustar stock» desde el inventario.
+                </p>
+              )}
+            </>
+          ) : (
+            <p className="text-xs text-on-surface-variant">
+              No tienes permiso para mover stock.
+            </p>
+          )}
         </div>
       )}
     </div>
