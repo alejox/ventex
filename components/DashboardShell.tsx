@@ -34,7 +34,7 @@ import { InstallPrompt } from "@/components/InstallPrompt";
 import { ExpenseModal } from "@/components/ExpenseModal";
 import { useProfile } from "@/components/ProfileProvider";
 import { visibleNavItems, workerNavItems, groupNavItems, footerNavItems } from "@/config/business";
-import { SidebarNavGroup, useClosedNavGroups } from "@/components/SidebarNavGroup";
+import { SidebarNavGroup, useOpenNavGroups } from "@/components/SidebarNavGroup";
 import { backdropProps } from "@/components/modal";
 import { SIDEBAR_COOKIE, SIDEBAR_COOKIE_MAX_AGE } from "@/lib/sidebar";
 import { WorkspaceSwitcher } from "@/components/WorkspaceSwitcher";
@@ -156,7 +156,7 @@ export function DashboardShell({
   // Agrupar es solo presentación: `navigation` ya trae únicamente lo que esta
   // persona puede ver, y `groupNavItems` no agrega ni quita nada.
   const navGroups = useMemo(() => groupNavItems(navigation), [navigation]);
-  const { cerrados, toggle: toggleNavGroup } = useClosedNavGroups();
+  const { abiertos, toggle: toggleNavGroup } = useOpenNavGroups();
   // Mi Plan baja al pie, con Configuración: los dos son "cosas de mi cuenta",
   // no herramientas del día. Salen de la MISMA lista ya filtrada por rol.
   const footerNav = useMemo(() => footerNavItems(navigation), [navigation]);
@@ -278,7 +278,7 @@ export function DashboardShell({
                   <SidebarNavGroup
                     group={group}
                     activeNavId={activeNavId}
-                    closed={cerrados.has(group.id)}
+                    open={abiertos.has(group.id)}
                     onToggle={toggleNavGroup}
                     icons={NAV_ICONS}
                   />
@@ -496,7 +496,7 @@ export function DashboardShell({
                     <SidebarNavGroup
                       group={group}
                       activeNavId={activeNavId}
-                      closed={cerrados.has(group.id)}
+                      open={abiertos.has(group.id)}
                       onToggle={toggleNavGroup}
                       onNavigate={() => setMobileMenuOpen(false)}
                       icons={NAV_ICONS}

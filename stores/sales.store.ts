@@ -6,7 +6,9 @@ import type {
   SaleDetail,
   SalesSummary,
   SalesPeriodId,
+  ItemFilter,
 } from "@/services/sales.service";
+import { NO_ITEM_FILTER } from "@/services/sales.service";
 
 interface SalesState {
   sales: SaleListItem[];
@@ -28,6 +30,14 @@ interface SalesState {
   paymentMethod: string;
   /** Filtro por método de transferencia. Vacío = todas. */
   transferMethod: string;
+  /**
+   * Por qué producto/servicio o categoría se está filtrando.
+   *
+   * Viaja como UN objeto y no como tres campos sueltos porque los tres se
+   * limpian y se mandan siempre juntos: son una sola pregunta ("¿de qué ítem?")
+   * hecha de tres maneras, y separarlos invita a mandar dos a la vez.
+   */
+  itemFilter: ItemFilter;
 
   detail: SaleDetail | null;
   detailLoading: boolean;
@@ -39,6 +49,7 @@ interface SalesState {
   setCustomerQuery: (query: string) => Promise<void>;
   setPaymentMethod: (method: string) => Promise<void>;
   setTransferMethod: (method: string) => Promise<void>;
+  setItemFilter: (filter: ItemFilter) => Promise<void>;
   setPage: (page: number) => Promise<void>;
   openDetail: (saleId: string) => Promise<void>;
   closeDetail: () => void;
@@ -63,18 +74,19 @@ export const useSalesStore = create<SalesState>((set, get) => ({
   customerQuery: "",
   paymentMethod: "",
   transferMethod: "",
+  itemFilter: NO_ITEM_FILTER,
   detail: null,
   detailLoading: false,
 
   fetchSales: async () => {
-    const { period, customFrom, customTo, page, customerQuery, paymentMethod, transferMethod } = get();
+    const { period, customFrom, customTo, page, customerQuery, paymentMethod, transferMethod, itemFilter } = get();
     set({ loading: true, error: null });
     try {
       const range = salesService.resolvePeriod(period, customFrom, customTo);
       // En paralelo: son consultas independientes y la página las necesita a las dos.
       const [pageResult, summary] = await Promise.all([
-        salesService.fetchSales(range, page, undefined, customerQuery, paymentMethod, transferMethod),
-        salesService.fetchSalesSummary(range, customerQuery, paymentMethod, transferMethod),
+        salesService.fetchSales(range, page, undefined, customerQuery, paymentMethod, transferMethod, itemFilter),
+        salesService.fetchSalesSummary(range, customerQuery, paymentMethod, transferMethod, itemFilter),
       ]);
       set({ sales: pageResult.items, total: pageResult.total, summary, loading: false });
     } catch (e) {
@@ -106,6 +118,11 @@ export const useSalesStore = create<SalesState>((set, get) => ({
   setPaymentMethod: async (method) => {
     // Al cambiar el método de pago, resetea el sub-filtro de transferencia.
     set({ paymentMethod: method, transferMethod: "", page: 0 });
+    await get().fetchSales();
+  },
+
+  setItemFilter: async (filter) => {
+    set({ itemFilter: filter, page: 0 });
     await get().fetchSales();
   },
 

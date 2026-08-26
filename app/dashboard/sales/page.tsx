@@ -1,10 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { IconShoppingCart, IconWallet, IconTrendingUp, IconSearch } from "@/app/assets/icons/DashboardIcons";
 import { useSettingsStore } from "@/stores/settings.store";
 import { useSalesStore } from "@/stores/sales.store";
-import { SALES_PERIODS, SALES_PAGE_SIZE, type SaleListItem } from "@/services/sales.service";
+import {
+  SALES_PERIODS,
+  SALES_PAGE_SIZE,
+  fetchItemFilterOptions,
+  hasItemFilter,
+  itemFilterFromOption,
+  NO_ITEM_FILTER,
+  type ItemFilterOptions,
+  type SaleListItem,
+} from "@/services/sales.service";
+import { Select } from "@/components/ui/Select";
+import { formatQty } from "@/lib/stock";
 import { COLOMBIA_TRANSFER_METHODS, getTransferMethodName } from "@/config/transferMethods";
 import { getCardMethodName } from "@/config/cardMethods";
 import { DataTable, type DataColumn } from "@/components/DataTable";
@@ -66,6 +77,32 @@ const STATUS_LABELS: Record<string, string> = {
   refunded: "Reembolsada",
   void: "Anulada",
 };
+
+/**
+ * Cuánto de cada venta fue del ítem filtrado.
+ *
+ * Es una columna aparte de "Total" y no un reemplazo: las dos preguntas son
+ * legítimas y distintas. Ponerlas juntas es lo que deja ver, de un vistazo, que
+ * la venta #8 fue de $1.060.726 y que de la gaseosa filtrada solo hubo $3.000.
+ */
+const itemColumn = (etiqueta: string): DataColumn<SaleListItem> => ({
+  header: etiqueta,
+  align: "right",
+  mobile: "field",
+  sortKey: "delItem",
+  sortValue: (s) => s.item_total,
+  className: "font-semibold text-primary tabular-nums",
+  // El monto arriba y las unidades abajo, y NO "4 × $12.000": esa forma se lee
+  // como "cuatro a doce mil cada uno", que son $48.000 que nadie cobró.
+  cell: (s) => (
+    <>
+      <div className="tabular-nums">${money(s.item_total)}</div>
+      <div className="text-[11px] font-normal text-on-surface-variant/70">
+        {formatQty(s.item_units)} u
+      </div>
+    </>
+  ),
+});
 
 const SALE_COLUMNS: DataColumn<SaleListItem>[] = [
   {
@@ -150,10 +187,54 @@ export default function SalesPage() {
   const setPaymentMethod = useSalesStore((s) => s.setPaymentMethod);
   const transferMethod = useSalesStore((s) => s.transferMethod);
   const setTransferMethod = useSalesStore((s) => s.setTransferMethod);
+  const itemFilter = useSalesStore((s) => s.itemFilter);
+  const setItemFilter = useSalesStore((s) => s.setItemFilter);
+
+  // Opciones de los dos selectores. Se piden una vez: el catálogo no cambia
+  // mientras se mira el historial.
+  const [opciones, setOpciones] = useState<ItemFilterOptions>({ items: [], categories: [] });
+  useEffect(() => {
+    fetchItemFilterOptions().then(setOpciones).catch(() => {});
+  }, []);
+
+  const filtrandoItem = hasItemFilter(itemFilter);
+  const itemElegido = itemFilter.productId
+    ? `p:${itemFilter.productId}`
+    : itemFilter.serviceId
+      ? `s:${itemFilter.serviceId}`
+      : "";
+
+  // Elegida una categoría, el selector de ítem se acota a ella: buscar un
+  // producto entre cientos es el trabajo que la categoría vino a evitar.
+  const itemsDelSelector = useMemo(
+    () =>
+      itemFilter.categoryId
+        ? opciones.items.filter((i) => i.categoryId === itemFilter.categoryId)
+        : opciones.items,
+    [opciones.items, itemFilter.categoryId],
+  );
+
+  const nombreDelItem = useMemo(() => {
+    if (itemElegido) return opciones.items.find((i) => i.value === itemElegido)?.label ?? "el ítem";
+    if (itemFilter.categoryId)
+      return opciones.categories.find((c) => c.id === itemFilter.categoryId)?.name ?? "la categoría";
+    return "";
+  }, [itemElegido, itemFilter.categoryId, opciones]);
+
+  // La columna del ítem se inserta junto a "Total": el punto de esta pantalla es
+  // poder comparar las dos cifras sin mover los ojos por toda la fila.
+  const columnas = useMemo(() => {
+    if (!filtrandoItem) return SALE_COLUMNS;
+    const cols = [...SALE_COLUMNS];
+    const iTotal = cols.findIndex((c) => c.header === "Total");
+    cols.splice(iTotal + 1, 0, itemColumn(nombreDelItem ? `De ${nombreDelItem}` : "Del ítem"));
+    return cols;
+  }, [filtrandoItem, nombreDelItem]);
 
   // Lo que se está tecleando, que va por delante de la búsqueda aplicada.
   const [searchInput, setSearchInput] = useState(customerQuery);
-  const hasActiveFilters = period !== "all" || Boolean(customerQuery || paymentMethod || transferMethod);
+  const hasActiveFilters =
+    period !== "all" || Boolean(customerQuery || paymentMethod || transferMethod) || filtrandoItem;
 
   const clearFilters = () => {
     setPeriod("all");
@@ -161,6 +242,7 @@ export default function SalesPage() {
     setSearchInput("");
     setPaymentMethod("");
     setTransferMethod("");
+    setItemFilter(NO_ITEM_FILTER);
   };
 
   useEffect(() => {
@@ -242,6 +324,80 @@ export default function SalesPage() {
         ))}
       </div>
 
+      {/* Filtro por ítem del catálogo. Es lo que convierte esta pantalla en una
+          herramienta de análisis: sin él, "¿cómo se vende la gaseosa?" había que
+          contestarlo abriendo venta por venta. */}
+      <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+        <div className="sm:w-56">
+          <label className="block text-xs font-semibold text-on-surface-variant mb-1.5">Categoría</label>
+          <Select
+            value={itemFilter.categoryId}
+            onChange={(e) =>
+              // Cambiar de categoría SUELTA el ítem elegido: si no, queda un
+              // producto de otra categoría filtrando junto a ella y el resultado
+              // es cero ventas sin que se entienda por qué.
+              setItemFilter({ ...NO_ITEM_FILTER, categoryId: e.target.value })
+            }
+          >
+            <option value="">Todas las categorías</option>
+            {opciones.categories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </Select>
+        </div>
+
+        <div className="sm:w-72">
+          <label className="block text-xs font-semibold text-on-surface-variant mb-1.5">
+            Producto o servicio
+          </label>
+          <Select
+            // Con buscador: un catálogo de cientos de productos no se recorre
+            // opción por opción, y es exactamente para lo que existe la prop.
+            searchable
+            searchPlaceholder="Buscar producto o servicio…"
+            value={itemElegido}
+            onChange={(e) => {
+              const elegido = itemFilterFromOption(e.target.value);
+              // Sin ítem se vuelve a la categoría sola, que sigue siendo un
+              // filtro válido; con ítem, manda el ítem.
+              setItemFilter(
+                e.target.value
+                  ? elegido
+                  : { ...NO_ITEM_FILTER, categoryId: itemFilter.categoryId },
+              );
+            }}
+          >
+            <option value="">
+              {itemFilter.categoryId ? "Todos los de la categoría" : "Todos"}
+            </option>
+            {itemsDelSelector.map((i) => (
+              <option key={i.value} value={i.value}>
+                {i.label}
+              </option>
+            ))}
+          </Select>
+        </div>
+
+        {filtrandoItem && (
+          <button
+            type="button"
+            onClick={() => setItemFilter(NO_ITEM_FILTER)}
+            className="text-xs font-semibold text-primary hover:underline pb-2.5"
+          >
+            Quitar filtro
+          </button>
+        )}
+      </div>
+
+      {filtrandoItem && (
+        <p className="text-xs text-on-surface-variant -mt-3">
+          Las tarjetas miden <strong className="text-on-surface">{nombreDelItem}</strong>, no el
+          total de las ventas donde aparece. La tabla lista esas ventas completas.
+        </p>
+      )}
+
       {/* Sub-filtro por método de transferencia (solo cuando se filtra por Transferencia) */}
       {paymentMethod === "transferencia" && (
         <div className="flex flex-wrap items-center gap-1.5 ml-1">
@@ -301,48 +457,43 @@ export default function SalesPage() {
         </div>
       )}
 
-      {/* Tarjetas resumen */}
+      {/* Tarjetas resumen.
+          Con un ítem filtrado CAMBIAN de significado, y es a propósito: medir la
+          venta entera cuando se está preguntando por un producto es la trampa
+          que esta pantalla tiene que evitar. En esta misma base, filtrar
+          "GASEOSA 1.5L" da $1.117.726 en ventas y $12.000 en gaseosa — un factor
+          de 93. El aviso de arriba dice cuál de los dos se está mostrando. */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-surface-container p-5 rounded-2xl border border-outline-variant/10 shadow-sm flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-xs text-on-surface-variant font-medium truncate">Ventas totales</p>
-            <p className="text-xl lg:text-2xl font-black text-on-surface mt-1 tabular-nums tracking-tight truncate">{summary ? summary.sales_count : "—"}</p>
+        {(filtrandoItem
+          ? [
+              { label: "Unidades vendidas", value: summary ? formatQty(summary.item_units) : "—", tint: "bg-[#6063ee]/10 text-[#6063ee]", Icon: IconShoppingCart },
+              { label: `Vendido de ${nombreDelItem}`, value: summary ? `$${money(summary.item_revenue)}` : "—", tint: "bg-[#3b82f6]/10 text-[#3b82f6]", Icon: IconWallet },
+              { label: "Ventas que lo incluyen", value: summary ? summary.completed_count : "—", tint: "bg-[#10b981]/10 text-[#10b981]", Icon: IconWallet },
+              { label: "Precio promedio", value: summary ? `$${money(summary.item_avg_price)}` : "—", tint: "bg-[#f59e0b]/10 text-[#f59e0b]", Icon: IconTrendingUp },
+            ]
+          : [
+              { label: "Ventas totales", value: summary ? summary.sales_count : "—", tint: "bg-[#6063ee]/10 text-[#6063ee]", Icon: IconShoppingCart },
+              { label: "Completadas", value: summary ? summary.completed_count : "—", tint: "bg-[#10b981]/10 text-[#10b981]", Icon: IconWallet },
+              { label: "Ingresos (completadas)", value: summary ? `$${money(summary.revenue)}` : "—", tint: "bg-[#3b82f6]/10 text-[#3b82f6]", Icon: IconWallet },
+              { label: "Ticket promedio", value: summary ? `$${money(summary.avg_ticket)}` : "—", tint: "bg-[#f59e0b]/10 text-[#f59e0b]", Icon: IconTrendingUp },
+            ]
+        ).map(({ label, value, tint, Icon }) => (
+          <div
+            key={label}
+            className="bg-surface-container p-5 rounded-2xl border border-outline-variant/10 shadow-sm flex items-center justify-between gap-3"
+          >
+            <div className="min-w-0">
+              <p className="text-xs text-on-surface-variant font-medium truncate">{label}</p>
+              {/* Cifra larga: baja de tamaño en vez de comerse el ícono. */}
+              <p className="text-xl lg:text-2xl font-black text-on-surface mt-1 tabular-nums tracking-tight truncate">
+                {value}
+              </p>
+            </div>
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${tint}`}>
+              <Icon className="w-6 h-6" />
+            </div>
           </div>
-          <div className="w-12 h-12 rounded-2xl bg-[#6063ee]/10 text-[#6063ee] flex items-center justify-center shrink-0">
-            <IconShoppingCart className="w-6 h-6" />
-          </div>
-        </div>
-
-        <div className="bg-surface-container p-5 rounded-2xl border border-outline-variant/10 shadow-sm flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-xs text-on-surface-variant font-medium truncate">Completadas</p>
-            <p className="text-xl lg:text-2xl font-black text-on-surface mt-1 tabular-nums tracking-tight truncate">{summary ? summary.completed_count : "—"}</p>
-          </div>
-          <div className="w-12 h-12 rounded-2xl bg-[#10b981]/10 text-[#10b981] flex items-center justify-center shrink-0">
-            <IconWallet className="w-6 h-6" />
-          </div>
-        </div>
-
-        <div className="bg-surface-container p-5 rounded-2xl border border-outline-variant/10 shadow-sm flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-xs text-on-surface-variant font-medium truncate">Ingresos (completadas)</p>
-            {/* Cifra larga: baja de tamaño en vez de comerse el ícono. */}
-            <p className="text-xl lg:text-2xl font-black text-on-surface mt-1 tabular-nums tracking-tight truncate">{summary ? `$${money(summary.revenue)}` : "—"}</p>
-          </div>
-          <div className="w-12 h-12 rounded-2xl bg-[#3b82f6]/10 text-[#3b82f6] flex items-center justify-center shrink-0">
-            <IconWallet className="w-6 h-6" />
-          </div>
-        </div>
-
-        <div className="bg-surface-container p-5 rounded-2xl border border-outline-variant/10 shadow-sm flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-xs text-on-surface-variant font-medium truncate">Ticket promedio</p>
-            <p className="text-xl lg:text-2xl font-black text-on-surface mt-1 tabular-nums tracking-tight truncate">{summary ? `$${money(summary.avg_ticket)}` : "—"}</p>
-          </div>
-          <div className="w-12 h-12 rounded-2xl bg-[#f59e0b]/10 text-[#f59e0b] flex items-center justify-center shrink-0">
-            <IconTrendingUp className="w-6 h-6" />
-          </div>
-        </div>
+        ))}
       </div>
 
       {/* Tabla */}
@@ -363,7 +514,7 @@ export default function SalesPage() {
             minWidth={820}
             caption="Historial de ventas"
             onRowClick={(s) => openDetail(s.id)}
-            columns={SALE_COLUMNS}
+            columns={columnas}
           />
         )}
 

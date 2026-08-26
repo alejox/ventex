@@ -228,18 +228,30 @@ export interface NavItem {
   modules: ModuleId[];
 }
 
+/**
+ * El menú, ítem por ítem.
+ *
+ * Regla de nombres, sacada de cómo lo resuelven Shopify, Square y Loyverse: el
+ * GRUPO se llama como el objeto del negocio ("Ventas", "Clientes") y el ítem
+ * que lista ese objeto NUNCA repite ese nombre. Antes se leía "Ventas › Ventas"
+ * y "Compras › Compras", y ahí nadie sabe si lo que está mirando es la sección
+ * o la pantalla. El índice de una colección se nombra completo —"Todos los
+ * clientes", "Historial de ventas"—, que además es lo que hace Shopify con sus
+ * "All products" / "All customers", y así sigue siendo claro cuando el grupo se
+ * dibuja plano porque a esa persona le quedó un solo hijo visible.
+ */
 export const NAV_ITEMS: NavItem[] = [
   { id: "panel", name: "Panel", href: "/dashboard", modules: [] },
   // POS y Ventas no dependen de ningún módulo: son universales (ver
   // UNIVERSAL_NAV_IDS) porque los 4 rubros cobran.
   { id: "pos", name: "Punto de Venta", href: "/dashboard/pos", modules: [] },
   { id: "calendar", name: "Calendario", href: "/dashboard/calendar", modules: ["appointments"] },
-  { id: "customers", name: "Clientes", href: "/dashboard/customers", modules: [] },
+  { id: "customers", name: "Todos los clientes", href: "/dashboard/customers", modules: [] },
   // Va con Clientes y no con Configuración: acá NO se configura nada, se mira
   // quién está cerca del premio y se le escribe. Configurarlo es otra tarea y
   // vive en Ajustes.
   { id: "promociones", name: "Promociones", href: "/dashboard/promociones", modules: ["services"] },
-  { id: "sales", name: "Ventas", href: "/dashboard/sales", modules: [] },
+  { id: "sales", name: "Historial de ventas", href: "/dashboard/sales", modules: [] },
   // Ventas y Gastos son las dos caras de la misma pregunta —cuánto entra y
   // cuánto sale—, así que van juntas. Gastos ya incluye las compras pagadas
   // (`listExpenses` junta `expenses` con las `invoices` de tipo compra), así
@@ -275,14 +287,14 @@ export const NAV_ITEMS: NavItem[] = [
   // Su `modules` lleva los dos: alcanza con tener uno para que aparezca. Un
   // salón sin inventario igual necesita su catálogo de servicios, y una tienda
   // sin servicios igual necesita el de productos.
-  { id: "inventory", name: "Producto - Servicio", href: "/dashboard/inventory", modules: ["inventory", "services"] },
+  { id: "inventory", name: "Productos y servicios", href: "/dashboard/inventory", modules: ["inventory", "services"] },
   { id: "pedidos", name: "Pedidos", href: "/dashboard/pedidos", modules: ["inventory"] },
   { id: "distributors", name: "Proveedores", href: "/dashboard/distributors", modules: ["inventory"] },
   { id: "purchases", name: "Compras", href: "/dashboard/purchases", modules: ["inventory"] },
 
   // ---- El negocio, no la operación diaria ----
   { id: "vehicles", name: "Vehículos", href: "/dashboard/vehicles", modules: ["vehicles"] },
-  { id: "staff", name: "Miembros", href: "/dashboard/staff", modules: ["staff"] },
+  { id: "staff", name: "Personal", href: "/dashboard/staff", modules: ["staff"] },
   // Liquidar comisiones estaba enterrado al final de la página de Personal,
   // debajo del roster y del control de accesos: tres trabajos distintos —
   // administrar gente, dar acceso, conciliar plata— en una sola pantalla larga.
@@ -425,19 +437,42 @@ export interface NavGroup {
 /**
  * El orden canónico de los clústeres y qué cae en cada uno.
  *
- * El criterio es el TRABAJO, no la tabla: "Compras" junta pedir, a quién y qué
- * llegó, que es un solo proceso vivido en tres pantallas. Dos ubicaciones que
- * la auditoría no asignó y acá se resuelven: Vehículos va con Clientes (es el
- * historial por placa de un cliente, no una herramienta aparte) y Facturación
- * va con Ventas (facturar es cobrarle al cliente).
+ * El criterio es el OBJETO del negocio, y no el proceso. Es un cambio respecto
+ * de la versión anterior, y sale de mirar cómo lo resuelven los sistemas con
+ * los que esta gente ya trabajó: Shopify (Orders · Products · Customers),
+ * Square (Items · Payments · Customers · Team) y Loyverse (Sales · Items ·
+ * Inventory · Employees · Customers) nombran sus secciones con el sustantivo
+ * del dominio, no con el flujo de trabajo. La razón es que el objeto lo sabe
+ * cualquiera que entre por primera vez, y el flujo hay que aprenderlo.
+ *
+ * Qué se arregló, concretamente:
+ *
+ *  - **"Compras" ya no es un grupo.** Se llamaba igual que uno de sus hijos, y
+ *    sus tres pantallas —pedir, a quién, qué llegó— son cosas que le pasan al
+ *    INVENTARIO. Loyverse las tiene exactamente ahí (Purchase orders y
+ *    Suppliers viven bajo Inventory), y así el catálogo deja de ser un grupo
+ *    de un solo hijo colgando aparte.
+ *  - **"Agenda y clientes" se partió en dos.** Un encabezado con "y" es la
+ *    señal de que el grupo no tiene UN concepto: eran dos, la agenda y la
+ *    cartera de clientes, y se buscan en momentos distintos del día.
+ *  - **Créditos se mudó de Finanzas a Clientes.** La pregunta que contesta es
+ *    "¿quién me debe?", y se la hace uno con el cliente parado enfrente, no
+ *    cerrando el mes. Es donde lo ponen Square y Loyverse. De paso Finanzas
+ *    queda con Gastos solo y se dibuja plano, que es un encabezado menos.
+ *
+ * Vehículos va con Clientes (es el historial por placa de un cliente, no una
+ * herramienta aparte) y Facturación va con Ventas (facturar es cobrarle al
+ * cliente).
  */
 const NAV_GROUP_ORDER: { id: string; label: string | null; itemIds: string[] }[] = [
   { id: "inicio", label: null, itemIds: ["panel"] },
   { id: "ventas", label: "Ventas", itemIds: ["pos", "sales", "billing"] },
-  { id: "agenda", label: "Agenda y clientes", itemIds: ["calendar", "customers", "promociones", "vehicles"] },
-  { id: "catalogo", label: "Catálogo", itemIds: ["inventory"] },
-  { id: "abastecimiento", label: "Compras", itemIds: ["pedidos", "distributors", "purchases"] },
-  { id: "finanzas", label: "Finanzas", itemIds: ["expenses", "credits"] },
+  { id: "agenda", label: "Agenda", itemIds: ["calendar"] },
+  { id: "clientes", label: "Clientes", itemIds: ["customers", "credits", "promociones", "vehicles"] },
+  // El ciclo completo del inventario, en el orden en que se vive: qué vendo →
+  // qué me falta → a quién se lo pido → qué me llegó.
+  { id: "inventario", label: "Inventario", itemIds: ["inventory", "pedidos", "distributors", "purchases"] },
+  { id: "finanzas", label: "Finanzas", itemIds: ["expenses"] },
   { id: "equipo", label: "Equipo", itemIds: ["staff", "commissions", "haircuts"] },
 ];
 

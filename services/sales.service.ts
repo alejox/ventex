@@ -16,6 +16,16 @@ export interface SaleListItem {
   tax_amount: number;
   total: number;
   item_count: number;
+  /**
+   * Cuánto de esta venta fue del ítem filtrado. En cero sin filtro activo.
+   *
+   * Existen porque `total` NO contesta "cuánto vendí de esto": una gaseosa de
+   * $3.000 puede viajar dentro de una compra de $1.060.726 (caso real de esta
+   * base, venta #8). Mostrar el total de la venta como si fuera del producto es
+   * el error que esta columna evita.
+   */
+  item_units: number;
+  item_total: number;
 }
 
 export interface SaleLine {
@@ -46,11 +56,120 @@ export interface SaleLine {
   commission_settlement_id: string | null;
 }
 
-export interface SaleDetail extends Omit<SaleListItem, "item_count"> {
+// El detalle NO hereda las métricas del ítem filtrado: son propiedades de la
+// LISTA (cuánto aportó el producto por el que se está filtrando), y adentro de
+// una venta abierta esa pregunta no existe — ahí se ven todas sus líneas.
+export interface SaleDetail extends Omit<SaleListItem, "item_count" | "item_units" | "item_total"> {
   tax_rate: number;
   /** El "Atendido por" de la venta. */
   staff_name: string | null;
   items: SaleLine[];
+}
+
+/**
+ * Por qué ítem del catálogo se está filtrando.
+ *
+ * `productId` y `serviceId` van separados y no en un solo campo porque un
+ * servicio NO es una fila de `products` (ver el catálogo: viven en tablas
+ * distintas y `sale_items` los referencia con dos FK distintas). La categoría
+ * SÍ es compartida: `products.category_id` y `services.category_id` apuntan a
+ * la misma tabla, así que un solo selector cubre las dos mitades.
+ *
+ * Nota conocida: una línea cuyo producto se borró queda con `product_id` nulo y
+ * NO entra en ningún filtro. Sigue en el historial sin filtrar (su nombre está
+ * congelado en `product_name`), pero no hay a qué producto atribuirla.
+ */
+export interface ItemFilter {
+  productId: string;
+  serviceId: string;
+  categoryId: string;
+}
+
+export const NO_ITEM_FILTER: ItemFilter = { productId: "", serviceId: "", categoryId: "" };
+
+export const hasItemFilter = (f: ItemFilter): boolean =>
+  Boolean(f.productId || f.serviceId || f.categoryId);
+
+/**
+ * El valor con el que un ítem viaja en el `<select>`.
+ *
+ * Lleva el tipo adelante porque el uuid solo no alcanza: un producto y un
+ * servicio son filas de tablas distintas, y `sale_items` los referencia con dos
+ * FK distintas. Mandando el id pelado, la base no sabría en cuál de las dos
+ * buscarlo.
+ */
+export const itemOptionValue = (kind: "product" | "service", id: string): string =>
+  `${kind === "product" ? "p" : "s"}:${id}`;
+
+/**
+ * Traduce la opción elegida a un filtro.
+ *
+ * Falla CERRADO: lo que no se entiende no filtra por nada. Un valor corrupto
+ * convertido en filtro parcial devolvería ventas que no corresponden, y en una
+ * pantalla de plata eso se lee como un dato, no como un error.
+ */
+export function itemFilterFromOption(option: string): ItemFilter {
+  const [kind, ...resto] = option.split(":");
+  const id = resto.join(":");
+  if (!id) return NO_ITEM_FILTER;
+  if (kind === "p") return { productId: id, serviceId: "", categoryId: "" };
+  if (kind === "s") return { productId: "", serviceId: id, categoryId: "" };
+  return NO_ITEM_FILTER;
+}
+
+/** Una opción del selector de ítem, ya lista para dibujar. */
+export interface ItemOption {
+  value: string;
+  label: string;
+  categoryId: string | null;
+}
+
+export interface ItemFilterOptions {
+  items: ItemOption[];
+  categories: { id: string; name: string }[];
+}
+
+/**
+ * Lo que puebla los dos selectores del historial.
+ *
+ * Pide SOLO id, nombre y categoría de cada cosa: la pantalla de ventas no
+ * necesita stock, costos ni imágenes, y traer el catálogo entero para llenar un
+ * desplegable es pagar por datos que nadie va a mirar.
+ *
+ * Los servicios entran junto con los productos porque el catálogo de esta app
+ * son las dos mitades y el POS vende las dos: un filtro que solo viera
+ * productos dejaría a un salón sin poder analizar nada de lo que factura.
+ */
+export async function fetchItemFilterOptions(): Promise<ItemFilterOptions> {
+  const supabase = createClient();
+
+  const [productos, servicios, categorias] = await Promise.all([
+    supabase.from("products").select("id, name, category_id").order("name"),
+    supabase.from("services").select("id, name, category_id").order("name"),
+    supabase.from("categories").select("id, name").order("name"),
+  ]);
+
+  if (productos.error) throw productos.error;
+  if (servicios.error) throw servicios.error;
+  if (categorias.error) throw categorias.error;
+
+  const items: ItemOption[] = [
+    ...(productos.data ?? []).map((p) => ({
+      value: itemOptionValue("product", p.id),
+      label: p.name,
+      categoryId: p.category_id ?? null,
+    })),
+    ...(servicios.data ?? []).map((sv) => ({
+      // El sufijo distingue en la lista a un servicio de un producto que se
+      // llame igual, que en un salón pasa seguido ("Tintura" el frasco y
+      // "Tintura" el trabajo).
+      value: itemOptionValue("service", sv.id),
+      label: `${sv.name} (servicio)`,
+      categoryId: sv.category_id ?? null,
+    })),
+  ].sort((a, b) => a.label.localeCompare(b.label, "es"));
+
+  return { items, categories: categorias.data ?? [] };
 }
 
 // ---- Períodos del historial ----
@@ -141,6 +260,19 @@ export interface SalesSummary {
   completed_count: number;
   revenue: number;
   avg_ticket: number;
+  /**
+   * Los mismos KPIs, pero medidos sobre las LÍNEAS del ítem filtrado.
+   *
+   * Son otra familia de números, no una variante: `revenue` es lo que gastó
+   * quien compró el producto y `item_revenue` es lo que se vendió DEL producto.
+   * Con la gaseosa de esta base son $1.117.726 contra $12.000 — un factor de 93.
+   * La pantalla muestra unos u otros según haya filtro, nunca los dos mezclados.
+   *
+   * Sin filtro llegan en cero: la base ni siquiera recorre `sale_items`.
+   */
+  item_units: number;
+  item_revenue: number;
+  item_avg_price: number;
 }
 
 /**
@@ -153,6 +285,7 @@ export async function fetchSalesSummary(
   customerQuery = "",
   paymentMethod = "",
   transferMethod = "",
+  item: ItemFilter = NO_ITEM_FILTER,
 ): Promise<SalesSummary> {
   const supabase = createClient();
   const { data, error } = await supabase.rpc("sales_summary", {
@@ -163,14 +296,20 @@ export async function fetchSalesSummary(
     p_customer: customerQuery.trim() || undefined,
     p_payment_method: paymentMethod || undefined,
     p_transfer_method: transferMethod || undefined,
+    p_product_id: item.productId || undefined,
+    p_service_id: item.serviceId || undefined,
+    p_category_id: item.categoryId || undefined,
   });
   if (error) throw error;
-  const raw = (data ?? {}) as Partial<SalesSummary>;
+  const raw = (data ?? {}) as Record<string, unknown>;
   return {
     sales_count: Number(raw.sales_count ?? 0),
     completed_count: Number(raw.completed_count ?? 0),
     revenue: Number(raw.revenue ?? 0),
     avg_ticket: Number(raw.avg_ticket ?? 0),
+    item_units: Number(raw.item_units ?? 0),
+    item_revenue: Number(raw.item_revenue ?? 0),
+    item_avg_price: Number(raw.item_avg_price ?? 0),
   };
 }
 
@@ -179,29 +318,6 @@ const one = <T,>(embed: unknown): T | null => {
   if (Array.isArray(embed)) return (embed[0] as T) ?? null;
   return (embed as T) ?? null;
 };
-
-/**
- * Dos variantes del mismo select. Con búsqueda por cliente el embed pasa a
- * `!inner`: sin eso PostgREST no puede filtrar por una columna del cliente, y el
- * efecto buscado es justamente que las ventas sin cliente ("De Paso") queden
- * fuera cuando se busca a alguien concreto.
- *
- * Van escritas enteras y no armadas por interpolación: supabase-js infiere la
- * forma del resultado a partir del string LITERAL del select, así que un
- * template dinámico hace que el tipo colapse a `GenericStringError`.
- */
-const LIST_SELECT =
-  "id, sale_number, created_at, payment_method, transfer_method, card_method, status, subtotal, discount_amount, tax_amount, total, customers(full_name), sale_items(count)";
-
-const LIST_SELECT_WITH_CUSTOMER =
-  "id, sale_number, created_at, payment_method, transfer_method, card_method, status, subtotal, discount_amount, tax_amount, total, customers!inner(full_name), sale_items(count)";
-
-/**
- * Neutraliza los comodines de LIKE. Buscar "50%" tiene que buscar ese texto y no
- * "cualquier cosa que empiece con 50". Espeja lo que hace el RPC.
- */
-const likePattern = (raw: string) =>
-  `%${raw.trim().replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_")}%`;
 
 // Los embeds de `staff` van con el nombre del FK explícito: desde `sales` se
 // llega a la tabla por dos caminos (la cabecera y cada línea) y PostgREST no
@@ -218,9 +334,21 @@ export interface SalesPage {
 }
 
 /**
- * Una página del historial, acotada al período. Antes traía TODAS las ventas sin
- * límite: PostgREST corta en 1000 filas, así que a partir de ahí la lista (y los
- * totales que se sumaban sobre ella) quedaban incompletos sin avisar.
+ * Una página del historial, acotada al período y a los filtros.
+ *
+ * Se resuelve con el RPC `sales_page` y no con PostgREST, por dos razones.
+ *
+ * La primera es el filtro por producto: la condición vive en `sale_items`, una
+ * tabla hija. Descartarlas desde el cliente pasaría DESPUÉS del corte de la
+ * paginación, así que las páginas saldrían con agujeros.
+ *
+ * La segunda es que había DOS variantes literales del `select` —con y sin
+ * embed de cliente— que había que mantener en espejo a mano, porque
+ * supabase-js infiere el tipo del string literal y no admite interpolarlo.
+ * Cada columna nueva se escribía dos veces. Ahora la forma la decide la base.
+ *
+ * `sales_page` es `stable` y NO `security definer`: las policies de `sales` y
+ * `sale_items` siguen aplicando igual que antes.
  */
 export async function fetchSales(
   range: DateRange,
@@ -229,48 +357,47 @@ export async function fetchSales(
   customerQuery = "",
   paymentMethod = "",
   transferMethod = "",
+  item: ItemFilter = NO_ITEM_FILTER,
 ): Promise<SalesPage> {
   const supabase = createClient();
-  const search = customerQuery.trim();
 
-  let query = supabase
-    .from("sales")
-    .select(search ? LIST_SELECT_WITH_CUSTOMER : LIST_SELECT, { count: "exact" })
-    .order("created_at", { ascending: false });
-
-  if (range.from) query = query.gte("created_at", range.from);
-  // Exclusivo: `to` es el arranque del día siguiente al último incluido.
-  if (range.to) query = query.lt("created_at", range.to);
-  if (search) query = query.ilike("customers.full_name", likePattern(search));
-  if (paymentMethod) query = query.eq("payment_method", paymentMethod);
-  if (transferMethod) query = query.eq("transfer_method", transferMethod);
-
-  const start = page * pageSize;
-  const { data, error, count } = await query.range(start, start + pageSize - 1);
+  const { data, error } = await supabase.rpc("sales_page", {
+    p_from: range.from ?? undefined,
+    p_to: range.to ?? undefined,
+    p_customer: customerQuery.trim() || undefined,
+    p_payment_method: paymentMethod || undefined,
+    p_transfer_method: transferMethod || undefined,
+    p_product_id: item.productId || undefined,
+    p_service_id: item.serviceId || undefined,
+    p_category_id: item.categoryId || undefined,
+    p_limit: pageSize,
+    p_offset: page * pageSize,
+  });
   if (error) throw error;
 
-  const items = (data ?? []).map((s) => {
-    const customer = one<{ full_name: string }>(s.customers);
-    const items = one<{ count: number }>(s.sale_items);
-    const raw = s as Record<string, unknown>;
+  const raw = (data ?? {}) as { total?: number; items?: unknown[] };
+  const items: SaleListItem[] = (raw.items ?? []).map((row) => {
+    const r = row as Record<string, unknown>;
     return {
-      id: s.id,
-      sale_number: s.sale_number,
-      created_at: s.created_at,
-      customer_name: customer?.full_name ?? null,
-      payment_method: s.payment_method,
-      transfer_method: (raw.transfer_method as string) ?? null,
-      card_method: (raw.card_method as string) ?? null,
-      status: s.status,
-      subtotal: s.subtotal,
-      discount_amount: s.discount_amount,
-      tax_amount: s.tax_amount,
-      total: s.total,
-      item_count: items?.count ?? 0,
+      id: r.id as string,
+      sale_number: Number(r.sale_number ?? 0),
+      created_at: r.created_at as string,
+      customer_name: (r.customer_name as string) ?? null,
+      payment_method: r.payment_method as string,
+      transfer_method: (r.transfer_method as string) ?? null,
+      card_method: (r.card_method as string) ?? null,
+      status: r.status as string,
+      subtotal: Number(r.subtotal ?? 0),
+      discount_amount: Number(r.discount_amount ?? 0),
+      tax_amount: Number(r.tax_amount ?? 0),
+      total: Number(r.total ?? 0),
+      item_count: Number(r.item_count ?? 0),
+      item_units: Number(r.item_units ?? 0),
+      item_total: Number(r.item_total ?? 0),
     };
   });
 
-  return { items, total: count ?? items.length };
+  return { items, total: Number(raw.total ?? items.length) };
 }
 
 export async function fetchSaleDetail(saleId: string): Promise<SaleDetail> {

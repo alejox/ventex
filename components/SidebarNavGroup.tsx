@@ -6,7 +6,6 @@ import type { NavItem } from "@/config/business";
 import {
   IconCalendar,
   IconShoppingCart,
-  IconTruck,
   IconUsers,
   IconUserBadge,
   IconBox,
@@ -26,10 +25,13 @@ type IconType = typeof IconHome;
 const NAV_GROUP_ICONS: Record<string, IconType> = {
   ventas: IconShoppingCart,
   agenda: IconCalendar,
-  catalogo: IconBox,
-  abastecimiento: IconTruck,
+  clientes: IconUsers,
+  inventario: IconBox,
   finanzas: IconWallet,
-  equipo: IconUsers,
+  // Equipo lleva la credencial y NO el icono de personas: ese ya es el de
+  // Clientes, y dos grupos con la misma cara en la barra colapsada son dos
+  // grupos que no se pueden distinguir.
+  equipo: IconUserBadge,
   inicio: IconHome,
 };
 
@@ -40,11 +42,25 @@ export interface NavGroupModel {
 }
 
 /**
- * Cuáles grupos cerró la persona. Se guarda lo CERRADO y no lo abierto: un
- * grupo nuevo —o el primer ingreso— nace abierto, así nadie pierde de vista una
- * sección que nunca supo que existía. Guardar lo abierto haría lo contrario.
+ * Cuáles grupos dejó ABIERTOS la persona.
+ *
+ * Antes se guardaba lo cerrado, para que todo naciera abierto y nadie se
+ * perdiera una sección que no sabía que existía. Buena intención, y el precio
+ * terminó siendo peor que el problema: con todos los grupos desplegados el menú
+ * pasó de las dieciséis líneas y dejó de entrar en pantalla, así que las
+ * secciones del fondo —Equipo, Configuración— quedaron detrás de un scroll.
+ * Esconder algo debajo del borde de la ventana no es más descubrible que
+ * esconderlo detrás de un clic; es menos, porque el clic al menos se ve.
+ *
+ * Ahora nace abierto SOLO el grupo de la pantalla en la que estás, que es lo
+ * que hacen Shopify y Square. El resto se abre con un clic y lo que abrís se
+ * recuerda.
+ *
+ * La clave de `localStorage` es nueva a propósito: la vieja guarda el conjunto
+ * contrario, y reusarla le abriría a cada persona exactamente los grupos que
+ * había decidido cerrar.
  */
-const STORAGE_KEY = "ventex.nav.grupos-cerrados";
+const STORAGE_KEY = "ventex.nav.grupos-abiertos";
 
 const VACIO = "[]";
 
@@ -80,10 +96,10 @@ function getSnapshot(): string {
 
 const getServerSnapshot = () => VACIO;
 
-export function useClosedNavGroups() {
+export function useOpenNavGroups() {
   const crudo = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
-  const cerrados = useMemo<Set<string>>(() => {
+  const abiertos = useMemo<Set<string>>(() => {
     try {
       return new Set(JSON.parse(crudo) as string[]);
     } catch {
@@ -103,7 +119,7 @@ export function useClosedNavGroups() {
     suscriptores.forEach((cb) => cb());
   }, []);
 
-  return { cerrados, toggle };
+  return { abiertos, toggle };
 }
 
 function Chevron({ abierto }: { abierto: boolean }) {
@@ -143,21 +159,23 @@ function Chevron({ abierto }: { abierto: boolean }) {
 export function SidebarNavGroup({
   group,
   activeNavId,
-  closed,
+  open,
   onToggle,
   onNavigate,
   icons,
 }: {
   group: NavGroupModel;
   activeNavId: string | null;
-  closed: boolean;
+  open: boolean;
   onToggle: (id: string) => void;
   onNavigate?: () => void;
   icons: Record<string, IconType>;
 }) {
   const contieneActivo = group.items.some((it) => it.id === activeNavId);
   const plano = group.items.length <= 1 || !group.label;
-  const abierto = contieneActivo || !closed;
+  // El grupo de la pantalla actual se abre siempre, lo haya abierto o no: nadie
+  // debería tener que desplegar un menú para ver dónde está parado.
+  const abierto = contieneActivo || open;
 
   if (plano) {
     return (

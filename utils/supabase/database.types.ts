@@ -2823,11 +2823,29 @@ export type Database = {
         Args: { p_service_id: string; p_user_id: string }
         Returns: boolean
       }
+      sales_page: {
+        Args: {
+          p_category_id?: string
+          p_customer?: string
+          p_from?: string
+          p_limit?: number
+          p_offset?: number
+          p_payment_method?: string
+          p_product_id?: string
+          p_service_id?: string
+          p_to?: string
+          p_transfer_method?: string
+        }
+        Returns: Json
+      }
       sales_summary: {
         Args: {
+          p_category_id?: string
           p_customer?: string
           p_from?: string
           p_payment_method?: string
+          p_product_id?: string
+          p_service_id?: string
           p_to?: string
           p_transfer_method?: string
         }

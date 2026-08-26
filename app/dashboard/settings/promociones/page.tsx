@@ -179,7 +179,7 @@ export default function PromocionesPage() {
 
         {services.length === 0 ? (
           <p className="text-sm text-on-surface-variant">
-            Todavía no tenés servicios en tu catálogo. Creá uno en Producto - Servicio y volvé acá.
+            Todavía no tenés servicios en tu catálogo. Creá uno en Productos y servicios y volvé acá.
           </p>
         ) : (
           <div className="flex flex-wrap gap-2">
