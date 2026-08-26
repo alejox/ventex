@@ -123,23 +123,43 @@ export async function deleteCustomer(id: string): Promise<void> {
   if (error) throw error;
 }
 
+/**
+ * Registra un abono y devuelve el saldo que quedó.
+ *
+ * UNA sola llamada, a propósito. Antes eran dos —el INSERT en
+ * `customer_payments` y después el RPC que bajaba el saldo— y entre las dos no
+ * hay transacción: si la segunda no salía, quedaba un abono asentado que nunca
+ * descontó nada, y la deuda seguía viva con el recibo ya entregado. Es la misma
+ * regla que rige las comisiones: los pasos de una liquidación no se replican
+ * desde el cliente.
+ *
+ * El saldo nuevo lo devuelve la base porque restarlo acá es apostar a que nadie
+ * más cobró en el medio.
+ */
 export async function registerPayment(
   customerId: string,
   amount: number,
   notes?: string,
-): Promise<void> {
+): Promise<number> {
   const supabase = createClient();
-  const { error: payError } = await supabase.from("customer_payments").insert({
-    customer_id: customerId,
-    amount,
-    notes: notes ?? null,
-  });
-  if (payError) throw payError;
-
-  const { error: balError } = await supabase.rpc("register_customer_payment", {
+  const { data, error } = await supabase.rpc("register_customer_payment", {
     p_customer_id: customerId,
     p_amount: amount,
+    p_notes: notes ?? undefined,
   });
-  if (balError) throw balError;
+  if (error) throw error;
+  return Number(data ?? 0);
+}
+
+/** Historial de abonos de un cliente, del más reciente al más viejo. */
+export async function fetchCustomerPayments(customerId: string): Promise<CustomerPayment[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("customer_payments")
+    .select("id, customer_id, amount, notes, created_at")
+    .eq("customer_id", customerId)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as CustomerPayment[];
 }
 

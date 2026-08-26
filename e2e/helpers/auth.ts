@@ -1,7 +1,10 @@
 import { Page } from "@playwright/test";
 
-export const TEST_EMAIL = "test@ventex.com";
-export const TEST_PASSWORD = "Test123!";
+// Las credenciales del fixture se pueden pisar por entorno: el usuario de
+// prueba no es el mismo en cada máquina, y sin esto los specs no fallan —
+// se SALTAN, que es la forma más silenciosa de no probar nada.
+export const TEST_EMAIL = process.env.E2E_EMAIL ?? "test@ventex.com";
+export const TEST_PASSWORD = process.env.E2E_PASSWORD ?? "Test123!";
 
 export async function login(page: Page, email = TEST_EMAIL, password = TEST_PASSWORD) {
   await page.goto("/login");

@@ -245,6 +245,12 @@ export const NAV_ITEMS: NavItem[] = [
   // (`listExpenses` junta `expenses` con las `invoices` de tipo compra), así
   // que es LA vista financiera: no hace falta ir a otro lado a sumar.
   { id: "expenses", name: "Gastos", href: "/dashboard/expenses", modules: [] },
+  // Fiados. Es la otra mitad de la pregunta que contesta Gastos: cuánto sale y
+  // cuánto FALTA entrar. Vender a crédito ya se podía desde el POS ("Crédito /
+  // Fiado"), pero la deuda que eso genera solo se veía como una columna suelta
+  // dentro de Clientes — es decir, no se veía. Universal como el POS: los 4
+  // rubros fían.
+  { id: "credits", name: "Créditos", href: "/dashboard/credits", modules: [] },
 
   // ---- Abastecimiento: el otro medio día del negocio ----
   //
@@ -328,7 +334,7 @@ export const QUICK_ACTIONS: QuickAction[] = [
 // liquidarle. Liquidar es acto del DUEÑO —el RPC revalida `is_tenant_owner()`—
 // y por eso no figura como permiso de trabajador: un empleado nunca ve el ítem,
 // porque `workerNavItems` solo muestra lo que sus permisos nombran.
-const UNIVERSAL_NAV_IDS = ["panel", "pos", "sales", "expenses", "customers", "staff", "commissions", "subscription"];
+const UNIVERSAL_NAV_IDS = ["panel", "pos", "sales", "expenses", "credits", "customers", "staff", "commissions", "subscription"];
 
 /** Menú base por tipo de negocio (además de las universales). */
 // `purchases` acompaña a `distributors`: son el mismo dominio (a quién le
@@ -431,7 +437,7 @@ const NAV_GROUP_ORDER: { id: string; label: string | null; itemIds: string[] }[]
   { id: "agenda", label: "Agenda y clientes", itemIds: ["calendar", "customers", "promociones", "vehicles"] },
   { id: "catalogo", label: "Catálogo", itemIds: ["inventory"] },
   { id: "abastecimiento", label: "Compras", itemIds: ["pedidos", "distributors", "purchases"] },
-  { id: "finanzas", label: "Finanzas", itemIds: ["expenses"] },
+  { id: "finanzas", label: "Finanzas", itemIds: ["expenses", "credits"] },
   { id: "equipo", label: "Equipo", itemIds: ["staff", "commissions", "haircuts"] },
 ];
 
@@ -529,6 +535,12 @@ export function workerNavItems(permissions: WorkerPermissions): NavItem[] {
   // de un salón, que no toca mercadería— se quedaba sin ninguna pantalla donde
   // ver el catálogo, porque el ítem con id "services" dejó de existir.
   if (verProductos || verServicios) granted.add("inventory");
+
+  // Créditos no tiene permiso propio: lo abre `customers`, que es el mismo que
+  // ya exige la RLS de `customer_payments` y el RPC `register_customer_payment`.
+  // Inventar un permiso nuevo dejaría la pantalla visible para gente a la que
+  // la base le va a rechazar el cobro igual.
+  if (granted.has("customers")) granted.add("credits");
   // Categorías dejó de ser un ítem de menú: su administración vive dentro del
   // catálogo, que es donde se usan. Quien tiene `inventory` ya llega ahí.
 

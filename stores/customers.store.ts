@@ -80,12 +80,13 @@ export const useCustomersStore = create<CustomersState>((set) => ({
   registerPayment: async (customerId, amount, notes) => {
     set({ error: null });
     try {
-      await customersService.registerPayment(customerId, amount, notes);
+      // El saldo que queda lo dice la base, no una resta local: entre que se
+      // leyó la lista y se cobró el abono pudo cobrar alguien más, y el número
+      // que se le muestra al cliente tiene que ser el que quedó asentado.
+      const balance = await customersService.registerPayment(customerId, amount, notes);
       set((s) => ({
         customers: s.customers.map((c) =>
-          c.id === customerId
-            ? { ...c, credit_balance: Math.max(0, c.credit_balance - amount) }
-            : c,
+          c.id === customerId ? { ...c, credit_balance: balance } : c,
         ),
       }));
       return true;

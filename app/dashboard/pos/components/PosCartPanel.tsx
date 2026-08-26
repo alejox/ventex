@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import { IconThunder, IconTrash, IconReceipt } from "@/app/assets/icons/DashboardIcons";
 import { Select } from "@/components/ui/Select";
@@ -15,10 +16,71 @@ import {
 } from "@/services/pos.service";
 
 import { useProfile } from "@/components/ProfileProvider";
-import { quantityIsValid } from "@/lib/stock";
+import { formatQty, parseQuantityDraft } from "@/lib/stock";
 
 const money = (n: number) =>
   n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/**
+ * El campo de cantidad de una línea del carrito.
+ *
+ * Es un componente aparte por una sola razón: mientras se escribe, lo que hay
+ * en el campo NO es todavía una cantidad. "" y "1," son pasos válidos del
+ * tipeo, y un input controlado contra el número del carrito los revierte al
+ * instante — el valor viejo vuelve, el cursor queda pegado a él y el dígito
+ * nuevo se suma en vez de reemplazar. Ese borrador necesita estado propio, y
+ * el estado propio necesita su propio componente porque las líneas se
+ * renderizan con un `.map`.
+ *
+ * `select()` va en focus Y en click: el focus solo cubre el PRIMER clic, y el
+ * segundo —el del que se equivocó y vuelve a tocar el campo— entra sin evento
+ * de foco. Verificado en Chrome: sin el handler de click, tocar dos veces y
+ * escribir 3 deja 23.
+ */
+function CartQuantityField({
+  quantity,
+  allowsFractions,
+  min,
+  max,
+  label,
+  onCommit,
+}: {
+  quantity: number;
+  allowsFractions: boolean;
+  min: number;
+  max: number | undefined;
+  label: string;
+  onCommit: (v: number) => void;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+
+  return (
+    <input
+      type="number"
+      inputMode={allowsFractions ? "decimal" : "numeric"}
+      aria-label={label}
+      min={min}
+      step={allowsFractions ? 0.001 : 1}
+      max={max}
+      value={draft ?? formatQty(quantity)}
+      onFocus={(e) => e.currentTarget.select()}
+      onClick={(e) => e.currentTarget.select()}
+      onChange={(e) => {
+        const raw = e.target.value;
+        setDraft(raw);
+        const v = parseQuantityDraft(raw, allowsFractions);
+        if (v != null) onCommit(v);
+      }}
+      /* Soltar el borrador al salir devuelve a la vista la cantidad que el
+         carrito realmente tiene: un campo vacío o un "0" a medio escribir no
+         se quedan pegados contradiciendo al total. */
+      onBlur={() => setDraft(null)}
+      className={`text-center text-xs font-semibold text-on-surface bg-transparent outline-none tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+        allowsFractions ? "w-14" : "w-8"
+      }`}
+    />
+  );
+}
 
 interface PosCartPanelProps {
   /**
@@ -352,25 +414,17 @@ export function PosCartPanel({
                       >
                         <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-3 h-3"><path strokeLinecap="round" d="M5 12h14" /></svg>
                       </button>
-                      {/* `step` y `parseFloat` salen de la unidad de medida del
-                          producto: 1,5 kg es una venta y media unidad de un
+                      {/* `step` y los decimales salen de la unidad de medida
+                          del producto: 1,5 kg es una venta y media unidad de un
                           televisor es un error de tipeo. El servidor revalida
                           con la misma regla (CANTIDAD_ENTERA). */}
-                      <input
-                        type="number"
+                      <CartQuantityField
+                        quantity={line.quantity}
+                        allowsFractions={line.item.allows_fractions}
                         min={line.item.allows_fractions ? 0.001 : 1}
-                        step={line.item.allows_fractions ? 0.001 : 1}
                         max={allowOversell ? undefined : line.item.stock_level ?? undefined}
-                        value={line.quantity}
-                        onChange={(e) => {
-                          const v = parseFloat(e.target.value);
-                          if (quantityIsValid(v, line.item.allows_fractions)) {
-                            setQuantity(cartLineKey(line), v);
-                          }
-                        }}
-                        className={`text-center text-xs font-semibold text-on-surface bg-transparent outline-none tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
-                          line.item.allows_fractions ? "w-14" : "w-8"
-                        }`}
+                        label={`Cantidad de ${line.item.name}`}
+                        onCommit={(v) => setQuantity(cartLineKey(line), v)}
                       />
                       <button
                         onClick={() => increment(cartLineKey(line))}

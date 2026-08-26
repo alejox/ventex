@@ -1240,6 +1240,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          allows_fractions?: boolean | null
           barcode?: string | null
           category_id?: string | null
           commission_type?: string | null
@@ -1266,6 +1267,7 @@ export type Database = {
           user_id?: string
         }
         Update: {
+          allows_fractions?: boolean | null
           barcode?: string | null
           category_id?: string | null
           commission_type?: string | null
@@ -2771,8 +2773,8 @@ export type Database = {
         Returns: string
       }
       register_customer_payment: {
-        Args: { p_amount: number; p_customer_id: string }
-        Returns: undefined
+        Args: { p_amount: number; p_customer_id: string; p_notes?: string }
+        Returns: number
       }
       register_manual_movement: {
         Args: {

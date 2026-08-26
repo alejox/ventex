@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useCustomersStore } from "@/stores/customers.store";
+import { paymentAmountOf, creditAvailable } from "@/lib/credits";
 import type { Customer } from "@/services/customers.service";
 
 const money = (n: number) =>
@@ -10,20 +11,45 @@ const money = (n: number) =>
 interface CustomerPaymentModalProps {
   customer: Customer;
   onClose: () => void;
+  /**
+   * Quién registra el abono. Por defecto, el store de Clientes.
+   *
+   * Lo recibe como prop para que Créditos —que tiene su propio store y su
+   * propia lista que actualizar— use ESTE modal y no una copia. Dos modales de
+   * cobro es lo mismo que dos validaciones distintas del mismo monto, y la
+   * segunda siempre nace más floja.
+   */
+  onConfirm?: (amount: number, notes?: string) => Promise<boolean>;
+  submitting?: boolean;
 }
 
-export function CustomerPaymentModal({ customer, onClose }: CustomerPaymentModalProps) {
+export function CustomerPaymentModal({
+  customer,
+  onClose,
+  onConfirm,
+  submitting: submittingProp,
+}: CustomerPaymentModalProps) {
   const registerPayment = useCustomersStore((s) => s.registerPayment);
   const [amount, setAmount] = useState("");
   const [notes, setNotes] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const [localSubmitting, setLocalSubmitting] = useState(false);
+
+  const submitting = submittingProp ?? localSubmitting;
+  const debt = customer.credit_balance;
+  const parsed = paymentAmountOf(amount, debt);
+  const available = creditAvailable(debt, customer.credit_limit);
+
+  // El campo escrito es un monto, pero NO uno cobrable: se avisa por qué en vez
+  // de dejar el botón apagado sin explicación. El caso frecuente es cobrar de
+  // más, y ahí el error del RPC llegaría recién después de apretar.
+  const excede = parsed == null && amount.trim() !== "" && Number(amount.replace(",", ".")) > debt;
 
   const handleSubmit = async () => {
-    const val = parseFloat(amount);
-    if (!val || val <= 0) return;
-    setSubmitting(true);
-    const ok = await registerPayment(customer.id, val, notes || undefined);
-    setSubmitting(false);
+    if (parsed == null) return;
+    const run = onConfirm ?? ((a: number, n?: string) => registerPayment(customer.id, a, n));
+    if (!onConfirm) setLocalSubmitting(true);
+    const ok = await run(parsed, notes || undefined);
+    if (!onConfirm) setLocalSubmitting(false);
     if (ok) onClose();
   };
 
@@ -46,9 +72,18 @@ export function CustomerPaymentModal({ customer, onClose }: CustomerPaymentModal
         </div>
 
         <div className="p-6 pt-0 space-y-4">
-          {customer.credit_balance > 0 && (
-            <div className="p-3 rounded-xl bg-[#f59e0b]/10 border border-[#f59e0b]/20">
-              <p className="text-xs text-[#f59e0b] font-semibold">Debe: ${money(customer.credit_balance)}</p>
+          {debt > 0 && (
+            <div className="p-3 rounded-xl bg-[#f59e0b]/10 border border-[#f59e0b]/20 flex items-center justify-between gap-3">
+              <p className="text-xs text-[#f59e0b] font-semibold">Debe: ${money(debt)}</p>
+              {/* Saldar toda la cuenta es el cobro más común y el más fácil de
+                  tipear mal: acá el número lo pone el saldo, no los dedos. */}
+              <button
+                type="button"
+                onClick={() => setAmount(String(debt))}
+                className="text-[11px] font-bold text-[#f59e0b] hover:underline shrink-0"
+              >
+                Saldar todo
+              </button>
             </div>
           )}
 
@@ -64,11 +99,32 @@ export function CustomerPaymentModal({ customer, onClose }: CustomerPaymentModal
                 min="0"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 pl-7 pr-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                onFocus={(e) => e.currentTarget.select()}
+                onClick={(e) => e.currentTarget.select()}
+                className={`w-full bg-surface-container-lowest border rounded-xl py-2.5 pl-7 pr-3 text-sm text-on-surface focus:outline-none focus:ring-1 ${
+                  excede
+                    ? "border-error focus:border-error focus:ring-error"
+                    : "border-outline-variant/30 focus:border-primary focus:ring-primary"
+                }`}
                 placeholder="0.00"
                 autoFocus
               />
             </div>
+            {excede && (
+              <p className="text-xs text-error">
+                El abono no puede superar la deuda de ${money(debt)}.
+              </p>
+            )}
+            {!excede && parsed != null && parsed < debt && (
+              <p className="text-xs text-on-surface-variant">
+                Le quedarían ${money(debt - parsed)} por pagar.
+              </p>
+            )}
+            {!excede && parsed != null && parsed >= debt && available != null && (
+              <p className="text-xs text-[#10b981]">
+                Queda al día y recupera su cupo de ${money(customer.credit_limit ?? 0)}.
+              </p>
+            )}
           </div>
 
           <div className="space-y-1.5">
@@ -94,7 +150,7 @@ export function CustomerPaymentModal({ customer, onClose }: CustomerPaymentModal
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={!parseFloat(amount) || parseFloat(amount) <= 0 || submitting}
+            disabled={parsed == null || submitting}
             className="flex-1 py-2.5 rounded-xl text-sm font-bold bg-primary hover:bg-primary-dim text-on-primary disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
           >
             {submitting ? (

@@ -25,6 +25,7 @@ import {
   IconTag,
   IconWallet,
   IconDollar,
+  IconClock,
 } from "@/app/assets/icons/DashboardIcons";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ShellUserMenu } from "@/components/ShellUserMenu";
@@ -59,6 +60,8 @@ const NAV_ICONS: Record<string, IconType> = {
   pos: IconCreditCard,
   sales: IconShoppingCart,
   expenses: IconWallet,
+  // Reloj y no billetera: lo de Créditos todavía NO es plata en la caja.
+  credits: IconClock,
   staff: IconUserBadge,
   commissions: IconDollar,
   // Tijera: el reporte de producción. `services` ya no tiene entrada propia

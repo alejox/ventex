@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import type React from "react";
 import { Pagination } from "./Pagination";
 
@@ -170,22 +170,33 @@ export function DataTable<T>({
   };
   const role = (c: DataColumn<T>): MobileRole => c.mobile ?? "field";
 
-  /** La fila accionable también tiene que responder al teclado, no solo al click. */
-  const rowInteraction = (row: T) =>
-    onRowClick
-      ? {
-          onClick: () => onRowClick(row),
-          onKeyDown: (e: React.KeyboardEvent) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              onRowClick(row);
-            }
-          },
-          role: "button" as const,
-          tabIndex: 0,
-          className: "cursor-pointer",
+  /**
+   * La fila accionable también tiene que responder al teclado, no solo al click.
+   *
+   * Cuando hay detalle desplegable, tocar la fila lo ABRE Y LO CIERRA, además
+   * de avisarle a `onRowClick`. Sin el toggle, el detalle que se abre no se
+   * puede cerrar: la única forma de sacarlo de la pantalla sería recargarla.
+   */
+  const rowInteraction = (row: T) => {
+    if (!onRowClick && !renderExpanded) return null;
+    const key = rowKey(row);
+    const activate = () => {
+      if (renderExpanded) setExpanded((prev) => ({ ...prev, [key]: !prev[key] }));
+      onRowClick?.(row);
+    };
+    return {
+      onClick: activate,
+      onKeyDown: (e: React.KeyboardEvent) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          activate();
         }
-      : null;
+      },
+      role: "button" as const,
+      tabIndex: 0,
+      className: "cursor-pointer",
+    };
+  };
 
   const titleCol = columns.find((c) => role(c) === "title");
   const subtitleCol = columns.find((c) => role(c) === "subtitle");
@@ -228,10 +239,15 @@ export function DataTable<T>({
           <tbody className="divide-y divide-outline-variant/5 text-sm">
             {displayRows.map((row) => {
               const interaction = rowInteraction(row);
+              const key = rowKey(row);
+              const isOpen = renderExpanded != null && (expanded[key] ?? false);
               return (
+              // El Fragment lleva la key porque la fila y su detalle son DOS
+              // elementos hermanos salidos del mismo `map`.
+              <Fragment key={key}>
               <tr
-                key={rowKey(row)}
                 {...interaction}
+                aria-expanded={renderExpanded ? isOpen : undefined}
                 className={`hover:bg-surface-container-lowest transition-colors ${interaction?.className ?? ""}`}
               >
                 {columns.map((c) => (
@@ -243,11 +259,23 @@ export function DataTable<T>({
                   </td>
                 ))}
               </tr>
+              {/* El detalle vive DENTRO de la tabla, en su propia fila. Antes se
+                  dibujaba después de `</table>`, para TODAS las filas a la vez
+                  y sin mirar si estaban abiertas: el desplegable nunca se
+                  desplegó en escritorio, y encima quedaba fuera de la grilla,
+                  desalineado de las columnas que explica. */}
+              {isOpen && (
+                <tr className="bg-surface-container-lowest/50">
+                  <td colSpan={columns.length} className="p-0 border-t border-outline-variant/10">
+                    {renderExpanded!(row)}
+                  </td>
+                </tr>
+              )}
+              </Fragment>
               );
             })}
           </tbody>
         </table>
-        {renderExpanded && displayRows.map((row) => renderExpanded(row))}
       </div>
 
       {/* Móvil */}
@@ -306,9 +334,9 @@ export function DataTable<T>({
               </dl>
             )}
 
-            {hiddenFieldCols.length > 0 && (
+            {(hiddenFieldCols.length > 0 || renderExpanded) && (
               <>
-                {isOpen && (
+                {isOpen && hiddenFieldCols.length > 0 && (
                   <dl className="mt-1 space-y-1">
                     {hiddenFieldCols.map((c) => (
                       <div key={c.header} className="flex items-baseline justify-between gap-3">
@@ -331,7 +359,14 @@ export function DataTable<T>({
                   }}
                   className="mt-1.5 -mx-2 px-2 h-9 w-[calc(100%+1rem)] flex items-center gap-1 text-xs font-semibold text-primary rounded-lg hover:bg-primary/5 transition-colors"
                 >
-                  {isOpen ? "Ocultar detalle" : `Ver ${hiddenFieldCols.length} datos más`}
+                  {/* Con detalle desplegable el botón no puede prometer un
+                      número de datos: lo que se abre es una sección entera, no
+                      N pares etiqueta/valor. */}
+                  {isOpen
+                    ? "Ocultar detalle"
+                    : hiddenFieldCols.length > 0
+                      ? `Ver ${hiddenFieldCols.length} datos más`
+                      : "Ver detalle"}
                   <svg
                     fill="none"
                     stroke="currentColor"
@@ -344,6 +379,7 @@ export function DataTable<T>({
                     <polyline points="6 9 12 15 18 9" />
                   </svg>
                 </button>
+                {isOpen && renderExpanded && <div className="-mx-2">{renderExpanded(row)}</div>}
               </>
             )}
 

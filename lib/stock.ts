@@ -157,6 +157,28 @@ export function quantityIsValid(quantity: number, allowsFractions: boolean): boo
   return allowsFractions || Number.isInteger(quantity);
 }
 
+/**
+ * Qué cantidad significa lo que hay ESCRITO en el campo, mientras se escribe.
+ *
+ * Devuelve `null` cuando el texto todavía no es una cantidad — y el vacío es el
+ * caso principal, no un error: borrar para escribir otro número es el paso
+ * normal de editar. Un input controlado que rechaza el vacío repone el valor
+ * anterior y deja el cursor pegado a él, así que el dígito nuevo se suma al
+ * viejo en vez de reemplazarlo: 1 + "2" = 12.
+ *
+ * La coma entra como separador decimal porque es la que trae el teclado de
+ * quien vende acá; `parseFloat("1,5")` devuelve 1 y cobraría un kilo entero de
+ * papa por medio. El redondeo es el de la base (`numeric(12,3)`): lo que no
+ * entra en la columna no puede quedar en el carrito.
+ */
+export function parseQuantityDraft(raw: string, allowsFractions: boolean): number | null {
+  const text = raw.trim().replace(",", ".");
+  if (text === "") return null;
+  if (!/^-?\d*\.?\d+$/.test(text)) return null;
+  const quantity = round3(Number(text));
+  return quantityIsValid(quantity, allowsFractions) ? quantity : null;
+}
+
 /** Unidades por caja utilizables: nunca 0, o el movimiento se anularía. */
 function packSize(unitsPerPackage: number | null | undefined): number {
   const n = Number(unitsPerPackage);
