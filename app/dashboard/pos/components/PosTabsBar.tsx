@@ -1,4 +1,10 @@
+import { useCallback, useEffect, useState } from "react";
 import type { SaleTab } from "@/stores/pos.store";
+
+// Ancho del menú: se necesita como número para poder anclarlo al botón sin
+// que se salga por los bordes de la ventana.
+const MENU_WIDTH = 200;
+const VIEWPORT_MARGIN = 8;
 
 interface PosTabsBarProps {
   tabs: SaleTab[];
@@ -23,10 +29,42 @@ export function PosTabsBar({
   onRename,
   onCloseTab,
 }: PosTabsBarProps) {
+  // El menú se posiciona con coordenadas de ventana en lugar de `absolute`:
+  // la barra es `fixed` en móvil pero estática en desktop, así que un
+  // `bottom-full` se resolvía contra el viewport y dibujaba el menú fuera de
+  // la pantalla. Anclarlo al botón funciona igual en los dos modos.
+  const [anchor, setAnchor] = useState<{ left: number; bottom: number } | null>(null);
+
+  const closeMenu = useCallback(() => {
+    setTabMenuId(null);
+    setAnchor(null);
+  }, [setTabMenuId]);
+
+  const openMenu = (id: string, button: HTMLElement) => {
+    const rect = button.getBoundingClientRect();
+    const maxLeft = window.innerWidth - MENU_WIDTH - VIEWPORT_MARGIN;
+    setAnchor({
+      left: Math.min(Math.max(VIEWPORT_MARGIN, rect.right - MENU_WIDTH), maxLeft),
+      bottom: window.innerHeight - rect.top + 6,
+    });
+    setTabMenuId(id);
+  };
+
+  // Las coordenadas quedan viejas si la barra se desplaza o cambia el tamaño
+  // de la ventana; en ese caso el menú se cierra en lugar de quedar flotando
+  // sobre otra pestaña.
+  useEffect(() => {
+    if (!tabMenuId) return;
+    window.addEventListener("resize", closeMenu);
+    window.addEventListener("scroll", closeMenu, true);
+    return () => {
+      window.removeEventListener("resize", closeMenu);
+      window.removeEventListener("scroll", closeMenu, true);
+    };
+  }, [tabMenuId, closeMenu]);
+
   return (
-    <div className={`fixed bottom-0 inset-x-0 pb-[env(safe-area-inset-bottom)] lg:static lg:pb-0 bg-surface-container-low border-t border-outline-variant/20 ${
-      tabMenuId ? "z-[60]" : "z-40"
-    }`}>
+    <div className="fixed bottom-0 inset-x-0 pb-[env(safe-area-inset-bottom)] lg:static lg:pb-0 bg-surface-container-low border-t border-outline-variant/20 z-40">
       <div className="px-2 lg:pl-10 lg:pr-6 flex items-stretch gap-0.5 overflow-x-auto scrollbar-hide">
         {tabs.map((t) => {
           const isActive = t.id === activeTabId;
@@ -53,7 +91,10 @@ export function PosTabsBar({
                 {isActive && (
                   <button
                     type="button"
-                    onClick={() => setTabMenuId(tabMenuId === t.id ? null : t.id)}
+                    onClick={(e) => {
+                      if (tabMenuId === t.id) closeMenu();
+                      else openMenu(t.id, e.currentTarget);
+                    }}
                     aria-label={`Opciones de ${t.name}`}
                     aria-haspopup="menu"
                     aria-expanded={tabMenuId === t.id}
@@ -81,18 +122,19 @@ export function PosTabsBar({
         </button>
       </div>
 
-      {tabMenuId && (
+      {tabMenuId && anchor && (
         <>
-          <div className="fixed inset-0 z-40" onClick={() => setTabMenuId(null)} />
+          <div className="fixed inset-0 z-[70]" onClick={closeMenu} />
           <div
             role="menu"
-            className="absolute bottom-full right-4 lg:right-6 mb-1 z-50 min-w-[180px] rounded-xl bg-surface-container-lowest border border-outline-variant/20 shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-1 duration-150"
+            style={{ left: anchor.left, bottom: anchor.bottom, width: MENU_WIDTH }}
+            className="fixed z-[71] rounded-xl bg-surface-container-lowest border border-outline-variant/20 shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-1 duration-150"
           >
             <button
               role="menuitem"
               onClick={() => {
                 onRename(tabMenuId);
-                setTabMenuId(null);
+                closeMenu();
               }}
               className="w-full text-left px-4 py-3.5 text-sm text-on-surface hover:bg-surface-container-high transition-colors"
             >
@@ -103,7 +145,7 @@ export function PosTabsBar({
               disabled={tabs.length === 1}
               onClick={() => {
                 const target = tabs.find((t) => t.id === tabMenuId);
-                setTabMenuId(null);
+                closeMenu();
                 if (!target) return;
                 if (target.cart.length > 0) {
                   onCloseTab(target.id);
@@ -112,7 +154,7 @@ export function PosTabsBar({
                 }
               }}
               className="w-full text-left px-4 py-3.5 text-sm text-error hover:bg-error/10 transition-colors border-t border-outline-variant/10 disabled:opacity-40 disabled:hover:bg-transparent"
-              title={tabs.length === 1 ? "Es la \u00fanica venta abierta" : undefined}
+              title={tabs.length === 1 ? "Es la única venta abierta" : undefined}
             >
               Eliminar
             </button>
