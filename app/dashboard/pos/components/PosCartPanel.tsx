@@ -17,6 +17,7 @@ import {
 
 import { useProfile } from "@/components/ProfileProvider";
 import { formatQty, parseQuantityDraft } from "@/lib/stock";
+import { creditAlertText } from "@/lib/credits";
 
 const money = (n: number) =>
   n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -183,6 +184,11 @@ export function PosCartPanel({
   setDelivery,
 }: PosCartPanelProps) {
   const profile = useProfile();
+  // El aviso del dueño sobre este cliente, si lo tiene marcado.
+  const avisoDelCliente = (() => {
+    const elegido = customers.find((c) => c.id === customerId);
+    return elegido?.credit_alert ? creditAlertText(elegido.credit_alert_note) : null;
+  })();
   const unpriced = cart.filter((l) => l.item.open_price && l.customPrice == null);
   const missingPrice = unpriced.length > 0;
   const missingPriceNames = unpriced.map((l) => l.item.name).join(", ");
@@ -309,6 +315,21 @@ export function PosCartPanel({
                   </svg>
                 </button>
               </div>
+
+              {/* El aviso del dueño, en el único momento en que cambia algo: con
+                  el cliente elegido y antes de cobrar. Avisa — no bloquea: el
+                  cupo es el que rechaza la venta. */}
+              {avisoDelCliente && (
+                <div
+                  role="status"
+                  className="flex items-start gap-2 rounded-lg border border-error/30 bg-error/10 px-3 py-2"
+                >
+                  <AlertTriangle className="w-4 h-4 shrink-0 text-error mt-0.5" />
+                  <p className="text-xs font-bold text-error min-w-0">
+                    {avisoDelCliente}
+                  </p>
+                </div>
+              )}
             </div>
 
             {paymentMethod === "transferencia" && asksTransferMethod && (

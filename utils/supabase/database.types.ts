@@ -603,6 +603,8 @@ export type Database = {
       customers: {
         Row: {
           created_at: string | null
+          credit_alert: boolean
+          credit_alert_note: string | null
           credit_balance: number
           credit_limit: number | null
           doc_type: string | null
@@ -618,6 +620,8 @@ export type Database = {
         }
         Insert: {
           created_at?: string | null
+          credit_alert?: boolean
+          credit_alert_note?: string | null
           credit_balance?: number
           credit_limit?: number | null
           doc_type?: string | null
@@ -633,6 +637,8 @@ export type Database = {
         }
         Update: {
           created_at?: string | null
+          credit_alert?: boolean
+          credit_alert_note?: string | null
           credit_balance?: number
           credit_limit?: number | null
           doc_type?: string | null
@@ -2854,6 +2860,13 @@ export type Database = {
       select_active_workspace: {
         Args: { p_workspace_id: string }
         Returns: Json
+      }
+      set_credit_alert: {
+        Args: { p_alert: boolean; p_customer: string; p_note?: string }
+        Returns: {
+          credit_alert: boolean
+          credit_alert_note: string
+        }[]
       }
       settle_commissions: {
         Args: {

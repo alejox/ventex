@@ -39,6 +39,12 @@ export interface CustomerOption {
   tax_exempt: boolean;
   doc_type: string | null;
   identification: string | null;
+  /**
+   * Aviso interno de crédito ("no fiar"). Se trae acá porque el mostrador es
+   * DONDE sirve: en Créditos lo lee el dueño, que ya lo sabía.
+   */
+  credit_alert: boolean;
+  credit_alert_note: string | null;
 }
 
 export interface StaffOption {
@@ -341,7 +347,7 @@ export async function fetchCustomers(): Promise<CustomerOption[]> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("customers")
-    .select("id, full_name, tax_exempt, doc_type, identification")
+    .select("id, full_name, tax_exempt, doc_type, identification, credit_alert, credit_alert_note")
     .order("full_name");
   if (error) throw error;
   return (data ?? []).map((c) => ({
@@ -350,6 +356,8 @@ export async function fetchCustomers(): Promise<CustomerOption[]> {
     tax_exempt: c.tax_exempt ?? false,
     doc_type: c.doc_type ?? null,
     identification: c.identification ?? null,
+    credit_alert: c.credit_alert ?? false,
+    credit_alert_note: c.credit_alert_note ?? null,
   }));
 }
 
@@ -441,7 +449,7 @@ export async function createCustomer(params: {
       email: params.email || null,
       tax_exempt: false,
     })
-    .select("id, full_name, tax_exempt, doc_type, identification")
+    .select("id, full_name, tax_exempt, doc_type, identification, credit_alert, credit_alert_note")
     .single();
   if (error) throw error;
   return data as CustomerOption;

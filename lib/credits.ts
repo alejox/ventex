@@ -126,3 +126,121 @@ export function paymentAmountOf(raw: string, balance: number): number | null {
   if (amount > balance) return null;
   return amount;
 }
+
+/**
+ * El aviso interno de la ficha: "no fiar", "solo de contado", lo que el dueño
+ * escriba.
+ *
+ * Es una NOTA DEL MOSTRADOR, no del cliente: no viaja en ningún mensaje que se
+ * le mande (ver `renderStatementMessage`). Y no bloquea la venta — el cupo sí lo
+ * hace, desde `create_sale`; esto avisa. Que sean dos cosas distintas es
+ * deliberado: el dueño quiere poder marcar a alguien sin cerrarle la puerta.
+ */
+export const CREDIT_ALERT_DEFAULT = "No fiar";
+
+export function creditAlertText(note: string | null | undefined): string {
+  return (note ?? "").trim() || CREDIT_ALERT_DEFAULT;
+}
+
+/** Cuántos movimientos entran por sección antes de resumir el resto. */
+export const STATEMENT_MAX_LINES = 5;
+
+export interface StatementSale {
+  sale_number: number;
+  created_at: string;
+  credit_amount: number;
+}
+
+export interface StatementPayment {
+  created_at: string;
+  amount: number;
+}
+
+export interface StatementInput {
+  /** Solo el nombre de pila: el mensaje es un WhatsApp, no una carta. */
+  cliente: string;
+  negocio: string;
+  balance: number;
+  sales: StatementSale[];
+  payments: StatementPayment[];
+  /**
+   * Inyectable para poder testear sin depender de la zona horaria del proceso.
+   * El default es el que ve el cliente.
+   */
+  formatDate?: (iso: string) => string;
+}
+
+const fechaCorta = (iso: string) =>
+  new Date(iso).toLocaleDateString("es-CO", { day: "2-digit", month: "short" });
+
+/**
+ * Arma una sección del detalle, o nada si no hay qué listar.
+ *
+ * Un encabezado seguido de nada le hace creer al cliente que le falta
+ * información; se omite entero.
+ */
+function seccion(titulo: string, lineas: string[], sobrantes: number): string[] {
+  if (lineas.length === 0) return [];
+  const cola = sobrantes > 0 ? [`…y ${sobrantes} más.`] : [];
+  return ["", titulo, ...lineas, ...cola];
+}
+
+/**
+ * El estado de cuenta que el negocio le manda al cliente por WhatsApp.
+ *
+ * Tres decisiones que no son de formato:
+ *
+ * 1. **El aviso interno no está en la firma.** No se puede filtrar por
+ *    descuido lo que la función no puede recibir: enterarse de que lo marcaron
+ *    "no fiar" por un mensaje automático es la peor versión posible de esa
+ *    conversación.
+ * 2. **Sin deuda no se manda un cobro.** Al que terminó de pagar se le
+ *    confirma que está al día: es un comprobante, y es justo el mensaje que
+ *    hace que vuelva a fiar tranquilo. Mostrarle "Debe $0" lee como reclamo.
+ * 3. **El detalle se corta.** Un cliente con veinte fiados recibiría un muro
+ *    de texto que nadie lee, y el número que importa —el saldo— quedaría
+ *    enterrado. Se listan los más recientes y se dice cuántos faltan.
+ *
+ * El saldo se imprime tal como lo tiene la base. Acá no se recalcula sumando
+ * el detalle: si alguna vez no coincidieran, el que manda es el saldo, y una
+ * cuenta armada a mano en el mensaje taparía justo esa diferencia.
+ */
+export function renderStatementMessage(input: StatementInput): string {
+  const fecha = input.formatDate ?? fechaCorta;
+  const debe = Number.isFinite(input.balance) && input.balance > 0;
+
+  const ventas = input.sales.slice(0, STATEMENT_MAX_LINES).map(
+    (s) => `• #${s.sale_number} · ${fecha(s.created_at)} · $${money(s.credit_amount)}`,
+  );
+  const abonos = input.payments.slice(0, STATEMENT_MAX_LINES).map(
+    (p) => `• ${fecha(p.created_at)} · $${money(p.amount)}`,
+  );
+
+  const encabezado = debe
+    ? [
+        `Hola ${input.cliente} 👋`,
+        `Te paso tu estado de cuenta en ${input.negocio}.`,
+        "",
+        `Saldo pendiente: $${money(input.balance)}`,
+      ]
+    : [
+        `Hola ${input.cliente} 👋`,
+        `Tu cuenta en ${input.negocio} está al día. ¡Gracias! 🙌`,
+      ];
+
+  return [
+    ...encabezado,
+    ...seccion(
+      "Se llevó fiado:",
+      ventas,
+      Math.max(0, input.sales.length - STATEMENT_MAX_LINES),
+    ),
+    ...seccion(
+      "Abonos:",
+      abonos,
+      Math.max(0, input.payments.length - STATEMENT_MAX_LINES),
+    ),
+  ]
+    .join("\n")
+    .trim();
+}

@@ -17,6 +17,12 @@ export interface Customer {
   tax_exempt: boolean;
   credit_balance: number;
   credit_limit: number | null;
+  /**
+   * Aviso interno de crédito ("no fiar"). AVISA, no bloquea: el cupo es el que
+   * rechaza la venta. Solo el dueño lo cambia, por `set_credit_alert`.
+   */
+  credit_alert: boolean;
+  credit_alert_note: string | null;
   created_at: string;
 }
 
@@ -47,7 +53,7 @@ export interface CustomerSale {
   item_count: number;
 }
 
-const SELECT = "id, full_name, email, phone, identification, doc_type, tax_exempt, credit_balance, credit_limit, haircut_count, haircuts_since_reward, created_at";
+const SELECT = "id, full_name, email, phone, identification, doc_type, tax_exempt, credit_balance, credit_limit, credit_alert, credit_alert_note, haircut_count, haircuts_since_reward, created_at";
 
 export async function fetchCustomers(): Promise<Customer[]> {
   const supabase = createClient();

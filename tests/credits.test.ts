@@ -6,6 +6,10 @@ import {
   creditAvailable,
   creditSummary,
   paymentAmountOf,
+  creditAlertText,
+  CREDIT_ALERT_DEFAULT,
+  renderStatementMessage,
+  STATEMENT_MAX_LINES,
 } from "../lib/credits";
 
 test("1. Sin deuda no hay nada que cobrar", () => {
@@ -90,4 +94,91 @@ test("10. Un abono tiene que ser un monto de verdad", () => {
   assert.equal(paymentAmountOf("1500,50", 120000), 1500.5);
   // Los centavos se cortan donde los corta la base.
   assert.equal(paymentAmountOf("1500.555", 120000), 1500.56);
+});
+
+// ---------------------------------------------------------------------------
+// Aviso interno ("no fiar")
+// ---------------------------------------------------------------------------
+
+test("10. El aviso vacío cae al texto por defecto, y el escrito manda", () => {
+  assert.equal(creditAlertText(null), CREDIT_ALERT_DEFAULT);
+  assert.equal(creditAlertText(""), CREDIT_ALERT_DEFAULT);
+  assert.equal(creditAlertText("   "), CREDIT_ALERT_DEFAULT);
+  assert.equal(creditAlertText("Debe desde marzo"), "Debe desde marzo");
+  // Se recorta: el espacio de más se cuela al tipear y descuadra el chip.
+  assert.equal(creditAlertText("  Solo de contado  "), "Solo de contado");
+});
+
+// ---------------------------------------------------------------------------
+// Estado de cuenta por WhatsApp
+// ---------------------------------------------------------------------------
+
+const fechaFija = (iso: string) => iso.slice(8, 10) + "/" + iso.slice(5, 7);
+
+const cuentaBase = {
+  cliente: "Juan",
+  negocio: "La Tienda",
+  sales: [
+    { sale_number: 12, created_at: "2026-08-20T15:00:00Z", credit_amount: 80000 },
+    { sale_number: 15, created_at: "2026-08-25T15:00:00Z", credit_amount: 70000 },
+  ],
+  payments: [{ created_at: "2026-08-26T15:00:00Z", amount: 20000 }],
+  formatDate: fechaFija,
+};
+
+test("11. El estado de cuenta dice quién, cuánto y de dónde sale", () => {
+  const msg = renderStatementMessage({ ...cuentaBase, balance: 130000 });
+  assert.ok(msg.includes("Juan"), "saluda al cliente por su nombre");
+  assert.ok(msg.includes("La Tienda"), "dice de qué negocio es la cuenta");
+  assert.ok(msg.includes("$130.000"), "el saldo es el número que manda");
+  assert.ok(msg.includes("#12"), "lista la venta fiada");
+  assert.ok(msg.includes("$80.000"));
+  assert.ok(msg.includes("#15"));
+  assert.ok(msg.includes("$20.000"), "y también lo que abonó");
+});
+
+test("12. El aviso interno NUNCA viaja en el mensaje al cliente", () => {
+  // "No fiar" es una nota para el mostrador. Mandársela al cliente es la peor
+  // forma posible de que se entere: no hay campo en la firma para que entre.
+  const msg = renderStatementMessage({ ...cuentaBase, balance: 130000 });
+  assert.ok(!msg.toLowerCase().includes("no fiar"));
+});
+
+test("13. Sin deuda el mensaje es un comprobante, no un cobro", () => {
+  // Mandarle 'Debe $0' al que terminó de pagar lee como si le siguieran
+  // cobrando. Al que saldó se le confirma que está al día.
+  const msg = renderStatementMessage({ ...cuentaBase, balance: 0 });
+  assert.ok(msg.toLowerCase().includes("al día"));
+  assert.ok(!msg.includes("Debe"));
+  assert.ok(!msg.includes("$0"), "no se le muestra un saldo en cero");
+});
+
+test("14. El detalle se corta: un WhatsApp de 40 renglones no lo lee nadie", () => {
+  const muchas = Array.from({ length: 9 }, (_, i) => ({
+    sale_number: i + 1,
+    created_at: "2026-08-0" + ((i % 9) + 1) + "T15:00:00Z",
+    credit_amount: 1000 * (i + 1),
+  }));
+  const msg = renderStatementMessage({
+    ...cuentaBase,
+    balance: 45000,
+    sales: muchas,
+  });
+  const lineasDeVenta = msg.split("\n").filter((l) => l.trim().startsWith("•"));
+  assert.ok(lineasDeVenta.length <= STATEMENT_MAX_LINES + 1, "no lista las nueve");
+  assert.ok(msg.includes("4 más"), "pero dice cuántas quedaron afuera");
+});
+
+test("15. Un cliente sin movimientos no genera secciones vacías", () => {
+  const msg = renderStatementMessage({
+    cliente: "Ana",
+    negocio: "La Tienda",
+    balance: 50000,
+    sales: [],
+    payments: [],
+    formatDate: fechaFija,
+  });
+  assert.ok(msg.includes("$50.000"));
+  assert.ok(!msg.includes("Abonos"), "sin abonos no se imprime el encabezado");
+  assert.ok(!msg.includes("Se llevó fiado"));
 });

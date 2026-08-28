@@ -26,6 +26,7 @@ interface CreditsState {
   fetchRows: () => Promise<void>;
   loadDetail: (customerId: string) => Promise<void>;
   registerPayment: (customerId: string, amount: number, notes?: string) => Promise<boolean>;
+  setCreditAlert: (customerId: string, alert: boolean, note: string | null) => Promise<boolean>;
 }
 
 export const useCreditsStore = create<CreditsState>((set, get) => ({
@@ -82,6 +83,28 @@ export const useCreditsStore = create<CreditsState>((set, get) => ({
         // El detalle cacheado quedó viejo: le falta el abono recién hecho.
         detail: Object.fromEntries(
           Object.entries(s.detail).filter(([id]) => id !== customerId),
+        ),
+        submitting: false,
+      }));
+      return true;
+    } catch (e) {
+      set({ error: toMessage(e), submitting: false });
+      return false;
+    }
+  },
+
+  setCreditAlert: async (customerId, alert, note) => {
+    set({ submitting: true, error: null });
+    try {
+      const saved = await creditsService.setCreditAlert(customerId, alert, note);
+      set((s) => ({
+        // Se guarda lo que devolvió la base, no lo que se pidió: apagar el
+        // aviso también borra el motivo, y si la pantalla se quedara con el
+        // texto viejo reaparecería al volver a prenderlo.
+        rows: s.rows.map((c) =>
+          c.id === customerId
+            ? { ...c, credit_alert: saved.credit_alert, credit_alert_note: saved.credit_alert_note }
+            : c,
         ),
         submitting: false,
       }));

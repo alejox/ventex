@@ -34,7 +34,7 @@ export interface CreditDetail {
 }
 
 const SELECT =
-  "id, full_name, email, phone, identification, doc_type, tax_exempt, credit_balance, credit_limit, haircut_count, haircuts_since_reward, created_at";
+  "id, full_name, email, phone, identification, doc_type, tax_exempt, credit_balance, credit_limit, credit_alert, credit_alert_note, haircut_count, haircuts_since_reward, created_at";
 
 /**
  * Un cliente en la cartera de fiados, deba o no deba hoy.
@@ -163,6 +163,38 @@ export async function fetchCreditDetail(customerId: string): Promise<CreditDetai
     .filter((sale) => sale.credit_amount > 0);
 
   return { sales, payments };
+}
+
+/**
+ * Prende o apaga el aviso de crédito del cliente, con su motivo.
+ *
+ * Va por RPC y no por un UPDATE porque la policy de `customers` es ALL para
+ * cualquiera con permiso de POS: el cajero al que el aviso le habla podría
+ * apagarlo. `set_credit_alert` revalida dueño y un trigger cierra la puerta de
+ * atrás, así que este es el ÚNICO camino — no lo repliques con un update.
+ *
+ * Devuelve lo que quedó guardado, no lo que se pidió: apagar el aviso también
+ * borra el motivo, y esa decisión la toma la base.
+ */
+export async function setCreditAlert(
+  customerId: string,
+  alert: boolean,
+  note: string | null,
+): Promise<{ credit_alert: boolean; credit_alert_note: string | null }> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .rpc("set_credit_alert", {
+      p_customer: customerId,
+      p_alert: alert,
+      p_note: note ?? undefined,
+    })
+    .maybeSingle();
+  if (error) throw error;
+  const row = data as { credit_alert: boolean; credit_alert_note: string | null } | null;
+  return {
+    credit_alert: row?.credit_alert ?? alert,
+    credit_alert_note: row?.credit_alert_note ?? null,
+  };
 }
 
 export { registerPayment };
