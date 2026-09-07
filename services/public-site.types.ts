@@ -19,7 +19,7 @@ export const TEMPLATE_LABELS: Record<SiteTemplate, string> = {
 export const TEMPLATE_DESCRIPTIONS: Record<SiteTemplate, string> = {
   clasico: "Cálido y tradicional. Tonos tierra, tipografía con serifa.",
   moderno: "Oscuro y con contraste alto. Acentos vivos, aire nocturno.",
-  minimal: "Blanco, mucho aire y foco en el contenido.",
+  minimal: "Limpio y refinado. Blanco cálido, formas suaves y aire premium.",
 };
 
 /** 0 = Sunday, matching Postgres `extract(dow from ...)`. */

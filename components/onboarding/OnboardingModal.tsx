@@ -70,7 +70,11 @@ export function OnboardingModal({ defaultName }: { defaultName: string }) {
       aria-labelledby="onboarding-title"
       className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center overflow-y-auto bg-black/60 backdrop-blur-sm p-4 sm:p-6"
     >
-      <div className="w-full max-w-[480px] my-auto bg-surface-container-low border border-outline-variant/20 rounded-[28px] shadow-2xl p-6 sm:p-8">
+      <div
+        className={`my-auto w-full rounded-[28px] border border-outline-variant/20 bg-surface-container-low p-6 shadow-2xl sm:p-8 ${
+          step === 2 && hasModules ? "max-w-[480px] md:max-w-4xl" : "max-w-[480px]"
+        }`}
+      >
         <div className="text-center mb-7 flex flex-col items-center">
           <div className="w-12 h-12 rounded-2xl bg-surface-container-high border border-outline-variant/10 flex items-center justify-center text-primary mb-5 shadow-sm">
             <RocketIcon />
@@ -82,14 +86,14 @@ export function OnboardingModal({ defaultName }: { defaultName: string }) {
             {step === 1
               ? "Personaliza tu experiencia"
               : hasModules
-                ? "Potencia tu negocio"
+                ? "Termina de configurar tu negocio"
                 : "Nombra tu negocio"}
           </h2>
           <p className="text-on-surface-variant text-[14px]">
             {step === 1
               ? "Selecciona el tipo de negocio que mejor te describe para configurar tu panel."
               : hasModules
-                ? "Selecciona las herramientas que necesitas y dale un nombre a tu negocio."
+                ? "Primero dale un nombre. Después elige las herramientas que vas a usar."
                 : "Dale un nombre a tu negocio para terminar de configurarlo."}
           </p>
         </div>
@@ -154,14 +158,88 @@ export function OnboardingModal({ defaultName }: { defaultName: string }) {
             className="animate-in fade-in slide-in-from-bottom-4 duration-500"
             onSubmit={handleSubmit}
           >
+            <div className={hasModules ? "grid gap-6 md:grid-cols-[minmax(0,.72fr)_minmax(0,1.28fr)]" : ""}>
+              <div className="rounded-[20px] border border-outline-variant/15 bg-surface-container-lowest p-4 sm:p-5">
+                <p className="mb-4 text-[11px] font-bold tracking-wide text-primary uppercase">
+                  Datos del negocio
+                </p>
+
+                <div className="mb-5 space-y-1.5">
+                  <label
+                    htmlFor="onboarding-business-name"
+                    className="block text-[13px] font-semibold text-on-surface"
+                  >
+                    Nombre del negocio
+                  </label>
+                  <div className="relative">
+                    <input
+                      id="onboarding-business-name"
+                      type="text"
+                      placeholder={businessType === "salon" ? "Mi Barbería" : "Mi Tienda"}
+                      value={businessName}
+                      onChange={(e) => setBusinessName(e.target.value)}
+                      className="min-h-12 w-full rounded-xl border border-outline-variant/30 bg-surface-container-low px-10 text-sm text-on-surface transition-all placeholder:text-on-surface-variant/50 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
+                      required
+                      autoFocus
+                    />
+                    <svg
+                      className="absolute top-1/2 left-3.5 h-[18px] w-[18px] -translate-y-1/2 text-on-surface-variant/70"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      viewBox="0 0 24 24"
+                    >
+                      <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                      <polyline points="9 22 9 12 15 12 15 22" />
+                    </svg>
+                  </div>
+                  <p className="text-[12px] leading-relaxed text-on-surface-variant">
+                    Así aparecerá tu negocio dentro de Ventex.
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label
+                    htmlFor="onboarding-phone"
+                    className="block text-[13px] font-semibold text-on-surface"
+                  >
+                    Teléfono{" "}
+                    <span className="font-normal text-on-surface-variant/70">(opcional)</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      id="onboarding-phone"
+                      type="tel"
+                      placeholder="+57 300 123 4567"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      className="min-h-12 w-full rounded-xl border border-outline-variant/30 bg-surface-container-low px-10 text-sm text-on-surface transition-all placeholder:text-on-surface-variant/50 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
+                    />
+                    <svg
+                      className="absolute top-1/2 left-3.5 h-[18px] w-[18px] -translate-y-1/2 text-on-surface-variant/70"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      viewBox="0 0 24 24"
+                    >
+                      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+
             {hasModules && (
-              <div className="space-y-3 mb-6">
+              <div>
+                <p className="mb-4 text-[11px] font-bold tracking-wide text-primary uppercase">
+                  Herramientas incluidas
+                </p>
+                <div className="grid gap-3 sm:grid-cols-2">
                 {moduleOptions.map((mod) => {
                   const isOn = !mod.comingSoon && !!modules[mod.id];
                   return (
                     <div
                       key={mod.id}
-                      className={`p-4 rounded-[20px] border transition-all duration-300 ${
+                       className={`rounded-[20px] border p-4 transition-all duration-300 ${
                         mod.comingSoon
                           ? "bg-surface-container-lowest/50 border-outline-variant/10 opacity-70"
                           : isOn
@@ -210,71 +288,15 @@ export function OnboardingModal({ defaultName }: { defaultName: string }) {
                     </div>
                   );
                 })}
+                </div>
               </div>
             )}
-
-            <div className="space-y-1.5 mb-6">
-              <label
-                htmlFor="onboarding-business-name"
-                className="text-[13px] font-semibold text-on-surface block"
-              >
-                Nombre del negocio
-              </label>
-              <div className="relative">
-                <input
-                  id="onboarding-business-name"
-                  type="text"
-                  placeholder="Mi Tienda"
-                  value={businessName}
-                  onChange={(e) => setBusinessName(e.target.value)}
-                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-10 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50"
-                  required
-                />
-                <svg
-                  className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-on-surface-variant/70"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  viewBox="0 0 24 24"
-                >
-                  <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-                  <polyline points="9 22 9 12 15 12 15 22" />
-                </svg>
-              </div>
-            </div>
-
-            <div className="space-y-1.5 mb-6">
-              <label
-                htmlFor="onboarding-phone"
-                className="text-[13px] font-semibold text-on-surface block"
-              >
-                Teléfono <span className="font-normal text-on-surface-variant/70">(opcional)</span>
-              </label>
-              <div className="relative">
-                <input
-                  id="onboarding-phone"
-                  type="tel"
-                  placeholder="+57 300 123 4567"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-10 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50"
-                />
-                <svg
-                  className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-on-surface-variant/70"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  viewBox="0 0 24 24"
-                >
-                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" />
-                </svg>
-              </div>
             </div>
 
             <button
               type="submit"
               disabled={loading || !businessType || !businessName.trim()}
-              className="w-full bg-primary hover:bg-primary-dim disabled:bg-primary/50 disabled:cursor-not-allowed text-on-primary font-semibold py-3.5 rounded-xl transition-all text-[15px] shadow-[0_0_15px_rgba(96,99,238,0.15)] flex justify-center items-center gap-2"
+              className="mt-6 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-[15px] font-semibold text-on-primary shadow-[0_0_15px_rgba(96,99,238,0.15)] transition-all hover:bg-primary-dim disabled:cursor-not-allowed disabled:bg-primary/50"
             >
               {loading ? (
                 <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
@@ -297,7 +319,7 @@ export function OnboardingModal({ defaultName }: { defaultName: string }) {
             )}
 
             <p className="text-center text-[13px] text-on-surface-variant font-medium mt-5">
-              Paso 2 de 2: {hasModules ? "Módulos y nombre" : "Nombre del negocio"}
+              Paso 2 de 2: {hasModules ? "Nombre y módulos" : "Nombre del negocio"}
             </p>
           </form>
         )}

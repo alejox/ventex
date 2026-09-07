@@ -210,7 +210,7 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
   }
 
   const fieldClass =
-    "w-full rounded-[var(--site-radius)] border border-[var(--site-border)] bg-[var(--site-surface)] px-3 py-2.5 text-sm text-[var(--site-text)] outline-none transition-colors focus:border-[var(--site-accent)]";
+    "min-h-12 w-full rounded-[var(--site-radius)] border border-[var(--site-border)] bg-[var(--site-surface)] px-3 py-2.5 text-sm text-[var(--site-text)] outline-none transition-colors focus:border-[var(--site-accent)] focus-visible:ring-2 focus-visible:ring-[var(--site-accent)]/30";
 
   return (
     // min-w-0: el widget se monta dentro de columnas de grid en las plantillas.
@@ -448,7 +448,7 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
         <button
           type="submit"
           disabled={submitting || !time || !name || !phone}
-          className="w-full rounded-[var(--site-radius)] bg-[var(--site-accent)] px-4 py-3.5 text-sm font-semibold text-[var(--site-on-accent)] transition-opacity disabled:opacity-40"
+          className="min-h-12 w-full rounded-[var(--site-radius)] bg-[var(--site-accent)] px-4 py-3.5 text-sm font-semibold text-[var(--site-on-accent)] transition-opacity focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--site-accent)] disabled:opacity-40"
         >
           {submitting ? "Enviando…" : time ? `Reservar a las ${time}` : "Reservar turno"}
         </button>
