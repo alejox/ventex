@@ -28,8 +28,8 @@
   .revealLeft,
   .revealRight,
   .scaleIn {
-    opacity: 0;
-    animation-fill-mode: both;
+    opacity: 1;
+    animation-fill-mode: none;
     animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
     animation-timeline: view();
     animation-range: entry 0% cover 42%;

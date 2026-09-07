@@ -80,7 +80,7 @@ export async function signup(
 
   const supabase = await createClient();
 
-  const { error } = await supabase.auth.signUp({
+  const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
@@ -98,6 +98,13 @@ export async function signup(
   });
 
   if (error) return { success: false, error: authMessage(error) };
+
+  // When email confirmation is disabled, Supabase returns an active session.
+  // Send the new owner to the app instead of showing the confirmation screen.
+  if (data.session) {
+    revalidatePath("/", "layout");
+    redirect("/dashboard/pos");
+  }
 
   return { success: true, error: null };
 }

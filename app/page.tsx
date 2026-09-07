@@ -1,13 +1,11 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import Image from "next/image";
 import { LogoHorizontal } from "@/components/Logo";
 import {
   IconShoppingCart,
   IconBox,
   IconUsers,
-  IconTrendingUp,
-  IconCreditCard,
-  IconWallet,
 } from "@/app/assets/icons/DashboardIcons";
 import styles from "./page.module.css";
 import { PricingSection } from "@/components/PricingSection";
@@ -21,82 +19,6 @@ export const metadata: Metadata = {
 };
 
 const BUSINESS_TYPES = ["Tiendas", "Salones", "Lava-autos", "Servicios", "Proveedoras"];
-
-const money = (n: number) =>
-  n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-/* ---------------- Gráficas SVG ---------------- */
-
-// Curva suave ascendente (área + línea con degradado)
-const AREA_PATH =
-  "M0,96 C18,96 35,72 53,72 C71,72 89,84 107,84 C125,84 142,52 160,52 C178,52 195,64 213,64 C231,64 249,34 267,34 C285,34 302,22 320,22";
-const DOTS: [number, number][] = [
-  [53, 72],
-  [107, 84],
-  [160, 52],
-  [213, 64],
-  [267, 34],
-  [320, 22],
-];
-
-function AreaChart({ id }: { id: string }) {
-  return (
-    <svg viewBox="0 0 320 140" className="w-full h-auto" role="img" aria-label="Tendencia de ingresos">
-      <defs>
-        <linearGradient id={`grad-${id}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#6063ee" stopOpacity="0.38" />
-          <stop offset="100%" stopColor="#6063ee" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      {[34, 68, 102].map((y) => (
-        <line key={y} x1="0" y1={y} x2="320" y2={y} stroke="currentColor" strokeOpacity="0.08" strokeWidth="1" />
-      ))}
-      <path className={styles.chartArea} d={`${AREA_PATH} L320,140 L0,140 Z`} fill={`url(#grad-${id})`} />
-      <path
-        className={styles.chartLine}
-        pathLength={1}
-        d={AREA_PATH}
-        fill="none"
-        stroke="#6063ee"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      {DOTS.map(([x, y]) => (
-        <circle key={`${x}-${y}`} cx={x} cy={y} r="3.5" fill="#0b0e19" stroke="#0fdff3" strokeWidth="2" />
-      ))}
-    </svg>
-  );
-}
-
-// Dona de 3 segmentos (gastos por categoría)
-function Donut() {
-  const C = 289; // circunferencia (r=46)
-  const segs = [
-    { pct: 0.58, color: "#6063ee", offset: 0 },
-    { pct: 0.27, color: "#0fdff3", offset: -0.58 * C },
-    { pct: 0.15, color: "#8b5cf6", offset: -0.85 * C },
-  ];
-  return (
-    <svg viewBox="0 0 120 120" className="w-24 h-24 -rotate-90" role="img" aria-label="Gastos por categoría">
-      <circle cx="60" cy="60" r="46" fill="none" stroke="currentColor" strokeOpacity="0.1" strokeWidth="12" />
-      {segs.map((s) => (
-        <circle
-          key={s.color}
-          cx="60"
-          cy="60"
-          r="46"
-          fill="none"
-          stroke={s.color}
-          strokeWidth="12"
-          strokeLinecap="round"
-          strokeDasharray={`${s.pct * C - 4} ${C}`}
-          strokeDashoffset={s.offset}
-        />
-      ))}
-    </svg>
-  );
-}
 
 /* ---------------- Marco de ventana ---------------- */
 
@@ -119,160 +41,31 @@ function MockFrame({ label, children }: { label: string; children: React.ReactNo
 function DashboardMock() {
   return (
     <MockFrame label="Ventex · Panel">
-      <div className="p-5 space-y-4">
-        <div className="grid grid-cols-3 gap-3">
-          {[
-            { label: "Ventas", value: "$24,5k", icon: IconCreditCard, tint: "text-primary bg-primary/10" },
-            { label: "Beneficio", value: "+$8,2k", icon: IconTrendingUp, tint: "text-[#10b981] bg-[#10b981]/10" },
-            { label: "Stock bajo", value: "3", icon: IconBox, tint: "text-[#8b5cf6] bg-[#8b5cf6]/10" },
-          ].map((k) => (
-            <div key={k.label} className="rounded-2xl bg-surface-container-lowest border border-outline-variant/10 p-3">
-              <div className={`w-8 h-8 rounded-lg flex items-center justify-center mb-2 ${k.tint}`}>
-                <k.icon className="w-4 h-4" />
-              </div>
-              <p className="text-[10px] text-on-surface-variant">{k.label}</p>
-              <p className="text-sm font-black">{k.value}</p>
-            </div>
-          ))}
-        </div>
-        <div className="rounded-2xl bg-surface-container-lowest border border-outline-variant/10 p-4 text-on-surface-variant">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-xs font-bold text-on-surface">Ingresos</p>
-            <span className="text-[10px]">6 meses</span>
-          </div>
-          <AreaChart id="dash" />
-        </div>
-      </div>
+      <Image src="/landing/dashboard.png" alt="Dashboard de Ventex con ventas, ingresos y beneficio neto" width={1440} height={900} className="w-full h-auto" priority />
     </MockFrame>
   );
 }
 
 function PosMock() {
-  const items = [
-    { n: "Aura Pro Audífonos", p: 249.99 },
-    { n: "Funda Laptop 15\"", p: 45.0 },
-  ];
   return (
     <MockFrame label="Ventex · Punto de Venta">
-      <div className="grid grid-cols-5 gap-0">
-        {/* Catálogo */}
-        <div className="col-span-3 p-4 grid grid-cols-2 gap-3 border-r border-outline-variant/10">
-          {["Aura Pro", "Vanguard", "Echo Pods", "Funda 15\""].map((n, i) => (
-            <div key={n} className="rounded-xl bg-surface-container-lowest border border-outline-variant/10 p-3">
-              <div className="aspect-square rounded-lg bg-surface-container-high mb-2 flex items-center justify-center text-on-surface-variant/40">
-                <IconBox className="w-5 h-5" />
-              </div>
-              <p className="text-[11px] font-medium truncate">{n}</p>
-              <p className="text-xs font-bold text-primary">${[249.99, 199.5, 89, 45][i].toFixed(2)}</p>
-            </div>
-          ))}
-        </div>
-        {/* Carrito */}
-        <div className="col-span-2 p-4 flex flex-col bg-surface-container-low">
-          <p className="text-xs font-bold mb-3">Orden actual</p>
-          <div className="space-y-2 flex-1">
-            {items.map((it) => (
-              <div key={it.n} className="flex justify-between gap-2 text-[11px]">
-                <span className="text-on-surface-variant truncate">{it.n}</span>
-                <span className="font-bold">${money(it.p)}</span>
-              </div>
-            ))}
-          </div>
-          <div className="mt-3 pt-3 border-t border-outline-variant/10">
-            <div className="flex justify-between text-xs mb-2">
-              <span className="text-on-surface-variant">Total</span>
-              <span className="font-black text-primary">$342.19</span>
-            </div>
-            <div className="w-full text-center bg-primary text-on-primary text-xs font-bold rounded-lg py-2">Cobrar</div>
-          </div>
-        </div>
-      </div>
+      <Image src="/landing/pos.png" alt="Punto de venta de Ventex con catálogo y factura" width={1440} height={900} className="w-full h-auto" />
     </MockFrame>
   );
 }
 
 function InventoryMock() {
-  const rows = [
-    { n: "Aura Pro Audífonos", sku: "AU-1029", p: 249.99, s: 15, badge: "óptimo" },
-    { n: "Vanguard Smartwatch", sku: "WC-5531", p: 199.5, s: 8, badge: "óptimo" },
-    { n: "Echo Pods", sku: "AU-0020", p: 89.0, s: 3, badge: "bajo" },
-    { n: "Funda Laptop 15\"", sku: "AC-1002", p: 45.0, s: 25, badge: "óptimo" },
-  ];
   return (
     <MockFrame label="Ventex · Inventario">
-      <div className="p-2">
-        <table className="w-full text-left text-[11px]">
-          <thead>
-            <tr className="text-[9px] uppercase tracking-wider text-on-surface-variant">
-              <th className="p-2 font-bold">Producto</th>
-              <th className="p-2 font-bold">SKU</th>
-              <th className="p-2 font-bold text-right">Precio</th>
-              <th className="p-2 font-bold text-center">Stock</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.sku} className="border-t border-outline-variant/5">
-                <td className="p-2 font-medium">{r.n}</td>
-                <td className="p-2 font-mono text-on-surface-variant">{r.sku}</td>
-                <td className="p-2 text-right font-semibold">${money(r.p)}</td>
-                <td className="p-2 text-center">
-                  <span
-                    className={`px-1.5 py-0.5 rounded font-bold text-[10px] ${
-                      r.badge === "bajo"
-                        ? "bg-[#f59e0b]/15 text-[#f59e0b]"
-                        : "bg-[#10b981]/15 text-[#10b981]"
-                    }`}
-                  >
-                    {r.s}
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <Image src="/landing/catalogo.png" alt="Catálogo de Ventex con productos, servicios y stock" width={1440} height={900} className="w-full h-auto" />
     </MockFrame>
   );
 }
 
 function FinanceMock() {
-  const bars = [62, 78, 50, 90, 70, 96];
   return (
     <MockFrame label="Ventex · Finanzas">
-      <div className="p-5 space-y-4 text-on-surface-variant">
-        <div className="grid grid-cols-2 gap-3">
-          <div className="rounded-2xl bg-surface-container-lowest border border-outline-variant/10 p-3">
-            <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center mb-2">
-              <IconWallet className="w-4 h-4" />
-            </div>
-            <p className="text-[10px]">Ingresos</p>
-            <p className="text-sm font-black text-on-surface">$24,500</p>
-          </div>
-          <div className="rounded-2xl bg-surface-container-lowest border border-outline-variant/10 p-3">
-            <div className="w-8 h-8 rounded-lg bg-[#10b981]/10 text-[#10b981] flex items-center justify-center mb-2">
-              <IconTrendingUp className="w-4 h-4" />
-            </div>
-            <p className="text-[10px]">Beneficio neto</p>
-            <p className="text-sm font-black text-on-surface">$8,230</p>
-          </div>
-        </div>
-        <div className="rounded-2xl bg-surface-container-lowest border border-outline-variant/10 p-4 flex items-center gap-4">
-          <div className="relative shrink-0">
-            <Donut />
-            <span className="absolute inset-0 flex items-center justify-center text-[10px] font-black text-on-surface">3</span>
-          </div>
-          <div className="flex-1 flex items-end justify-between gap-1.5 h-20">
-            {bars.map((h, i) => (
-              <div
-                key={i}
-                className={`${styles.bar} flex-1 rounded-t bg-gradient-to-t from-primary/60 to-primary`}
-                style={{ height: `${h}%`, animationDelay: `${i * 80}ms` }}
-              />
-            ))}
-          </div>
-        </div>
-      </div>
+      <Image src="/landing/dashboard.png" alt="Resumen financiero de Ventex con ingresos y beneficio neto" width={1440} height={900} className="w-full h-auto" />
     </MockFrame>
   );
 }
