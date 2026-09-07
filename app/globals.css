@@ -236,3 +236,79 @@ body {
   background-color: var(--color-background);
   color: var(--color-on-background);
 }
+
+@keyframes site-enter {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes site-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(28px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.site-public {
+  overflow-x: clip;
+}
+
+.site-public [id] {
+  scroll-margin-top: 2rem;
+}
+
+.site-enter {
+  animation: site-enter 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.site-enter-delay-2 {
+  animation-delay: 200ms;
+}
+
+.site-action,
+.site-card {
+  transition-duration: 220ms;
+  transition-property: transform, box-shadow, border-color, background-color, color;
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.site-action:active {
+  transform: scale(0.975);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .site-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--site-shadow);
+  }
+}
+
+@supports (animation-timeline: view()) {
+  .site-reveal {
+    animation: site-reveal linear both;
+    animation-range: entry 8% cover 24%;
+    animation-timeline: view();
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .site-enter,
+  .site-reveal {
+    animation: none;
+  }
+
+  .site-action,
+  .site-card {
+    transition: none;
+  }
+}

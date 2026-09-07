@@ -14,6 +14,7 @@ import type {
   DaySlot,
 } from "@/services/public-site.types";
 import { formatCOP } from "./templates/theme";
+import { BOOK_SERVICE_EVENT } from "./BookServiceLink";
 
 /**
  * Booking flow for a public visitor: service -> professional -> day -> time ->
@@ -127,6 +128,19 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
     if (!canQuery || !date) return;
     void loadDay(site.slug, serviceId, date, staffId);
   }, [canQuery, loadDay, site.slug, serviceId, date, staffId]);
+
+  useEffect(() => {
+    const selectService = (event: Event) => {
+      const nextServiceId = (event as CustomEvent<{ serviceId?: string }>).detail?.serviceId;
+      if (!nextServiceId || !site.services.some((item) => item.id === nextServiceId)) return;
+      setServiceId(nextServiceId);
+      setPickedDate(null);
+      setPickedTime("");
+    };
+
+    window.addEventListener(BOOK_SERVICE_EVENT, selectService);
+    return () => window.removeEventListener(BOOK_SERVICE_EVENT, selectService);
+  }, [site.services]);
 
   // "Loading" is a key mismatch, not a flag: the answer to an older
   // service/day/professional combination can never repaint a newer one.

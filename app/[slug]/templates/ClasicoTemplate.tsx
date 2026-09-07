@@ -11,13 +11,14 @@ import {
   SectionTitle,
 } from "./SiteSections";
 import { SITE_PALETTES } from "./theme";
+import { BusinessStatus } from "./BusinessStatus";
 
 /** Editorial hospitality: warm paper, wine red and an image framed like a portrait. */
 export function ClasicoTemplate({ site }: { site: PublicSite }) {
   return (
     <div
       style={SITE_PALETTES.clasico}
-      className="min-h-screen scroll-smooth bg-[var(--site-bg)] text-[var(--site-text)] [font-family:var(--site-body-font)] selection:bg-[var(--site-accent)] selection:text-[var(--site-on-accent)]"
+      className="site-public min-h-screen scroll-smooth bg-[var(--site-bg)] text-[var(--site-text)] [font-family:var(--site-body-font)] selection:bg-[var(--site-accent)] selection:text-[var(--site-on-accent)]"
     >
       <header className="overflow-hidden border-b border-[var(--site-border)] bg-[var(--site-surface)]">
         <nav aria-label="Principal" className="mx-auto flex w-full max-w-6xl items-center justify-between px-5 py-5 sm:px-8">
@@ -37,19 +38,20 @@ export function ClasicoTemplate({ site }: { site: PublicSite }) {
         </nav>
 
         <div id="inicio" className="mx-auto grid w-full max-w-6xl items-center gap-10 px-5 pt-8 pb-16 sm:px-8 lg:grid-cols-[1.05fr_.95fr] lg:gap-16 lg:py-20">
-          <div className="relative z-10">
+          <div className="relative z-10 site-enter">
             <p className="mb-5 text-xs font-bold tracking-[0.24em] text-[var(--site-accent)] uppercase">Un momento para vos</p>
             <h1 className="max-w-3xl text-5xl leading-[0.96] font-normal tracking-[-0.045em] sm:text-7xl lg:text-[5.5rem]" style={{ fontFamily: "var(--site-heading-font)" }}>
               {site.businessName}
             </h1>
             {site.headline ? <p className="mt-7 max-w-xl text-lg leading-relaxed text-[var(--site-muted)] sm:text-xl">{site.headline}</p> : null}
+            <BusinessStatus site={site} className="mt-5 text-[var(--site-muted)]" />
             <div className="mt-8 flex flex-wrap items-center gap-3">
-              {site.bookingEnabled ? <a href="#reservar" className="inline-flex min-h-12 items-center rounded-full bg-[var(--site-accent)] px-6 text-sm font-bold text-[var(--site-on-accent)] transition-transform hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--site-accent)]">Reservar turno</a> : null}
-              {site.services.length ? <a href="#servicios" className="inline-flex min-h-12 items-center rounded-full border border-[var(--site-border)] px-6 text-sm font-semibold hover:bg-[var(--site-surface-alt)]">Ver servicios</a> : null}
+              {site.bookingEnabled ? <a href="#reservar" className="site-action inline-flex min-h-12 items-center rounded-full bg-[var(--site-accent)] px-6 text-sm font-bold text-[var(--site-on-accent)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--site-accent)]">Reservar turno</a> : null}
+              {site.services.length ? <a href="#servicios" className="site-action inline-flex min-h-12 items-center rounded-full border border-[var(--site-border)] px-6 text-sm font-semibold hover:bg-[var(--site-surface-alt)]">Ver servicios</a> : null}
             </div>
           </div>
 
-          <div className="relative mx-auto w-full max-w-md lg:mx-0 lg:ml-auto">
+          <div className="relative mx-auto w-full max-w-md site-enter site-enter-delay-2 lg:mx-0 lg:ml-auto">
             <div aria-hidden="true" className="absolute -top-6 -right-8 h-32 w-32 rounded-full border border-[var(--site-border)]" />
             <div className="relative aspect-[4/5] overflow-hidden rounded-t-[12rem] rounded-b-[var(--site-radius)] bg-[var(--site-surface-alt)] shadow-[var(--site-shadow)]">
               {site.heroImageUrl ? <Image src={site.heroImageUrl} alt="" fill priority sizes="(max-width: 1024px) 100vw, 42vw" className="object-cover" /> : (
@@ -63,7 +65,7 @@ export function ClasicoTemplate({ site }: { site: PublicSite }) {
       </header>
 
       {site.about ? (
-        <section className="mx-auto grid w-full max-w-6xl gap-5 px-5 py-16 sm:px-8 md:grid-cols-[.4fr_1fr] md:py-24">
+        <section className="site-reveal mx-auto grid w-full max-w-6xl gap-5 px-5 py-16 sm:px-8 md:grid-cols-[.4fr_1fr] md:py-24">
           <p className="text-xs font-bold tracking-[0.2em] text-[var(--site-accent)] uppercase">Nuestra esencia</p>
           <p className="max-w-3xl text-2xl leading-snug text-[var(--site-text)] sm:text-3xl" style={{ fontFamily: "var(--site-heading-font)" }}>{site.about}</p>
         </section>
@@ -74,7 +76,7 @@ export function ClasicoTemplate({ site }: { site: PublicSite }) {
       <ProductsSection site={site} variant="clasico" />
 
       {site.bookingEnabled ? (
-        <section id="reservar" className="border-y border-[var(--site-border)] bg-[var(--site-surface-alt)] py-16 sm:py-24">
+        <section id="reservar" className="site-reveal border-y border-[var(--site-border)] bg-[var(--site-surface-alt)] py-16 sm:py-24">
           <div className="mx-auto grid w-full max-w-6xl gap-10 px-5 sm:px-8 lg:grid-cols-[.75fr_1.25fr] lg:gap-16">
             <div>
               <p className="mb-4 text-xs font-bold tracking-[0.2em] text-[var(--site-accent)] uppercase">Tu próxima visita</p>

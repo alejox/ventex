@@ -4,6 +4,7 @@ import type { PublicSite, SiteTemplate } from "@/services/public-site.types";
 import { WEEKDAY_LABELS } from "@/services/public-site.types";
 import { socialLinksOf } from "@/lib/socialLinks";
 import { BrandIcon } from "@/app/assets/icons/BrandIcons";
+import { BookServiceLink } from "../BookServiceLink";
 import { formatCOP, whatsappHref } from "./theme";
 
 /**
@@ -58,7 +59,7 @@ export function ServicesSection({
   if (!site.services.length) return null;
 
   return (
-    <section id="servicios" className={sectionClass[variant]}>
+    <section id="servicios" className={`${sectionClass[variant]} site-reveal`}>
       <div>
         <p className="mb-3 text-xs font-bold tracking-[0.16em] text-[var(--site-accent)] uppercase">Lo que hacemos</p>
         <SectionTitle variant={variant}>Servicios</SectionTitle>
@@ -67,7 +68,7 @@ export function ServicesSection({
         {site.services.map((service) => (
           <li
             key={service.id}
-            className={variant === "clasico" ? "flex items-start justify-between gap-5 border-b border-[var(--site-border)] py-6" : variant === "moderno" ? "group flex min-h-56 flex-col justify-between rounded-[var(--site-radius)] border border-[var(--site-border)] bg-[var(--site-surface)] p-6 transition-transform hover:-translate-y-1" : "flex flex-col items-start justify-between gap-5 rounded-[var(--site-radius)] border border-[var(--site-border)] bg-[var(--site-surface)] p-6 shadow-[var(--site-shadow)] sm:flex-row"}
+            className={`${variant === "clasico" ? "flex items-start justify-between gap-5 border-b border-[var(--site-border)] py-6" : variant === "moderno" ? "group flex min-h-56 flex-col justify-between rounded-[var(--site-radius)] border border-[var(--site-border)] bg-[var(--site-surface)] p-6" : "flex flex-col items-start justify-between gap-5 rounded-[var(--site-radius)] border border-[var(--site-border)] bg-[var(--site-surface)] p-6 shadow-[var(--site-shadow)] sm:flex-row"} site-card`}
           >
             <div className="min-w-0">
               {variant === "moderno" ? <span aria-hidden="true" className="mb-6 flex h-10 w-10 items-center justify-center rounded-full bg-[var(--site-accent)] font-bold text-[var(--site-on-accent)]">{service.icon ?? "+"}</span> : null}
@@ -86,12 +87,13 @@ export function ServicesSection({
                 {formatCOP(service.price)}
               </p>
               {site.bookingEnabled ? (
-                <a
+                <BookServiceLink
+                  serviceId={service.id}
                   href={onBookHref}
-                className={variant === "minimal" ? "mt-2 inline-flex min-h-12 items-center text-xs font-bold text-[var(--site-accent)] underline underline-offset-4" : "mt-3 inline-flex min-h-12 items-center rounded-full bg-[var(--site-accent)] px-4 text-xs font-bold text-[var(--site-on-accent)]"}
+                  className={`${variant === "minimal" ? "mt-2 inline-flex min-h-12 items-center text-xs font-bold text-[var(--site-accent)] underline underline-offset-4" : "mt-3 inline-flex min-h-12 items-center rounded-full bg-[var(--site-accent)] px-4 text-xs font-bold text-[var(--site-on-accent)]"} site-action`}
                 >
                   Reservar
-                </a>
+                </BookServiceLink>
               ) : null}
             </div>
           </li>
@@ -105,14 +107,14 @@ export function ProductsSection({ site, variant = "clasico" }: { site: PublicSit
   if (!site.products.length) return null;
 
   return (
-    <section id="productos" className={sectionClass[variant]}>
+    <section id="productos" className={`${sectionClass[variant]} site-reveal`}>
       <p className="mb-3 text-xs font-bold tracking-[0.16em] text-[var(--site-accent)] uppercase">Para llevar</p>
       <SectionTitle variant={variant}>Productos</SectionTitle>
       <ul className="mt-10 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
         {site.products.map((product) => (
           <li
             key={product.id}
-            className={variant === "minimal" ? "group overflow-hidden rounded-[var(--site-radius)] bg-[var(--site-surface)] shadow-[var(--site-shadow)]" : variant === "moderno" ? "group overflow-hidden rounded-[var(--site-radius)] border border-[var(--site-border)] bg-[var(--site-surface)]" : "overflow-hidden rounded-[var(--site-radius)] bg-[var(--site-surface)] shadow-[var(--site-shadow)]"}
+            className={`${variant === "minimal" ? "group overflow-hidden rounded-[var(--site-radius)] bg-[var(--site-surface)] shadow-[var(--site-shadow)]" : variant === "moderno" ? "group overflow-hidden rounded-[var(--site-radius)] border border-[var(--site-border)] bg-[var(--site-surface)]" : "overflow-hidden rounded-[var(--site-radius)] bg-[var(--site-surface)] shadow-[var(--site-shadow)]"} site-card`}
           >
             <div className={variant === "clasico" ? "relative aspect-[4/5] bg-[var(--site-surface-alt)]" : "relative aspect-square overflow-hidden bg-[var(--site-surface-alt)]"}>
               {product.imageUrl ? (
@@ -151,14 +153,14 @@ export function StaffSection({ site, variant = "clasico" }: { site: PublicSite; 
   if (!site.staff.length) return null;
 
   return (
-    <section id="equipo" className={`${sectionClass[variant]} ${variant === "moderno" ? "border-y border-[var(--site-border)] bg-[var(--site-surface-alt)]" : ""}`}>
+    <section id="equipo" className={`${sectionClass[variant]} site-reveal ${variant === "moderno" ? "border-y border-[var(--site-border)] bg-[var(--site-surface-alt)]" : ""}`}>
       <p className="mb-3 text-xs font-bold tracking-[0.16em] text-[var(--site-accent)] uppercase">Quienes te reciben</p>
       <SectionTitle variant={variant}>El equipo</SectionTitle>
       <ul className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {site.staff.map((member) => (
           <li
             key={member.id}
-            className={variant === "minimal" ? "flex min-h-24 items-center gap-4 rounded-[var(--site-radius)] bg-[var(--site-surface)] p-5 shadow-[var(--site-shadow)]" : variant === "moderno" ? "flex items-center gap-4 rounded-[var(--site-radius)] border border-[var(--site-border)] bg-[var(--site-surface)] p-5" : "flex items-center gap-4 border-b border-[var(--site-border)] py-5"}
+            className={`${variant === "minimal" ? "flex min-h-24 items-center gap-4 rounded-[var(--site-radius)] bg-[var(--site-surface)] p-5 shadow-[var(--site-shadow)]" : variant === "moderno" ? "flex items-center gap-4 rounded-[var(--site-radius)] border border-[var(--site-border)] bg-[var(--site-surface)] p-5" : "flex items-center gap-4 border-b border-[var(--site-border)] py-5"} site-card`}
           >
             <span
               aria-hidden="true"
@@ -180,7 +182,7 @@ export function HoursSection({ site, variant = "clasico" }: { site: PublicSite; 
   const today = new Date().getDay();
 
   return (
-    <section id="horarios" className={sectionClass[variant]}>
+    <section id="horarios" className={`${sectionClass[variant]} site-reveal`}>
       <div className="grid gap-10 md:grid-cols-[.8fr_1.2fr] md:gap-16">
       <div><p className="mb-3 text-xs font-bold tracking-[0.16em] text-[var(--site-accent)] uppercase">Planificá tu visita</p><SectionTitle variant={variant}>Horarios</SectionTitle></div>
       <ul className="border-t border-[var(--site-text)]">
@@ -214,7 +216,7 @@ export function ContactSection({ site, variant = "clasico" }: { site: PublicSite
   if (!hasContact) return null;
 
   return (
-    <section id="contacto" className={`${sectionClass[variant]} ${variant === "moderno" ? "border-t border-[var(--site-border)]" : ""}`}>
+    <section id="contacto" className={`${sectionClass[variant]} site-reveal ${variant === "moderno" ? "border-t border-[var(--site-border)]" : ""}`}>
       <div className={variant === "clasico" ? "rounded-[var(--site-radius)] bg-[var(--site-text)] p-7 text-[var(--site-bg)] shadow-[var(--site-shadow)] [&_h2]:!text-[var(--site-bg)] sm:p-12" : variant === "minimal" ? "rounded-[var(--site-radius)] bg-[var(--site-surface)] p-7 shadow-[var(--site-shadow)] sm:p-12" : ""}>
       <p className={`mb-3 text-xs font-bold tracking-[0.16em] uppercase ${variant === "clasico" ? "text-[var(--site-bg)] opacity-60" : "text-[var(--site-accent)]"}`}>Hablemos</p>
       <SectionTitle variant={variant}>Dónde estamos</SectionTitle>
@@ -226,7 +228,7 @@ export function ContactSection({ site, variant = "clasico" }: { site: PublicSite
               href={whatsappHref(site.whatsapp, `Hola ${site.businessName}, quiero consultar.`)}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex min-h-12 items-center gap-2 rounded-full bg-[var(--site-accent)] px-5 font-bold text-[var(--site-on-accent)]"
+              className="site-action inline-flex min-h-12 items-center gap-2 rounded-full bg-[var(--site-accent)] px-5 font-bold text-[var(--site-on-accent)]"
             >
               <BrandIcon name="whatsapp" className="h-4 w-4 shrink-0" />
               Escribir por WhatsApp
@@ -238,7 +240,7 @@ export function ContactSection({ site, variant = "clasico" }: { site: PublicSite
               href={social.href}
               target="_blank"
               rel="noopener noreferrer"
-              className={`inline-flex min-h-12 items-center gap-2 rounded-full border px-5 font-semibold ${variant === "clasico" ? "border-[var(--site-muted)] text-[var(--site-bg)]" : "border-[var(--site-border)] text-[var(--site-text)]"}`}
+              className={`site-action inline-flex min-h-12 items-center gap-2 rounded-full border px-5 font-semibold ${variant === "clasico" ? "border-[var(--site-muted)] text-[var(--site-bg)]" : "border-[var(--site-border)] text-[var(--site-text)]"}`}
             >
               {/* Sin `colored`: el logo toma el color del texto de la plantilla,
                   que es la que manda la paleta. */}

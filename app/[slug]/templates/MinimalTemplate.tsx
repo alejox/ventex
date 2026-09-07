@@ -11,13 +11,14 @@ import {
   SectionTitle,
 } from "./SiteSections";
 import { SITE_PALETTES } from "./theme";
+import { BusinessStatus } from "./BusinessStatus";
 
 /** Soft premium minimalism: warm whites, generous imagery and quiet details. */
 export function MinimalTemplate({ site }: { site: PublicSite }) {
   return (
     <div
       style={SITE_PALETTES.minimal}
-      className="min-h-screen scroll-smooth bg-[var(--site-bg)] text-[var(--site-text)] [font-family:var(--site-body-font)] selection:bg-[var(--site-accent)] selection:text-[var(--site-on-accent)]"
+      className="site-public min-h-screen scroll-smooth bg-[var(--site-bg)] text-[var(--site-text)] [font-family:var(--site-body-font)] selection:bg-[var(--site-accent)] selection:text-[var(--site-on-accent)]"
     >
       <header id="inicio" className="overflow-hidden bg-[var(--site-surface)]">
         <nav
@@ -51,7 +52,7 @@ export function MinimalTemplate({ site }: { site: PublicSite }) {
         </nav>
 
         <div className="mx-auto grid w-full max-w-6xl gap-10 px-5 pt-8 pb-16 sm:px-8 sm:pb-24 lg:grid-cols-[.9fr_1.1fr] lg:items-center lg:gap-16">
-          <div>
+          <div className="site-enter">
             <p className="mb-5 text-xs font-semibold tracking-[0.18em] text-[var(--site-accent)] uppercase">
               Bienvenidos
             </p>
@@ -66,11 +67,12 @@ export function MinimalTemplate({ site }: { site: PublicSite }) {
                 {site.headline}
               </p>
             ) : null}
+            <BusinessStatus site={site} className="mt-5 text-[var(--site-muted)]" />
             <div className="mt-8 flex flex-wrap gap-3">
               {site.bookingEnabled ? (
                 <a
                   href="#reservar"
-                  className="inline-flex min-h-12 items-center rounded-full bg-[var(--site-accent)] px-6 text-sm font-semibold text-[var(--site-on-accent)] shadow-[var(--site-shadow)]"
+                  className="site-action inline-flex min-h-12 items-center rounded-full bg-[var(--site-accent)] px-6 text-sm font-semibold text-[var(--site-on-accent)] shadow-[var(--site-shadow)]"
                 >
                   Encontrar un horario
                 </a>
@@ -78,14 +80,14 @@ export function MinimalTemplate({ site }: { site: PublicSite }) {
               {site.services.length ? (
                 <a
                   href="#servicios"
-                  className="inline-flex min-h-12 items-center rounded-full border border-[var(--site-border)] px-6 text-sm font-semibold"
+                  className="site-action inline-flex min-h-12 items-center rounded-full border border-[var(--site-border)] px-6 text-sm font-semibold"
                 >
                   Ver servicios
                 </a>
               ) : null}
             </div>
           </div>
-          <div className="relative aspect-[4/5] max-h-[38rem] overflow-hidden rounded-[2.5rem] bg-[var(--site-surface-alt)] shadow-[var(--site-shadow)]">
+          <div className="relative aspect-[4/5] max-h-[38rem] overflow-hidden rounded-[2.5rem] bg-[var(--site-surface-alt)] shadow-[var(--site-shadow)] site-enter site-enter-delay-2">
             {site.heroImageUrl ? (
               <Image
                 src={site.heroImageUrl}
@@ -107,7 +109,7 @@ export function MinimalTemplate({ site }: { site: PublicSite }) {
       </header>
 
       {site.about ? (
-        <section className="mx-auto w-full max-w-4xl px-5 py-16 text-center sm:px-8 sm:py-24">
+        <section className="site-reveal mx-auto w-full max-w-4xl px-5 py-16 text-center sm:px-8 sm:py-24">
           <p className="mb-5 text-xs font-semibold tracking-[0.16em] text-[var(--site-accent)] uppercase">
             Nuestra esencia
           </p>
@@ -120,7 +122,7 @@ export function MinimalTemplate({ site }: { site: PublicSite }) {
       <StaffSection site={site} variant="minimal" />
 
       {site.bookingEnabled ? (
-        <section id="reservar" className="bg-[var(--site-surface-alt)] py-16 sm:py-24">
+        <section id="reservar" className="site-reveal bg-[var(--site-surface-alt)] py-16 sm:py-24">
           <div className="mx-auto grid w-full max-w-6xl gap-10 px-5 sm:px-8 lg:grid-cols-[.7fr_1.3fr] lg:gap-16">
             <div>
               <p className="mb-4 text-xs font-semibold tracking-[0.16em] text-[var(--site-accent)] uppercase">
