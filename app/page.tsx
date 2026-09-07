@@ -149,12 +149,12 @@ export default async function LandingPage() {
 
       {/* Nav */}
       <header className="sticky top-0 z-50 backdrop-blur-md bg-background/70 border-b border-outline-variant/10">
-        <nav className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+        <nav aria-label="Principal" className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
           <LogoHorizontal className="w-[104px] h-[28px]" />
-          <div className="hidden md:flex items-center gap-8 text-sm font-medium text-on-surface-variant">
-            <a href="#producto" className="hover:text-on-surface transition-colors">Producto</a>
-            <a href="#como-funciona" className="hover:text-on-surface transition-colors">Cómo funciona</a>
-            <a href="#precios" className="hover:text-on-surface transition-colors">Precios</a>
+          <div className="hidden md:flex items-center gap-1 rounded-full border border-outline-variant/10 bg-surface-container-low/60 p-1 text-sm font-medium text-on-surface-variant">
+            <a href="#producto" className="rounded-full bg-surface-container-high px-4 py-2 text-on-surface shadow-sm transition-colors hover:bg-surface-container-highest">Producto</a>
+            <a href="#como-funciona" className="rounded-full px-4 py-2 transition-colors hover:bg-surface-container-high hover:text-on-surface">Cómo funciona</a>
+            <a href="#precios" className="rounded-full px-4 py-2 transition-colors hover:bg-surface-container-high hover:text-on-surface">Precios</a>
           </div>
           <div className="flex items-center gap-3">
             <Link href="/login" className="text-sm font-semibold text-on-surface-variant hover:text-on-surface transition-colors">
