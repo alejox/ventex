@@ -21,6 +21,33 @@ export const metadata: Metadata = {
 
 const BUSINESS_TYPES = ["Tiendas", "Salones", "Lava-autos", "Servicios", "Proveedoras"];
 
+const SUCCESS_STORIES = [
+  {
+    image: "/landing/avatar-mariana.svg",
+    name: "Mariana C.",
+    business: "Tienda de productos",
+    quote: "Ahora encuentro todo en un solo lugar y puedo cerrar el día con mucha más tranquilidad.",
+    result: "Más control del inventario",
+    tone: "bg-primary/15 text-primary",
+  },
+  {
+    image: "/landing/avatar-diego.svg",
+    name: "Diego R.",
+    business: "Barbería independiente",
+    quote: "Registrar una venta es rápido y el equipo sabe exactamente qué se vendió y qué queda.",
+    result: "Ventas y stock conectados",
+    tone: "bg-[#0fdff3]/15 text-[#0fdff3]",
+  },
+  {
+    image: "/landing/avatar-valentina.svg",
+    name: "Valentina C.",
+    business: "Servicios profesionales",
+    quote: "Por fin puedo entender mis ingresos sin depender de varias hojas de cálculo.",
+    result: "Finanzas más claras",
+    tone: "bg-[#10b981]/15 text-[#10b981]",
+  },
+];
+
 /* ---------------- Marco de ventana ---------------- */
 
 function MockFrame({ label, children }: { label: string; children: React.ReactNode }) {
@@ -303,6 +330,49 @@ export default async function LandingPage() {
 
       {/* Precios (catálogo real de la tabla plans) */}
       <PricingSection plans={plans} periods={periods} />
+
+      {/* Casos de éxito: carrusel continuo */}
+      <section className="overflow-hidden py-24" aria-labelledby="casos-title">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="text-center max-w-3xl mx-auto">
+            <p className="text-sm font-bold text-primary mb-3">CASOS DE ÉXITO</p>
+            <h2 id="casos-title" className="text-3xl sm:text-4xl font-black tracking-tight text-on-surface">
+              Historias de negocios que avanzan
+            </h2>
+            <p className="mt-4 text-lg text-on-surface-variant">
+              Menos tareas manuales. Más claridad para tomar decisiones todos los días.
+            </p>
+          </div>
+
+          <div className="mt-12 -mx-6 overflow-hidden">
+            <div className={`${styles.storyTrack} flex w-max gap-5 px-6 hover:[animation-play-state:paused]`}>
+              {[...SUCCESS_STORIES, ...SUCCESS_STORIES].map((story, index) => (
+                <article
+                  key={`${story.name}-${index}`}
+                  className="shrink-0 w-[min(86vw,360px)] rounded-3xl border border-outline-variant/15 bg-surface-container p-7 shadow-xl shadow-black/10"
+                >
+                  <div className="flex items-start gap-4">
+                    <Image src={story.image} alt="" width={56} height={56} className="h-14 w-14 shrink-0 rounded-full" />
+                    <div className="pt-1">
+                      <span className="text-2xl leading-none text-primary" aria-hidden="true">“</span>
+                      <p className="mt-1 text-[15px] italic leading-7 text-on-surface-variant">{story.quote}”</p>
+                    </div>
+                  </div>
+                  <div className="mt-7 flex items-end justify-between gap-4 border-t border-outline-variant/10 pt-5">
+                    <div>
+                      <p className="font-bold text-on-surface">{story.name}</p>
+                      <p className="mt-1 text-sm text-on-surface-variant">{story.business}</p>
+                    </div>
+                    <span className="shrink-0 rounded-full bg-primary/10 px-3 py-2 text-xs font-semibold text-primary">
+                      {story.result}
+                    </span>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
 
       {/* CTA final */}
       <section id="cta" className="max-w-6xl mx-auto px-6 pb-28">

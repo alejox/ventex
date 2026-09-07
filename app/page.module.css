@@ -175,6 +175,19 @@
 .floatB {
   animation: floatB 7s ease-in-out infinite alternate;
 }
+
+.storyTrack {
+  animation: storyMarquee 34s linear infinite;
+}
+
+@keyframes storyMarquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(calc(-50% - 10px));
+  }
+}
 @keyframes floatA {
   to {
     transform: translateY(-14px);
@@ -219,5 +232,10 @@
     transform: none !important;
     filter: none !important;
     stroke-dashoffset: var(--ring-offset, 0) !important;
+  }
+
+  .storyTrack {
+    animation: none !important;
+    transform: none !important;
   }
 }
