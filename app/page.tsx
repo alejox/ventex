@@ -10,10 +10,11 @@ import {
 import styles from "./page.module.css";
 import { PricingSection } from "@/components/PricingSection";
 import { WhatsappFab } from "@/components/WhatsappFab";
+import { RotatingBusinessWord } from "@/components/RotatingBusinessWord";
 import { fetchPublicPlans, fetchPublicPlanPeriods } from "@/services/plans.server";
 
 export const metadata: Metadata = {
-  title: "Ventex — El sistema operativo de tu negocio",
+  title: "Ventex — El sistema operativo para tu negocio",
   description:
     "Punto de venta, inventario, finanzas y clientes en una sola plataforma. Empieza a vender en minutos.",
 };
@@ -152,9 +153,12 @@ export default async function LandingPage() {
         <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-outline-variant/20 bg-surface-container/60 text-xs font-semibold text-on-surface-variant mb-7">
           <span className="w-2 h-2 rounded-full bg-[#10b981]" /> POS + Inventario + Finanzas en uno
         </div>
-        <h1 className="text-4xl sm:text-6xl font-black tracking-tight text-on-surface leading-[1.05] max-w-3xl mx-auto">
-          El sistema operativo<br className="hidden sm:block" /> de tu{" "}
-          <span className="bg-gradient-to-r from-[#6063ee] to-[#0fdff3] bg-clip-text text-transparent">negocio</span>
+        <h1 className="text-4xl sm:text-6xl font-black tracking-tight text-on-surface leading-[1.05] max-w-4xl mx-auto">
+          <span className="block">El sistema operativo</span>
+          <span className="block w-fit mx-auto text-start">
+            para tu{" "}
+            <RotatingBusinessWord />
+          </span>
         </h1>
         <p className="mt-6 text-lg text-on-surface-variant max-w-xl mx-auto">
           Vende, controla tu inventario y entiende tus finanzas desde un solo lugar. Sin hojas de cálculo, sin caos.
