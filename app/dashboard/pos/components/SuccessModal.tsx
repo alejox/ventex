@@ -22,9 +22,17 @@ interface SuccessModalProps {
   whatsappLink?: string | null;
   /** Nombre del cliente, para que el botón diga a quién le escribe. */
   customerName?: string | null;
+  /**
+   * Abre el cajón a mano. Ausente = esta terminal no tiene cajón configurado.
+   *
+   * Existe incluso con la apertura automática encendida: si el pulso no salió
+   * —la impresora justo estaba imprimiendo, el cable se soltó— el cajero tiene
+   * que poder reintentar sin buscar la llave, y con el cliente enfrente.
+   */
+  onOpenDrawer?: (() => void) | null;
 }
 
-export function SuccessModal({ onPrint, onClose, offline = false, whatsappLink = null, customerName = null }: SuccessModalProps) {
+export function SuccessModal({ onPrint, onClose, offline = false, whatsappLink = null, customerName = null, onOpenDrawer = null }: SuccessModalProps) {
   return (
     <div
       className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200 print:hidden"
@@ -92,6 +100,20 @@ export function SuccessModal({ onPrint, onClose, offline = false, whatsappLink =
             </svg>
             Imprimir Recibo
           </button>
+          {onOpenDrawer && (
+            <button
+              onClick={onOpenDrawer}
+              className="w-full py-3 rounded-xl border border-outline-variant/30 hover:bg-surface-container-low text-on-surface font-semibold transition-colors flex justify-center items-center gap-2"
+            >
+              <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-5 h-5">
+                <rect x="2" y="7" width="20" height="13" rx="2" />
+                <path d="M2 12h20" />
+                <path d="M10 16h4" />
+                <path d="M6 7V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2" />
+              </svg>
+              Abrir cajón
+            </button>
+          )}
           <button
             onClick={onClose}
             className="w-full py-3 rounded-xl border border-outline-variant/30 hover:bg-surface-container-low text-on-surface font-semibold transition-colors"

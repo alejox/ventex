@@ -16,6 +16,7 @@ import type { Settings } from "@/services/settings.service";
 import { COLOMBIA_TRANSFER_METHODS, DEFAULT_TRANSFER_METHODS } from "@/config/transferMethods";
 import { COLOMBIA_CARD_METHODS, DEFAULT_CARD_METHODS } from "@/config/cardMethods";
 import { Select } from "@/components/ui/Select";
+import { CashDrawerCard } from "./CashDrawerCard";
 
 const CURRENCIES = [
   { code: "MXN", label: "Peso mexicano (MXN)" },
@@ -52,6 +53,8 @@ export default function SettingsPage() {
           <SettingsForm key={settings.id ?? "new"} settings={settings} />
         ) : null}
       </div>
+
+      <CashDrawerCard />
 
       <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-3xl p-6 md:p-8 shadow-sm">
         <h2 className="text-lg font-bold text-on-surface mb-1">Negocio y módulos</h2>

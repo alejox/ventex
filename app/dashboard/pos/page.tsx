@@ -32,6 +32,8 @@ import { DeliveryModal } from "./components/DeliveryModal";
 import { PosTabsBar } from "./components/PosTabsBar";
 import { SuccessModal } from "./components/SuccessModal";
 import { usePromosStore } from "@/stores/promos.store";
+import { useCashDrawerStore } from "@/stores/cash-drawer.store";
+import { canKickWith } from "@/lib/cash-drawer";
 import {
   fetchCustomerPromoTarget,
   availableReward,
@@ -459,6 +461,23 @@ export default function POSPage() {
     // venta normal, pero el aviso no puede prometer que ya qued\u00f3 registrada.
     if (outcome === "sold" || outcome === "queued") {
       setLastSaleQueued(outcome === "queued");
+
+      // El cajón, PRIMERO y sin await.
+      //
+      // Antes se abría de rebote: el driver metía el pulso al arrancar el
+      // trabajo de impresión, así que el cajón no respondía a que se cobrara
+      // sino a que alguien apretara "Imprimir". Cobrar sin imprimir dejaba la
+      // plata afuera. Acá el disparo cuelga del cobro, que es lo que de verdad
+      // significa "abrí el cajón".
+      //
+      // Va antes de las idas a la base por promociones: el cliente está con el
+      // billete en la mano y esperar una consulta de red para abrir el cajón se
+      // siente roto. Y va sin `await` para que un puerto lento no frene la
+      // pantalla — `kick()` no lanza nunca.
+      //
+      // `ready` es la condición que evita el ruido: una terminal sin cajón
+      // configurado no tiene por qué comerse un cartel de error en cada venta.
+      openCashDrawerOnSale();
       if (outcome === "sold") {
         notifySuccess(
           "\u00a1Venta realizada con \u00e9xito! \ud83c\udf89",
@@ -565,6 +584,51 @@ export default function POSPage() {
       setIsSuccessModalOpen(true);
     }
   };
+
+  // Se lee una vez al montar: la config del cajón vive en localStorage (es de
+  // este dispositivo) y el permiso del puerto lo recuerda el navegador.
+  const initCashDrawer = useCashDrawerStore((s) => s.init);
+  useEffect(() => {
+    initCashDrawer();
+  }, [initCashDrawer]);
+
+  // Decide si el botón manual existe: en una terminal sin cajón sería un botón
+  // que no puede funcionar nunca. Se recalcula con lo que cambia la respuesta:
+  // la config elegida y los dispositivos autorizados.
+  const drawerConfig = useCashDrawerStore((s) => s.config);
+  const drawerAuthorized = useCashDrawerStore((s) => s.authorized);
+  const drawerHydrated = useCashDrawerStore((s) => s.hydrated);
+  const drawerCaps = useCashDrawerStore((s) => s.caps);
+  const drawerReady =
+    drawerHydrated && drawerCaps !== null && canKickWith(drawerConfig, drawerCaps, drawerAuthorized);
+
+  const handleOpenDrawerManually = useCallback(() => {
+    void useCashDrawerStore
+      .getState()
+      .kick()
+      .then((ok) => {
+        if (!ok) {
+          notifyError(
+            "El cajón no se abrió",
+            useCashDrawerStore.getState().error ?? "Revisá la conexión de la impresora.",
+          );
+        }
+      });
+  }, []);
+
+  const openCashDrawerOnSale = useCallback(() => {
+    const state = useCashDrawerStore.getState();
+    if (!state.config.autoOpenOnSale || !state.canKick()) return;
+    void state.kick().then((worked) => {
+      if (worked) return;
+      // La venta ya se cobró: esto es un aviso, no una falla del cobro. El
+      // cajero necesita saber que tiene que abrirlo con la llave.
+      notifyWarning(
+        "El cajón no se abrió",
+        useCashDrawerStore.getState().error ?? "Revisá la conexión de la impresora.",
+      );
+    });
+  }, []);
 
   const handleCheckoutClick = () => {
     requireShift(() => {
@@ -885,6 +949,7 @@ export default function POSPage() {
           offline={lastSaleQueued}
           whatsappLink={promoSend?.link ?? null}
           customerName={promoSend?.name ?? null}
+          onOpenDrawer={drawerReady ? handleOpenDrawerManually : null}
         />
       )}
 
