@@ -25,6 +25,24 @@ export default function LoginPage() {
 
   return (
     <div className="w-full max-w-[480px] mx-auto">
+      <Link
+        href="/"
+        className="inline-flex items-center gap-2 mb-6 text-sm font-medium text-on-surface-variant transition-colors hover:text-on-surface"
+      >
+        <svg
+          aria-hidden="true"
+          className="h-4 w-4"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          viewBox="0 0 24 24"
+        >
+          <path d="M19 12H5" />
+          <path d="m12 19-7-7 7-7" />
+        </svg>
+        Volver al inicio
+      </Link>
+
       {/* Mobile Logo */}
       <div className="flex justify-center mb-8 lg:hidden">
         <LogoVertical className="w-70 h-19.5" />
