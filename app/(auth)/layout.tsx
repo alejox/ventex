@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { LogoVertical } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
@@ -13,13 +14,76 @@ const ACTIVE_USERS = [
   { initials: "CA", from: "#0fdff3", to: "#10b981" },
 ];
 
+/**
+ * El panel queda OSCURO en los dos temas, como el hero de la landing.
+ *
+ * Los tokens siguen al tema, y el fondo del panel ya no es un token sino una
+ * foto: en claro, un `--on-surface` casi negro sobre la foto oscurecida no se
+ * lee. Fijar la tinta acá adentro es lo que permite tener una sola foto y un
+ * solo velo en vez de dos juegos que habría que medir por separado.
+ *
+ * Es SOLO el panel decorativo. El formulario de la derecha sigue el tema que
+ * eligió la persona, que para eso está el interruptor arriba a la derecha.
+ */
+const ESTILO_PANEL = `
+.auth-aside{
+  --on-surface:#ffffff;
+  --on-surface-variant:#ccd0de;
+  --surface-container-low:#0b0e19;
+  --surface-container-highest:#2b3049;
+  --surface-bright:#5b6280;
+  --primary:#8f92ff;
+  background:#0b0e19;
+  color:var(--on-surface);
+}
+/* Oscurecer la FOTO en vez de taparla con un velo opaco: un velo que deje pasar
+   texto blanco necesita tanta alfa que la foto deja de verse. Bajarle el brillo
+   la conserva entera y deja el contraste donde tiene que estar. */
+.auth-media{filter:brightness(.38) saturate(1.06)}
+/* El degradado carga arriba y abajo, que es donde caen el titular y el pie. */
+.auth-scrim{background:
+  /* Viñeteado DIRIGIDO a la columna de texto, no un velo parejo: así la copia
+     cae sobre campo limpio mientras los bordes siguen mostrando la foto. Un
+     velo uniforme con la misma alfa apagaría la foto entera para arreglar una
+     franja. */
+  radial-gradient(ellipse 76% 50% at 50% 47%,rgb(11 14 25 / .58) 0%,rgb(11 14 25 / 0) 100%),
+  linear-gradient(180deg,rgb(11 14 25 / .52) 0%,rgb(11 14 25 / .26) 44%,rgb(11 14 25 / .80) 100%)}
+`;
+
 export default function LoginLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen bg-background text-on-background font-sans">
+      <style href="auth-aside" precedence="default">{ESTILO_PANEL}</style>
       {/* Left side - Desktop only */}
-      <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-12 bg-surface-container-low relative overflow-hidden">
-         {/* Background Glow */}
-         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-[radial-gradient(circle_at_center,var(--color-primary)_0%,transparent_50%)] opacity-5 pointer-events-none"></div>
+      <div className="auth-aside hidden lg:flex lg:w-1/2 flex-col justify-between p-12 relative overflow-hidden isolate">
+         {/*
+           * Foto de producto de fondo. El resplandor radial que había acá antes
+           * se fue: sobre la foto oscurecida no se veía nada y seguía pintando
+           * un degradado de 800×800 en cada render.
+           *
+           * `alt=""` porque es decoración: lo que el panel dice ya está escrito
+           * al lado, y describir la foto solo agregaría ruido a un lector de
+           * pantalla en la pantalla de acceso.
+           *
+           * Encuadre centrado, que es el que ganó de cuatro probados (20/50/78/100
+           * por ciento). Con el equipo en el centro-abajo, el logo del panel cae
+           * sobre la zona borrosa y oscura de arriba en vez de encima de la
+           * pantalla del equipo, y la marca de agua que trae la foto queda casi
+           * toda fuera de cuadro — si no, se veían dos logos peleándose.
+           *
+           * Sin `priority` y con `sizes` de 1px por debajo de lg: el panel es
+           * `hidden` en móvil, y el acceso desde el teléfono es el caso más
+           * frecuente y el más crítico. Bajar 80 KB de decoración que nadie va
+           * a ver ahí sería cobrarle a quien menos margen tiene.
+           */}
+         <Image
+            src="/auth/pos-ventex.webp"
+            alt=""
+            fill
+            sizes="(min-width: 1024px) 50vw, 1px"
+            className="auth-media -z-20 object-cover"
+         />
+         <div className="auth-scrim absolute inset-0 -z-10" aria-hidden="true" />
 
          <div className="flex items-center justify-center flex-1 z-10">
             <div className="max-w-md space-y-6 text-center flex flex-col items-center">
