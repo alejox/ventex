@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { PublicSite, SiteTemplate } from "@/services/public-site.types";
-import { WEEKDAY_LABELS } from "@/services/public-site.types";
+import { WEEKDAY_LABELS, textoDelSitio } from "@/services/public-site.types";
 import { socialLinksOf } from "@/lib/socialLinks";
 import { esImagenAjena } from "@/lib/remoteImage";
 import { BrandIcon } from "@/app/assets/icons/BrandIcons";
@@ -70,7 +70,7 @@ export function ServicesSection({
     <section id="servicios" className={`${sectionClass[variant]} site-reveal`}>
       <div>
         <p className="mb-3 text-xs font-bold tracking-[0.16em] text-[var(--site-accent)] uppercase">Lo que hacemos</p>
-        <SectionTitle variant={variant}>Servicios</SectionTitle>
+        <SectionTitle variant={variant}>{textoDelSitio(site, "servicesTitle")}</SectionTitle>
       </div>
       <ul className={variant === "clasico" ? "mt-10 grid gap-x-10 md:grid-cols-2" : variant === "moderno" ? "mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3" : "mt-10 grid gap-4 md:grid-cols-2"}>
         {site.services.map((service) => (
@@ -172,19 +172,34 @@ export function StaffSection({ site, variant = "clasico" }: { site: PublicSite; 
   return (
     <section id="equipo" className={`${sectionClass[variant]} site-reveal ${variant === "moderno" ? "border-y border-[var(--site-border)] bg-[var(--site-surface-alt)]" : ""}`}>
       <p className="mb-3 text-xs font-bold tracking-[0.16em] text-[var(--site-accent)] uppercase">Quienes te reciben</p>
-      <SectionTitle variant={variant}>El equipo</SectionTitle>
+      <SectionTitle variant={variant}>{textoDelSitio(site, "teamTitle")}</SectionTitle>
       <ul className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {site.staff.map((member) => (
           <li
             key={member.id}
             className={`${variant === "minimal" ? "flex min-h-24 items-center gap-4 rounded-[var(--site-radius)] bg-[var(--site-surface)] p-5 shadow-[var(--site-shadow)]" : variant === "moderno" ? "flex items-center gap-4 rounded-[var(--site-radius)] border border-[var(--site-border)] bg-[var(--site-surface)] p-5" : "flex items-center gap-4 border-b border-[var(--site-border)] py-5"} site-card`}
           >
-            <span
-              aria-hidden="true"
-              className={variant === "minimal" ? "flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[var(--site-surface-alt)] text-sm font-bold text-[var(--site-accent)]" : "flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[var(--site-accent)] text-lg font-bold text-[var(--site-on-accent)]"}
-            >
-              {member.fullName.slice(0, 1).toUpperCase()}
-            </span>
+            {/* La foto la sube el dueño en la ficha de la persona
+                (/dashboard/staff). Sin foto queda la inicial, que es el diseño
+                de siempre y no un hueco. */}
+            {member.photoUrl ? (
+              <Image
+                src={member.photoUrl}
+                alt=""
+                aria-hidden="true"
+                width={56}
+                height={56}
+                unoptimized={esImagenAjena(member.photoUrl)}
+                className={`${variant === "minimal" ? "h-12 w-12" : "h-14 w-14"} shrink-0 rounded-full object-cover`}
+              />
+            ) : (
+              <span
+                aria-hidden="true"
+                className={variant === "minimal" ? "flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[var(--site-surface-alt)] text-sm font-bold text-[var(--site-accent)]" : "flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[var(--site-accent)] text-lg font-bold text-[var(--site-on-accent)]"}
+              >
+                {member.fullName.slice(0, 1).toUpperCase()}
+              </span>
+            )}
             <span className="text-left"><span className="block font-semibold text-[var(--site-text)]">{member.fullName}</span>{member.role ? <span className="mt-1 block text-xs text-[var(--site-muted)]">{member.role}</span> : null}</span>
           </li>
         ))}
@@ -278,6 +293,12 @@ export function SiteFooter({ site }: { site: PublicSite }) {
       <div className="mx-auto flex w-full max-w-7xl flex-col justify-between gap-3 sm:flex-row sm:items-center">
       <p>
         © {new Date().getFullYear()} {site.businessName}
+        {/* Texto plano, nunca HTML: lo escribe el dueño y se pinta como lo
+            escribió. Interpretarlo como marcado sería dejar que un inquilino
+            inyecte etiquetas en su propia página pública. */}
+        {site.footerNote?.trim() ? (
+          <span className="mt-1 block text-[var(--site-muted)]">{site.footerNote.trim()}</span>
+        ) : null}
       </p>
       <p>
         Sitio hecho con{" "}

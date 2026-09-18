@@ -2,7 +2,7 @@ import Image from "next/image";
 import { Lora, Homemade_Apple } from "next/font/google";
 import { Scissors, ArrowUpRight } from "lucide-react";
 import type { PublicSite } from "@/services/public-site.types";
-import { WEEKDAY_LABELS } from "@/services/public-site.types";
+import { WEEKDAY_LABELS, textoDelSitio } from "@/services/public-site.types";
 import { socialLinksOf } from "@/lib/socialLinks";
 import { BookServiceLink } from "../BookServiceLink";
 import { BookingWidget } from "../BookingWidget";
@@ -99,7 +99,7 @@ export function BarberArtesanalTemplate({ site }: { site: PublicSite }) {
             {site.headline || site.businessName}
           </h1>
           <p className={styles.heroKicker}>
-            {site.headline ? site.businessName : "Cortes · Barba · Cuidado"}
+            {site.headline ? site.businessName : textoDelSitio(site, "heroKicker")}
           </p>
           <div className={styles.heroActions}>
             {site.bookingEnabled && (
@@ -125,8 +125,8 @@ export function BarberArtesanalTemplate({ site }: { site: PublicSite }) {
       {site.services.length > 0 && (
         <section id="servicios" className={styles.section}>
           <div className={styles.sectionHead}>
-            <h2>Nuestros servicios</h2>
-            <p>Cada visita, con el tiempo que merece.</p>
+            <h2>{textoDelSitio(site, "servicesTitle")}</h2>
+            <p>{textoDelSitio(site, "servicesSubtitle")}</p>
           </div>
           {/*
             * Los círculos son la firma visual de esta plantilla. Llevan el
@@ -178,7 +178,7 @@ export function BarberArtesanalTemplate({ site }: { site: PublicSite }) {
             />
           </div>
           <div className={styles.aboutCopy}>
-            <h2>Sobre nosotros</h2>
+            <h2>{textoDelSitio(site, "aboutTitle")}</h2>
             <p>{site.about}</p>
             <span className={styles.firma}>{site.businessName}</span>
           </div>
@@ -188,8 +188,8 @@ export function BarberArtesanalTemplate({ site }: { site: PublicSite }) {
       {site.services.length > 0 && (
         <section id="precios" className={`${styles.section} ${styles.divider}`}>
           <div className={styles.sectionHead}>
-            <h2>Precios</h2>
-            <p>Sin sorpresas al final.</p>
+            <h2>{textoDelSitio(site, "pricesTitle")}</h2>
+            <p>{textoDelSitio(site, "pricesSubtitle")}</p>
           </div>
           <ul className={styles.priceList}>
             {site.services.map((servicio) => (
@@ -214,15 +214,29 @@ export function BarberArtesanalTemplate({ site }: { site: PublicSite }) {
       {site.staff.length > 0 && (
         <section id="equipo" className={`${styles.section} ${styles.divider}`}>
           <div className={styles.sectionHead}>
-            <h2>El equipo</h2>
-            <p>Quienes te reciben.</p>
+            <h2>{textoDelSitio(site, "teamTitle")}</h2>
+            <p>{textoDelSitio(site, "teamSubtitle")}</p>
           </div>
           <ul className={styles.teamGrid}>
             {site.staff.map((persona) => (
               <li key={persona.id} className={styles.teamCard}>
+                {/* La foto la sube el dueño en /dashboard/staff. Sin foto no
+                    queda un hueco: las iniciales son el diseño, no un error. */}
                 <div className={styles.teamAvatar} aria-hidden="true">
-                  <Scissors size={22} strokeWidth={1.2} />
-                  <span>{iniciales(persona.fullName)}</span>
+                  {persona.photoUrl ? (
+                    <Image
+                      src={persona.photoUrl}
+                      alt=""
+                      fill
+                      sizes="(max-width: 760px) 50vw, 250px"
+                      className={styles.teamPhoto}
+                    />
+                  ) : (
+                    <>
+                      <Scissors size={22} strokeWidth={1.2} />
+                      <span>{iniciales(persona.fullName)}</span>
+                    </>
+                  )}
                 </div>
                 <h3>{persona.fullName}</h3>
                 {persona.role && <p>{persona.role}</p>}
@@ -249,8 +263,8 @@ export function BarberArtesanalTemplate({ site }: { site: PublicSite }) {
           />
           <div className={styles.bookingShade} />
           <div className={styles.bookingHead}>
-            <p className={styles.manuscrita}>Reservá tu cita</p>
-            <p>Elegí el servicio, el profesional y el horario que mejor te venga.</p>
+            <p className={styles.manuscrita}>{textoDelSitio(site, "bookingTitle")}</p>
+            <p>{textoDelSitio(site, "bookingSubtitle")}</p>
             <p className={styles.bookingNote}>
               Tu solicitud queda pendiente de confirmación por el negocio
             </p>

@@ -1,4 +1,6 @@
 import { createClient } from "@/utils/supabase/client";
+import { getSelectedWorkspaceId } from "@/services/workspace.service";
+import { toWebp } from "@/lib/image";
 
 // ---- Tipos del dominio de staff (barberos / estilistas / empleados) ----
 /**
@@ -14,6 +16,12 @@ export interface StaffMember {
   email: string | null;
   status: string;
   created_at: string;
+  /**
+   * Foto de la persona. Vive en `staff` y no en `business_sites` porque es un
+   * atributo de la PERSONA: el micrositio la publica, pero la misma foto sirve
+   * en cualquier otra pantalla sin volver a subirla.
+   */
+  photo_url: string | null;
 }
 
 export interface NewStaffInput {
@@ -22,6 +30,8 @@ export interface NewStaffInput {
   phone: string;
   email: string;
   status: string;
+  /** `null` borra la foto; omitirlo la deja como está. */
+  photo_url?: string | null;
 }
 
 /**
@@ -146,7 +156,7 @@ export interface SettleCommissionsInput {
   excludedItemIds?: string[];
 }
 
-const SELECT = "id, full_name, role, phone, email, status, created_at";
+const SELECT = "id, full_name, role, phone, email, status, created_at, photo_url";
 
 export async function fetchStaff(): Promise<StaffMember[]> {
   const supabase = createClient();
@@ -165,11 +175,42 @@ export async function createStaff(input: NewStaffInput): Promise<StaffMember> {
       phone: input.phone || null,
       email: input.email || null,
       status: input.status,
+      photo_url: input.photo_url ?? null,
     })
     .select(SELECT)
     .single();
   if (error) throw error;
   return data as StaffMember;
+}
+
+const STAFF_PHOTOS_BUCKET = "staff-photos";
+
+/**
+ * Sube la foto de una persona y devuelve su URL pública.
+ *
+ * La carpeta es el inquilino (`${workspaceId}/...`): así lo exige la policy del
+ * bucket, que compara el primer tramo del nombre contra
+ * `get_effective_user_id()`. Escribir fuera de esa carpeta lo rechaza Storage,
+ * no el cliente.
+ *
+ * Pasa por `toWebp` como las fotos de producto: una foto de celular sin
+ * comprimir son varios megas, y acá el que la descarga es el visitante del
+ * micrositio.
+ */
+export async function uploadStaffPhoto(file: File): Promise<string> {
+  const supabase = createClient();
+  const workspaceId = await getSelectedWorkspaceId();
+  const optimized = await toWebp(file);
+
+  const ext = optimized.name.split(".").pop()?.toLowerCase() || "webp";
+  const path = `${workspaceId}/${crypto.randomUUID()}.${ext}`;
+
+  const { error } = await supabase.storage
+    .from(STAFF_PHOTOS_BUCKET)
+    .upload(path, optimized, { cacheControl: "3600", upsert: false });
+  if (error) throw error;
+
+  return supabase.storage.from(STAFF_PHOTOS_BUCKET).getPublicUrl(path).data.publicUrl;
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -574,6 +615,10 @@ export async function updateStaff(id: string, input: NewStaffInput): Promise<Sta
       phone: input.phone || null,
       email: input.email || null,
       status: input.status,
+      // `photo_url` SOLO viaja si el que llama lo mandó. Con `?? null` fijo,
+      // editar el nombre de alguien le borraba la foto sin que nadie lo pidiera:
+      // el formulario no manda campos que no tocó.
+      ...(input.photo_url !== undefined ? { photo_url: input.photo_url } : {}),
     })
     .eq("id", id)
     .select(SELECT)

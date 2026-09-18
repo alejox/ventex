@@ -133,10 +133,16 @@ export interface PublicStaff {
   id: string;
   fullName: string;
   role: string | null;
+  /** Vive en `public.staff`, no en el sitio: la foto es de la persona. */
+  photoUrl: string | null;
 }
 
 export interface PublicSite {
   slug: string;
+  /** Línea del pie que escribe el negocio. Texto plano, nunca HTML. */
+  footerNote?: string | null;
+  /** Textos de sección que el negocio sobreescribió. Ver `textoDelSitio`. */
+  copy?: Partial<Record<SiteCopyKey, string>> | null;
   template: SiteTemplate;
   businessName: string;
   businessType: string | null;
@@ -207,4 +213,115 @@ export interface BookingResult {
   service: string;
   status: string;
   whatsapp: string | null;
+}
+
+
+/**
+ * Textos del micrositio que el negocio puede reescribir.
+ *
+ * Van en un solo jsonb (`business_sites.site_copy`) y no en una columna por
+ * frase: cada plantilla usa un subconjunto distinto de secciones, así que una
+ * columna por texto llenaría la tabla de campos que casi nadie toca y cada
+ * sección nueva sería otra migración.
+ */
+export const SITE_COPY_KEYS = [
+  "heroKicker",
+  "servicesTitle",
+  "servicesSubtitle",
+  "aboutTitle",
+  "pricesTitle",
+  "pricesSubtitle",
+  "teamTitle",
+  "teamSubtitle",
+  "bookingTitle",
+  "bookingSubtitle",
+] as const;
+
+export type SiteCopyKey = (typeof SITE_COPY_KEYS)[number];
+
+export const SITE_COPY_LABELS: Record<SiteCopyKey, string> = {
+  heroKicker: "Línea bajo el título principal",
+  servicesTitle: "Servicios · título",
+  servicesSubtitle: "Servicios · subtítulo",
+  aboutTitle: "Sobre el negocio · título",
+  pricesTitle: "Precios · título",
+  pricesSubtitle: "Precios · subtítulo",
+  teamTitle: "Equipo · título",
+  teamSubtitle: "Equipo · subtítulo",
+  bookingTitle: "Reservas · título",
+  bookingSubtitle: "Reservas · subtítulo",
+};
+
+/**
+ * Lo que dice cada sección cuando el negocio no escribió nada.
+ *
+ * Los valores por defecto son POR PLANTILLA y no compartidos, porque el tono de
+ * los títulos ES parte del diseño: "Tu estilo, en buenas manos." pertenece a la
+ * editorial de barbería tanto como su dorado. Compartir un único juego neutro
+ * habría aplanado las cinco en el mismo sitio con distinta paleta.
+ *
+ * Una clave ausente para una plantilla significa que esa plantilla no dibuja
+ * esa sección, no que esté vacía.
+ */
+export const TEMPLATE_COPY_DEFAULTS: Record<
+  SiteTemplate,
+  Partial<Record<SiteCopyKey, string>>
+> = {
+  clasico: {
+    servicesTitle: "Servicios",
+    pricesTitle: "Precios",
+    teamTitle: "El equipo",
+    bookingTitle: "Reservá con calma, vení a disfrutar.",
+  },
+  moderno: {
+    servicesTitle: "Servicios",
+    pricesTitle: "Precios",
+    teamTitle: "El equipo",
+    bookingTitle: "Elegí tu próximo turno.",
+    bookingSubtitle: "Disponibilidad real para que reserves cuando quieras.",
+  },
+  minimal: {
+    servicesTitle: "Servicios",
+    pricesTitle: "Precios",
+    teamTitle: "El equipo",
+    bookingTitle: "Reservá tu turno",
+    bookingSubtitle: "Elegí con tranquilidad el servicio, el día y la hora.",
+  },
+  barberia: {
+    heroKicker: "El arte del buen estilo",
+    servicesTitle: "Tu estilo, en buenas manos.",
+    servicesSubtitle: "Nuestro oficio",
+    aboutTitle: "Más que un corte",
+    pricesTitle: "Buen estilo. Precios claros.",
+    pricesSubtitle: "Sin sorpresas",
+    teamTitle: "Conoce a tu equipo.",
+    teamSubtitle: "Personas detrás del oficio",
+    bookingTitle: "Tu próximo buen momento.",
+    bookingSubtitle: "Elegí el servicio, el profesional y el horario que mejor te venga.",
+  },
+  "barberia-artesanal": {
+    heroKicker: "Cortes · Barba · Cuidado",
+    servicesTitle: "Nuestros servicios",
+    servicesSubtitle: "Cada visita, con el tiempo que merece.",
+    aboutTitle: "Sobre nosotros",
+    pricesTitle: "Precios",
+    pricesSubtitle: "Sin sorpresas al final.",
+    teamTitle: "El equipo",
+    teamSubtitle: "Quienes te reciben.",
+    bookingTitle: "Reservá tu cita",
+    bookingSubtitle: "Elegí el servicio, el profesional y el horario que mejor te venga.",
+  },
+};
+
+/**
+ * El texto de una sección: lo que escribió el negocio, o el de la plantilla.
+ *
+ * Se descarta lo que venga vacío o en blanco. Un campo que el dueño borró debe
+ * volver al texto por defecto, no dejar un título en blanco: una sección sin
+ * encabezado se lee como un error de la página, no como una decisión.
+ */
+export function textoDelSitio(site: PublicSite, clave: SiteCopyKey): string {
+  const propio = site.copy?.[clave];
+  if (typeof propio === "string" && propio.trim()) return propio.trim();
+  return TEMPLATE_COPY_DEFAULTS[site.template]?.[clave] ?? "";
 }

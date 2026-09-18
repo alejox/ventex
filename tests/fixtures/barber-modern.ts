@@ -28,6 +28,11 @@ export const barberModernSite: PublicSite = {
     { id: "beard", name: "Diseño de barba", description: "Perfilado, definición y cuidado para tu barba.", price: 25000, durationMinutes: 30, icon: null },
     { id: "combo", name: "Corte y barba", description: "El ritual completo para renovar tu imagen.", price: 55000, durationMinutes: 60, icon: null },
   ],
-  staff: [{ id: "staff-a", fullName: "Andrés Martínez", role: "Barbero" }, { id: "staff-b", fullName: "Daniel Torres", role: "Barbero" }],
+  // Una persona CON foto y otra SIN: las plantillas tienen que dibujar las dos,
+  // y el caso sin foto es el que más se va a dar al principio.
+  staff: [
+    { id: "staff-a", fullName: "Andrés Martínez", role: "Barbero", photoUrl: "/landing/fotos/avatar-diego.webp" },
+    { id: "staff-b", fullName: "Daniel Torres", role: "Barbero", photoUrl: null },
+  ],
   products: [],
 };

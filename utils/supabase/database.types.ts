@@ -230,12 +230,14 @@ export type Database = {
           booking_enabled: boolean
           created_at: string
           facebook: string | null
+          footer_note: string | null
           headline: string | null
           hero_image_url: string | null
           id: string
           instagram: string | null
           linkedin: string | null
           published: boolean
+          site_copy: Json
           slot_interval_minutes: number
           slug: string
           telegram: string | null
@@ -255,12 +257,14 @@ export type Database = {
           booking_enabled?: boolean
           created_at?: string
           facebook?: string | null
+          footer_note?: string | null
           headline?: string | null
           hero_image_url?: string | null
           id?: string
           instagram?: string | null
           linkedin?: string | null
           published?: boolean
+          site_copy?: Json
           slot_interval_minutes?: number
           slug: string
           telegram?: string | null
@@ -280,12 +284,14 @@ export type Database = {
           booking_enabled?: boolean
           created_at?: string
           facebook?: string | null
+          footer_note?: string | null
           headline?: string | null
           hero_image_url?: string | null
           id?: string
           instagram?: string | null
           linkedin?: string | null
           published?: boolean
+          site_copy?: Json
           slot_interval_minutes?: number
           slug?: string
           telegram?: string | null
@@ -2114,6 +2120,7 @@ export type Database = {
           permission_preset: string
           permissions: Json
           phone: string | null
+          photo_url: string | null
           pos_pin_hash: string | null
           primary_branch_id: string | null
           role: string | null
@@ -2135,6 +2142,7 @@ export type Database = {
           permission_preset?: string
           permissions?: Json
           phone?: string | null
+          photo_url?: string | null
           pos_pin_hash?: string | null
           primary_branch_id?: string | null
           role?: string | null
@@ -2156,6 +2164,7 @@ export type Database = {
           permission_preset?: string
           permissions?: Json
           phone?: string | null
+          photo_url?: string | null
           pos_pin_hash?: string | null
           primary_branch_id?: string | null
           role?: string | null

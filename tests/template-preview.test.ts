@@ -1,7 +1,17 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { templatePreview, SITE_PALETTES } from "../app/[slug]/templates/theme";
-import { SITE_TEMPLATES, TEMPLATE_LABELS, TEMPLATE_DESCRIPTIONS, templatesFor } from "../services/public-site.types";
+import {
+  SITE_TEMPLATES,
+  TEMPLATE_LABELS,
+  TEMPLATE_DESCRIPTIONS,
+  templatesFor,
+  textoDelSitio,
+  SITE_COPY_KEYS,
+  SITE_COPY_LABELS,
+  TEMPLATE_COPY_DEFAULTS,
+  type PublicSite,
+} from "../services/public-site.types";
 
 /**
  * La miniatura del selector de Diseño en Ajustes es lo único que el dueño mira
@@ -127,4 +137,57 @@ test("el orden del selector no depende del rubro", () => {
     const posiciones = ofrecidas.map((t) => SITE_TEMPLATES.indexOf(t));
     assert.deepEqual(posiciones, [...posiciones].sort((a, b) => a - b), tipo);
   }
+});
+
+/**
+ * Textos editables del micrositio. Lo que el negocio escribe gana; lo que deja
+ * vacío vuelve al texto de su plantilla — nunca a un título en blanco, que se
+ * lee como una página rota y no como una decisión.
+ */
+
+test("sin nada escrito, cada plantilla usa su propio texto", () => {
+  const site = { template: "barberia-artesanal", copy: null } as unknown as PublicSite;
+  assert.equal(textoDelSitio(site, "servicesTitle"), "Nuestros servicios");
+
+  const otra = { template: "barberia", copy: null } as unknown as PublicSite;
+  assert.equal(textoDelSitio(otra, "servicesTitle"), "Tu estilo, en buenas manos.");
+});
+
+test("lo que escribe el negocio gana sobre el texto de la plantilla", () => {
+  const site = {
+    template: "barberia",
+    copy: { servicesTitle: "Lo que hacemos acá" },
+  } as unknown as PublicSite;
+  assert.equal(textoDelSitio(site, "servicesTitle"), "Lo que hacemos acá");
+});
+
+test("un campo vaciado o en blanco vuelve al texto por defecto", () => {
+  for (const vacio of ["", "   ", "\n\t"]) {
+    const site = { template: "barberia", copy: { teamTitle: vacio } } as unknown as PublicSite;
+    assert.equal(textoDelSitio(site, "teamTitle"), "Conoce a tu equipo.");
+  }
+});
+
+test("se recortan los espacios de los bordes", () => {
+  const site = { template: "barberia", copy: { teamTitle: "  Nuestro equipo  " } } as unknown as PublicSite;
+  assert.equal(textoDelSitio(site, "teamTitle"), "Nuestro equipo");
+});
+
+test("una clave que la plantilla no dibuja devuelve cadena vacía, no 'undefined'", () => {
+  // `clasico` no tiene subtítulo de equipo. Devolver undefined lo pintaría
+  // literalmente en la página.
+  const site = { template: "clasico", copy: {} } as unknown as PublicSite;
+  assert.equal(textoDelSitio(site, "teamSubtitle"), "");
+});
+
+test("toda clave editable existe en al menos una plantilla", () => {
+  // Si no, el selector de Ajustes ofrecería un campo que nunca se publica.
+  for (const clave of SITE_COPY_KEYS) {
+    const usada = SITE_TEMPLATES.some((t) => TEMPLATE_COPY_DEFAULTS[t]?.[clave]);
+    assert.ok(usada, `${clave} no la usa ninguna plantilla`);
+  }
+});
+
+test("toda clave editable tiene etiqueta para el formulario", () => {
+  for (const clave of SITE_COPY_KEYS) assert.ok(SITE_COPY_LABELS[clave], clave);
 });

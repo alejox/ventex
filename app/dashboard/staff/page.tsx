@@ -16,6 +16,7 @@ import { EditAccessModal } from "./components/EditAccessModal";
 import { PermissionsPanel } from "./components/PermissionsPanel";
 import { ShiftHistorySection } from "./components/ShiftHistorySection";
 import { CollectionEmpty, CollectionError, CollectionLoading } from "@/components/CollectionState";
+import { StaffPhotoField } from "@/components/StaffPhotoField";
 
 // Los cargos NO se escriben acá: salen de STAFF_ROLES_BY_TYPE según el rubro
 // (config/business.ts). Una barbería ofrece Barbero y Estilista; una tienda,
@@ -27,6 +28,7 @@ const EMPTY_STAFF: NewStaffInput = {
   phone: "",
   email: "",
   status: "active",
+  photo_url: null,
 };
 
 const money = (n: number) =>
@@ -143,6 +145,7 @@ export default function StaffPage() {
       phone: m.phone ?? "",
       email: m.email ?? "",
       status: m.status,
+      photo_url: m.photo_url,
     });
     setModalOpen(true);
   };
@@ -542,6 +545,12 @@ export default function StaffPage() {
                   {error}
                 </div>
               )}
+
+              <StaffPhotoField
+                value={form.photo_url}
+                nombre={form.full_name}
+                onChange={(url) => setForm((f) => ({ ...f, photo_url: url }))}
+              />
 
               <div className="space-y-1.5">
                 <label className="text-[13px] font-semibold text-on-surface block">Nombre Completo</label>

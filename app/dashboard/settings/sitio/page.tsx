@@ -13,6 +13,9 @@ import {
 import type { BusinessHour, SiteInput } from "@/services/business-site.service";
 import {
   templatesFor,
+  SITE_COPY_KEYS,
+  SITE_COPY_LABELS,
+  TEMPLATE_COPY_DEFAULTS,
   TEMPLATE_LABELS,
   TEMPLATE_DESCRIPTIONS,
   WEEKDAY_LABELS,
@@ -20,6 +23,7 @@ import {
 import type { SiteTemplate } from "@/services/public-site.types";
 import { SOCIAL_NETWORKS, SOCIAL_META } from "@/lib/socialLinks";
 import { SiteQrCard } from "@/components/site/SiteQrCard";
+import { SiteBannerField } from "@/components/SiteBannerField";
 import { useProfile } from "@/components/ProfileProvider";
 import { templatePreview } from "@/app/[slug]/templates/theme";
 import { BrandIcon } from "@/app/assets/icons/BrandIcons";
@@ -40,6 +44,8 @@ const EMPTY_SITE: SiteInput = {
   headline: null,
   about: null,
   hero_image_url: null,
+  footer_note: null,
+  site_copy: {},
   whatsapp: null,
   address: null,
   instagram: null,
@@ -290,6 +296,11 @@ function SiteForm({
       <section className="space-y-4">
         <h2 className="text-lg font-semibold text-on-surface">Contenido</h2>
 
+        <SiteBannerField
+          value={form.hero_image_url}
+          onChange={(url) => update("hero_image_url", url)}
+        />
+
         <Field label="Frase principal">
           <input
             value={form.headline ?? ""}
@@ -425,6 +436,52 @@ function SiteForm({
               </option>
             ))}
           </select>
+        </Field>
+      </section>
+
+      {/* ---- Textos del sitio ---- */}
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-lg font-semibold text-on-surface">Textos del sitio</h2>
+          <p className="text-sm text-on-surface-variant">
+            Cada campo ya trae el texto de tu diseño. Escribí solo los que quieras cambiar.
+          </p>
+        </div>
+
+        {/*
+          El marcador de posición es el texto REAL de la plantilla elegida, no un
+          ejemplo inventado: así el dueño ve exactamente qué va a decir su sitio
+          si no escribe nada, y solo toca lo que quiere cambiar.
+
+          Se listan únicamente las claves que la plantilla usa. Ofrecer "Equipo ·
+          subtítulo" en un diseño que no dibuja ese subtítulo es pedir texto que
+          no se va a publicar en ninguna parte.
+        */}
+        <div className="grid gap-4 sm:grid-cols-2">
+          {SITE_COPY_KEYS.filter((clave) => TEMPLATE_COPY_DEFAULTS[form.template]?.[clave]).map(
+            (clave) => (
+              <Field key={clave} label={SITE_COPY_LABELS[clave]}>
+                <input
+                  value={form.site_copy?.[clave] ?? ""}
+                  onChange={(e) =>
+                    update("site_copy", { ...form.site_copy, [clave]: e.target.value })
+                  }
+                  placeholder={TEMPLATE_COPY_DEFAULTS[form.template]?.[clave]}
+                  className={FIELD}
+                />
+              </Field>
+            ),
+          )}
+        </div>
+
+        <Field label="Línea extra en el pie de página">
+          <input
+            value={form.footer_note ?? ""}
+            onChange={(e) => update("footer_note", e.target.value || null)}
+            maxLength={300}
+            placeholder="Ej. NIT 900.123.456-7 · Todos los precios incluyen IVA"
+            className={FIELD}
+          />
         </Field>
       </section>
 

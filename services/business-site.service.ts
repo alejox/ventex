@@ -1,5 +1,7 @@
 import { createClient } from "@/utils/supabase/client";
-import type { SiteTemplate } from "@/services/public-site.types";
+import type { SiteTemplate, SiteCopyKey } from "@/services/public-site.types";
+import { getSelectedWorkspaceId } from "@/services/workspace.service";
+import { toWebp } from "@/lib/image";
 
 /** Owner-side configuration of the public micro-site. RLS scopes every row. */
 
@@ -28,6 +30,13 @@ export interface BusinessSite {
   website: string | null;
   timezone: string;
   slot_interval_minutes: number;
+  /** Línea extra del pie, escrita por el negocio. Texto plano. */
+  footer_note: string | null;
+  /**
+   * Textos de sección que el negocio sobreescribió. Lo que falte o esté vacío
+   * cae al texto por defecto de la plantilla (ver `textoDelSitio`).
+   */
+  site_copy: Partial<Record<SiteCopyKey, string>>;
 }
 
 export interface BusinessHour {
@@ -67,11 +76,39 @@ export function toSiteInput(site: BusinessSite): SiteInput {
     website: site.website,
     timezone: site.timezone,
     slot_interval_minutes: site.slot_interval_minutes,
+    footer_note: site.footer_note,
+    site_copy: site.site_copy ?? {},
   };
 }
 
+const BANNERS_BUCKET = "business-logos";
+
+/**
+ * Sube el banner del micrositio y devuelve su URL pública.
+ *
+ * Reusa el bucket de logos en vez de crear uno nuevo: las dos son imágenes de
+ * marca del negocio, con la misma policy (lectura pública, escritura del dueño)
+ * y el mismo ciclo de vida. Un bucket aparte solo habría duplicado cuatro
+ * políticas para guardar lo mismo.
+ */
+export async function uploadSiteBanner(file: File): Promise<string> {
+  const supabase = createClient();
+  const workspaceId = await getSelectedWorkspaceId();
+  const optimized = await toWebp(file);
+
+  const ext = optimized.name.split(".").pop()?.toLowerCase() || "webp";
+  const path = `${workspaceId}/banner-${crypto.randomUUID()}.${ext}`;
+
+  const { error } = await supabase.storage
+    .from(BANNERS_BUCKET)
+    .upload(path, optimized, { cacheControl: "3600", upsert: false });
+  if (error) throw error;
+
+  return supabase.storage.from(BANNERS_BUCKET).getPublicUrl(path).data.publicUrl;
+}
+
 const SITE_SELECT =
-  "id, slug, template, published, booking_enabled, headline, about, hero_image_url, whatsapp, address, instagram, facebook, tiktok, youtube, twitter, linkedin, telegram, website, timezone, slot_interval_minutes";
+  "id, slug, template, published, booking_enabled, headline, about, hero_image_url, whatsapp, address, instagram, facebook, tiktok, youtube, twitter, linkedin, telegram, website, timezone, slot_interval_minutes, footer_note, site_copy";
 
 /** Mon–Sat open 09–19, Sunday closed: the shape most shops start from. */
 export function defaultHours(): BusinessHour[] {

@@ -134,8 +134,9 @@
 /* ---------- equipo ---------- */
 .teamGrid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 250px)); justify-content: center; gap: 34px; }
 .teamCard { text-align: center; }
-.teamAvatar { aspect-ratio: 3/4; background: var(--site-surface-alt); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--site-accent); }
+.teamAvatar { position: relative; overflow: hidden; aspect-ratio: 3/4; background: var(--site-surface-alt); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--site-accent); }
 .teamAvatar span { font-family: var(--site-heading-font); font-size: 38px; letter-spacing: .06em; }
+.teamPhoto { object-fit: cover; }
 .teamCard h3 { margin-top: 18px; font-size: 19px; }
 .teamCard p { margin-top: 5px; font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: var(--art-circulo); }
 

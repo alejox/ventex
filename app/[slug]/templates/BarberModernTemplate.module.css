@@ -99,7 +99,7 @@
    con dos iniciales adentro. Acotando el máximo, la tarjeta conserva su tamaño
    y la fila se centra, así se ve igual de bien con 1 que con 5. */
 .teamGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 260px)); justify-content: center; gap: 32px; max-width: 940px; margin: 45px auto 0; }
-.monogram { background: var(--site-surface-alt); border: 1px solid var(--barber-rule); color: var(--site-accent); min-height: 225px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; }
+.monogram { position: relative; overflow: hidden; background: var(--site-surface-alt); border: 1px solid var(--barber-rule); color: var(--site-accent); min-height: 225px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; }
 .monogram > span:first-of-type { font-family: var(--site-heading-font); font-size: 66px; line-height: 1; letter-spacing: -.06em; }
 .monogramRule { width: 32px; height: 1px; background: currentColor; }
 .teamGrid h3 { margin-top: 24px; font-size: 23px; }
@@ -186,3 +186,6 @@
   .mobileBooking { position: fixed; z-index: 40; bottom: max(16px, env(safe-area-inset-bottom)); left: 20px; right: 20px; display: flex; align-items: center; justify-content: center; gap: 20px; min-height: 52px; background: var(--site-accent); color: var(--site-on-accent); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .1em; box-shadow: 0 5px 25px rgb(0 0 0 / 25%); }
 }
 @media (prefers-reduced-motion: reduce) { .site a { transition: none; } }
+
+/* La foto del equipo llena el monograma cuando existe. */
+.monogramPhoto { object-fit: cover; }
