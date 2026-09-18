@@ -17,6 +17,7 @@ import { PermissionsPanel } from "./components/PermissionsPanel";
 import { ShiftHistorySection } from "./components/ShiftHistorySection";
 import { CollectionEmpty, CollectionError, CollectionLoading } from "@/components/CollectionState";
 import { StaffPhotoField } from "@/components/StaffPhotoField";
+import Image from "next/image";
 
 // Los cargos NO se escriben acá: salen de STAFF_ROLES_BY_TYPE según el rubro
 // (config/business.ts). Una barbería ofrece Barbero y Estilista; una tienda,
@@ -227,155 +228,211 @@ export default function StaffPage() {
       ) : staff.length === 0 ? (
         <CollectionEmpty icon={<IconUserBadge className="w-8 h-8" />} title="Aún no hay nadie en tu equipo" description="Añade a tu personal para llevar sus comisiones y, si lo necesitas, darle su propio usuario para entrar al sistema." action={{ label: "Añadir tu primer miembro", onClick: openCreate }} />
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {team.map((m) => (
-            <div
-              key={m.id}
-              onClick={() => hasStaffRecord(m) && openEdit(m)}
-              className="text-left bg-surface-container rounded-2xl border border-outline-variant/10 shadow-sm p-5 hover:border-primary/30 hover:shadow-md transition-all group relative cursor-pointer"
-            >
-              <div className="absolute top-3 right-3 w-7 h-7 rounded-full bg-surface-container-lowest/80 border border-outline-variant/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-3.5 h-3.5 text-on-surface-variant">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                </svg>
-              </div>
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-12 h-12 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center shrink-0">
-                  <span className="text-sm font-bold text-primary">{initials(m.full_name)}</span>
-                </div>
-                <div className="min-w-0">
-                  <h3 className="font-bold text-on-surface truncate group-hover:text-primary transition-colors">{m.full_name}</h3>
-                  <p className="text-xs text-on-surface-variant">{m.role ?? "—"}</p>
-                </div>
-                {m.status !== "active" && (
-                  <span className="ml-auto inline-flex px-2 py-0.5 rounded-md text-[10px] font-bold bg-surface-variant text-on-surface-variant shrink-0">
-                    Inactivo
+        // Grilla densa desde que la tarjeta lleva retrato: a tres columnas cada
+        // una pasaba los 500px, y una foto de ese tamaño convierte la lista del
+        // equipo en una galería.
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+          {team.map((m) => {
+            /*
+             * La comisión se configura por producto/servicio, no por persona.
+             * Lo que se muestra es lo PENDIENTE, que es la pregunta real
+             * ("¿cuánto le debo?"); el devengado del mes queda como contexto.
+             * Antes solo existía el devengado, y después de pagarle al barbero
+             * seguía mostrando el mismo número.
+             */
+            const c = commissionByStaff.get(m.id);
+            const pending = c?.pending ?? 0;
+            const settled = c?.settled ?? 0;
+            const acceso = m.account?.access_status ?? null;
+            const puntoAcceso =
+              acceso === "active"
+                ? "bg-emerald-500"
+                : acceso === "pending"
+                  ? "bg-amber-500"
+                  : acceso === "suspended"
+                    ? "bg-error"
+                    : "bg-outline-variant";
+
+            return (
+              <div
+                key={m.id}
+                onClick={() => hasStaffRecord(m) && openEdit(m)}
+                className="group relative flex cursor-pointer flex-col overflow-hidden rounded-2xl border border-outline-variant/10 bg-surface-container shadow-sm transition-all hover:border-primary/30 hover:shadow-md"
+              >
+                {/*
+                 * El retrato manda en la tarjeta: es lo que hace reconocible a
+                 * la persona de un vistazo cuando el equipo crece. Sin foto
+                 * queda el bloque de iniciales, que ocupa el MISMO lugar — si
+                 * encogiera, las tarjetas con y sin foto tendrían alturas
+                 * distintas y la grilla quedaría escalonada.
+                 */}
+                <div className="relative aspect-[4/5] w-full overflow-hidden bg-primary/10">
+                  {m.photo_url ? (
+                    <Image
+                      src={m.photo_url}
+                      alt=""
+                      fill
+                      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 320px"
+                      unoptimized
+                      className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+                    />
+                  ) : (
+                    <span className="flex h-full items-center justify-center text-3xl font-bold text-primary/70">
+                      {initials(m.full_name)}
+                    </span>
+                  )}
+
+                  {/* Punto de estado sobre el retrato, como el check de una
+                      ficha de perfil: dice de un vistazo si esa persona entra
+                      al sistema, sin ocupar una línea de texto. */}
+                  <span
+                    title={
+                      acceso === "active"
+                        ? "Entra al sistema"
+                        : acceso === "pending"
+                          ? "Invitación pendiente"
+                          : acceso === "suspended"
+                            ? "Acceso suspendido"
+                            : "No entra al sistema"
+                    }
+                    className={`absolute bottom-2 right-2 h-3.5 w-3.5 rounded-full border-2 border-surface-container ${puntoAcceso}`}
+                  />
+
+                  {m.status !== "active" && (
+                    <span className="absolute left-2 top-2 rounded-md bg-scrim/70 px-1.5 py-0.5 text-[9px] font-bold text-white">
+                      Inactivo
+                    </span>
+                  )}
+
+                  <span className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full border border-outline-variant/20 bg-surface-container-lowest/85 opacity-0 transition-opacity group-hover:opacity-100">
+                    <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="h-3.5 w-3.5 text-on-surface-variant">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                    </svg>
                   </span>
-                )}
-              </div>
-              <div className="space-y-1 text-sm text-on-surface-variant">
-                {m.phone && <div className="truncate">{m.phone}</div>}
-                {m.email && <div className="truncate text-xs">{m.email}</div>}
-              </div>
-              {/* La comisión se configura por producto/servicio, no por
-                  persona. Lo que se muestra grande es lo PENDIENTE, que es la
-                  pregunta real ("¿cuánto le debo?"); el devengado del mes queda
-                  como contexto. Antes solo existía el devengado, y después de
-                  pagarle al barbero seguía mostrando el mismo número. */}
-              {(() => {
-                const c = commissionByStaff.get(m.id);
-                const pending = c?.pending ?? 0;
-                const settled = c?.settled ?? 0;
-                return (
-                  <div className="mt-4 pt-4 border-t border-outline-variant/10">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-medium text-on-surface-variant">
-                        Comisión por pagar
+                </div>
+
+                <div className="flex flex-1 flex-col p-3">
+                  <h3 className="truncate text-sm font-bold text-on-surface transition-colors group-hover:text-primary">
+                    {m.full_name}
+                  </h3>
+                  <p className="truncate text-[11px] text-on-surface-variant">{m.role ?? "—"}</p>
+
+                  {(m.phone || m.email) && (
+                    <p className="mt-1.5 truncate text-[11px] text-on-surface-variant">
+                      {[m.phone, m.email].filter(Boolean).join(" · ")}
+                    </p>
+                  )}
+
+                  {/* Dos datos, no una lista: cuánto se le debe y si entra al
+                      sistema. Es lo que el dueño mira antes de decidir algo. */}
+                  <div className="mt-3 grid grid-cols-2 gap-2 rounded-lg bg-surface-container-lowest/60 p-2.5">
+                    <div className="min-w-0">
+                      <span className="block text-[10px] font-medium uppercase tracking-wide text-on-surface-variant">
+                        Por pagar
                       </span>
-                      <span className={`text-base font-bold tabular-nums ${pending > 0 ? "text-on-surface" : "text-on-surface-variant"}`}>
+                      <span className={`block truncate text-xs font-bold tabular-nums ${pending > 0 ? "text-on-surface" : "text-on-surface-variant"}`}>
                         ${money(pending)}
                       </span>
-                    </div>
-                    {settled > 0 && (
-                      <div className="flex items-center justify-between mt-1">
-                        <span className="text-[11px] text-on-surface-variant">Ya liquidado este mes</span>
-                        <span className="text-[11px] text-emerald-600 font-semibold tabular-nums">
-                          ${money(settled)}
+                      {settled > 0 && (
+                        <span className="block text-[10px] font-semibold tabular-nums text-emerald-600">
+                          ${money(settled)} liquidado
                         </span>
-                      </div>
-                    )}
-                    {canSettle && hasStaffRecord(m) && pending > 0 && (
-                      <Link
-                        href="/dashboard/staff/comisiones"
-                        onClick={(e) => e.stopPropagation()}
-                        className="mt-3 block w-full py-2 rounded-lg bg-primary/10 text-primary text-[11px] font-bold text-center hover:bg-primary hover:text-on-primary transition-colors"
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <span className="block text-[10px] font-medium uppercase tracking-wide text-on-surface-variant">
+                        Acceso
+                      </span>
+                      {/* `text-xs` y no `text-sm`: a este ancho de tarjeta
+                          "Suspendido" y "Sin cuenta" se cortaban a la mitad, y
+                          un estado a medias no informa nada. */}
+                      <span className="block truncate text-xs font-semibold text-on-surface">
+                        {acceso === "active"
+                          ? "Activo"
+                          : acceso === "pending"
+                            ? "Pendiente"
+                            : acceso === "suspended"
+                              ? "Suspendido"
+                              : "Sin cuenta"}
+                      </span>
+                      {m.account?.email && (
+                        <span className="block truncate text-[10px] text-on-surface-variant">
+                          {m.account.email}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {canSettle && hasStaffRecord(m) && pending > 0 && (
+                    <Link
+                      href="/dashboard/staff/comisiones"
+                      onClick={(e) => e.stopPropagation()}
+                      className="mt-3 block w-full rounded-lg bg-primary/10 py-2 text-center text-[11px] font-bold text-primary transition-colors hover:bg-primary hover:text-on-primary"
+                    >
+                      Ver comisiones
+                    </Link>
+                  )}
+
+                  {/* Acceso al sistema: la mitad que antes vivía en Ajustes. */}
+                  <div className="mt-3 flex gap-1.5">
+                    {m.account ? (
+                      <>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setEditAccessFor(m.account!.id); }}
+                          className="flex-1 rounded-lg border border-outline-variant/20 py-1.5 text-[11px] font-semibold text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface"
+                        >
+                          Cuenta
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setPermsFor(m.account!.id); }}
+                          className="flex-1 rounded-lg border border-outline-variant/20 py-1.5 text-[11px] font-semibold text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface"
+                        >
+                          Permisos
+                        </button>
+                        {m.account.access_status === "suspended" ? (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); reactivateAccess(m.account!.id); }}
+                            className="flex-1 rounded-lg border border-emerald-500/30 py-1.5 text-[11px] font-semibold text-emerald-600 hover:bg-emerald-500/10"
+                          >
+                            Reactivar
+                          </button>
+                        ) : m.account.access_status === "active" ? (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleRevoke(m.account!.id, m.full_name); }}
+                            className="shrink-0 rounded-lg px-2 py-1.5 text-on-surface-variant transition-colors hover:bg-error/10 hover:text-error"
+                            title="Suspender acceso"
+                          >
+                            <IconLogOut className="h-3.5 w-3.5" />
+                          </button>
+                        ) : null}
+                      </>
+                    ) : (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setGrantFor(m.id); }}
+                        className="w-full rounded-lg border border-primary/30 py-1.5 text-[11px] font-semibold text-primary transition-colors hover:bg-primary/10"
                       >
-                        Ver comisiones
-                      </Link>
+                        Dar acceso
+                      </button>
                     )}
                   </div>
-                );
-              })()}
 
-              {/* Acceso al sistema: la mitad que antes vivía en Ajustes. */}
-              <div className="mt-3 pt-3 border-t border-outline-variant/10">
-                {m.account ? (
-                  <>
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                        m.account.access_status === "active"
-                          ? "bg-emerald-500"
-                          : m.account.access_status === "pending"
-                            ? "bg-amber-500"
-                            : "bg-error"
-                      }`} />
-                      <span className="text-xs font-semibold text-on-surface truncate">
-                        {m.account.email}
-                      </span>
-                      <span className="ml-auto text-[10px] font-bold text-on-surface-variant shrink-0">
-                        {m.account.access_status === "active"
-                          ? "Activo"
-                          : m.account.access_status === "pending"
-                            ? "Pendiente"
-                            : "Suspendido"}
-                      </span>
-                    </div>
-                    <div className="flex gap-1.5">
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setEditAccessFor(m.account!.id); }}
-                        className="flex-1 py-1.5 rounded-lg border border-outline-variant/20 text-[11px] font-semibold text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors"
-                      >
-                        Cuenta
-                      </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setPermsFor(m.account!.id); }}
-                        className="flex-1 py-1.5 rounded-lg border border-outline-variant/20 text-[11px] font-semibold text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors"
-                      >
-                        Permisos
-                      </button>
-                      {m.account.access_status === "suspended" ? (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); reactivateAccess(m.account!.id); }}
-                          className="flex-1 py-1.5 rounded-lg border border-emerald-500/30 text-[11px] font-semibold text-emerald-600 hover:bg-emerald-500/10"
-                        >
-                          Reactivar
-                        </button>
-                      ) : m.account.access_status === "active" ? (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleRevoke(m.account!.id, m.full_name); }}
-                          className="shrink-0 px-2 py-1.5 rounded-lg text-on-surface-variant hover:text-error hover:bg-error/10 transition-colors"
-                          title="Suspender acceso"
-                        >
-                          <IconLogOut className="w-3.5 h-3.5" />
-                        </button>
-                      ) : null}
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="w-1.5 h-1.5 rounded-full bg-outline-variant shrink-0" />
-                      <span className="text-xs text-on-surface-variant">No entra al sistema</span>
-                    </div>
+                  {/* `mt-auto` en el envoltorio y no en el botón: empuja este
+                      bloque al fondo para que la última acción quede a la misma
+                      altura en todas las tarjetas, tengan o no comisión
+                      pendiente. */}
+                  <div className="mt-auto pt-3">
                     <button
-                      onClick={(e) => { e.stopPropagation(); setGrantFor(m.id); }}
-                      className="w-full py-1.5 rounded-lg border border-primary/30 text-[11px] font-semibold text-primary hover:bg-primary/10 transition-colors"
+                      onClick={(e) => { e.stopPropagation(); openSales(m); }}
+                      className="w-full rounded-lg border border-outline-variant/20 py-1.5 text-[11px] font-semibold text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface"
                     >
-                      Dar acceso
+                      Ver Ventas
                     </button>
-                  </>
-                )}
+                  </div>
+                </div>
               </div>
-
-              <button
-                onClick={(e) => { e.stopPropagation(); openSales(m); }}
-                className="mt-3 w-full py-1.5 rounded-lg border border-outline-variant/20 text-[11px] font-semibold text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors"
-              >
-                Ver Ventas
-              </button>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
