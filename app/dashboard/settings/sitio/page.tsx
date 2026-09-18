@@ -12,7 +12,7 @@ import {
 } from "@/services/business-site.service";
 import type { BusinessHour, SiteInput } from "@/services/business-site.service";
 import {
-  SITE_TEMPLATES,
+  templatesFor,
   TEMPLATE_LABELS,
   TEMPLATE_DESCRIPTIONS,
   WEEKDAY_LABELS,
@@ -20,6 +20,7 @@ import {
 import type { SiteTemplate } from "@/services/public-site.types";
 import { SOCIAL_NETWORKS, SOCIAL_META } from "@/lib/socialLinks";
 import { SiteQrCard } from "@/components/site/SiteQrCard";
+import { useProfile } from "@/components/ProfileProvider";
 import { templatePreview } from "@/app/[slug]/templates/theme";
 import { BrandIcon } from "@/app/assets/icons/BrandIcons";
 
@@ -98,6 +99,18 @@ function SiteForm({
   const saving = useBusinessSiteStore((s) => s.saving);
   const saveConfig = useBusinessSiteStore((s) => s.saveConfig);
   const settings = useSettingsStore((s) => s.settings);
+  const businessType = useProfile()?.businessType;
+  /**
+   * Las plantillas de rubro no se le ofrecen a quien no es de ese rubro: la de
+   * barbería habla de cortes y de barba, y en una tienda general publica un
+   * sitio que habla de otro negocio.
+   *
+   * Se pasa la plantilla GUARDADA, no `form.template`: incluir la que ya tiene
+   * puesta es lo que le permite verla y cambiarla si dejó de corresponderle, y
+   * usar la del formulario haría desaparecer una tarjeta bajo el cursor apenas
+   * elige otra.
+   */
+  const plantillas = templatesFor(businessType, initialSite.template);
 
   const [form, setForm] = useState<SiteInput>(initialSite);
   const [hours, setHours] = useState<BusinessHour[]>(
@@ -235,8 +248,12 @@ function SiteForm({
           </p>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {SITE_TEMPLATES.map((template) => (
+        <div
+          className={`grid gap-3 sm:grid-cols-2 ${
+            plantillas.length % 3 === 0 ? "lg:grid-cols-3" : "lg:grid-cols-4"
+          }`}
+        >
+          {plantillas.map((template) => (
             <TemplateCard
               key={template}
               template={template}

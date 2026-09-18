@@ -7,13 +7,15 @@
  * contract: if a field is not here, the public site must not need it.
  */
 
+import type { BusinessType } from "@/config/business";
+
 /**
  * `barberia` es una PLANTILLA, no el tipo de negocio del inquilino.
  *
  * Antes esta presentación se activaba sola cuando el perfil era `salon`: el
  * selector mostraba tres tarjetas mientras existía una cuarta que nadie podía
- * elegir. Como clave propia, la elige quien la quiera — y un salón deja de
- * depender de un campo que se fijó al registrarse.
+ * elegir. Como clave propia, se guarda y se elige sola — aunque solo se le
+ * OFREZCA a quien le sirve (ver TEMPLATE_BUSINESS_TYPES más abajo).
  */
 export const SITE_TEMPLATES = ["clasico", "moderno", "minimal", "barberia"] as const;
 export type SiteTemplate = (typeof SITE_TEMPLATES)[number];
@@ -24,6 +26,42 @@ export const TEMPLATE_LABELS: Record<SiteTemplate, string> = {
   minimal: "Minimal",
   barberia: "Barbería",
 };
+
+/**
+ * Plantillas de RUBRO: se ofrecen SOLO a los negocios cuyo oficio nombran.
+ *
+ * `barberia` no es un estilo neutro con otra paleta: su texto habla de cortes,
+ * de barba y de "personas detrás del oficio", y el logo por defecto es una
+ * tijera. Ofrecérsela a una tienda general o a un lavadero es invitarlos a
+ * publicar un sitio que habla de otro negocio.
+ *
+ * Una plantilla que NO figura acá es de uso general y la ve todo el mundo. Es
+ * decir: la lista dice quién es la excepción, no quién tiene permiso — así
+ * agregar un estilo neutro nuevo no obliga a tocar este mapa.
+ */
+export const TEMPLATE_BUSINESS_TYPES: Partial<Record<SiteTemplate, readonly BusinessType[]>> = {
+  barberia: ["salon"],
+};
+
+/**
+ * Qué plantillas puede elegir este negocio.
+ *
+ * `current` es la que tiene guardada HOY, y se incluye siempre aunque ya no le
+ * corresponda. Esconderla dejaría el selector sin ninguna tarjeta marcada
+ * mientras el sitio publicado sigue usándola: el dueño no podría ver qué tiene
+ * puesto ni, sobre todo, cambiarlo. La restricción es para lo que se elige de
+ * acá en adelante, no una forma de dejar a alguien encerrado.
+ */
+export function templatesFor(
+  businessType: BusinessType | string | null | undefined,
+  current?: SiteTemplate,
+): SiteTemplate[] {
+  return SITE_TEMPLATES.filter((template) => {
+    if (template === current) return true;
+    const rubros = TEMPLATE_BUSINESS_TYPES[template];
+    return !rubros || rubros.includes(businessType as BusinessType);
+  });
+}
 
 export const TEMPLATE_DESCRIPTIONS: Record<SiteTemplate, string> = {
   clasico: "Cálido y tradicional. Tonos tierra, tipografía con serifa.",
