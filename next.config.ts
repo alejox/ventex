@@ -33,6 +33,15 @@ const nextConfig: NextConfig = {
     root: __dirname,
   },
   images: {
+    /**
+     * AVIF first, WebP as the fallback. The default is `['image/webp']` alone,
+     * which would re-encode every source to WebP and throw away the ~40% AVIF
+     * saves on the landing photos. Order matters: the first entry the browser's
+     * `Accept` header matches is the one served, so Safari/Firefox still get
+     * WebP. Cost is a slower first encode per size and a second cached variant
+     * per image — both amortised after the first request.
+     */
+    formats: ["image/avif", "image/webp"],
     remotePatterns: supabaseHost
       ? [
           {
