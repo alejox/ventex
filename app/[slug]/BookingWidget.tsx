@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { toast } from "sonner";
 import {
   usePublicBookingStore,
@@ -131,6 +131,15 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
   const [pickedDate, setPickedDate] = useState<string | null>(null);
   /** Mes que se está mirando. Arranca en el de hoy. */
   const [mesVisible, setMesVisible] = useState(() => claveMes(toDateInput(new Date())));
+  /**
+   * Las horas viven en un modal.
+   *
+   * Debajo del calendario empujaban el formulario de contacto fuera de la
+   * pantalla: scroll para elegir la hora, scroll para volver a ver qué día era,
+   * y otra vez abajo para los datos. Como modal, el calendario queda quieto y la
+   * elección pasa en un solo lugar.
+   */
+  const [horasAbiertas, setHorasAbiertas] = useState(false);
   const [pickedTime, setPickedTime] = useState<string>("");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -184,6 +193,17 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
     if (!canQuery || !date) return;
     void loadDay(site.slug, serviceId, date, staffId);
   }, [canQuery, loadDay, site.slug, serviceId, date, staffId]);
+
+  // Escape cierra el modal. Sin esto, con teclado la única salida es encontrar
+  // la X tabulando.
+  useEffect(() => {
+    if (!horasAbiertas) return;
+    const cerrar = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setHorasAbiertas(false);
+    };
+    window.addEventListener("keydown", cerrar);
+    return () => window.removeEventListener("keydown", cerrar);
+  }, [horasAbiertas]);
 
   useEffect(() => {
     const selectService = (event: Event) => {
@@ -286,7 +306,14 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
     // min-w-0: el widget se monta dentro de columnas de grid en las plantillas.
     // Sin esto, la tira de días con overflow ensancha al padre en lugar de
     // scrollear, y el formulario entero se sale de la pantalla.
-    <form onSubmit={handleSubmit} className="min-w-0 space-y-7">
+    <form onSubmit={handleSubmit} className="min-w-0">
+      {/*
+        * Dos columnas en pantalla grande: elegir a la izquierda, tus datos a la
+        * derecha. En una sola columna el contacto quedaba debajo de todo y en un
+        * monitor ancho sobraba media pantalla mientras el visitante scrolleaba.
+        */}
+      <div className="grid gap-7 lg:grid-cols-[minmax(0,1fr)_minmax(0,20rem)] lg:items-start lg:gap-10">
+        <div className="min-w-0 space-y-7">
       <Step n={1} title="¿Qué te hacés?">
         <select
           aria-label="Servicio"
@@ -346,7 +373,7 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
                 minúscula y la preposición también. Con `capitalize` salía
                 "Septiembre De 2026". Necesita ser inline-block para que
                 ::first-letter aplique. */}
-            <span className="inline-block min-w-[8.5rem] text-center text-xs font-semibold text-[var(--site-text)] first-letter:uppercase">
+            <span className="inline-block min-w-[7.5rem] text-center text-xs font-semibold text-[var(--site-text)] first-letter:uppercase">
               {mesFmt.format(parseDateInput(`${mesVisible}-01`))}
             </span>
             <button
@@ -406,7 +433,10 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
                               : "sin cupos"
                             : `${info.freeSlots} turnos libres`
                     }`}
-                    onClick={() => setPickedDate(fecha)}
+                    onClick={() => {
+                      setPickedDate(fecha);
+                      setHorasAbiertas(true);
+                    }}
                     className={`relative flex aspect-square flex-col items-center justify-center rounded-[var(--site-radius)] border text-sm transition-all ${
                       seleccionado
                         ? "border-[var(--site-accent)] bg-[var(--site-accent)] font-bold text-[var(--site-on-accent)]"
@@ -439,95 +469,10 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
         )}
       </Step>
 
-      {/* ---- Slot grid ---- */}
-      <Step
-        n={3}
-        title="¿A qué hora?"
-        aside={
-          <span className="text-xs text-[var(--site-muted)]">
-            {longDateFmt.format(parseDateInput(date))}
-          </span>
-        }
-      >
-        <div aria-live="polite">
-          {loadingSlots ? (
-            <p className="py-3 text-sm text-[var(--site-muted)]">Buscando horarios…</p>
-          ) : daySlots.length === 0 ? (
-            <p className="rounded-[var(--site-radius)] bg-[var(--site-surface-alt)] px-4 py-6 text-center text-sm text-[var(--site-muted)]">
-              El negocio no atiende ese día.
-              <br />
-              Elegí otra fecha arriba.
-            </p>
-          ) : (
-            <div className="space-y-4">
-              {SLOT_GROUPS.map((group) => {
-                const slots = daySlots.filter(
-                  (s) => hourOf(s) >= group.from && hourOf(s) < group.to,
-                );
-                if (slots.length === 0) return null;
-
-                const freeInGroup = slots.filter((s) => s.state === "free").length;
-
-                return (
-                  <div key={group.id}>
-                    <div className="mb-1.5 flex items-baseline justify-between">
-                      <h4 className="text-xs font-semibold tracking-wide text-[var(--site-text)] uppercase">
-                        {group.label}
-                      </h4>
-                      <span className="text-[0.65rem] text-[var(--site-muted)]">
-                        {freeInGroup === 0 ? "Sin cupos" : `${freeInGroup} disponibles`}
-                      </span>
-                    </div>
-
-                    <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-                      {slots.map((slot) => {
-                        if (slot.state === "free") {
-                          const isPicked = time === slot.time;
-                          return (
-                            <li key={slot.time}>
-                              <button
-                                type="button"
-                                onClick={() => setPickedTime(slot.time)}
-                                aria-pressed={isPicked}
-                                // Misma altura que el turno ocupado: la grilla no
-                                // se descuadra según qué haya reservado.
-                                className={`flex h-11 w-full items-center justify-center rounded-[var(--site-radius)] border text-sm transition-all ${
-                                  isPicked
-                                    ? "border-[var(--site-accent)] bg-[var(--site-accent)] font-semibold text-[var(--site-on-accent)] shadow-sm"
-                                    : "border-[var(--site-border)] text-[var(--site-text)] hover:border-[var(--site-accent)]"
-                                }`}
-                              >
-                                {slot.time}
-                              </button>
-                            </li>
-                          );
-                        }
-
-                        // Ocupado o ya pasado. Va como texto y no como botón
-                        // deshabilitado: no hay nada que activar, y un lector de
-                        // pantalla debe leer el estado, no ofrecer un control muerto.
-                        return (
-                          <li
-                            key={slot.time}
-                            className="flex h-11 flex-col items-center justify-center rounded-[var(--site-radius)] bg-[var(--site-surface-alt)] text-[var(--site-muted)]"
-                          >
-                            <span className="text-sm leading-none opacity-70">{slot.time}</span>
-                            <span className="mt-0.5 text-[0.55rem] uppercase opacity-70">
-                              {slot.state === "taken" ? "Reservado" : "Pasó"}
-                            </span>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </div>
-                );
-              })}
-            </div>
-          )}
         </div>
-      </Step>
 
-      <Step n={4} title="¿Cómo te contactamos?">
+        <div className="min-w-0 space-y-7">
+      <Step n={3} title="¿Cómo te contactamos?">
         <div className="grid gap-2 sm:grid-cols-2">
           <input
             aria-label="Tu nombre"
@@ -590,6 +535,125 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
               : "Tu reserva queda pendiente hasta que el negocio la confirme."}
         </p>
       </div>
+        </div>
+      </div>
+      {/* ---- Horas, en modal ---- */}
+      {horasAbiertas && date && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 p-0 sm:items-center sm:p-4"
+          onClick={() => setHorasAbiertas(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Horarios del ${longDateFmt.format(parseDateInput(date))}`}
+            onClick={(e) => e.stopPropagation()}
+            className="max-h-[85svh] w-full overflow-y-auto rounded-t-[var(--site-radius)] border border-[var(--site-border)] bg-[var(--site-bg)] p-5 sm:max-w-lg sm:rounded-[var(--site-radius)]"
+          >
+            <div className="mb-4 flex items-start justify-between gap-4">
+              <div>
+                <h3
+                  className="text-lg font-semibold text-[var(--site-text)]"
+                  style={{ fontFamily: "var(--site-heading-font)" }}
+                >
+                  ¿A qué hora?
+                </h3>
+                <p className="mt-0.5 text-xs text-[var(--site-muted)]">
+                  {longDateFmt.format(parseDateInput(date))}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setHorasAbiertas(false)}
+                aria-label="Cerrar horarios"
+                className="grid h-9 w-9 shrink-0 place-items-center rounded-[var(--site-radius)] border border-[var(--site-border)] text-[var(--site-text)]"
+              >
+                <X size={16} aria-hidden="true" />
+              </button>
+            </div>
+
+        <div aria-live="polite">
+          {loadingSlots ? (
+            <p className="py-3 text-sm text-[var(--site-muted)]">Buscando horarios…</p>
+          ) : daySlots.length === 0 ? (
+            <p className="rounded-[var(--site-radius)] bg-[var(--site-surface-alt)] px-4 py-6 text-center text-sm text-[var(--site-muted)]">
+              El negocio no atiende ese día.
+              <br />
+              Cerrá y elegí otra fecha en el calendario.
+            </p>
+          ) : (
+            <div className="space-y-4">
+              {SLOT_GROUPS.map((group) => {
+                const slots = daySlots.filter(
+                  (s) => hourOf(s) >= group.from && hourOf(s) < group.to,
+                );
+                if (slots.length === 0) return null;
+
+                const freeInGroup = slots.filter((s) => s.state === "free").length;
+
+                return (
+                  <div key={group.id}>
+                    <div className="mb-1.5 flex items-baseline justify-between">
+                      <h4 className="text-xs font-semibold tracking-wide text-[var(--site-text)] uppercase">
+                        {group.label}
+                      </h4>
+                      <span className="text-[0.65rem] text-[var(--site-muted)]">
+                        {freeInGroup === 0 ? "Sin cupos" : `${freeInGroup} disponibles`}
+                      </span>
+                    </div>
+
+                    <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                      {slots.map((slot) => {
+                        if (slot.state === "free") {
+                          const isPicked = time === slot.time;
+                          return (
+                            <li key={slot.time}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setPickedTime(slot.time);
+                                  setHorasAbiertas(false);
+                                }}
+                                aria-pressed={isPicked}
+                                // Misma altura que el turno ocupado: la grilla no
+                                // se descuadra según qué haya reservado.
+                                className={`flex h-11 w-full items-center justify-center rounded-[var(--site-radius)] border text-sm transition-all ${
+                                  isPicked
+                                    ? "border-[var(--site-accent)] bg-[var(--site-accent)] font-semibold text-[var(--site-on-accent)] shadow-sm"
+                                    : "border-[var(--site-border)] text-[var(--site-text)] hover:border-[var(--site-accent)]"
+                                }`}
+                              >
+                                {slot.time}
+                              </button>
+                            </li>
+                          );
+                        }
+
+                        // Ocupado o ya pasado. Va como texto y no como botón
+                        // deshabilitado: no hay nada que activar, y un lector de
+                        // pantalla debe leer el estado, no ofrecer un control muerto.
+                        return (
+                          <li
+                            key={slot.time}
+                            className="flex h-11 flex-col items-center justify-center rounded-[var(--site-radius)] bg-[var(--site-surface-alt)] text-[var(--site-muted)]"
+                          >
+                            <span className="text-sm leading-none opacity-70">{slot.time}</span>
+                            <span className="mt-0.5 text-[0.55rem] uppercase opacity-70">
+                              {slot.state === "taken" ? "Reservado" : "Pasó"}
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+          </div>
+        </div>
+      )}
     </form>
   );
 }
@@ -608,8 +672,12 @@ function Step({
 }) {
   return (
     <section>
-      <div className="mb-2 flex items-baseline justify-between gap-3">
-        <h3 className="flex items-baseline gap-2 text-sm font-semibold text-[var(--site-text)]">
+      {/* `flex-wrap` y título sin partir: en la columna angosta del layout de
+          dos columnas, la navegación del mes le comía el ancho al encabezado y
+          "¿Qué día?" se cortaba en dos líneas. Ahora baja el control, no el
+          título. */}
+      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-2">
+        <h3 className="flex items-baseline gap-2 text-sm font-semibold whitespace-nowrap text-[var(--site-text)]">
           <span
             aria-hidden="true"
             className="text-xs font-bold text-[var(--site-muted)] tabular-nums"
