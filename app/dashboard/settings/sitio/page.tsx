@@ -44,6 +44,9 @@ const EMPTY_SITE: SiteInput = {
   headline: null,
   about: null,
   hero_image_url: null,
+  hero_focus_x: 50,
+  hero_focus_y: 50,
+  hero_overlay: 0,
   footer_note: null,
   site_copy: {},
   whatsapp: null,
@@ -299,6 +302,13 @@ function SiteForm({
         <SiteBannerField
           value={form.hero_image_url}
           onChange={(url) => update("hero_image_url", url)}
+          focusX={form.hero_focus_x}
+          focusY={form.hero_focus_y}
+          overlay={form.hero_overlay}
+          onFocusChange={(x, y) =>
+            setForm((f) => ({ ...f, hero_focus_x: x, hero_focus_y: y }))
+          }
+          onOverlayChange={(v) => update("hero_overlay", v)}
         />
 
         <Field label="Frase principal">

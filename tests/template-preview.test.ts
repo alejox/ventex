@@ -10,6 +10,8 @@ import {
   SITE_COPY_KEYS,
   SITE_COPY_LABELS,
   TEMPLATE_COPY_DEFAULTS,
+  encuadreDelHero,
+  veloDelHero,
   type PublicSite,
 } from "../services/public-site.types";
 
@@ -199,4 +201,52 @@ test("toda clave editable existe en al menos una plantilla", () => {
 
 test("toda clave editable tiene etiqueta para el formulario", () => {
   for (const clave of SITE_COPY_KEYS) assert.ok(SITE_COPY_LABELS[clave], clave);
+});
+
+/**
+ * Encuadre y oscurecido del hero. Con la foto de referencia manda la plantilla;
+ * en cuanto el negocio sube la suya, manda el negocio.
+ */
+
+const conHero = (extra: Record<string, unknown> = {}) =>
+  ({ template: "barberia", heroImageUrl: "/mi-foto.webp", ...extra }) as unknown as PublicSite;
+
+test("sin foto propia NO se toca el encuadre de la plantilla", () => {
+  // Devolver "50% 50%" acá pisaría el `object-position` que cada plantilla
+  // eligió a mano para la foto de muestra.
+  const site = { template: "barberia", heroImageUrl: null } as unknown as PublicSite;
+  assert.equal(encuadreDelHero(site), undefined);
+});
+
+test("con foto propia y sin elegir nada, queda centrada", () => {
+  assert.equal(encuadreDelHero(conHero()), "50% 50%");
+});
+
+test("el punto que elige el negocio manda", () => {
+  assert.equal(encuadreDelHero(conHero({ heroFocusX: 78, heroFocusY: 20 })), "78% 20%");
+});
+
+test("un valor fuera de rango se recorta en vez de romper el CSS", () => {
+  // La base ya lo limita, pero un `object-position` de "-40%" saldría del
+  // encuadre y dejaría el hero en blanco.
+  assert.equal(encuadreDelHero(conHero({ heroFocusX: -40, heroFocusY: 900 })), "0% 100%");
+});
+
+test("sin oscurecido extra no se pinta ninguna capa", () => {
+  // Devolver "rgb(0 0 0 / 0%)" haría pintar un div transparente en cada render.
+  assert.equal(veloDelHero(conHero()), null);
+  assert.equal(veloDelHero(conHero({ heroOverlay: 0 })), null);
+});
+
+test("el oscurecido extra se pinta encima del velo de la plantilla", () => {
+  assert.equal(veloDelHero(conHero({ heroOverlay: 40 })), "rgb(0 0 0 / 40%)");
+});
+
+test("el oscurecido NO puede aclarar por debajo del piso de la plantilla", () => {
+  // Ese piso es de contraste: sin él, el titular sobre una foto clara no se lee.
+  assert.equal(veloDelHero(conHero({ heroOverlay: -30 })), null);
+});
+
+test("el oscurecido se topa en 70: en negro total deja de ser una foto", () => {
+  assert.equal(veloDelHero(conHero({ heroOverlay: 999 })), "rgb(0 0 0 / 70%)");
 });

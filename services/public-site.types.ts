@@ -156,6 +156,11 @@ export interface PublicSite {
   headline: string | null;
   about: string | null;
   heroImageUrl: string | null;
+  /** Punto focal de la foto del hero, 0-100. Ver `encuadreDelHero`. */
+  heroFocusX?: number | null;
+  heroFocusY?: number | null;
+  /** Oscurecido EXTRA sobre el de la plantilla, 0-70. Ver `veloDelHero`. */
+  heroOverlay?: number | null;
   logoUrl: string | null;
   whatsapp: string | null;
   address: string | null;
@@ -343,4 +348,43 @@ export function textoDelSitio(site: PublicSite, clave: SiteCopyKey): string {
   const propio = site.copy?.[clave];
   if (typeof propio === "string" && propio.trim()) return propio.trim();
   return TEMPLATE_COPY_DEFAULTS[site.template]?.[clave] ?? "";
+}
+
+
+/**
+ * Cómo se encuadra la foto del hero.
+ *
+ * Con la foto de referencia el encuadre lo elegía la plantilla, afinado para ESA
+ * imagen. En cuanto el negocio sube la suya eso deja de valer: el sujeto puede
+ * estar a un costado y el recorte centrado le corta la cara.
+ *
+ * `objectPosition` en porcentajes cubre los dos casos de una: una foto apaisada
+ * en un panel alto se recorta a lo ancho, y una vertical a lo alto. El punto
+ * dice qué parte NO se pierde, sea cual sea la dirección del recorte.
+ *
+ * Con la foto de muestra se devuelve `undefined` para que cada plantilla
+ * conserve el encuadre que ya tenía elegido a mano, que está afinado para ella.
+ */
+export function encuadreDelHero(site: PublicSite): string | undefined {
+  if (!site.heroImageUrl) return undefined;
+  const x = Math.min(100, Math.max(0, site.heroFocusX ?? 50));
+  const y = Math.min(100, Math.max(0, site.heroFocusY ?? 50));
+  return `${x}% ${y}%`;
+}
+
+/**
+ * Oscurecido EXTRA del hero, como color listo para pintar encima.
+ *
+ * Solo SUMA sobre el velo de la plantilla; no se puede aclarar por debajo de él.
+ * Ese piso no es estético: es el que hace que el titular se lea. Dejar bajarlo
+ * sería dejar que el dueño publique un hero con el texto ilegible sin darse
+ * cuenta, que es lo que pasa con cualquier foto clara.
+ *
+ * Devuelve null cuando no hay nada que sumar, para no pintar una capa
+ * transparente de más en cada render.
+ */
+export function veloDelHero(site: PublicSite): string | null {
+  const extra = Math.min(70, Math.max(0, site.heroOverlay ?? 0));
+  if (!extra) return null;
+  return `rgb(0 0 0 / ${extra}%)`;
 }

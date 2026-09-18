@@ -1,5 +1,6 @@
 import Image from "next/image";
 import type { PublicSite } from "@/services/public-site.types";
+import { encuadreDelHero } from "@/services/public-site.types";
 import { BookingWidget } from "../BookingWidget";
 import {
   ServicesSection,
@@ -46,7 +47,7 @@ export function ModernoTemplate({ site }: { site: PublicSite }) {
             </dl>
           </div>
           <div className="relative min-h-80 overflow-hidden rounded-[var(--site-radius)] border border-[var(--site-border)] bg-[var(--site-surface)] shadow-[var(--site-shadow)] site-enter site-enter-delay-2 sm:min-h-[34rem]">
-            {site.heroImageUrl ? <Image src={site.heroImageUrl} alt="" fill priority sizes="(max-width: 1024px) 100vw, 46vw" className="object-cover" /> : <div className="absolute inset-0 grid place-items-center bg-[linear-gradient(135deg,var(--site-surface),var(--site-surface-alt))]"><span className="text-[11rem] font-black leading-none text-[var(--site-accent)] opacity-90">{site.businessName.slice(0, 1).toUpperCase()}</span></div>}
+            {site.heroImageUrl ? <Image src={site.heroImageUrl} alt="" fill priority sizes="(max-width: 1024px) 100vw, 46vw" className="object-cover" style={{ objectPosition: encuadreDelHero(site) }} /> : <div className="absolute inset-0 grid place-items-center bg-[linear-gradient(135deg,var(--site-surface),var(--site-surface-alt))]"><span className="text-[11rem] font-black leading-none text-[var(--site-accent)] opacity-90">{site.businessName.slice(0, 1).toUpperCase()}</span></div>}
             <div className="absolute right-4 bottom-4 left-4 rounded-2xl border border-white/15 bg-[var(--site-bg)]/85 p-4 text-sm text-white backdrop-blur-md sm:right-auto sm:w-72">
               <p className="font-bold">Tu turno, sin llamadas.</p><p className="mt-1 text-white/70">Elegí servicio, profesional y hora en pocos pasos.</p>
             </div>

@@ -1,7 +1,7 @@
 import Image from "next/image";
 import { Scissors, ArrowUpRight, MapPin } from "lucide-react";
 import type { PublicSite } from "@/services/public-site.types";
-import { WEEKDAY_LABELS, textoDelSitio } from "@/services/public-site.types";
+import { WEEKDAY_LABELS, textoDelSitio , encuadreDelHero, veloDelHero } from "@/services/public-site.types";
 import { socialLinksOf } from "@/lib/socialLinks";
 import { BookServiceLink } from "../BookServiceLink";
 import { BookingWidget } from "../BookingWidget";
@@ -18,8 +18,15 @@ export function BarberModernTemplate({ site }: { site: PublicSite }) {
   return (
     <div className={`${styles.site} site-public`} style={SITE_PALETTES.barberia} data-template="barberia">
       <header id="inicio" className={styles.hero}>
-        <Image src={site.heroImageUrl || "/sites/moderno/barber-hero.webp"} alt="" fill priority sizes="100vw" className={styles.heroImage} />
+        <Image src={site.heroImageUrl || "/sites/moderno/barber-hero.webp"} alt="" fill priority sizes="100vw" className={styles.heroImage} style={{ objectPosition: encuadreDelHero(site) }} />
         <div className={styles.heroShade} />
+        {veloDelHero(site) && (
+          <div
+            aria-hidden="true"
+            className={styles.heroVelo}
+            style={{ background: veloDelHero(site)! }}
+          />
+        )}
         <div className={styles.headerContent}>
           {(site.address || site.hours.length > 0) && <div className={styles.topbar}>
             {site.address ? <span><MapPin size={12} aria-hidden="true" />{site.address}</span> : <span>Un espacio para tu estilo</span>}

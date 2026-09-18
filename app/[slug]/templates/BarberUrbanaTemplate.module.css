@@ -178,3 +178,7 @@
     box-shadow: 0 6px 22px rgb(51 51 51 / .28);
   }
 }
+
+/* Oscurecido EXTRA que elige el dueño. Va ENCIMA del velo de la plantilla:
+   solo suma, nunca aclara por debajo del piso de contraste. */
+.heroVelo { position: absolute; inset: 0; z-index: -1; }

@@ -1,5 +1,6 @@
 import Image from "next/image";
 import type { PublicSite } from "@/services/public-site.types";
+import { encuadreDelHero } from "@/services/public-site.types";
 import { BookingWidget } from "../BookingWidget";
 import {
   ServicesSection,
@@ -54,7 +55,7 @@ export function ClasicoTemplate({ site }: { site: PublicSite }) {
           <div className="relative mx-auto w-full max-w-md site-enter site-enter-delay-2 lg:mx-0 lg:ml-auto">
             <div aria-hidden="true" className="absolute -top-6 -right-8 h-32 w-32 rounded-full border border-[var(--site-border)]" />
             <div className="relative aspect-[4/5] overflow-hidden rounded-t-[12rem] rounded-b-[var(--site-radius)] bg-[var(--site-surface-alt)] shadow-[var(--site-shadow)]">
-              {site.heroImageUrl ? <Image src={site.heroImageUrl} alt="" fill priority sizes="(max-width: 1024px) 100vw, 42vw" className="object-cover" /> : (
+              {site.heroImageUrl ? <Image src={site.heroImageUrl} alt="" fill priority sizes="(max-width: 1024px) 100vw, 42vw" className="object-cover" style={{ objectPosition: encuadreDelHero(site) }} /> : (
                 <div className="flex h-full items-center justify-center p-12 text-center">
                   <span className="text-8xl text-[var(--site-accent)]" style={{ fontFamily: "var(--site-heading-font)" }}>{site.businessName.slice(0, 1).toUpperCase()}</span>
                 </div>

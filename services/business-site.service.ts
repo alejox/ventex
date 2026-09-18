@@ -14,6 +14,11 @@ export interface BusinessSite {
   headline: string | null;
   about: string | null;
   hero_image_url: string | null;
+  /** Punto focal de la foto del hero, 0-100. Es `object-position`. */
+  hero_focus_x: number;
+  hero_focus_y: number;
+  /** Oscurecido EXTRA sobre el de la plantilla, 0-70. Solo suma. */
+  hero_overlay: number;
   whatsapp: string | null;
   address: string | null;
   /**
@@ -64,6 +69,9 @@ export function toSiteInput(site: BusinessSite): SiteInput {
     headline: site.headline,
     about: site.about,
     hero_image_url: site.hero_image_url,
+    hero_focus_x: site.hero_focus_x ?? 50,
+    hero_focus_y: site.hero_focus_y ?? 50,
+    hero_overlay: site.hero_overlay ?? 0,
     whatsapp: site.whatsapp,
     address: site.address,
     instagram: site.instagram,
@@ -109,7 +117,7 @@ export async function uploadSiteBanner(file: File): Promise<string> {
 }
 
 const SITE_SELECT =
-  "id, slug, template, published, booking_enabled, headline, about, hero_image_url, whatsapp, address, instagram, facebook, tiktok, youtube, twitter, linkedin, telegram, website, timezone, slot_interval_minutes, footer_note, site_copy";
+  "id, slug, template, published, booking_enabled, headline, about, hero_image_url, hero_focus_x, hero_focus_y, hero_overlay, whatsapp, address, instagram, facebook, tiktok, youtube, twitter, linkedin, telegram, website, timezone, slot_interval_minutes, footer_note, site_copy";
 
 /** Mon–Sat open 09–19, Sunday closed: the shape most shops start from. */
 export function defaultHours(): BusinessHour[] {

@@ -2,7 +2,7 @@ import Image from "next/image";
 import { Roboto, Roboto_Condensed } from "next/font/google";
 import { Scissors, ArrowUpRight, MapPin, Phone } from "lucide-react";
 import type { PublicSite } from "@/services/public-site.types";
-import { WEEKDAY_LABELS, textoDelSitio } from "@/services/public-site.types";
+import { WEEKDAY_LABELS, textoDelSitio , encuadreDelHero, veloDelHero } from "@/services/public-site.types";
 import { socialLinksOf } from "@/lib/socialLinks";
 import { BrandIcon } from "@/app/assets/icons/BrandIcons";
 import { BookServiceLink } from "../BookServiceLink";
@@ -115,8 +115,15 @@ export function BarberUrbanaTemplate({ site }: { site: PublicSite }) {
       </header>
 
       <section id="inicio" className={styles.hero}>
-        <Image src={heroSrc} alt="" fill priority sizes="100vw" className={styles.heroImage} />
+        <Image src={heroSrc} alt="" fill priority sizes="100vw" className={styles.heroImage} style={{ objectPosition: encuadreDelHero(site) }} />
         <div className={styles.heroShade} />
+        {veloDelHero(site) && (
+          <div
+            aria-hidden="true"
+            className={styles.heroVelo}
+            style={{ background: veloDelHero(site)! }}
+          />
+        )}
         <div className={styles.heroBody}>
           <h1 className={styles.heroTitle}>{site.headline || site.businessName}</h1>
           <p className={styles.heroKicker}>

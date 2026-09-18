@@ -199,3 +199,7 @@
    el velo casi negro — 1:1 de contraste, invisible. Sobre una foto oscurecida
    el texto tiene que ser claro, venga de donde venga el tema. */
 .serviceNumero { position: absolute; right: 14px; bottom: 12px; font-size: 10px; letter-spacing: .1em; color: #f4f0e7; background: rgb(23 23 21 / .72); padding: 4px 8px; }
+
+/* Oscurecido EXTRA que elige el dueño. Va ENCIMA del velo de la plantilla:
+   solo suma, nunca aclara por debajo del piso de contraste. */
+.heroVelo { position: absolute; inset: 0; z-index: -1; }

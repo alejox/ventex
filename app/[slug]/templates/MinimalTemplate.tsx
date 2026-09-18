@@ -1,5 +1,6 @@
 import Image from "next/image";
 import type { PublicSite } from "@/services/public-site.types";
+import { encuadreDelHero } from "@/services/public-site.types";
 import { BookingWidget } from "../BookingWidget";
 import {
   ServicesSection,
@@ -96,6 +97,7 @@ export function MinimalTemplate({ site }: { site: PublicSite }) {
                 priority
                 sizes="(max-width: 1024px) 100vw, 52vw"
                 className="object-cover"
+                style={{ objectPosition: encuadreDelHero(site) }}
               />
             ) : (
               <div className="flex h-full items-center justify-center">

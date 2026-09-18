@@ -232,7 +232,10 @@ export type Database = {
           facebook: string | null
           footer_note: string | null
           headline: string | null
+          hero_focus_x: number
+          hero_focus_y: number
           hero_image_url: string | null
+          hero_overlay: number
           id: string
           instagram: string | null
           linkedin: string | null
@@ -259,7 +262,10 @@ export type Database = {
           facebook?: string | null
           footer_note?: string | null
           headline?: string | null
+          hero_focus_x?: number
+          hero_focus_y?: number
           hero_image_url?: string | null
+          hero_overlay?: number
           id?: string
           instagram?: string | null
           linkedin?: string | null
@@ -286,7 +292,10 @@ export type Database = {
           facebook?: string | null
           footer_note?: string | null
           headline?: string | null
+          hero_focus_x?: number
+          hero_focus_y?: number
           hero_image_url?: string | null
+          hero_overlay?: number
           id?: string
           instagram?: string | null
           linkedin?: string | null
