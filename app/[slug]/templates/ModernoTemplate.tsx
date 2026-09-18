@@ -12,12 +12,9 @@ import {
 } from "./SiteSections";
 import { SITE_PALETTES } from "./theme";
 import { BusinessStatus } from "./BusinessStatus";
-import { BarberModernTemplate } from "./BarberModernTemplate";
 
 /** Digital and energetic: bold type, cobalt depth and coral actions. */
 export function ModernoTemplate({ site }: { site: PublicSite }) {
-  if (site.businessType === "salon") return <BarberModernTemplate site={site} />;
-
   return (
     <div
       style={SITE_PALETTES.moderno}

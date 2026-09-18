@@ -7,7 +7,7 @@ import { BookServiceLink } from "../BookServiceLink";
 import { BookingWidget } from "../BookingWidget";
 import { BusinessStatus } from "./BusinessStatus";
 import { ContactSection, ProductsSection, SiteFooter } from "./SiteSections";
-import { formatCOP } from "./theme";
+import { formatCOP, SITE_PALETTES } from "./theme";
 import styles from "./BarberModernTemplate.module.css";
 
 /** Editorial barber presentation; all catalog and booking data remain tenant-owned. */
@@ -16,7 +16,7 @@ export function BarberModernTemplate({ site }: { site: PublicSite }) {
   const sampleHero = !site.heroImageUrl;
 
   return (
-    <div className={`${styles.site} site-public`} data-template="barber-moderno">
+    <div className={`${styles.site} site-public`} style={SITE_PALETTES.barberia} data-template="barberia">
       <header id="inicio" className={styles.hero}>
         <Image src={site.heroImageUrl || "/sites/moderno/barber-hero.webp"} alt="" fill priority sizes="100vw" className={styles.heroImage} />
         <div className={styles.heroShade} />

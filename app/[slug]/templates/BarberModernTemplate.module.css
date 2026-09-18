@@ -1,16 +1,12 @@
 .site {
-  --site-bg: #171715;
-  --site-surface: #22221f;
-  --site-surface-alt: #2c2b27;
-  --site-text: #f4f0e7;
-  --site-muted: #b9b5aa;
-  --site-accent: #c5a572;
-  --site-on-accent: #1e1b16;
-  --site-border: #434139;
-  --site-radius: 2px;
-  --site-heading-font: "Iowan Old Style", Baskerville, Georgia, serif;
-  --site-body-font: var(--font-plus-jakarta-sans), Arial, sans-serif;
-  --site-shadow: none;
+  /*
+   * Los --site-* NO se declaran acá: llegan por `style={SITE_PALETTES.barberia}`
+   * como en las otras tres plantillas. Estaban duplicados, y una paleta escrita
+   * en dos lugares se desincroniza en el primer retoque de color.
+   *
+   * Lo que queda son los tokens propios de esta presentación: el bloque claro
+   * "papel" que las otras no tienen.
+   */
   --barber-paper: #f4f0e7;
   --barber-ink: #252520;
   --barber-subtle: #68665e;

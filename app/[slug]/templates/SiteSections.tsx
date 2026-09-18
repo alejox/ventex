@@ -22,6 +22,12 @@ const sectionClass: Record<SiteTemplate, string> = {
   clasico: "mx-auto w-full max-w-6xl px-5 py-16 sm:px-8 sm:py-24",
   moderno: "mx-auto w-full max-w-7xl px-5 py-16 sm:px-8 sm:py-24",
   minimal: "mx-auto w-full max-w-6xl px-5 py-16 sm:px-8 sm:py-24",
+  // BarberModernTemplate arma casi todas sus secciones a mano y a las dos que
+  // reusa de acá les pasa `clasico` (productos) y `moderno` (contacto) a
+  // propósito: elige la MAQUETA que le sirve, no su propia identidad. Esta
+  // entrada existe para el caso de que alguna sección nueva llegue con la clave
+  // propia, y usa el ancho del contenedor de la plantilla.
+  barberia: "mx-auto w-full max-w-[1360px] px-5 py-16 sm:px-8 sm:py-24",
 };
 
 export function SectionTitle({

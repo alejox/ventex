@@ -10,10 +10,10 @@ import { BookingWidget } from "../app/[slug]/BookingWidget";
 // Node does not bundle CSS modules; preserve class names for structural tests.
 const require = createRequire(import.meta.url);
 require.extensions[".css"] = (module) => { module.exports = { __esModule: true, default: new Proxy({}, { get: (_, key) => String(key) }) }; };
-const { ModernoTemplate } = require("../app/[slug]/templates/ModernoTemplate") as typeof import("../app/[slug]/templates/ModernoTemplate");
+const { BarberModernTemplate } = require("../app/[slug]/templates/BarberModernTemplate") as typeof import("../app/[slug]/templates/BarberModernTemplate");
 
 function render(overrides: Partial<typeof barberModernSite> = {}) {
-  return renderToStaticMarkup(createElement(ModernoTemplate, { site: { ...barberModernSite, ...overrides } }));
+  return renderToStaticMarkup(createElement(BarberModernTemplate, { site: { ...barberModernSite, ...overrides } }));
 }
 
 function descendants(node: ReactNode): React.ReactElement<Record<string, unknown>>[] {
@@ -24,14 +24,14 @@ function descendants(node: ReactNode): React.ReactElement<Record<string, unknown
 
 // Unwrap only the pure template, leaving client components as boundaries.
 function templateElements() {
-  let tree = ModernoTemplate({ site: barberModernSite });
+  let tree = BarberModernTemplate({ site: barberModernSite });
   if (typeof tree.type === "function") tree = tree.type(tree.props);
   return descendants(tree);
 }
 
 test("barber Moderno renders the editorial landing and honest sample photography", () => {
   const html = render();
-  assert.match(html, /data-template="barber-moderno"/);
+  assert.match(html, /data-template="barberia"/);
   assert.match(html, /Distrito Barbería/);
   assert.match(html, /El detalle hace la diferencia/);
   assert.match(html, /barber-hero/);
@@ -89,10 +89,12 @@ test("uploaded imagery takes priority and is never labeled as a reference", () =
   assert.doesNotMatch(html, /Imagen de referencia/);
 });
 
-test("other business types retain the existing Moderno presentation", () => {
+test("la plantilla NO mira el tipo de negocio: la elige quien la elige", () => {
+  // Antes esta presentación se activaba sola con `businessType === "salon"` y
+  // no había forma de pedirla desde otro rubro. Como clave propia, el rubro
+  // dejó de tener voz: lo que decide es lo que el dueño guardó en Diseño.
+  const salon = render({ businessType: "salon" });
   for (const businessType of ["tienda", "lavaautos", "servicios", null]) {
-    const html = render({ businessType });
-    assert.doesNotMatch(html, /data-template="barber-moderno"|barber-hero|barber-detail/);
-    assert.match(html, /Elegir un horario/);
+    assert.equal(render({ businessType }), salon, `cambió con businessType=${businessType}`);
   }
 });

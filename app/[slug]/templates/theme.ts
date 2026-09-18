@@ -60,6 +60,20 @@ export const SITE_PALETTES: Record<SiteTemplate, SitePalette> = {
     "--site-body-font": "var(--font-plus-jakarta-sans), system-ui, sans-serif",
     "--site-shadow": "0 28px 80px rgba(3, 7, 25, 0.36)",
   },
+  barberia: {
+    "--site-bg": "#171715",
+    "--site-surface": "#22221f",
+    "--site-surface-alt": "#2c2b27",
+    "--site-text": "#f4f0e7",
+    "--site-muted": "#b9b5aa",
+    "--site-accent": "#c5a572",
+    "--site-on-accent": "#1e1b16",
+    "--site-border": "#434139",
+    "--site-radius": "2px",
+    "--site-heading-font": "Iowan Old Style, Baskerville, Georgia, serif",
+    "--site-body-font": "var(--font-plus-jakarta-sans), Arial, sans-serif",
+    "--site-shadow": "none",
+  },
   minimal: {
     "--site-bg": "#f7f4ef",
     "--site-surface": "#fffdf9",
@@ -81,65 +95,36 @@ export const SITE_PALETTES: Record<SiteTemplate, SitePalette> = {
  *
  * Salen de las paletas reales de arriba y no de una copia a mano: cuando el
  * selector tenía sus propios hex, mostraba lima sobre casi negro para "Moderno"
- * mientras la plantilla pintaba coral sobre azul — y un salón recibía una
- * tercera cosa, dorado sobre marrón. El dueño elegía mirando una miniatura que
- * no se parecía a nada de lo que iba a publicar.
+ * mientras la plantilla pintaba coral sobre azul, y "Minimal" salía blanco y
+ * negro cuando en realidad es crema con malva. El dueño elegía mirando una
+ * miniatura que no se parecía a nada de lo que iba a publicar.
  *
  * `serif` no es un color pero viaja acá porque es LA diferencia que se ve
- * primero en la variante de barbería, y una miniatura de barras no puede
- * mostrarla sola.
+ * primero entre plantillas, y una miniatura de barras no puede mostrarla sola.
  */
 export interface TemplatePreview {
   bg: string;
   accent: string;
   text: string;
   serif: boolean;
-  /** Reemplaza a TEMPLATE_DESCRIPTIONS cuando la variante no es la genérica. */
-  description?: string;
 }
 
 /**
- * `serif` se DEDUCE de la familia real, no se marca a mano: la miniatura tiene
- * que seguir a la paleta aunque alguien cambie la tipografía de una plantilla
- * sin acordarse de este archivo. La última familia de la lista es la genérica,
- * y `sans-serif` termina en "serif" — de ahí que no alcance con un `endsWith`.
+ * Se DEDUCE de la familia real, no se marca a mano: la miniatura tiene que
+ * seguir a la paleta aunque alguien cambie la tipografía de una plantilla sin
+ * acordarse de este archivo. La última familia de la lista es la genérica, y
+ * `sans-serif` termina en "serif" — de ahí que no alcance con un `endsWith`.
  */
 const esSerif = (familia: string) => /(?:^|[\s,])serif\s*$/.test(familia);
 
-const desde = (p: SitePalette): TemplatePreview => ({
-  bg: String(p["--site-bg"]),
-  accent: String(p["--site-accent"]),
-  text: String(p["--site-text"]),
-  serif: esSerif(String(p["--site-heading-font"])),
-});
-
-/**
- * La variante de barbería no está en `SITE_PALETTES` porque vive en el CSS
- * module de `BarberModernTemplate`. Se replica solo lo que la miniatura
- * necesita, y con el comentario para que se actualice junto con aquel.
- */
-const BARBER_MODERNO: TemplatePreview = {
-  bg: "#171715",
-  accent: "#c5a572",
-  text: "#f4f0e7",
-  serif: true,
-  // La descripción genérica de "moderno" habla de acentos vivos y aire
-  // nocturno. Eso no es lo que recibe una barbería, y una descripción que no
-  // describe lo que va a pasar es peor que no tener ninguna.
-  description: "Editorial y cálido. Dorado, tipografía con serifa y fotografía grande.",
-};
-
-/**
- * Un salón con "moderno" NO recibe la plantilla moderna genérica: recibe la de
- * barbería (ver el desvío en ModernoTemplate). La miniatura tiene que mostrar
- * eso o miente.
- */
-export function templatePreview(
-  template: SiteTemplate,
-  businessType?: string | null,
-): TemplatePreview {
-  if (template === "moderno" && businessType === "salon") return BARBER_MODERNO;
-  return desde(SITE_PALETTES[template]);
+export function templatePreview(template: SiteTemplate): TemplatePreview {
+  const p = SITE_PALETTES[template];
+  return {
+    bg: String(p["--site-bg"]),
+    accent: String(p["--site-accent"]),
+    text: String(p["--site-text"]),
+    serif: esSerif(String(p["--site-heading-font"])),
+  };
 }
 
 export function formatCOP(value: number): string {

@@ -20,7 +20,6 @@ import {
 import type { SiteTemplate } from "@/services/public-site.types";
 import { SOCIAL_NETWORKS, SOCIAL_META } from "@/lib/socialLinks";
 import { SiteQrCard } from "@/components/site/SiteQrCard";
-import { useProfile } from "@/components/ProfileProvider";
 import { templatePreview } from "@/app/[slug]/templates/theme";
 import { BrandIcon } from "@/app/assets/icons/BrandIcons";
 
@@ -99,9 +98,6 @@ function SiteForm({
   const saving = useBusinessSiteStore((s) => s.saving);
   const saveConfig = useBusinessSiteStore((s) => s.saveConfig);
   const settings = useSettingsStore((s) => s.settings);
-  // Un salón con "moderno" no recibe la plantilla moderna genérica sino la
-  // editorial de barbería, así que la miniatura tiene que saber qué negocio es.
-  const businessType = useProfile()?.businessType;
 
   const [form, setForm] = useState<SiteInput>(initialSite);
   const [hours, setHours] = useState<BusinessHour[]>(
@@ -235,16 +231,15 @@ function SiteForm({
         <div>
           <h2 className="text-lg font-semibold text-on-surface">Diseño</h2>
           <p className="text-sm text-on-surface-variant">
-            Los tres muestran la misma información. Cambian el look, no el contenido.
+            Todas muestran la misma información. Cambian el look, no el contenido.
           </p>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {SITE_TEMPLATES.map((template) => (
             <TemplateCard
               key={template}
               template={template}
-              businessType={businessType}
               selected={form.template === template}
               onSelect={() => update("template", template)}
             />
@@ -500,20 +495,18 @@ function Field({
 /** Miniature of each design so the choice is visual, not a word in a dropdown. */
 function TemplateCard({
   template,
-  businessType,
   selected,
   onSelect,
 }: {
   template: SiteTemplate;
-  businessType?: string | null;
   selected: boolean;
   onSelect: () => void;
 }) {
-  // Los colores salen de la paleta REAL de la plantilla (y de la variante que
-  // le toca a este tipo de negocio), no de una copia a mano. Cuando estaban
-  // escritos acá, "Moderno" se mostraba lima sobre negro mientras la plantilla
-  // publicaba coral sobre azul, y una barbería recibía una tercera cosa.
-  const colors = templatePreview(template, businessType);
+  // Los colores salen de la paleta REAL de la plantilla, no de una copia a mano.
+  // Cuando estaban escritos acá, "Moderno" se mostraba lima sobre negro mientras
+  // la plantilla publicaba coral sobre azul, y "Minimal" salía blanco y negro
+  // cuando en realidad es crema con malva.
+  const colors = templatePreview(template);
 
   return (
     <button
@@ -562,7 +555,7 @@ function TemplateCard({
         {TEMPLATE_LABELS[template]}
       </span>
       <span className="mt-0.5 block text-xs text-on-surface-variant">
-        {colors.description ?? TEMPLATE_DESCRIPTIONS[template]}
+        {TEMPLATE_DESCRIPTIONS[template]}
       </span>
     </button>
   );

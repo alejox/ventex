@@ -7,6 +7,7 @@ import type { PublicSite } from "@/services/public-site.types";
 import { ClasicoTemplate } from "./templates/ClasicoTemplate";
 import { ModernoTemplate } from "./templates/ModernoTemplate";
 import { MinimalTemplate } from "./templates/MinimalTemplate";
+import { BarberModernTemplate } from "./templates/BarberModernTemplate";
 
 /**
  * A business's public micro-site, served at the site root: /<slug>.
@@ -23,6 +24,7 @@ const TEMPLATES = {
   clasico: ClasicoTemplate,
   moderno: ModernoTemplate,
   minimal: MinimalTemplate,
+  barberia: BarberModernTemplate,
 } as const;
 
 /**

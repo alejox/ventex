@@ -7,19 +7,31 @@
  * contract: if a field is not here, the public site must not need it.
  */
 
-export const SITE_TEMPLATES = ["clasico", "moderno", "minimal"] as const;
+/**
+ * `barberia` es una PLANTILLA, no el tipo de negocio del inquilino.
+ *
+ * Antes esta presentación se activaba sola cuando el perfil era `salon`: el
+ * selector mostraba tres tarjetas mientras existía una cuarta que nadie podía
+ * elegir. Como clave propia, la elige quien la quiera — y un salón deja de
+ * depender de un campo que se fijó al registrarse.
+ */
+export const SITE_TEMPLATES = ["clasico", "moderno", "minimal", "barberia"] as const;
 export type SiteTemplate = (typeof SITE_TEMPLATES)[number];
 
 export const TEMPLATE_LABELS: Record<SiteTemplate, string> = {
   clasico: "Clásico",
   moderno: "Moderno",
   minimal: "Minimal",
+  barberia: "Barbería",
 };
 
 export const TEMPLATE_DESCRIPTIONS: Record<SiteTemplate, string> = {
   clasico: "Cálido y tradicional. Tonos tierra, tipografía con serifa.",
   moderno: "Oscuro y con contraste alto. Acentos vivos, aire nocturno.",
   minimal: "Limpio y refinado. Blanco cálido, formas suaves y aire premium.",
+  // Se nombra el oficio a propósito: el texto de la plantilla habla de cortes y
+  // de barba, así que quien la elija para otro rubro tiene que saberlo antes.
+  barberia: "Editorial, oscuro y dorado. Serifa grande y foto a sangre. Su texto habla de barbería.",
 };
 
 /** 0 = Sunday, matching Postgres `extract(dow from ...)`. */

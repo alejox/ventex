@@ -3,7 +3,7 @@ import type { PublicSite } from "../../services/public-site.types";
 /** Deterministic sample data for tests and local previews, never a live tenant. */
 export const barberModernSite: PublicSite = {
   slug: "barber-modern-test",
-  template: "moderno",
+  template: "barberia",
   businessName: "Distrito Barbería",
   businessType: "salon",
   headline: "El detalle hace la diferencia.",
