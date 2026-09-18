@@ -59,10 +59,23 @@ export function LandingHeader() {
           : "hero-ink bg-transparent border-b border-transparent"
       }`}
     >
-      <nav aria-label="Principal" className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-        <LogoHorizontal className="w-[104px] h-[28px]" />
+      {/* Grilla de 3 columnas y no `justify-between`: con flex, el grupo del
+          centro flota según el ancho de los costados, y como la derecha (toggle
+          + sesión + CTA) es mucho más ancha que el logo, los enlaces quedaban
+          corridos a la izquierda. Con `1fr auto 1fr` el centro es el centro
+          REAL, sin importar cuánto crezcan los lados. */}
+      <nav
+        aria-label="Principal"
+        className="max-w-6xl mx-auto px-4 sm:px-6 h-16 grid grid-cols-[1fr_auto_1fr] items-center gap-2"
+      >
+        <div className="flex items-center">
+          <Link href="/" aria-label="Ventex — inicio">
+            <LogoHorizontal className="w-[92px] sm:w-[104px] h-[26px] sm:h-[28px]" />
+          </Link>
+        </div>
+
         <div
-          className={`hidden md:flex items-center gap-1 rounded-full p-1 text-sm font-medium text-on-surface transition-colors ${
+          className={`hidden lg:flex items-center gap-1 rounded-full p-1 text-sm font-medium text-on-surface transition-colors ${
             scrolleado
               ? "border border-outline-variant/10 bg-surface-container-low/60"
               : "border border-transparent"
@@ -85,16 +98,34 @@ export function LandingHeader() {
             Precios
           </a>
         </div>
-        <div className="flex items-center gap-2 sm:gap-3">
+        {/* Los enlaces aparecen recién en `lg`, no en `md`. Medido: a 768px la
+            columna derecha (toggle + sesión + CTA) pide ~250px y cada columna
+            `1fr` solo da ~186, así que se desbordaba y empujaba el centro 92px a
+            la izquierda — el desbalance que se veía. A 1024px hay ~310 por lado
+            y el centro queda exacto.
+            Este placeholder ocupa la columna del medio cuando los enlaces no
+            están: sin él la grilla colapsa a dos columnas y el logo se despega
+            del borde del contenido. */}
+        <div className="lg:hidden" />
+
+        <div className="flex items-center justify-end gap-1 sm:gap-3">
           <ThemeToggle />
-          <Link href="/login" className="hidden sm:inline text-sm font-semibold text-on-surface hover:text-primary transition-colors">
+          {/* "Iniciar sesión" ya NO se oculta en móvil: era la información que
+              se perdía. En pantallas chicas va como enlace de texto compacto, y
+              el CTA principal acorta su etiqueta para que los dos entren sin
+              apretarse. */}
+          <Link
+            href="/login"
+            className="text-sm font-semibold text-on-surface hover:text-primary transition-colors whitespace-nowrap px-1"
+          >
             Iniciar sesión
           </Link>
           <Link
             href="/register"
-            className="text-sm font-semibold bg-primary text-on-primary px-4 py-2 rounded-xl shadow-lg shadow-primary/20 hover:bg-primary-dim transition-colors"
+            className="text-sm font-semibold bg-primary text-on-primary px-3 sm:px-4 py-2 rounded-xl shadow-lg shadow-primary/20 hover:bg-primary-dim transition-colors whitespace-nowrap"
           >
-            Empieza gratis
+            <span className="sm:hidden">Empieza</span>
+            <span className="hidden sm:inline">Empieza gratis</span>
           </Link>
         </div>
       </nav>
