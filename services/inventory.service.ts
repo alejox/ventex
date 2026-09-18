@@ -1,6 +1,6 @@
 import { createClient } from "@/utils/supabase/client";
 import { getSelectedWorkspaceId } from "@/services/workspace.service";
-import { toWebp } from "@/lib/image";
+import { toWebp, verificarPeso } from "@/lib/image";
 
 // ---- Tipos del dominio de inventario ----
 export interface DistributorBrief {
@@ -347,6 +347,7 @@ export async function uploadProductImage(file: File): Promise<string> {
   // Se convierte acá y no en cada formulario: así toda foto que entre al bucket
   // pasa por la misma compresión, venga del alta rápida o del form avanzado.
   const optimized = await toWebp(file);
+  verificarPeso(optimized, 5 * 1024 * 1024); // tope del bucket `product-images`
 
   const ext = optimized.name.split(".").pop()?.toLowerCase() || "jpg";
   const path = `${workspaceId}/${crypto.randomUUID()}.${ext}`;

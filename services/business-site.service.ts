@@ -1,7 +1,7 @@
 import { createClient } from "@/utils/supabase/client";
 import type { SiteTemplate, SiteCopyKey } from "@/services/public-site.types";
 import { getSelectedWorkspaceId } from "@/services/workspace.service";
-import { toWebp } from "@/lib/image";
+import { toWebp, verificarPeso } from "@/lib/image";
 
 /** Owner-side configuration of the public micro-site. RLS scopes every row. */
 
@@ -95,6 +95,7 @@ export async function uploadSiteBanner(file: File): Promise<string> {
   const supabase = createClient();
   const workspaceId = await getSelectedWorkspaceId();
   const optimized = await toWebp(file);
+  verificarPeso(optimized, 2 * 1024 * 1024); // tope del bucket `business-logos`
 
   const ext = optimized.name.split(".").pop()?.toLowerCase() || "webp";
   const path = `${workspaceId}/banner-${crypto.randomUUID()}.${ext}`;

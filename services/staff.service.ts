@@ -1,6 +1,6 @@
 import { createClient } from "@/utils/supabase/client";
 import { getSelectedWorkspaceId } from "@/services/workspace.service";
-import { toWebp } from "@/lib/image";
+import { toWebp, verificarPeso } from "@/lib/image";
 
 // ---- Tipos del dominio de staff (barberos / estilistas / empleados) ----
 /**
@@ -201,6 +201,7 @@ export async function uploadStaffPhoto(file: File): Promise<string> {
   const supabase = createClient();
   const workspaceId = await getSelectedWorkspaceId();
   const optimized = await toWebp(file);
+  verificarPeso(optimized, 2 * 1024 * 1024); // tope del bucket `staff-photos`
 
   const ext = optimized.name.split(".").pop()?.toLowerCase() || "webp";
   const path = `${workspaceId}/${crypto.randomUUID()}.${ext}`;

@@ -1,6 +1,7 @@
 import { createClient } from "@/utils/supabase/client";
 import { getSelectedWorkspaceId } from "@/services/workspace.service";
 import type { Json } from "@/utils/supabase/database.types";
+import { toWebp, verificarPeso } from "@/lib/image";
 
 // ---- Tipos del dominio de ajustes (config por cuenta) ----
 export interface BusinessProfile {
@@ -71,20 +72,32 @@ const DEFAULTS: Settings = {
 
 const BUSINESS_LOGOS_BUCKET = "business-logos";
 
+/** Tope del bucket `business-logos`. Se repite acá para poder avisar ANTES. */
+const LOGO_MAX_BYTES = 2 * 1024 * 1024;
+
 /**
  * Sube el logo del negocio al bucket `business-logos` bajo la carpeta del usuario
  * (`${user_id}/...`, exigido por las políticas RLS) y devuelve su URL pública.
+ *
+ * Era la única subida del proyecto que NO pasaba por `toWebp`: el logo iba crudo
+ * al bucket y de ahí al encabezado del micrositio público, que lo sirve tal cual
+ * a cada visitante. Un PNG de cámara de 4 MB se descargaba entero en cada
+ * visita. `toWebp` respeta los SVG, así que un logo vectorial sigue subiendo sin
+ * rasterizar.
  */
 export async function uploadBusinessLogo(file: File): Promise<string> {
   const supabase = createClient();
   const workspaceId = await getSelectedWorkspaceId();
 
-  const ext = file.name.split(".").pop()?.toLowerCase() || "png";
+  const optimized = await toWebp(file);
+  verificarPeso(optimized, LOGO_MAX_BYTES);
+
+  const ext = optimized.name.split(".").pop()?.toLowerCase() || "png";
   const path = `${workspaceId}/${crypto.randomUUID()}.${ext}`;
 
   const { error } = await supabase.storage
     .from(BUSINESS_LOGOS_BUCKET)
-    .upload(path, file, { cacheControl: "3600", upsert: false });
+    .upload(path, optimized, { cacheControl: "3600", upsert: false });
   if (error) throw error;
 
   const { data } = supabase.storage.from(BUSINESS_LOGOS_BUCKET).getPublicUrl(path);
