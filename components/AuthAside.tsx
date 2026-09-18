@@ -31,9 +31,13 @@ const VISTAS = [
     // 40%: corre a la persona hasta el borde izquierdo, donde queda visible
     // pero FUERA de la caja del titular. Centrada, el texto le caía en la cara.
     objectPosition: "40% 50%",
-    titulo: "Optimiza tu futuro hoy mismo.",
+    titulo: "Atiende, cobra y sigue con lo tuyo.",
+    // La copia anterior hablaba de "gestión de activos digitales" y del
+    // "ecosistema Ventex": vocabulario de una plataforma de inversiones, no de
+    // un sistema para una tienda o una barbería. Quien entra acá tiene un
+    // mostrador, no una cartera.
     copia:
-      "Accede a la plataforma líder en gestión de activos digitales. Experimenta la potencia del ecosistema Ventex con total seguridad.",
+      "Ventex se encarga del inventario, las cuentas y los números del día mientras atiendes. Todo en un solo lugar.",
   },
   {
     imagen: "/auth/pos-terminal.webp",

@@ -29,6 +29,7 @@ const sectionClass: Record<SiteTemplate, string> = {
   // entrada existe para el caso de que alguna sección nueva llegue con la clave
   // propia, y usa el ancho del contenedor de la plantilla.
   barberia: "mx-auto w-full max-w-[1360px] px-5 py-16 sm:px-8 sm:py-24",
+  "barberia-artesanal": "mx-auto w-full max-w-6xl px-5 py-16 sm:px-8 sm:py-24",
 };
 
 export function SectionTitle({

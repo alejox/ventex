@@ -17,30 +17,46 @@ import type { BusinessType } from "@/config/business";
  * elegir. Como clave propia, se guarda y se elige sola — aunque solo se le
  * OFREZCA a quien le sirve (ver TEMPLATE_BUSINESS_TYPES más abajo).
  */
-export const SITE_TEMPLATES = ["clasico", "moderno", "minimal", "barberia"] as const;
+export const SITE_TEMPLATES = [
+  "clasico",
+  "moderno",
+  "minimal",
+  "barberia",
+  "barberia-artesanal",
+] as const;
 export type SiteTemplate = (typeof SITE_TEMPLATES)[number];
 
 export const TEMPLATE_LABELS: Record<SiteTemplate, string> = {
   clasico: "Clásico",
   moderno: "Moderno",
   minimal: "Minimal",
-  barberia: "Barbería",
+  // Dos plantillas de barbería: el nombre a secas no alcanza para elegir
+  // entre ellas, y lo que las separa es la estética, no el rubro.
+  barberia: "Barbería editorial",
+  "barberia-artesanal": "Barbería artesanal",
 };
 
 /**
- * Plantillas de RUBRO: se ofrecen SOLO a los negocios cuyo oficio nombran.
+ * Qué rubros ve cada plantilla.
  *
- * `barberia` no es un estilo neutro con otra paleta: su texto habla de cortes,
- * de barba y de "personas detrás del oficio", y el logo por defecto es una
- * tijera. Ofrecérsela a una tienda general o a un lavadero es invitarlos a
- * publicar un sitio que habla de otro negocio.
+ * No es una lista de permisos por seguridad: es que una plantilla NO es neutra.
+ * Las de barbería hablan de cortes, de barba y de "el equipo", y el logo por
+ * defecto es una tijera — en una tienda general publican un sitio que habla de
+ * otro negocio. Y al revés: a una barbería mostrarle "Clásico", "Moderno" y
+ * "Minimal" es ofrecerle tres diseños genéricos al lado de dos hechos para su
+ * oficio, que es la forma más rápida de que elija el peor de los cinco.
  *
- * Una plantilla que NO figura acá es de uso general y la ve todo el mundo. Es
- * decir: la lista dice quién es la excepción, no quién tiene permiso — así
- * agregar un estilo neutro nuevo no obliga a tocar este mapa.
+ * Una plantilla que NO figure acá se ofrece a todos. Hoy no hay ninguna, pero
+ * la puerta queda abierta para un diseño que de verdad sirva a cualquier rubro.
  */
+const RUBROS_GENERALES: readonly BusinessType[] = ["tienda", "lavaautos", "servicios"];
+
 export const TEMPLATE_BUSINESS_TYPES: Partial<Record<SiteTemplate, readonly BusinessType[]>> = {
+  clasico: RUBROS_GENERALES,
+  moderno: RUBROS_GENERALES,
+  minimal: RUBROS_GENERALES,
   barberia: ["salon"],
+  "barberia-artesanal": ["salon"],
 };
 
 /**
@@ -70,6 +86,8 @@ export const TEMPLATE_DESCRIPTIONS: Record<SiteTemplate, string> = {
   // Se nombra el oficio a propósito: el texto de la plantilla habla de cortes y
   // de barba, así que quien la elija para otro rubro tiene que saberlo antes.
   barberia: "Editorial, oscuro y dorado. Serifa grande y foto a sangre. Su texto habla de barbería.",
+  "barberia-artesanal":
+    "Claro y cálido. Cobre, titulares manuscritos y los servicios en círculos. Su texto habla de barbería.",
 };
 
 /** 0 = Sunday, matching Postgres `extract(dow from ...)`. */

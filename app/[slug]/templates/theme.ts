@@ -74,6 +74,30 @@ export const SITE_PALETTES: Record<SiteTemplate, SitePalette> = {
     "--site-body-font": "var(--font-plus-jakarta-sans), Arial, sans-serif",
     "--site-shadow": "none",
   },
+  /**
+   * Barbería artesanal. Los colores salen de la hoja de la referencia: marrón
+   * `#552d25`, cobre `#c98a6a`, blanco cálido `#fcf9f7` y tinta `#151514`.
+   *
+   * La familia manuscrita NO va acá: `--site-heading-font` la leen las secciones
+   * compartidas, que la usan para títulos de tarjeta y nombres de producto, y
+   * una cursiva a 14px no se lee. El manuscrito lo aplica la plantilla solo
+   * donde es un gesto —el titular del hero y el nombre del servicio en el
+   * círculo—, y para todo lo demás manda la serifa.
+   */
+  "barberia-artesanal": {
+    "--site-bg": "#fcf9f7",
+    "--site-surface": "#ffffff",
+    "--site-surface-alt": "#f0e7e1",
+    "--site-text": "#151514",
+    "--site-muted": "#6d5f59",
+    "--site-accent": "#552d25",
+    "--site-on-accent": "#fcf9f7",
+    "--site-border": "#e2d5cd",
+    "--site-radius": "4px",
+    "--site-heading-font": "Lora, Georgia, 'Times New Roman', serif",
+    "--site-body-font": "var(--font-plus-jakarta-sans), Arial, sans-serif",
+    "--site-shadow": "0 18px 50px rgba(85, 45, 37, 0.10)",
+  },
   minimal: {
     "--site-bg": "#f7f4ef",
     "--site-surface": "#fffdf9",

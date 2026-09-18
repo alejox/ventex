@@ -35,7 +35,9 @@ test("barbería es una plantilla elegible, no una consecuencia del tipo de negoc
   // `businessType === "salon"`, así que el selector mostraba tres tarjetas
   // mientras había una cuarta que nadie podía pedir.
   assert.ok(SITE_TEMPLATES.includes("barberia"));
-  assert.equal(TEMPLATE_LABELS.barberia, "Barbería");
+  // El nombre visible dejó de ser "Barbería" a secas cuando apareció la
+  // segunda: con dos, el rótulo tiene que decir CUÁL de las dos es.
+  assert.match(TEMPLATE_LABELS.barberia, /barber/i);
 });
 
 test("cada plantilla tiene etiqueta y descripción, y ninguna se repite", () => {
@@ -67,25 +69,43 @@ test("cada plantilla se distingue de las demás por color o por tipografía", ()
 });
 
 /**
- * Qué plantillas se le OFRECEN a cada negocio. La de barbería habla de cortes,
- * de barba y de "personas detrás del oficio": ofrecérsela a una tienda general
- * es invitarla a publicar un sitio que habla de otro negocio.
+ * Qué plantillas se le OFRECEN a cada negocio.
+ *
+ * Ninguna plantilla es neutra: las de barbería hablan de cortes y de barba, y
+ * las genéricas no hablan de nada en particular. Cruzarlas en el selector es
+ * ofrecerle a cada uno el diseño equivocado.
  */
 
-test("una tienda general no ve las plantillas de rubro", () => {
-  const ofrecidas = templatesFor("tienda");
-  assert.ok(!ofrecidas.includes("barberia"));
-  assert.deepEqual(ofrecidas, ["clasico", "moderno", "minimal"]);
+test("una tienda general ve las genéricas y ninguna de barbería", () => {
+  assert.deepEqual(templatesFor("tienda"), ["clasico", "moderno", "minimal"]);
 });
 
-test("un salón sí ve la de barbería", () => {
-  assert.ok(templatesFor("salon").includes("barberia"));
-  assert.equal(templatesFor("salon").length, SITE_TEMPLATES.length);
+test("una barbería ve SOLO las de barbería", () => {
+  assert.deepEqual(templatesFor("salon"), ["barberia", "barberia-artesanal"]);
 });
 
-test("lavaautos y servicios tampoco: barbería nombra un oficio que no es el suyo", () => {
-  for (const tipo of ["lavaautos", "servicios", null, undefined, ""]) {
-    assert.ok(!templatesFor(tipo).includes("barberia"), `${tipo} no debería verla`);
+test("hay DOS plantillas de barbería y son estéticas distintas, no dos tonos", () => {
+  const [editorial, artesanal] = templatesFor("salon").map(templatePreview);
+  assert.notEqual(editorial.bg, artesanal.bg, "una es oscura y la otra clara");
+  assert.notEqual(editorial.accent, artesanal.accent);
+  assert.notEqual(
+    TEMPLATE_LABELS.barberia,
+    TEMPLATE_LABELS["barberia-artesanal"],
+    "con el mismo nombre no se pueden distinguir en el selector",
+  );
+});
+
+test("lavaautos y servicios se parecen a la tienda, no a la barbería", () => {
+  for (const tipo of ["lavaautos", "servicios"]) {
+    assert.deepEqual(templatesFor(tipo), templatesFor("tienda"), tipo);
+  }
+});
+
+test("sin tipo de negocio no se ofrece ninguna plantilla de rubro", () => {
+  // Preferimos quedarnos cortos: mostrar las cinco a quien no sabemos qué es
+  // garantiza que la mayoría vea algo que no le sirve.
+  for (const tipo of [null, undefined, ""]) {
+    assert.deepEqual(templatesFor(tipo), [], String(tipo));
   }
 });
 
@@ -96,21 +116,15 @@ test("la plantilla YA GUARDADA se ofrece siempre, aunque deje de corresponder", 
   // cambiarlo. La restricción es para lo que se elige de ahora en adelante.
   const ofrecidas = templatesFor("tienda", "barberia");
   assert.ok(ofrecidas.includes("barberia"));
-  assert.equal(ofrecidas.length, SITE_TEMPLATES.length);
-});
-
-test("las plantillas neutras se ofrecen a todos los rubros", () => {
-  for (const tipo of ["tienda", "salon", "lavaautos", "servicios", null]) {
-    for (const neutra of ["clasico", "moderno", "minimal"] as const) {
-      assert.ok(templatesFor(tipo).includes(neutra), `${neutra} le falta a ${tipo}`);
-    }
-  }
+  assert.deepEqual(ofrecidas, ["clasico", "moderno", "minimal", "barberia"]);
 });
 
 test("el orden del selector no depende del rubro", () => {
   // Filtrar no debe reordenar: el dueño que vuelve a Ajustes espera las
   // tarjetas donde estaban.
-  const orden = (t: string) => templatesFor(t).join(",");
-  assert.ok(SITE_TEMPLATES.join(",").includes(orden("tienda")));
-  assert.equal(orden("salon"), SITE_TEMPLATES.join(","));
+  for (const tipo of ["tienda", "salon", "lavaautos"]) {
+    const ofrecidas = templatesFor(tipo);
+    const posiciones = ofrecidas.map((t) => SITE_TEMPLATES.indexOf(t));
+    assert.deepEqual(posiciones, [...posiciones].sort((a, b) => a - b), tipo);
+  }
 });
