@@ -1938,6 +1938,7 @@ export type Database = {
           has_commission: boolean
           icon: string | null
           id: string
+          image_url: string | null
           name: string
           price: number
           status: string
@@ -1953,6 +1954,7 @@ export type Database = {
           has_commission?: boolean
           icon?: string | null
           id?: string
+          image_url?: string | null
           name: string
           price?: number
           status?: string
@@ -1968,6 +1970,7 @@ export type Database = {
           has_commission?: boolean
           icon?: string | null
           id?: string
+          image_url?: string | null
           name?: string
           price?: number
           status?: string

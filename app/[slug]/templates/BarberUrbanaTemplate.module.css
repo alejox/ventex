@@ -101,6 +101,8 @@
 /* ---------- servicios ---------- */
 .serviceGrid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 22px; }
 .serviceCard { background: var(--site-bg); border: 1px solid var(--site-border); border-top: 3px solid var(--site-accent); padding: 26px; display: flex; flex-direction: column; }
+.serviceFoto { position: relative; margin: -26px -26px 20px; aspect-ratio: 16/10; overflow: hidden; background: var(--site-surface-alt); }
+.serviceFotoImg { object-fit: cover; }
 .serviceCard h3 { font-size: 19px; text-transform: uppercase; overflow-wrap: anywhere; }
 .serviceCard > p { margin-top: 12px; font-size: 13px; line-height: 1.8; color: var(--site-muted); }
 .serviceFoot { margin-top: auto; padding-top: 22px; display: flex; align-items: baseline; justify-content: space-between; gap: 14px; }

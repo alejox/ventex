@@ -24,6 +24,15 @@ interface CatalogRowBase {
   status: string;
   categoryName: string | null;
   createdAt: string;
+  /**
+   * La foto, venga de donde venga.
+   *
+   * Se resuelve acá y no en cada pantalla: cuando cada vista hacía
+   * `row.kind === "product" && row.product.image_url`, agregar la foto a los
+   * servicios significaba acordarse de tocar todos los lugares — y el catálogo
+   * de Inventario se quedó sin ella justamente por eso.
+   */
+  imageUrl: string | null;
 }
 
 export type CatalogRow =
@@ -55,6 +64,7 @@ export function catalogRowsOf(products: Product[], services: Service[]): Catalog
       status: product.status,
       categoryName: product.categories?.name ?? null,
       createdAt: product.created_at,
+      imageUrl: product.image_url ?? null,
       product,
     });
   }
@@ -68,6 +78,7 @@ export function catalogRowsOf(products: Product[], services: Service[]): Catalog
       status: service.status,
       categoryName: service.categories?.name ?? null,
       createdAt: service.created_at,
+      imageUrl: service.image_url ?? null,
       service,
     });
   }

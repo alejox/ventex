@@ -138,6 +138,22 @@ export function BarberArtesanalTemplate({ site }: { site: PublicSite }) {
             {site.services.map((servicio) => {
               const contenido = (
                 <>
+                  {/* La foto va DE FONDO del círculo, no arriba: el círculo ES
+                      la forma de esta plantilla, y meterle una foto encima lo
+                      convertiría en una tarjeta cuadrada más. El velo mantiene
+                      legible el nombre manuscrito sobre cualquier foto. */}
+                  {servicio.imageUrl && (
+                    <>
+                      <Image
+                        src={servicio.imageUrl}
+                        alt=""
+                        fill
+                        sizes="250px"
+                        className={styles.circleFoto}
+                      />
+                      <span className={styles.circleVelo} aria-hidden="true" />
+                    </>
+                  )}
                   <span className={styles.circleName}>{servicio.name}</span>
                   <span className={styles.circlePrice}>Desde {formatCOP(servicio.price)}</span>
                   <span className={styles.circleMeta}>{servicio.durationMinutes} min</span>

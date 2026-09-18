@@ -152,6 +152,20 @@ export function BarberUrbanaTemplate({ site }: { site: PublicSite }) {
           <ul className={styles.serviceGrid}>
             {site.services.map((servicio) => (
               <li key={servicio.id} className={styles.serviceCard}>
+                {/* La foto la sube el dueño en la ficha del servicio. Sin foto
+                    la tarjeta arranca en el nombre, como antes: no queda un
+                    recuadro vacío ocupando lugar. */}
+                {servicio.imageUrl && (
+                  <div className={styles.serviceFoto}>
+                    <Image
+                      src={servicio.imageUrl}
+                      alt=""
+                      fill
+                      sizes="(max-width: 760px) 100vw, 300px"
+                      className={styles.serviceFotoImg}
+                    />
+                  </div>
+                )}
                 <h3>{servicio.name}</h3>
                 {servicio.description && <p>{servicio.description}</p>}
                 <div className={styles.serviceFoot}>

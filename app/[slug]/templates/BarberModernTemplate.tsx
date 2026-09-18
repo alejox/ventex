@@ -62,7 +62,16 @@ export function BarberModernTemplate({ site }: { site: PublicSite }) {
         </div>
         <ul className={styles.serviceGrid}>
           {site.services.map((service, index) => <li key={service.id} className={styles.serviceCard}>
-            <div className={styles.serviceTop}><Scissors size={30} strokeWidth={1} aria-hidden="true" /><span>{String(index + 1).padStart(2, "0")}</span></div>
+            {/* Con foto, la foto encabeza la tarjeta; sin foto queda la tijera
+                con el número, que es como se veía hasta ahora. */}
+            {service.imageUrl ? (
+              <div className={styles.serviceFoto}>
+                <Image src={service.imageUrl} alt="" fill sizes="(max-width: 760px) 100vw, 420px" className={styles.serviceFotoImg} />
+                <span className={styles.serviceNumero}>{String(index + 1).padStart(2, "0")}</span>
+              </div>
+            ) : (
+              <div className={styles.serviceTop}><Scissors size={30} strokeWidth={1} aria-hidden="true" /><span>{String(index + 1).padStart(2, "0")}</span></div>
+            )}
             <h3>{service.name}</h3>
             {service.description && <p>{service.description}</p>}
             <span className={styles.duration}>{service.durationMinutes} minutos</span>

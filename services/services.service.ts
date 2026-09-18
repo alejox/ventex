@@ -25,6 +25,11 @@ export interface Service {
   category_id: string | null;
   created_at: string;
   categories: { name: string } | null;
+  /**
+   * Foto del servicio. Comparte el bucket `product-images` con los productos:
+   * las dos son imágenes de catálogo y tienen el mismo ciclo de vida.
+   */
+  image_url: string | null;
 }
 
 export interface NewServiceInput {
@@ -37,10 +42,11 @@ export interface NewServiceInput {
   commission_type: string;
   commission_value: string;
   category_id?: string;
+  image_url: string | null;
 }
 
 const SERVICE_COLUMNS =
-  "id, name, description, price, duration_minutes, status, has_commission, commission_type, commission_value, category_id, created_at";
+  "id, name, description, price, duration_minutes, status, has_commission, commission_type, commission_value, category_id, created_at, image_url";
 
 const SELECT = `${SERVICE_COLUMNS}, categories(name)`;
 
@@ -61,6 +67,7 @@ function servicePayload(input: NewServiceInput) {
     has_commission: input.has_commission,
     commission_type: input.has_commission ? input.commission_type : null,
     commission_value: input.has_commission ? parseFloat(input.commission_value) || null : null,
+    image_url: input.image_url,
   };
 }
 

@@ -80,8 +80,24 @@ export function ServicesSection({
             className={`${variant === "clasico" ? "flex items-start justify-between gap-5 border-b border-[var(--site-border)] py-6" : variant === "moderno" ? "group flex min-h-56 flex-col justify-between rounded-[var(--site-radius)] border border-[var(--site-border)] bg-[var(--site-surface)] p-6" : "flex flex-col items-start justify-between gap-5 rounded-[var(--site-radius)] border border-[var(--site-border)] bg-[var(--site-surface)] p-6 shadow-[var(--site-shadow)] sm:flex-row"} site-card`}
           >
             <div className="min-w-0">
-              {variant === "moderno" ? <span aria-hidden="true" className="mb-6 flex h-10 w-10 items-center justify-center rounded-full bg-[var(--site-accent)] font-bold text-[var(--site-on-accent)]">{service.icon ?? "+"}</span> : null}
-              {variant === "minimal" && service.icon ? <span aria-hidden="true" className="mb-5 flex h-10 w-10 items-center justify-center rounded-full bg-[var(--site-surface-alt)]">{service.icon}</span> : null}
+              {/* Con foto, la foto sustituye al ícono: es más información en el
+                  mismo lugar. Sin foto queda el ícono de siempre, así que un
+                  catálogo sin fotos se ve exactamente como antes. */}
+              {service.imageUrl ? (
+                <div className={`relative mb-5 overflow-hidden rounded-[var(--site-radius)] bg-[var(--site-surface-alt)] ${variant === "clasico" ? "aspect-[4/3] w-28 shrink-0" : "aspect-[16/10] w-full"}`}>
+                  <Image
+                    src={service.imageUrl}
+                    alt=""
+                    fill
+                    sizes={variant === "clasico" ? "112px" : "(max-width: 640px) 100vw, 380px"}
+                    unoptimized={esImagenAjena(service.imageUrl)}
+                    className="object-cover"
+                  />
+                </div>
+              ) : variant === "moderno" ? (
+                <span aria-hidden="true" className="mb-6 flex h-10 w-10 items-center justify-center rounded-full bg-[var(--site-accent)] font-bold text-[var(--site-on-accent)]">{service.icon ?? "+"}</span>
+              ) : null}
+              {variant === "minimal" && !service.imageUrl && service.icon ? <span aria-hidden="true" className="mb-5 flex h-10 w-10 items-center justify-center rounded-full bg-[var(--site-surface-alt)]">{service.icon}</span> : null}
               <h3 className={variant === "clasico" ? "text-xl font-normal text-[var(--site-text)]" : variant === "moderno" ? "text-lg font-bold text-[var(--site-text)]" : "text-xl font-bold tracking-tight text-[var(--site-text)]"} style={variant === "clasico" ? { fontFamily: "var(--site-heading-font)" } : undefined}>{service.name}</h3>
               {service.description ? (
                 <p className="mt-2 text-sm leading-relaxed text-[var(--site-muted)]">{service.description}</p>

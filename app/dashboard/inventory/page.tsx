@@ -414,8 +414,8 @@ export default function CatalogPage() {
                 <>
                   <div className="flex items-start gap-3">
                       <div className="relative w-11 h-11 shrink-0 rounded-xl bg-surface-container-lowest border border-outline-variant/10 flex items-center justify-center text-on-surface-variant/30 overflow-hidden">
-                        {row.kind === "product" && row.product.image_url ? (
-                          <Image src={row.product.image_url} alt="" fill sizes="44px" unoptimized className="object-cover" />
+                        {row.imageUrl ? (
+                          <Image src={row.imageUrl} alt="" fill sizes="44px" unoptimized className="object-cover" />
                         ) : isService ? (
                           <IconScissors className="w-5 h-5 text-[#8b5cf6]" />
                         ) : (
@@ -534,9 +534,9 @@ export default function CatalogPage() {
                         <td className="px-7 py-3.5">
                           <div className="flex items-center gap-3.5">
                             <div className="relative w-10 h-10 rounded-xl bg-surface-container border border-outline-variant/10 flex items-center justify-center text-on-surface-variant/30 overflow-hidden shrink-0">
-                              {row.kind === "product" && row.product.image_url ? (
+                              {row.imageUrl ? (
                                 <Image
-                                  src={row.product.image_url}
+                                  src={row.imageUrl}
                                   alt={row.name}
                                   fill
                                   sizes="40px"

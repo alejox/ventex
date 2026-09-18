@@ -189,3 +189,13 @@
 
 /* La foto del equipo llena el monograma cuando existe. */
 .monogramPhoto { object-fit: cover; }
+
+/* Foto del servicio: sangra hasta los bordes de la tarjeta (el padding es 30px)
+   para que se lea como una portada y no como una imagen pegada adentro. */
+.serviceFoto { position: relative; margin: -30px -30px 26px; aspect-ratio: 16/10; overflow: hidden; background: var(--site-surface-alt); }
+.serviceFotoImg { object-fit: cover; }
+/* Color LITERAL y no `var(--site-text)`: la sección de servicios redefine ese
+   token a la tinta oscura del papel, así que el número salía casi negro sobre
+   el velo casi negro — 1:1 de contraste, invisible. Sobre una foto oscurecida
+   el texto tiene que ser claro, venga de donde venga el tema. */
+.serviceNumero { position: absolute; right: 14px; bottom: 12px; font-size: 10px; letter-spacing: .1em; color: #f4f0e7; background: rgb(23 23 21 / .72); padding: 4px 8px; }

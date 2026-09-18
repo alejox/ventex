@@ -122,6 +122,8 @@ export interface PublicService {
   price: number;
   durationMinutes: number;
   icon: string | null;
+  /** Foto del servicio. Sin ella, cada plantilla dibuja su propio respaldo. */
+  imageUrl: string | null;
 }
 
 export interface PublicProduct {

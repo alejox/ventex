@@ -22,6 +22,7 @@ import { useBarcodeLookup } from "@/lib/useBarcodeLookup";
 import { canAutofill } from "@/lib/autofill";
 import type { OpenFactsProduct } from "@/services/openfacts.service";
 import { ProductImageUpload } from "./components/ProductImageUpload";
+import { uploadProductImage } from "@/services/inventory.service";
 import { ProductPricingSection } from "./components/ProductPricingSection";
 import { ProductPresentationSection } from "./components/ProductPresentationSection";
 
@@ -269,11 +270,13 @@ function ProductForm() {
       has_commission: editingService.has_commission ?? false,
       commission_type: editingService.commission_type ?? "percentage",
       commission_value: editingService.commission_value ? String(editingService.commission_value) : "",
+      image_url: editingService.image_url ?? "",
     }));
     setServiceFinalPrice(String(editingService.price));
     setServiceDuration(String(editingService.duration_minutes));
     setServiceDescription(editingService.description ?? "");
     setServiceStatus(editingService.status === "inactive" ? "inactive" : "active");
+    if (editingService.image_url) setImagePreview(editingService.image_url);
   }
 
   if (editingProduct && seededId !== editingProduct.id) {
@@ -394,6 +397,19 @@ function ProductForm() {
       const durationMinutes =
         /^\d+$/.test(durationRaw) && parseInt(durationRaw, 10) > 0 ? durationRaw : "30";
 
+      /*
+       * La foto se sube ANTES de guardar el servicio, y al mismo bucket que los
+       * productos: las dos son imágenes de catálogo. Si falla la subida se corta
+       * acá y el servicio no se guarda a medias — con la foto vieja puesta y el
+       * dueño creyendo que la cambió.
+       *
+       * Sin archivo nuevo vale lo que ya estaba en el formulario, que es "" si
+       * el dueño quitó la foto.
+       */
+      const imagenServicio = imageFile
+        ? await uploadProductImage(imageFile)
+        : form.image_url || null;
+
       const serviceInput: NewServiceInput = {
         name: form.name.trim().toUpperCase(),
         description: serviceDescription,
@@ -404,6 +420,7 @@ function ProductForm() {
         commission_type: form.commission_type,
         commission_value: form.commission_value || "",
         category_id: form.category_id,
+        image_url: imagenServicio,
       };
 
       const savedService = editServiceId
@@ -574,7 +591,10 @@ function ProductForm() {
       {/* `noValidate`: la validación la hace `handleSubmit` y se muestra bajo
           cada campo. La nativa se dibujaba encima de la etiqueta "Proveedor". */}
       <form onSubmit={handleSubmit} className="space-y-6" noValidate>
-        {itemType === "Producto" && (
+        {/* La foto ya no es solo del producto. Para una barbería el servicio ES
+            el producto: "Corte y barba" vende mucho más con una foto que con
+            una tijera dibujada. */}
+        {(
           <ProductImageUpload
             imagePreview={imagePreview}
             dragOver={dragOver}

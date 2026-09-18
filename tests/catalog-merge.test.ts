@@ -48,6 +48,7 @@ function service(over: Partial<Service> = {}): Service {
     price: 18000,
     duration_minutes: 30,
     status: "active",
+    image_url: null,
     has_commission: false,
     commission_type: null,
     commission_value: null,

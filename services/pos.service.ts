@@ -267,7 +267,7 @@ export async function fetchCatalog(): Promise<CatalogItem[]> {
       .order("name"),
     supabase
       .from("services")
-      .select("id, name, price, has_commission, commission_type, commission_value")
+      .select("id, name, price, image_url, has_commission, commission_type, commission_value")
       .eq("status", "active")
       .order("name"),
   ]);
@@ -291,7 +291,10 @@ export async function fetchCatalog(): Promise<CatalogItem[]> {
     // `quantity` sobre columnas enteras.
     allows_fractions: false,
     category_name: "Servicios",
-    image_url: null,
+    // Los servicios ya pueden tener foto y el POS la dibuja igual que la de un
+    // producto: en el mostrador, reconocer "Corte y barba" por la imagen es lo
+    // mismo para el cajero venga de la tabla que venga.
+    image_url: s.image_url ?? null,
     has_commission: s.has_commission ?? false,
     commission_type: (s.commission_type ?? null) as "percentage" | "fixed" | null,
     commission_value: s.commission_value ?? null,
