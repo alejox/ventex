@@ -6,11 +6,15 @@ import {
   IconShoppingCart,
   IconBox,
   IconUsers,
+  IconCar,
 } from "@/app/assets/icons/DashboardIcons";
 import styles from "./page.module.css";
 import { PricingSection } from "@/components/PricingSection";
 import { WhatsappFab } from "@/components/WhatsappFab";
 import { RotatingBusinessWord } from "@/components/RotatingBusinessWord";
+import { HeroVideo } from "@/components/HeroVideo";
+import { ThemedShot } from "@/components/ThemedShot";
+import { LandingHeader } from "@/components/LandingHeader";
 import { fetchPublicPlans, fetchPublicPlanPeriods } from "@/services/plans.server";
 
 export const metadata: Metadata = {
@@ -23,7 +27,7 @@ const BUSINESS_TYPES = ["Tiendas", "Salones", "Lava-autos", "Servicios", "Provee
 
 const SUCCESS_STORIES = [
   {
-    image: "/landing/avatar-mariana.svg",
+    image: "/landing/fotos/avatar-mariana.webp",
     name: "Mariana C.",
     business: "Tienda de productos",
     quote: "Ahora encuentro todo en un solo lugar y puedo cerrar el día con mucha más tranquilidad.",
@@ -31,7 +35,7 @@ const SUCCESS_STORIES = [
     tone: "bg-primary/15 text-primary",
   },
   {
-    image: "/landing/avatar-diego.svg",
+    image: "/landing/fotos/avatar-diego.webp",
     name: "Diego R.",
     business: "Barbería independiente",
     quote: "Registrar una venta es rápido y el equipo sabe exactamente qué se vendió y qué queda.",
@@ -39,7 +43,7 @@ const SUCCESS_STORIES = [
     tone: "bg-[#0fdff3]/15 text-[#0fdff3]",
   },
   {
-    image: "/landing/avatar-valentina.svg",
+    image: "/landing/fotos/avatar-valentina.webp",
     name: "Valentina C.",
     business: "Servicios profesionales",
     quote: "Por fin puedo entender mis ingresos sin depender de varias hojas de cálculo.",
@@ -66,18 +70,15 @@ function MockFrame({ label, children }: { label: string; children: React.ReactNo
 
 /* ---------------- Mocks por sección ---------------- */
 
-function DashboardMock() {
-  return (
-    <MockFrame label="Ventex · Panel">
-      <Image src="/landing/dashboard.png" alt="Dashboard de Ventex con ventas, ingresos y beneficio neto" width={1440} height={900} className="w-full h-auto" priority />
-    </MockFrame>
-  );
-}
-
 function PosMock() {
   return (
     <MockFrame label="Ventex · Punto de Venta">
-      <Image src="/landing/pos.png" alt="Punto de venta de Ventex con catálogo y factura" width={1440} height={900} className="w-full h-auto" />
+      <ThemedShot
+        dark="/landing/pos.png"
+        light="/landing/pos-light.png"
+        alt="Punto de venta de Ventex con catálogo y factura"
+        sizes="(max-width: 1024px) 92vw, 560px"
+      />
     </MockFrame>
   );
 }
@@ -85,7 +86,12 @@ function PosMock() {
 function InventoryMock() {
   return (
     <MockFrame label="Ventex · Inventario">
-      <Image src="/landing/catalogo.png" alt="Catálogo de Ventex con productos, servicios y stock" width={1440} height={900} className="w-full h-auto" />
+      <ThemedShot
+        dark="/landing/catalogo.png"
+        light="/landing/catalogo-light.png"
+        alt="Catálogo de Ventex con productos, servicios y stock"
+        sizes="(max-width: 1024px) 92vw, 560px"
+      />
     </MockFrame>
   );
 }
@@ -93,7 +99,12 @@ function InventoryMock() {
 function FinanceMock() {
   return (
     <MockFrame label="Ventex · Finanzas">
-      <Image src="/landing/dashboard.png" alt="Resumen financiero de Ventex con ingresos y beneficio neto" width={1440} height={900} className="w-full h-auto" />
+      <ThemedShot
+        dark="/landing/dashboard.png"
+        light="/landing/dashboard-light.png"
+        alt="Resumen financiero de Ventex con ingresos y beneficio neto"
+        sizes="(max-width: 1024px) 92vw, 560px"
+      />
     </MockFrame>
   );
 }
@@ -105,7 +116,8 @@ const FEATURES = [
     tag: "Punto de Venta",
     title: "Cobra en segundos, sin fricción",
     desc: "Arma el carrito, aplica impuestos y descuentos, y registra la venta. El stock se descuenta solo en una operación atómica.",
-    accent: "#6063ee",
+    accentText: "text-accent-pos",
+    accentChip: "bg-accent-pos/15 text-accent-pos",
     bullets: ["Cliente exento → IVA 0% automático", "Efectivo, tarjeta o transferencia"],
     mock: <PosMock />,
     flip: false,
@@ -114,7 +126,8 @@ const FEATURES = [
     tag: "Inventario",
     title: "Tu stock siempre al día",
     desc: "Productos, categorías y niveles de stock con alertas de bajo inventario. Cada venta actualiza las existencias al instante.",
-    accent: "#0fdff3",
+    accentText: "text-accent-inv",
+    accentChip: "bg-accent-inv/15 text-accent-inv",
     bullets: ["Alertas de stock bajo", "Categorías y SKUs"],
     mock: <InventoryMock />,
     flip: true,
@@ -123,10 +136,51 @@ const FEATURES = [
     tag: "Finanzas",
     title: "Ingresos y gastos, claros",
     desc: "KPIs reales, ingresos contra gastos y beneficio neto, con gráficas que se entienden de un vistazo.",
-    accent: "#10b981",
+    accentText: "text-accent-fin",
+    accentChip: "bg-accent-fin/15 text-accent-fin",
     bullets: ["Beneficio neto en tiempo real", "Gastos por categoría"],
     mock: <FinanceMock />,
     flip: false,
+  },
+];
+
+
+/**
+ * Verticales con foto del negocio de verdad, no un mockup flotando.
+ *
+ * Los bullets salen de los módulos que cada tipo realmente habilita en
+ * `config/business.ts` — no de adjetivos. "Historial por placa" es una pantalla
+ * que existe; "solución integral" no significa nada.
+ *
+ * `foto: null` es deliberado y NO es un bug: no hay foto de un lavaautos en el
+ * banco de imágenes, y ponerle una reunión de oficina genérica sería justo la
+ * clase de relleno que estamos sacando. Cuando aparezca la foto, se cambia el
+ * null por la ruta y la tarjeta se iguala sola.
+ */
+const VERTICALES = [
+  {
+    label: "Tiendas",
+    foto: "/landing/fotos/pago-con-datafono.webp",
+    alt: "Cajero cobrando con datáfono en el mostrador de una tienda",
+    bullets: ["Inventario y categorías", "Compras y distribuidores", "Pedidos por encargo"],
+  },
+  {
+    label: "Salones y barberías",
+    foto: "/landing/fotos/barberia-tablet.webp",
+    alt: "Barbero revisando su agenda en una tablet dentro de la barbería",
+    bullets: ["Citas y agenda", "Comisiones por barbero", "Promoción de cortes"],
+  },
+  {
+    label: "Lava-autos",
+    foto: null,
+    alt: "",
+    bullets: ["Turnos de lavado", "Historial por placa", "Insumos y detailing"],
+  },
+  {
+    label: "Servicios profesionales",
+    foto: "/landing/fotos/mujer-escritorio-laptop.webp",
+    alt: "Profesional trabajando con su portátil en el escritorio de la oficina",
+    bullets: ["Agenda de consultas", "Catálogo de honorarios", "Clientes y seguimiento"],
   },
 ];
 
@@ -147,97 +201,170 @@ export default async function LandingPage() {
     <div className="min-h-screen bg-background text-on-background font-sans">
       <div className={styles.progress} aria-hidden />
 
-      {/* Nav */}
-      <header className="sticky top-0 z-50 backdrop-blur-md bg-background/70 border-b border-outline-variant/10">
-        <nav aria-label="Principal" className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <LogoHorizontal className="w-[104px] h-[28px]" />
-          <div className="hidden md:flex items-center gap-1 rounded-full border border-outline-variant/10 bg-surface-container-low/60 p-1 text-sm font-medium text-on-surface-variant">
-            <a href="#producto" className="rounded-full bg-surface-container-high px-4 py-2 text-on-surface shadow-sm transition-colors hover:bg-surface-container-highest">Producto</a>
-            <a href="#como-funciona" className="rounded-full px-4 py-2 transition-colors hover:bg-surface-container-high hover:text-on-surface">Cómo funciona</a>
-            <a href="#precios" className="rounded-full px-4 py-2 transition-colors hover:bg-surface-container-high hover:text-on-surface">Precios</a>
+      {/* Nav: transparente sobre el hero, sólido al scrollear. */}
+      <LandingHeader />
+
+      {/* Hero a sangre: el mostrador de verdad ocupa todo el fondo y encima va
+          la promesa y el panel. El cuadro se ve ENTERO — el detalle de cómo se
+          sostiene el contraste sin taparlo está en el <style> de abajo. */}
+      <section className="relative flex min-h-[100svh] items-center overflow-hidden">
+        {/* El hero es OSCURO SIEMPRE, en los dos temas. No es una excepción
+            caprichosa: el fondo acá no es un token, es un video de un local, y
+            un video no se "aclara" cuando el usuario pide tema claro. Fijarlo
+            evita el caso imposible — texto oscuro sobre una escena de bar en
+            penumbra — y deja el cuadro entero visible.
+
+            Cómo se sostiene el contraste sin tapar el video: medido sobre el
+            póster, el pixel más claro de la banda del titular llega a luminancia
+            0.67, y un velo que dejara pasar el texto claro exigiría alfa 0.82,
+            o sea apenas 18% de video. Bajando el BRILLO del video al 45%, ese
+            mismo pixel cae a 0.1175, por debajo del límite de 0.1317, y el texto
+            pasa sin velo. Queda un 10% de margen. Se ve el video completo, solo
+            que como una escena más oscura, no como una foto tapada por niebla.
+
+            `.hero-ink` redeclara los tokens con sus valores oscuros y se pone
+            SOLO en los elementos de TEXTO (pastilla, titular, copy, microcopy),
+            no en la columna entera. Esa distinción importa: todo lo que tiene
+            superficie propia —los botones, el panel, los badges laterales—
+            queda fuera y sigue el tema, porque se lee sobre su propio fondo y
+            no sobre el video. */}
+        <style href="hero-media" precedence="default">{`
+.hero-media{filter:brightness(.45)}
+.hero-scrim{background:rgb(11 14 25 / .10)}
+/* El cierre de abajo va al MISMO oscuro fijo, no al token de fondo. Cuando
+   seguía el tema, en modo claro aparecía un velo BLANCO subiendo por encima del
+   video: el hero es un bloque oscuro y su borde inferior tiene que serlo
+   también. Así en oscuro funde sin costura y en claro el hero termina con un
+   canto limpio contra la sección siguiente.
+   (Ojo: acá adentro no van backticks — esto vive en un template literal.) */
+.hero-fade{background-image:linear-gradient(to top, rgb(11 14 25) 0%, rgb(11 14 25 / 0) 18%)}
+.hero-ink{
+  --background:#0b0e19;
+  --on-surface:#e1e4ff;
+  --on-surface-variant:#a5aac7;
+  --surface-container:#14192a;
+  --surface-container-high:#1a1f32;
+  --outline-variant:#414760;
+  --primary:#6063ee;
+  --on-primary:#ffffff;
+  --accent-fin:#34d399;
+  color:var(--on-surface);
+}
+        `}</style>
+        <div className="pointer-events-none absolute inset-0" aria-hidden>
+          <div className="hero-media h-full w-full">
+            <HeroVideo
+              src="/landing/hero.mp4"
+              poster="/landing/hero-poster.webp"
+              className="h-full w-full object-cover"
+            />
           </div>
-          <div className="flex items-center gap-3">
-            <Link href="/login" className="text-sm font-semibold text-on-surface-variant hover:text-on-surface transition-colors">
-              Iniciar sesión
-            </Link>
-            <Link
-              href="/register"
-              className="text-sm font-semibold bg-primary text-on-primary px-4 py-2 rounded-xl shadow-lg shadow-primary/20 hover:bg-primary-dim transition-colors"
+          <div className="hero-scrim absolute inset-0" />
+          <div className="hero-fade absolute inset-0" />
+        </div>
+
+        <div className="relative w-full max-w-6xl mx-auto px-6 pt-28 pb-20 lg:pt-32 lg:pb-24">
+        <div className="grid items-center gap-16 lg:grid-cols-2 lg:gap-24">
+          {/* Copy */}
+          <div className="text-center lg:text-left">
+            {/* Todo el copy del hero va en `text-on-surface`, NO en
+                `on-surface-variant`. No es gusto: sobre el video, el tono MEDIO
+                exige un velo de 0.58 en oscuro y 0.48 en claro para llegar a
+                4.5:1 — o sea tapar más de la mitad del cuadro. Con el tono
+                fuerte el mínimo baja a 0.00 y 0.21, y el video se ve entero. */}
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-outline-variant/20 bg-surface-container/60 text-xs font-semibold text-on-surface mb-9 hero-ink">
+              <span className="w-2 h-2 rounded-full bg-accent-fin" /> POS + Inventario + Finanzas en uno
+            </div>
+            <h1 className="hero-ink text-4xl sm:text-6xl lg:text-[3.4rem] font-black tracking-tight text-on-surface leading-[1.12]">
+              <span className="block">El sistema operativo</span>
+              {/* "para tu" y la palabra rotativa van en renglones SEPARADOS a
+                  propósito. Siempre caen así igual —"para tu emprendimiento" no
+                  entra en la columna a ningún tamaño—, pero declararlo explícito
+                  permite darle margen propio al de abajo.
+                  Ese margen es una corrección PERCEPTUAL, no geométrica: medido,
+                  el hueco ya era el mismo que entre los otros renglones (~23px),
+                  pero la pastilla es un bloque de color sólido y pesa más que
+                  unas letras con aire alrededor, así que se leía apretada. */}
+              <span className="block w-fit mx-auto text-start lg:mx-0">para tu</span>
+              <span className="mt-[0.18em] block w-fit mx-auto text-start lg:mx-0">
+                <RotatingBusinessWord />
+              </span>
+            </h1>
+            <p className="hero-ink mt-8 text-lg leading-relaxed text-on-surface max-w-xl mx-auto lg:mx-0">
+              Vende, controla tu inventario y entiende tus finanzas desde un solo lugar. Sin hojas de cálculo, sin caos.
+            </p>
+            <div className="mt-11 flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
+              <Link
+                href="/register"
+                className="px-7 py-3.5 rounded-xl bg-primary text-on-primary font-bold shadow-lg shadow-primary/25 hover:bg-primary-dim transition-colors"
+              >
+                Empieza gratis →
+              </Link>
+              <Link
+                href="/login"
+                className="px-7 py-3.5 rounded-xl bg-surface-container border border-outline-variant/20 text-on-surface font-bold hover:bg-surface-container-high transition-colors"
+              >
+                Ya tengo cuenta
+              </Link>
+            </div>
+            <p className="hero-ink mt-6 text-xs text-on-surface">Sin tarjeta de crédito · Listo en minutos</p>
+          </div>
+
+          {/* El panel real, encima de la escena real: es el mismo gesto que hace
+              treinta al componer la pantalla dentro del negocio. Ya no lleva
+              cuadro de video propio — el local es todo el fondo. */}
+          <div className={`${styles.heroFloat} relative min-h-[260px] sm:min-h-[340px] lg:min-h-[420px]`}>
+            <div className="absolute inset-x-0 top-4 mx-auto w-[92%] sm:w-[88%] overflow-hidden rounded-2xl border border-outline-variant/25 shadow-2xl">
+              <div className="flex items-center gap-1.5 bg-surface-container-high px-3 py-2">
+                <span className="w-2 h-2 rounded-full bg-error/60" />
+                <span className="w-2 h-2 rounded-full bg-[#f59e0b]/60" />
+                <span className="w-2 h-2 rounded-full bg-accent-fin/60" />
+                <span className="ml-2 text-[10px] font-medium text-on-surface-variant">Ventex · Panel</span>
+              </div>
+              {/* `sizes` tiene que decir el ancho REAL en pantalla: medido, el
+                  panel ocupa 459px a 1x. Declaraba 320px, así que next/image
+                  servía 320 y el navegador lo estiraba — de ahí lo pixelado, y
+                  en retina sería el doble de evidente. */}
+              <ThemedShot
+                dark="/landing/dashboard.png"
+                light="/landing/dashboard-light.png"
+                alt="Panel de Ventex con ventas, ingresos y beneficio neto"
+                sizes="(max-width: 640px) 88vw, (max-width: 1024px) 46vw, 560px"
+                priority
+              />
+            </div>
+
+            <div
+              className={`${styles.floatA} hidden sm:flex absolute -right-2 top-0 z-10 items-center gap-2 bg-surface-container-high border border-outline-variant/15 rounded-xl px-3 py-2 shadow-xl`}
             >
-              Empieza gratis
-            </Link>
-          </div>
-        </nav>
-      </header>
-
-      {/* Hero */}
-      <section className="relative overflow-hidden max-w-6xl mx-auto px-6 pt-20 pb-28 text-center">
-        <div
-          className={`${styles.glow} pointer-events-none absolute top-1/3 left-1/2 w-[760px] h-[760px] -z-10 rounded-full`}
-          style={{ background: "radial-gradient(circle, #6063ee 0%, transparent 60%)" }}
-          aria-hidden
-        />
-        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-outline-variant/20 bg-surface-container/60 text-xs font-semibold text-on-surface-variant mb-7">
-          <span className="w-2 h-2 rounded-full bg-[#10b981]" /> POS + Inventario + Finanzas en uno
-        </div>
-        <h1 className="text-4xl sm:text-6xl font-black tracking-tight text-on-surface leading-[1.05] max-w-4xl mx-auto">
-          <span className="block">El sistema operativo</span>
-          <span className="block w-fit mx-auto text-start">
-            para tu{" "}
-            <RotatingBusinessWord />
-          </span>
-        </h1>
-        <p className="mt-6 text-lg text-on-surface-variant max-w-xl mx-auto">
-          Vende, controla tu inventario y entiende tus finanzas desde un solo lugar. Sin hojas de cálculo, sin caos.
-        </p>
-        <div className="mt-9 flex flex-col sm:flex-row gap-4 justify-center">
-          <Link
-            href="/register"
-            className="px-7 py-3.5 rounded-xl bg-primary text-on-primary font-bold shadow-lg shadow-primary/25 hover:bg-primary-dim transition-colors"
-          >
-            Empieza gratis →
-          </Link>
-          <Link
-            href="/login"
-            className="px-7 py-3.5 rounded-xl bg-surface-container border border-outline-variant/20 text-on-surface font-bold hover:bg-surface-container-high transition-colors"
-          >
-            Ya tengo cuenta
-          </Link>
-        </div>
-        <p className="mt-4 text-xs text-on-surface-variant">Sin tarjeta de crédito · Listo en minutos</p>
-
-        {/* Mock principal con tarjetas flotantes */}
-        <div className={`${styles.heroFloat} relative mt-16 max-w-3xl mx-auto`}>
-          <DashboardMock />
-          <div
-            className={`${styles.floatA} hidden sm:flex absolute -left-6 top-24 items-center gap-2 bg-surface-container-high border border-outline-variant/15 rounded-xl px-3 py-2 shadow-xl`}
-          >
-            <span className="w-7 h-7 rounded-lg bg-[#10b981]/15 text-[#10b981] flex items-center justify-center">
-              <IconShoppingCart className="w-4 h-4" />
-            </span>
-            <div className="text-left">
-              <p className="text-[10px] text-on-surface-variant leading-tight">Venta registrada</p>
-              <p className="text-xs font-black text-on-surface leading-tight">+$249.99</p>
+              <span className="w-7 h-7 rounded-lg bg-accent-fin/15 text-accent-fin flex items-center justify-center">
+                <IconShoppingCart className="w-4 h-4" />
+              </span>
+              <div className="text-left">
+                <p className="text-[10px] text-on-surface-variant leading-tight">Venta registrada</p>
+                <p className="text-xs font-black text-on-surface leading-tight">+$249.99</p>
+              </div>
+            </div>
+            <div
+              className={`${styles.floatB} hidden sm:flex absolute -left-2 bottom-4 z-10 items-center gap-2 bg-surface-container-high border border-outline-variant/15 rounded-xl px-3 py-2 shadow-xl`}
+            >
+              <span className="w-7 h-7 rounded-lg bg-accent-inv/15 text-accent-inv flex items-center justify-center">
+                <IconBox className="w-4 h-4" />
+              </span>
+              <div className="text-left">
+                <p className="text-[10px] text-on-surface-variant leading-tight">Stock actualizado</p>
+                <p className="text-xs font-black text-on-surface leading-tight">14 unidades</p>
+              </div>
             </div>
           </div>
-          <div
-            className={`${styles.floatB} hidden sm:flex absolute -right-6 bottom-16 items-center gap-2 bg-surface-container-high border border-outline-variant/15 rounded-xl px-3 py-2 shadow-xl`}
-          >
-            <span className="w-7 h-7 rounded-lg bg-[#8b5cf6]/15 text-[#8b5cf6] flex items-center justify-center">
-              <IconBox className="w-4 h-4" />
-            </span>
-            <div className="text-left">
-              <p className="text-[10px] text-on-surface-variant leading-tight">Stock actualizado</p>
-              <p className="text-xs font-black text-on-surface leading-tight">14 unidades</p>
-            </div>
-          </div>
+        </div>
         </div>
       </section>
 
       {/* Trust bar */}
       <section className="border-y border-outline-variant/10 bg-surface-container-low/40">
         <div className="max-w-6xl mx-auto px-6 py-8 flex flex-wrap items-center justify-center gap-x-10 gap-y-3">
-          <span className="text-xs font-bold uppercase tracking-[0.2em] text-on-surface-variant/70">Hecho para</span>
+          <span className="text-xs font-bold uppercase tracking-[0.2em] text-on-surface-variant">Hecho para</span>
           {BUSINESS_TYPES.map((b) => (
             <span key={b} className="text-sm font-bold text-on-surface-variant">{b}</span>
           ))}
@@ -247,7 +374,7 @@ export default async function LandingPage() {
       {/* Features: filas alternadas con mock de cada sección */}
       <section id="producto" className="max-w-6xl mx-auto px-6 py-24 space-y-24">
         <div className="text-center max-w-2xl mx-auto">
-          <p className="text-sm font-bold text-primary mb-3">TODO EN UNO</p>
+          <p className="text-sm font-bold text-accent-pos mb-3">TODO EN UNO</p>
           <h2 className="text-3xl sm:text-4xl font-black tracking-tight text-on-surface">
             Una plataforma que crece contigo
           </h2>
@@ -262,16 +389,13 @@ export default async function LandingPage() {
               {f.mock}
             </div>
             <div className={f.flip ? styles.revealLeft : styles.revealRight}>
-              <p className="text-xs font-bold uppercase tracking-wider" style={{ color: f.accent }}>{f.tag}</p>
+              <p className={`text-xs font-bold uppercase tracking-wider ${f.accentText}`}>{f.tag}</p>
               <h3 className="text-2xl sm:text-3xl font-black text-on-surface mt-2 leading-tight">{f.title}</h3>
               <p className="text-on-surface-variant mt-4 leading-relaxed">{f.desc}</p>
               <ul className="mt-5 space-y-2.5">
                 {f.bullets.map((b) => (
                   <li key={b} className="flex items-center gap-3 text-sm text-on-surface">
-                    <span
-                      className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 text-[11px] font-black"
-                      style={{ backgroundColor: `${f.accent}26`, color: f.accent }}
-                    >
+                    <span className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 text-[11px] font-black ${f.accentChip}`}>
                       ✓
                     </span>
                     {b}
@@ -281,6 +405,56 @@ export default async function LandingPage() {
             </div>
           </div>
         ))}
+      </section>
+
+
+      {/* Verticales: el producto adentro del negocio */}
+      <section className="max-w-6xl mx-auto px-6 pb-24" aria-labelledby="verticales-title">
+        <div className="text-center max-w-2xl mx-auto mb-12">
+          <p className="text-sm font-bold text-accent-pos mb-3">PARA TU NEGOCIO</p>
+          <h2 id="verticales-title" className="text-3xl sm:text-4xl font-black tracking-tight text-on-surface">
+            No importa a qué te dediques
+          </h2>
+          <p className="mt-4 text-on-surface-variant">
+            Ventex se ajusta al tipo de negocio que tengas: cada uno ve sus propios módulos, no un menú lleno de cosas que no usa.
+          </p>
+        </div>
+
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          {VERTICALES.map((v) => (
+            <article
+              key={v.label}
+              className="overflow-hidden rounded-3xl border border-outline-variant/15 bg-surface-container"
+            >
+              <div className="relative aspect-[3/2] w-full bg-surface-container-high">
+                {v.foto ? (
+                  <Image
+                    src={v.foto}
+                    alt={v.alt}
+                    fill
+                    sizes="(max-width: 640px) 86vw, (max-width: 1024px) 45vw, 25vw"
+                    className="object-cover"
+                  />
+                ) : (
+                  <span className="absolute inset-0 flex items-center justify-center bg-accent-pos/10 text-accent-pos">
+                    <IconCar className="h-10 w-10" />
+                  </span>
+                )}
+              </div>
+              <div className="p-6">
+                <h3 className="font-bold text-on-surface">{v.label}</h3>
+                <ul className="mt-3 space-y-2">
+                  {v.bullets.map((b) => (
+                    <li key={b} className="flex items-start gap-2.5 text-sm text-on-surface-variant">
+                      <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent-pos" aria-hidden />
+                      {b}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </article>
+          ))}
+        </div>
       </section>
 
       {/* Stats */}
@@ -305,7 +479,7 @@ export default async function LandingPage() {
       {/* Cómo funciona */}
       <section id="como-funciona" className="max-w-6xl mx-auto px-6 py-24">
         <div className="text-center max-w-2xl mx-auto mb-14">
-          <p className="text-sm font-bold text-primary mb-3">EN 3 PASOS</p>
+          <p className="text-sm font-bold text-accent-pos mb-3">EN 3 PASOS</p>
           <h2 className="text-3xl sm:text-4xl font-black tracking-tight text-on-surface">Listo para vender hoy mismo</h2>
         </div>
         <div className="grid md:grid-cols-3 gap-6">
@@ -319,7 +493,7 @@ export default async function LandingPage() {
                 <span className="w-11 h-11 rounded-2xl bg-primary/10 text-primary flex items-center justify-center">
                   <s.icon className="w-5 h-5" />
                 </span>
-                <span className="text-4xl font-black text-primary/15">{s.n}</span>
+                <span className="text-4xl font-black text-accent-pos/25" aria-hidden>{s.n}</span>
               </div>
               <h3 className="text-lg font-bold text-on-surface mt-4">{s.title}</h3>
               <p className="text-on-surface-variant mt-2">{s.desc}</p>
@@ -335,7 +509,7 @@ export default async function LandingPage() {
       <section className="overflow-hidden py-24" aria-labelledby="casos-title">
         <div className="max-w-6xl mx-auto px-6">
           <div className="text-center max-w-3xl mx-auto">
-            <p className="text-sm font-bold text-primary mb-3">CASOS DE ÉXITO</p>
+            <p className="text-sm font-bold text-accent-pos mb-3">CASOS DE ÉXITO</p>
             <h2 id="casos-title" className="text-3xl sm:text-4xl font-black tracking-tight text-on-surface">
               Historias de negocios que avanzan
             </h2>
@@ -352,7 +526,7 @@ export default async function LandingPage() {
                   className="shrink-0 w-[min(86vw,360px)] rounded-3xl border border-outline-variant/15 bg-surface-container p-7 shadow-xl shadow-black/10"
                 >
                   <div className="flex items-start gap-4">
-                    <Image src={story.image} alt="" width={56} height={56} className="h-14 w-14 shrink-0 rounded-full" />
+                    <Image src={story.image} alt="" width={56} height={56} className="h-14 w-14 shrink-0 rounded-full object-cover" />
                     <div className="pt-1">
                       <span className="text-2xl leading-none text-primary" aria-hidden="true">“</span>
                       <p className="mt-1 text-[15px] italic leading-7 text-on-surface-variant">{story.quote}”</p>
@@ -363,7 +537,7 @@ export default async function LandingPage() {
                       <p className="font-bold text-on-surface">{story.name}</p>
                       <p className="mt-1 text-sm text-on-surface-variant">{story.business}</p>
                     </div>
-                    <span className="shrink-0 rounded-full bg-primary/10 px-3 py-2 text-xs font-semibold text-primary">
+                    <span className="shrink-0 rounded-full bg-accent-pos/10 px-3 py-2 text-xs font-semibold text-accent-pos">
                       {story.result}
                     </span>
                   </div>
