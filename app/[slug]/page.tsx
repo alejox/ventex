@@ -9,6 +9,7 @@ import { ModernoTemplate } from "./templates/ModernoTemplate";
 import { MinimalTemplate } from "./templates/MinimalTemplate";
 import { BarberModernTemplate } from "./templates/BarberModernTemplate";
 import { BarberArtesanalTemplate } from "./templates/BarberArtesanalTemplate";
+import { BarberUrbanaTemplate } from "./templates/BarberUrbanaTemplate";
 
 /**
  * A business's public micro-site, served at the site root: /<slug>.
@@ -27,6 +28,7 @@ const TEMPLATES = {
   minimal: MinimalTemplate,
   barberia: BarberModernTemplate,
   "barberia-artesanal": BarberArtesanalTemplate,
+  "barberia-urbana": BarberUrbanaTemplate,
 } as const;
 
 /**

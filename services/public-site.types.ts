@@ -23,6 +23,7 @@ export const SITE_TEMPLATES = [
   "minimal",
   "barberia",
   "barberia-artesanal",
+  "barberia-urbana",
 ] as const;
 export type SiteTemplate = (typeof SITE_TEMPLATES)[number];
 
@@ -34,6 +35,7 @@ export const TEMPLATE_LABELS: Record<SiteTemplate, string> = {
   // entre ellas, y lo que las separa es la estética, no el rubro.
   barberia: "Barbería editorial",
   "barberia-artesanal": "Barbería artesanal",
+  "barberia-urbana": "Barbería urbana",
 };
 
 /**
@@ -57,6 +59,7 @@ export const TEMPLATE_BUSINESS_TYPES: Partial<Record<SiteTemplate, readonly Busi
   minimal: RUBROS_GENERALES,
   barberia: ["salon"],
   "barberia-artesanal": ["salon"],
+  "barberia-urbana": ["salon"],
 };
 
 /**
@@ -88,6 +91,8 @@ export const TEMPLATE_DESCRIPTIONS: Record<SiteTemplate, string> = {
   barberia: "Editorial, oscuro y dorado. Serifa grande y foto a sangre. Su texto habla de barbería.",
   "barberia-artesanal":
     "Claro y cálido. Cobre, titulares manuscritos y los servicios en círculos. Su texto habla de barbería.",
+  "barberia-urbana":
+    "Verde y directo. Versalitas condensadas y tus datos de contacto arriba de todo. Su texto habla de barbería.",
 };
 
 /** 0 = Sunday, matching Postgres `extract(dow from ...)`. */
@@ -298,6 +303,18 @@ export const TEMPLATE_COPY_DEFAULTS: Record<
     teamSubtitle: "Personas detrás del oficio",
     bookingTitle: "Tu próximo buen momento.",
     bookingSubtitle: "Elegí el servicio, el profesional y el horario que mejor te venga.",
+  },
+  "barberia-urbana": {
+    heroKicker: "Cortes clásicos · Barba · Afeitado",
+    servicesTitle: "Nuestros servicios",
+    servicesSubtitle: "Lo que hacemos todos los días",
+    aboutTitle: "La barbería",
+    pricesTitle: "Nuestros precios",
+    pricesSubtitle: "Claros y sin letra chica",
+    teamTitle: "Los barberos",
+    teamSubtitle: "Quién te va a atender",
+    bookingTitle: "Pedí tu turno",
+    bookingSubtitle: "Elegí servicio, barbero y horario. Te confirmamos por WhatsApp.",
   },
   "barberia-artesanal": {
     heroKicker: "Cortes · Barba · Cuidado",

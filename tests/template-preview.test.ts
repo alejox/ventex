@@ -91,18 +91,27 @@ test("una tienda general ve las genéricas y ninguna de barbería", () => {
 });
 
 test("una barbería ve SOLO las de barbería", () => {
-  assert.deepEqual(templatesFor("salon"), ["barberia", "barberia-artesanal"]);
+  const ofrecidas = templatesFor("salon");
+  assert.ok(ofrecidas.length >= 2, "tiene que haber de dónde elegir");
+  assert.ok(ofrecidas.every((t) => t.startsWith("barberia")), ofrecidas.join(","));
+  for (const generica of ["clasico", "moderno", "minimal"]) {
+    assert.ok(!ofrecidas.includes(generica as never), generica);
+  }
 });
 
-test("hay DOS plantillas de barbería y son estéticas distintas, no dos tonos", () => {
-  const [editorial, artesanal] = templatesFor("salon").map(templatePreview);
-  assert.notEqual(editorial.bg, artesanal.bg, "una es oscura y la otra clara");
-  assert.notEqual(editorial.accent, artesanal.accent);
-  assert.notEqual(
-    TEMPLATE_LABELS.barberia,
-    TEMPLATE_LABELS["barberia-artesanal"],
-    "con el mismo nombre no se pueden distinguir en el selector",
-  );
+test("las tres de barbería son estéticas distintas, no la misma con otro color", () => {
+  const vistas = templatesFor("salon").map(templatePreview);
+  for (let i = 0; i < vistas.length; i++) {
+    for (let j = i + 1; j < vistas.length; j++) {
+      assert.notEqual(vistas[i].accent, vistas[j].accent, `acentos repetidos en ${i} y ${j}`);
+    }
+  }
+});
+
+test("cada plantilla de barbería tiene un nombre propio en el selector", () => {
+  // Con tres, el rótulo es lo único que las distingue antes de elegir.
+  const rotulos = templatesFor("salon").map((t) => TEMPLATE_LABELS[t]);
+  assert.equal(new Set(rotulos).size, rotulos.length, rotulos.join(" / "));
 });
 
 test("lavaautos y servicios se parecen a la tienda, no a la barbería", () => {

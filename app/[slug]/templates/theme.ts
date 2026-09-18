@@ -75,6 +75,27 @@ export const SITE_PALETTES: Record<SiteTemplate, SitePalette> = {
     "--site-shadow": "none",
   },
   /**
+   * Barbería urbana. Verde `#538167` y grises de la hoja de la referencia.
+   *
+   * La condensada va en `--site-heading-font` —al revés que la manuscrita de la
+   * artesanal— porque Roboto Condensed SÍ es legible en un título de tarjeta o
+   * en el nombre de un producto: es una tipografía de texto, no un gesto.
+   */
+  "barberia-urbana": {
+    "--site-bg": "#ffffff",
+    "--site-surface": "#f9f9f9",
+    "--site-surface-alt": "#eef2ef",
+    "--site-text": "#333333",
+    "--site-muted": "#7f8c8d",
+    "--site-accent": "#538167",
+    "--site-on-accent": "#ffffff",
+    "--site-border": "#d7d7d7",
+    "--site-radius": "0px",
+    "--site-heading-font": "var(--font-roboto-condensed), 'Arial Narrow', Arial, sans-serif",
+    "--site-body-font": "var(--font-roboto), var(--font-plus-jakarta-sans), Arial, sans-serif",
+    "--site-shadow": "0 14px 40px rgba(51, 51, 51, 0.08)",
+  },
+  /**
    * Barbería artesanal. Los colores salen de la hoja de la referencia: marrón
    * `#552d25`, cobre `#c98a6a`, blanco cálido `#fcf9f7` y tinta `#151514`.
    *
