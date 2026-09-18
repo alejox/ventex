@@ -207,7 +207,7 @@ export default async function LandingPage() {
       {/* Hero a sangre: el mostrador de verdad ocupa todo el fondo y encima va
           la promesa y el panel. El cuadro se ve ENTERO — el detalle de cómo se
           sostiene el contraste sin taparlo está en el <style> de abajo. */}
-      <section className="relative flex min-h-[100svh] items-center overflow-hidden">
+      <section className="hero-full relative flex items-center overflow-hidden">
         {/* El hero es OSCURO SIEMPRE, en los dos temas. No es una excepción
             caprichosa: el fondo acá no es un token, es un video de un local, y
             un video no se "aclara" cuando el usuario pide tema claro. Fijarlo
@@ -229,6 +229,18 @@ export default async function LandingPage() {
             queda fuera y sigue el tema, porque se lee sobre su propio fondo y
             no sobre el video. */}
         <style href="hero-media" precedence="default">{`
+/* Alto del hero en iOS. La unidad svh es el viewport CHICO (con la barra de
+   Safari visible): cuando la barra se esconde al scrollear, el área visible
+   crece al viewport GRANDE y un hero de 100svh deja de llegar abajo — ahí
+   aparece la franja de la sección siguiente, que se lee como "espacio en
+   blanco". Con lvh el hero mide siempre lo del viewport grande, así que cubre
+   en todos los estados de la barra; el contenido va centrado, de modo que el
+   recorte de arriba/abajo cuando la barra está visible no se nota. svh queda
+   de base por si el navegador no soporta lvh.
+   (Recordatorio: este bloque es un template literal — acá adentro NO van
+   backticks, cierran el string y rompen el archivo.) */
+.hero-full{min-height:100svh}
+@supports (height:100lvh){.hero-full{min-height:100lvh}}
 .hero-media{filter:brightness(.45)}
 .hero-scrim{background:rgb(11 14 25 / .10)}
 /* El cierre de abajo va al MISMO oscuro fijo, no al token de fondo. Cuando
@@ -280,7 +292,7 @@ export default async function LandingPage() {
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-outline-variant/20 bg-surface-container/60 text-xs font-semibold text-on-surface mb-9 hero-ink">
               <span className="w-2 h-2 rounded-full bg-accent-fin" /> POS + Inventario + Finanzas en uno
             </div>
-            <h1 className="hero-ink text-5xl sm:text-6xl lg:text-[4.5rem] font-black tracking-tight text-on-surface leading-[1.08]">
+            <h1 className="hero-ink text-4xl sm:text-6xl lg:text-[4.5rem] font-black tracking-tight text-on-surface leading-[1.08]">
               <span className="block">El sistema operativo</span>
               {/* "para tu" y la palabra rotativa van en renglones SEPARADOS a
                   propósito. Siempre caen así igual —"para tu emprendimiento" no
@@ -292,7 +304,7 @@ export default async function LandingPage() {
                   con aire alrededor, así que se leía apretada. El 0.5em salió de
                   probarlo en pantalla, no de la cuenta. */}
               <span className="block w-fit mx-auto text-start lg:mx-0">para tu</span>
-              <span className="mt-[0.5em] block w-fit mx-auto text-start lg:mx-0">
+              <span className="mt-[0.5em] block text-center lg:text-start">
                 <RotatingBusinessWord />
               </span>
             </h1>
