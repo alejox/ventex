@@ -918,6 +918,11 @@ export default function POSPage() {
           totals={totals}
           cart={cart}
           paymentMethod={paymentMethod}
+          setPaymentMethod={setPaymentMethod}
+          transferMethod={transferMethod ?? null}
+          cardMethod={cardMethod ?? null}
+          setTransferMethod={setTransferMethod}
+          setCardMethod={setCardMethod}
           paymentOptions={paymentOptions}
           splits={splits}
           addSplit={addSplit}

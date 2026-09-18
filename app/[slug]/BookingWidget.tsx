@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import {
   usePublicBookingStore,
@@ -34,7 +35,15 @@ import { BOOK_SERVICE_EVENT } from "./BookServiceLink";
  * publishes, so this looks native inside all three designs.
  */
 
-const DAYS_AHEAD = 21;
+/*
+ * Dos meses de anticipación.
+ *
+ * Eran 21 días, elegidos cuando el selector era una tira horizontal donde
+ * scrollear más lejos no tenía sentido. Con un calendario de mes, 21 días dejan
+ * el mes siguiente casi entero en gris y el visitante cree que el negocio está
+ * cerrado. Medido contra la base: pedir 60 días tarda 36 ms.
+ */
+const DAYS_AHEAD = 60;
 
 /**
  * Un día abierto son veinte y pico de turnos. Puestos en una sola grilla son
@@ -71,7 +80,38 @@ function hourOf(slot: DaySlot): number {
   return Number(slot.time.slice(0, 2));
 }
 
-const weekdayFmt = new Intl.DateTimeFormat("es-CO", { weekday: "short" });
+const mesFmt = new Intl.DateTimeFormat("es-CO", { month: "long", year: "numeric" });
+
+/**
+ * Empieza en domingo, como el resto de la app.
+ *
+ * `WEEKDAY_LABELS` y el `dow` de Postgres arrancan en domingo, y la lista de
+ * horarios del micrositio se dibuja en ese orden. Un calendario que empezara en
+ * lunes obligaría a leer dos órdenes distintos en la misma página.
+ */
+const INICIALES_SEMANA = ["D", "L", "M", "M", "J", "V", "S"] as const;
+
+/** Clave `YYYY-MM` del mes de una fecha, para comparar meses sin tocar husos. */
+const claveMes = (fecha: string) => fecha.slice(0, 7);
+
+/**
+ * Las celdas del mes que se está mirando, con los huecos del principio.
+ *
+ * Se arma desde el primer día del mes y no desde la lista cargada: un mes tiene
+ * que verse entero aunque la disponibilidad empiece a mitad de mes, o el
+ * visitante no reconoce el calendario.
+ */
+function celdasDelMes(mes: string): (string | null)[] {
+  const [anio, num] = mes.split("-").map(Number);
+  const primero = new Date(anio, num - 1, 1);
+  const diasEnMes = new Date(anio, num, 0).getDate();
+  const huecos = primero.getDay();
+  const celdas: (string | null)[] = Array.from({ length: huecos }, () => null);
+  for (let d = 1; d <= diasEnMes; d++) {
+    celdas.push(`${anio}-${String(num).padStart(2, "0")}-${String(d).padStart(2, "0")}`);
+  }
+  return celdas;
+}
 const longDateFmt = new Intl.DateTimeFormat("es-CO", {
   weekday: "long",
   day: "numeric",
@@ -89,6 +129,8 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
   // día con cupo, así que quien entra un domingo con el local cerrado no se
   // encuentra una grilla vacía y se va.
   const [pickedDate, setPickedDate] = useState<string | null>(null);
+  /** Mes que se está mirando. Arranca en el de hoy. */
+  const [mesVisible, setMesVisible] = useState(() => claveMes(toDateInput(new Date())));
   const [pickedTime, setPickedTime] = useState<string>("");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -115,6 +157,20 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
 
   // El día mostrado: el que eligió el visitante, o el primero con cupo.
   const firstBookable = days.find((d) => d.isOpen && d.freeSlots > 0)?.date;
+
+  /** Disponibilidad indexada por fecha: el calendario busca por celda. */
+  const porFecha = new Map(days.map((d) => [d.date, d]));
+
+  /*
+   * Los meses navegables salen de la VENTANA CARGADA, no del calendario.
+   * Dejar avanzar más allá llevaría a un mes entero en gris, que se lee como
+   * "este negocio cerró" y no como "todavía no abrió la agenda".
+   */
+  const mesesConDatos = [...new Set(days.map((d) => claveMes(d.date)))].sort();
+  const indiceMes = mesesConDatos.indexOf(mesVisible);
+  const mesAnterior = indiceMes > 0 ? mesesConDatos[indiceMes - 1] : null;
+  const mesSiguiente =
+    indiceMes >= 0 && indiceMes < mesesConDatos.length - 1 ? mesesConDatos[indiceMes + 1] : null;
   const date = pickedDate ?? firstBookable ?? today;
 
   const slotKey = slotKeyOf(serviceId, date, staffId);
@@ -263,66 +319,124 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
         ) : null}
       </Step>
 
-      {/* ---- Day strip ---- */}
-      <Step n={2} title="¿Qué día?">
-        <div className="relative">
-          <div className="scrollbar-hide -mx-1 flex snap-x snap-mandatory gap-2 overflow-x-auto px-1 pb-1">
-            {days.map((day) => {
-              const isSelected = day.date === date;
-              const isBookable = day.isOpen && day.freeSlots > 0;
-              const parsed = parseDateInput(day.date);
-              const isToday = day.date === today;
-
-              return (
-                <button
-                  key={day.date}
-                  type="button"
-                  disabled={!isBookable}
-                  aria-pressed={isSelected}
-                  aria-label={`${longDateFmt.format(parsed)}, ${
-                    !day.isOpen
-                      ? "cerrado"
-                      : day.freeSlots === 0
-                        ? isToday
-                          ? "cerrado por hoy"
-                          : "sin cupos"
-                        : `${day.freeSlots} turnos libres`
-                  }`}
-                  onClick={() => setPickedDate(day.date)}
-                  className={`flex min-w-[4.25rem] shrink-0 snap-start flex-col items-center gap-1 rounded-[var(--site-radius)] border px-2 py-2.5 transition-all ${
-                    isSelected
-                      ? "border-[var(--site-accent)] bg-[var(--site-accent)] text-[var(--site-on-accent)] shadow-sm"
-                      : isBookable
-                        ? "border-[var(--site-border)] text-[var(--site-text)] hover:border-[var(--site-accent)]"
-                        : "cursor-not-allowed border-transparent bg-[var(--site-surface-alt)] text-[var(--site-muted)] opacity-60"
-                  }`}
+      {/* ---- Calendario del mes ---- */}
+      <Step
+        n={2}
+        title="¿Qué día?"
+        aside={
+          <span className="flex items-center gap-1">
+            {/*
+              * Flechas de verdad, no scroll horizontal.
+              *
+              * Antes esto era una tira que se desplazaba de costado: con
+              * trackpad se movía y con mouse no, así que el visitante no podía
+              * pasar de la primera semana y creía que no había más turnos. Un
+              * control que solo funciona con cierto hardware no es un control.
+              */}
+            <button
+              type="button"
+              onClick={() => setMesVisible(mesAnterior!)}
+              disabled={!mesAnterior}
+              aria-label="Mes anterior"
+              className="grid h-8 w-8 place-items-center rounded-[var(--site-radius)] border border-[var(--site-border)] text-[var(--site-text)] transition-colors enabled:hover:border-[var(--site-accent)] disabled:opacity-30"
+            >
+              <ChevronLeft size={15} aria-hidden="true" />
+            </button>
+            {/* `first-letter` y no `capitalize`: en español el mes va en
+                minúscula y la preposición también. Con `capitalize` salía
+                "Septiembre De 2026". Necesita ser inline-block para que
+                ::first-letter aplique. */}
+            <span className="inline-block min-w-[8.5rem] text-center text-xs font-semibold text-[var(--site-text)] first-letter:uppercase">
+              {mesFmt.format(parseDateInput(`${mesVisible}-01`))}
+            </span>
+            <button
+              type="button"
+              onClick={() => setMesVisible(mesSiguiente!)}
+              disabled={!mesSiguiente}
+              aria-label="Mes siguiente"
+              className="grid h-8 w-8 place-items-center rounded-[var(--site-radius)] border border-[var(--site-border)] text-[var(--site-text)] transition-colors enabled:hover:border-[var(--site-accent)] disabled:opacity-30"
+            >
+              <ChevronRight size={15} aria-hidden="true" />
+            </button>
+          </span>
+        }
+      >
+        {days.length === 0 ? (
+          <p className="py-3 text-sm text-[var(--site-muted)]">Cargando disponibilidad…</p>
+        ) : (
+          <div>
+            <div className="grid grid-cols-7 gap-1 pb-1">
+              {INICIALES_SEMANA.map((inicial, i) => (
+                <span
+                  key={i}
+                  aria-hidden="true"
+                  className="py-1 text-center text-[0.6rem] font-semibold tracking-wide text-[var(--site-muted)] uppercase"
                 >
-                  <span className="text-[0.6rem] font-semibold uppercase">
-                    {isToday ? "Hoy" : weekdayFmt.format(parsed).replace(".", "")}
-                  </span>
-                  <span className="text-lg leading-none font-bold">{parsed.getDate()}</span>
-                  {/* Un punto pesa menos que un número y dice lo mismo: hay o no hay. */}
-                  {!day.isOpen ? (
-                    <span className="text-[0.55rem] uppercase">Cerrado</span>
-                  ) : day.freeSlots === 0 ? (
-                    <span className="text-[0.55rem] uppercase">{isToday ? "Cerrado" : "Lleno"}</span>
-                  ) : (
-                    <span className="text-[0.55rem] opacity-80">{day.freeSlots} libres</span>
-                  )}
-                </button>
-              );
-            })}
-            {days.length === 0 ? (
-              <p className="py-3 text-sm text-[var(--site-muted)]">Cargando disponibilidad…</p>
-            ) : null}
-          </div>
+                  {inicial}
+                </span>
+              ))}
+            </div>
 
-          {/* Degradé al borde: dice "sigue" sin robar una fila con una barra. */}
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-[var(--site-bg)] to-transparent"
-          />
-        </div>
+            <div className="grid grid-cols-7 gap-1">
+              {celdasDelMes(mesVisible).map((fecha, i) => {
+                if (!fecha) return <span key={`hueco-${i}`} aria-hidden="true" />;
+
+                const info = porFecha.get(fecha);
+                const seleccionado = fecha === date;
+                const esHoy = fecha === today;
+                // Sin info es un día fuera de la ventana cargada: ni abierto ni
+                // cerrado, sencillamente todavía no se puede reservar. Se
+                // muestra apagado y sin borde para que no parezca un "lleno".
+                const reservable = Boolean(info && info.isOpen && info.freeSlots > 0);
+
+                return (
+                  <button
+                    key={fecha}
+                    type="button"
+                    disabled={!reservable}
+                    aria-pressed={seleccionado}
+                    aria-label={`${longDateFmt.format(parseDateInput(fecha))}, ${
+                      !info
+                        ? "todavía no se puede reservar"
+                        : !info.isOpen
+                          ? "cerrado"
+                          : info.freeSlots === 0
+                            ? esHoy
+                              ? "cerrado por hoy"
+                              : "sin cupos"
+                            : `${info.freeSlots} turnos libres`
+                    }`}
+                    onClick={() => setPickedDate(fecha)}
+                    className={`relative flex aspect-square flex-col items-center justify-center rounded-[var(--site-radius)] border text-sm transition-all ${
+                      seleccionado
+                        ? "border-[var(--site-accent)] bg-[var(--site-accent)] font-bold text-[var(--site-on-accent)]"
+                        : reservable
+                          ? "border-[var(--site-border)] text-[var(--site-text)] hover:border-[var(--site-accent)]"
+                          : info
+                            ? "cursor-not-allowed border-transparent bg-[var(--site-surface-alt)] text-[var(--site-muted)] opacity-70"
+                            : "cursor-not-allowed border-transparent text-[var(--site-muted)] opacity-40"
+                    } ${esHoy && !seleccionado ? "font-bold" : ""}`}
+                  >
+                    {parseDateInput(fecha).getDate()}
+                    {/*
+                      * Un punto y no el número de cupos: en una celda de
+                      * calendario "20 libres" no entra, y lo que el visitante
+                      * necesita saber para elegir el día es si hay o no hay.
+                      * El número exacto viaja en el aria-label y la lista de
+                      * horarios lo muestra entero al entrar.
+                      */}
+                    {reservable && !seleccionado && (
+                      <span
+                        aria-hidden="true"
+                        className="absolute bottom-1 h-1 w-1 rounded-full bg-[var(--site-accent)]"
+                      />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </Step>
 
       {/* ---- Slot grid ---- */}

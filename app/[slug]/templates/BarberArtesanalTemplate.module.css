@@ -108,7 +108,22 @@
 .circle:hover { background: var(--art-circulo-cta); }
 .circleFoto { object-fit: cover; z-index: -2; }
 /* Sin velo, un nombre manuscrito claro sobre una foto clara desaparece. */
-.circleVelo { position: absolute; inset: 0; z-index: -1; background: rgb(42 26 21 / .58); }
+/*
+ * `.circle > .circleVelo` y no `.circleVelo` a secas: la regla de abajo
+ * (`.circle > span`) tiene dos selectores y gana por especificidad. El velo es
+ * un <span>, así que le pisaba el `position: absolute`, colapsaba a un inline
+ * de tamaño cero y NUNCA se pintaba — el texto quedaba sobre la foto cruda.
+ */
+.circle > .circleVelo {
+  position: absolute; inset: 0; z-index: -1;
+  /* Degradado y no velo plano: el texto cae en el CENTRO del círculo, así que
+     ahí va oscuro de verdad y el borde queda más claro para que la foto se siga
+     viendo. Un velo parejo con la misma fuerza apagaría la foto entera para
+     arreglar el centro, y uno más suave falla con la primera foto clara que
+     suban. */
+  background: radial-gradient(circle at 50% 50%,
+    rgb(42 26 21 / .84) 0%, rgb(42 26 21 / .80) 48%, rgb(42 26 21 / .42) 100%);
+}
 .circle > span { position: relative; }
 .site .circleName { font-family: var(--font-manuscrita), cursive; font-size: 25px; line-height: 1.35; overflow-wrap: anywhere; }
 .circlePrice { font-size: 13px; letter-spacing: .04em; }

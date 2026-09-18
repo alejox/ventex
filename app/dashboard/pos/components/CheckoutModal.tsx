@@ -57,6 +57,16 @@ interface CheckoutModalProps {
   totals: SaleTotals;
   cart: CartLine[];
   paymentMethod: PaymentMethod;
+  /**
+   * El método se puede cambiar DESDE el modal. Antes acá solo se leía, y
+   * corregir un "efectivo" por "tarjeta" obligaba a cancelar, cambiarlo en el
+   * panel y volver a abrir — con el cliente esperando en el mostrador.
+   */
+  setPaymentMethod: (m: PaymentMethod) => void;
+  transferMethod: string | null;
+  cardMethod: string | null;
+  setTransferMethod: (id: string | null) => void;
+  setCardMethod: (id: string | null) => void;
   paymentOptions: { value: PaymentMethod; label: string }[];
   splits: PaymentSplit[];
   addSplit: () => void;
@@ -78,6 +88,11 @@ export function CheckoutModal({
   totals,
   cart,
   paymentMethod,
+  setPaymentMethod,
+  transferMethod,
+  cardMethod,
+  setTransferMethod,
+  setCardMethod,
   paymentOptions,
   splits,
   addSplit,
@@ -94,9 +109,6 @@ export function CheckoutModal({
   onConfirm,
   onClose,
 }: CheckoutModalProps) {
-  const paymentLabel = (m: PaymentMethod) =>
-    paymentOptions.find((p) => p.value === m)?.label ?? m;
-
   const cartUnits = cart.reduce((sum, l) => sum + l.quantity, 0);
 
   const hasSplits = splits.length > 0;
@@ -304,11 +316,46 @@ export function CheckoutModal({
                 </button>
               </div>
             ) : (
-              <div className="flex justify-between text-sm">
-                <span className="text-on-surface-variant">M&eacute;todo</span>
-                <span className="font-semibold text-on-surface">
-                  {paymentLabel(paymentMethod)}
-                </span>
+              <div className="space-y-2">
+                <Select
+                  size="sm"
+                  value={paymentMethod}
+                  onChange={(e) => {
+                    const nuevo = e.target.value as PaymentMethod;
+                    setPaymentMethod(nuevo);
+                    // Mismo criterio que el panel: al pasar a transferencia o
+                    // tarjeta se preselecciona el primer medio habilitado, para
+                    // que el cobro no quede a medio configurar.
+                    if (nuevo === "transferencia" && !transferMethod) {
+                      setTransferMethod(transferMethodsEnabled?.[0] ?? null);
+                    }
+                    if (nuevo === "tarjeta" && !cardMethod) {
+                      setCardMethod(cardMethodsEnabled?.[0] ?? null);
+                    }
+                  }}
+                >
+                  {paymentOptions.map((m) => (
+                    <option key={m.value} value={m.value}>{m.label}</option>
+                  ))}
+                </Select>
+
+                {paymentMethod === "transferencia" && asksTransferMethod && (
+                  <SplitChannelChips
+                    label="Medio de transferencia"
+                    options={transferOptions}
+                    selected={transferMethod ?? transferOptions[0]?.id ?? null}
+                    onSelect={(id) => setTransferMethod(id)}
+                  />
+                )}
+
+                {paymentMethod === "tarjeta" && asksCardMethod && (
+                  <SplitChannelChips
+                    label="Medio de tarjeta / datáfono"
+                    options={cardOptions}
+                    selected={cardMethod ?? cardOptions[0]?.id ?? null}
+                    onSelect={(id) => setCardMethod(id)}
+                  />
+                )}
               </div>
             )}
           </div>
