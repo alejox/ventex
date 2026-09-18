@@ -295,7 +295,12 @@ export default async function LandingPage() {
                 <RotatingBusinessWord />
               </span>
             </h1>
-            <p className="hero-ink mt-8 text-lg sm:text-xl leading-relaxed text-on-surface max-w-xl mx-auto lg:mx-0">
+            {/* mt-10 y no mt-8: medido con la tinta real de las letras (no con
+                las cajas de línea, que incluyen ascendentes y descendentes y
+                dan negativo), la pastilla tenía 33.8px de aire arriba y 25.7px
+                abajo — quedaba descentrada por 8px y se leía pegada al copy.
+                40px iguala los dos lados. */}
+            <p className="hero-ink mt-10 text-lg sm:text-xl leading-relaxed text-on-surface max-w-xl mx-auto lg:mx-0">
               Vende, controla tu inventario y entiende tus finanzas desde un solo lugar. Sin hojas de cálculo, sin caos.
             </p>
             <div className="mt-11 flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
