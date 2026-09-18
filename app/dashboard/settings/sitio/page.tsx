@@ -20,6 +20,8 @@ import {
 import type { SiteTemplate } from "@/services/public-site.types";
 import { SOCIAL_NETWORKS, SOCIAL_META } from "@/lib/socialLinks";
 import { SiteQrCard } from "@/components/site/SiteQrCard";
+import { useProfile } from "@/components/ProfileProvider";
+import { templatePreview } from "@/app/[slug]/templates/theme";
 import { BrandIcon } from "@/app/assets/icons/BrandIcons";
 
 /**
@@ -97,6 +99,9 @@ function SiteForm({
   const saving = useBusinessSiteStore((s) => s.saving);
   const saveConfig = useBusinessSiteStore((s) => s.saveConfig);
   const settings = useSettingsStore((s) => s.settings);
+  // Un salón con "moderno" no recibe la plantilla moderna genérica sino la
+  // editorial de barbería, así que la miniatura tiene que saber qué negocio es.
+  const businessType = useProfile()?.businessType;
 
   const [form, setForm] = useState<SiteInput>(initialSite);
   const [hours, setHours] = useState<BusinessHour[]>(
@@ -239,11 +244,34 @@ function SiteForm({
             <TemplateCard
               key={template}
               template={template}
+              businessType={businessType}
               selected={form.template === template}
               onSelect={() => update("template", template)}
             />
           ))}
         </div>
+
+        {/*
+          El enlace apunta al slug GUARDADO y no depende de `published`: el sitio
+          sin publicar solo lo abre su dueño, con un aviso de borrador arriba.
+          Antes el único enlace aparecía con el sitio ya publicado, o sea que
+          para ver cómo quedaba había que enseñárselo al mundo primero.
+        */}
+        {qrUrl ? (
+          <a
+            href={qrUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+          >
+            Ver cómo queda
+            <span aria-hidden="true">↗</span>
+          </a>
+        ) : (
+          <p className="text-xs text-on-surface-variant">
+            Guardá la dirección del sitio para poder verlo.
+          </p>
+        )}
       </section>
 
       {/* ---- Contenido ---- */}
@@ -472,19 +500,20 @@ function Field({
 /** Miniature of each design so the choice is visual, not a word in a dropdown. */
 function TemplateCard({
   template,
+  businessType,
   selected,
   onSelect,
 }: {
   template: SiteTemplate;
+  businessType?: string | null;
   selected: boolean;
   onSelect: () => void;
 }) {
-  const preview: Record<SiteTemplate, { bg: string; accent: string; text: string }> = {
-    clasico: { bg: "#f5efe6", accent: "#8a5a2b", text: "#2b2118" },
-    moderno: { bg: "#0c0d12", accent: "#c8f450", text: "#f2f3f7" },
-    minimal: { bg: "#ffffff", accent: "#141414", text: "#141414" },
-  };
-  const colors = preview[template];
+  // Los colores salen de la paleta REAL de la plantilla (y de la variante que
+  // le toca a este tipo de negocio), no de una copia a mano. Cuando estaban
+  // escritos acá, "Moderno" se mostraba lima sobre negro mientras la plantilla
+  // publicaba coral sobre azul, y una barbería recibía una tercera cosa.
+  const colors = templatePreview(template, businessType);
 
   return (
     <button
@@ -507,16 +536,33 @@ function TemplateCard({
           className="block h-1.5 w-4/5 rounded-full"
           style={{ backgroundColor: colors.text, opacity: 0.35 }}
         />
-        <span
-          className="mt-1 block h-4 w-1/2 rounded"
-          style={{ backgroundColor: colors.accent }}
-        />
+        <span className="mt-1 flex items-center gap-2">
+          <span
+            className="block h-4 w-1/2 rounded"
+            style={{ backgroundColor: colors.accent }}
+          />
+          {/* La tipografía es lo primero que se nota al abrir el sitio, y unas
+              barras de colores no pueden mostrarla. Esta muestra es lo único
+              que distingue de un vistazo la variante con serifa. */}
+          <span
+            aria-hidden="true"
+            className="text-base leading-none"
+            style={{
+              color: colors.text,
+              opacity: 0.7,
+              fontFamily: colors.serif ? "Iowan Old Style, Georgia, serif" : "inherit",
+              fontStyle: colors.serif ? "italic" : "normal",
+            }}
+          >
+            Aa
+          </span>
+        </span>
       </span>
       <span className="block text-sm font-semibold text-on-surface">
         {TEMPLATE_LABELS[template]}
       </span>
       <span className="mt-0.5 block text-xs text-on-surface-variant">
-        {TEMPLATE_DESCRIPTIONS[template]}
+        {colors.description ?? TEMPLATE_DESCRIPTIONS[template]}
       </span>
     </button>
   );

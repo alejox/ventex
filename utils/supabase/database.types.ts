@@ -2708,6 +2708,7 @@ export type Database = {
         Args: { p_staff_id: string }
         Returns: string
       }
+      own_site_preview: { Args: Record<PropertyKey, never>; Returns: Json }
       public_site_availability: {
         Args: {
           p_days?: number

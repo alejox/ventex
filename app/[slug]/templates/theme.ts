@@ -76,6 +76,72 @@ export const SITE_PALETTES: Record<SiteTemplate, SitePalette> = {
   },
 };
 
+/**
+ * Colores para la MINIATURA del selector de diseño en Ajustes.
+ *
+ * Salen de las paletas reales de arriba y no de una copia a mano: cuando el
+ * selector tenía sus propios hex, mostraba lima sobre casi negro para "Moderno"
+ * mientras la plantilla pintaba coral sobre azul — y un salón recibía una
+ * tercera cosa, dorado sobre marrón. El dueño elegía mirando una miniatura que
+ * no se parecía a nada de lo que iba a publicar.
+ *
+ * `serif` no es un color pero viaja acá porque es LA diferencia que se ve
+ * primero en la variante de barbería, y una miniatura de barras no puede
+ * mostrarla sola.
+ */
+export interface TemplatePreview {
+  bg: string;
+  accent: string;
+  text: string;
+  serif: boolean;
+  /** Reemplaza a TEMPLATE_DESCRIPTIONS cuando la variante no es la genérica. */
+  description?: string;
+}
+
+/**
+ * `serif` se DEDUCE de la familia real, no se marca a mano: la miniatura tiene
+ * que seguir a la paleta aunque alguien cambie la tipografía de una plantilla
+ * sin acordarse de este archivo. La última familia de la lista es la genérica,
+ * y `sans-serif` termina en "serif" — de ahí que no alcance con un `endsWith`.
+ */
+const esSerif = (familia: string) => /(?:^|[\s,])serif\s*$/.test(familia);
+
+const desde = (p: SitePalette): TemplatePreview => ({
+  bg: String(p["--site-bg"]),
+  accent: String(p["--site-accent"]),
+  text: String(p["--site-text"]),
+  serif: esSerif(String(p["--site-heading-font"])),
+});
+
+/**
+ * La variante de barbería no está en `SITE_PALETTES` porque vive en el CSS
+ * module de `BarberModernTemplate`. Se replica solo lo que la miniatura
+ * necesita, y con el comentario para que se actualice junto con aquel.
+ */
+const BARBER_MODERNO: TemplatePreview = {
+  bg: "#171715",
+  accent: "#c5a572",
+  text: "#f4f0e7",
+  serif: true,
+  // La descripción genérica de "moderno" habla de acentos vivos y aire
+  // nocturno. Eso no es lo que recibe una barbería, y una descripción que no
+  // describe lo que va a pasar es peor que no tener ninguna.
+  description: "Editorial y cálido. Dorado, tipografía con serifa y fotografía grande.",
+};
+
+/**
+ * Un salón con "moderno" NO recibe la plantilla moderna genérica: recibe la de
+ * barbería (ver el desvío en ModernoTemplate). La miniatura tiene que mostrar
+ * eso o miente.
+ */
+export function templatePreview(
+  template: SiteTemplate,
+  businessType?: string | null,
+): TemplatePreview {
+  if (template === "moderno" && businessType === "salon") return BARBER_MODERNO;
+  return desde(SITE_PALETTES[template]);
+}
+
 export function formatCOP(value: number): string {
   return new Intl.NumberFormat("es-CO", {
     style: "currency",

@@ -18,6 +18,10 @@
   background: var(--site-bg);
   color: var(--site-text);
   font-family: var(--site-body-font);
+  /* Lo único que pinta el sistema y no esta hoja es la lista desplegable de
+     un <select> y la barra de scroll. Sin esto salen blancas sobre el resto
+     oscuro, y no hay CSS que alcance a un <option> abierto. */
+  color-scheme: dark;
 }
 .site * { box-sizing: border-box; }
 .site section { scroll-margin-top: 24px; }
@@ -36,7 +40,11 @@
 .brand { display: flex; align-items: center; gap: 12px; font-family: var(--site-heading-font); font-size: 23px; line-height: 1.15; max-width: 330px; }
 .brand svg { color: var(--site-accent); flex-shrink: 0; }
 .logo { object-fit: contain; }
-.navLinks { display: flex; flex-wrap: wrap; justify-content: center; gap: 25px; font-size: 11px; }
+/* Las etiquetas chicas de esta plantilla son todas 10px en versalitas con
+   interletrado (eyebrow, botones, pie del hero). Los enlaces del menú eran
+   lo único en 11px y caja normal, y esa sola excepción es la que hacía ver
+   el encabezado como un sitio genérico al lado del resto. */
+.navLinks { display: flex; flex-wrap: wrap; justify-content: center; gap: 28px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .14em; }
 .navLinks a { padding: 14px 0; }
 .navLinks a:hover, .textLink:hover { color: var(--site-accent); }
 .navCta { display: inline-flex; gap: 18px; align-items: center; justify-content: center; border: 1px solid var(--site-accent); min-height: 44px; padding: 0 20px; text-transform: uppercase; font-size: 10px; font-weight: 600; letter-spacing: .12em; white-space: nowrap; }
@@ -53,7 +61,7 @@
 .secondary { border: 1px solid rgb(244 240 231 / 40%); }
 .heroFoot { min-height: 64px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 15px; border-top: 1px solid rgb(244 240 231 / 20%); font-size: 10px; color: var(--site-muted); }
 .heroFoot > a { display: flex; align-items: center; gap: 25px; padding: 15px 0; }
-.sample { font-size: 9px; }
+.sample { font-size: 9px; text-transform: uppercase; letter-spacing: .18em; }
 .section { padding: 100px max(32px, calc((100vw - 1160px) / 2)); }
 .services, .team, .products { --site-text: var(--barber-ink); --site-muted: var(--barber-subtle); --site-border: var(--barber-rule); --site-surface: #fffdf7; --site-surface-alt: #e9e4d9; --site-accent: #816135; background: var(--barber-paper); color: var(--barber-ink); }
 .sectionHeading { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 48px; }
@@ -71,7 +79,9 @@
 .about { display: grid; grid-template-columns: 1fr 1fr; background: var(--site-surface); }
 .aboutImage { position: relative; min-height: 590px; }
 .detailImage { object-fit: cover; }
-.imageCaption { position: absolute; left: 24px; bottom: 20px; font-size: 9px; color: var(--site-text); background: rgb(23 23 21 / 80%); padding: 5px 9px; }
+/* Pegada a la esquina y no flotando a 24px: una etiqueta suelta sobre la foto
+   se lee como un error de maquetación, anclada se lee como un pie de foto. */
+.imageCaption { position: absolute; left: 0; bottom: 0; font-size: 9px; text-transform: uppercase; letter-spacing: .18em; color: var(--site-text); background: rgb(23 23 21 / 78%); padding: 9px 16px; }
 .aboutCopy { padding: 85px clamp(32px, 6vw, 110px); align-self: center; }
 .bodyCopy { max-width: 430px; color: var(--site-muted); font-size: 13px; line-height: 1.95; margin-top: 26px; }
 .signature { display: block; font-family: var(--site-heading-font); font-style: italic; font-size: 26px; margin: 30px 0 20px; }
@@ -102,6 +112,24 @@
 .booking { display: grid; grid-template-columns: .8fr 1.2fr; align-items: start; gap: 70px; border-bottom: 1px solid var(--site-border); }
 .bookingNote { margin-top: 24px; font-size: 11px; line-height: 1.8; color: var(--site-muted); max-width: 300px; padding-left: 16px; border-left: 1px solid var(--site-accent); }
 .widget { min-width: 0; background: var(--site-surface); border: 1px solid var(--site-border); padding: 30px; }
+/*
+ * El agendador es compartido por las tres plantillas, así que llega con sus
+ * controles nativos. Un <select> con `appearance: auto` dibuja el botón gris
+ * del sistema operativo, y ese rectángulo era el único elemento de la página
+ * que no estaba diseñado: en medio de una plantilla editorial se lee como si
+ * el formulario fuera de otro sitio.
+ *
+ * El color de la flecha va literal porque un data: URI no resuelve variables
+ * CSS. Si cambia --site-accent, cambia acá también.
+ */
+.site select {
+  appearance: none;
+  padding-right: 42px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8' fill='none' stroke='%23c5a572' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M1 1.75 6 6.25 11 1.75'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 16px center;
+  background-size: 11px 8px;
+}
 .visit { display: grid; grid-template-columns: 1fr 1fr; max-width: 1280px; margin: auto; }
 .hours { padding: 80px 60px; }
 .hours ul { margin-top: 35px; }

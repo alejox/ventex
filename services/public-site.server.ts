@@ -24,3 +24,36 @@ export async function fetchPublicSite(slug: string): Promise<PublicSite | null> 
   if (error) throw error;
   return (data as PublicSite | null) ?? null;
 }
+
+/**
+ * El MISMO sitio, pero visto por su dueño y sin exigir `published`.
+ *
+ * Existe porque el selector de plantillas obligaba a elegir a ciegas: el enlace
+ * al sitio solo aparecía con el sitio ya publicado, así que la única forma de
+ * ver cómo quedaba era publicarlo primero. Publicar para mirar es el orden al
+ * revés.
+ *
+ * No recibe slug: el RPC resuelve el inquilino por `get_effective_user_id()` y
+ * devuelve su única fila de `business_sites`. Un slug como parámetro sería algo
+ * que alguien puede cambiar, y la respuesta correcta es siempre la misma.
+ *
+ * Devuelve null para un visitante anónimo y para un inquilino que todavía no
+ * creó su sitio.
+ */
+export async function fetchOwnSitePreview(): Promise<PublicSite | null> {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { data, error } = await supabase.rpc("own_site_preview");
+
+  // Un fallo acá NO debe tumbar la página: esta función corre como respaldo de
+  // `fetchPublicSite`, y el camino que importa —el visitante que ve un sitio
+  // publicado— no pasa por acá. Romper el 404 de un slug inexistente por un
+  // error de permisos sería cambiar un problema de nadie por uno de todos.
+  if (error) return null;
+  return (data as PublicSite | null) ?? null;
+}
