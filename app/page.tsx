@@ -287,11 +287,12 @@ export default async function LandingPage() {
                   entra en la columna a ningún tamaño—, pero declararlo explícito
                   permite darle margen propio al de abajo.
                   Ese margen es una corrección PERCEPTUAL, no geométrica: medido,
-                  el hueco ya era el mismo que entre los otros renglones (~23px),
-                  pero la pastilla es un bloque de color sólido y pesa más que
-                  unas letras con aire alrededor, así que se leía apretada. */}
+                  el hueco ya era el mismo que entre los otros renglones, pero la
+                  pastilla es un bloque de color sólido y pesa más que unas letras
+                  con aire alrededor, así que se leía apretada. El 0.5em salió de
+                  probarlo en pantalla, no de la cuenta. */}
               <span className="block w-fit mx-auto text-start lg:mx-0">para tu</span>
-              <span className="mt-[0.18em] block w-fit mx-auto text-start lg:mx-0">
+              <span className="mt-[0.5em] block w-fit mx-auto text-start lg:mx-0">
                 <RotatingBusinessWord />
               </span>
             </h1>
