@@ -168,7 +168,10 @@
 .bookingHead .manuscrita { font-size: clamp(2.2rem, 5vw, 3.6rem); }
 .bookingHead p { margin-top: 16px; font-size: 13px; color: #ecd9cd; }
 .bookingNote { margin-top: 10px; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; opacity: .8; }
-.widget { max-width: 720px; margin: auto; background: var(--site-bg); padding: 30px; }
+/* 1200px, el mismo ancho de contenido que `.section`: así el agendador queda
+   alineado con las secciones de arriba y de abajo en vez de flotar angosto en el
+   medio. Antes estaba topado en 720 y sobraba media banda vacía a cada lado. */
+.widget { max-width: 1200px; margin: auto; background: var(--site-bg); padding: 30px; }
 
 /* ---------- horarios y contacto ---------- */
 .visit { display: grid; grid-template-columns: 1fr 1fr; }

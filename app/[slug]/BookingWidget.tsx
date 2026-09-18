@@ -306,13 +306,27 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
     // min-w-0: el widget se monta dentro de columnas de grid en las plantillas.
     // Sin esto, la tira de días con overflow ensancha al padre en lugar de
     // scrollear, y el formulario entero se sale de la pantalla.
-    <form onSubmit={handleSubmit} className="min-w-0">
+    <form onSubmit={handleSubmit} className="@container min-w-0">
       {/*
-        * Dos columnas en pantalla grande: elegir a la izquierda, tus datos a la
+        * Dos columnas cuando hay lugar: elegir a la izquierda, tus datos a la
         * derecha. En una sola columna el contacto quedaba debajo de todo y en un
         * monitor ancho sobraba media pantalla mientras el visitante scrolleaba.
+        *
+        * La condición es `@3xl` —una CONSULTA DE CONTENEDOR— y no `lg`. Este
+        * widget lo monta cada plantilla en un lugar distinto: una lo pone a todo
+        * lo ancho y otra dentro de una columna de un grid. Con `lg`, que mira la
+        * VENTANA, un monitor grande partía en dos columnas un widget de 400px de
+        * ancho y quedaban dos columnas de 200. La pregunta correcta no es "qué
+        * tan grande es la pantalla" sino "cuánto lugar tengo".
+        *
+        * Las columnas van en FRACCIONES y no con un ancho fijo a la derecha: con
+        * 20rem clavados, el formulario de contacto quedaba angosto por más que
+        * el contenedor creciera, y todo el espacio extra se lo llevaba el
+        * calendario, que ya tenía de sobra. El `minmax(18rem, …)` es el piso:
+        * abajo de eso "Tu nombre" y "Tu celular" dejan de entrar uno al lado del
+        * otro.
         */}
-      <div className="grid gap-7 lg:grid-cols-[minmax(0,1fr)_minmax(0,20rem)] lg:items-start lg:gap-10">
+      <div className="grid gap-7 @3xl:grid-cols-[minmax(0,1.35fr)_minmax(18rem,1fr)] @3xl:items-start @3xl:gap-10">
         <div className="min-w-0 space-y-7">
       <Step n={1} title="¿Qué te hacés?">
         <select
@@ -347,11 +361,19 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
       </Step>
 
       {/* ---- Calendario del mes ---- */}
-      <Step
-        n={2}
-        title="¿Qué día?"
-        aside={
-          <span className="flex items-center gap-1">
+      <Step n={2} title="¿Qué día?">
+        {days.length === 0 ? (
+          <p className="py-3 text-sm text-[var(--site-muted)]">Cargando disponibilidad…</p>
+        ) : (
+          // Tope de ancho al calendario: las celdas son cuadradas, así que sin
+          // tope crecen con la columna y un mes pasa de 300 a 450px de ALTO. Un
+          // calendario se lee mejor compacto; el espacio que sobra a la derecha
+          // lo usa el resto de la columna.
+          <div className="max-w-[26rem]">
+            {/* La navegación va ARRIBA del calendario y dentro de su mismo
+                ancho. En el encabezado del paso quedaba alineada al borde de la
+                columna, o sea flotando lejos de la grilla que controla. */}
+            <div className="mb-2 flex items-center justify-between gap-2">
             {/*
               * Flechas de verdad, no scroll horizontal.
               *
@@ -385,13 +407,8 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
             >
               <ChevronRight size={15} aria-hidden="true" />
             </button>
-          </span>
-        }
-      >
-        {days.length === 0 ? (
-          <p className="py-3 text-sm text-[var(--site-muted)]">Cargando disponibilidad…</p>
-        ) : (
-          <div>
+                      </div>
+
             <div className="grid grid-cols-7 gap-1 pb-1">
               {INICIALES_SEMANA.map((inicial, i) => (
                 <span
