@@ -69,6 +69,19 @@
   --background: #f8f9ff;
   --on-background: #101323;
   --surface-variant: #e0e2f5;
+
+  /* Acentos de módulo (landing). Un hex fijo no sirve: el cyan y el verde se
+     eligieron mirando el fondo casi negro y sobre #f8f9ff caían a 1.55:1 y
+     2.41:1 — texto invisible. Cada tema lleva su valor, todos medidos contra
+     --surface Y --surface-container, y el indigo oscuro además contra su propio
+     tinte al 10% (el chip de los testimonios estaba en 1.36:1). */
+  --accent-pos: #494bd7; /* 6.11:1 */
+  --accent-inv: #0e7490; /* 5.10:1 */
+  --accent-fin: #047857; /* 5.22:1 */
+  /* Los badges de ahorro van SÓLIDOS con `text-background`: el tinte
+     translúcido no llegaba: en claro el verde sobre su propio 8% se quedaba
+     en 4.29:1 y no sube más por más que se baje el tinte. Sólido da 5.22:1 en
+     claro y 10.01:1 en oscuro, y `background` ya invierte con el tema. */
 }
 
 :root[data-theme="dark"], .dark {
@@ -124,9 +137,15 @@
     --background: #0b0e19;
     --on-background: #e1e4ff;
     --surface-variant: #1f243c;
+    --accent-pos: #8f92ff; /* 7.08:1 — y 5.53:1 sobre su tinte al 10% */
+    --accent-inv: #5ee9f5; /* 13.24:1 */
+    --accent-fin: #34d399; /* 10.01:1 */
 }
 
 @theme inline {
+  --color-accent-pos: var(--accent-pos);
+  --color-accent-inv: var(--accent-inv);
+  --color-accent-fin: var(--accent-fin);
   --color-surface: var(--surface);
   --color-surface-dim: var(--surface-dim);
   --color-surface-bright: var(--surface-bright);

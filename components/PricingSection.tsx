@@ -118,7 +118,7 @@ export function PricingSection({
   return (
     <section id="precios" className="max-w-6xl mx-auto px-6 py-24">
       <div className="text-center max-w-2xl mx-auto mb-10">
-        <p className="text-sm font-bold text-primary mb-3">PRECIOS</p>
+        <p className="text-sm font-bold text-accent-pos mb-3">PRECIOS</p>
         <h2 className="text-3xl sm:text-4xl font-black tracking-tight text-on-surface">
           Un plan para cada etapa
         </h2>
@@ -153,7 +153,7 @@ export function PricingSection({
           )}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-primary font-semibold hover:underline"
+          className="text-accent-pos font-semibold hover:underline"
         >
           ¿Dudas? Escríbenos
         </a>
@@ -210,8 +210,12 @@ function PeriodSwitch({
               {option.name}
               {option.discount > 0 && (
                 <span
+                  // Activo: el lavado `bg-on-primary/20` dejaba el blanco en 3.29:1
+                  // sobre el botón. Sin fondo, el mismo blanco sube a 4.65:1.
                   className={`text-[11px] font-bold px-1.5 py-0.5 rounded-md ${
-                    active ? "bg-on-primary/20 text-on-primary" : "bg-primary/10 text-primary"
+                    active
+                      ? "text-on-primary ring-1 ring-on-primary/40"
+                      : "bg-accent-fin text-background"
                   }`}
                 >
                   −{option.discount}%
@@ -282,7 +286,7 @@ function PlanCard({
               cada {span} meses
             </p>
             {savings > 0 && (
-              <p className="mt-1 inline-block text-xs font-bold text-primary bg-primary/10 rounded-md px-2 py-0.5">
+              <p className="mt-1 inline-block text-xs font-bold text-background bg-accent-fin rounded-md px-2 py-0.5">
                 Ahorras {formatMoney(savings)}
               </p>
             )}
@@ -302,6 +306,7 @@ function PlanCard({
         </Feature>
         <Feature>Ventas al mes: {formatSalesLimit(plan.max_monthly_sales)}</Feature>
         <Feature>POS, inventario, finanzas y clientes</Feature>
+        {plan.max_monthly_sales !== null && <Feature excluded>Ventas ilimitadas</Feature>}
       </ul>
 
       {free ? (
@@ -379,20 +384,38 @@ function buildPeriodOptions(plans: Plan[], periods: PlanPeriod[]): PeriodOption[
   return [...byMonths.values()].sort((a, b) => a.months - b.months);
 }
 
-function Feature({ children }: { children: React.ReactNode }) {
+/**
+ * Fila de característica. Con `excluded` muestra lo que el plan NO tiene.
+ *
+ * Decir el techo en voz alta ahorra la decepción de descubrirlo cobrando, y es
+ * lo único que separa de verdad a un plan del siguiente: todos traen POS,
+ * inventario, finanzas y clientes. La X va en gris, no en rojo — es un límite
+ * del plan, no un error del visitante.
+ */
+function Feature({ children, excluded = false }: { children: React.ReactNode; excluded?: boolean }) {
   return (
-    <li className="flex items-start gap-2.5">
+    <li className={`flex items-start gap-2.5${excluded ? " text-on-surface-variant/70" : ""}`}>
       <svg
-        className="w-4 h-4 mt-0.5 shrink-0 text-primary"
+        className={`w-4 h-4 mt-0.5 shrink-0 ${excluded ? "text-on-surface-variant" : "text-accent-fin"}`}
         fill="none"
         stroke="currentColor"
         strokeWidth="2.5"
         viewBox="0 0 24 24"
         aria-hidden
       >
-        <polyline points="20 6 9 17 4 12" />
+        {excluded ? (
+          <>
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </>
+        ) : (
+          <polyline points="20 6 9 17 4 12" />
+        )}
       </svg>
-      <span>{children}</span>
+      <span>
+        <span className="sr-only">{excluded ? "No incluye: " : "Incluye: "}</span>
+        {children}
+      </span>
     </li>
   );
 }

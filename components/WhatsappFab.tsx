@@ -51,8 +51,12 @@ export function WhatsappFab({
            resolver. La safe-area es por el gesto de inicio del iPhone.
            El escalado y el hover NO pueden convivir en `transform`: gana la
            animación y el hover no se vería. Por eso al pasar el mouse el botón
-           se ilumina en vez de crecer. */
-        className={`relative inline-flex items-center gap-2 rounded-full bg-[#25D366] px-4 py-3.5 font-bold text-white shadow-lg shadow-[#25D366]/30 transition-[filter] hover:brightness-110 ${
+           se ilumina en vez de crecer.
+           La tinta va en #0b141a, no en blanco: el blanco sobre el verde de
+           WhatsApp da 1.98:1 y la etiqueta no se lee. Ese oscuro es el que usa
+           la propia app sobre su verde y llega a 9.38:1, así que el verde
+           reconocible se queda. */
+        className={`relative inline-flex items-center gap-2 rounded-full bg-[#25D366] px-4 py-3.5 font-bold text-[#0b141a] shadow-lg shadow-[#25D366]/30 transition-[filter] hover:brightness-110 ${
           pulse ? "animate-breathe motion-reduce:animate-none" : ""
         }`}
       >
