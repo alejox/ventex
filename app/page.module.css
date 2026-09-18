@@ -49,13 +49,6 @@
     animation-range: entry 0% cover 32%;
   }
 
-  /* Parallax del mock del hero */
-  .heroFloat {
-    animation: heroFloat linear both;
-    animation-timeline: scroll(root);
-    animation-range: 0 70vh;
-  }
-
   /* Dibujado de la línea del gráfico de área */
   .chartLine {
     stroke-dasharray: 1;
@@ -130,11 +123,6 @@
     transform: none;
   }
 }
-@keyframes heroFloat {
-  to {
-    transform: translateY(-44px) scale(0.972);
-  }
-}
 @keyframes drawLine {
   to {
     stroke-dashoffset: 0;
@@ -169,13 +157,6 @@
   }
 }
 
-.floatA {
-  animation: floatA 6s ease-in-out infinite alternate;
-}
-.floatB {
-  animation: floatB 7s ease-in-out infinite alternate;
-}
-
 .storyTrack {
   animation: storyMarquee 34s linear infinite;
 }
@@ -188,17 +169,6 @@
     transform: translateX(calc(-50% - 10px));
   }
 }
-@keyframes floatA {
-  to {
-    transform: translateY(-14px);
-  }
-}
-@keyframes floatB {
-  to {
-    transform: translateY(12px);
-  }
-}
-
 /* Barras del gráfico (entrada suave al renderizar) */
 .bar {
   animation: barGrow 1s cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -219,10 +189,7 @@
   .revealLeft,
   .revealRight,
   .scaleIn,
-  .heroFloat,
   .glow,
-  .floatA,
-  .floatB,
   .bar,
   .chartLine,
   .chartArea,

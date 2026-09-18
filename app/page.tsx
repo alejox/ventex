@@ -264,9 +264,14 @@ export default async function LandingPage() {
         </div>
 
         <div className="relative w-full max-w-6xl mx-auto px-6 pt-28 pb-20 lg:pt-32 lg:pb-24">
-        <div className="grid items-center gap-16 lg:grid-cols-2 lg:gap-24">
-          {/* Copy */}
-          <div className="text-center lg:text-left">
+        {/* Un solo foco. El panel del producto vivía acá y se sacó a
+            propósito: a ~400px sobre un video oscuro era un rectángulo
+            ilegible que tapaba justo las manos sobre el POS —lo mejor de la
+            toma— y le peleaba el ojo al titular. El producto ya se muestra
+            grande y legible tres veces más abajo, en las filas de features, que
+            es donde se puede leer. Un hero con dos focos no tiene ninguno. */}
+        <div className="max-w-3xl text-center lg:text-left">
+          <div>
             {/* Todo el copy del hero va en `text-on-surface`, NO en
                 `on-surface-variant`. No es gusto: sobre el video, el tono MEDIO
                 exige un velo de 0.58 en oscuro y 0.48 en claro para llegar a
@@ -275,7 +280,7 @@ export default async function LandingPage() {
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-outline-variant/20 bg-surface-container/60 text-xs font-semibold text-on-surface mb-9 hero-ink">
               <span className="w-2 h-2 rounded-full bg-accent-fin" /> POS + Inventario + Finanzas en uno
             </div>
-            <h1 className="hero-ink text-4xl sm:text-6xl lg:text-[3.4rem] font-black tracking-tight text-on-surface leading-[1.12]">
+            <h1 className="hero-ink text-5xl sm:text-6xl lg:text-[4.5rem] font-black tracking-tight text-on-surface leading-[1.08]">
               <span className="block">El sistema operativo</span>
               {/* "para tu" y la palabra rotativa van en renglones SEPARADOS a
                   propósito. Siempre caen así igual —"para tu emprendimiento" no
@@ -290,19 +295,19 @@ export default async function LandingPage() {
                 <RotatingBusinessWord />
               </span>
             </h1>
-            <p className="hero-ink mt-8 text-lg leading-relaxed text-on-surface max-w-xl mx-auto lg:mx-0">
+            <p className="hero-ink mt-8 text-lg sm:text-xl leading-relaxed text-on-surface max-w-xl mx-auto lg:mx-0">
               Vende, controla tu inventario y entiende tus finanzas desde un solo lugar. Sin hojas de cálculo, sin caos.
             </p>
             <div className="mt-11 flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
               <Link
                 href="/register"
-                className="px-7 py-3.5 rounded-xl bg-primary text-on-primary font-bold shadow-lg shadow-primary/25 hover:bg-primary-dim transition-colors"
+                className="px-8 py-4 rounded-2xl bg-primary text-on-primary font-bold shadow-lg shadow-primary/25 hover:bg-primary-dim transition-colors"
               >
                 Empieza gratis →
               </Link>
               <Link
                 href="/login"
-                className="px-7 py-3.5 rounded-xl bg-surface-container border border-outline-variant/20 text-on-surface font-bold hover:bg-surface-container-high transition-colors"
+                className="px-8 py-4 rounded-2xl bg-surface-container border border-outline-variant/20 text-on-surface font-bold hover:bg-surface-container-high transition-colors"
               >
                 Ya tengo cuenta
               </Link>
@@ -310,53 +315,6 @@ export default async function LandingPage() {
             <p className="hero-ink mt-6 text-xs text-on-surface">Sin tarjeta de crédito · Listo en minutos</p>
           </div>
 
-          {/* El panel real, encima de la escena real: es el mismo gesto que hace
-              treinta al componer la pantalla dentro del negocio. Ya no lleva
-              cuadro de video propio — el local es todo el fondo. */}
-          <div className={`${styles.heroFloat} relative min-h-[260px] sm:min-h-[340px] lg:min-h-[420px]`}>
-            <div className="absolute inset-x-0 top-4 mx-auto w-[92%] sm:w-[88%] overflow-hidden rounded-2xl border border-outline-variant/25 shadow-2xl">
-              <div className="flex items-center gap-1.5 bg-surface-container-high px-3 py-2">
-                <span className="w-2 h-2 rounded-full bg-error/60" />
-                <span className="w-2 h-2 rounded-full bg-[#f59e0b]/60" />
-                <span className="w-2 h-2 rounded-full bg-accent-fin/60" />
-                <span className="ml-2 text-[10px] font-medium text-on-surface-variant">Ventex · Panel</span>
-              </div>
-              {/* `sizes` tiene que decir el ancho REAL en pantalla: medido, el
-                  panel ocupa 459px a 1x. Declaraba 320px, así que next/image
-                  servía 320 y el navegador lo estiraba — de ahí lo pixelado, y
-                  en retina sería el doble de evidente. */}
-              <ThemedShot
-                dark="/landing/dashboard.png"
-                light="/landing/dashboard-light.png"
-                alt="Panel de Ventex con ventas, ingresos y beneficio neto"
-                sizes="(max-width: 640px) 88vw, (max-width: 1024px) 46vw, 560px"
-                priority
-              />
-            </div>
-
-            <div
-              className={`${styles.floatA} hidden sm:flex absolute -right-2 top-0 z-10 items-center gap-2 bg-surface-container-high border border-outline-variant/15 rounded-xl px-3 py-2 shadow-xl`}
-            >
-              <span className="w-7 h-7 rounded-lg bg-accent-fin/15 text-accent-fin flex items-center justify-center">
-                <IconShoppingCart className="w-4 h-4" />
-              </span>
-              <div className="text-left">
-                <p className="text-[10px] text-on-surface-variant leading-tight">Venta registrada</p>
-                <p className="text-xs font-black text-on-surface leading-tight">+$249.99</p>
-              </div>
-            </div>
-            <div
-              className={`${styles.floatB} hidden sm:flex absolute -left-2 bottom-4 z-10 items-center gap-2 bg-surface-container-high border border-outline-variant/15 rounded-xl px-3 py-2 shadow-xl`}
-            >
-              <span className="w-7 h-7 rounded-lg bg-accent-inv/15 text-accent-inv flex items-center justify-center">
-                <IconBox className="w-4 h-4" />
-              </span>
-              <div className="text-left">
-                <p className="text-[10px] text-on-surface-variant leading-tight">Stock actualizado</p>
-                <p className="text-xs font-black text-on-surface leading-tight">14 unidades</p>
-              </div>
-            </div>
-          </div>
         </div>
         </div>
       </section>
