@@ -16,11 +16,59 @@ import { HeroVideo } from "@/components/HeroVideo";
 import { ThemedShot } from "@/components/ThemedShot";
 import { LandingHeader } from "@/components/LandingHeader";
 import { fetchPublicPlans, fetchPublicPlanPeriods } from "@/services/plans.server";
+import { REGISTRABLE_BUSINESS_TYPES, type BusinessType } from "@/config/business";
+import { absoluteUrl } from "@/lib/site";
+import { LandingJsonLd } from "@/components/LandingJsonLd";
 
+/**
+ * El título va con la palabra clave ADELANTE y la marca al final, y usa
+ * `absolute` para saltarse la plantilla del layout.
+ *
+ * El anterior —"Ventex — El sistema operativo para tu negocio"— no contenía
+ * ninguna de las consultas por las que alguien busca esto: ni "POS", ni "punto
+ * de venta", ni "facturación". Un título de marca solo posiciona para la marca,
+ * y quien ya busca "Ventex" no es a quien hay que capturar.
+ *
+ * Los ~60 caracteres que muestra Google son el espacio más caro del sitio: la
+ * marca va al final porque si se corta, se corta lo que el usuario ya conoce y
+ * no la palabra por la que llegó.
+ */
 export const metadata: Metadata = {
-  title: "Ventex — El sistema operativo para tu negocio",
+  title: {
+    absolute: "Sistema POS y punto de venta para tu negocio | Ventex",
+  },
   description:
-    "Punto de venta, inventario, finanzas y clientes en una sola plataforma. Empieza a vender en minutos.",
+    "Software POS con punto de venta, inventario, facturación y finanzas en una sola plataforma. Controla ventas y stock en tiempo real. Empieza gratis.",
+  // Canónica explícita: la landing es alcanzable con parámetros de campaña
+  // (?utm_...), y sin esto cada variante compite consigo misma.
+  alternates: { canonical: "/" },
+  openGraph: {
+    type: "website",
+    // `locale` y `siteName` se repiten aunque estén en el layout: Next NO
+    // fusiona el bloque openGraph, lo REEMPLAZA en cuanto la página declara el
+    // suyo. Verificado en el HTML servido — sin esto se perdían las dos.
+    locale: "es_CO",
+    siteName: "Ventex",
+    url: absoluteUrl("/"),
+    title: "Sistema POS y punto de venta para tu negocio",
+    description:
+      "Punto de venta, inventario, facturación y finanzas en una sola plataforma. Empieza gratis, sin tarjeta.",
+    images: [
+      {
+        url: "/landing/og.jpg",
+        width: 1200,
+        height: 630,
+        alt: "Ventex — sistema POS para tiendas, salones y servicios",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Sistema POS y punto de venta para tu negocio",
+    description:
+      "Punto de venta, inventario, facturación y finanzas en una sola plataforma.",
+    images: ["/landing/og.jpg"],
+  },
 };
 
 const BUSINESS_TYPES = ["Tiendas", "Salones", "Lava-autos", "Servicios", "Proveedoras"];
@@ -152,34 +200,46 @@ const FEATURES = [
  * `config/business.ts` — no de adjetivos. "Historial por placa" es una pantalla
  * que existe; "solución integral" no significa nada.
  *
- * `foto: null` es deliberado y NO es un bug: no hay foto de un lavaautos en el
- * banco de imágenes, y ponerle una reunión de oficina genérica sería justo la
- * clase de relleno que estamos sacando. Cuando aparezca la foto, se cambia el
- * null por la ruta y la tarjeta se iguala sola.
+ * `foto` admite null: una tarjeta sin foto renderiza el icono del vertical en
+ * vez de rellenar con una imagen genérica que no muestre ese negocio. Hoy las
+ * cuatro tienen foto propia.
  */
-const VERTICALES = [
+const VERTICALES: Array<{
+  id: BusinessType;
+  label: string;
+  foto: string | null;
+  alt: string;
+  bullets: string[];
+}> = [
   {
+    id: "tienda",
     label: "Tiendas",
     foto: "/landing/fotos/pago-con-datafono.webp",
     alt: "Cajero cobrando con datáfono en el mostrador de una tienda",
     bullets: ["Inventario y categorías", "Compras y distribuidores", "Pedidos por encargo"],
   },
   {
+    id: "salon",
     label: "Salones y barberías",
     foto: "/landing/fotos/barberia-tablet.webp",
     alt: "Barbero revisando su agenda en una tablet dentro de la barbería",
     bullets: ["Citas y agenda", "Comisiones por barbero", "Promoción de cortes"],
   },
   {
+    id: "lavaautos",
     label: "Lava-autos",
-    foto: null,
-    alt: "",
+    foto: "/landing/fotos/lavaautos.webp",
+    alt: "Operario lavando un auto a presión en una estación de lavado",
     bullets: ["Turnos de lavado", "Historial por placa", "Insumos y detailing"],
   },
   {
+    id: "servicios",
     label: "Servicios profesionales",
-    foto: "/landing/fotos/mujer-escritorio-laptop.webp",
-    alt: "Profesional trabajando con su portátil en el escritorio de la oficina",
+    // Foto propia y no la de la oficina: esa última se usa recortada como
+    // avatar en los testimonios, y repetir la misma cara en dos secciones
+    // delata el banco de imágenes.
+    foto: "/landing/fotos/servicios-profesional.webp",
+    alt: "Profesional de servicios sonriendo en su oficina",
     bullets: ["Agenda de consultas", "Catálogo de honorarios", "Clientes y seguimiento"],
   },
 ];
@@ -199,6 +259,7 @@ export default async function LandingPage() {
 
   return (
     <div className="min-h-screen bg-background text-on-background font-sans">
+      <LandingJsonLd plans={plans} />
       <div className={styles.progress} aria-hidden />
 
       {/* Nav: transparente sobre el hero, sólido al scrollear. */}
@@ -241,6 +302,16 @@ export default async function LandingPage() {
    backticks, cierran el string y rompen el archivo.) */
 .hero-full{min-height:100svh}
 @supports (height:100lvh){.hero-full{min-height:100lvh}}
+/* Mismo patrón que el hero para texto sobre foto, con OTROS números porque la
+   foto es distinta: medido, el pixel más claro del mostrador llega a 0.85 (vs
+   0.67 del hero), y un velo plano que dejara pasar el texto pediría 0.86 — la
+   foto desaparecería. Con el brillo al 50% ese pixel cae a 0.16 y el mínimo
+   calculado baja a 0.19. Se usa 0.45 y no ese mínimo: el cálculo cubre el peor
+   pixel, pero el subtítulo es texto CHICO sobre una foto con mucho detalle, y
+   ahí lo que pesa no es solo el contraste sino el ruido de fondo. A 0.45 queda
+   en 5.7:1 y todavía se ve más de la mitad de la imagen. */
+.cta-media{filter:brightness(.5)}
+.cta-scrim{background:rgb(11 14 25 / .45)}
 .hero-media{filter:brightness(.45)}
 .hero-scrim{background:rgb(11 14 25 / .10)}
 /* El cierre de abajo va al MISMO oscuro fijo, no al token de fondo. Cuando
@@ -293,7 +364,11 @@ export default async function LandingPage() {
               <span className="w-2 h-2 rounded-full bg-accent-fin" /> POS + Inventario + Finanzas en uno
             </div>
             <h1 className="hero-ink text-4xl sm:text-6xl lg:text-[4.5rem] font-black tracking-tight text-on-surface leading-[1.08]">
-              <span className="block">El sistema operativo</span>
+              {/* El espacio explícito NO es decorativo: los <span> en block
+                  no aportan separación al textContent, así que el rastreador y
+                  el lector de pantalla leían "operativopara tuempresa". El
+                  salto visual lo da el `block`; esto solo arregla el texto. */}
+              <span className="block">El sistema operativo</span>{" "}
               {/* "para tu" y la palabra rotativa van en renglones SEPARADOS a
                   propósito. Siempre caen así igual —"para tu emprendimiento" no
                   entra en la columna a ningún tamaño—, pero declararlo explícito
@@ -303,7 +378,7 @@ export default async function LandingPage() {
                   pastilla es un bloque de color sólido y pesa más que unas letras
                   con aire alrededor, así que se leía apretada. El 0.5em salió de
                   probarlo en pantalla, no de la cuenta. */}
-              <span className="block w-fit mx-auto text-start lg:mx-0">para tu</span>
+              <span className="block w-fit mx-auto text-start lg:mx-0">para tu</span>{" "}
               <span className="mt-[0.5em] block text-center lg:text-start">
                 <RotatingBusinessWord />
               </span>
@@ -352,7 +427,7 @@ export default async function LandingPage() {
         <div className="text-center max-w-2xl mx-auto">
           <p className="text-sm font-bold text-accent-pos mb-3">TODO EN UNO</p>
           <h2 className="text-3xl sm:text-4xl font-black tracking-tight text-on-surface">
-            Una plataforma que crece contigo
+            Punto de venta, inventario y finanzas en una sola plataforma
           </h2>
           <p className="mt-4 text-on-surface-variant">
             Cada módulo está conectado: una venta mueve el inventario y aparece en tus finanzas. Sin integraciones manuales.
@@ -389,7 +464,7 @@ export default async function LandingPage() {
         <div className="text-center max-w-2xl mx-auto mb-12">
           <p className="text-sm font-bold text-accent-pos mb-3">PARA TU NEGOCIO</p>
           <h2 id="verticales-title" className="text-3xl sm:text-4xl font-black tracking-tight text-on-surface">
-            No importa a qué te dediques
+            Un sistema POS para cada tipo de negocio
           </h2>
           <p className="mt-4 text-on-surface-variant">
             Ventex se ajusta al tipo de negocio que tengas: cada uno ve sus propios módulos, no un menú lleno de cosas que no usa.
@@ -397,7 +472,14 @@ export default async function LandingPage() {
         </div>
 
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          {VERTICALES.map((v) => (
+          {VERTICALES.map((v) => {
+            /* La disponibilidad NO se escribe a mano acá: sale de
+               `REGISTRABLE_BUSINESS_TYPES`, que es la misma lista que decide qué
+               puede elegir alguien en el registro. Si mañana se abre lava-autos,
+               el sello desaparece solo — y al revés, nunca queda anunciando un
+               rubro que el registro no acepta. */
+            const proximamente = !REGISTRABLE_BUSINESS_TYPES.includes(v.id);
+            return (
             <article
               key={v.label}
               className="overflow-hidden rounded-3xl border border-outline-variant/15 bg-surface-container"
@@ -416,6 +498,16 @@ export default async function LandingPage() {
                     <IconCar className="h-10 w-10" />
                   </span>
                 )}
+                {proximamente && (
+                  /* El velo va oscuro fijo y el texto claro fijo, no por token:
+                     abajo hay una FOTO, no una superficie del tema, así que el
+                     contraste no puede depender de si el sitio está en claro. */
+                  <span className="absolute inset-0 flex items-center justify-center bg-[rgb(11_14_25/.62)] backdrop-blur-[2px]">
+                    <span className="rounded-full border border-white/25 bg-[rgb(11_14_25/.55)] px-4 py-1.5 text-xs font-bold uppercase tracking-[0.14em] text-[#e1e4ff]">
+                      Próximamente
+                    </span>
+                  </span>
+                )}
               </div>
               <div className="p-6">
                 <h3 className="font-bold text-on-surface">{v.label}</h3>
@@ -429,7 +521,8 @@ export default async function LandingPage() {
                 </ul>
               </div>
             </article>
-          ))}
+            );
+          })}
         </div>
       </section>
 
@@ -494,15 +587,29 @@ export default async function LandingPage() {
             </p>
           </div>
 
-          <div className="mt-12 -mx-6 overflow-hidden">
-            <div className={`${styles.storyTrack} flex w-max gap-5 px-6 hover:[animation-play-state:paused]`}>
+          <div className={`${styles.storyViewport} mt-12 -mx-6 overflow-hidden`}>
+            <div className={`${styles.storyTrack} flex w-max gap-5 px-6 py-6 hover:[animation-play-state:paused]`}>
               {[...SUCCESS_STORIES, ...SUCCESS_STORIES].map((story, index) => (
                 <article
                   key={`${story.name}-${index}`}
                   className="shrink-0 w-[min(86vw,360px)] rounded-3xl border border-outline-variant/15 bg-surface-container p-7 shadow-xl shadow-black/10"
                 >
                   <div className="flex items-start gap-4">
-                    <Image src={story.image} alt="" width={56} height={56} className="h-14 w-14 shrink-0 rounded-full object-cover" />
+                    {/* `eager` y no diferida: dentro de la pista del carrusel
+                        la carga diferida NO se dispara. Chrome decide por la
+                        posición de LAYOUT, y la pista es `w-max` con el
+                        contenido duplicado, así que las tarjetas quedan fuera
+                        del viewport horizontal aunque en pantalla se vean —
+                        resultado: avatares en blanco. Son 3 archivos únicos de
+                        ~25 KB; diferirlos no ahorraba nada. */}
+                    <Image
+                      src={story.image}
+                      alt=""
+                      width={56}
+                      height={56}
+                      loading="eager"
+                      className="h-14 w-14 shrink-0 rounded-full object-cover"
+                    />
                     <div className="pt-1">
                       <span className="text-2xl leading-none text-primary" aria-hidden="true">“</span>
                       <p className="mt-1 text-[15px] italic leading-7 text-on-surface-variant">{story.quote}”</p>
@@ -524,52 +631,63 @@ export default async function LandingPage() {
         </div>
       </section>
 
-      {/* CTA final */}
-      <section id="cta" className="max-w-6xl mx-auto px-6 pb-28">
-        <div className="relative overflow-hidden rounded-[2rem] border border-outline-variant/15 bg-surface-container px-8 py-16 sm:py-20 text-center">
-          <div
-            className={`${styles.glow} pointer-events-none absolute top-1/2 left-1/2 w-[520px] h-[520px] rounded-full`}
-            style={{ background: "radial-gradient(circle, #0fdff3 0%, transparent 60%)" }}
-            aria-hidden
+      {/* Cierre a sangre: la foto cubre el CTA Y el footer, y la banda llega
+          hasta el borde inferior de la página. Por eso el fondo vive en este
+          contenedor y no dentro de cada sección: si cada una llevara su propia
+          copia de la imagen, se vería la costura entre las dos.
+          El texto usa `hero-ink` por la misma razón que el hero: debajo hay una
+          FOTO, no una superficie del tema, así que el contraste no puede
+          depender de si el sitio está en claro. */}
+      <div className="relative isolate overflow-hidden">
+        <div className="cta-media absolute inset-0 -z-10">
+          <Image
+            src="/landing/fotos/mostrador-cobrando.webp"
+            alt="Comerciante cobrando con tablet y datáfono a una clienta en el mostrador de su local"
+            fill
+            sizes="100vw"
+            className="object-cover"
           />
-          <div className="relative">
-            <h2 className="text-3xl sm:text-5xl font-black tracking-tight text-on-surface max-w-2xl mx-auto leading-tight">
-              Empieza a vender con Ventex hoy
-            </h2>
-            <p className="mt-5 text-on-surface-variant max-w-lg mx-auto">
-              Gratis para empezar. Configura tu negocio en minutos y toma el control de tus ventas.
-            </p>
-            <div className="mt-9 flex flex-col sm:flex-row gap-4 justify-center">
-              <Link
-                href="/register"
-                className="px-8 py-4 rounded-xl bg-primary text-on-primary font-bold shadow-lg shadow-primary/25 hover:bg-primary-dim transition-colors"
-              >
-                Crear mi cuenta gratis →
-              </Link>
-              <Link
-                href="/login"
-                className="px-8 py-4 rounded-xl bg-surface-container-high border border-outline-variant/20 text-on-surface font-bold hover:bg-surface-container-highest transition-colors"
-              >
-                Iniciar sesión
-              </Link>
+        </div>
+        <div className="cta-scrim absolute inset-0 -z-10" />
+
+        <section id="cta" className="hero-ink mx-auto max-w-3xl px-6 pt-28 pb-24 sm:pt-36 sm:pb-28 text-center">
+          <h2 className="text-3xl sm:text-5xl font-black tracking-tight text-on-surface leading-tight">
+            Empieza a vender con Ventex hoy
+          </h2>
+          <p className="mt-5 text-lg text-on-surface max-w-lg mx-auto">
+            Gratis para empezar. Configura tu negocio en minutos y toma el control de tus ventas.
+          </p>
+          <div className="mt-10 flex flex-col sm:flex-row gap-4 justify-center">
+            <Link
+              href="/register"
+              className="px-8 py-4 rounded-2xl bg-primary text-on-primary font-bold shadow-lg shadow-primary/25 hover:bg-primary-dim transition-colors"
+            >
+              Crear mi cuenta gratis →
+            </Link>
+            <Link
+              href="/login"
+              className="px-8 py-4 rounded-2xl bg-surface-container-high border border-outline-variant/25 text-on-surface font-bold hover:bg-surface-container-highest transition-colors"
+            >
+              Iniciar sesión
+            </Link>
+          </div>
+        </section>
+
+        {/* El separador va en blanco translúcido y no en `outline-variant`: ese
+            token se aclara con el tema y sobre la foto oscura desaparecería. */}
+        <footer className="hero-ink border-t border-white/15">
+          <div className="max-w-6xl mx-auto px-6 py-10 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <LogoHorizontal className="w-[96px] h-[26px]" />
+            <p className="text-xs text-on-surface">© 2026 Ventex. Todos los derechos reservados.</p>
+            <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-xs font-medium text-on-surface">
+              <Link href="/login" className="hover:text-primary transition-colors">Iniciar sesión</Link>
+              <Link href="/register" className="hover:text-primary transition-colors">Registro</Link>
+              <Link href="/privacidad" className="hover:text-primary transition-colors">Privacidad</Link>
+              <Link href="/terminos" className="hover:text-primary transition-colors">Términos</Link>
             </div>
           </div>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="border-t border-outline-variant/10">
-        <div className="max-w-6xl mx-auto px-6 py-10 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <LogoHorizontal className="w-[96px] h-[26px]" />
-          <p className="text-xs text-on-surface-variant">© 2026 Ventex. Todos los derechos reservados.</p>
-          <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-xs font-medium text-on-surface-variant">
-            <Link href="/login" className="hover:text-on-surface transition-colors">Iniciar sesión</Link>
-            <Link href="/register" className="hover:text-on-surface transition-colors">Registro</Link>
-            <Link href="/privacidad" className="hover:text-on-surface transition-colors">Privacidad</Link>
-            <Link href="/terminos" className="hover:text-on-surface transition-colors">Términos</Link>
-          </div>
-        </div>
-      </footer>
+        </footer>
+      </div>
 
       {/* Quien mira la landing todavía no tiene cuenta: el mensaje pregunta por
           el producto, no pide soporte de algo que aún no usa. */}

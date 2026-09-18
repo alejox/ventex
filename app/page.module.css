@@ -161,6 +161,33 @@
   animation: storyMarquee 34s linear infinite;
 }
 
+/*
+ * Desvanecido en los bordes del carrusel.
+ *
+ * Sin esto, `overflow-hidden` corta las tarjetas a filo justo en el borde del
+ * contenedor y se lee como un error de maquetado, no como un carrusel. La
+ * máscara hace que se disuelvan, que es la señal visual de "esto sigue".
+ *
+ * Va en el contenedor y no en la pista: si estuviera en el elemento animado,
+ * la máscara se desplazaría con él y el degradado viajaría por la pantalla.
+ */
+.storyViewport {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 5rem,
+    #000 calc(100% - 5rem),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 5rem,
+    #000 calc(100% - 5rem),
+    transparent 100%
+  );
+}
+
 @keyframes storyMarquee {
   from {
     transform: translateX(0);

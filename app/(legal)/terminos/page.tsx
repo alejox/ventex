@@ -3,7 +3,9 @@ import Link from "next/link";
 import { LegalDoc, LegalNotice } from "../components/LegalDoc";
 
 export const metadata: Metadata = {
-  title: "Términos de Servicio — Ventex",
+  // Sin sufijo de marca: la plantilla del layout ya agrega "| Ventex".
+  title: "Términos de Servicio",
+  alternates: { canonical: "/terminos" },
   description:
     "Las condiciones que regulan el uso de Ventex: cuentas y colaboradores, planes y pagos, uso aceptable y propiedad de tus datos.",
 };

@@ -3,7 +3,9 @@ import Link from "next/link";
 import { LegalDoc, LegalNotice } from "../components/LegalDoc";
 
 export const metadata: Metadata = {
-  title: "Política de Privacidad — Ventex",
+  // Sin sufijo de marca: la plantilla del layout ya agrega "| Ventex".
+  title: "Política de Privacidad",
+  alternates: { canonical: "/privacidad" },
   description:
     "Qué información recopila Ventex, cómo la usamos, con quién la compartimos y qué derechos tienes sobre ella.",
 };

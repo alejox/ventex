@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { SITE_URL } from "@/lib/site";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/ThemeProvider";
@@ -11,9 +12,47 @@ const plusJakartaSans = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Ventex App",
-  description: "Sistema POS multifuncional",
+  /**
+   * `metadataBase` es el que convierte en absolutas las canónicas y las
+   * imágenes de OpenGraph. Sin él, Next emite rutas relativas: los buscadores
+   * las toleran, pero las redes sociales NO — una og:image relativa no se
+   * previsualiza en ningún lado.
+   */
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: "Ventex — Sistema POS, inventario y facturación",
+    /**
+     * La plantilla ahorra repetir la marca en cada página. La landing NO la usa
+     * (declara `title.absolute`) porque ahí los ~60 caracteres que muestra
+     * Google valen más para las palabras clave que para el nombre repetido.
+     */
+    template: "%s | Ventex",
+  },
+  description:
+    "Sistema POS para tiendas, salones, lava-autos y servicios: punto de venta, inventario, facturación y finanzas en una sola plataforma.",
   applicationName: "Ventex",
+  // Sin `keywords`: Google la ignora desde 2009 y las demás que la leen le dan
+  // peso nulo. Ocupa bytes y no compra nada.
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      // Sin estos, Google recorta la descripción y limita la vista previa de
+      // imagen y video en los resultados enriquecidos.
+      "max-snippet": -1,
+      "max-image-preview": "large",
+      "max-video-preview": -1,
+    },
+  },
+  openGraph: {
+    type: "website",
+    locale: "es_CO",
+    siteName: "Ventex",
+    url: SITE_URL,
+  },
+  twitter: { card: "summary_large_image" },
   // iOS no lee el manifiesto: la instalación depende de estas metaetiquetas.
   appleWebApp: {
     capable: true,
