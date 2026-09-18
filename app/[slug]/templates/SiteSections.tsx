@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { PublicSite, SiteTemplate } from "@/services/public-site.types";
 import { WEEKDAY_LABELS } from "@/services/public-site.types";
 import { socialLinksOf } from "@/lib/socialLinks";
+import { esImagenAjena } from "@/lib/remoteImage";
 import { BrandIcon } from "@/app/assets/icons/BrandIcons";
 import { BookServiceLink } from "../BookServiceLink";
 import { formatCOP, whatsappHref } from "./theme";
@@ -129,6 +130,15 @@ export function ProductsSection({ site, variant = "clasico" }: { site: PublicSit
                   alt={product.name}
                   fill
                   sizes="(max-width: 640px) 50vw, 25vw"
+                  /*
+                   * Sin esto, UNA foto alojada fuera de nuestro Storage devolvía
+                   * HTTP 500 en TODO el micrositio: `next/image` valida el
+                   * hostname contra `remotePatterns` y lanza, no degrada la
+                   * imagen. Y esas URLs llegan solas desde la búsqueda por
+                   * código de barras, así que el negocio nunca eligió el host.
+                   * Lo nuestro sigue pasando por el optimizador.
+                   */
+                  unoptimized={esImagenAjena(product.imageUrl)}
                   className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
                 />
               ) : (

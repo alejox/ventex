@@ -110,7 +110,7 @@ test("las plantillas neutras se ofrecen a todos los rubros", () => {
 test("el orden del selector no depende del rubro", () => {
   // Filtrar no debe reordenar: el dueño que vuelve a Ajustes espera las
   // tarjetas donde estaban.
-  const orden = (t: unknown) => templatesFor(t).join(",");
+  const orden = (t: string) => templatesFor(t).join(",");
   assert.ok(SITE_TEMPLATES.join(",").includes(orden("tienda")));
   assert.equal(orden("salon"), SITE_TEMPLATES.join(","));
 });
