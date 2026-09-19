@@ -1,5 +1,6 @@
 import "server-only";
 import { createClient } from "@/utils/supabase/server";
+import { normalizeLandingConfig } from "@/services/public-site.types";
 import type { PublicSite } from "@/services/public-site.types";
 
 /**
@@ -22,7 +23,12 @@ export async function fetchPublicSite(slug: string): Promise<PublicSite | null> 
   });
 
   if (error) throw error;
-  return (data as PublicSite | null) ?? null;
+  if (!data || typeof data !== "object") return null;
+  const raw = data as unknown as Record<string, unknown>;
+  return {
+    ...raw,
+    config: normalizeLandingConfig(raw),
+  } as unknown as PublicSite;
 }
 
 /**

@@ -61,19 +61,20 @@ test.describe("Configuración del sitio en el panel", () => {
   test.beforeEach(async ({ page }) => {
     const loggedIn = await tryLogin(page);
     test.skip(!loggedIn, "No se pudo autenticar - saltando prueba");
-    await page.goto("/dashboard/settings/sitio");
+    await page.goto("/dashboard/landing");
     await page.waitForLoadState("networkidle");
   });
 
   test("muestra las tres opciones de diseño", async ({ page }) => {
-    await expect(page.getByRole("heading", { name: "Diseño" })).toBeVisible({ timeout: 15000 });
-    await expect(page.getByRole("button", { name: /Clásico/ })).toBeVisible();
-    await expect(page.getByRole("button", { name: /Moderno/ })).toBeVisible();
-    await expect(page.getByRole("button", { name: /Minimal/ })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Elegí una identidad" })).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole("button", { name: /Rasm/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Fallspa/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Qutter/ })).toBeVisible();
   });
 
   test("permite configurar el horario de atención de los siete días", async ({ page }) => {
-    await expect(page.getByRole("heading", { name: "Horario de atención" })).toBeVisible({
+    await page.getByRole("button", { name: "Negocio", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Horarios" })).toBeVisible({
       timeout: 15000,
     });
     for (const day of ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"]) {
@@ -82,8 +83,7 @@ test.describe("Configuración del sitio en el panel", () => {
   });
 
   test("publicar es un interruptor aparte de guardar", async ({ page }) => {
-    // Configuring a site must never put a business online as a side effect.
-    await expect(page.getByText("Sitio publicado")).toBeVisible({ timeout: 15000 });
-    await expect(page.getByText(/devuelve .no encontrado./)).toBeVisible();
+    await expect(page.getByRole("button", { name: "Guardar borrador" })).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole("button", { name: /Publicar/ })).toBeVisible();
   });
 });

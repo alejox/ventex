@@ -1,122 +1,52 @@
 import Image from "next/image";
 import Link from "next/link";
-import type { PublicSite, SiteTemplate } from "@/services/public-site.types";
-import { WEEKDAY_LABELS, textoDelSitio } from "@/services/public-site.types";
+import type {
+  PublicSite,
+  SiteSectionConfig,
+} from "@/services/public-site.types";
+import { WEEKDAY_LABELS } from "@/services/public-site.types";
 import { socialLinksOf } from "@/lib/socialLinks";
-import { esImagenAjena } from "@/lib/remoteImage";
 import { BrandIcon } from "@/app/assets/icons/BrandIcons";
 import { BookServiceLink } from "../BookServiceLink";
+import { BookingWidget } from "../BookingWidget";
 import { formatCOP, whatsappHref } from "./theme";
 
-/**
- * Sections shared by all three templates.
- *
- * The templates differ in palette, typography and arrangement — not in what
- * they can show. Keeping the sections here is what makes "pick another design"
- * a one-field change instead of three drifting copies of the same page.
- *
- * Everything styles itself from the `--site-*` variables the template wrapper
- * publishes, so these components never need to know which design is active.
- */
-
-const sectionClass: Record<SiteTemplate, string> = {
-  clasico: "mx-auto w-full max-w-6xl px-5 py-16 sm:px-8 sm:py-24",
-  moderno: "mx-auto w-full max-w-7xl px-5 py-16 sm:px-8 sm:py-24",
-  minimal: "mx-auto w-full max-w-6xl px-5 py-16 sm:px-8 sm:py-24",
-  // BarberModernTemplate arma casi todas sus secciones a mano y a las dos que
-  // reusa de acá les pasa `clasico` (productos) y `moderno` (contacto) a
-  // propósito: elige la MAQUETA que le sirve, no su propia identidad. Esta
-  // entrada existe para el caso de que alguna sección nueva llegue con la clave
-  // propia, y usa el ancho del contenedor de la plantilla.
-  barberia: "mx-auto w-full max-w-[1360px] px-5 py-16 sm:px-8 sm:py-24",
-  "barberia-artesanal": "mx-auto w-full max-w-6xl px-5 py-16 sm:px-8 sm:py-24",
-  "barberia-urbana": "mx-auto w-full max-w-6xl px-5 py-14 sm:px-8 sm:py-20",
-};
-
-export function SectionTitle({
-  children,
-  variant = "clasico",
-}: {
-  children: React.ReactNode;
-  variant?: SiteTemplate;
-}) {
+function SectionHeading({ section }: { section: SiteSectionConfig }) {
   return (
-    <h2
-      className={
-        variant === "clasico"
-          ? "max-w-2xl text-4xl leading-none font-normal tracking-tight text-[var(--site-text)] sm:text-5xl"
-          : variant === "moderno"
-            ? "max-w-3xl text-4xl leading-none font-extrabold tracking-[-0.04em] text-[var(--site-text)] sm:text-6xl"
-            : "max-w-3xl text-4xl leading-[1.02] font-semibold tracking-[-0.045em] text-[var(--site-text)] sm:text-5xl"
-      }
-      style={{ fontFamily: "var(--site-heading-font)" }}
-    >
-      {children}
-    </h2>
+    <div className="site-section-heading">
+      <p className="site-section-kicker">
+        {section.subtitle}
+      </p>
+      <h2
+        className="site-section-title"
+        style={{ fontFamily: "var(--site-heading-font)" }}
+      >
+        {section.title}
+      </h2>
+    </div>
   );
 }
 
-export function ServicesSection({
-  site,
-  onBookHref = "#reservar",
-  variant = "clasico",
-}: {
-  site: PublicSite;
-  onBookHref?: string;
-  variant?: SiteTemplate;
-}) {
+function ServicesSection({ site, section }: SectionProps) {
   if (!site.services.length) return null;
-
   return (
-    <section id="servicios" className={`${sectionClass[variant]} site-reveal`}>
-      <div>
-        <p className="mb-3 text-xs font-bold tracking-[0.16em] text-[var(--site-accent)] uppercase">Lo que hacemos</p>
-        <SectionTitle variant={variant}>{textoDelSitio(site, "servicesTitle")}</SectionTitle>
-      </div>
-      <ul className={variant === "clasico" ? "mt-10 grid gap-x-10 md:grid-cols-2" : variant === "moderno" ? "mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3" : "mt-10 grid gap-4 md:grid-cols-2"}>
-        {site.services.map((service) => (
-          <li
-            key={service.id}
-            className={`${variant === "clasico" ? "flex items-start justify-between gap-5 border-b border-[var(--site-border)] py-6" : variant === "moderno" ? "group flex min-h-56 flex-col justify-between rounded-[var(--site-radius)] border border-[var(--site-border)] bg-[var(--site-surface)] p-6" : "flex flex-col items-start justify-between gap-5 rounded-[var(--site-radius)] border border-[var(--site-border)] bg-[var(--site-surface)] p-6 shadow-[var(--site-shadow)] sm:flex-row"} site-card`}
-          >
-            <div className="min-w-0">
-              {/* Con foto, la foto sustituye al ícono: es más información en el
-                  mismo lugar. Sin foto queda el ícono de siempre, así que un
-                  catálogo sin fotos se ve exactamente como antes. */}
-              {service.imageUrl ? (
-                <div className={`relative mb-5 overflow-hidden rounded-[var(--site-radius)] bg-[var(--site-surface-alt)] ${variant === "clasico" ? "aspect-[4/3] w-28 shrink-0" : "aspect-[16/10] w-full"}`}>
-                  <Image
-                    src={service.imageUrl}
-                    alt=""
-                    fill
-                    sizes={variant === "clasico" ? "112px" : "(max-width: 640px) 100vw, 380px"}
-                    unoptimized={esImagenAjena(service.imageUrl)}
-                    className="object-cover"
-                  />
-                </div>
-              ) : variant === "moderno" ? (
-                <span aria-hidden="true" className="mb-6 flex h-10 w-10 items-center justify-center rounded-full bg-[var(--site-accent)] font-bold text-[var(--site-on-accent)]">{service.icon ?? "+"}</span>
-              ) : null}
-              {variant === "minimal" && !service.imageUrl && service.icon ? <span aria-hidden="true" className="mb-5 flex h-10 w-10 items-center justify-center rounded-full bg-[var(--site-surface-alt)]">{service.icon}</span> : null}
-              <h3 className={variant === "clasico" ? "text-xl font-normal text-[var(--site-text)]" : variant === "moderno" ? "text-lg font-bold text-[var(--site-text)]" : "text-xl font-bold tracking-tight text-[var(--site-text)]"} style={variant === "clasico" ? { fontFamily: "var(--site-heading-font)" } : undefined}>{service.name}</h3>
-              {service.description ? (
-                <p className="mt-2 text-sm leading-relaxed text-[var(--site-muted)]">{service.description}</p>
-              ) : null}
-              <p className="mt-3 text-xs font-medium text-[var(--site-muted)]">
-                {service.durationMinutes} minutos
-              </p>
+    <section id="servicios" className="site-section site-services-section site-reveal">
+      <SectionHeading section={section} />
+      <ul className="site-grid site-services-grid">
+        {site.services.map((service, index) => (
+          <li key={service.id} className="site-card site-service-card flex flex-col justify-between">
+            <div>
+              <span className="site-service-index block text-xs">
+                {String(index + 1).padStart(2, "0")}
+              </span>
+              <h3 className="site-service-title">{service.name}</h3>
+              {service.description ? <p className="site-service-description">{service.description}</p> : null}
+              <p className="site-service-duration">{service.durationMinutes} minutos</p>
             </div>
-            <div className={variant === "moderno" ? "mt-7 flex items-end justify-between gap-4" : variant === "minimal" ? "flex w-full shrink-0 items-center justify-between gap-4 text-right sm:block sm:w-auto" : "shrink-0 text-right"}>
-              {/* break-words: real COP totals overflow a narrow column otherwise. */}
-              <p className="font-bold break-words text-[var(--site-text)]">
-                {formatCOP(service.price)}
-              </p>
+            <div className="site-service-footer gap-4">
+              <strong className="text-[var(--site-text)]">{formatCOP(service.price)}</strong>
               {site.bookingEnabled ? (
-                <BookServiceLink
-                  serviceId={service.id}
-                  href={onBookHref}
-                  className={`${variant === "minimal" ? "mt-2 inline-flex min-h-12 items-center text-xs font-bold text-[var(--site-accent)] underline underline-offset-4" : "mt-3 inline-flex min-h-12 items-center rounded-full bg-[var(--site-accent)] px-4 text-xs font-bold text-[var(--site-on-accent)]"} site-action`}
-                >
+                <BookServiceLink serviceId={service.id} href="#reservar" className="site-action inline-flex min-h-11 items-center bg-[var(--site-accent)] px-4 text-xs font-bold text-[var(--site-on-accent)]">
                   Reservar
                 </BookServiceLink>
               ) : null}
@@ -128,202 +58,147 @@ export function ServicesSection({
   );
 }
 
-export function ProductsSection({ site, variant = "clasico" }: { site: PublicSite; variant?: SiteTemplate }) {
-  if (!site.products.length) return null;
-
+function AboutSection({ site, section }: SectionProps) {
+  if (!site.config.about.description) return null;
+  const image = site.config.about.imageUrl;
   return (
-    <section id="productos" className={`${sectionClass[variant]} site-reveal`}>
-      <p className="mb-3 text-xs font-bold tracking-[0.16em] text-[var(--site-accent)] uppercase">Para llevar</p>
-      <SectionTitle variant={variant}>Productos</SectionTitle>
-      <ul className="mt-10 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-        {site.products.map((product) => (
-          <li
-            key={product.id}
-            className={`${variant === "minimal" ? "group overflow-hidden rounded-[var(--site-radius)] bg-[var(--site-surface)] shadow-[var(--site-shadow)]" : variant === "moderno" ? "group overflow-hidden rounded-[var(--site-radius)] border border-[var(--site-border)] bg-[var(--site-surface)]" : "overflow-hidden rounded-[var(--site-radius)] bg-[var(--site-surface)] shadow-[var(--site-shadow)]"} site-card`}
-          >
-            <div className={variant === "clasico" ? "relative aspect-[4/5] bg-[var(--site-surface-alt)]" : "relative aspect-square overflow-hidden bg-[var(--site-surface-alt)]"}>
-              {product.imageUrl ? (
-                <Image
-                  src={product.imageUrl}
-                  alt={product.name}
-                  fill
-                  sizes="(max-width: 640px) 50vw, 25vw"
-                  /*
-                   * Sin esto, UNA foto alojada fuera de nuestro Storage devolvía
-                   * HTTP 500 en TODO el micrositio: `next/image` valida el
-                   * hostname contra `remotePatterns` y lanza, no degrada la
-                   * imagen. Y esas URLs llegan solas desde la búsqueda por
-                   * código de barras, así que el negocio nunca eligió el host.
-                   * Lo nuestro sigue pasando por el optimizador.
-                   */
-                  unoptimized={esImagenAjena(product.imageUrl)}
-                  className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
-                />
-              ) : (
-                <span className="flex h-full items-center justify-center text-3xl" aria-hidden="true">
-                  {product.icon ?? "🛍️"}
-                </span>
-              )}
-            </div>
-            <div className="p-4">
-              <h3 className="line-clamp-2 text-sm font-medium text-[var(--site-text)]">
-                {product.name}
-              </h3>
-              <p className="mt-1 text-sm font-bold break-words text-[var(--site-text)]">
-                {formatCOP(product.price)}
-              </p>
-              {!product.inStock ? (
-                <p className="mt-1 text-xs text-[var(--site-muted)]">Sin stock</p>
-              ) : null}
-            </div>
-          </li>
-        ))}
-      </ul>
-    </section>
-  );
-}
-
-export function StaffSection({ site, variant = "clasico" }: { site: PublicSite; variant?: SiteTemplate }) {
-  if (!site.staff.length) return null;
-
-  return (
-    <section id="equipo" className={`${sectionClass[variant]} site-reveal ${variant === "moderno" ? "border-y border-[var(--site-border)] bg-[var(--site-surface-alt)]" : ""}`}>
-      <p className="mb-3 text-xs font-bold tracking-[0.16em] text-[var(--site-accent)] uppercase">Quienes te reciben</p>
-      <SectionTitle variant={variant}>{textoDelSitio(site, "teamTitle")}</SectionTitle>
-      <ul className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {site.staff.map((member) => (
-          <li
-            key={member.id}
-            className={`${variant === "minimal" ? "flex min-h-24 items-center gap-4 rounded-[var(--site-radius)] bg-[var(--site-surface)] p-5 shadow-[var(--site-shadow)]" : variant === "moderno" ? "flex items-center gap-4 rounded-[var(--site-radius)] border border-[var(--site-border)] bg-[var(--site-surface)] p-5" : "flex items-center gap-4 border-b border-[var(--site-border)] py-5"} site-card`}
-          >
-            {/* La foto la sube el dueño en la ficha de la persona
-                (/dashboard/staff). Sin foto queda la inicial, que es el diseño
-                de siempre y no un hueco. */}
-            {member.photoUrl ? (
-              <Image
-                src={member.photoUrl}
-                alt=""
-                aria-hidden="true"
-                width={56}
-                height={56}
-                unoptimized={esImagenAjena(member.photoUrl)}
-                className={`${variant === "minimal" ? "h-12 w-12" : "h-14 w-14"} shrink-0 rounded-full object-cover`}
-              />
-            ) : (
-              <span
-                aria-hidden="true"
-                className={variant === "minimal" ? "flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[var(--site-surface-alt)] text-sm font-bold text-[var(--site-accent)]" : "flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[var(--site-accent)] text-lg font-bold text-[var(--site-on-accent)]"}
-              >
-                {member.fullName.slice(0, 1).toUpperCase()}
-              </span>
-            )}
-            <span className="text-left"><span className="block font-semibold text-[var(--site-text)]">{member.fullName}</span>{member.role ? <span className="mt-1 block text-xs text-[var(--site-muted)]">{member.role}</span> : null}</span>
-          </li>
-        ))}
-      </ul>
-    </section>
-  );
-}
-
-export function HoursSection({ site, variant = "clasico" }: { site: PublicSite; variant?: SiteTemplate }) {
-  if (!site.hours.length) return null;
-
-  const today = new Date().getDay();
-
-  return (
-    <section id="horarios" className={`${sectionClass[variant]} site-reveal`}>
-      <div className="grid gap-10 md:grid-cols-[.8fr_1.2fr] md:gap-16">
-      <div><p className="mb-3 text-xs font-bold tracking-[0.16em] text-[var(--site-accent)] uppercase">Planificá tu visita</p><SectionTitle variant={variant}>Horarios</SectionTitle></div>
-      <ul className="border-t border-[var(--site-text)]">
-        {site.hours.map((hour) => (
-          <li
-            key={hour.weekday}
-            className={`flex min-h-14 items-center justify-between gap-4 border-b border-[var(--site-border)] py-3 text-sm ${
-              hour.weekday === today ? "font-bold text-[var(--site-accent)]" : ""
-            }`}
-          >
-            <span className="text-[var(--site-text)]">
-              {WEEKDAY_LABELS[hour.weekday]}
-              {hour.weekday === today ? " · hoy" : ""}
-            </span>
-            <span className="text-[var(--site-muted)]">
-              {hour.isOpen ? `${hour.opensAt} – ${hour.closesAt}` : "Cerrado"}
-            </span>
-          </li>
-        ))}
-      </ul>
+    <section className="site-section site-about-section site-reveal">
+      <div className="site-about-grid">
+        <div className={image ? "" : "lg:col-span-2 lg:max-w-4xl"}>
+          <SectionHeading section={section} />
+          <p className="site-about-copy">{site.config.about.description}</p>
+        </div>
+        {image ? (
+          <div className="site-about-image overflow-hidden bg-[var(--site-surface-alt)]">
+            <Image src={image} alt={site.config.about.title} fill sizes="(max-width: 1024px) 100vw, 50vw" className="object-cover" />
+          </div>
+        ) : null}
       </div>
     </section>
   );
 }
 
-export function ContactSection({ site, variant = "clasico" }: { site: PublicSite; variant?: SiteTemplate }) {
-  // El enlace lo arma `socialLinksOf`, que descarta lo que no sea http(s): el
-  // valor lo escribió el dueño y acá termina en un href público.
-  const socials = socialLinksOf(site);
-  const hasContact = site.whatsapp || site.address || socials.length > 0;
-  if (!hasContact) return null;
-
+function ProductsSection({ site, section }: SectionProps) {
+  if (!site.products.length) return null;
   return (
-    <section id="contacto" className={`${sectionClass[variant]} site-reveal ${variant === "moderno" ? "border-t border-[var(--site-border)]" : ""}`}>
-      <div className={variant === "clasico" ? "rounded-[var(--site-radius)] bg-[var(--site-text)] p-7 text-[var(--site-bg)] shadow-[var(--site-shadow)] [&_h2]:!text-[var(--site-bg)] sm:p-12" : variant === "minimal" ? "rounded-[var(--site-radius)] bg-[var(--site-surface)] p-7 shadow-[var(--site-shadow)] sm:p-12" : ""}>
-      <p className={`mb-3 text-xs font-bold tracking-[0.16em] uppercase ${variant === "clasico" ? "text-[var(--site-bg)] opacity-60" : "text-[var(--site-accent)]"}`}>Hablemos</p>
-      <SectionTitle variant={variant}>Dónde estamos</SectionTitle>
-      <div className="mt-8 space-y-5 text-sm text-[var(--site-muted)]">
-        {site.address ? <p className={variant === "clasico" ? "max-w-xl text-lg text-[var(--site-bg)]" : "max-w-xl text-lg text-[var(--site-text)]"}>{site.address}</p> : null}
-        <div className="flex flex-wrap gap-3">
-          {site.whatsapp ? (
-            <a
-              href={whatsappHref(site.whatsapp, `Hola ${site.businessName}, quiero consultar.`)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="site-action inline-flex min-h-12 items-center gap-2 rounded-full bg-[var(--site-accent)] px-5 font-bold text-[var(--site-on-accent)]"
-            >
-              <BrandIcon name="whatsapp" className="h-4 w-4 shrink-0" />
-              Escribir por WhatsApp
-            </a>
-          ) : null}
-          {socials.map((social) => (
-            <a
-              key={social.network}
-              href={social.href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={`site-action inline-flex min-h-12 items-center gap-2 rounded-full border px-5 font-semibold ${variant === "clasico" ? "border-[var(--site-muted)] text-[var(--site-bg)]" : "border-[var(--site-border)] text-[var(--site-text)]"}`}
-            >
-              {/* Sin `colored`: el logo toma el color del texto de la plantilla,
-                  que es la que manda la paleta. */}
-              <BrandIcon name={social.network} className="h-4 w-4 shrink-0" />
-              {social.label}
-            </a>
-          ))}
+    <section id="productos" className="site-section site-products-section site-reveal">
+      <SectionHeading section={section} />
+      <ul className="site-grid site-products-grid">
+        {site.products.map((product) => (
+          <li key={product.id} className="site-card site-product-card">
+            <div className="site-product-image">
+              {product.imageUrl ? <Image src={product.imageUrl} alt={product.name} fill sizes="(max-width: 640px) 50vw, 25vw" className="object-cover" /> : <span className="grid h-full place-items-center text-3xl" aria-hidden="true">{product.icon ?? "+"}</span>}
+            </div>
+            <div className="site-product-copy"><h3 className="text-sm font-semibold text-[var(--site-text)]">{product.name}</h3><p className="mt-2 text-sm font-bold text-[var(--site-accent)]">{formatCOP(product.price)}</p></div>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function TeamSection({ site, section }: SectionProps) {
+  if (!site.staff.length) return null;
+  return (
+    <section id="equipo" className="site-section site-team-section site-reveal">
+      <SectionHeading section={section} />
+      <ul className="site-grid site-team-grid">
+        {site.staff.map((member) => (
+          <li key={member.id} className="site-card site-team-card flex items-center gap-4">
+            <span className="site-team-avatar shrink-0" aria-hidden="true">{member.fullName.slice(0, 1).toUpperCase()}</span>
+            <span><strong className="block text-[var(--site-text)]">{member.fullName}</strong>{member.role ? <span className="mt-1 block text-xs text-[var(--site-muted)]">{member.role}</span> : null}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function GallerySection({ site, section }: SectionProps) {
+  if (!site.config.gallery.images.length) return null;
+  return (
+    <section id="galeria" className="site-section site-gallery-section site-reveal">
+      <SectionHeading section={section} />
+      <div className="site-gallery-grid">
+        {site.config.gallery.images.map((image, index) => (
+          <div key={image.id} className={`site-gallery-image overflow-hidden bg-[var(--site-surface-alt)] ${index % 5 === 0 ? "col-span-2 row-span-2" : ""}`}>
+            <Image src={image.url} alt={image.alt} fill sizes="(max-width: 768px) 50vw, 25vw" className="object-cover" />
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function BookingSection({ site, section, preview }: SectionProps & { preview: boolean }) {
+  if (!site.bookingEnabled) return null;
+  return (
+    <section id="reservar" className="site-booking-section site-reveal">
+      <div className="site-booking-inner">
+        <div><SectionHeading section={section} /><p className="mt-5 leading-relaxed text-[var(--site-muted)]">Elegí el servicio, profesional y horario que mejor te quede.</p></div>
+        <div className="site-booking-panel min-w-0 shadow-[var(--site-shadow)]">
+          {preview ? <div className="grid min-h-64 place-items-center border border-dashed border-[var(--site-border)] p-8 text-center text-sm text-[var(--site-muted)]">La agenda real aparecerá aquí cuando publiques.</div> : <BookingWidget site={site} />}
         </div>
       </div>
+    </section>
+  );
+}
+
+function businessWeekday(timezone: string): number {
+  const short = new Intl.DateTimeFormat("en-US", { timeZone: timezone, weekday: "short" }).format(new Date());
+  return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(short);
+}
+
+function HoursSection({ site, section }: SectionProps) {
+  if (!site.hours.length) return null;
+  const today = businessWeekday(site.timezone);
+  return (
+    <section id="horarios" className="site-section site-hours-section site-reveal">
+      <div className="site-hours-grid">
+        <SectionHeading section={section} />
+        <ul className="site-hours-list">
+          {site.hours.map((hour) => <li key={hour.weekday} className="site-hour gap-4 text-sm"><span className="text-[var(--site-text)]">{WEEKDAY_LABELS[hour.weekday]}{hour.weekday === today ? " · hoy" : ""}</span><span className={hour.weekday === today ? "font-bold text-[var(--site-accent)]" : "text-[var(--site-muted)]"}>{hour.isOpen ? `${hour.opensAt} – ${hour.closesAt}` : "Cerrado"}</span></li>)}
+        </ul>
       </div>
     </section>
   );
+}
+
+function ContactSection({ site, section }: SectionProps) {
+  const socials = socialLinksOf(site);
+  if (!site.whatsapp && !site.address && !socials.length) return null;
+  return (
+    <section id="contacto" className="site-section site-contact-section site-reveal">
+      <div className="site-contact-panel">
+        <SectionHeading section={section} />
+        {site.address ? <p className="mt-7 max-w-xl text-lg">{site.address}</p> : null}
+        <div className="mt-7 flex flex-wrap gap-3">
+          {site.whatsapp ? <a href={whatsappHref(site.whatsapp, `Hola ${site.businessName}, quiero consultar.`)} target="_blank" rel="noopener noreferrer" className="site-action inline-flex min-h-12 items-center gap-2 bg-[var(--site-accent)] px-5 font-bold text-[var(--site-on-accent)]"><BrandIcon name="whatsapp" className="h-4 w-4" />WhatsApp</a> : null}
+          {socials.map((social) => <a key={social.network} href={social.href} target="_blank" rel="noopener noreferrer" className="site-action inline-flex min-h-12 items-center gap-2 border border-current px-5 font-semibold"><BrandIcon name={social.network} className="h-4 w-4" />{social.label}</a>)}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+interface SectionProps { site: PublicSite; section: SiteSectionConfig }
+
+export function ConfigurableSections({ site, preview = false }: { site: PublicSite; preview?: boolean }) {
+  return site.config.sections.map((section) => {
+    if (!section.visible) return null;
+    switch (section.id) {
+      case "services": return <ServicesSection key={section.id} site={site} section={section} />;
+      case "about": return <AboutSection key={section.id} site={site} section={section} />;
+      case "products": return <ProductsSection key={section.id} site={site} section={section} />;
+      case "team": return <TeamSection key={section.id} site={site} section={section} />;
+      case "gallery": return <GallerySection key={section.id} site={site} section={section} />;
+      case "booking": return <BookingSection key={section.id} site={site} section={section} preview={preview} />;
+      case "hours": return <HoursSection key={section.id} site={site} section={section} />;
+      case "contact": return <ContactSection key={section.id} site={site} section={section} />;
+    }
+  });
 }
 
 export function SiteFooter({ site }: { site: PublicSite }) {
-  return (
-    <footer className="border-t border-[var(--site-border)] px-5 py-10 text-xs text-[var(--site-muted)]">
-      <div className="mx-auto flex w-full max-w-7xl flex-col justify-between gap-3 sm:flex-row sm:items-center">
-      <p>
-        © {new Date().getFullYear()} {site.businessName}
-        {/* Texto plano, nunca HTML: lo escribe el dueño y se pinta como lo
-            escribió. Interpretarlo como marcado sería dejar que un inquilino
-            inyecte etiquetas en su propia página pública. */}
-        {site.footerNote?.trim() ? (
-          <span className="mt-1 block text-[var(--site-muted)]">{site.footerNote.trim()}</span>
-        ) : null}
-      </p>
-      <p>
-        Sitio hecho con{" "}
-        <Link href="/" className="underline">
-          Ventex
-        </Link>
-      </p>
-      </div>
-    </footer>
-  );
+  return <footer className="border-t border-[var(--site-border)] px-5 py-10 text-xs text-[var(--site-muted)]"><div className="mx-auto flex max-w-7xl flex-col justify-between gap-3 sm:flex-row"><p>© {new Date().getFullYear()} {site.businessName}</p><p>Sitio hecho con <Link href="/" className="underline">Ventex</Link></p></div></footer>;
 }

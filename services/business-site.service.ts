@@ -1,53 +1,27 @@
 import { createClient } from "@/utils/supabase/client";
-import type { SiteTemplate, SiteCopyKey } from "@/services/public-site.types";
 import { getSelectedWorkspaceId } from "@/services/workspace.service";
-import { toWebp, verificarPeso } from "@/lib/image";
-
-/** Owner-side configuration of the public micro-site. RLS scopes every row. */
+import type { Json } from "@/utils/supabase/database.types";
+import {
+  defaultLandingConfig,
+  normalizeLandingConfig,
+} from "@/services/public-site.types";
+import type { LandingConfig } from "@/services/public-site.types";
 
 export interface BusinessSite {
   id: string;
   slug: string;
-  template: SiteTemplate;
   published: boolean;
   booking_enabled: boolean;
-  headline: string | null;
-  about: string | null;
-  hero_image_url: string | null;
-  /** Punto focal de la foto del hero, 0-100. Es `object-position`. */
-  hero_focus_x: number;
-  hero_focus_y: number;
-  /** Oscurecido EXTRA sobre el de la plantilla, 0-70. Solo suma. */
-  hero_overlay: number;
-  whatsapp: string | null;
-  address: string | null;
-  /**
-   * Social handles are stored exactly as typed (`@shop`, a full URL, …). The
-   * link is built at render time by `lib/socialLinks.ts`.
-   */
-  instagram: string | null;
-  facebook: string | null;
-  tiktok: string | null;
-  youtube: string | null;
-  twitter: string | null;
-  linkedin: string | null;
-  telegram: string | null;
-  website: string | null;
   timezone: string;
   slot_interval_minutes: number;
-  /** Línea extra del pie, escrita por el negocio. Texto plano. */
-  footer_note: string | null;
-  /**
-   * Textos de sección que el negocio sobreescribió. Lo que falte o esté vacío
-   * cae al texto por defecto de la plantilla (ver `textoDelSitio`).
-   */
-  site_copy: Partial<Record<SiteCopyKey, string>>;
+  draft_config: LandingConfig;
+  published_config: LandingConfig | null;
 }
 
 export interface BusinessHour {
   weekday: number;
   is_open: boolean;
-  /** "HH:MM" — the column is `time`, PostgREST hands it back as "HH:MM:SS". */
+  /** "HH:MM"; PostgREST returns time columns with seconds. */
   opens_at: string;
   closes_at: string;
 }
@@ -57,69 +31,18 @@ export interface SiteConfig {
   hours: BusinessHour[];
 }
 
-export type SiteInput = Omit<BusinessSite, "id">;
-
-/** Drops the server-owned `id` so a stored row can be fed back into a form. */
-export function toSiteInput(site: BusinessSite): SiteInput {
-  return {
-    slug: site.slug,
-    template: site.template,
-    published: site.published,
-    booking_enabled: site.booking_enabled,
-    headline: site.headline,
-    about: site.about,
-    hero_image_url: site.hero_image_url,
-    hero_focus_x: site.hero_focus_x ?? 50,
-    hero_focus_y: site.hero_focus_y ?? 50,
-    hero_overlay: site.hero_overlay ?? 0,
-    whatsapp: site.whatsapp,
-    address: site.address,
-    instagram: site.instagram,
-    facebook: site.facebook,
-    tiktok: site.tiktok,
-    youtube: site.youtube,
-    twitter: site.twitter,
-    linkedin: site.linkedin,
-    telegram: site.telegram,
-    website: site.website,
-    timezone: site.timezone,
-    slot_interval_minutes: site.slot_interval_minutes,
-    footer_note: site.footer_note,
-    site_copy: site.site_copy ?? {},
-  };
-}
-
-const BANNERS_BUCKET = "business-logos";
-
-/**
- * Sube el banner del micrositio y devuelve su URL pública.
- *
- * Reusa el bucket de logos en vez de crear uno nuevo: las dos son imágenes de
- * marca del negocio, con la misma policy (lectura pública, escritura del dueño)
- * y el mismo ciclo de vida. Un bucket aparte solo habría duplicado cuatro
- * políticas para guardar lo mismo.
- */
-export async function uploadSiteBanner(file: File): Promise<string> {
-  const supabase = createClient();
-  const workspaceId = await getSelectedWorkspaceId();
-  const optimized = await toWebp(file);
-  verificarPeso(optimized, 2 * 1024 * 1024); // tope del bucket `business-logos`
-
-  const ext = optimized.name.split(".").pop()?.toLowerCase() || "webp";
-  const path = `${workspaceId}/banner-${crypto.randomUUID()}.${ext}`;
-
-  const { error } = await supabase.storage
-    .from(BANNERS_BUCKET)
-    .upload(path, optimized, { cacheControl: "3600", upsert: false });
-  if (error) throw error;
-
-  return supabase.storage.from(BANNERS_BUCKET).getPublicUrl(path).data.publicUrl;
+export interface SiteInput {
+  slug: string;
+  booking_enabled: boolean;
+  timezone: string;
+  slot_interval_minutes: number;
+  draft_config: LandingConfig;
 }
 
 const SITE_SELECT =
-  "id, slug, template, published, booking_enabled, headline, about, hero_image_url, hero_focus_x, hero_focus_y, hero_overlay, whatsapp, address, instagram, facebook, tiktok, youtube, twitter, linkedin, telegram, website, timezone, slot_interval_minutes, footer_note, site_copy";
+  "id, slug, published, booking_enabled, timezone, slot_interval_minutes, draft_config, published_config";
+const SITE_IMAGES_BUCKET = "site-images";
 
-/** Mon–Sat open 09–19, Sunday closed: the shape most shops start from. */
 export function defaultHours(): BusinessHour[] {
   return Array.from({ length: 7 }, (_, weekday) => ({
     weekday,
@@ -129,13 +52,29 @@ export function defaultHours(): BusinessHour[] {
   }));
 }
 
-/** "Barbería  Lebarb!" -> "barberia-lebarb", the shape the CHECK constraint wants. */
+export function emptySiteInput(): SiteInput {
+  return {
+    slug: "",
+    booking_enabled: true,
+    timezone: "America/Bogota",
+    slot_interval_minutes: 30,
+    draft_config: defaultLandingConfig(),
+  };
+}
+
+export function toSiteInput(site: BusinessSite): SiteInput {
+  return {
+    slug: site.slug,
+    booking_enabled: site.booking_enabled,
+    timezone: site.timezone,
+    slot_interval_minutes: site.slot_interval_minutes,
+    draft_config: site.draft_config,
+  };
+}
+
 export function slugify(input: string): string {
   return input
     .normalize("NFD")
-    // NFD split the accents off; drop them. Uses the Unicode property escape
-    // rather than a combining-marks character class, because those code points
-    // are invisible in an editor and read like a typo.
     .replace(/\p{Diacritic}/gu, "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
@@ -144,13 +83,23 @@ export function slugify(input: string): string {
     .replace(/-+$/g, "");
 }
 
-function toHhMm(value: string): string {
-  return value.slice(0, 5);
+function mapSite(raw: Record<string, unknown>): BusinessSite {
+  return {
+    id: raw.id as string,
+    slug: raw.slug as string,
+    published: raw.published as boolean,
+    booking_enabled: raw.booking_enabled as boolean,
+    timezone: raw.timezone as string,
+    slot_interval_minutes: raw.slot_interval_minutes as number,
+    draft_config: normalizeLandingConfig(raw.draft_config),
+    published_config: raw.published_config
+      ? normalizeLandingConfig(raw.published_config)
+      : null,
+  };
 }
 
 export async function fetchSiteConfig(): Promise<SiteConfig> {
   const supabase = createClient();
-
   const [siteResult, hoursResult] = await Promise.all([
     supabase.from("business_sites").select(SITE_SELECT).maybeSingle(),
     supabase
@@ -158,69 +107,81 @@ export async function fetchSiteConfig(): Promise<SiteConfig> {
       .select("weekday, is_open, opens_at, closes_at")
       .order("weekday"),
   ]);
-
   if (siteResult.error) throw siteResult.error;
   if (hoursResult.error) throw hoursResult.error;
 
-  const hours = (hoursResult.data ?? []).map((h) => ({
-    ...h,
-    opens_at: toHhMm(h.opens_at),
-    closes_at: toHhMm(h.closes_at),
+  const hours = (hoursResult.data ?? []).map((hour) => ({
+    ...hour,
+    opens_at: hour.opens_at.slice(0, 5),
+    closes_at: hour.closes_at.slice(0, 5),
   })) as BusinessHour[];
-
   return {
-    site: (siteResult.data as BusinessSite | null) ?? null,
+    site: siteResult.data
+      ? mapSite(siteResult.data as unknown as Record<string, unknown>)
+      : null,
     hours: hours.length ? hours : defaultHours(),
   };
 }
 
-/**
- * Creates or updates the tenant's site row.
- *
- * `user_id` is deliberately absent: the column defaults to
- * `get_effective_user_id()` and the RLS policy re-checks it, so the tenant can
- * never be forged from the client.
- */
 export async function saveSite(input: SiteInput): Promise<BusinessSite> {
   const supabase = createClient();
-
+  const payload = {
+    slug: slugify(input.slug),
+    booking_enabled: input.booking_enabled,
+    timezone: input.timezone,
+    slot_interval_minutes: input.slot_interval_minutes,
+    draft_config: normalizeLandingConfig(input.draft_config) as unknown as Json,
+  };
   const { data, error } = await supabase
     .from("business_sites")
-    .upsert({ ...input, slug: input.slug.toLowerCase() }, { onConflict: "user_id" })
+    .upsert(payload, { onConflict: "user_id" })
     .select(SITE_SELECT)
     .single();
-
   if (error) throw error;
-  return data as BusinessSite;
+  return mapSite(data as unknown as Record<string, unknown>);
 }
 
 export async function saveHours(hours: BusinessHour[]): Promise<void> {
   const supabase = createClient();
-
   const { error } = await supabase
     .from("business_hours")
     .upsert(hours, { onConflict: "user_id,weekday" });
-
   if (error) throw error;
 }
 
-/**
- * Whether a slug is free.
- *
- * Uses `public_site_slug_taken` and not a SELECT: RLS only shows the tenant its
- * own row, so a slug already claimed by another business — published or not —
- * would look free from here and only fail against the unique index on save.
- *
- * That index stays the real authority; this call exists so the owner finds out
- * before pressing save rather than after.
- */
+export async function setSitePublished(published: boolean): Promise<BusinessSite> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("set_business_site_published", {
+    p_published: published,
+  });
+  if (error) throw error;
+  return mapSite(data as unknown as Record<string, unknown>);
+}
+
 export async function isSlugAvailable(slug: string, currentSlug?: string): Promise<boolean> {
   if (currentSlug && slug.toLowerCase() === currentSlug.toLowerCase()) return true;
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("public_site_slug_taken", {
+    p_slug: slug,
+  });
+  if (error) throw error;
+  return data === false;
+}
+
+export async function uploadSiteImage(file: File): Promise<string> {
+  if (!file.type.startsWith("image/")) throw new Error("Elegí un archivo de imagen.");
+  if (file.size > 8 * 1024 * 1024) throw new Error("La imagen no puede superar 8 MB.");
+
+  const allowed = new Set(["image/jpeg", "image/png", "image/webp", "image/avif"]);
+  if (!allowed.has(file.type)) throw new Error("Usá una imagen JPG, PNG, WebP o AVIF.");
 
   const supabase = createClient();
-
-  const { data, error } = await supabase.rpc("public_site_slug_taken", { p_slug: slug });
+  const workspaceId = await getSelectedWorkspaceId();
+  const extension = file.name.split(".").pop()?.toLowerCase() || "webp";
+  const path = `${workspaceId}/${crypto.randomUUID()}.${extension}`;
+  const { error } = await supabase.storage
+    .from(SITE_IMAGES_BUCKET)
+    .upload(path, file, { cacheControl: "31536000", upsert: false, contentType: file.type });
   if (error) throw error;
-
-  return data === false;
+  return supabase.storage.from(SITE_IMAGES_BUCKET).getPublicUrl(path).data.publicUrl;
 }

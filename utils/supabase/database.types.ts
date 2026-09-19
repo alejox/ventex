@@ -229,6 +229,7 @@ export type Database = {
           address: string | null
           booking_enabled: boolean
           created_at: string
+          draft_config: Json
           facebook: string | null
           footer_note: string | null
           headline: string | null
@@ -240,6 +241,7 @@ export type Database = {
           instagram: string | null
           linkedin: string | null
           published: boolean
+          published_config: Json | null
           site_copy: Json
           slot_interval_minutes: number
           slug: string
@@ -259,6 +261,7 @@ export type Database = {
           address?: string | null
           booking_enabled?: boolean
           created_at?: string
+          draft_config?: Json
           facebook?: string | null
           footer_note?: string | null
           headline?: string | null
@@ -270,6 +273,7 @@ export type Database = {
           instagram?: string | null
           linkedin?: string | null
           published?: boolean
+          published_config?: Json | null
           site_copy?: Json
           slot_interval_minutes?: number
           slug: string
@@ -289,6 +293,7 @@ export type Database = {
           address?: string | null
           booking_enabled?: boolean
           created_at?: string
+          draft_config?: Json
           facebook?: string | null
           footer_note?: string | null
           headline?: string | null
@@ -300,6 +305,7 @@ export type Database = {
           instagram?: string | null
           linkedin?: string | null
           published?: boolean
+          published_config?: Json | null
           site_copy?: Json
           slot_interval_minutes?: number
           slug?: string
@@ -2782,6 +2788,10 @@ export type Database = {
         }[]
       }
       public_site_slug_taken: { Args: { p_slug: string }; Returns: boolean }
+      set_business_site_published: {
+        Args: { p_published: boolean }
+        Returns: Json
+      }
       public_site_slugs: {
         Args: never
         Returns: {

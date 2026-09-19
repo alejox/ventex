@@ -26,6 +26,7 @@ import {
   IconWallet,
   IconDollar,
   IconClock,
+  IconGlobe,
 } from "@/app/assets/icons/DashboardIcons";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ShellUserMenu } from "@/components/ShellUserMenu";
@@ -40,7 +41,7 @@ import { SIDEBAR_COOKIE, SIDEBAR_COOKIE_MAX_AGE } from "@/lib/sidebar";
 import { WorkspaceSwitcher } from "@/components/WorkspaceSwitcher";
 import { SupportFab, showsSupportFab, SUPPORT_FAB_CLEARANCE } from "@/components/SupportFab";
 
-import { fetchSiteConfig } from "@/services/business-site.service";
+import { useBusinessSiteStore } from "@/stores/business-site.store";
 
 type IconType = typeof IconHome;
 
@@ -79,6 +80,7 @@ const NAV_ICONS: Record<string, IconType> = {
   purchases: IconReceipt,
   calendar: IconCalendar,
   subscription: IconCreditCard,
+  landing: IconGlobe,
 };
 
 export function DashboardShell({
@@ -128,18 +130,13 @@ export function DashboardShell({
     );
   };
 
-  const [siteSlug, setSiteSlug] = useState<string | null>(null);
+  const site = useBusinessSiteStore((state) => state.site);
+  const fetchSiteConfig = useBusinessSiteStore((state) => state.fetchConfig);
+  const siteSlug = site?.published ? site.slug : null;
 
   useEffect(() => {
-    fetchSiteConfig()
-      .then((cfg) => {
-        // Hace falta el slug Y que esté PUBLICADO. `public_site_by_slug`
-        // devuelve null para un sitio sin publicar y la página responde 404:
-        // un botón que lleva a un 404 es peor que no tener botón.
-        if (cfg.site?.slug && cfg.site.published) setSiteSlug(cfg.site.slug);
-      })
-      .catch(() => {});
-  }, []);
+    void fetchSiteConfig();
+  }, [fetchSiteConfig]);
 
   useEffect(() => {
     document.cookie = `${SIDEBAR_COOKIE}=${sidebarCollapsed}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}; samesite=lax`;

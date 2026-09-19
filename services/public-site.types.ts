@@ -7,93 +7,204 @@
  * contract: if a field is not here, the public site must not need it.
  */
 
-import type { BusinessType } from "@/config/business";
-
-/**
- * `barberia` es una PLANTILLA, no el tipo de negocio del inquilino.
- *
- * Antes esta presentación se activaba sola cuando el perfil era `salon`: el
- * selector mostraba tres tarjetas mientras existía una cuarta que nadie podía
- * elegir. Como clave propia, se guarda y se elige sola — aunque solo se le
- * OFREZCA a quien le sirve (ver TEMPLATE_BUSINESS_TYPES más abajo).
- */
-export const SITE_TEMPLATES = [
-  "clasico",
-  "moderno",
-  "minimal",
-  "barberia",
-  "barberia-artesanal",
-  "barberia-urbana",
-] as const;
+export const SITE_TEMPLATES = ["rasm", "fallspa", "qutter"] as const;
 export type SiteTemplate = (typeof SITE_TEMPLATES)[number];
 
 export const TEMPLATE_LABELS: Record<SiteTemplate, string> = {
-  clasico: "Clásico",
-  moderno: "Moderno",
-  minimal: "Minimal",
-  // Dos plantillas de barbería: el nombre a secas no alcanza para elegir
-  // entre ellas, y lo que las separa es la estética, no el rubro.
-  barberia: "Barbería editorial",
-  "barberia-artesanal": "Barbería artesanal",
-  "barberia-urbana": "Barbería urbana",
+  rasm: "Rasm",
+  fallspa: "Fallspa",
+  qutter: "Qutter",
 };
-
-/**
- * Qué rubros ve cada plantilla.
- *
- * No es una lista de permisos por seguridad: es que una plantilla NO es neutra.
- * Las de barbería hablan de cortes, de barba y de "el equipo", y el logo por
- * defecto es una tijera — en una tienda general publican un sitio que habla de
- * otro negocio. Y al revés: a una barbería mostrarle "Clásico", "Moderno" y
- * "Minimal" es ofrecerle tres diseños genéricos al lado de dos hechos para su
- * oficio, que es la forma más rápida de que elija el peor de los cinco.
- *
- * Una plantilla que NO figure acá se ofrece a todos. Hoy no hay ninguna, pero
- * la puerta queda abierta para un diseño que de verdad sirva a cualquier rubro.
- */
-const RUBROS_GENERALES: readonly BusinessType[] = ["tienda", "lavaautos", "servicios"];
-
-export const TEMPLATE_BUSINESS_TYPES: Partial<Record<SiteTemplate, readonly BusinessType[]>> = {
-  clasico: RUBROS_GENERALES,
-  moderno: RUBROS_GENERALES,
-  minimal: RUBROS_GENERALES,
-  barberia: ["salon"],
-  "barberia-artesanal": ["salon"],
-  "barberia-urbana": ["salon"],
-};
-
-/**
- * Qué plantillas puede elegir este negocio.
- *
- * `current` es la que tiene guardada HOY, y se incluye siempre aunque ya no le
- * corresponda. Esconderla dejaría el selector sin ninguna tarjeta marcada
- * mientras el sitio publicado sigue usándola: el dueño no podría ver qué tiene
- * puesto ni, sobre todo, cambiarlo. La restricción es para lo que se elige de
- * acá en adelante, no una forma de dejar a alguien encerrado.
- */
-export function templatesFor(
-  businessType: BusinessType | string | null | undefined,
-  current?: SiteTemplate,
-): SiteTemplate[] {
-  return SITE_TEMPLATES.filter((template) => {
-    if (template === current) return true;
-    const rubros = TEMPLATE_BUSINESS_TYPES[template];
-    return !rubros || rubros.includes(businessType as BusinessType);
-  });
-}
 
 export const TEMPLATE_DESCRIPTIONS: Record<SiteTemplate, string> = {
-  clasico: "Cálido y tradicional. Tonos tierra, tipografía con serifa.",
-  moderno: "Oscuro y con contraste alto. Acentos vivos, aire nocturno.",
-  minimal: "Limpio y refinado. Blanco cálido, formas suaves y aire premium.",
-  // Se nombra el oficio a propósito: el texto de la plantilla habla de cortes y
-  // de barba, así que quien la elija para otro rubro tiene que saberlo antes.
-  barberia: "Editorial, oscuro y dorado. Serifa grande y foto a sangre. Su texto habla de barbería.",
-  "barberia-artesanal":
-    "Claro y cálido. Cobre, titulares manuscritos y los servicios en círculos. Su texto habla de barbería.",
-  "barberia-urbana":
-    "Verde y directo. Versalitas condensadas y tus datos de contacto arriba de todo. Su texto habla de barbería.",
+  rasm: "Editorial y sofisticado para belleza y cuidado personal.",
+  fallspa: "Suave, luminoso y orgánico para spa y bienestar.",
+  qutter: "Fuerte, gráfico y contrastado para barberías.",
 };
+
+export const SITE_SECTION_IDS = [
+  "services",
+  "about",
+  "products",
+  "team",
+  "gallery",
+  "booking",
+  "hours",
+  "contact",
+] as const;
+export type SiteSectionId = (typeof SITE_SECTION_IDS)[number];
+
+export interface SiteSectionConfig {
+  id: SiteSectionId;
+  visible: boolean;
+  title: string;
+  subtitle: string;
+}
+
+export interface SiteImage {
+  id: string;
+  url: string;
+  alt: string;
+}
+
+export interface SiteContactConfig {
+  whatsapp: string | null;
+  address: string | null;
+  instagram: string | null;
+  facebook: string | null;
+  tiktok: string | null;
+  youtube: string | null;
+  twitter: string | null;
+  linkedin: string | null;
+  telegram: string | null;
+  website: string | null;
+}
+
+export interface LandingConfig {
+  version: 1;
+  template: SiteTemplate;
+  colors: { primary: string | null };
+  hero: {
+    eyebrow: string;
+    title: string | null;
+    description: string | null;
+    imageUrl: string | null;
+  };
+  about: {
+    title: string;
+    description: string | null;
+    imageUrl: string | null;
+  };
+  gallery: { title: string; images: SiteImage[] };
+  contact: SiteContactConfig;
+  seo: { title: string | null; description: string | null; imageUrl: string | null };
+  sections: SiteSectionConfig[];
+}
+
+const SECTION_DEFAULTS: Record<SiteSectionId, Omit<SiteSectionConfig, "id">> = {
+  services: { visible: true, title: "Servicios", subtitle: "Lo que hacemos" },
+  about: { visible: true, title: "Nuestra esencia", subtitle: "Sobre nosotros" },
+  products: { visible: true, title: "Productos", subtitle: "Para llevar" },
+  team: { visible: true, title: "El equipo", subtitle: "Quienes te reciben" },
+  gallery: { visible: true, title: "Nuestro espacio", subtitle: "Conocenos" },
+  booking: { visible: true, title: "Reservá tu turno", subtitle: "Agenda online" },
+  hours: { visible: true, title: "Horarios", subtitle: "Planificá tu visita" },
+  contact: { visible: true, title: "Dónde estamos", subtitle: "Hablemos" },
+};
+
+const EMPTY_CONTACT: SiteContactConfig = {
+  whatsapp: null,
+  address: null,
+  instagram: null,
+  facebook: null,
+  tiktok: null,
+  youtube: null,
+  twitter: null,
+  linkedin: null,
+  telegram: null,
+  website: null,
+};
+
+export const DEFAULT_SITE_IMAGES: Record<SiteTemplate, string> = {
+  rasm: "/site-templates/rasm-hero.webp",
+  fallspa: "/site-templates/fallspa-hero.webp",
+  qutter: "/site-templates/qutter-hero.webp",
+};
+
+export const DEFAULT_SITE_DETAIL_IMAGES = {
+  qutterSide: "/site-templates/qutter-side.webp",
+} as const;
+
+export function defaultLandingConfig(template: SiteTemplate = "rasm"): LandingConfig {
+  return {
+    version: 1,
+    template,
+    colors: { primary: null },
+    hero: {
+      eyebrow: "Bienvenidos",
+      title: null,
+      description: null,
+      imageUrl: null,
+    },
+    about: { title: "Nuestra esencia", description: null, imageUrl: null },
+    gallery: { title: "Nuestro espacio", images: [] },
+    contact: { ...EMPTY_CONTACT },
+    seo: { title: null, description: null, imageUrl: null },
+    sections: SITE_SECTION_IDS.map((id) => ({ id, ...SECTION_DEFAULTS[id] })),
+  };
+}
+
+function nullableString(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+/** Normalizes persisted JSON so an older or partial draft remains renderable. */
+export function normalizeLandingConfig(value: unknown): LandingConfig {
+  const raw = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+  const template = SITE_TEMPLATES.includes(raw.template as SiteTemplate)
+    ? (raw.template as SiteTemplate)
+    : "rasm";
+  const result = defaultLandingConfig(template);
+  const colors = raw.colors && typeof raw.colors === "object" ? raw.colors as Record<string, unknown> : {};
+  const hero = raw.hero && typeof raw.hero === "object" ? raw.hero as Record<string, unknown> : {};
+  const about = raw.about && typeof raw.about === "object" ? raw.about as Record<string, unknown> : {};
+  const gallery = raw.gallery && typeof raw.gallery === "object" ? raw.gallery as Record<string, unknown> : {};
+  const contact = raw.contact && typeof raw.contact === "object" ? raw.contact as Record<string, unknown> : {};
+  const seo = raw.seo && typeof raw.seo === "object" ? raw.seo as Record<string, unknown> : {};
+
+  result.colors.primary = nullableString(colors.primary);
+  result.hero = {
+    eyebrow: nullableString(hero.eyebrow) ?? result.hero.eyebrow,
+    title: nullableString(hero.title),
+    description: nullableString(hero.description),
+    imageUrl: nullableString(hero.imageUrl),
+  };
+  result.about = {
+    title: nullableString(about.title) ?? result.about.title,
+    description: nullableString(about.description),
+    imageUrl: nullableString(about.imageUrl),
+  };
+  const images = Array.isArray(gallery.images) ? gallery.images : [];
+  result.gallery = {
+    title: nullableString(gallery.title) ?? result.gallery.title,
+    images: images.flatMap((item) => {
+      if (!item || typeof item !== "object") return [];
+      const image = item as Record<string, unknown>;
+      const url = nullableString(image.url);
+      if (!url) return [];
+      return [{ id: nullableString(image.id) ?? url, url, alt: nullableString(image.alt) ?? "" }];
+    }).slice(0, 12),
+  };
+  for (const key of Object.keys(EMPTY_CONTACT) as (keyof SiteContactConfig)[]) {
+    result.contact[key] = nullableString(contact[key]);
+  }
+  result.seo = {
+    title: nullableString(seo.title),
+    description: nullableString(seo.description),
+    imageUrl: nullableString(seo.imageUrl),
+  };
+
+  const seen = new Set<SiteSectionId>();
+  const sections = Array.isArray(raw.sections) ? raw.sections : [];
+  result.sections = sections.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const section = item as Record<string, unknown>;
+    if (!SITE_SECTION_IDS.includes(section.id as SiteSectionId)) return [];
+    const id = section.id as SiteSectionId;
+    if (seen.has(id)) return [];
+    seen.add(id);
+    return [{
+      id,
+      visible: section.visible !== false,
+      title: nullableString(section.title) ?? SECTION_DEFAULTS[id].title,
+      subtitle: nullableString(section.subtitle) ?? SECTION_DEFAULTS[id].subtitle,
+    }];
+  });
+  for (const id of SITE_SECTION_IDS) {
+    if (!seen.has(id)) result.sections.push({ id, ...SECTION_DEFAULTS[id] });
+  }
+  return result;
+}
 
 /** 0 = Sunday, matching Postgres `extract(dow from ...)`. */
 export const WEEKDAY_LABELS = [
@@ -122,8 +233,6 @@ export interface PublicService {
   price: number;
   durationMinutes: number;
   icon: string | null;
-  /** Foto del servicio. Sin ella, cada plantilla dibuja su propio respaldo. */
-  imageUrl: string | null;
 }
 
 export interface PublicProduct {
@@ -140,27 +249,16 @@ export interface PublicStaff {
   id: string;
   fullName: string;
   role: string | null;
-  /** Vive en `public.staff`, no en el sitio: la foto es de la persona. */
-  photoUrl: string | null;
 }
 
 export interface PublicSite {
   slug: string;
-  /** Línea del pie que escribe el negocio. Texto plano, nunca HTML. */
-  footerNote?: string | null;
-  /** Textos de sección que el negocio sobreescribió. Ver `textoDelSitio`. */
-  copy?: Partial<Record<SiteCopyKey, string>> | null;
   template: SiteTemplate;
   businessName: string;
   businessType: string | null;
   headline: string | null;
   about: string | null;
   heroImageUrl: string | null;
-  /** Punto focal de la foto del hero, 0-100. Ver `encuadreDelHero`. */
-  heroFocusX?: number | null;
-  heroFocusY?: number | null;
-  /** Oscurecido EXTRA sobre el de la plantilla, 0-70. Ver `veloDelHero`. */
-  heroOverlay?: number | null;
   logoUrl: string | null;
   whatsapp: string | null;
   address: string | null;
@@ -182,6 +280,8 @@ export interface PublicSite {
   services: PublicService[];
   products: PublicProduct[];
   staff: PublicStaff[];
+  /** Frozen editorial snapshot used to render the public landing. */
+  config: LandingConfig;
 }
 
 /**
@@ -225,166 +325,4 @@ export interface BookingResult {
   service: string;
   status: string;
   whatsapp: string | null;
-}
-
-
-/**
- * Textos del micrositio que el negocio puede reescribir.
- *
- * Van en un solo jsonb (`business_sites.site_copy`) y no en una columna por
- * frase: cada plantilla usa un subconjunto distinto de secciones, así que una
- * columna por texto llenaría la tabla de campos que casi nadie toca y cada
- * sección nueva sería otra migración.
- */
-export const SITE_COPY_KEYS = [
-  "heroKicker",
-  "servicesTitle",
-  "servicesSubtitle",
-  "aboutTitle",
-  "pricesTitle",
-  "pricesSubtitle",
-  "teamTitle",
-  "teamSubtitle",
-  "bookingTitle",
-  "bookingSubtitle",
-] as const;
-
-export type SiteCopyKey = (typeof SITE_COPY_KEYS)[number];
-
-export const SITE_COPY_LABELS: Record<SiteCopyKey, string> = {
-  heroKicker: "Línea bajo el título principal",
-  servicesTitle: "Servicios · título",
-  servicesSubtitle: "Servicios · subtítulo",
-  aboutTitle: "Sobre el negocio · título",
-  pricesTitle: "Precios · título",
-  pricesSubtitle: "Precios · subtítulo",
-  teamTitle: "Equipo · título",
-  teamSubtitle: "Equipo · subtítulo",
-  bookingTitle: "Reservas · título",
-  bookingSubtitle: "Reservas · subtítulo",
-};
-
-/**
- * Lo que dice cada sección cuando el negocio no escribió nada.
- *
- * Los valores por defecto son POR PLANTILLA y no compartidos, porque el tono de
- * los títulos ES parte del diseño: "Tu estilo, en buenas manos." pertenece a la
- * editorial de barbería tanto como su dorado. Compartir un único juego neutro
- * habría aplanado las cinco en el mismo sitio con distinta paleta.
- *
- * Una clave ausente para una plantilla significa que esa plantilla no dibuja
- * esa sección, no que esté vacía.
- */
-export const TEMPLATE_COPY_DEFAULTS: Record<
-  SiteTemplate,
-  Partial<Record<SiteCopyKey, string>>
-> = {
-  clasico: {
-    servicesTitle: "Servicios",
-    pricesTitle: "Precios",
-    teamTitle: "El equipo",
-    bookingTitle: "Reservá con calma, vení a disfrutar.",
-  },
-  moderno: {
-    servicesTitle: "Servicios",
-    pricesTitle: "Precios",
-    teamTitle: "El equipo",
-    bookingTitle: "Elegí tu próximo turno.",
-    bookingSubtitle: "Disponibilidad real para que reserves cuando quieras.",
-  },
-  minimal: {
-    servicesTitle: "Servicios",
-    pricesTitle: "Precios",
-    teamTitle: "El equipo",
-    bookingTitle: "Reservá tu turno",
-    bookingSubtitle: "Elegí con tranquilidad el servicio, el día y la hora.",
-  },
-  barberia: {
-    heroKicker: "El arte del buen estilo",
-    servicesTitle: "Tu estilo, en buenas manos.",
-    servicesSubtitle: "Nuestro oficio",
-    aboutTitle: "Más que un corte",
-    pricesTitle: "Buen estilo. Precios claros.",
-    pricesSubtitle: "Sin sorpresas",
-    teamTitle: "Conoce a tu equipo.",
-    teamSubtitle: "Personas detrás del oficio",
-    bookingTitle: "Tu próximo buen momento.",
-    bookingSubtitle: "Elegí el servicio, el profesional y el horario que mejor te venga.",
-  },
-  "barberia-urbana": {
-    heroKicker: "Cortes clásicos · Barba · Afeitado",
-    servicesTitle: "Nuestros servicios",
-    servicesSubtitle: "Lo que hacemos todos los días",
-    aboutTitle: "La barbería",
-    pricesTitle: "Nuestros precios",
-    pricesSubtitle: "Claros y sin letra chica",
-    teamTitle: "Los barberos",
-    teamSubtitle: "Quién te va a atender",
-    bookingTitle: "Pedí tu turno",
-    bookingSubtitle: "Elegí servicio, barbero y horario. Te confirmamos por WhatsApp.",
-  },
-  "barberia-artesanal": {
-    heroKicker: "Cortes · Barba · Cuidado",
-    servicesTitle: "Nuestros servicios",
-    servicesSubtitle: "Cada visita, con el tiempo que merece.",
-    aboutTitle: "Sobre nosotros",
-    pricesTitle: "Precios",
-    pricesSubtitle: "Sin sorpresas al final.",
-    teamTitle: "El equipo",
-    teamSubtitle: "Quienes te reciben.",
-    bookingTitle: "Reservá tu cita",
-    bookingSubtitle: "Elegí el servicio, el profesional y el horario que mejor te venga.",
-  },
-};
-
-/**
- * El texto de una sección: lo que escribió el negocio, o el de la plantilla.
- *
- * Se descarta lo que venga vacío o en blanco. Un campo que el dueño borró debe
- * volver al texto por defecto, no dejar un título en blanco: una sección sin
- * encabezado se lee como un error de la página, no como una decisión.
- */
-export function textoDelSitio(site: PublicSite, clave: SiteCopyKey): string {
-  const propio = site.copy?.[clave];
-  if (typeof propio === "string" && propio.trim()) return propio.trim();
-  return TEMPLATE_COPY_DEFAULTS[site.template]?.[clave] ?? "";
-}
-
-
-/**
- * Cómo se encuadra la foto del hero.
- *
- * Con la foto de referencia el encuadre lo elegía la plantilla, afinado para ESA
- * imagen. En cuanto el negocio sube la suya eso deja de valer: el sujeto puede
- * estar a un costado y el recorte centrado le corta la cara.
- *
- * `objectPosition` en porcentajes cubre los dos casos de una: una foto apaisada
- * en un panel alto se recorta a lo ancho, y una vertical a lo alto. El punto
- * dice qué parte NO se pierde, sea cual sea la dirección del recorte.
- *
- * Con la foto de muestra se devuelve `undefined` para que cada plantilla
- * conserve el encuadre que ya tenía elegido a mano, que está afinado para ella.
- */
-export function encuadreDelHero(site: PublicSite): string | undefined {
-  if (!site.heroImageUrl) return undefined;
-  const x = Math.min(100, Math.max(0, site.heroFocusX ?? 50));
-  const y = Math.min(100, Math.max(0, site.heroFocusY ?? 50));
-  return `${x}% ${y}%`;
-}
-
-/**
- * Oscurecido EXTRA del hero, como color listo para pintar encima.
- *
- * Solo SUMA sobre el velo de la plantilla; no se puede aclarar por debajo de él.
- * Ese piso no es estético: es el que hace que el titular se lea. Dejar bajarlo
- * sería dejar que el dueño publique un hero con el texto ilegible sin darse
- * cuenta, que es lo que pasa con cualquier foto clara.
- *
- * Devuelve null cuando no hay nada que sumar, para no pintar una capa
- * transparente de más en cada render.
- */
-export function veloDelHero(site: PublicSite): string | null {
-  const extra = Math.min(70, Math.max(0, site.heroOverlay ?? 0));
-  if (!extra) return null;
-  return `rgb(0 0 0 / ${extra}%)`;
 }

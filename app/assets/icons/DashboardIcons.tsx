@@ -9,6 +9,15 @@ export function IconHome(props: React.SVGProps<SVGSVGElement>) {
   );
 }
 
+export function IconGlobe(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" width="20" height="20" {...props}>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20" />
+    </svg>
+  );
+}
+
 export function IconBox(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" width="20" height="20" {...props}>

@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import type { SiteTemplate } from "@/services/public-site.types";
+import type { LandingConfig, SiteTemplate } from "@/services/public-site.types";
 
 /**
  * Palette per template.
@@ -32,144 +32,56 @@ export interface SitePalette extends CSSProperties {
 }
 
 export const SITE_PALETTES: Record<SiteTemplate, SitePalette> = {
-  clasico: {
-    "--site-bg": "#f3eadb",
-    "--site-surface": "#fffaf1",
-    "--site-surface-alt": "#e7d9c4",
-    "--site-text": "#2d2019",
-    "--site-muted": "#746256",
-    "--site-accent": "#8f2f2a",
-    "--site-on-accent": "#fffaf1",
-    "--site-border": "#ccbba5",
-    "--site-radius": "12px",
-    "--site-heading-font": "Iowan Old Style, Baskerville, Georgia, 'Times New Roman', serif",
-    "--site-body-font": "Avenir Next, Avenir, var(--font-plus-jakarta-sans), sans-serif",
-    "--site-shadow": "0 24px 70px rgba(70, 42, 29, 0.14)",
-  },
-  moderno: {
-    "--site-bg": "#10162f",
-    "--site-surface": "#192143",
-    "--site-surface-alt": "#222c55",
-    "--site-text": "#f7f3ed",
-    "--site-muted": "#b8bfd7",
-    "--site-accent": "#ff6b4a",
-    "--site-on-accent": "#15152a",
-    "--site-border": "#35416e",
-    "--site-radius": "22px",
-    "--site-heading-font": "var(--font-plus-jakarta-sans), system-ui, sans-serif",
-    "--site-body-font": "var(--font-plus-jakarta-sans), system-ui, sans-serif",
-    "--site-shadow": "0 28px 80px rgba(3, 7, 25, 0.36)",
-  },
-  barberia: {
-    "--site-bg": "#171715",
-    "--site-surface": "#22221f",
-    "--site-surface-alt": "#2c2b27",
-    "--site-text": "#f4f0e7",
-    "--site-muted": "#b9b5aa",
-    "--site-accent": "#c5a572",
-    "--site-on-accent": "#1e1b16",
-    "--site-border": "#434139",
-    "--site-radius": "2px",
-    "--site-heading-font": "Iowan Old Style, Baskerville, Georgia, serif",
-    "--site-body-font": "var(--font-plus-jakarta-sans), Arial, sans-serif",
-    "--site-shadow": "none",
-  },
-  /**
-   * Barbería urbana. Verde `#538167` y grises de la hoja de la referencia.
-   *
-   * La condensada va en `--site-heading-font` —al revés que la manuscrita de la
-   * artesanal— porque Roboto Condensed SÍ es legible en un título de tarjeta o
-   * en el nombre de un producto: es una tipografía de texto, no un gesto.
-   */
-  "barberia-urbana": {
-    "--site-bg": "#ffffff",
-    "--site-surface": "#f9f9f9",
-    "--site-surface-alt": "#eef2ef",
-    "--site-text": "#333333",
-    "--site-muted": "#7f8c8d",
-    "--site-accent": "#538167",
-    "--site-on-accent": "#ffffff",
-    "--site-border": "#d7d7d7",
-    "--site-radius": "0px",
-    "--site-heading-font": "var(--font-roboto-condensed), 'Arial Narrow', Arial, sans-serif",
-    "--site-body-font": "var(--font-roboto), var(--font-plus-jakarta-sans), Arial, sans-serif",
-    "--site-shadow": "0 14px 40px rgba(51, 51, 51, 0.08)",
-  },
-  /**
-   * Barbería artesanal. Los colores salen de la hoja de la referencia: marrón
-   * `#552d25`, cobre `#c98a6a`, blanco cálido `#fcf9f7` y tinta `#151514`.
-   *
-   * La familia manuscrita NO va acá: `--site-heading-font` la leen las secciones
-   * compartidas, que la usan para títulos de tarjeta y nombres de producto, y
-   * una cursiva a 14px no se lee. El manuscrito lo aplica la plantilla solo
-   * donde es un gesto —el titular del hero y el nombre del servicio en el
-   * círculo—, y para todo lo demás manda la serifa.
-   */
-  "barberia-artesanal": {
-    "--site-bg": "#fcf9f7",
+  rasm: {
+    "--site-bg": "#f8f3ef",
     "--site-surface": "#ffffff",
-    "--site-surface-alt": "#f0e7e1",
-    "--site-text": "#151514",
-    "--site-muted": "#6d5f59",
-    "--site-accent": "#552d25",
-    "--site-on-accent": "#fcf9f7",
-    "--site-border": "#e2d5cd",
-    "--site-radius": "4px",
-    "--site-heading-font": "Lora, Georgia, 'Times New Roman', serif",
-    "--site-body-font": "var(--font-plus-jakarta-sans), Arial, sans-serif",
-    "--site-shadow": "0 18px 50px rgba(85, 45, 37, 0.10)",
-  },
-  minimal: {
-    "--site-bg": "#f7f4ef",
-    "--site-surface": "#fffdf9",
-    "--site-surface-alt": "#ebe5de",
-    "--site-text": "#292527",
-    "--site-muted": "#746d70",
-    "--site-accent": "#765d78",
+    "--site-surface-alt": "#f3e7e0",
+    "--site-text": "#0d0d0d",
+    "--site-muted": "#6d625d",
+    "--site-accent": "#b77b65",
     "--site-on-accent": "#ffffff",
-    "--site-border": "#ddd5cf",
-    "--site-radius": "24px",
-    "--site-heading-font": "Avenir Next, Avenir, var(--font-plus-jakarta-sans), sans-serif",
+    "--site-border": "#e8cdbf",
+    "--site-radius": "2px",
+    "--site-heading-font": "'Cormorant Garamond', Iowan Old Style, Baskerville, Georgia, serif",
     "--site-body-font": "Avenir Next, Avenir, var(--font-plus-jakarta-sans), sans-serif",
-    "--site-shadow": "0 20px 60px rgba(58, 45, 53, 0.09)",
+    "--site-shadow": "0 24px 70px rgba(70, 42, 29, 0.12)",
+  },
+  fallspa: {
+    "--site-bg": "#ffffff",
+    "--site-surface": "#ffffff",
+    "--site-surface-alt": "#eee5f0",
+    "--site-text": "#141b22",
+    "--site-muted": "#687078",
+    "--site-accent": "#ff4f9d",
+    "--site-on-accent": "#ffffff",
+    "--site-border": "#eadde8",
+    "--site-radius": "28px",
+    "--site-heading-font": "'Playfair Display', Georgia, 'Times New Roman', serif",
+    "--site-body-font": "Avenir Next, Avenir, var(--font-plus-jakarta-sans), sans-serif",
+    "--site-shadow": "0 24px 70px rgba(98, 72, 96, 0.11)",
+  },
+  qutter: {
+    "--site-bg": "#ffffff",
+    "--site-surface": "#1a1a1a",
+    "--site-surface-alt": "#242424",
+    "--site-text": "#111111",
+    "--site-muted": "#777777",
+    "--site-accent": "#d6a354",
+    "--site-on-accent": "#111111",
+    "--site-border": "#dedede",
+    "--site-radius": "0px",
+    "--site-heading-font": "Oswald, Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif",
+    "--site-body-font": "Arial, var(--font-plus-jakarta-sans), sans-serif",
+    "--site-shadow": "0 24px 70px rgba(0, 0, 0, 0.35)",
   },
 };
 
-/**
- * Colores para la MINIATURA del selector de diseño en Ajustes.
- *
- * Salen de las paletas reales de arriba y no de una copia a mano: cuando el
- * selector tenía sus propios hex, mostraba lima sobre casi negro para "Moderno"
- * mientras la plantilla pintaba coral sobre azul, y "Minimal" salía blanco y
- * negro cuando en realidad es crema con malva. El dueño elegía mirando una
- * miniatura que no se parecía a nada de lo que iba a publicar.
- *
- * `serif` no es un color pero viaja acá porque es LA diferencia que se ve
- * primero entre plantillas, y una miniatura de barras no puede mostrarla sola.
- */
-export interface TemplatePreview {
-  bg: string;
-  accent: string;
-  text: string;
-  serif: boolean;
-}
-
-/**
- * Se DEDUCE de la familia real, no se marca a mano: la miniatura tiene que
- * seguir a la paleta aunque alguien cambie la tipografía de una plantilla sin
- * acordarse de este archivo. La última familia de la lista es la genérica, y
- * `sans-serif` termina en "serif" — de ahí que no alcance con un `endsWith`.
- */
-const esSerif = (familia: string) => /(?:^|[\s,])serif\s*$/.test(familia);
-
-export function templatePreview(template: SiteTemplate): TemplatePreview {
-  const p = SITE_PALETTES[template];
-  return {
-    bg: String(p["--site-bg"]),
-    accent: String(p["--site-accent"]),
-    text: String(p["--site-text"]),
-    serif: esSerif(String(p["--site-heading-font"])),
-  };
+export function paletteFor(config: LandingConfig): SitePalette {
+  const palette = { ...SITE_PALETTES[config.template] };
+  if (config.colors.primary && /^#[0-9a-f]{6}$/i.test(config.colors.primary)) {
+    palette["--site-accent"] = config.colors.primary;
+  }
+  return palette;
 }
 
 export function formatCOP(value: number): string {

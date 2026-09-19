@@ -16,7 +16,6 @@ export function SettingsTabs() {
     { name: "General", href: "/dashboard/settings" },
     { name: "Datos de tu negocio", href: "/dashboard/settings/business" },
     { name: "Promociones", href: "/dashboard/settings/promociones" },
-    { name: "Sitio web", href: "/dashboard/settings/sitio" },
   ];
 
   return (

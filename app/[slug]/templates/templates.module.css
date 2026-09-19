@@ -1,0 +1,531 @@
+.template {
+  --content-width: 1200px;
+  background: var(--site-bg);
+  color: var(--site-text);
+  font-family: var(--site-body-font);
+  overflow: clip;
+}
+
+.nav {
+  align-items: center;
+  display: flex;
+  height: 110px;
+  justify-content: space-between;
+  margin: 0 auto;
+  max-width: var(--content-width);
+  padding: 0 32px;
+  position: relative;
+  z-index: 20;
+}
+
+.brand {
+  align-items: center;
+  display: flex;
+  font-family: var(--site-heading-font);
+  font-size: 24px;
+  font-weight: 700;
+  gap: 12px;
+}
+
+.logo {
+  height: 48px;
+  object-fit: contain;
+  width: 48px;
+}
+
+.navLinks {
+  align-items: center;
+  display: flex;
+  gap: 34px;
+}
+
+.navLinks a {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.navCta,
+.heroCta {
+  align-items: center;
+  background: var(--site-accent);
+  color: var(--site-on-accent);
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 800;
+  justify-content: center;
+  min-height: 52px;
+  padding: 0 28px;
+  text-transform: uppercase;
+}
+
+.heroCopy {
+  position: relative;
+  z-index: 4;
+}
+
+.eyebrow {
+  color: var(--site-accent);
+  display: block;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: .09em;
+  margin-bottom: 18px;
+  text-transform: uppercase;
+}
+
+.heroTitle {
+  font-family: var(--site-heading-font);
+  font-weight: 700;
+  letter-spacing: -.045em;
+}
+
+.heroDescription {
+  color: var(--site-muted);
+  font-size: 17px;
+  line-height: 1.8;
+  margin-top: 24px;
+  max-width: 580px;
+}
+
+.heroActions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 22px;
+  margin-top: 32px;
+}
+
+.textLink {
+  border-bottom: 1px solid currentColor;
+  font-size: 13px;
+  font-weight: 800;
+  padding: 10px 0;
+  text-transform: uppercase;
+}
+
+.heroImage img {
+  object-fit: cover;
+}
+
+/* Rasm: airy floral beauty-salon composition. */
+.rasm {
+  --content-width: 1320px;
+}
+
+.rasmHeader {
+  background: var(--site-bg);
+  min-height: 900px;
+  position: relative;
+}
+
+.rasmHeader::after {
+  background: radial-gradient(circle at 25% 40%, color-mix(in srgb, var(--site-accent) 22%, transparent) 0 7px, transparent 8px), radial-gradient(circle at 55% 75%, color-mix(in srgb, var(--site-accent) 14%, transparent) 0 12px, transparent 13px);
+  content: "";
+  inset: 0;
+  opacity: .6;
+  pointer-events: none;
+  position: absolute;
+}
+
+.rasm .nav {
+  height: 118px;
+}
+
+.rasm .brandMark {
+  color: var(--site-accent);
+  font-size: 32px;
+}
+
+.rasmHero {
+  align-items: end;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(430px, .72fr);
+  margin: 0 auto;
+  max-width: var(--content-width);
+  min-height: 780px;
+  padding: 70px 32px 0;
+  position: relative;
+}
+
+.rasmHero .heroCopy {
+  align-self: center;
+  max-width: 790px;
+  padding-bottom: 110px;
+}
+
+.rasmHero .heroCopy::before {
+  color: var(--site-text);
+  content: "BEAUTY";
+  font-family: var(--site-heading-font);
+  font-size: clamp(150px, 20vw, 290px);
+  font-weight: 800;
+  left: -140px;
+  line-height: .8;
+  opacity: .035;
+  position: absolute;
+  top: -120px;
+  white-space: nowrap;
+  z-index: -1;
+}
+
+.rasmHero .heroTitle {
+  font-size: clamp(58px, 6vw, 86px);
+  line-height: 1.05;
+  max-width: 780px;
+}
+
+.rasmHero .heroTitle em {
+  color: var(--site-accent);
+  font-style: normal;
+}
+
+.rasmHero .heroImage {
+  align-self: end;
+  height: 740px;
+  margin-left: -110px;
+  min-width: 680px;
+  position: relative;
+  z-index: 2;
+}
+
+.rasmHero .heroImage::before,
+.rasmHero .heroImage::after {
+  border: 1px solid color-mix(in srgb, var(--site-accent) 55%, transparent);
+  border-radius: 50%;
+  content: "";
+  height: 160px;
+  position: absolute;
+  width: 160px;
+  z-index: 2;
+}
+
+.rasmHero .heroImage::before { left: 2%; top: 14%; }
+.rasmHero .heroImage::after { bottom: 10%; right: 2%; }
+
+.rasmHero .heroImage img {
+  border-radius: 320px 320px 0 0;
+  object-fit: cover;
+  object-position: center;
+}
+
+/* Fallspa: soft watercolor hero and rounded wellness details. */
+.fallspa {
+  --content-width: 1170px;
+}
+
+.fallspaHeader {
+  background-color: #fff;
+}
+
+.fallspa .nav {
+  height: 106px;
+}
+
+.fallspa .navCta,
+.fallspa .heroCta {
+  border-radius: 7px;
+}
+
+.fallspaHero {
+  background-color: #f4eff5;
+  background-image: radial-gradient(circle at 95% 8%, rgba(255, 79, 157, .18), transparent 24%), radial-gradient(circle at 8% 15%, rgba(136, 76, 210, .16), transparent 22%), linear-gradient(135deg, rgba(255,255,255,.92), rgba(244,239,245,.8));
+  min-height: 790px;
+  position: relative;
+}
+
+.fallspaHero::before {
+  border: 1px solid rgba(71, 60, 71, .16);
+  border-radius: 48% 52% 46% 54%;
+  content: "";
+  height: 520px;
+  left: -70px;
+  position: absolute;
+  top: 70px;
+  transform: rotate(10deg);
+  width: 760px;
+}
+
+.fallspaHeroInner {
+  align-items: center;
+  display: grid;
+  grid-template-columns: .92fr 1.08fr;
+  margin: 0 auto;
+  max-width: var(--content-width);
+  min-height: 790px;
+  padding: 55px 24px;
+}
+
+.fallspaHero .heroTitle {
+  color: #141b22;
+  font-size: clamp(54px, 5vw, 72px);
+  line-height: 1.14;
+}
+
+.fallspaHero .heroImage {
+  align-self: stretch;
+  position: relative;
+}
+
+.fallspaHero .heroImage::before {
+  background: color-mix(in srgb, var(--site-accent) 18%, white);
+  border-radius: 45% 55% 35% 65% / 55% 30% 70% 45%;
+  content: "";
+  inset: 7% 0 3% 8%;
+  position: absolute;
+}
+
+.fallspaHero .heroImage img {
+  border-radius: 45% 55% 35% 65% / 55% 30% 70% 45%;
+  clip-path: inset(7% 0 3% 8% round 45% 55% 35% 65% / 55% 30% 70% 45%);
+}
+
+/* Qutter: outlined type over an asymmetric black photographic hero. */
+.qutter {
+  --content-width: 1290px;
+}
+
+.qutterHeader {
+  background: #050505;
+  color: #fff;
+  min-height: 880px;
+  position: relative;
+}
+
+.qutter .nav {
+  color: #fff;
+  height: 110px;
+}
+
+.qutter .brand {
+  font-family: var(--site-heading-font);
+  font-size: 30px;
+  text-transform: uppercase;
+}
+
+.qutter .brandMark { color: var(--site-accent); }
+
+.qutterHero {
+  min-height: 770px;
+  position: relative;
+}
+
+.qutterHero::after {
+  background: linear-gradient(90deg, #050505 0 25%, rgba(5,5,5,.86) 40%, rgba(5,5,5,.08) 75%);
+  content: "";
+  inset: 0;
+  position: absolute;
+  z-index: 1;
+}
+
+.qutterHero .heroCopy {
+  margin: 0 auto;
+  max-width: var(--content-width);
+  padding: 150px 32px 100px;
+}
+
+.qutterHero .heroTitle {
+  color: transparent;
+  font-size: clamp(70px, 8.5vw, 126px);
+  line-height: .98;
+  max-width: 850px;
+  text-transform: uppercase;
+  -webkit-text-stroke: 1px #fff;
+}
+
+.qutterHero .heroDescription { color: #d0d0d0; }
+
+.qutterMainImage {
+  bottom: 0;
+  height: calc(100% - 34px);
+  position: absolute;
+  right: 0;
+  width: 73%;
+}
+
+.qutterMainImage img { object-fit: cover; }
+
+.qutterSideImage {
+  bottom: 0;
+  height: 100%;
+  left: 70px;
+  opacity: .58;
+  position: absolute;
+  width: 12%;
+}
+
+.qutterSideImage img { object-fit: cover; }
+
+.socialRail {
+  align-items: center;
+  background: #111;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  justify-content: center;
+  left: 0;
+  position: absolute;
+  top: 0;
+  width: 70px;
+  z-index: 5;
+}
+
+.socialRail a {
+  color: #fff;
+  font-size: 10px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  writing-mode: vertical-rl;
+}
+
+/* Shared content takes the identity of its enclosing template. */
+.template :global(.site-section) {
+  margin: 0 auto;
+  max-width: var(--content-width);
+  padding: 110px 32px;
+}
+
+.template :global(.site-section-heading) { max-width: 700px; }
+.template :global(.site-section-kicker) {
+  color: var(--site-accent);
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: .13em;
+  margin-bottom: 13px;
+  text-transform: uppercase;
+}
+.template :global(.site-section-title) {
+  color: var(--site-text);
+  font-family: var(--site-heading-font);
+  font-size: clamp(42px, 4.5vw, 64px);
+  font-weight: 700;
+  letter-spacing: -.035em;
+  line-height: 1.08;
+}
+.template :global(.site-grid) { display: grid; gap: 28px; margin-top: 54px; }
+.template :global(.site-services-grid) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.template :global(.site-service-card) { min-height: 330px; position: relative; }
+.template :global(.site-service-index) { color: var(--site-accent); font-weight: 800; }
+.template :global(.site-service-title) { font-family: var(--site-heading-font); font-size: 27px; font-weight: 700; margin-top: 30px; }
+.template :global(.site-service-description) { color: var(--site-muted); line-height: 1.75; margin-top: 12px; }
+.template :global(.site-service-duration) { color: var(--site-muted); font-size: 12px; margin-top: 10px; text-transform: uppercase; }
+.template :global(.site-service-footer) { align-items: center; display: flex; justify-content: space-between; margin-top: 30px; }
+.template :global(.site-about-grid) { align-items: center; display: grid; gap: 80px; grid-template-columns: 1fr 1fr; }
+.template :global(.site-about-copy) { color: var(--site-muted); font-size: 17px; line-height: 1.85; margin-top: 28px; }
+.template :global(.site-about-image) { aspect-ratio: 4 / 3; position: relative; }
+.template :global(.site-about-image img) { object-fit: cover; }
+.template :global(.site-products-grid) { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.template :global(.site-product-card) { background: var(--site-surface); overflow: hidden; }
+.template :global(.site-product-image) { aspect-ratio: 1; background: var(--site-surface-alt); position: relative; }
+.template :global(.site-product-image img) { object-fit: cover; }
+.template :global(.site-product-copy) { padding: 20px; }
+.template :global(.site-team-grid) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.template :global(.site-team-card) { border-bottom: 1px solid var(--site-border); padding: 28px 0; }
+.template :global(.site-team-avatar) { align-items: center; background: var(--site-accent); color: var(--site-on-accent); display: flex; font-size: 24px; font-weight: 800; height: 72px; justify-content: center; width: 72px; }
+.template :global(.site-gallery-grid) { display: grid; gap: 12px; grid-template-columns: repeat(4, 1fr); margin-top: 54px; }
+.template :global(.site-gallery-image) { aspect-ratio: 1; position: relative; }
+.template :global(.site-gallery-image img) { object-fit: cover; }
+.template :global(.site-booking-section) { background: var(--site-surface-alt); border: 0; max-width: none; }
+.template :global(.site-booking-inner) { display: grid; gap: 70px; grid-template-columns: .75fr 1.25fr; margin: 0 auto; max-width: var(--content-width); padding: 110px 32px; }
+.template :global(.site-booking-panel) { background: var(--site-surface); padding: 38px; }
+.template :global(.site-hours-grid) { display: grid; gap: 70px; grid-template-columns: .8fr 1.2fr; }
+.template :global(.site-hours-list) { border-top: 1px solid var(--site-text); }
+.template :global(.site-hour) { border-bottom: 1px solid var(--site-border); display: flex; justify-content: space-between; padding: 18px 0; }
+.template :global(.site-contact-panel) { background: var(--site-text); color: var(--site-bg); padding: 70px; }
+.template :global(.site-contact-panel) :global(.site-section-title) { color: inherit; }
+
+.rasm :global(.site-services-section) { background: var(--site-surface-alt); max-width: none; padding-left: max(32px, calc((100vw - var(--content-width)) / 2)); padding-right: max(32px, calc((100vw - var(--content-width)) / 2)); }
+.rasm :global(.site-section-heading) { text-align: center; margin-inline: auto; }
+.rasm :global(.site-service-card) { background: var(--site-surface); box-shadow: 0 6px 20px rgba(80,45,30,.06); padding: 40px; }
+.rasm :global(.site-service-card)::after { background: color-mix(in srgb, var(--site-accent) 14%, white); border-radius: 50%; content: ""; height: 120px; position: absolute; right: -28px; top: -25px; width: 120px; }
+.rasm :global(.site-service-card):hover { background: var(--site-accent); color: var(--site-on-accent); }
+.rasm :global(.site-service-card):hover :global(.site-service-description),
+.rasm :global(.site-service-card):hover :global(.site-service-duration),
+.rasm :global(.site-service-card):hover :global(.site-service-index),
+.rasm :global(.site-service-card):hover :global(.site-service-title),
+.rasm :global(.site-service-card):hover strong { color: var(--site-on-accent); }
+.rasm :global(.site-about-image) { border-radius: 240px 240px 0 0; overflow: hidden; }
+
+.fallspa :global(.site-section-heading) { margin-inline: auto; text-align: center; }
+.fallspa :global(.site-service-card) { background: #fff; border-radius: 12px; padding: 38px; text-align: center; }
+.fallspa :global(.site-service-index) { align-items: center; background: color-mix(in srgb, var(--site-accent) 14%, white); border-radius: 50%; display: inline-flex; height: 70px; justify-content: center; width: 70px; }
+.fallspa :global(.site-about-image) { border-radius: 52% 48% 46% 54% / 45% 42% 58% 55%; overflow: hidden; }
+.fallspa :global(.site-booking-section) { background: linear-gradient(135deg, #f4eff5, #fff7fb); }
+.fallspa :global(.site-booking-panel),
+.fallspa :global(.site-product-card) { border-radius: 12px; box-shadow: 0 15px 45px rgba(89,51,87,.08); }
+
+.qutter :global(.site-section) { padding-bottom: 120px; padding-top: 120px; }
+.qutter :global(.site-section-heading) { margin-inline: auto; text-align: center; }
+.qutter :global(.site-section-title) { font-size: clamp(48px, 5vw, 72px); text-transform: uppercase; }
+.qutter :global(.site-service-card) { background: #181818; border: 1px solid #2d2d2d; color: #fff; padding: 38px; }
+.qutter :global(.site-service-card) :global(.site-service-title),
+.qutter :global(.site-service-card) strong { color: #fff; }
+.qutter :global(.site-service-card) :global(.site-service-description),
+.qutter :global(.site-service-card) :global(.site-service-duration) { color: #aaa; }
+.qutter :global(.site-service-card):hover { background: var(--site-accent); color: var(--site-on-accent); }
+.qutter :global(.site-service-card):hover :global(.site-service-description),
+.qutter :global(.site-service-card):hover :global(.site-service-duration),
+.qutter :global(.site-service-card):hover :global(.site-service-index),
+.qutter :global(.site-service-card):hover :global(.site-service-title),
+.qutter :global(.site-service-card):hover strong { color: var(--site-on-accent); }
+.qutter :global(.site-about-image)::before { color: var(--site-accent); content: "B"; font-family: var(--site-heading-font); font-size: 420px; font-weight: 800; left: -100px; line-height: .8; position: absolute; bottom: -70px; z-index: 0; }
+.qutter :global(.site-about-image img) { left: 70px !important; width: calc(100% - 70px) !important; z-index: 1; }
+.qutter :global(.site-gallery-grid) { gap: 0; }
+.qutter :global(.site-booking-section) { background: #080808; }
+.qutter :global(.site-booking-section) :global(.site-section-title) { color: #fff; }
+.qutter :global(.site-booking-section) :global(.site-section-heading) + p { color: #aaa; }
+.qutter :global(.site-contact-panel) { background: var(--site-accent); color: var(--site-on-accent); }
+
+.footer {
+  border-top: 1px solid var(--site-border);
+  color: var(--site-muted);
+  font-size: 12px;
+  padding: 38px 24px;
+}
+
+@media (max-width: 1023px) {
+  .navLinks a:not(.navCta) { display: none; }
+  .rasmHeader, .qutterHeader { min-height: auto; }
+  .rasmHero { grid-template-columns: 1fr; padding-top: 100px; text-align: center; }
+  .rasmHero .heroCopy { margin: auto; padding-bottom: 30px; }
+  .rasmHero .heroDescription { margin-inline: auto; }
+  .rasmHero .heroActions { justify-content: center; }
+  .rasmHero .heroImage { height: 570px; margin: 0 auto; min-width: 0; width: min(650px, 100%); }
+  .fallspaHeroInner { grid-template-columns: 1fr; padding-top: 90px; text-align: center; }
+  .fallspaHero .heroDescription { margin-inline: auto; }
+  .fallspaHero .heroActions { justify-content: center; }
+  .fallspaHero .heroImage { min-height: 530px; }
+  .qutterHero .heroCopy { padding-left: 80px; }
+  .qutterMainImage { opacity: .58; width: 82%; }
+  .qutterSideImage, .socialRail { display: none; }
+  .template :global(.site-services-grid) { grid-template-columns: repeat(2, 1fr); }
+  .template :global(.site-products-grid) { grid-template-columns: repeat(2, 1fr); }
+  .template :global(.site-about-grid), .template :global(.site-booking-inner), .template :global(.site-hours-grid) { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 639px) {
+  .nav { height: 82px; padding-inline: 20px; }
+  .brand { font-size: 19px; }
+  .logo { height: 38px; width: 38px; }
+  .navCta { min-height: 44px; padding-inline: 17px; }
+  .rasmHero { min-height: 0; padding: 80px 20px 0; }
+  .rasmHero .heroTitle, .fallspaHero .heroTitle { font-size: 46px; }
+  .rasmHero .heroImage { height: 440px; }
+  .fallspaHero, .fallspaHeroInner { min-height: 0; }
+  .fallspaHeroInner { padding: 75px 20px 25px; }
+  .fallspaHero .heroImage { min-height: 390px; }
+  .qutterHero { min-height: 660px; }
+  .qutterHero .heroCopy { padding: 125px 20px 70px; }
+  .qutterHero .heroTitle { font-size: 56px; }
+  .qutterMainImage { width: 100%; }
+  .template :global(.site-section) { padding: 80px 20px; }
+  .template :global(.site-services-grid), .template :global(.site-products-grid), .template :global(.site-team-grid) { grid-template-columns: 1fr; }
+  .template :global(.site-gallery-grid) { grid-template-columns: repeat(2, 1fr); }
+  .template :global(.site-booking-inner) { padding: 80px 20px; }
+  .template :global(.site-booking-panel), .template :global(.site-contact-panel) { padding: 28px 20px; }
+  .template :global(.site-section-title) { font-size: 40px; }
+  .qutter :global(.site-about-image)::before { font-size: 260px; left: -45px; }
+  .qutter :global(.site-about-image img) { left: 40px !important; width: calc(100% - 40px) !important; }
+}

@@ -305,6 +305,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: "haircuts", name: "Cortes", href: "/dashboard/staff/cortes", modules: ["services"] },
   { id: "billing", name: "Facturación", href: "/dashboard/billing", modules: ["billing"] },
   { id: "subscription", name: "Mi Plan", href: "/dashboard/subscription", modules: [] },
+  { id: "landing", name: "Landing", href: "/dashboard/landing", modules: [] },
 ];
 
 // ---- Acciones rápidas del dashboard. Iconos se mapean por id. ----
@@ -346,7 +347,7 @@ export const QUICK_ACTIONS: QuickAction[] = [
 // liquidarle. Liquidar es acto del DUEÑO —el RPC revalida `is_tenant_owner()`—
 // y por eso no figura como permiso de trabajador: un empleado nunca ve el ítem,
 // porque `workerNavItems` solo muestra lo que sus permisos nombran.
-const UNIVERSAL_NAV_IDS = ["panel", "pos", "sales", "expenses", "credits", "customers", "staff", "commissions", "subscription"];
+const UNIVERSAL_NAV_IDS = ["panel", "pos", "sales", "expenses", "credits", "customers", "staff", "commissions", "subscription", "landing"];
 
 /** Menú base por tipo de negocio (además de las universales). */
 // `purchases` acompaña a `distributors`: son el mismo dominio (a quién le
@@ -474,6 +475,7 @@ const NAV_GROUP_ORDER: { id: string; label: string | null; itemIds: string[] }[]
   { id: "inventario", label: "Inventario", itemIds: ["inventory", "pedidos", "distributors", "purchases"] },
   { id: "finanzas", label: "Finanzas", itemIds: ["expenses"] },
   { id: "equipo", label: "Equipo", itemIds: ["staff", "commissions", "haircuts"] },
+  { id: "presencia", label: "Presencia digital", itemIds: ["landing"] },
 ];
 
 /**

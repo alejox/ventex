@@ -18,18 +18,22 @@ interface BusinessSiteState {
    */
   loaded: boolean;
   saving: boolean;
+  uploading: boolean;
   error: string | null;
   fetchConfig: () => Promise<void>;
   saveConfig: (input: SiteInput, hours: BusinessHour[]) => Promise<boolean>;
   setPublished: (published: boolean) => Promise<boolean>;
+  checkSlug: (slug: string, currentSlug?: string) => Promise<boolean>;
+  uploadImage: (file: File) => Promise<string | null>;
 }
 
-export const useBusinessSiteStore = create<BusinessSiteState>((set, get) => ({
+export const useBusinessSiteStore = create<BusinessSiteState>((set) => ({
   site: null,
   hours: siteService.defaultHours(),
   loading: false,
   loaded: false,
   saving: false,
+  uploading: false,
   error: null,
 
   fetchConfig: async () => {
@@ -61,20 +65,35 @@ export const useBusinessSiteStore = create<BusinessSiteState>((set, get) => ({
   },
 
   setPublished: async (published) => {
-    const current = get().site;
-    if (!current) return false;
-
     set({ saving: true, error: null });
     try {
-      const site = await siteService.saveSite({
-        ...siteService.toSiteInput(current),
-        published,
-      });
+      const site = await siteService.setSitePublished(published);
       set({ site, saving: false });
       return true;
     } catch (e) {
       set({ error: toMessage(e), saving: false });
       return false;
+    }
+  },
+
+  checkSlug: async (slug, currentSlug) => {
+    try {
+      return await siteService.isSlugAvailable(slug, currentSlug);
+    } catch (e) {
+      set({ error: toMessage(e) });
+      return false;
+    }
+  },
+
+  uploadImage: async (file) => {
+    set({ uploading: true, error: null });
+    try {
+      const url = await siteService.uploadSiteImage(file);
+      set({ uploading: false });
+      return url;
+    } catch (e) {
+      set({ uploading: false, error: toMessage(e) });
+      return null;
     }
   },
 }));
