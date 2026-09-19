@@ -1,14 +1,18 @@
 {
-  "purpose": "Provisional illustrative images for the Moderno barber template; not photographs of a tenant or its employees.",
-  "generator": "Built-in ImageGen",
+  "purpose": "Default stock photographs for the barber templates; not photographs of a tenant or its employees.",
+  "license": "Pexels License: https://www.pexels.com/license/",
   "images": [
     {
       "file": "barber-hero.webp",
-      "prompt": "Use case: photorealistic-natural. Asset type: provisional hero photograph for a premium barber shop website. Wide cinematic editorial photograph, landscape 16:9. A professional barber wearing a dark apron carefully giving an adult male customer a fade haircut with a clipper, both on the right half of the composition. Authentic stylish barbershop interior, large mirror, warm brass lights, charcoal walls, subtle warm wood. Left half dark softly blurred negative space for website headline overlay. Moody warm amber light, realistic hair and hands, subtle film grain, beautifully composed luxury grooming campaign. No text, no logos, no watermarks. A single photo, not a collage or website mockup."
+      "title": "Vintage Barber Shop Interior with Classic Chairs",
+      "photographer": "wal_ 172619",
+      "source": "https://www.pexels.com/photo/vintage-barber-shop-interior-with-classic-chairs-37764947/"
     },
     {
       "file": "barber-detail.webp",
-      "prompt": "Use case: photorealistic-natural. Asset type: provisional editorial photograph for a premium barber shop website services section. Landscape 4:3 close-up still life of professional barber tools: silver scissors, black comb, classic straight razor folded safely, dark shaving brush and small ceramic shaving bowl, neatly arranged on a warm walnut counter in an authentic elegant barbershop. Amber side lighting, rich charcoal shadows, tactile details, shallow depth of field, high-end editorial photography, muted warm brass and espresso palette. No people, no text, no logos, no watermark, one photograph not a collage."
+      "title": "Gray Hand Tool",
+      "photographer": "Nikolaos Dimou",
+      "source": "https://www.pexels.com/photo/gray-hand-tool-1319459/"
     }
   ]
 }
