@@ -1,0 +1,215 @@
+.site {
+  /*
+   * Los --site-* llegan por `style={SITE_PALETTES["barberia-artesanal"]}`, como
+   * en las otras plantillas. Acá solo viven los tokens propios de esta
+   * presentación: la banda oscura de las fotos y el marrón de los círculos.
+   */
+  --art-oscuro: #2a1a15;
+  --art-circulo: #8f7268;
+  --art-circulo-cta: #4a241d;
+  --art-punteado: #d8cac1;
+  background: var(--site-bg);
+  color: var(--site-text);
+  font-family: var(--site-body-font);
+}
+.site * { box-sizing: border-box; }
+.site section { scroll-margin-top: 78px; }
+.site a { transition: color .2s, background-color .2s, border-color .2s, opacity .2s; }
+.site a:focus-visible, .site button:focus-visible, .site select:focus-visible,
+.site input:focus-visible, .site textarea:focus-visible {
+  outline: 2px solid var(--site-accent); outline-offset: 4px;
+}
+.site h1, .site h2, .site h3 { font-family: var(--site-heading-font); font-weight: 400; }
+
+/*
+ * La manuscrita es un GESTO, no una tipografía de texto: se usa en el titular
+ * del hero y en el nombre del servicio dentro del círculo, y en ningún lado
+ * más. Homemade Apple no tiene versalitas ni números tabulares, y un precio o
+ * un horario escritos así no se leen de un vistazo — que es justo para lo que
+ * existen.
+ */
+/* `.site .manuscrita` y no `.manuscrita` a secas: la regla de arriba
+   (`.site h1, .site h2, .site h3`) tiene dos selectores y gana por
+   especificidad, así que el titular salía en serifa. */
+.site .manuscrita { font-family: var(--font-manuscrita), cursive; font-weight: 400; line-height: 1.5; }
+
+/* ---------- encabezado ---------- */
+.header {
+  position: sticky; top: 0; z-index: 30;
+  background: color-mix(in srgb, var(--site-bg) 92%, transparent);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--site-border);
+}
+.headerInner {
+  max-width: 1200px; margin: auto; padding: 0 28px;
+  min-height: 78px; display: flex; align-items: center; justify-content: space-between; gap: 24px;
+}
+.brand {
+  display: flex; align-items: center; gap: 11px;
+  font-family: var(--site-heading-font); font-size: 22px; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--site-text); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; max-width: 320px;
+}
+.brand svg { color: var(--site-accent); flex-shrink: 0; }
+.navLinks { display: flex; flex-wrap: wrap; gap: 26px; font-size: 11px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; }
+.navLinks a { color: var(--site-muted); padding: 12px 0; }
+.navLinks a:hover { color: var(--site-accent); }
+.navCta {
+  display: inline-flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 22px;
+  background: var(--site-accent); color: var(--site-on-accent);
+  font-size: 10px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; white-space: nowrap;
+}
+.navCta:hover { background: var(--art-oscuro); }
+
+/* ---------- hero ---------- */
+.hero { position: relative; min-height: min(760px, 92svh); display: grid; place-items: center; isolation: isolate; text-align: center; padding: 96px 28px; }
+.heroImage { object-fit: cover; z-index: -2; }
+/* Se oscurece la FOTO con un velo propio: el texto del hero es claro y esta
+   plantilla es clara, así que sin la banda oscura no hay contraste posible. */
+.heroShade { position: absolute; inset: 0; z-index: -1; background: linear-gradient(180deg, rgb(42 26 21 / .62) 0%, rgb(42 26 21 / .48) 45%, rgb(42 26 21 / .72) 100%); }
+.heroBody { max-width: 860px; color: #fcf9f7; }
+.heroTitle { font-size: clamp(2.6rem, 6.4vw, 5rem); color: #fcf9f7; }
+.heroKicker { margin-top: 22px; font-size: 11px; font-weight: 600; letter-spacing: .28em; text-transform: uppercase; color: #ecd9cd; }
+.heroActions { margin-top: 42px; display: flex; flex-wrap: wrap; gap: 14px; justify-content: center; }
+.primary, .secondary {
+  display: inline-flex; align-items: center; justify-content: center; gap: 14px;
+  min-height: 52px; padding: 0 30px; font-size: 10px; font-weight: 700;
+  letter-spacing: .16em; text-transform: uppercase;
+}
+.primary { background: var(--site-accent); color: var(--site-on-accent); }
+.primary:hover { background: #fcf9f7; color: var(--art-oscuro); }
+.secondary { border: 1px solid rgb(252 249 247 / .55); color: #fcf9f7; }
+.secondary:hover { background: rgb(252 249 247 / .14); }
+.heroStatus { margin-top: 30px; display: flex; justify-content: center; font-size: 12px; color: #ecd9cd; }
+.sample { position: absolute; left: 0; bottom: 0; z-index: 1; padding: 9px 16px; font-size: 9px; letter-spacing: .18em; text-transform: uppercase; color: #fcf9f7; background: rgb(42 26 21 / .72); }
+
+/* ---------- secciones ---------- */
+.section { max-width: 1200px; margin: auto; padding: 96px 28px; }
+/* La referencia separa las secciones con una línea punteada, no con un borde
+   sólido: es el detalle que le da el aire de papel. */
+.divider { border-top: 1px dotted var(--art-punteado); }
+.sectionHead { text-align: center; max-width: 620px; margin: 0 auto 64px; }
+.sectionHead h2 { font-size: clamp(2rem, 3.6vw, 2.9rem); color: var(--site-accent); }
+.sectionHead p { margin-top: 12px; font-size: 14px; color: var(--art-circulo); }
+
+/* ---------- servicios en círculos ---------- */
+/* El <li> lleva el ancho y el círculo lo llena: sin esto, `justify-items:
+   center` centra una caja que se encoge al contenido y los círculos salen de
+   distinto tamaño según lo largo que sea el nombre del servicio. */
+.circleWrap { width: 100%; max-width: 250px; display: flex; }
+.circles { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 40px 28px; justify-items: center; }
+.circle {
+  position: relative; overflow: hidden; isolation: isolate;
+  width: 100%; aspect-ratio: 1; border-radius: 50%;
+  background: var(--art-circulo); color: #fcf9f7;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 8px; padding: 30px; text-align: center;
+}
+.circle:hover { background: var(--art-circulo-cta); }
+.circleFoto { object-fit: cover; z-index: -2; }
+/* Sin velo, un nombre manuscrito claro sobre una foto clara desaparece. */
+/*
+ * `.circle > .circleVelo` y no `.circleVelo` a secas: la regla de abajo
+ * (`.circle > span`) tiene dos selectores y gana por especificidad. El velo es
+ * un <span>, así que le pisaba el `position: absolute`, colapsaba a un inline
+ * de tamaño cero y NUNCA se pintaba — el texto quedaba sobre la foto cruda.
+ */
+.circle > .circleVelo {
+  position: absolute; inset: 0; z-index: -1;
+  /* Degradado y no velo plano: el texto cae en el CENTRO del círculo, así que
+     ahí va oscuro de verdad y el borde queda más claro para que la foto se siga
+     viendo. Un velo parejo con la misma fuerza apagaría la foto entera para
+     arreglar el centro, y uno más suave falla con la primera foto clara que
+     suban. */
+  background: radial-gradient(circle at 50% 50%,
+    rgb(42 26 21 / .84) 0%, rgb(42 26 21 / .80) 48%, rgb(42 26 21 / .42) 100%);
+}
+.circle > span { position: relative; }
+.site .circleName { font-family: var(--font-manuscrita), cursive; font-size: 25px; line-height: 1.35; overflow-wrap: anywhere; }
+.circlePrice { font-size: 13px; letter-spacing: .04em; }
+.circleMeta { font-size: 10px; letter-spacing: .16em; text-transform: uppercase; opacity: .78; }
+.circleCta { background: var(--art-circulo-cta); }
+.circleCta .circleName { color: #e6bda4; }
+
+/* ---------- precios ---------- */
+.priceList { list-style: none; margin: 0; padding: 0; max-width: 780px; margin-inline: auto; }
+.priceRow { padding: 22px 0; border-bottom: 1px dotted var(--art-punteado); display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; }
+.priceRow h3 { font-size: 21px; color: var(--site-text); }
+.priceLeader { flex: 1 1 40px; min-width: 24px; border-bottom: 1px dotted var(--art-punteado); transform: translateY(-4px); }
+.priceRow strong { font-family: var(--site-heading-font); font-size: 20px; color: var(--site-accent); font-weight: 400; }
+.priceMeta { width: 100%; display: flex; justify-content: space-between; gap: 16px; margin-top: 8px; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--site-muted); }
+.priceLink { color: var(--site-accent); font-weight: 700; }
+
+/* ---------- nosotros ---------- */
+.about { display: grid; grid-template-columns: 1fr 1fr; align-items: center; gap: 0; }
+.aboutImage { position: relative; min-height: 520px; }
+.aboutImage img { object-fit: cover; }
+.aboutCopy { padding: 88px 64px; }
+.aboutCopy h2 { font-size: clamp(2rem, 3.4vw, 2.7rem); color: var(--site-accent); }
+.aboutCopy p { margin-top: 22px; font-size: 15px; line-height: 2; color: var(--site-muted); }
+/* La firma manuscrita es el cierre del bloque en la referencia. Acá la firma el
+   nombre del negocio, que es el único dato real que tenemos. */
+.site .firma { display: block; margin-top: 34px; font-family: var(--font-manuscrita), cursive; font-size: 27px; color: var(--site-accent); }
+
+/* ---------- equipo ---------- */
+.teamGrid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 250px)); justify-content: center; gap: 34px; }
+.teamCard { text-align: center; }
+.teamAvatar { position: relative; overflow: hidden; aspect-ratio: 3/4; background: var(--site-surface-alt); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--site-accent); }
+.teamAvatar span { font-family: var(--site-heading-font); font-size: 38px; letter-spacing: .06em; }
+.teamPhoto { object-fit: cover; }
+.teamCard h3 { margin-top: 18px; font-size: 19px; }
+.teamCard p { margin-top: 5px; font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: var(--art-circulo); }
+
+/* ---------- reservar ---------- */
+.booking { position: relative; isolation: isolate; padding: 96px 28px; }
+.bookingImage { object-fit: cover; z-index: -2; }
+.bookingShade { position: absolute; inset: 0; z-index: -1; background: rgb(42 26 21 / .82); }
+.bookingHead { text-align: center; color: #fcf9f7; max-width: 640px; margin: 0 auto 46px; }
+.bookingHead .manuscrita { font-size: clamp(2.2rem, 5vw, 3.6rem); }
+.bookingHead p { margin-top: 16px; font-size: 13px; color: #ecd9cd; }
+.bookingNote { margin-top: 10px; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; opacity: .8; }
+/* 1200px, el mismo ancho de contenido que `.section`: así el agendador queda
+   alineado con las secciones de arriba y de abajo en vez de flotar angosto en el
+   medio. Antes estaba topado en 720 y sobraba media banda vacía a cada lado. */
+.widget { max-width: 1200px; margin: auto; background: var(--site-bg); padding: 30px; }
+
+/* ---------- horarios y contacto ---------- */
+.visit { display: grid; grid-template-columns: 1fr 1fr; }
+.hours { padding: 88px 64px; }
+.hours h2 { font-size: clamp(1.8rem, 3vw, 2.4rem); color: var(--site-accent); }
+.hours ul { list-style: none; margin: 34px 0 0; padding: 0; }
+.hours li { display: flex; justify-content: space-between; gap: 18px; padding: 15px 0; border-bottom: 1px dotted var(--art-punteado); font-size: 13px; }
+.hours li span:last-child { color: var(--site-muted); }
+.products { background: var(--site-surface-alt); }
+
+/* ---------- CTA fija en móvil ---------- */
+.mobileBooking { display: none; }
+
+@media (max-width: 1000px) {
+  .headerInner { padding: 0 20px; }
+  .navLinks { gap: 16px; }
+  .about, .visit { grid-template-columns: 1fr; }
+  .aboutCopy, .hours { padding: 56px 24px; }
+  .aboutImage { min-height: 360px; }
+}
+@media (max-width: 760px) {
+  .navLinks { display: none; }
+  .section { padding: 64px 20px; }
+  .hero { padding: 72px 20px 96px; min-height: min(620px, 88svh); }
+  .circles { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 24px 16px; }
+  .circle { padding: 18px; }
+  .circleName { font-size: 19px; }
+  .booking { padding: 64px 18px 96px; }
+  .widget { padding: 20px; }
+  .mobileBooking {
+    position: fixed; z-index: 40; bottom: max(16px, env(safe-area-inset-bottom)); left: 18px; right: 18px;
+    display: flex; align-items: center; justify-content: center; gap: 16px; min-height: 52px;
+    background: var(--site-accent); color: var(--site-on-accent);
+    font-size: 10px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase;
+    box-shadow: 0 6px 24px rgb(42 26 21 / .3);
+  }
+}
+
+/* Oscurecido EXTRA que elige el dueño. Va ENCIMA del velo de la plantilla:
+   solo suma, nunca aclara por debajo del piso de contraste. */
+.heroVelo { position: absolute; inset: 0; z-index: -1; }

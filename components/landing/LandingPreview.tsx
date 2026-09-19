@@ -3,11 +3,7 @@
 import type { CSSProperties } from "react";
 import type { BusinessHour } from "@/services/business-site.service";
 import type { LandingConfig, PublicSite } from "@/services/public-site.types";
-import { RasmTemplate } from "@/app/[slug]/templates/RasmTemplate";
-import { FallspaTemplate } from "@/app/[slug]/templates/FallspaTemplate";
-import { QutterTemplate } from "@/app/[slug]/templates/QutterTemplate";
-
-const TEMPLATES = { rasm: RasmTemplate, fallspa: FallspaTemplate, qutter: QutterTemplate };
+import { SiteTemplateRenderer } from "@/app/[slug]/templates/registry";
 
 const SAMPLE_SERVICES = [
   { id: "preview-1", name: "Servicio insignia", description: "Una experiencia creada alrededor de vos.", price: 45000, durationMinutes: 45, icon: null },
@@ -54,7 +50,6 @@ export function LandingPreview({
     ],
     config,
   };
-  const Template = TEMPLATES[config.template];
   const width = device === "mobile" ? 390 : 1280;
   const zoom = device === "mobile" ? 0.82 : 0.56;
 
@@ -62,7 +57,7 @@ export function LandingPreview({
     <div className="h-full min-h-[640px] overflow-auto bg-surface-container-low p-4 sm:p-6">
       <div className="mx-auto overflow-hidden rounded-2xl border border-outline-variant/30 bg-white shadow-xl" style={{ width: width * zoom }}>
         <div style={{ width, zoom } as CSSProperties}>
-          <Template site={site} preview />
+          <SiteTemplateRenderer site={site} preview />
         </div>
       </div>
     </div>

@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { fetchPublicSite } from "@/services/public-site.server";
-import { RasmTemplate } from "./templates/RasmTemplate";
-import { FallspaTemplate } from "./templates/FallspaTemplate";
-import { QutterTemplate } from "./templates/QutterTemplate";
+import { SiteTemplateRenderer } from "./templates/registry";
 
 /**
  * A business's public micro-site, served at the site root: /<slug>.
@@ -15,12 +13,6 @@ import { QutterTemplate } from "./templates/QutterTemplate";
  *
  * `params` is a Promise in this Next version — it must be awaited.
  */
-
-const TEMPLATES = {
-  rasm: RasmTemplate,
-  fallspa: FallspaTemplate,
-  qutter: QutterTemplate,
-} as const;
 
 export async function generateMetadata(props: PageProps<"/[slug]">): Promise<Metadata> {
   const { slug } = await props.params;
@@ -53,6 +45,5 @@ export default async function BusinessSitePage(props: PageProps<"/[slug]">) {
   // RPC filters on `published`, so an unpublished site is a 404 to the world.
   if (!site) notFound();
 
-  const Template = TEMPLATES[site.template] ?? RasmTemplate;
-  return <Template site={site} />;
+  return <SiteTemplateRenderer site={site} />;
 }

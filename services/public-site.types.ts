@@ -7,20 +7,51 @@
  * contract: if a field is not here, the public site must not need it.
  */
 
-export const SITE_TEMPLATES = ["rasm", "fallspa", "qutter"] as const;
+export const SITE_TEMPLATES = [
+  "rasm",
+  "fallspa",
+  "qutter",
+  "barberia",
+  "barberia-artesanal",
+  "barberia-urbana",
+] as const;
 export type SiteTemplate = (typeof SITE_TEMPLATES)[number];
+
+const BARBER_TEMPLATES: SiteTemplate[] = [
+  "barberia",
+  "barberia-artesanal",
+  "barberia-urbana",
+];
 
 export const TEMPLATE_LABELS: Record<SiteTemplate, string> = {
   rasm: "Rasm",
   fallspa: "Fallspa",
   qutter: "Qutter",
+  barberia: "Barbería moderna",
+  "barberia-artesanal": "Barbería artesanal",
+  "barberia-urbana": "Barbería urbana",
 };
 
 export const TEMPLATE_DESCRIPTIONS: Record<SiteTemplate, string> = {
   rasm: "Editorial y sofisticado para belleza y cuidado personal.",
   fallspa: "Suave, luminoso y orgánico para spa y bienestar.",
   qutter: "Fuerte, gráfico y contrastado para barberías.",
+  barberia: "Oscura, elegante y editorial para una barbería premium.",
+  "barberia-artesanal": "Clara, cálida y con detalles de oficio tradicional.",
+  "barberia-urbana": "Directa, condensada y práctica para una barbería de barrio.",
 };
+
+export function templatesFor(
+  businessType: string | null | undefined,
+  current?: SiteTemplate,
+): SiteTemplate[] {
+  return SITE_TEMPLATES.filter(
+    (template) =>
+      !BARBER_TEMPLATES.includes(template) ||
+      businessType === "salon" ||
+      template === current,
+  );
+}
 
 export const SITE_SECTION_IDS = [
   "services",
@@ -109,6 +140,9 @@ export const DEFAULT_SITE_IMAGES: Record<SiteTemplate, string> = {
   rasm: "/site-templates/rasm-hero.webp",
   fallspa: "/site-templates/fallspa-hero.webp",
   qutter: "/site-templates/qutter-hero.webp",
+  barberia: "/sites/moderno/barber-hero.webp",
+  "barberia-artesanal": "/sites/moderno/barber-hero.webp",
+  "barberia-urbana": "/sites/moderno/barber-hero.webp",
 };
 
 export const DEFAULT_SITE_DETAIL_IMAGES = {

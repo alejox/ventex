@@ -3,7 +3,11 @@ import assert from "node:assert/strict";
 import {
   defaultLandingConfig,
   normalizeLandingConfig,
+  SITE_TEMPLATES,
   SITE_SECTION_IDS,
+  TEMPLATE_DESCRIPTIONS,
+  TEMPLATE_LABELS,
+  templatesFor,
 } from "../services/public-site.types";
 
 test("defaultLandingConfig creates an independent complete configuration", () => {
@@ -48,4 +52,24 @@ test("normalizeLandingConfig removes duplicate sections and limits gallery image
   assert.equal(config.gallery.images.length, 12);
   assert.equal(config.sections.filter((section) => section.id === "services").length, 1);
   assert.equal(config.sections[0].title, "Primero");
+});
+
+test("all six templates survive normalization and have editor copy", () => {
+  for (const template of SITE_TEMPLATES) {
+    assert.equal(normalizeLandingConfig({ version: 1, template }).template, template);
+    assert.ok(TEMPLATE_LABELS[template]);
+    assert.ok(TEMPLATE_DESCRIPTIONS[template]);
+  }
+});
+
+test("barber templates are offered only to salons", () => {
+  assert.deepEqual(templatesFor("tienda"), ["rasm", "fallspa", "qutter"]);
+  assert.deepEqual(templatesFor("salon"), SITE_TEMPLATES);
+});
+
+test("a saved barber template remains selectable after a business type change", () => {
+  assert.deepEqual(
+    templatesFor("tienda", "barberia-artesanal"),
+    ["rasm", "fallspa", "qutter", "barberia-artesanal"],
+  );
 });

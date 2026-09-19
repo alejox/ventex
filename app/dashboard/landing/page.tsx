@@ -5,6 +5,7 @@ import { useBusinessSiteStore } from "@/stores/business-site.store";
 import { useSettingsStore } from "@/stores/settings.store";
 import { emptySiteInput, slugify, toSiteInput } from "@/services/business-site.service";
 import { LandingEditor } from "@/components/landing/LandingEditor";
+import { useProfile } from "@/components/ProfileProvider";
 
 export default function LandingPage() {
   const site = useBusinessSiteStore((state) => state.site);
@@ -13,6 +14,7 @@ export default function LandingPage() {
   const fetchConfig = useBusinessSiteStore((state) => state.fetchConfig);
   const settings = useSettingsStore((state) => state.settings);
   const fetchSettings = useSettingsStore((state) => state.fetchSettings);
+  const businessType = useProfile()?.businessType ?? null;
 
   useEffect(() => {
     void fetchConfig();
@@ -32,6 +34,7 @@ export default function LandingPage() {
       initialPublished={site?.published ?? false}
       currentSlug={site?.slug}
       businessName={businessName}
+      businessType={businessType}
       logoUrl={settings?.business_profile?.logoUrl ?? null}
     />
   );

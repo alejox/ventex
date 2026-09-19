@@ -6,7 +6,7 @@ import { useBusinessSiteStore } from "@/stores/business-site.store";
 import { slugify } from "@/services/business-site.service";
 import type { BusinessHour, SiteInput } from "@/services/business-site.service";
 import {
-  SITE_TEMPLATES,
+  templatesFor,
   TEMPLATE_DESCRIPTIONS,
   TEMPLATE_LABELS,
   WEEKDAY_LABELS,
@@ -24,14 +24,15 @@ const TABS: { id: EditorTab; label: string }[] = [
   { id: "business", label: "Negocio" },
   { id: "seo", label: "SEO" },
 ];
-const DEFAULT_COLORS = { rasm: "#a96550", fallspa: "#a87696", qutter: "#d5a928" };
+const DEFAULT_COLORS = { rasm: "#a96550", fallspa: "#a87696", qutter: "#d5a928", barberia: "#c5a572", "barberia-artesanal": "#552d25", "barberia-urbana": "#538167" };
 
-export function LandingEditor({ initial, initialHours, initialPublished, currentSlug, businessName, logoUrl }: {
+export function LandingEditor({ initial, initialHours, initialPublished, currentSlug, businessName, businessType, logoUrl }: {
   initial: SiteInput;
   initialHours: BusinessHour[];
   initialPublished: boolean;
   currentSlug?: string;
   businessName: string;
+  businessType: string | null;
   logoUrl: string | null;
 }) {
   const saveConfig = useBusinessSiteStore((state) => state.saveConfig);
@@ -135,7 +136,7 @@ export function LandingEditor({ initial, initialHours, initialPublished, current
             {TABS.map((tab) => <button key={tab.id} type="button" onClick={() => setActiveTab(tab.id)} className={`shrink-0 border-b-2 px-3 py-3 text-xs font-bold ${activeTab === tab.id ? "border-primary text-primary" : "border-transparent text-on-surface-variant"}`}>{tab.label}</button>)}
           </nav>
           <div className="max-h-[calc(100vh-11rem)] overflow-y-auto p-5">
-            {activeTab === "design" ? <DesignPanel config={form.draft_config} onChange={updateConfig} /> : null}
+            {activeTab === "design" ? <DesignPanel config={form.draft_config} businessType={businessType} onChange={updateConfig} /> : null}
             {activeTab === "sections" ? <SectionsPanel config={form.draft_config} onChange={updateConfig} /> : null}
             {activeTab === "content" ? <ContentPanel config={form.draft_config} onChange={updateConfig} /> : null}
             {activeTab === "business" ? <BusinessPanel form={form} hours={hours} onForm={updateForm} onHours={(next) => { setHours(next); setDirty(true); }} onConfig={updateConfig} /> : null}
@@ -155,8 +156,8 @@ export function LandingEditor({ initial, initialHours, initialPublished, current
   );
 }
 
-function DesignPanel({ config, onChange }: PanelProps) {
-  return <div className="space-y-6"><PanelTitle title="Elegí una identidad" text="El contenido se conserva al cambiar de diseño." /><div className="space-y-3">{SITE_TEMPLATES.map((template) => <button key={template} type="button" onClick={() => startTransition(() => onChange((current) => ({ ...current, template })))} className={`w-full rounded-xl border-2 p-4 text-left ${config.template === template ? "border-primary bg-primary/5" : "border-outline-variant/30"}`}><span className="font-bold text-on-surface">{TEMPLATE_LABELS[template]}</span><span className="mt-1 block text-xs text-on-surface-variant">{TEMPLATE_DESCRIPTIONS[template]}</span></button>)}</div><Field label="Color principal"><div className="flex gap-3"><input type="color" value={config.colors.primary ?? DEFAULT_COLORS[config.template]} onChange={(event) => onChange((current) => ({ ...current, colors: { primary: event.target.value } }))} className="h-11 w-14 rounded-lg border border-outline-variant/30 bg-surface-container p-1" /><button type="button" onClick={() => onChange((current) => ({ ...current, colors: { primary: null } }))} className="text-xs font-semibold text-primary">Usar original</button></div></Field></div>;
+function DesignPanel({ config, businessType, onChange }: PanelProps & { businessType: string | null }) {
+  return <div className="space-y-6"><PanelTitle title="Elegí una identidad" text="El contenido se conserva al cambiar de diseño." /><div className="space-y-3">{templatesFor(businessType, config.template).map((template) => <button key={template} type="button" onClick={() => startTransition(() => onChange((current) => ({ ...current, template })))} className={`w-full rounded-xl border-2 p-4 text-left ${config.template === template ? "border-primary bg-primary/5" : "border-outline-variant/30"}`}><span className="font-bold text-on-surface">{TEMPLATE_LABELS[template]}</span><span className="mt-1 block text-xs text-on-surface-variant">{TEMPLATE_DESCRIPTIONS[template]}</span></button>)}</div><Field label="Color principal"><div className="flex gap-3"><input type="color" value={config.colors.primary ?? DEFAULT_COLORS[config.template]} onChange={(event) => onChange((current) => ({ ...current, colors: { primary: event.target.value } }))} className="h-11 w-14 rounded-lg border border-outline-variant/30 bg-surface-container p-1" /><button type="button" onClick={() => onChange((current) => ({ ...current, colors: { primary: null } }))} className="text-xs font-semibold text-primary">Usar original</button></div></Field></div>;
 }
 
 function SectionsPanel({ config, onChange }: PanelProps) {
