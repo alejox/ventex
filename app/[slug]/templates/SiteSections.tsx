@@ -36,6 +36,11 @@ function ServicesSection({ site, section }: SectionProps) {
         {site.services.map((service, index) => (
           <li key={service.id} className="site-card site-service-card flex flex-col justify-between">
             <div>
+              {service.imageUrl ? (
+                <div className="site-service-image">
+                  <Image src={service.imageUrl} alt={service.name} fill sizes="(max-width: 768px) 100vw, 33vw" className="object-cover" />
+                </div>
+              ) : null}
               <span className="site-service-index block text-xs">
                 {String(index + 1).padStart(2, "0")}
               </span>
@@ -44,7 +49,7 @@ function ServicesSection({ site, section }: SectionProps) {
               <p className="site-service-duration">{service.durationMinutes} minutos</p>
             </div>
             <div className="site-service-footer gap-4">
-              <strong className="text-[var(--site-text)]">{formatCOP(service.price)}</strong>
+              <strong className="text-[var(--site-on-surface)]">{formatCOP(service.price)}</strong>
               {site.bookingEnabled ? (
                 <BookServiceLink serviceId={service.id} href="#reservar" className="site-action inline-flex min-h-11 items-center bg-[var(--site-accent)] px-4 text-xs font-bold text-[var(--site-on-accent)]">
                   Reservar
@@ -87,9 +92,9 @@ function ProductsSection({ site, section }: SectionProps) {
         {site.products.map((product) => (
           <li key={product.id} className="site-card site-product-card">
             <div className="site-product-image">
-              {product.imageUrl ? <Image src={product.imageUrl} alt={product.name} fill sizes="(max-width: 640px) 50vw, 25vw" className="object-cover" /> : <span className="grid h-full place-items-center text-3xl" aria-hidden="true">{product.icon ?? "+"}</span>}
+              {product.imageUrl ? <Image src={product.imageUrl} alt={product.name} fill sizes="(max-width: 640px) 50vw, 25vw" className="object-cover" /> : <span className="grid h-full place-items-center text-3xl text-[var(--site-on-surface-muted)]" aria-hidden="true">{product.icon ?? "+"}</span>}
             </div>
-            <div className="site-product-copy"><h3 className="text-sm font-semibold text-[var(--site-text)]">{product.name}</h3><p className="mt-2 text-sm font-bold text-[var(--site-accent)]">{formatCOP(product.price)}</p></div>
+            <div className="site-product-copy"><h3 className="text-sm font-semibold text-[var(--site-on-surface)]">{product.name}</h3><p className="mt-2 text-sm font-bold text-[color-mix(in_srgb,var(--site-accent)_62%,currentColor)]">{formatCOP(product.price)}</p></div>
           </li>
         ))}
       </ul>
@@ -105,7 +110,9 @@ function TeamSection({ site, section }: SectionProps) {
       <ul className="site-grid site-team-grid">
         {site.staff.map((member) => (
           <li key={member.id} className="site-card site-team-card flex items-center gap-4">
-            <span className="site-team-avatar shrink-0" aria-hidden="true">{member.fullName.slice(0, 1).toUpperCase()}</span>
+            <span className="site-team-avatar shrink-0" aria-hidden="true">
+              {member.photoUrl ? <Image src={member.photoUrl} alt="" fill sizes="72px" className="object-cover" /> : member.fullName.slice(0, 1).toUpperCase()}
+            </span>
             <span><strong className="block text-[var(--site-text)]">{member.fullName}</strong>{member.role ? <span className="mt-1 block text-xs text-[var(--site-muted)]">{member.role}</span> : null}</span>
           </li>
         ))}
@@ -137,7 +144,7 @@ function BookingSection({ site, section, preview }: SectionProps & { preview: bo
       <div className="site-booking-inner">
         <div><SectionHeading section={section} /><p className="mt-5 leading-relaxed text-[var(--site-muted)]">Elegí el servicio, profesional y horario que mejor te quede.</p></div>
         <div className="site-booking-panel min-w-0 shadow-[var(--site-shadow)]">
-          {preview ? <div className="grid min-h-64 place-items-center border border-dashed border-[var(--site-border)] p-8 text-center text-sm text-[var(--site-muted)]">La agenda real aparecerá aquí cuando publiques.</div> : <BookingWidget site={site} />}
+          {preview ? <div className="grid min-h-64 place-items-center border border-dashed border-[var(--site-on-surface-border)] p-8 text-center text-sm text-[var(--site-on-surface-muted)]">La agenda real aparecerá aquí cuando publiques.</div> : <BookingWidget site={site} />}
         </div>
       </div>
     </section>
@@ -157,7 +164,7 @@ function HoursSection({ site, section }: SectionProps) {
       <div className="site-hours-grid">
         <SectionHeading section={section} />
         <ul className="site-hours-list">
-          {site.hours.map((hour) => <li key={hour.weekday} className="site-hour gap-4 text-sm"><span className="text-[var(--site-text)]">{WEEKDAY_LABELS[hour.weekday]}{hour.weekday === today ? " · hoy" : ""}</span><span className={hour.weekday === today ? "font-bold text-[var(--site-accent)]" : "text-[var(--site-muted)]"}>{hour.isOpen ? `${hour.opensAt} – ${hour.closesAt}` : "Cerrado"}</span></li>)}
+          {site.hours.map((hour) => <li key={hour.weekday} className="site-hour gap-4 text-sm"><span className="text-[var(--site-text)]">{WEEKDAY_LABELS[hour.weekday]}{hour.weekday === today ? " · hoy" : ""}</span><span className={hour.weekday === today ? "font-bold text-[color-mix(in_srgb,var(--site-accent)_62%,currentColor)]" : "text-[var(--site-muted)]"}>{hour.isOpen ? `${hour.opensAt} – ${hour.closesAt}` : "Cerrado"}</span></li>)}
         </ul>
       </div>
     </section>

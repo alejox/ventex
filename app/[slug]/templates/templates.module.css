@@ -66,7 +66,7 @@
 }
 
 .eyebrow {
-  color: var(--site-accent);
+  color: color-mix(in srgb, var(--site-accent) 62%, currentColor);
   display: block;
   font-size: 15px;
   font-weight: 700;
@@ -389,7 +389,15 @@
 
 .template :global(.site-section-heading) { max-width: 700px; }
 .template :global(.site-section-kicker) {
-  color: var(--site-accent);
+  /*
+   * `--site-accent` pelado no alcanza: el dorado de Qutter sobre blanco medía
+   * 2.28:1. Mezclarlo con `currentColor` —el texto del contexto— lo empuja
+   * siempre hacia el lado legible: sobre fondo claro lo oscurece, sobre fondo
+   * oscuro lo aclara, y el tinte de la marca se mantiene. Depende de que cada
+   * contenedor con fondo propio declare su `color`, que es lo que hacen
+   * `.site-contact-panel` y `.site-booking-section`.
+   */
+  color: color-mix(in srgb, var(--site-accent) 62%, currentColor);
   font-size: 14px;
   font-weight: 800;
   letter-spacing: .13em;
@@ -397,7 +405,7 @@
   text-transform: uppercase;
 }
 .template :global(.site-section-title) {
-  color: var(--site-text);
+  color: inherit;
   font-family: var(--site-heading-font);
   font-size: clamp(42px, 4.5vw, 64px);
   font-weight: 700;
@@ -406,35 +414,37 @@
 }
 .template :global(.site-grid) { display: grid; gap: 28px; margin-top: 54px; }
 .template :global(.site-services-grid) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.template :global(.site-service-card) { min-height: 330px; position: relative; }
-.template :global(.site-service-index) { color: var(--site-accent); font-weight: 800; }
+.template :global(.site-service-card) { color: var(--site-on-surface); min-height: 330px; position: relative; }
+.template :global(.site-service-image) { aspect-ratio: 16 / 10; margin-bottom: 24px; overflow: hidden; position: relative; }
+.template :global(.site-service-index) { color: color-mix(in srgb, var(--site-accent) 62%, currentColor); font-weight: 800; }
 .template :global(.site-service-title) { font-family: var(--site-heading-font); font-size: 27px; font-weight: 700; margin-top: 30px; }
-.template :global(.site-service-description) { color: var(--site-muted); line-height: 1.75; margin-top: 12px; }
-.template :global(.site-service-duration) { color: var(--site-muted); font-size: 12px; margin-top: 10px; text-transform: uppercase; }
+.template :global(.site-service-description) { color: var(--site-on-surface-muted); line-height: 1.75; margin-top: 12px; }
+.template :global(.site-service-duration) { color: var(--site-on-surface-muted); font-size: 12px; margin-top: 10px; text-transform: uppercase; }
 .template :global(.site-service-footer) { align-items: center; display: flex; justify-content: space-between; margin-top: 30px; }
 .template :global(.site-about-grid) { align-items: center; display: grid; gap: 80px; grid-template-columns: 1fr 1fr; }
 .template :global(.site-about-copy) { color: var(--site-muted); font-size: 17px; line-height: 1.85; margin-top: 28px; }
 .template :global(.site-about-image) { aspect-ratio: 4 / 3; position: relative; }
 .template :global(.site-about-image img) { object-fit: cover; }
 .template :global(.site-products-grid) { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-.template :global(.site-product-card) { background: var(--site-surface); overflow: hidden; }
+.template :global(.site-product-card) { background: var(--site-surface); color: var(--site-on-surface); overflow: hidden; }
 .template :global(.site-product-image) { aspect-ratio: 1; background: var(--site-surface-alt); position: relative; }
 .template :global(.site-product-image img) { object-fit: cover; }
 .template :global(.site-product-copy) { padding: 20px; }
 .template :global(.site-team-grid) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .template :global(.site-team-card) { border-bottom: 1px solid var(--site-border); padding: 28px 0; }
-.template :global(.site-team-avatar) { align-items: center; background: var(--site-accent); color: var(--site-on-accent); display: flex; font-size: 24px; font-weight: 800; height: 72px; justify-content: center; width: 72px; }
+.template :global(.site-team-avatar) { align-items: center; background: var(--site-accent); color: var(--site-on-accent); display: flex; font-size: 24px; font-weight: 800; height: 72px; justify-content: center; overflow: hidden; position: relative; width: 72px; }
 .template :global(.site-gallery-grid) { display: grid; gap: 12px; grid-template-columns: repeat(4, 1fr); margin-top: 54px; }
 .template :global(.site-gallery-image) { aspect-ratio: 1; position: relative; }
 .template :global(.site-gallery-image img) { object-fit: cover; }
-.template :global(.site-booking-section) { background: var(--site-surface-alt); border: 0; max-width: none; }
+.template :global(.site-booking-section) { background: var(--site-surface-alt); border: 0; color: var(--site-on-surface); max-width: none; }
 .template :global(.site-booking-inner) { display: grid; gap: 70px; grid-template-columns: .75fr 1.25fr; margin: 0 auto; max-width: var(--content-width); padding: 110px 32px; }
-.template :global(.site-booking-panel) { background: var(--site-surface); padding: 38px; }
+.template :global(.site-booking-panel) { background: var(--site-surface); color: var(--site-on-surface); padding: 38px; }
 .template :global(.site-hours-grid) { display: grid; gap: 70px; grid-template-columns: .8fr 1.2fr; }
 .template :global(.site-hours-list) { border-top: 1px solid var(--site-text); }
 .template :global(.site-hour) { border-bottom: 1px solid var(--site-border); display: flex; justify-content: space-between; padding: 18px 0; }
 .template :global(.site-contact-panel) { background: var(--site-text); color: var(--site-bg); padding: 70px; }
-.template :global(.site-contact-panel) :global(.site-section-title) { color: inherit; }
+.template :global(.site-contact-panel) :global(.site-section-title),
+.template :global(.site-contact-panel) :global(.site-section-kicker) { color: inherit; }
 
 .rasm :global(.site-services-section) { background: var(--site-surface-alt); max-width: none; padding-left: max(32px, calc((100vw - var(--content-width)) / 2)); padding-right: max(32px, calc((100vw - var(--content-width)) / 2)); }
 .rasm :global(.site-section-heading) { text-align: center; margin-inline: auto; }
@@ -459,23 +469,35 @@
 .qutter :global(.site-section) { padding-bottom: 120px; padding-top: 120px; }
 .qutter :global(.site-section-heading) { margin-inline: auto; text-align: center; }
 .qutter :global(.site-section-title) { font-size: clamp(48px, 5vw, 72px); text-transform: uppercase; }
-.qutter :global(.site-service-card) { background: #181818; border: 1px solid #2d2d2d; color: #fff; padding: 38px; }
+.qutter :global(.site-service-card) { background: #181818; border: 1px solid #2d2d2d; color: var(--site-on-surface); padding: 38px; }
 .qutter :global(.site-service-card) :global(.site-service-title),
-.qutter :global(.site-service-card) strong { color: #fff; }
+.qutter :global(.site-service-card) strong { color: var(--site-on-surface); }
 .qutter :global(.site-service-card) :global(.site-service-description),
-.qutter :global(.site-service-card) :global(.site-service-duration) { color: #aaa; }
+.qutter :global(.site-service-card) :global(.site-service-duration) { color: var(--site-on-surface-muted); }
 .qutter :global(.site-service-card):hover { background: var(--site-accent); color: var(--site-on-accent); }
 .qutter :global(.site-service-card):hover :global(.site-service-description),
 .qutter :global(.site-service-card):hover :global(.site-service-duration),
 .qutter :global(.site-service-card):hover :global(.site-service-index),
 .qutter :global(.site-service-card):hover :global(.site-service-title),
 .qutter :global(.site-service-card):hover strong { color: var(--site-on-accent); }
+/*
+ * La tarjeta en hover se pinta con `--site-accent`, y el botón "Reservar" ya era
+ * `--site-accent` de fondo: quedaba dorado sobre dorado, o sea invisible, y
+ * flotaba solo su texto. Se invierte contra el mismo par de la paleta —fondo
+ * `--site-on-accent`, texto `--site-on-surface`— que son de tonos opuestos por
+ * construcción, así que el contraste no depende de acertarle a un hex: en Qutter
+ * da botón negro con letra clara, en Rasm el reverso.
+ */
+.rasm :global(.site-service-card):hover :global(.site-action),
+.qutter :global(.site-service-card):hover :global(.site-action) {
+  background: var(--site-surface);
+  color: var(--site-on-surface);
+}
 .qutter :global(.site-about-image)::before { color: var(--site-accent); content: "B"; font-family: var(--site-heading-font); font-size: 420px; font-weight: 800; left: -100px; line-height: .8; position: absolute; bottom: -70px; z-index: 0; }
 .qutter :global(.site-about-image img) { left: 70px !important; width: calc(100% - 70px) !important; z-index: 1; }
 .qutter :global(.site-gallery-grid) { gap: 0; }
 .qutter :global(.site-booking-section) { background: #080808; }
-.qutter :global(.site-booking-section) :global(.site-section-title) { color: #fff; }
-.qutter :global(.site-booking-section) :global(.site-section-heading) + p { color: #aaa; }
+.qutter :global(.site-booking-section) :global(.site-section-heading) + p { color: var(--site-on-surface-muted); }
 .qutter :global(.site-contact-panel) { background: var(--site-accent); color: var(--site-on-accent); }
 
 .footer {

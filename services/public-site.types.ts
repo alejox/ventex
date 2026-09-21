@@ -267,6 +267,8 @@ export interface PublicService {
   price: number;
   durationMinutes: number;
   icon: string | null;
+  /** Public image selected for this service, if the business uploaded one. */
+  imageUrl: string | null;
 }
 
 export interface PublicProduct {
@@ -283,6 +285,8 @@ export interface PublicStaff {
   id: string;
   fullName: string;
   role: string | null;
+  /** Public-facing portrait stored on the staff record. */
+  photoUrl: string | null;
 }
 
 export interface PublicSite {

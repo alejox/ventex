@@ -33,6 +33,14 @@ import { BOOK_SERVICE_EVENT } from "./BookServiceLink";
  *
  * Styling comes entirely from the `--site-*` variables the surrounding template
  * publishes, so this looks native inside all three designs.
+ *
+ * Concretamente los `--site-on-surface*`, no los `--site-text` / `--site-muted`
+ * del fondo de la página: este widget siempre se monta dentro de
+ * `.site-booking-panel`, que se pinta con `--site-surface`. En Qutter —fondo
+ * blanco, superficies negras— usar los del fondo daba `#111` sobre `#1a1a1a` y
+ * el formulario entero era invisible. El modal de horarios se pinta con la misma
+ * superficie por lo mismo: así el widget se ve igual esté donde esté, y el
+ * contraste lo garantiza la paleta en un solo lugar.
  */
 
 /*
@@ -257,32 +265,32 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
 
   if (confirmed) {
     return (
-      <div className="rounded-[var(--site-radius)] border border-[var(--site-border)] bg-[var(--site-surface)] p-6 text-center">
+      <div className="rounded-[var(--site-radius)] border border-[var(--site-on-surface-border)] bg-[var(--site-surface)] p-6 text-center">
         <p className="text-3xl" aria-hidden="true">
           ✓
         </p>
         <h3
-          className="mt-2 text-xl font-semibold text-[var(--site-text)]"
+          className="mt-2 text-xl font-semibold text-[var(--site-on-surface)]"
           style={{ fontFamily: "var(--site-heading-font)" }}
         >
           ¡Listo, {name.split(" ")[0]}!
         </h3>
-        <p className="mt-3 text-sm text-[var(--site-muted)]">
-          Pedimos <strong className="text-[var(--site-text)]">{confirmed.service}</strong> para el{" "}
-          <strong className="text-[var(--site-text)]">
+        <p className="mt-3 text-sm text-[var(--site-on-surface-muted)]">
+          Pedimos <strong className="text-[var(--site-on-surface)]">{confirmed.service}</strong> para el{" "}
+          <strong className="text-[var(--site-on-surface)]">
             {longDateFmt.format(parseDateInput(confirmed.date))}
           </strong>{" "}
-          a las <strong className="text-[var(--site-text)]">{confirmed.time}</strong>.
+          a las <strong className="text-[var(--site-on-surface)]">{confirmed.time}</strong>.
         </p>
-        <p className="mt-3 text-sm text-[var(--site-muted)]">
-          Queda <strong className="text-[var(--site-text)]">pendiente de confirmación</strong>. El
+        <p className="mt-3 text-sm text-[var(--site-on-surface-muted)]">
+          Queda <strong className="text-[var(--site-on-surface)]">pendiente de confirmación</strong>. El
           negocio te escribe al {phone} para confirmarte.
         </p>
         {onClose ? (
           <button
             type="button"
             onClick={onClose}
-            className="mt-5 w-full rounded-[var(--site-radius)] border border-[var(--site-border)] px-4 py-2.5 text-sm font-medium text-[var(--site-text)]"
+            className="mt-5 w-full rounded-[var(--site-radius)] border border-[var(--site-on-surface-border)] px-4 py-2.5 text-sm font-medium text-[var(--site-on-surface)]"
           >
             Cerrar
           </button>
@@ -293,14 +301,14 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
 
   if (!site.services.length) {
     return (
-      <p className="text-sm text-[var(--site-muted)]">
+      <p className="text-sm text-[var(--site-on-surface-muted)]">
         Este negocio todavía no cargó sus servicios.
       </p>
     );
   }
 
   const fieldClass =
-    "min-h-12 w-full rounded-[var(--site-radius)] border border-[var(--site-border)] bg-[var(--site-surface)] px-3 py-2.5 text-sm text-[var(--site-text)] outline-none transition-colors focus:border-[var(--site-accent)] focus-visible:ring-2 focus-visible:ring-[var(--site-accent)]/30";
+    "min-h-12 w-full rounded-[var(--site-radius)] border border-[var(--site-on-surface-border)] bg-[var(--site-surface)] px-3 py-2.5 text-sm text-[var(--site-on-surface)] outline-none transition-colors focus:border-[var(--site-accent)] focus-visible:ring-2 focus-visible:ring-[var(--site-accent)]/30";
 
   return (
     // min-w-0: el widget se monta dentro de columnas de grid en las plantillas.
@@ -363,7 +371,7 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
       {/* ---- Calendario del mes ---- */}
       <Step n={2} title="¿Qué día?">
         {days.length === 0 ? (
-          <p className="py-3 text-sm text-[var(--site-muted)]">Cargando disponibilidad…</p>
+          <p className="py-3 text-sm text-[var(--site-on-surface-muted)]">Cargando disponibilidad…</p>
         ) : (
           // Tope de ancho al calendario: las celdas son cuadradas, así que sin
           // tope crecen con la columna y un mes pasa de 300 a 450px de ALTO. Un
@@ -387,7 +395,7 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
               onClick={() => setMesVisible(mesAnterior!)}
               disabled={!mesAnterior}
               aria-label="Mes anterior"
-              className="grid h-8 w-8 place-items-center rounded-[var(--site-radius)] border border-[var(--site-border)] text-[var(--site-text)] transition-colors enabled:hover:border-[var(--site-accent)] disabled:opacity-30"
+              className="grid h-8 w-8 place-items-center rounded-[var(--site-radius)] border border-[var(--site-on-surface-border)] text-[var(--site-on-surface)] transition-colors enabled:hover:border-[var(--site-accent)] disabled:opacity-30"
             >
               <ChevronLeft size={15} aria-hidden="true" />
             </button>
@@ -395,7 +403,7 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
                 minúscula y la preposición también. Con `capitalize` salía
                 "Septiembre De 2026". Necesita ser inline-block para que
                 ::first-letter aplique. */}
-            <span className="inline-block min-w-[7.5rem] text-center text-xs font-semibold text-[var(--site-text)] first-letter:uppercase">
+            <span className="inline-block min-w-[7.5rem] text-center text-xs font-semibold text-[var(--site-on-surface)] first-letter:uppercase">
               {mesFmt.format(parseDateInput(`${mesVisible}-01`))}
             </span>
             <button
@@ -403,7 +411,7 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
               onClick={() => setMesVisible(mesSiguiente!)}
               disabled={!mesSiguiente}
               aria-label="Mes siguiente"
-              className="grid h-8 w-8 place-items-center rounded-[var(--site-radius)] border border-[var(--site-border)] text-[var(--site-text)] transition-colors enabled:hover:border-[var(--site-accent)] disabled:opacity-30"
+              className="grid h-8 w-8 place-items-center rounded-[var(--site-radius)] border border-[var(--site-on-surface-border)] text-[var(--site-on-surface)] transition-colors enabled:hover:border-[var(--site-accent)] disabled:opacity-30"
             >
               <ChevronRight size={15} aria-hidden="true" />
             </button>
@@ -414,7 +422,7 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
                 <span
                   key={i}
                   aria-hidden="true"
-                  className="py-1 text-center text-[0.6rem] font-semibold tracking-wide text-[var(--site-muted)] uppercase"
+                  className="py-1 text-center text-[0.6rem] font-semibold tracking-wide text-[var(--site-on-surface-muted)] uppercase"
                 >
                   {inicial}
                 </span>
@@ -458,10 +466,10 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
                       seleccionado
                         ? "border-[var(--site-accent)] bg-[var(--site-accent)] font-bold text-[var(--site-on-accent)]"
                         : reservable
-                          ? "border-[var(--site-border)] text-[var(--site-text)] hover:border-[var(--site-accent)]"
+                          ? "border-[var(--site-on-surface-border)] text-[var(--site-on-surface)] hover:border-[var(--site-accent)]"
                           : info
-                            ? "cursor-not-allowed border-transparent bg-[var(--site-surface-alt)] text-[var(--site-muted)] opacity-70"
-                            : "cursor-not-allowed border-transparent text-[var(--site-muted)] opacity-40"
+                            ? "cursor-not-allowed border-transparent bg-[var(--site-surface-alt)] text-[var(--site-on-surface-muted)] opacity-85"
+                            : "cursor-not-allowed border-transparent text-[var(--site-on-surface-muted)] opacity-65"
                     } ${esHoy && !seleccionado ? "font-bold" : ""}`}
                   >
                     {parseDateInput(fecha).getDate()}
@@ -522,7 +530,7 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
       </Step>
 
       {/* ---- Resumen + CTA ---- */}
-      <div className="space-y-3 border-t border-[var(--site-border)] pt-5">
+      <div className="space-y-3 border-t border-[var(--site-on-surface-border)] pt-5">
         {time && service ? (
           <dl className="space-y-1.5 rounded-[var(--site-radius)] bg-[var(--site-surface-alt)] p-4 text-sm">
             <SummaryRow label="Servicio" value={service.name} />
@@ -538,13 +546,13 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
         <button
           type="submit"
           disabled={submitting || !time || !name || !phone}
-          className="min-h-12 w-full rounded-[var(--site-radius)] bg-[var(--site-accent)] px-4 py-3.5 text-sm font-semibold text-[var(--site-on-accent)] transition-opacity focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--site-accent)] disabled:opacity-40"
+          className="min-h-12 w-full rounded-[var(--site-radius)] bg-[var(--site-accent)] px-4 py-3.5 text-sm font-semibold text-[var(--site-on-accent)] transition-opacity focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--site-accent)] disabled:opacity-60"
         >
           {submitting ? "Enviando…" : time ? `Reservar a las ${time}` : "Reservar turno"}
         </button>
 
         {/* Dice qué falta, en vez de dejar un botón apagado sin explicación. */}
-        <p className="text-center text-xs text-[var(--site-muted)]">
+        <p className="text-center text-xs text-[var(--site-on-surface-muted)]">
           {!time
             ? "Elegí un horario para continuar."
             : !name || !phone
@@ -565,17 +573,17 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
             aria-modal="true"
             aria-label={`Horarios del ${longDateFmt.format(parseDateInput(date))}`}
             onClick={(e) => e.stopPropagation()}
-            className="max-h-[85svh] w-full overflow-y-auto rounded-t-[var(--site-radius)] border border-[var(--site-border)] bg-[var(--site-bg)] p-5 sm:max-w-lg sm:rounded-[var(--site-radius)]"
+            className="max-h-[85svh] w-full overflow-y-auto rounded-t-[var(--site-radius)] border border-[var(--site-on-surface-border)] bg-[var(--site-surface)] p-5 sm:max-w-lg sm:rounded-[var(--site-radius)]"
           >
             <div className="mb-4 flex items-start justify-between gap-4">
               <div>
                 <h3
-                  className="text-lg font-semibold text-[var(--site-text)]"
+                  className="text-lg font-semibold text-[var(--site-on-surface)]"
                   style={{ fontFamily: "var(--site-heading-font)" }}
                 >
                   ¿A qué hora?
                 </h3>
-                <p className="mt-0.5 text-xs text-[var(--site-muted)]">
+                <p className="mt-0.5 text-xs text-[var(--site-on-surface-muted)]">
                   {longDateFmt.format(parseDateInput(date))}
                 </p>
               </div>
@@ -583,7 +591,7 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
                 type="button"
                 onClick={() => setHorasAbiertas(false)}
                 aria-label="Cerrar horarios"
-                className="grid h-9 w-9 shrink-0 place-items-center rounded-[var(--site-radius)] border border-[var(--site-border)] text-[var(--site-text)]"
+                className="grid h-9 w-9 shrink-0 place-items-center rounded-[var(--site-radius)] border border-[var(--site-on-surface-border)] text-[var(--site-on-surface)]"
               >
                 <X size={16} aria-hidden="true" />
               </button>
@@ -591,9 +599,9 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
 
         <div aria-live="polite">
           {loadingSlots ? (
-            <p className="py-3 text-sm text-[var(--site-muted)]">Buscando horarios…</p>
+            <p className="py-3 text-sm text-[var(--site-on-surface-muted)]">Buscando horarios…</p>
           ) : daySlots.length === 0 ? (
-            <p className="rounded-[var(--site-radius)] bg-[var(--site-surface-alt)] px-4 py-6 text-center text-sm text-[var(--site-muted)]">
+            <p className="rounded-[var(--site-radius)] bg-[var(--site-surface-alt)] px-4 py-6 text-center text-sm text-[var(--site-on-surface-muted)]">
               El negocio no atiende ese día.
               <br />
               Cerrá y elegí otra fecha en el calendario.
@@ -611,10 +619,10 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
                 return (
                   <div key={group.id}>
                     <div className="mb-1.5 flex items-baseline justify-between">
-                      <h4 className="text-xs font-semibold tracking-wide text-[var(--site-text)] uppercase">
+                      <h4 className="text-xs font-semibold tracking-wide text-[var(--site-on-surface)] uppercase">
                         {group.label}
                       </h4>
-                      <span className="text-[0.65rem] text-[var(--site-muted)]">
+                      <span className="text-[0.65rem] text-[var(--site-on-surface-muted)]">
                         {freeInGroup === 0 ? "Sin cupos" : `${freeInGroup} disponibles`}
                       </span>
                     </div>
@@ -637,7 +645,7 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
                                 className={`flex h-11 w-full items-center justify-center rounded-[var(--site-radius)] border text-sm transition-all ${
                                   isPicked
                                     ? "border-[var(--site-accent)] bg-[var(--site-accent)] font-semibold text-[var(--site-on-accent)] shadow-sm"
-                                    : "border-[var(--site-border)] text-[var(--site-text)] hover:border-[var(--site-accent)]"
+                                    : "border-[var(--site-on-surface-border)] text-[var(--site-on-surface)] hover:border-[var(--site-accent)]"
                                 }`}
                               >
                                 {slot.time}
@@ -652,7 +660,7 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
                         return (
                           <li
                             key={slot.time}
-                            className="flex h-11 flex-col items-center justify-center rounded-[var(--site-radius)] bg-[var(--site-surface-alt)] text-[var(--site-muted)]"
+                            className="flex h-11 flex-col items-center justify-center rounded-[var(--site-radius)] bg-[var(--site-surface-alt)] text-[var(--site-on-surface-muted)]"
                           >
                             <span className="text-sm leading-none opacity-70">{slot.time}</span>
                             <span className="mt-0.5 text-[0.55rem] uppercase opacity-70">
@@ -694,10 +702,10 @@ function Step({
           "¿Qué día?" se cortaba en dos líneas. Ahora baja el control, no el
           título. */}
       <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-2">
-        <h3 className="flex items-baseline gap-2 text-sm font-semibold whitespace-nowrap text-[var(--site-text)]">
+        <h3 className="flex items-baseline gap-2 text-sm font-semibold whitespace-nowrap text-[var(--site-on-surface)]">
           <span
             aria-hidden="true"
-            className="text-xs font-bold text-[var(--site-muted)] tabular-nums"
+            className="text-xs font-bold text-[var(--site-on-surface-muted)] tabular-nums"
           >
             {n}.
           </span>
@@ -721,9 +729,9 @@ function SummaryRow({
 }) {
   return (
     <div className="flex items-baseline justify-between gap-3">
-      <dt className="text-[var(--site-muted)]">{label}</dt>
+      <dt className="text-[var(--site-on-surface-muted)]">{label}</dt>
       <dd
-        className={`text-right break-words text-[var(--site-text)] ${strong ? "font-bold" : "font-medium"}`}
+        className={`text-right break-words text-[var(--site-on-surface)] ${strong ? "font-bold" : "font-medium"}`}
       >
         {value}
       </dd>

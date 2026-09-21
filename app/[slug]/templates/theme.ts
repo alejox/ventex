@@ -22,6 +22,27 @@ export interface SitePalette extends CSSProperties {
   "--site-surface-alt": string;
   "--site-text": string;
   "--site-muted": string;
+  /**
+   * Qué color va ENCIMA de `--site-surface` / `--site-surface-alt`.
+   *
+   * `--site-text` y `--site-muted` son los del fondo de la página
+   * (`--site-bg`), y hasta acá se usaban también sobre las superficies dando por
+   * sentado que las dos son del mismo tono. Qutter rompe eso a propósito —fondo
+   * blanco, tarjetas negras— y el resultado era `#111` sobre `#1a1a1a`: el
+   * formulario de reserva y el nombre de cada producto quedaban invisibles.
+   *
+   * Los parches puntuales con hex ya se habían escrito tres veces (las tarjetas
+   * de servicio, el título de la sección de reserva, su bajada) y cada isla
+   * oscura nueva volvía a empezar de cero. Declararlo en la paleta hace que la
+   * pregunta se conteste una vez por plantilla, no una vez por componente.
+   *
+   * En las paletas cuyo fondo y superficies son del mismo tono, estos tres
+   * valores son idénticos a `--site-text` / `--site-muted` / `--site-border`.
+   * Esa igualdad es lo que vuelve seguro usarlos en el CSS compartido.
+   */
+  "--site-on-surface": string;
+  "--site-on-surface-muted": string;
+  "--site-on-surface-border": string;
   "--site-accent": string;
   "--site-on-accent": string;
   "--site-border": string;
@@ -38,8 +59,11 @@ export const SITE_PALETTES: Record<SiteTemplate, SitePalette> = {
     "--site-surface-alt": "#f3e7e0",
     "--site-text": "#0d0d0d",
     "--site-muted": "#6d625d",
+    "--site-on-surface": "#0d0d0d",
+    "--site-on-surface-muted": "#6d625d",
+    "--site-on-surface-border": "#e8cdbf",
     "--site-accent": "#b77b65",
-    "--site-on-accent": "#ffffff",
+    "--site-on-accent": "#33150c",
     "--site-border": "#e8cdbf",
     "--site-radius": "2px",
     "--site-heading-font": "'Cormorant Garamond', Iowan Old Style, Baskerville, Georgia, serif",
@@ -52,8 +76,11 @@ export const SITE_PALETTES: Record<SiteTemplate, SitePalette> = {
     "--site-surface-alt": "#eee5f0",
     "--site-text": "#141b22",
     "--site-muted": "#687078",
+    "--site-on-surface": "#141b22",
+    "--site-on-surface-muted": "#687078",
+    "--site-on-surface-border": "#eadde8",
     "--site-accent": "#ff4f9d",
-    "--site-on-accent": "#ffffff",
+    "--site-on-accent": "#3d0a24",
     "--site-border": "#eadde8",
     "--site-radius": "28px",
     "--site-heading-font": "'Playfair Display', Georgia, 'Times New Roman', serif",
@@ -65,7 +92,11 @@ export const SITE_PALETTES: Record<SiteTemplate, SitePalette> = {
     "--site-surface": "#1a1a1a",
     "--site-surface-alt": "#242424",
     "--site-text": "#111111",
-    "--site-muted": "#777777",
+    // #777777 medía 4.48:1 sobre el blanco del fondo y el mínimo son 4.5.
+    "--site-muted": "#6b6b6b",
+    "--site-on-surface": "#f2f2f2",
+    "--site-on-surface-muted": "#a8a8a8",
+    "--site-on-surface-border": "#666666",
     "--site-accent": "#d6a354",
     "--site-on-accent": "#111111",
     "--site-border": "#dedede",
@@ -80,6 +111,9 @@ export const SITE_PALETTES: Record<SiteTemplate, SitePalette> = {
     "--site-surface-alt": "#2c2b27",
     "--site-text": "#f4f0e7",
     "--site-muted": "#b9b5aa",
+    "--site-on-surface": "#f4f0e7",
+    "--site-on-surface-muted": "#b9b5aa",
+    "--site-on-surface-border": "#434139",
     "--site-accent": "#c5a572",
     "--site-on-accent": "#1e1b16",
     "--site-border": "#434139",
@@ -94,6 +128,9 @@ export const SITE_PALETTES: Record<SiteTemplate, SitePalette> = {
     "--site-surface-alt": "#f0e7e1",
     "--site-text": "#151514",
     "--site-muted": "#6d5f59",
+    "--site-on-surface": "#151514",
+    "--site-on-surface-muted": "#6d5f59",
+    "--site-on-surface-border": "#e2d5cd",
     "--site-accent": "#552d25",
     "--site-on-accent": "#fcf9f7",
     "--site-border": "#e2d5cd",
@@ -107,8 +144,11 @@ export const SITE_PALETTES: Record<SiteTemplate, SitePalette> = {
     "--site-surface": "#f9f9f9",
     "--site-surface-alt": "#eef2ef",
     "--site-text": "#333333",
-    "--site-muted": "#7f8c8d",
-    "--site-accent": "#538167",
+    "--site-muted": "#646f70",
+    "--site-on-surface": "#333333",
+    "--site-on-surface-muted": "#646f70",
+    "--site-on-surface-border": "#d7d7d7",
+    "--site-accent": "#47705a",
     "--site-on-accent": "#ffffff",
     "--site-border": "#d7d7d7",
     "--site-radius": "0px",

@@ -25,7 +25,7 @@ export function QutterTemplate({ site, preview = false }: { site: PublicSite; pr
             <span className={styles.eyebrow}>{hero.eyebrow}</span>
             <h1 className={styles.heroTitle}>{hero.title ?? site.businessName}</h1>
             {hero.description ? <p className={styles.heroDescription}>{hero.description}</p> : null}
-            <BusinessStatus site={site} className="mt-5 text-[var(--site-muted)]" />
+            <BusinessStatus site={site} className="mt-5 text-[var(--site-on-surface-muted)]" />
             <div className={styles.heroActions}>{site.bookingEnabled ? <a href="#reservar" className={`${styles.heroCta} site-action`}>Reservar turno →</a> : null}<a href="#servicios" className={styles.textLink}>Explorar servicios</a></div>
           </div>
         </div>

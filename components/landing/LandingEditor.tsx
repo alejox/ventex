@@ -112,8 +112,22 @@ export function LandingEditor({ initial, initialHours, initialPublished, current
   }
 
   return (
-    <div className="-mx-4 -mt-4 min-h-[calc(100vh-5rem)] sm:-mx-6 lg:-mx-8">
-      <header className="sticky top-0 z-30 flex flex-wrap items-center justify-between gap-3 border-b border-outline-variant/20 bg-surface/95 px-4 py-3 backdrop-blur sm:px-6">
+    /*
+     * El editor es un panel de altura fija, no un documento que scrollea.
+     *
+     * Antes el encabezado era `sticky` y el alto se repartía con aritmética
+     * (`min-h-[calc(100vh-5rem)]` afuera, `max-h-[calc(100vh-11rem)]` adentro).
+     * Como la vista previa de la derecha mide lo que mide el sitio entero, la
+     * página crecía, y al scrollear el encabezado pegajoso pasaba por encima de
+     * la fila de pestañas: "Diseño" quedaba cortado a la mitad.
+     *
+     * Con el alto acotado acá y `flex` hacia abajo, cada columna scrollea sola y
+     * nada se superpone. Los márgenes negativos cancelan el `p-6 lg:p-10` del
+     * `<main>` del dashboard —tienen que coincidir con él, no con otro valor— y
+     * el `5rem` es el `h-20` de su barra superior.
+     */
+    <div className="-m-6 flex h-[calc(100dvh-5rem)] flex-col overflow-hidden lg:-m-10">
+      <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-outline-variant/20 bg-surface px-4 py-3 sm:px-6">
         <div>
           <div className="flex items-center gap-2"><h1 className="text-xl font-bold text-on-surface">Landing</h1><span className={`rounded-full px-2 py-1 text-[11px] font-bold ${published ? "bg-emerald-500/15 text-emerald-600" : "bg-surface-container-high text-on-surface-variant"}`}>{published ? "Publicada" : "Borrador"}</span>{dirty ? <span className="text-xs text-on-surface-variant">Cambios sin guardar</span> : null}</div>
           <p className="text-xs text-on-surface-variant">Editá el sitio que ven tus clientes.</p>
@@ -126,16 +140,18 @@ export function LandingEditor({ initial, initialHours, initialPublished, current
         </div>
       </header>
 
-      <div className="flex border-b border-outline-variant/20 bg-surface px-4 lg:hidden">
+      <div className="flex shrink-0 border-b border-outline-variant/20 bg-surface px-4 lg:hidden">
         {(["edit", "preview"] as const).map((mode) => <button key={mode} type="button" onClick={() => setMobileMode(mode)} className={`flex-1 border-b-2 px-3 py-3 text-sm font-bold ${mobileMode === mode ? "border-primary text-primary" : "border-transparent text-on-surface-variant"}`}>{mode === "edit" ? "Editar" : "Vista previa"}</button>)}
       </div>
 
-      <div className="grid lg:grid-cols-[430px_minmax(0,1fr)]">
-        <aside className={`${mobileMode === "preview" ? "hidden" : "block"} border-r border-outline-variant/20 bg-surface lg:block`}>
-          <nav className="flex overflow-x-auto border-b border-outline-variant/20 px-3">
+      {/* `grid-rows-[minmax(0,1fr)]` acota la fila al alto disponible; sin eso una
+          fila `auto` crece con el contenido y vuelve el desborde. */}
+      <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)] lg:grid-cols-[430px_minmax(0,1fr)]">
+        <aside className={`${mobileMode === "preview" ? "hidden" : "flex"} min-h-0 flex-col border-r border-outline-variant/20 bg-surface lg:flex`}>
+          <nav className="flex shrink-0 overflow-x-auto border-b border-outline-variant/20 px-3">
             {TABS.map((tab) => <button key={tab.id} type="button" onClick={() => setActiveTab(tab.id)} className={`shrink-0 border-b-2 px-3 py-3 text-xs font-bold ${activeTab === tab.id ? "border-primary text-primary" : "border-transparent text-on-surface-variant"}`}>{tab.label}</button>)}
           </nav>
-          <div className="max-h-[calc(100vh-11rem)] overflow-y-auto p-5">
+          <div className="min-h-0 flex-1 overflow-y-auto p-5">
             {activeTab === "design" ? <DesignPanel config={form.draft_config} businessType={businessType} onChange={updateConfig} /> : null}
             {activeTab === "sections" ? <SectionsPanel config={form.draft_config} onChange={updateConfig} /> : null}
             {activeTab === "content" ? <ContentPanel config={form.draft_config} onChange={updateConfig} /> : null}
@@ -144,12 +160,14 @@ export function LandingEditor({ initial, initialHours, initialPublished, current
           </div>
         </aside>
 
-        <main className={`${mobileMode === "edit" ? "hidden" : "block"} min-w-0 lg:block`}>
-          <div className="flex items-center justify-center gap-2 border-b border-outline-variant/20 bg-surface px-4 py-2">
+        <main className={`${mobileMode === "edit" ? "hidden" : "flex"} min-h-0 min-w-0 flex-col lg:flex`}>
+          <div className="flex shrink-0 items-center justify-center gap-2 border-b border-outline-variant/20 bg-surface px-4 py-2">
             <button type="button" onClick={() => setDevice("desktop")} className={`rounded-lg px-3 py-1.5 text-xs font-bold ${device === "desktop" ? "bg-primary text-on-primary" : "text-on-surface-variant"}`}>Escritorio</button>
             <button type="button" onClick={() => setDevice("mobile")} className={`rounded-lg px-3 py-1.5 text-xs font-bold ${device === "mobile" ? "bg-primary text-on-primary" : "text-on-surface-variant"}`}>Móvil</button>
           </div>
-          <LandingPreview config={previewConfig} hours={hours} businessName={businessName} logoUrl={logoUrl} bookingEnabled={form.booking_enabled} device={device} />
+          <div className="min-h-0 flex-1">
+            <LandingPreview config={previewConfig} hours={hours} businessName={businessName} logoUrl={logoUrl} bookingEnabled={form.booking_enabled} device={device} />
+          </div>
         </main>
       </div>
     </div>

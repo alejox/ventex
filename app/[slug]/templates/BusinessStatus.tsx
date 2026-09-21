@@ -47,7 +47,7 @@ export function BusinessStatus({ site, className = "" }: { site: PublicSite; cla
     <p className={`inline-flex items-center gap-2 text-xs font-semibold ${className}`}>
       <span
         aria-hidden="true"
-        className={`h-2 w-2 rounded-full ${isOpen ? "bg-[var(--site-accent)]" : "bg-[var(--site-muted)]"}`}
+        className={`h-2 w-2 rounded-full ${isOpen ? "bg-[var(--site-accent)]" : "bg-current"}`}
       />
       {isOpen ? `Abierto ahora · hasta las ${today?.closesAt}` : "Cerrado ahora"}
     </p>

@@ -19,8 +19,14 @@ import { WhatsappFab } from "@/components/WhatsappFab";
  * cobro en móvil) y Ajustes → Datos del negocio (barra de guardado). Ahí el
  * botón se superpondría justo encima del control que la persona está usando, así
  * que no se muestra. El soporte sigue a un clic desde cualquier otra pantalla.
+ *
+ * El editor de la landing entra por el mismo motivo y por uno propio: es un
+ * panel del alto de la ventana con su propia barra de acciones arriba, así que
+ * el espacio reservado abajo le agregaría un scroll que no lleva a ninguna
+ * parte, y el flotante quedaría sobre la vista previa del sitio del cliente
+ * —donde se lee como si fuera parte de ese sitio, que no lo es—.
  */
-const ROUTES_WITH_OWN_BOTTOM_BAR = ["/dashboard/pos", "/dashboard/settings/business"];
+const ROUTES_WITH_OWN_BOTTOM_BAR = ["/dashboard/pos", "/dashboard/settings/business", "/dashboard/landing"];
 
 /** ¿Se muestra el botón flotante en esta ruta? */
 export function showsSupportFab(pathname: string): boolean {
