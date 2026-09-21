@@ -9,6 +9,7 @@ import type { BusinessHour, SiteInput } from "@/services/business-site.service";
 import {
   DEFAULT_SITE_IMAGES,
   heroHasOverlay,
+  HERO_OVERLAY_TEMPLATE_LEVEL,
   templatesFor,
   TEMPLATE_DESCRIPTIONS,
   TEMPLATE_LABELS,
@@ -264,7 +265,7 @@ function ImageField({ label, value, fallback, onChange }: { label: string; value
  * el 100 del arranque es esa misma intensidad de diseño, no un valor inventado.
  */
 function OverlayField({ config, onChange }: PanelProps) {
-  const valor = config.hero.overlay ?? 100;
+  const valor = config.hero.overlay ?? HERO_OVERLAY_TEMPLATE_LEVEL;
   return (
     <Field label="Oscurecer la portada">
       <div className="space-y-2">
@@ -284,12 +285,22 @@ function OverlayField({ config, onChange }: PanelProps) {
             // redibujar pista y tirador por navegador, y el que no se estiliza
             // se queda sin tirador visible.
             className="min-w-0 flex-1 cursor-pointer accent-primary"
+            list="hero-overlay-marcas"
           />
+          <datalist id="hero-overlay-marcas">
+            {/* La marca dice dónde está el valor de diseño, que es de donde se
+                sale al arrastrar hacia la derecha. */}
+            <option value={HERO_OVERLAY_TEMPLATE_LEVEL} label="Diseño" />
+          </datalist>
           <span className="w-10 shrink-0 text-right text-xs font-bold tabular-nums text-on-surface">{valor}%</span>
         </div>
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <p className="text-xs text-on-surface-variant">
-            {valor === 0 ? "Sin velo: la foto se ve entera, pero el título puede perderse." : "El velo deja leer el título encima de la foto."}
+            {valor === 0
+              ? "Sin velo: la foto se ve entera, pero el título puede perderse."
+              : valor > HERO_OVERLAY_TEMPLATE_LEVEL
+                ? "Más oscuro que el diseño original: el título se lee aunque la foto tenga zonas claras."
+                : "El velo deja leer el título encima de la foto."}
           </p>
           {config.hero.overlay !== null ? (
             <button type="button" onClick={() => onChange((current) => ({ ...current, hero: { ...current.hero, overlay: null } }))} className="text-xs font-bold text-primary">

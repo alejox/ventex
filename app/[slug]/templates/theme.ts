@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import { heroOverlayLayers } from "@/services/public-site.types";
 import type { LandingConfig, SiteTemplate } from "@/services/public-site.types";
 
 /**
@@ -56,6 +57,16 @@ export interface SitePalette extends CSSProperties {
    * diseño con el respaldo de `var()`, y la plantilla se ve como siempre.
    */
   "--site-hero-overlay"?: string;
+  /**
+   * El `filter` de la foto de portada, ya escrito (`brightness(.4)`). Es el tramo
+   * del control que empieza cuando el velo ya no da más de sí.
+   *
+   * Viaja la declaración entera y no el número para poder NO publicarla: el
+   * respaldo del `var()` es `none`, y así una portada que nadie oscureció no
+   * arrastra un `filter` identidad que igual crearía contexto de apilamiento
+   * sobre unos `z-index` negativos que hoy funcionan.
+   */
+  "--site-hero-dim"?: string;
 }
 
 export const SITE_PALETTES: Record<SiteTemplate, SitePalette> = {
@@ -170,7 +181,9 @@ export function paletteFor(config: LandingConfig): SitePalette {
     palette["--site-accent"] = config.colors.primary;
   }
   if (config.hero.overlay !== null) {
-    palette["--site-hero-overlay"] = String(config.hero.overlay / 100);
+    const { veil, brightness } = heroOverlayLayers(config.hero.overlay);
+    palette["--site-hero-overlay"] = String(veil);
+    if (brightness < 1) palette["--site-hero-dim"] = `brightness(${brightness})`;
   }
   return palette;
 }

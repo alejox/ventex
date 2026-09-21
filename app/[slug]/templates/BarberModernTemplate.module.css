@@ -27,7 +27,7 @@
 .site h2 { font-size: clamp(2.4rem, 4.2vw, 3.8rem); font-weight: 400; line-height: 1.08; letter-spacing: -.045em; }
 .site h2 em { font-weight: 400; color: var(--site-accent); }
 .hero { position: relative; min-height: min(850px, 100svh); isolation: isolate; }
-.heroImage { object-fit: cover; object-position: center 40%; z-index: -3; }
+.heroImage { filter: var(--site-hero-dim, none); object-fit: cover; object-position: center 40%; z-index: -3; }
 .heroShade { position: absolute; inset: 0; opacity: var(--site-hero-overlay, 1); z-index: -2; background: linear-gradient(90deg, rgb(15 16 14 / 95%) 0%, rgb(15 16 14 / 76%) 33%, rgb(15 16 14 / 12%) 77%), linear-gradient(0deg, rgb(15 16 14 / 70%), transparent 35%); }
 .headerContent { max-width: 1360px; margin: auto; padding: 0 56px; }
 .topbar { min-height: 41px; display: flex; justify-content: space-between; align-items: center; gap: 20px; border-bottom: 1px solid rgb(244 240 231 / 14%); font-size: 10px; letter-spacing: .06em; color: var(--site-muted); }

@@ -350,7 +350,12 @@
   width: 73%;
 }
 
-.qutterMainImage img { object-fit: cover; }
+/*
+ * El tramo de arriba del control: cuando el velo ya está entero, lo que sigue
+ * oscureciendo es la foto. El respaldo del `var()` es 1 —brillo intacto—, así que
+ * sin tocar el control no cambia nada.
+ */
+.qutterMainImage img { filter: var(--site-hero-dim, none); object-fit: cover; }
 
 .qutterSideImage {
   bottom: 0;

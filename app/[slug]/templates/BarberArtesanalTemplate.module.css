@@ -63,7 +63,7 @@
 
 /* ---------- hero ---------- */
 .hero { position: relative; min-height: min(760px, 92svh); display: grid; place-items: center; isolation: isolate; text-align: center; padding: 96px 28px; }
-.heroImage { object-fit: cover; z-index: -2; }
+.heroImage { filter: var(--site-hero-dim, none); object-fit: cover; z-index: -2; }
 /* Se oscurece la FOTO con un velo propio: el texto del hero es claro y esta
    plantilla es clara, así que sin la banda oscura no hay contraste posible. */
 .heroShade { position: absolute; inset: 0; opacity: var(--site-hero-overlay, 1); z-index: -1; background: linear-gradient(180deg, rgb(42 26 21 / .62) 0%, rgb(42 26 21 / .48) 45%, rgb(42 26 21 / .72) 100%); }

@@ -207,6 +207,29 @@ export function heroHasOverlay(template: SiteTemplate): boolean {
   return template === "qutter" || BARBER_TEMPLATES.includes(template);
 }
 
+/**
+ * En qué punto de la escala 0–100 el velo de la plantilla está al máximo.
+ *
+ * Es el valor de diseño: lo que se ve sin tocar nada. No está en 100 para dejar
+ * recorrido hacia la derecha — el velo tiene tope (`opacity` no pasa de 1), así
+ * que para oscurecer MÁS hay que atenuar la foto, y eso ocupa el tramo de arriba.
+ */
+export const HERO_OVERLAY_TEMPLATE_LEVEL = 60;
+
+/**
+ * Traduce el 0–100 del control a los dos efectos que lo componen.
+ *
+ * Abajo del punto de diseño solo se levanta el velo; arriba, el velo ya está
+ * entero y lo que baja es el brillo de la foto. Vive acá y no en el editor
+ * porque la misma cuenta la necesita el render.
+ */
+export function heroOverlayLayers(value: number): { veil: number; brightness: number } {
+  const v = Math.min(100, Math.max(0, value));
+  const veil = Math.min(1, v / HERO_OVERLAY_TEMPLATE_LEVEL);
+  const extra = Math.max(0, v - HERO_OVERLAY_TEMPLATE_LEVEL) / (100 - HERO_OVERLAY_TEMPLATE_LEVEL);
+  return { veil, brightness: 1 - extra * 0.72 };
+}
+
 /** Normalizes persisted JSON so an older or partial draft remains renderable. */
 export function normalizeLandingConfig(value: unknown): LandingConfig {
   const raw = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
