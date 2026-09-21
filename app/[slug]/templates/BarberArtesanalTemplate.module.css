@@ -66,7 +66,7 @@
 .heroImage { object-fit: cover; z-index: -2; }
 /* Se oscurece la FOTO con un velo propio: el texto del hero es claro y esta
    plantilla es clara, así que sin la banda oscura no hay contraste posible. */
-.heroShade { position: absolute; inset: 0; z-index: -1; background: linear-gradient(180deg, rgb(42 26 21 / .62) 0%, rgb(42 26 21 / .48) 45%, rgb(42 26 21 / .72) 100%); }
+.heroShade { position: absolute; inset: 0; opacity: var(--site-hero-overlay, 1); z-index: -1; background: linear-gradient(180deg, rgb(42 26 21 / .62) 0%, rgb(42 26 21 / .48) 45%, rgb(42 26 21 / .72) 100%); }
 .heroBody { max-width: 860px; color: #fcf9f7; }
 .heroTitle { font-size: clamp(2.6rem, 6.4vw, 5rem); color: #fcf9f7; }
 .heroKicker { margin-top: 22px; font-size: 11px; font-weight: 600; letter-spacing: .28em; text-transform: uppercase; color: #ecd9cd; }

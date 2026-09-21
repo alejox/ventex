@@ -1,11 +1,14 @@
 "use client";
 
 import { startTransition, useDeferredValue, useEffect, useState } from "react";
+import Image from "next/image";
 import { toast } from "sonner";
 import { useBusinessSiteStore } from "@/stores/business-site.store";
 import { slugify } from "@/services/business-site.service";
 import type { BusinessHour, SiteInput } from "@/services/business-site.service";
 import {
+  DEFAULT_SITE_IMAGES,
+  heroHasOverlay,
   templatesFor,
   TEMPLATE_DESCRIPTIONS,
   TEMPLATE_LABELS,
@@ -184,7 +187,7 @@ function SectionsPanel({ config, onChange }: PanelProps) {
 }
 
 function ContentPanel({ config, onChange }: PanelProps) {
-  return <div className="space-y-7"><PanelTitle title="Portada" text="Las imágenes de muestra se usan hasta que subas las tuyas." /><Field label="Antetítulo"><input value={config.hero.eyebrow} onChange={(event) => onChange((current) => ({ ...current, hero: { ...current.hero, eyebrow: event.target.value } }))} className={INPUT} /></Field><Field label="Título principal"><input value={config.hero.title ?? ""} onChange={(event) => onChange((current) => ({ ...current, hero: { ...current.hero, title: event.target.value || null } }))} className={INPUT} placeholder="Usa el nombre del negocio si queda vacío" /></Field><Field label="Descripción"><textarea rows={3} value={config.hero.description ?? ""} onChange={(event) => onChange((current) => ({ ...current, hero: { ...current.hero, description: event.target.value || null } }))} className={INPUT} /></Field><ImageField label="Imagen de portada" value={config.hero.imageUrl} onChange={(url) => onChange((current) => ({ ...current, hero: { ...current.hero, imageUrl: url } }))} /><hr className="border-outline-variant/20" /><PanelTitle title="Sobre nosotros" text="Contá qué hace diferente a tu negocio." /><Field label="Texto"><textarea rows={5} value={config.about.description ?? ""} onChange={(event) => onChange((current) => ({ ...current, about: { ...current.about, description: event.target.value || null } }))} className={INPUT} /></Field><ImageField label="Imagen de la sección" value={config.about.imageUrl} onChange={(url) => onChange((current) => ({ ...current, about: { ...current.about, imageUrl: url } }))} /><hr className="border-outline-variant/20" /><PanelTitle title="Galería" text="Podés mostrar hasta 12 imágenes." /><GalleryEditor config={config} onChange={onChange} /></div>;
+  return <div className="space-y-7"><PanelTitle title="Portada" text="Las imágenes de muestra se usan hasta que subas las tuyas." /><Field label="Antetítulo"><input value={config.hero.eyebrow} onChange={(event) => onChange((current) => ({ ...current, hero: { ...current.hero, eyebrow: event.target.value } }))} className={INPUT} /></Field><Field label="Título principal"><input value={config.hero.title ?? ""} onChange={(event) => onChange((current) => ({ ...current, hero: { ...current.hero, title: event.target.value || null } }))} className={INPUT} placeholder="Usa el nombre del negocio si queda vacío" /></Field><Field label="Descripción"><textarea rows={3} value={config.hero.description ?? ""} onChange={(event) => onChange((current) => ({ ...current, hero: { ...current.hero, description: event.target.value || null } }))} className={INPUT} /></Field><ImageField label="Imagen de portada" value={config.hero.imageUrl} fallback={DEFAULT_SITE_IMAGES[config.template]} onChange={(url) => onChange((current) => ({ ...current, hero: { ...current.hero, imageUrl: url } }))} />{heroHasOverlay(config.template) ? <OverlayField config={config} onChange={onChange} /> : null}<hr className="border-outline-variant/20" /><PanelTitle title="Sobre nosotros" text="Contá qué hace diferente a tu negocio." /><Field label="Texto"><textarea rows={5} value={config.about.description ?? ""} onChange={(event) => onChange((current) => ({ ...current, about: { ...current.about, description: event.target.value || null } }))} className={INPUT} /></Field><ImageField label="Imagen de la sección" value={config.about.imageUrl} fallback={null} onChange={(url) => onChange((current) => ({ ...current, about: { ...current.about, imageUrl: url } }))} /><hr className="border-outline-variant/20" /><PanelTitle title="Galería" text="Podés mostrar hasta 12 imágenes." /><GalleryEditor config={config} onChange={onChange} /></div>;
 }
 
 function BusinessPanel({ form, hours, onForm, onHours, onConfig }: { form: SiteInput; hours: BusinessHour[]; onForm: <K extends keyof SiteInput>(key: K, value: SiteInput[K]) => void; onHours: (hours: BusinessHour[]) => void; onConfig: PanelProps["onChange"] }) {
@@ -193,9 +196,111 @@ function BusinessPanel({ form, hours, onForm, onHours, onConfig }: { form: SiteI
   return <div className="space-y-6"><PanelTitle title="Dirección pública" text="Este será el enlace para compartir." /><Field label="ventex.app/"><input value={form.slug} onChange={(event) => onForm("slug", event.target.value)} className={INPUT} /></Field><label className="flex gap-3 text-sm text-on-surface"><input type="checkbox" checked={form.booking_enabled} onChange={(event) => onForm("booking_enabled", event.target.checked)} className="h-4 w-4 accent-[var(--primary)]" />Aceptar reservas en línea</label><Field label="WhatsApp"><input value={contact.whatsapp ?? ""} onChange={(event) => updateContact("whatsapp", event.target.value)} className={INPUT} placeholder="573001234567" /></Field><Field label="Dirección"><input value={contact.address ?? ""} onChange={(event) => updateContact("address", event.target.value)} className={INPUT} /></Field><div className="grid gap-3">{SOCIAL_NETWORKS.map((network) => <Field key={network} label={SOCIAL_META[network].label} icon={<BrandIcon name={network} className="h-4 w-4" colored />}><input value={contact[network] ?? ""} onChange={(event) => updateContact(network, event.target.value)} className={INPUT} placeholder={SOCIAL_META[network].placeholder} /></Field>)}</div><hr className="border-outline-variant/20" /><PanelTitle title="Horarios" text="También definen la disponibilidad de reservas." />{hours.map((hour) => <div key={hour.weekday} className="rounded-xl border border-outline-variant/30 p-3"><label className="flex items-center gap-2 text-sm font-bold text-on-surface"><input type="checkbox" checked={hour.is_open} onChange={(event) => onHours(hours.map((item) => item.weekday === hour.weekday ? { ...item, is_open: event.target.checked } : item))} />{WEEKDAY_LABELS[hour.weekday]}</label>{hour.is_open ? <div className="mt-3 flex items-center gap-2"><input type="time" value={hour.opens_at} onChange={(event) => onHours(hours.map((item) => item.weekday === hour.weekday ? { ...item, opens_at: event.target.value } : item))} className={INPUT} /><span>–</span><input type="time" value={hour.closes_at} onChange={(event) => onHours(hours.map((item) => item.weekday === hour.weekday ? { ...item, closes_at: event.target.value } : item))} className={INPUT} /></div> : null}</div>)}</div>;
 }
 
-function SeoPanel({ config, onChange }: PanelProps) { return <div className="space-y-5"><PanelTitle title="Google y redes" text="Controlá cómo aparece el enlace al compartirlo." /><Field label="Título"><input value={config.seo.title ?? ""} onChange={(event) => onChange((current) => ({ ...current, seo: { ...current.seo, title: event.target.value || null } }))} className={INPUT} placeholder="Nombre del negocio" /></Field><Field label="Descripción"><textarea rows={4} value={config.seo.description ?? ""} onChange={(event) => onChange((current) => ({ ...current, seo: { ...current.seo, description: event.target.value || null } }))} className={INPUT} /></Field><ImageField label="Imagen al compartir" value={config.seo.imageUrl} onChange={(url) => onChange((current) => ({ ...current, seo: { ...current.seo, imageUrl: url } }))} /></div>; }
+function SeoPanel({ config, onChange }: PanelProps) { return <div className="space-y-5"><PanelTitle title="Google y redes" text="Controlá cómo aparece el enlace al compartirlo." /><Field label="Título"><input value={config.seo.title ?? ""} onChange={(event) => onChange((current) => ({ ...current, seo: { ...current.seo, title: event.target.value || null } }))} className={INPUT} placeholder="Nombre del negocio" /></Field><Field label="Descripción"><textarea rows={4} value={config.seo.description ?? ""} onChange={(event) => onChange((current) => ({ ...current, seo: { ...current.seo, description: event.target.value || null } }))} className={INPUT} /></Field><ImageField label="Imagen al compartir" value={config.seo.imageUrl} fallback={null} onChange={(url) => onChange((current) => ({ ...current, seo: { ...current.seo, imageUrl: url } }))} /></div>; }
 
-function ImageField({ label, value, onChange }: { label: string; value: string | null; onChange: (url: string | null) => void }) { const uploadImage = useBusinessSiteStore((state) => state.uploadImage); const uploading = useBusinessSiteStore((state) => state.uploading); return <Field label={label}><div className="space-y-2">{value ? <div className="flex items-center gap-3 rounded-lg border border-outline-variant/30 p-2"><span className="min-w-0 flex-1 truncate text-xs text-on-surface-variant">Imagen personalizada</span><button type="button" onClick={() => onChange(null)} className="text-xs font-bold text-primary">Usar predeterminada</button></div> : <p className="text-xs text-on-surface-variant">Se está usando la imagen de muestra del diseño.</p>}<label className="inline-flex cursor-pointer rounded-lg border border-outline-variant/30 px-3 py-2 text-xs font-bold text-on-surface"><input type="file" accept="image/jpeg,image/png,image/webp,image/avif" className="sr-only" disabled={uploading} onChange={async (event) => { const file = event.target.files?.[0]; if (!file) return; const url = await uploadImage(file); if (url) { onChange(url); toast.success("Imagen cargada."); } else toast.error(useBusinessSiteStore.getState().error ?? "No se pudo cargar la imagen."); event.target.value = ""; }} />{uploading ? "Subiendo…" : value ? "Reemplazar imagen" : "Subir imagen"}</label></div></Field>; }
+/**
+ * Un campo de imagen que MUESTRA la imagen.
+ *
+ * Antes decía "Imagen personalizada" y nada más: para saber cuál había quedado
+ * cargada había que buscarla en la vista previa. `fallback` es la imagen de
+ * muestra de la plantilla, así que el recuadro nunca está vacío y se ve contra
+ * qué se está comparando antes de reemplazarla.
+ */
+function ImageField({ label, value, fallback, onChange }: { label: string; value: string | null; fallback: string | null; onChange: (url: string | null) => void }) {
+  const uploadImage = useBusinessSiteStore((state) => state.uploadImage);
+  const uploading = useBusinessSiteStore((state) => state.uploading);
+  const mostrada = value ?? fallback;
+  return (
+    <Field label={label}>
+      <div className="space-y-2">
+        {mostrada ? (
+          <div className="relative aspect-[16/9] w-full overflow-hidden rounded-lg border border-outline-variant/30 bg-surface-container">
+            {/* `unoptimized`: la miniatura del editor no justifica una variante
+                más en el optimizador, y la de muestra ya viene en WebP. */}
+            <Image src={mostrada} alt="" fill sizes="430px" unoptimized className="object-cover" />
+            <span className="absolute bottom-0 left-0 rounded-tr-lg bg-black/65 px-2 py-1 text-[11px] font-semibold text-white">
+              {value ? "Tu imagen" : "Imagen de muestra"}
+            </span>
+          </div>
+        ) : (
+          <p className="text-xs text-on-surface-variant">Todavía no subiste una imagen.</p>
+        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="inline-flex cursor-pointer rounded-lg border border-outline-variant/30 px-3 py-2 text-xs font-bold text-on-surface">
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/avif"
+              className="sr-only"
+              disabled={uploading}
+              onChange={async (event) => {
+                const file = event.target.files?.[0];
+                if (!file) return;
+                const url = await uploadImage(file);
+                if (url) {
+                  onChange(url);
+                  toast.success("Imagen cargada.");
+                } else toast.error(useBusinessSiteStore.getState().error ?? "No se pudo cargar la imagen.");
+                event.target.value = "";
+              }}
+            />
+            {uploading ? "Subiendo…" : value ? "Reemplazar imagen" : "Subir imagen"}
+          </label>
+          {value ? <button type="button" onClick={() => onChange(null)} className="text-xs font-bold text-primary">Usar predeterminada</button> : null}
+        </div>
+      </div>
+    </Field>
+  );
+}
+
+/**
+ * Cuánto se oscurece la portada.
+ *
+ * No atenúa la foto: regula el velo que la plantilla ya dibuja encima, que es lo
+ * que vuelve legible el título. Por eso el control solo aparece donde la portada
+ * va a sangre con el texto arriba (`heroHasOverlay`) — en Rasm y Fallspa la foto
+ * va al costado y apagarla no arregla nada.
+ *
+ * Mientras nadie lo toque el valor es `null` y la plantilla se ve como siempre;
+ * el 100 del arranque es esa misma intensidad de diseño, no un valor inventado.
+ */
+function OverlayField({ config, onChange }: PanelProps) {
+  const valor = config.hero.overlay ?? 100;
+  return (
+    <Field label="Oscurecer la portada">
+      <div className="space-y-2">
+        <div className="flex items-center gap-3">
+          <input
+            type="range"
+            min={0}
+            max={100}
+            step={5}
+            value={valor}
+            aria-label="Oscurecer la portada"
+            onChange={(event) => {
+              const overlay = Number(event.target.value);
+              onChange((current) => ({ ...current, hero: { ...current.hero, overlay } }));
+            }}
+            // Control nativo con `accent-color`: con `appearance: none` hay que
+            // redibujar pista y tirador por navegador, y el que no se estiliza
+            // se queda sin tirador visible.
+            className="min-w-0 flex-1 cursor-pointer accent-primary"
+          />
+          <span className="w-10 shrink-0 text-right text-xs font-bold tabular-nums text-on-surface">{valor}%</span>
+        </div>
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <p className="text-xs text-on-surface-variant">
+            {valor === 0 ? "Sin velo: la foto se ve entera, pero el título puede perderse." : "El velo deja leer el título encima de la foto."}
+          </p>
+          {config.hero.overlay !== null ? (
+            <button type="button" onClick={() => onChange((current) => ({ ...current, hero: { ...current.hero, overlay: null } }))} className="text-xs font-bold text-primary">
+              Usar el de la plantilla
+            </button>
+          ) : null}
+        </div>
+      </div>
+    </Field>
+  );
+}
 
 function GalleryEditor({ config, onChange }: PanelProps) { const uploadImage = useBusinessSiteStore((state) => state.uploadImage); const uploading = useBusinessSiteStore((state) => state.uploading); return <div className="space-y-3"><div className="grid grid-cols-3 gap-2">{config.gallery.images.map((image) => <div key={image.id} className="rounded-lg border border-outline-variant/30 p-2"><div className="aspect-square rounded bg-surface-container bg-cover bg-center" style={{ backgroundImage: `url(${image.url})` }} /><input value={image.alt} onChange={(event) => onChange((current) => ({ ...current, gallery: { ...current.gallery, images: current.gallery.images.map((item) => item.id === image.id ? { ...item, alt: event.target.value } : item) } }))} className="mt-2 w-full bg-transparent text-[11px] text-on-surface" placeholder="Descripción" /><button type="button" onClick={() => onChange((current) => ({ ...current, gallery: { ...current.gallery, images: current.gallery.images.filter((item) => item.id !== image.id) } }))} className="mt-1 text-[11px] font-bold text-error">Quitar</button></div>)}</div>{config.gallery.images.length < 12 ? <label className="inline-flex cursor-pointer rounded-lg border border-outline-variant/30 px-3 py-2 text-xs font-bold text-on-surface"><input type="file" multiple accept="image/jpeg,image/png,image/webp,image/avif" className="sr-only" disabled={uploading} onChange={async (event) => { const files = Array.from(event.target.files ?? []).slice(0, 12 - config.gallery.images.length); const uploaded: SiteImage[] = []; for (const file of files) { const url = await uploadImage(file); if (url) uploaded.push({ id: crypto.randomUUID(), url, alt: "" }); } if (uploaded.length) onChange((current) => ({ ...current, gallery: { ...current.gallery, images: [...current.gallery.images, ...uploaded].slice(0, 12) } })); event.target.value = ""; }} />{uploading ? "Subiendo…" : "Agregar imágenes"}</label> : null}</div>; }
 

@@ -50,6 +50,12 @@ export interface SitePalette extends CSSProperties {
   "--site-heading-font": string;
   "--site-body-font": string;
   "--site-shadow": string;
+  /**
+   * Intensidad del velo de la portada, 0–1. Se publica SOLO cuando el negocio
+   * movió el control: sin la variable, cada velo cae a su propio valor de
+   * diseño con el respaldo de `var()`, y la plantilla se ve como siempre.
+   */
+  "--site-hero-overlay"?: string;
 }
 
 export const SITE_PALETTES: Record<SiteTemplate, SitePalette> = {
@@ -162,6 +168,9 @@ export function paletteFor(config: LandingConfig): SitePalette {
   const palette = { ...SITE_PALETTES[config.template] };
   if (config.colors.primary && /^#[0-9a-f]{6}$/i.test(config.colors.primary)) {
     palette["--site-accent"] = config.colors.primary;
+  }
+  if (config.hero.overlay !== null) {
+    palette["--site-hero-overlay"] = String(config.hero.overlay / 100);
   }
   return palette;
 }

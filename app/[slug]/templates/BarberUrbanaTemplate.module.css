@@ -62,7 +62,7 @@
 /* ---------- hero ---------- */
 .hero { position: relative; min-height: min(560px, 74svh); display: grid; align-items: center; isolation: isolate; padding: 80px 24px; }
 .heroImage { object-fit: cover; z-index: -2; }
-.heroShade { position: absolute; inset: 0; z-index: -1; background: linear-gradient(90deg, rgb(28 30 28 / .82) 0%, rgb(28 30 28 / .62) 48%, rgb(28 30 28 / .34) 100%); }
+.heroShade { position: absolute; inset: 0; opacity: var(--site-hero-overlay, 1); z-index: -1; background: linear-gradient(90deg, rgb(28 30 28 / .82) 0%, rgb(28 30 28 / .62) 48%, rgb(28 30 28 / .34) 100%); }
 .heroBody { max-width: 1200px; margin: auto; width: 100%; color: #fff; }
 /* Titular en cursiva y con reglas arriba y abajo, como la referencia: es lo que
    lo separa del resto de la página, que va toda en versalitas rectas. */

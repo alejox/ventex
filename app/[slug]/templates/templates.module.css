@@ -315,6 +315,12 @@
   background: linear-gradient(90deg, #050505 0 25%, rgba(5,5,5,.86) 40%, rgba(5,5,5,.08) 75%);
   content: "";
   inset: 0;
+  /*
+   * El negocio regula cuánto tapa el velo, sin perder el degradado que le da la
+   * forma. El respaldo del `var()` es 1: mientras nadie toque el control, la
+   * portada se ve igual que siempre.
+   */
+  opacity: var(--site-hero-overlay, 1);
   position: absolute;
   z-index: 1;
 }

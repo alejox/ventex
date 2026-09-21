@@ -100,6 +100,16 @@ export interface LandingConfig {
     title: string | null;
     description: string | null;
     imageUrl: string | null;
+    /**
+     * Intensidad del velo sobre la portada, de 0 a 100. `null` = el de la
+     * plantilla, que es lo que ve quien nunca tocó el control.
+     *
+     * Solo lo usan las plantillas con foto a sangre (`heroHasOverlay`): ahí el
+     * texto va ENCIMA de la foto y el velo es lo que lo vuelve legible. En Rasm
+     * y Fallspa la portada va al costado, sin nada escrito arriba, así que
+     * atenuarla solo la apagaría.
+     */
+    overlay: number | null;
   };
   about: {
     title: string;
@@ -159,6 +169,7 @@ export function defaultLandingConfig(template: SiteTemplate = "rasm"): LandingCo
       title: null,
       description: null,
       imageUrl: null,
+      overlay: null,
     },
     about: { title: "Nuestra esencia", description: null, imageUrl: null },
     gallery: { title: "Nuestro espacio", images: [] },
@@ -170,6 +181,30 @@ export function defaultLandingConfig(template: SiteTemplate = "rasm"): LandingCo
 
 function nullableString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+/**
+ * Entero de 0 a 100, o `null` si no hay un número usable.
+ *
+ * `null` y `undefined` se descartan ANTES de convertir: `Number(null)` es 0, y
+ * un 0 acá no significa "sin definir" sino "velo apagado". Un borrador viejo, sin
+ * el campo, tiene que seguir mostrando el velo de su plantilla.
+ */
+function percentOrNull(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n)) return null;
+  return Math.min(100, Math.max(0, Math.round(n)));
+}
+
+/**
+ * ¿La plantilla pone la portada a sangre, con el texto encima?
+ *
+ * Es lo que decide si el control del velo tiene sentido. Va acá y no en el
+ * editor porque la misma pregunta la hace el CSS al elegir su valor por defecto.
+ */
+export function heroHasOverlay(template: SiteTemplate): boolean {
+  return template === "qutter" || BARBER_TEMPLATES.includes(template);
 }
 
 /** Normalizes persisted JSON so an older or partial draft remains renderable. */
@@ -192,6 +227,7 @@ export function normalizeLandingConfig(value: unknown): LandingConfig {
     title: nullableString(hero.title),
     description: nullableString(hero.description),
     imageUrl: nullableString(hero.imageUrl),
+    overlay: percentOrNull(hero.overlay),
   };
   result.about = {
     title: nullableString(about.title) ?? result.about.title,
