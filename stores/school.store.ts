@@ -55,12 +55,12 @@ export const useSchoolStore = create<SchoolState>((set) => ({
   },
 
   fetchSummary: async () => {
-    set({ error: null });
+    set({ loading: true, error: null });
     try {
       const summary = await schoolEnrollmentsService.fetchSchoolSummary();
-      set({ summary });
+      set({ summary, loading: false });
     } catch (e) {
-      set({ error: toMessage(e) });
+      set({ error: toMessage(e), loading: false });
     }
   },
 }));

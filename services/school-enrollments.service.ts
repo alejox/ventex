@@ -249,6 +249,25 @@ export async function fetchSellableServices(): Promise<SellableService[]> {
   return ((data ?? []) as unknown as SellableService[]).filter((s) => s.status === "active");
 }
 
+/**
+ * Archiva / reactiva un plan.
+ *
+ * Los planes se archivan, NUNCA se borran: `school_enrollments.lesson_plan_id`
+ * referencia al plan y un DELETE descolgaría la historia de cada matrícula
+ * (igual que con los servicios del catálogo).
+ */
+export async function setLessonPlanStatus(id: string, is_active: boolean): Promise<LessonPlan> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("school_lesson_plans")
+    .update({ is_active })
+    .eq("id", id)
+    .select(PLAN_SELECT)
+    .single();
+  if (error) throw error;
+  return planRowToPlan(data as unknown as Parameters<typeof planRowToPlan>[0]);
+}
+
 // ---- Matrículas ----
 
 export async function fetchEnrollments(): Promise<SchoolEnrollment[]> {
