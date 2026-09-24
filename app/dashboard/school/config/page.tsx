@@ -28,21 +28,27 @@ export default function SchoolConfigPage() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    if (!ready && !loading && settings.id !== null) {
-      setInstrumentsText(settings.instruments.join(", "));
-      setRoomsText(settings.rooms.join(", "));
-      setMinAdvanceHours(settings.policy.min_advance_hours);
-      setMaxReschedules(settings.policy.max_reschedules);
-      setConsumeOnAbsence(settings.policy.consume_on_unjustified_absence);
-      setExpiryExtension(settings.policy.expiry_extension_days);
-      setReady(true);
-    }
-  }, [ready, loading, settings]);
-
-  useEffect(() => {
-    if (!ready) void fetchSettings();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready]);
+    if (ready) return;
+    let cancelled = false;
+    void fetchSettings()
+      .then(() => {
+        if (cancelled) return;
+        const s = useSchoolStore.getState().settings;
+        setInstrumentsText(s.instruments.join(", "));
+        setRoomsText(s.rooms.join(", "));
+        setMinAdvanceHours(s.policy.min_advance_hours);
+        setMaxReschedules(s.policy.max_reschedules);
+        setConsumeOnAbsence(s.policy.consume_on_unjustified_absence);
+        setExpiryExtension(s.policy.expiry_extension_days);
+        setReady(true);
+      })
+      .catch(() => {
+        // El error ya quedó en el store; lo muestra CollectionError.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [ready, fetchSettings]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

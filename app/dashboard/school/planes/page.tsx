@@ -34,7 +34,23 @@ export default function PlanesPage() {
   };
 
   useEffect(() => {
-    void load();
+    let cancelled = false;
+    void Promise.all([fetchLessonPlans(), fetchSellableServices()])
+      .then(([rows, sellable]) => {
+        if (cancelled) return;
+        setPlans(rows);
+        setServices(sellable);
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        setError(e instanceof Error ? e.message : "Error inesperado");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const priceOf = (plan: LessonPlan): number => {

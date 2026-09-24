@@ -9,7 +9,6 @@ import { GuardianForm } from "@/components/school/GuardianForm";
 import { EnrollmentForm } from "@/components/school/EnrollmentForm";
 import { formatMoney, formatShortDate } from "@/components/school/format";
 import { CollectionLoading, CollectionError } from "@/components/CollectionState";
-import { notifySuccess } from "@/lib/notifications";
 
 const KIND_LABELS: Record<string, string> = {
   assignment: "Crédito por matrícula",
@@ -53,8 +52,6 @@ export default function EstudianteDetailPage() {
 
   if (loading && !detail) return <CollectionLoading label="Cargando alumno…" />;
   if (error && !detail) return <CollectionError message={error} onRetry={refresh} />;
-
-  const activeEnrollment = enrollments.find((e) => e.status === "active") ?? null;
 
   return (
     <div className="space-y-6">

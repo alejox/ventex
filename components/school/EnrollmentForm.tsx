@@ -54,30 +54,42 @@ export function EnrollmentForm({ studentId, onClose, onSaved }: EnrollmentFormPr
     ]).catch(() => {});
   }, []);
 
-  // Al cambiar el alumno, precargar su instrumento.
+  // Al cambiar el alumno, precargar su instrumento (en el handler, no en un effect).
   const selectedStudent = students.find((s) => s.id === selectedStudentId);
-  useEffect(() => {
-    if (selectedStudent?.instrument) setInstrument(selectedStudent.instrument);
-  }, [selectedStudent?.instrument]);
+  const handleStudentChange = (value: string) => {
+    setSelectedStudentId(value);
+    const next = students.find((s) => s.id === value);
+    if (next?.instrument) setInstrument(next.instrument);
+  };
 
-  // Ventas cerradas del pagador, para poder vincular una existencia.
+  // Ventas cerradas del pagador: la carga vive en el effect, el reset de
+  // estado (llenar vacío) en el handler del selector.
   useEffect(() => {
-    if (!payerId) {
-      setSales([]);
-      setSaleId("");
-      return;
-    }
-    setSalesLoading(true);
+    if (!payerId) return;
+    let cancelled = false;
     fetchCustomerSales(payerId)
       .then((rows) => {
+        if (cancelled) return;
         setSales(rows.filter((s) => s.total > 0));
-        setSalesLoading(false);
       })
       .catch(() => {
+        if (cancelled) return;
         setSales([]);
-        setSalesLoading(false);
+      })
+      .finally(() => {
+        if (!cancelled) setSalesLoading(false);
       });
+    return () => {
+      cancelled = true;
+    };
   }, [payerId]);
+
+  const handlePayerChange = (value: string) => {
+    setPayerId(value);
+    setSaleId("");
+    setSales([]);
+    setSalesLoading(value !== "");
+  };
 
   const selectedPlan = plans.find((p) => p.id === planId);
   const selectedSale = sales.find((s) => s.id === saleId);
@@ -125,7 +137,7 @@ export function EnrollmentForm({ studentId, onClose, onSaved }: EnrollmentFormPr
           <Select
             label="Alumno"
             value={selectedStudentId}
-            onChange={(e) => setSelectedStudentId(e.target.value)}
+            onChange={(e) => handleStudentChange(e.target.value)}
             searchable
             searchPlaceholder="Buscar alumno…"
           >
@@ -183,7 +195,7 @@ export function EnrollmentForm({ studentId, onClose, onSaved }: EnrollmentFormPr
           <Select
             label="¿Quién paga? (opcional)"
             value={payerId}
-            onChange={(e) => setPayerId(e.target.value)}
+            onChange={(e) => handlePayerChange(e.target.value)}
             size="sm"
             hint="Si la venta se hizo a nombre de otra persona (padre, empresa), se la marcás acá."
           >

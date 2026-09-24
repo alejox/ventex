@@ -40,7 +40,7 @@ interface SchoolPeopleState {
 
 const EMPTY_DETAIL: StudentDetail = { student: null, guardians: [], enrollments: [], movements: [] };
 
-export const useSchoolPeopleStore = create<SchoolPeopleState>((set, get) => ({
+export const useSchoolPeopleStore = create<SchoolPeopleState>((set) => ({
   students: [],
   teachers: [],
   staffOptions: [],

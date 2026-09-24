@@ -7,7 +7,7 @@ import { useSchoolPeopleStore } from "@/stores/school-people.store";
 import { normalizeName } from "@/services/school-people.service";
 import { fetchSchoolSettings } from "@/services/school-settings.service";
 import type { TeacherProfile } from "@/services/school-people.service";
-import { notifySuccess, notifyError } from "@/lib/notifications";
+import { notifySuccess } from "@/lib/notifications";
 
 interface TeacherFormProps {
   teacher?: TeacherProfile | null;

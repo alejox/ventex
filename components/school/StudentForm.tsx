@@ -8,7 +8,7 @@ import { normalizeName, normalizeContactPhone } from "@/services/school-people.s
 import { fetchCustomers } from "@/services/customers.service";
 import type { Customer } from "@/services/customers.service";
 import type { SchoolStudent } from "@/services/school-people.service";
-import { notifySuccess, notifyError } from "@/lib/notifications";
+import { notifySuccess } from "@/lib/notifications";
 
 interface StudentFormProps {
   student?: SchoolStudent | null;

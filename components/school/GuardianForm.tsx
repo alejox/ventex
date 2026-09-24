@@ -8,7 +8,7 @@ import { normalizeName } from "@/services/school-people.service";
 import { fetchCustomers } from "@/services/customers.service";
 import type { Customer } from "@/services/customers.service";
 import type { StudentGuardian } from "@/services/school-people.service";
-import { notifySuccess, notifyError } from "@/lib/notifications";
+import { notifySuccess } from "@/lib/notifications";
 
 interface GuardianFormProps {
   studentId: string;
