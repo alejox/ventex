@@ -25,6 +25,7 @@ desde cero: `supabase db reset` (aplica todas en orden).
 | `20260620123000_pos_sell_services_create_sale_v2` | Historial remoto — POS cobra servicios (sale_items.service_id + create_sale) |
 | `20260620123500_sales_staff_id_and_create_sale_v3` | Historial remoto — venta atribuida a staff (comisiones) + cobrar cita |
 | `20260924000000_school_module_tables` | **MCP apply_migration** — módulo opt-in Escuela de música: gate + 16 tablas `school_*` + guardas "nunca se borra" |
+| `20260924010000_school_module_rpcs` | **MCP apply_migration** — los 17 RPC `school_*` (matrícula, clases, reprogramación, saldo, enlaces y bitácora); ejecución `anon` SOLO en los dos RPC de token |
 
 ## Notas
 
