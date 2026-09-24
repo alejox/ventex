@@ -322,11 +322,12 @@ export const NAV_ITEMS: NavItem[] = [
 
   // ---- Escuela de música (opt-in) ----
   //
-  // Las cinco pantallas del módulo escolar, todas detrás de `school`. El ítem
+  // Las seis pantallas del módulo escolar, todas detrás de `school`. El ítem
   // índice se llama "Resumen" y no "Escuela" por la regla del grupo (ver el
   // comentario de NAV_ITEMS): el grupo ya se llama Escuela, y repetir el
   // nombre del grupo en su primer hijo leía "Escuela › Escuela".
   { id: "school", name: "Resumen", href: "/dashboard/school", modules: ["school"] },
+  { id: "school-agenda", name: "Agenda", href: "/dashboard/school/agenda", modules: ["school"] },
   { id: "school-estudiantes", name: "Estudiantes", href: "/dashboard/school/estudiantes", modules: ["school"] },
   { id: "school-profesores", name: "Profesores", href: "/dashboard/school/profesores", modules: ["school"] },
   { id: "school-planes", name: "Planes de clase", href: "/dashboard/school/planes", modules: ["school"] },
@@ -515,7 +516,7 @@ const NAV_GROUP_ORDER: { id: string; label: string | null; itemIds: string[] }[]
   { id: "equipo", label: "Equipo", itemIds: ["staff", "commissions", "haircuts"] },
   // Escuela es OPT-IN: el grupo entero desaparece cuando el módulo está apagado
   // (visibleNavItems lo filtra por módulo y workerNavItems por permiso + módulo).
-  { id: "escuela", label: "Escuela", itemIds: ["school", "school-estudiantes", "school-profesores", "school-planes", "school-config"] },
+  { id: "escuela", label: "Escuela", itemIds: ["school", "school-agenda", "school-estudiantes", "school-profesores", "school-planes", "school-config"] },
   { id: "presencia", label: "Presencia digital", itemIds: ["landing"] },
 ];
 
@@ -631,11 +632,12 @@ export function workerNavItems(
   // catálogo, que es donde se usan. Quien tiene `inventory` ya llega ahí.
 
   // La Escuela es UNA sección detrás de un solo permiso: quien tiene `school`
-  // ve las cinco pantallas. Y como el módulo es opt-in, ni siquiera el permiso
+  // ve las seis pantallas. Y como el módulo es opt-in, ni siquiera el permiso
   // basta — sin el módulo activo los ítems desaparecen (los RPC y las páginas
   // también cierran solos en `school_module_enabled()`).
   const SCHOOL_NAV_ITEM_IDS = [
     "school",
+    "school-agenda",
     "school-estudiantes",
     "school-profesores",
     "school-planes",
