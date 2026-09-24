@@ -5,6 +5,7 @@ import {
   daysBetween,
   enrollmentScheduleView,
   fitsCapacity,
+  fmtSessionDate,
   freeWindowsForDay,
   hasOverlap,
   hoursToMinutes,
@@ -288,6 +289,16 @@ test("20. Lo que no es un tag ya viene en español y pasa igual", () => {
   assert.equal(scheduleErrorOf(new Error("El salón está ocupado en ese horario")), "El salón está ocupado en ese horario");
   assert.equal(scheduleErrorOf(new Error("El profesor no dicta ese instrumento")), "El profesor no dicta ese instrumento");
   assert.equal(scheduleErrorOf(new Error("Matrícula no encontrada")), "Matrícula no encontrada");
+});
+
+test("21. fmtSessionDate renderiza el día del calendario LOCAL en español corto", () => {
+  // El día NO se interpreta como instante UTC: "2026-10-12" es el 12 del mes
+  // local, con o sin zona horaria con desvío (un 11T19:00Z de Colombia
+  // rompería la fecha mostrada si se parseara con Date.parse).
+  assert.match(fmtSessionDate("2026-10-12"), /^12 de [a-z]{3,4}$/i);
+  assert.match(fmtSessionDate("2027-01-05"), /^5 de ene/i);
+  // Entrada sin ceros a la izquierda también es estable.
+  assert.equal(fmtSessionDate("2026-1-2"), fmtSessionDate("2026-01-02"));
 });
 
 // ---- Helpers de aserción ----

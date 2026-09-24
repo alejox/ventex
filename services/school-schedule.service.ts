@@ -401,6 +401,15 @@ export function formatSlotTime(iso: string): string {
   return new Date(iso).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" });
 }
 
+/** "YYYY-MM-DD" → "28 sep" para listar sesiones (día del calendario LOCAL). */
+export function fmtSessionDate(date: string): string {
+  const [y, m, d] = date.slice(0, 10).split("-").map(Number);
+  return new Date(y ?? 0, (m ?? 1) - 1, d ?? 1).toLocaleDateString("es-CO", {
+    day: "numeric",
+    month: "short",
+  });
+}
+
 // ============================================================================
 // I/O — disponibilidad
 // ============================================================================
