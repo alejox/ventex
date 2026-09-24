@@ -1,4 +1,6 @@
 import { toMessage } from "@/lib/errors";
+import { createClient } from "@/utils/supabase/client";
+import type { Json } from "@/utils/supabase/database.types";
 
 // ============================================================================
 // Operación de clases: confirmar, cerrar, cancelar y reprogramar.
@@ -257,4 +259,298 @@ export function classErrorOf(e: unknown): string {
     }
   }
   return toMessage(e);
+}
+// ============================================================================
+// Acceso a datos (I/O) — operación de clases
+//
+// Los RPC `school_*` de la migración 0100 son los únicos que escriben; acá solo
+// se arman los argumentos (validando temprano lo que la base también valida),
+// se llama al RPC, y se decodifica la respuesta con los espejos puros de arriba.
+// ============================================================================
+
+/** Respuesta de `school_confirm_lesson`: la clase pasó a `pending_close`. */
+export interface ConfirmLessonResult {
+  id: string;
+  status: "pending_close";
+  confirmed_via: "session" | "link";
+  confirmed_version: number;
+}
+
+/** Pedido de reprogramación que está por decidirse (agenda del coordinador). */
+export interface PendingRescheduleRequest {
+  id: string;
+  lesson_id: string;
+  old_start_at: string;
+  old_end_at: string;
+  instrument: string;
+  student_name: string;
+  teacher_name: string;
+  reason: string;
+  requested_at: string;
+  requester_kind: "coordinator" | "guardian" | "student";
+  /** true = el pedido es del grupo (participant_id nulo en la base). */
+  group_request: boolean;
+}
+
+export interface RescheduleRequestInput {
+  lessonId: string;
+  participantId: string;
+  reason: string;
+  requesterKind?: "coordinator" | "guardian" | "student";
+}
+
+export interface ApproveRescheduleResult {
+  id: string;
+  status: "approved";
+  old_lesson_id: string | null;
+  new_lesson_id: string | null;
+  alreadyDecided: boolean;
+}
+
+export interface AdjustCreditResult {
+  enrollment_id: string;
+  balance: number;
+}
+
+/** Aplana la respuesta `{foo: {…}}` del select con joins anidados. */
+function joinedObject(value: unknown): Record<string, unknown> {
+  return Array.isArray(value)
+    ? ((value[0] as Record<string, unknown>) ?? {})
+    : ((value as Record<string, unknown>) ?? {});
+}
+
+/** Confirma una clase ya terminada desde la sesión del coordinador. */
+export async function confirmLesson(lessonId: string): Promise<ConfirmLessonResult> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("school_confirm_lesson", {
+    p_lesson_id: lessonId,
+  });
+  if (error) throw error;
+  return data as unknown as ConfirmLessonResult;
+}
+
+/**
+ * Cierra la clase con la asistencia completa. El doble clic es idempotente:
+ * la segunda llamada devuelve `alreadyClosed` y el espejo `closeResultOf` lo
+ * traduce; el cliente lo trata como éxito sin volver a tocar nada.
+ */
+export async function closeLesson(
+  lessonId: string,
+  entries: AttendanceEntry[]
+): Promise<ReturnType<typeof closeResultOf>> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("school_close_lesson", {
+    p_lesson_id: lessonId,
+    p_attendance: attendancePayloadOf(entries) as unknown as Json,
+  });
+  if (error) throw error;
+  return closeResultOf((data ?? {}) as Record<string, unknown>);
+}
+
+/** Cancela una clase con motivo obligatorio (la base re-valida el motivo). */
+export async function cancelLesson(
+  lessonId: string,
+  reason: string
+): Promise<{ id: string; status: "cancelled"; alreadyCancelled: boolean }> {
+  const trimmed = reason.trim();
+  if (!trimmed) throw new Error("El motivo de la cancelación es obligatorio");
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("school_cancel_lesson", {
+    p_lesson_id: lessonId,
+    p_reason: trimmed,
+  });
+  if (error) throw error;
+  const raw = (data ?? {}) as Record<string, unknown>;
+  return {
+    id: raw.id as string,
+    status: raw.status as "cancelled",
+    alreadyCancelled: raw.alreadyCancelled === true,
+  };
+}
+
+/**
+ * Pide la reprogramación de una clase para un participante. El pedido
+ * pendiente CONSERVA la reserva del horario original; decidir es aparte.
+ * Desde el POS/escuela siempre es el coordinador (la exime de la anticipación
+ * mínima, y así queda registrado).
+ */
+export async function requestReschedule(input: RescheduleRequestInput): Promise<{ id: string; status: "pending" }> {
+  const reason = input.reason.trim();
+  if (!reason) throw new Error("El motivo de la reprogramación es obligatorio");
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("school_request_reschedule", {
+    p_lesson_id: input.lessonId,
+    p_participant_id: input.participantId,
+    p_reason: reason,
+    p_requester_kind: input.requesterKind ?? "coordinator",
+  });
+  if (error) throw error;
+  const raw = (data ?? {}) as Record<string, unknown>;
+  return { id: (raw.id as string) ?? "", status: "pending" };
+}
+
+/**
+ * Aprueba la reprogramación. Con rango fecha: la base valida conflictos (mismas
+ * reglas que `school_schedule_lesson`), crea la clase nueva, mueve las
+ * participaciones, sube la versión de la original (invalida los enlaces viejos)
+ * y notifica. Sin rango: se libera el hueco (make‑up implícito en el saldo).
+ */
+export async function approveReschedule(
+  requestId: string,
+  range?: { startAt: string; endAt: string }
+): Promise<ApproveRescheduleResult> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("school_approve_reschedule", {
+    p_request_id: requestId,
+    p_new_start_at: range?.startAt,
+    p_new_end_at: range?.endAt,
+  });
+  if (error) throw error;
+  const raw = (data ?? {}) as Record<string, unknown>;
+  return {
+    id: raw.id as string,
+    status: raw.status as "approved",
+    old_lesson_id: (raw.old_lesson_id as string | null) ?? null,
+    new_lesson_id: (raw.new_lesson_id as string | null) ?? null,
+    alreadyDecided: raw.alreadyDecided === true,
+  };
+}
+
+/** Rechaza la reprogramación con motivo; la original conserva su horario. */
+export async function rejectReschedule(
+  requestId: string,
+  reason: string
+): Promise<{ id: string; status: "rejected"; alreadyDecided: boolean }> {
+  const trimmed = reason.trim();
+  if (!trimmed) throw new Error("El motivo del rechazo es obligatorio");
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("school_reject_reschedule", {
+    p_request_id: requestId,
+    p_reason: trimmed,
+  });
+  if (error) throw error;
+  const raw = (data ?? {}) as Record<string, unknown>;
+  return {
+    id: raw.id as string,
+    status: raw.status as "rejected",
+    alreadyDecided: raw.alreadyDecided === true,
+  };
+}
+
+/**
+ * Ajusta el saldo de créditos de una matrícula (movimiento `adjustment` con
+ * motivo obligatorio; la base rechaza el cero). Devuelve el saldo reconstruido.
+ */
+export async function adjustCredit(
+  enrollmentId: string,
+  amount: number,
+  reason: string
+): Promise<AdjustCreditResult> {
+  const trimmed = reason.trim();
+  if (amount === 0) throw new Error("El ajuste no puede ser cero");
+  if (!trimmed) throw new Error("El motivo del ajuste es obligatorio");
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("school_adjust_credit", {
+    p_enrollment_id: enrollmentId,
+    p_amount: amount,
+    p_reason: trimmed,
+  });
+  if (error) throw error;
+  const raw = (data ?? {}) as Record<string, unknown>;
+  return {
+    enrollment_id: raw.enrollment_id as string,
+    balance: raw.balance as number,
+  };
+}
+
+/**
+ * Clases por cerrar (superficie de alerta): derivadas en la base con los MISMOS
+ * criterios que `pendingCloseLessonsOf` y re-derivadas acá por estabilidad con
+ * el mismo instante. La derivación nunca transiciona estados.
+ */
+export async function fetchPendingCloseLessons(nowIso: string): Promise<PendingCloseCandidate[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("school_lessons")
+    .select("id, status, instrument, start_at, end_at, confirmed_at")
+    .eq("status", "scheduled")
+    .is("confirmed_at", null)
+    .lt("end_at", nowIso)
+    .order("end_at");
+  if (error) throw error;
+  return pendingCloseLessonsOf((data ?? []) as unknown as PendingCloseCandidate[], nowIso);
+}
+
+/**
+ * Participantes de la clase con la política CONGELADA de su matrícula: es lo
+ * que el editor de asistencia y el plan de consumo necesitan para decidir y
+ * avisar. El cierre exige que TODOS estén listados (nada de pendientes
+ * silenciosos), y este fetch es la lista completa de la clase.
+ */
+export async function fetchClosePreview(lessonId: string): Promise<CloseParticipantRow[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("school_lesson_participants")
+    .select(
+      "id, enrollment_id, attendance_status, school_enrollments(status, policy_consume_on_unjustified_absence, school_students(customers(full_name)))"
+    )
+    .eq("lesson_id", lessonId)
+    .order("created_at");
+  if (error) throw error;
+  return ((data ?? []) as unknown as Record<string, unknown>[]).map((p) => {
+    const enrollment = joinedObject(p.school_enrollments);
+    const student = joinedObject(enrollment.school_students);
+    const customer = joinedObject(student.customers);
+    return {
+      participant_id: p.id as string,
+      enrollment_id: p.enrollment_id as string,
+      student_name: (customer.full_name as string) ?? "Sin nombre",
+      attendance_status: (p.attendance_status as CloseParticipantRow["attendance_status"]) ?? "pending",
+      enrollment_status: (enrollment.status as string) ?? "inactive",
+      policy_consume_on_unjustified_absence:
+        enrollment.policy_consume_on_unjustified_absence === true,
+    };
+  });
+}
+
+const RESCHEDULE_REQUEST_SELECT =
+  "id, lesson_id, participant_id, reason, requester_kind, requested_at, school_lessons(start_at, end_at, instrument, school_teacher_profiles(staff(full_name))), school_enrollments(school_students(customers(full_name)))";
+
+type RescheduleRequestRow = Record<string, unknown> & {
+  school_lessons?: unknown;
+  school_enrollments?: unknown;
+};
+
+function mapPendingRescheduleRequest(raw: RescheduleRequestRow): PendingRescheduleRequest {
+  const lesson = joinedObject(raw.school_lessons);
+  const teacher = joinedObject(lesson.school_teacher_profiles);
+  const staff = joinedObject(teacher.staff);
+  const enrollment = joinedObject(raw.school_enrollments);
+  const student = joinedObject(enrollment.school_students);
+  const customer = joinedObject(student.customers);
+  return {
+    id: raw.id as string,
+    lesson_id: raw.lesson_id as string,
+    old_start_at: lesson.start_at as string,
+    old_end_at: lesson.end_at as string,
+    instrument: lesson.instrument as string,
+    student_name: (customer.full_name as string) ?? "Sin nombre",
+    teacher_name: (staff.full_name as string) ?? "Sin nombre",
+    reason: raw.reason as string,
+    requested_at: raw.requested_at as string,
+    requester_kind: raw.requester_kind as PendingRescheduleRequest["requester_kind"],
+    group_request: raw.participant_id == null,
+  };
+}
+
+/** Pedidos de reprogramación pendientes, con clase/profesor/estudiante. */
+export async function fetchPendingRescheduleRequests(): Promise<PendingRescheduleRequest[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("school_reschedule_requests")
+    .select(RESCHEDULE_REQUEST_SELECT)
+    .eq("status", "pending")
+    .order("requested_at");
+  if (error) throw error;
+  return ((data ?? []) as unknown as RescheduleRequestRow[]).map(mapPendingRescheduleRequest);
 }
