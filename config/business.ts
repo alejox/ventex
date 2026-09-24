@@ -25,7 +25,8 @@ export type ModuleId =
   | "billing"
   | "services"
   | "staff"
-  | "vehicles";
+  | "vehicles"
+  | "school";
 export type Modules = Partial<Record<ModuleId, boolean>>;
 
 export type WorkerPermission =
@@ -42,7 +43,8 @@ export type WorkerPermission =
   | "catalogo"
   | "vehicles"
   | "billing"
-  | "settings";
+  | "settings"
+  | "school";
 
 export type WorkerPermissions = Partial<Record<WorkerPermission, boolean>>;
 
@@ -61,6 +63,7 @@ export const WORKER_PERMISSION_LABELS: Record<WorkerPermission, string> = {
   vehicles: "Vehículos",
   billing: "Facturación",
   settings: "Configuración del negocio",
+  school: "Escuela de música",
 };
 
 /**
@@ -85,6 +88,7 @@ export const WORKER_PERMISSION_HINTS: Partial<Record<WorkerPermission, string>> 
   inventory_costs: "Precio de compra, margen y valor total del inventario.",
   inventory_edit: "Alta y edición de productos y categorías.",
   inventory_stock: "Ajustes de stock, historial de movimientos y recepción de compras.",
+  school: "Estudiantes, profesores, planes de clase, agenda y matrículas.",
 };
 
 /** Datos del perfil de cuenta (tabla public.profiles). */
@@ -174,6 +178,8 @@ export const MODULES_BY_TYPE: Record<BusinessType, ModuleOption[]> = {
     { id: "services", label: "Servicios", description: "Define tu catálogo de servicios: corte, barba, tinte, con precio y duración." },
     { id: "staff", label: "Personal", description: "Administra tu equipo de barberos y estilistas, con sus comisiones." },
     { id: "inventory", label: "Inventario", description: "Controla stock de productos, pomadas, ceras, shampoos y más." },
+    // Opt-in, nunca preseleccionado: se elige en Ajustes (ver OPT_IN_MODULE_IDS).
+    { id: "school", label: "Escuela de música", description: "Estudiantes, profesores, planes de clase y el progreso de las clases." },
   ],
   // Inventario NO es un extra opcional de la tienda: es parte del núcleo y ya
   // viene en el menú base (ver BASE_NAV_BY_TYPE.tienda). Los dos extras que se
@@ -193,8 +199,25 @@ export const MODULES_BY_TYPE: Record<BusinessType, ModuleOption[]> = {
     { id: "services", label: "Servicios", description: "Tu catálogo de honorarios: consultoría, asesoría, sesiones, con precio y duración." },
     { id: "staff", label: "Personal", description: "Administra a tus profesionales y consultores, con sus comisiones." },
     { id: "billing", label: "Facturación", description: "Genera facturas y cotizaciones para tus clientes." },
+    // Opt-in, nunca preseleccionado: se elige en Ajustes (ver OPT_IN_MODULE_IDS).
+    { id: "school", label: "Escuela de música", description: "Estudiantes, profesores, planes de clase y el progreso de las clases." },
   ],
 };
+
+/**
+ * Módulos que se OFRECEN pero nunca se activan por defecto.
+ *
+ * Los tipos "full module" (salon/lavaautos/servicios) preseleccionan todos sus
+ * módulos al registrarse, pero `school` es opt-in por diseño: un negocio que no
+ * lo elige debe ver EXACTAMENTE la experiencia de hoy, sin ítems ni permisos
+ * escolares. Por eso sale de la preselección —que lo pondría activo para todo
+ * salón nuevo sin que nadie lo pidiera— y queda apagado hasta que el dueño lo
+ * encienda en Ajustes. La fuente autoritativa es `profiles.modules->>'school'`;
+ * acá nunca se inventa un `true`.
+ */
+const OPT_IN_MODULE_IDS: ModuleId[] = ["school"];
+
+const isOptIn = (id: ModuleId) => OPT_IN_MODULE_IDS.includes(id);
 
 /**
  * Tipos de negocio cuyos módulos vienen todos activados por defecto. Esto
@@ -215,7 +238,9 @@ export function defaultModulesForType(businessType: BusinessType | null): Module
   if (!businessType || !FULL_MODULE_TYPES.includes(businessType)) return {};
 
   return Object.fromEntries(
-    modulesForType(businessType).map((moduleId) => [moduleId, true]),
+    modulesForType(businessType)
+      .filter((moduleId) => !isOptIn(moduleId))
+      .map((moduleId) => [moduleId, true]),
   ) as Modules;
 }
 
@@ -294,6 +319,18 @@ export const NAV_ITEMS: NavItem[] = [
 
   // ---- El negocio, no la operación diaria ----
   { id: "vehicles", name: "Vehículos", href: "/dashboard/vehicles", modules: ["vehicles"] },
+
+  // ---- Escuela de música (opt-in) ----
+  //
+  // Las cinco pantallas del módulo escolar, todas detrás de `school`. El ítem
+  // índice se llama "Resumen" y no "Escuela" por la regla del grupo (ver el
+  // comentario de NAV_ITEMS): el grupo ya se llama Escuela, y repetir el
+  // nombre del grupo en su primer hijo leía "Escuela › Escuela".
+  { id: "school", name: "Resumen", href: "/dashboard/school", modules: ["school"] },
+  { id: "school-estudiantes", name: "Estudiantes", href: "/dashboard/school/estudiantes", modules: ["school"] },
+  { id: "school-profesores", name: "Profesores", href: "/dashboard/school/profesores", modules: ["school"] },
+  { id: "school-planes", name: "Planes de clase", href: "/dashboard/school/planes", modules: ["school"] },
+  { id: "school-config", name: "Configuración", href: "/dashboard/school/config", modules: ["school"] },
   { id: "staff", name: "Personal", href: "/dashboard/staff", modules: ["staff"] },
   // Liquidar comisiones estaba enterrado al final de la página de Personal,
   // debajo del roster y del control de accesos: tres trabajos distintos —
@@ -409,6 +446,7 @@ export function effectiveModules(
   const result: Modules = { ...stored };
   if (FULL_MODULE_TYPES.includes(businessType)) {
     for (const id of modulesForType(businessType)) {
+      if (isOptIn(id)) continue; // opt-in: nunca se enciende solo (ver OPT_IN_MODULE_IDS)
       if (result[id] === undefined) {
         result[id] = true;
       }
@@ -475,6 +513,9 @@ const NAV_GROUP_ORDER: { id: string; label: string | null; itemIds: string[] }[]
   { id: "inventario", label: "Inventario", itemIds: ["inventory", "pedidos", "distributors", "purchases"] },
   { id: "finanzas", label: "Finanzas", itemIds: ["expenses"] },
   { id: "equipo", label: "Equipo", itemIds: ["staff", "commissions", "haircuts"] },
+  // Escuela es OPT-IN: el grupo entero desaparece cuando el módulo está apagado
+  // (visibleNavItems lo filtra por módulo y workerNavItems por permiso + módulo).
+  { id: "escuela", label: "Escuela", itemIds: ["school", "school-estudiantes", "school-profesores", "school-planes", "school-config"] },
   { id: "presencia", label: "Presencia digital", itemIds: ["landing"] },
 ];
 
@@ -556,8 +597,16 @@ const NON_NAV_PERMISSIONS: WorkerPermission[] = ["settings"];
 /**
  * Ítems del sidebar para un trabajador, en el orden canónico de NAV_ITEMS.
  * La única fuente de verdad son sus permisos: sin permiso no hay ítem.
+ *
+ * `modules` (opcional) afina los ítems de la Escuela: son los ÚNICOS que
+ * consultan el módulo acá, porque school es opt-in y un permiso suelto no
+ * debe destapar la sección en un negocio que nunca la activó. El resto del
+ * menú conserva su regla histórica (permiso → ítem), sin cambios.
  */
-export function workerNavItems(permissions: WorkerPermissions): NavItem[] {
+export function workerNavItems(
+  permissions: WorkerPermissions,
+  modules: Modules | null = null,
+): NavItem[] {
   const granted = new Set<string>(
     (Object.keys(permissions) as WorkerPermission[]).filter(
       (k) => permissions[k] && !NON_NAV_PERMISSIONS.includes(k),
@@ -580,6 +629,24 @@ export function workerNavItems(permissions: WorkerPermissions): NavItem[] {
   if (granted.has("customers")) granted.add("credits");
   // Categorías dejó de ser un ítem de menú: su administración vive dentro del
   // catálogo, que es donde se usan. Quien tiene `inventory` ya llega ahí.
+
+  // La Escuela es UNA sección detrás de un solo permiso: quien tiene `school`
+  // ve las cinco pantallas. Y como el módulo es opt-in, ni siquiera el permiso
+  // basta — sin el módulo activo los ítems desaparecen (los RPC y las páginas
+  // también cierran solos en `school_module_enabled()`).
+  const SCHOOL_NAV_ITEM_IDS = [
+    "school",
+    "school-estudiantes",
+    "school-profesores",
+    "school-planes",
+    "school-config",
+  ];
+  if (granted.has("school")) {
+    for (const id of SCHOOL_NAV_ITEM_IDS) granted.add(id);
+  }
+  if (modules && !modules.school) {
+    for (const id of SCHOOL_NAV_ITEM_IDS) granted.delete(id);
+  }
 
   return NAV_ITEMS.filter((item) => granted.has(item.id));
 }

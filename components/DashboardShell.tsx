@@ -27,6 +27,7 @@ import {
   IconDollar,
   IconClock,
   IconGlobe,
+  IconMusic,
 } from "@/app/assets/icons/DashboardIcons";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ShellUserMenu } from "@/components/ShellUserMenu";
@@ -81,6 +82,12 @@ const NAV_ICONS: Record<string, IconType> = {
   calendar: IconCalendar,
   subscription: IconCreditCard,
   landing: IconGlobe,
+  // Escuela (opt-in): las cinco pantallas del módulo.
+  school: IconMusic,
+  "school-estudiantes": IconUsers,
+  "school-profesores": IconUserBadge,
+  "school-planes": IconFileText,
+  "school-config": IconSettings,
 };
 
 export function DashboardShell({
@@ -148,7 +155,9 @@ export function DashboardShell({
   const workerPerms = profile?.workerPermissions ?? {};
 
   const navigation = isWorker
-    ? workerNavItems(workerPerms)
+    // `modules` afina los ítems de la Escuela (opt-in): sin el módulo activo,
+    // ni siquiera quien tiene el permiso `school` ve la sección.
+    ? workerNavItems(workerPerms, profile?.modules ?? null)
     : visibleNavItems(profile?.businessType ?? null, profile?.modules ?? null);
   // Agrupar es solo presentación: `navigation` ya trae únicamente lo que esta
   // persona puede ver, y `groupNavItems` no agrega ni quita nada.
