@@ -27,6 +27,8 @@ desde cero: `supabase db reset` (aplica todas en orden).
 | `20260924000000_school_module_tables` | **MCP apply_migration** — módulo opt-in Escuela de música: gate + 16 tablas `school_*` + guardas "nunca se borra" |
 | `20260924010000_school_module_rpcs` | **MCP apply_migration** — los 17 RPC `school_*` (matrícula, clases, reprogramación, saldo, enlaces y bitácora); ejecución `anon` SOLO en los dos RPC de token |
 | `20260924020000_school_module_void_reconciliation` | **MCP apply_migration** — trigger `schools_reconcile_on_void` sobre `sales`: al anular la venta de una matrícula la cierra (`voided`), cancela sus clases exclusivas, revierte el saldo con un `void` y cancela pedidos de reprogramación pendientes. Sin borrados; `create_sale`/`void_sale` intactos |
+| `20260924030000_school_revoke_trigger_function_execute` | **MCP apply_migration** — revoca `EXECUTE` de `school_reconcile_voided_sale()` y `school_guard_no_delete()` (SECURITY DEFINER, invocadas solo por trigger) para que el advisor de seguridad deje de verlas ejecutables por `anon`/`authenticated` vía RPC |
+| `20260924040000_school_module_storage` | Bucket privado `school-materials` (20 MB, sin video) + policies de storage (`worker_can('school')` + carpeta por tenant, sin SELECT — toda descarga pasa por `/api/school/material/download`). Bucket creado vía la API REST de Storage con `SUPABASE_SERVICE_ROLE_KEY`; **las 3 policies de `storage.objects` quedan en el `.sql` pendientes de aplicar** — este entorno no tuvo acceso a `SUPABASE_ACCESS_TOKEN`/contraseña de Postgres para correr DDL (ni MCP `apply_migration` ni `supabase db push`); aplicar con `supabase db push` o el MCP de Supabase en cuanto haya credenciales |
 
 ## Notas
 
