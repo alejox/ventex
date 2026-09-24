@@ -175,7 +175,7 @@ export function OnboardingModal({ defaultName }: { defaultName: string }) {
                     <input
                       id="onboarding-business-name"
                       type="text"
-                      placeholder={businessType === "salon" ? "Mi Barbería" : "Mi Tienda"}
+                      placeholder={businessType === "salon" ? "Mi Barbería" : businessType === "escuela" ? "Mi Escuela de Música" : "Mi Tienda"}
                       value={businessName}
                       onChange={(e) => setBusinessName(e.target.value)}
                       className="min-h-12 w-full rounded-xl border border-outline-variant/30 bg-surface-container-low px-10 text-sm text-on-surface transition-all placeholder:text-on-surface-variant/50 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"

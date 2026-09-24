@@ -116,6 +116,7 @@ export const BUSINESS_ICONS: Record<BusinessType, React.ReactNode> = {
   tienda: <BagIcon />,
   lavaautos: <CarIcon />,
   servicios: <BriefcaseIcon />,
+  escuela: <MusicIcon />,
 };
 
 export const MODULE_ICONS: Record<ModuleId, React.ReactNode> = {

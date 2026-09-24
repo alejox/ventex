@@ -12,7 +12,7 @@ See `AGENTS.md` (imported above) for the full command list. Two easy-to-miss one
 
 ## What this is
 
-Ventex is a multi-tenant, multi-vertical business-management platform (Spanish-language UI) on **Supabase** (Postgres + Auth). Each tenant picks a **business type** at registration — `tienda` (general retail; the only type currently open to public signup, see `REGISTRABLE_BUSINESS_TYPES` in `config/business.ts`), `salon`, `lavaautos` (car wash), or `servicios` (professional services) — which determines which modules/nav items it sees. `config/business.ts` is the single source of truth for that gating; don't duplicate its logic elsewhere.
+Ventex is a multi-tenant, multi-vertical business-management platform (Spanish-language UI) on **Supabase** (Postgres + Auth). Each tenant picks a **business type** at registration — `tienda` (general retail), `salon`, `escuela` (music school: the `school` module comes preselected at signup), `lavaautos` (car wash), or `servicios` (professional services); only `salon`, `tienda` and `escuela` are open to public signup (`REGISTRABLE_BUSINESS_TYPES` in `config/business.ts`) — which determines which modules/nav items it sees. `config/business.ts` is the single source of truth for that gating; don't duplicate its logic elsewhere.
 
 On top of the tenant app there's a licensing/reseller layer: a super-admin panel (`/admin`) manages plans, companies, and credits; a reseller panel (`/reseller`) manages a reseller's own client accounts and license renewals. See **Roles & tenancy** below before touching any of this.
 

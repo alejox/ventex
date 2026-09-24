@@ -9,7 +9,7 @@
  * importable tanto desde Server Components como desde el registro.
  */
 
-export type BusinessType = "salon" | "tienda" | "lavaautos" | "servicios";
+export type BusinessType = "salon" | "tienda" | "lavaautos" | "servicios" | "escuela";
 /**
  * `ecommerce` y `website` quedan RESERVADOS, no ofrecidos: se anunciaban como
  * extras pero no existe nada detrás (ni tienda pública, ni carrito, ni
@@ -133,6 +133,7 @@ export const BUSINESS_OPTIONS: BusinessOption[] = [
   { id: "tienda", label: "Tienda General" },
   { id: "lavaautos", label: "Lavaautos" },
   { id: "servicios", label: "Servicios Profesionales" },
+  { id: "escuela", label: "Escuela de música" },
 ];
 
 /**
@@ -140,7 +141,7 @@ export const BUSINESS_OPTIONS: BusinessOption[] = [
  * disponibles para cuentas existentes y para los paneles administrativos,
  * pero no se ofrecen hasta que su onboarding esté listo.
  */
-export const REGISTRABLE_BUSINESS_TYPES: BusinessType[] = ["salon", "tienda"];
+export const REGISTRABLE_BUSINESS_TYPES: BusinessType[] = ["salon", "tienda", "escuela"];
 
 export const REGISTER_BUSINESS_OPTIONS: BusinessOption[] = BUSINESS_OPTIONS.filter(
   (o) => REGISTRABLE_BUSINESS_TYPES.includes(o.id),
@@ -153,6 +154,7 @@ export const STAFF_ROLES_BY_TYPE: Record<BusinessType, string[]> = {
   tienda: ["Vendedor", "Cajero", "Bodeguero", "Encargado de tienda", "Administrador"],
   lavaautos: ["Lavador", "Detailer", "Recepcionista", "Cajero", "Encargado"],
   servicios: ["Profesional", "Consultor", "Asesor", "Recepcionista", "Asistente"],
+  escuela: ["Profesor", "Coordinador", "Recepcionista", "Cajero"],
 };
 
 /** Roles genéricos cuando el negocio aún no tiene un tipo definido. */
@@ -202,6 +204,14 @@ export const MODULES_BY_TYPE: Record<BusinessType, ModuleOption[]> = {
     // Opt-in, nunca preseleccionado: se elige en Ajustes (ver OPT_IN_MODULE_IDS).
     { id: "school", label: "Escuela de música", description: "Estudiantes, profesores, planes de clase y el progreso de las clases." },
   ],
+  // Acá `school` NO es un extra: es la razón de ser del negocio, así que viene
+  // encendido desde el registro (ver CORE_MODULES_BY_TYPE). Sin Citas: la
+  // escuela agenda en su propia agenda de clases, no en el calendario de citas.
+  escuela: [
+    { id: "school", label: "Escuela de música", description: "Estudiantes, acudientes, profesores, matrículas, agenda de clases y asistencia." },
+    { id: "services", label: "Servicios", description: "Los planes de clase se venden como servicios en el POS: mensualidades, paquetes y clases sueltas." },
+    { id: "staff", label: "Personal", description: "Tus profesores y coordinadores, con sus accesos y comisiones." },
+  ],
 };
 
 /**
@@ -220,11 +230,27 @@ const OPT_IN_MODULE_IDS: ModuleId[] = ["school"];
 const isOptIn = (id: ModuleId) => OPT_IN_MODULE_IDS.includes(id);
 
 /**
+ * Excepción a OPT_IN_MODULE_IDS: el rubro que EXISTE para ese módulo. Una
+ * escuela de música que se registra como tal quiere la Escuela, así que el
+ * registro se la PRESELECCIONA y queda guardada en `profiles.modules` desde el
+ * alta (el dueño igual puede desmarcarla ahí). Solo afecta la preselección:
+ * `effectiveModules` sigue sin inventar un `true` para un opt-in, porque
+ * `school_module_enabled()` lee lo guardado y el menú no puede prometer lo que
+ * la base va a rechazar.
+ */
+const CORE_MODULES_BY_TYPE: Partial<Record<BusinessType, ModuleId[]>> = {
+  escuela: ["school"],
+};
+
+const isPreselected = (businessType: BusinessType, id: ModuleId) =>
+  !isOptIn(id) || (CORE_MODULES_BY_TYPE[businessType] ?? []).includes(id);
+
+/**
  * Tipos de negocio cuyos módulos vienen todos activados por defecto. Esto
  * mantiene alineado lo que el usuario ve al registrarse con lo que se persiste
  * en `profiles.modules` desde su primer ingreso.
  */
-const FULL_MODULE_TYPES: BusinessType[] = ["salon", "lavaautos", "servicios"];
+const FULL_MODULE_TYPES: BusinessType[] = ["salon", "lavaautos", "servicios", "escuela"];
 
 /** Todos los ids de módulo que ofrece un tipo de negocio. */
 export function modulesForType(businessType: BusinessType): ModuleId[] {
@@ -239,7 +265,7 @@ export function defaultModulesForType(businessType: BusinessType | null): Module
 
   return Object.fromEntries(
     modulesForType(businessType)
-      .filter((moduleId) => !isOptIn(moduleId))
+      .filter((moduleId) => isPreselected(businessType, moduleId))
       .map((moduleId) => [moduleId, true]),
   ) as Modules;
 }
@@ -409,6 +435,9 @@ const BASE_NAV_BY_TYPE: Record<BusinessType, string[]> = {
   tienda: ["inventory", "categories", "distributors", "purchases", "pedidos"],
   lavaautos: ["calendar"],
   servicios: ["calendar"],
+  // Sin base propia: todo su menú (Escuela, Productos y servicios, Personal)
+  // sale de sus módulos. El calendario de citas no aplica — agenda en la Escuela.
+  escuela: [],
 };
 
 // El sidebar y el panel NO siguen la misma regla, a propósito. El menú lista
@@ -431,6 +460,9 @@ const BASE_QUICK_BY_TYPE: Record<BusinessType, string[]> = {
   tienda: ["new-product", "replenish"],
   lavaautos: ["new-appointment", "new-vehicle"],
   servicios: ["new-appointment", "new-invoice"],
+  // Vender el plan (Nueva Venta) y dar de alta la familia (Registrar Cliente)
+  // ya son universales; el resto del día de una escuela vive en su sección.
+  escuela: [],
 };
 
 /**
