@@ -2,7 +2,14 @@
 
 import { useState } from "react";
 import { Select } from "@/components/ui/Select";
+import { SchoolModal } from "@/components/school/SchoolModal";
 import { useSchoolScheduleStore } from "@/stores/school-schedule.store";
+import { useSchoolClassesStore } from "@/stores/school-classes.store";
+import { AttendanceDialog, type AttendanceSelection } from "@/components/school/AttendanceDialog";
+import { ConfirmCloseDialog } from "@/components/school/ConfirmCloseDialog";
+import { RescheduleDialog } from "@/components/school/RescheduleDialog";
+import { notifySuccess } from "@/lib/notifications";
+import { sessionConfirmGate } from "@/services/school-classes.service";
 import { formatSlotTime } from "@/services/school-schedule.service";
 import type { SchoolLesson } from "@/services/school-schedule.service";
 
@@ -14,16 +21,27 @@ const STATUS_LABEL: Record<string, string> = {
   scheduled: "Programada",
   pending_close: "Por cerrar",
   realized: "Realizada",
+  cancelled: "Cancelada",
+  rescheduled: "Reprogramada",
 };
 
 const STATUS_STYLE: Record<string, string> = {
   scheduled: "bg-primary/10 text-primary",
   pending_close: "bg-amber-500/10 text-amber-600",
   realized: "bg-emerald-500/10 text-emerald-600",
+  cancelled: "bg-surface-container text-on-surface-variant",
+  rescheduled: "bg-surface-container text-on-surface-variant",
 };
 
 /**
- * Una clase del día: horario, profesor, instrumento, salón, cupo y alumnos.
+ * Una clase del día: horario, profesor, instrumento, salón, cupo y alumnos,
+ * más las acciones de operación según el estado:
+ *
+ * - `scheduled` → Confirmar (solo después de que terminó: compuerta de sesión),
+ *   Cancelar, Reprogramar.
+ * - `pending_close` → Cerrar clase (asistencia completa + plan de consumo
+ *   explícito), Cancelar, Reprogramar.
+ * - `realized` / `cancelled` / `rescheduled` → sin acciones.
  *
  * La capacidad es POR CLASE (`capacity` de la lección): una individual no
  * admite segundo alumno y el RPC `school_add_participant` lo rechaza; el
@@ -35,12 +53,24 @@ export function LessonCard({ lesson }: LessonCardProps) {
   const fetchEligibleOptions = useSchoolScheduleStore((s) => s.fetchEligibleOptions);
   const addParticipant = useSchoolScheduleStore((s) => s.addParticipant);
   const saving = useSchoolScheduleStore((s) => s.saving);
+  const confirmLesson = useSchoolClassesStore((s) => s.confirmLesson);
+  const cancelLesson = useSchoolClassesStore((s) => s.cancelLesson);
+  const classesSaving = useSchoolClassesStore((s) => s.saving);
+  const classesError = useSchoolClassesStore((s) => s.error);
+  const clearClassesError = useSchoolClassesStore((s) => s.clearError);
 
   const [adding, setAdding] = useState(false);
   const [chosen, setChosen] = useState("");
+  const [showAttendance, setShowAttendance] = useState(false);
+  const [closeDraft, setCloseDraft] = useState<AttendanceSelection | null>(null);
+  const [showCancel, setShowCancel] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
+  const [showReschedule, setShowReschedule] = useState(false);
 
   const seatsLeft = lesson.capacity - lesson.participants.length;
   const full = seatsLeft <= 0;
+  const operational = lesson.status === "scheduled" || lesson.status === "pending_close";
+  const confirmGate = sessionConfirmGate(lesson, new Date().toISOString());
 
   const openAdd = () => {
     setChosen("");
@@ -54,6 +84,23 @@ export function LessonCard({ lesson }: LessonCardProps) {
     if (ok) {
       setAdding(false);
       setChosen("");
+    }
+  };
+
+  const handleConfirm = async () => {
+    const ok = await confirmLesson(lesson.id);
+    if (ok) {
+      notifySuccess("Clase confirmada", "Ya podés cerrarla con la asistencia.");
+    }
+  };
+
+  const handleCancel = async () => {
+    clearClassesError();
+    const ok = await cancelLesson(lesson.id, cancelReason);
+    if (ok) {
+      notifySuccess("Clase cancelada", "No se descuenta ninguna clase del saldo.");
+      setShowCancel(false);
+      setCancelReason("");
     }
   };
 
@@ -149,6 +196,120 @@ export function LessonCard({ lesson }: LessonCardProps) {
         >
           + Agregar alumno
         </button>
+      )}
+
+      {operational && (
+        <div className="mt-2 flex flex-wrap items-center justify-end gap-1.5 border-t border-outline-variant/10 pt-2">
+          {lesson.status === "scheduled" && (
+            <button
+              type="button"
+              onClick={() => void handleConfirm()}
+              disabled={!confirmGate.ok || classesSaving}
+              title={confirmGate.ok ? undefined : `No disponible: ${confirmGate.reason}`}
+              className="rounded-lg bg-primary px-2.5 py-1 text-xs font-semibold text-white transition-colors hover:bg-primary-dim disabled:opacity-50"
+            >
+              Confirmar
+            </button>
+          )}
+          {lesson.status === "pending_close" && (
+            <button
+              type="button"
+              onClick={() => {
+                clearClassesError();
+                setShowAttendance(true);
+              }}
+              className="rounded-lg bg-primary px-2.5 py-1 text-xs font-semibold text-white transition-colors hover:bg-primary-dim"
+            >
+              Cerrar clase
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setShowCancel(true)}
+            className="rounded-lg px-2.5 py-1 text-xs font-semibold text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowReschedule(true)}
+            className="rounded-lg px-2.5 py-1 text-xs font-semibold text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface"
+          >
+            Reprogramar
+          </button>
+        </div>
+      )}
+
+      {showAttendance && (
+        <AttendanceDialog
+          lesson={lesson}
+          onClose={() => setShowAttendance(false)}
+          onContinue={(sel) => {
+            setShowAttendance(false);
+            setCloseDraft(sel);
+          }}
+        />
+      )}
+
+      {closeDraft && (
+        <ConfirmCloseDialog
+          lesson={lesson}
+          rows={closeDraft.rows}
+          entries={closeDraft.entries}
+          onClose={() => setCloseDraft(null)}
+          onDone={() => setCloseDraft(null)}
+        />
+      )}
+
+      {showReschedule && (
+        <RescheduleDialog
+          mode="request"
+          lesson={lesson}
+          onClose={() => setShowReschedule(false)}
+          onDone={() => setShowReschedule(false)}
+        />
+      )}
+
+      {showCancel && (
+        <SchoolModal title="Cancelar clase" onClose={() => setShowCancel(false)}>
+          <div className="space-y-4 p-6 pt-4">
+            <p className="text-sm font-semibold text-on-surface-variant">
+              {lesson.instrument} · {formatSlotTime(lesson.start_at)}–{formatSlotTime(lesson.end_at)}
+            </p>
+            <p className="text-xs text-on-surface-variant">
+              Cancelar no descuenta ninguna clase de los saldos. El motivo queda
+              registrado (obligatorio).
+            </p>
+            <textarea
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              placeholder="Ej.: el profesor avisó que no puede asistir"
+              rows={3}
+              className="w-full rounded-xl border border-outline-variant/20 bg-surface-container-lowest px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant/60 focus:border-primary focus:outline-none"
+            />
+            {classesError && <p className="text-xs font-medium text-error">{classesError}</p>}
+            <div className="flex justify-end gap-2 border-t border-outline-variant/10 pt-4">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCancel(false);
+                  setCancelReason("");
+                }}
+                className="rounded-lg px-3 py-1.5 text-sm font-semibold text-on-surface-variant transition-colors hover:bg-surface-container-low"
+              >
+                Volver
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleCancel()}
+                disabled={!cancelReason.trim() || classesSaving}
+                className="rounded-lg bg-error px-4 py-1.5 text-sm font-semibold text-white transition-colors hover:opacity-90 disabled:opacity-50"
+              >
+                {classesSaving ? "Cancelando…" : "Cancelar clase"}
+              </button>
+            </div>
+          </div>
+        </SchoolModal>
       )}
     </div>
   );

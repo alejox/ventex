@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSchoolScheduleStore } from "@/stores/school-schedule.store";
+import { useSchoolClassesStore } from "@/stores/school-classes.store";
 import { LessonCard } from "@/components/school/LessonCard";
 import { SeriesDialog } from "@/components/school/SeriesDialog";
+import { RescheduleDialog } from "@/components/school/RescheduleDialog";
 import { CollectionLoading, CollectionError } from "@/components/CollectionState";
 import { SCHOOL_DAYS, localWeekdayOf } from "@/components/school/format";
 
@@ -23,6 +25,15 @@ export function AgendaWeek() {
 
   const [monday, setMonday] = useState(() => mondayOfLocal(new Date()));
   const [showSeries, setShowSeries] = useState(false);
+  const [showRescheduleDecide, setShowRescheduleDecide] = useState(false);
+  const pendingReschedules = useSchoolClassesStore((s) => s.pendingRescheduleRequests);
+  const fetchPendingRescheduleRequests = useSchoolClassesStore(
+    (s) => s.fetchPendingRescheduleRequests
+  );
+
+  useEffect(() => {
+    void fetchPendingRescheduleRequests();
+  }, [fetchPendingRescheduleRequests]);
 
   const range = useMemo(
     () => ({
@@ -73,12 +84,23 @@ export function AgendaWeek() {
           </button>
           <h2 className="text-base font-bold text-on-surface">Semana del {weekLabel}</h2>
         </div>
-        <button
-          onClick={() => setShowSeries(true)}
-          className="rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-dim"
-        >
-          Programar serie
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowRescheduleDecide(true)}
+            className="rounded-xl border border-outline-variant/30 px-4 py-2.5 text-sm font-semibold text-on-surface transition-colors hover:bg-surface-container-low"
+          >
+            Reprogramaciones
+            {pendingReschedules.length > 0 &&
+              ` (${pendingReschedules.length})`}
+          </button>
+          <button
+            onClick={() => setShowSeries(true)}
+            className="rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-dim"
+          >
+            Programar serie
+          </button>
+        </div>
       </div>
 
       {error && <CollectionError message={error} onRetry={() => void fetchAgenda(range.fromIso, range.toIso)} />}
@@ -115,6 +137,14 @@ export function AgendaWeek() {
       )}
 
       {showSeries && <SeriesDialog onClose={() => setShowSeries(false)} />}
+
+      {showRescheduleDecide && (
+        <RescheduleDialog
+          mode="decide"
+          onClose={() => setShowRescheduleDecide(false)}
+          onDone={() => setShowRescheduleDecide(false)}
+        />
+      )}
     </div>
   );
 }
