@@ -26,6 +26,7 @@ desde cero: `supabase db reset` (aplica todas en orden).
 | `20260620123500_sales_staff_id_and_create_sale_v3` | Historial remoto — venta atribuida a staff (comisiones) + cobrar cita |
 | `20260924000000_school_module_tables` | **MCP apply_migration** — módulo opt-in Escuela de música: gate + 16 tablas `school_*` + guardas "nunca se borra" |
 | `20260924010000_school_module_rpcs` | **MCP apply_migration** — los 17 RPC `school_*` (matrícula, clases, reprogramación, saldo, enlaces y bitácora); ejecución `anon` SOLO en los dos RPC de token |
+| `20260924020000_school_module_void_reconciliation` | **MCP apply_migration** — trigger `schools_reconcile_on_void` sobre `sales`: al anular la venta de una matrícula la cierra (`voided`), cancela sus clases exclusivas, revierte el saldo con un `void` y cancela pedidos de reprogramación pendientes. Sin borrados; `create_sale`/`void_sale` intactos |
 
 ## Notas
 
