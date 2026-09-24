@@ -247,6 +247,7 @@ export type Database = {
           slug: string
           telegram: string | null
           template: string
+          theme_colors: Json
           tiktok: string | null
           timezone: string
           twitter: string | null
@@ -279,6 +280,7 @@ export type Database = {
           slug: string
           telegram?: string | null
           template?: string
+          theme_colors?: Json
           tiktok?: string | null
           timezone?: string
           twitter?: string | null
@@ -311,6 +313,7 @@ export type Database = {
           slug?: string
           telegram?: string | null
           template?: string
+          theme_colors?: Json
           tiktok?: string | null
           timezone?: string
           twitter?: string | null
@@ -1942,6 +1945,919 @@ export type Database = {
           },
         ]
       }
+      school_access_links: {
+        Row: {
+          created_at: string
+          expires_at: string
+          guardian_customer_id: string | null
+          id: string
+          lesson_id: string | null
+          purpose: string
+          revoked_at: string | null
+          student_id: string | null
+          token_hash: string
+          used_at: string | null
+          user_id: string
+          version: number
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          guardian_customer_id?: string | null
+          id?: string
+          lesson_id?: string | null
+          purpose: string
+          revoked_at?: string | null
+          student_id?: string | null
+          token_hash: string
+          used_at?: string | null
+          user_id?: string
+          version?: number
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          guardian_customer_id?: string | null
+          id?: string
+          lesson_id?: string | null
+          purpose?: string
+          revoked_at?: string | null
+          student_id?: string | null
+          token_hash?: string
+          used_at?: string | null
+          user_id?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "school_access_links_guardian_customer_id_fkey"
+            columns: ["guardian_customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "school_access_links_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "school_lessons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "school_access_links_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "school_students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      school_class_credit_movements: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string | null
+          enrollment_id: string
+          id: string
+          kind: string
+          lesson_id: string | null
+          reason: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by?: string | null
+          enrollment_id: string
+          id?: string
+          kind: string
+          lesson_id?: string | null
+          reason: string
+          user_id?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string | null
+          enrollment_id?: string
+          id?: string
+          kind?: string
+          lesson_id?: string | null
+          reason?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "school_class_credit_movements_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "school_enrollments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "school_class_credit_movements_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "school_lessons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      school_communication_log: {
+        Row: {
+          channel: string
+          created_at: string
+          created_by: string | null
+          guardian_customer_id: string | null
+          id: string
+          message: string | null
+          purpose: string
+          recipient_name: string | null
+          recipient_phone: string | null
+          state: string
+          student_id: string | null
+          user_id: string
+        }
+        Insert: {
+          channel?: string
+          created_at?: string
+          created_by?: string | null
+          guardian_customer_id?: string | null
+          id?: string
+          message?: string | null
+          purpose: string
+          recipient_name?: string | null
+          recipient_phone?: string | null
+          state: string
+          student_id?: string | null
+          user_id?: string
+        }
+        Update: {
+          channel?: string
+          created_at?: string
+          created_by?: string | null
+          guardian_customer_id?: string | null
+          id?: string
+          message?: string | null
+          purpose?: string
+          recipient_name?: string | null
+          recipient_phone?: string | null
+          state?: string
+          student_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "school_communication_log_guardian_customer_id_fkey"
+            columns: ["guardian_customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "school_communication_log_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "school_students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      school_enrollments: {
+        Row: {
+          contracted_lessons: number
+          created_at: string
+          default_teacher_profile_id: string | null
+          expiry_date: string | null
+          id: string
+          instrument: string
+          lesson_plan_id: string
+          payer_customer_id: string | null
+          plan_name: string
+          plan_price: number
+          plan_validity_days: number
+          policy_consume_on_unjustified_absence: boolean
+          policy_expiry_extension_days: number
+          policy_max_reschedules: number
+          policy_min_advance_hours: number
+          reschedule_count: number
+          sale_id: string | null
+          start_date: string
+          status: string
+          student_id: string
+          user_id: string
+        }
+        Insert: {
+          contracted_lessons: number
+          created_at?: string
+          default_teacher_profile_id?: string | null
+          expiry_date?: string | null
+          id?: string
+          instrument: string
+          lesson_plan_id: string
+          payer_customer_id?: string | null
+          plan_name: string
+          plan_price?: number
+          plan_validity_days?: number
+          policy_consume_on_unjustified_absence?: boolean
+          policy_expiry_extension_days?: number
+          policy_max_reschedules?: number
+          policy_min_advance_hours?: number
+          reschedule_count?: number
+          sale_id?: string | null
+          start_date?: string
+          status?: string
+          student_id: string
+          user_id?: string
+        }
+        Update: {
+          contracted_lessons?: number
+          created_at?: string
+          default_teacher_profile_id?: string | null
+          expiry_date?: string | null
+          id?: string
+          instrument?: string
+          lesson_plan_id?: string
+          payer_customer_id?: string | null
+          plan_name?: string
+          plan_price?: number
+          plan_validity_days?: number
+          policy_consume_on_unjustified_absence?: boolean
+          policy_expiry_extension_days?: number
+          policy_max_reschedules?: number
+          policy_min_advance_hours?: number
+          reschedule_count?: number
+          sale_id?: string | null
+          start_date?: string
+          status?: string
+          student_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "school_enrollments_default_teacher_profile_id_fkey"
+            columns: ["default_teacher_profile_id"]
+            isOneToOne: false
+            referencedRelation: "school_teacher_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "school_enrollments_lesson_plan_id_fkey"
+            columns: ["lesson_plan_id"]
+            isOneToOne: false
+            referencedRelation: "school_lesson_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "school_enrollments_payer_customer_id_fkey"
+            columns: ["payer_customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "school_enrollments_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "school_enrollments_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "school_students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      school_lesson_participants: {
+        Row: {
+          attendance_status: string
+          created_at: string
+          enrollment_id: string
+          id: string
+          lesson_id: string
+          linked_participant_id: string | null
+          observation: string | null
+          recorded_at: string | null
+          recorded_by: string | null
+          user_id: string
+        }
+        Insert: {
+          attendance_status?: string
+          created_at?: string
+          enrollment_id: string
+          id?: string
+          lesson_id: string
+          linked_participant_id?: string | null
+          observation?: string | null
+          recorded_at?: string | null
+          recorded_by?: string | null
+          user_id?: string
+        }
+        Update: {
+          attendance_status?: string
+          created_at?: string
+          enrollment_id?: string
+          id?: string
+          lesson_id?: string
+          linked_participant_id?: string | null
+          observation?: string | null
+          recorded_at?: string | null
+          recorded_by?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "school_lesson_participants_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "school_enrollments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "school_lesson_participants_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "school_lessons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "school_lesson_participants_linked_participant_id_fkey"
+            columns: ["linked_participant_id"]
+            isOneToOne: false
+            referencedRelation: "school_lesson_participants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      school_lesson_plans: {
+        Row: {
+          created_at: string
+          duration_minutes: number
+          id: string
+          is_active: boolean
+          lesson_count: number
+          max_group_size: number
+          name: string
+          service_id: string
+          user_id: string
+          validity_days: number
+        }
+        Insert: {
+          created_at?: string
+          duration_minutes: number
+          id?: string
+          is_active?: boolean
+          lesson_count: number
+          max_group_size?: number
+          name: string
+          service_id: string
+          user_id?: string
+          validity_days?: number
+        }
+        Update: {
+          created_at?: string
+          duration_minutes?: number
+          id?: string
+          is_active?: boolean
+          lesson_count?: number
+          max_group_size?: number
+          name?: string
+          service_id?: string
+          user_id?: string
+          validity_days?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "school_lesson_plans_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      school_lessons: {
+        Row: {
+          cancel_reason: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
+          capacity: number
+          closed_at: string | null
+          closed_by: string | null
+          closed_via: string | null
+          confirmed_at: string | null
+          confirmed_by: string | null
+          confirmed_version: number | null
+          confirmed_via: string | null
+          created_at: string
+          end_at: string
+          id: string
+          instrument: string
+          rescheduled_to_id: string | null
+          room: string | null
+          start_at: string
+          status: string
+          teacher_profile_id: string
+          user_id: string
+          version: number
+        }
+        Insert: {
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          capacity: number
+          closed_at?: string | null
+          closed_by?: string | null
+          closed_via?: string | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          confirmed_version?: number | null
+          confirmed_via?: string | null
+          created_at?: string
+          end_at: string
+          id?: string
+          instrument: string
+          rescheduled_to_id?: string | null
+          room?: string | null
+          start_at: string
+          status?: string
+          teacher_profile_id: string
+          user_id?: string
+          version?: number
+        }
+        Update: {
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          capacity?: number
+          closed_at?: string | null
+          closed_by?: string | null
+          closed_via?: string | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          confirmed_version?: number | null
+          confirmed_via?: string | null
+          created_at?: string
+          end_at?: string
+          id?: string
+          instrument?: string
+          rescheduled_to_id?: string | null
+          room?: string | null
+          start_at?: string
+          status?: string
+          teacher_profile_id?: string
+          user_id?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "school_lessons_rescheduled_to_id_fkey"
+            columns: ["rescheduled_to_id"]
+            isOneToOne: false
+            referencedRelation: "school_lessons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "school_lessons_teacher_profile_id_fkey"
+            columns: ["teacher_profile_id"]
+            isOneToOne: false
+            referencedRelation: "school_teacher_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      school_material_recipients: {
+        Row: {
+          created_at: string
+          id: string
+          material_id: string
+          student_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          material_id: string
+          student_id: string
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          material_id?: string
+          student_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "school_material_recipients_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "school_materials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "school_material_recipients_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "school_students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      school_materials: {
+        Row: {
+          author_staff_id: string | null
+          created_at: string
+          external_url: string | null
+          file_name: string | null
+          file_path: string | null
+          file_size: number | null
+          id: string
+          instructions: string | null
+          kind: string
+          lesson_id: string | null
+          mime_type: string | null
+          title: string
+          uploaded_by: string | null
+          user_id: string
+        }
+        Insert: {
+          author_staff_id?: string | null
+          created_at?: string
+          external_url?: string | null
+          file_name?: string | null
+          file_path?: string | null
+          file_size?: number | null
+          id?: string
+          instructions?: string | null
+          kind: string
+          lesson_id?: string | null
+          mime_type?: string | null
+          title: string
+          uploaded_by?: string | null
+          user_id?: string
+        }
+        Update: {
+          author_staff_id?: string | null
+          created_at?: string
+          external_url?: string | null
+          file_name?: string | null
+          file_path?: string | null
+          file_size?: number | null
+          id?: string
+          instructions?: string | null
+          kind?: string
+          lesson_id?: string | null
+          mime_type?: string | null
+          title?: string
+          uploaded_by?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "school_materials_author_staff_id_fkey"
+            columns: ["author_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "school_materials_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "school_lessons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      school_reschedule_requests: {
+        Row: {
+          created_at: string
+          decided_at: string | null
+          decided_by: string | null
+          decision_note: string | null
+          enrollment_id: string
+          id: string
+          lesson_id: string | null
+          new_end_at: string | null
+          new_start_at: string | null
+          participant_id: string | null
+          reason: string
+          requested_by: string | null
+          requester_kind: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_note?: string | null
+          enrollment_id: string
+          id?: string
+          lesson_id?: string | null
+          new_end_at?: string | null
+          new_start_at?: string | null
+          participant_id?: string | null
+          reason: string
+          requested_by?: string | null
+          requester_kind: string
+          status?: string
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_note?: string | null
+          enrollment_id?: string
+          id?: string
+          lesson_id?: string | null
+          new_end_at?: string | null
+          new_start_at?: string | null
+          participant_id?: string | null
+          reason?: string
+          requested_by?: string | null
+          requester_kind?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "school_reschedule_requests_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "school_enrollments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "school_reschedule_requests_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "school_lessons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "school_reschedule_requests_participant_id_fkey"
+            columns: ["participant_id"]
+            isOneToOne: false
+            referencedRelation: "school_lesson_participants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      school_settings: {
+        Row: {
+          created_at: string
+          id: string
+          instruments: string[]
+          message_templates: Json
+          policy: Json
+          rooms: string[]
+          storage_quota_bytes: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          instruments?: string[]
+          message_templates?: Json
+          policy?: Json
+          rooms?: string[]
+          storage_quota_bytes?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          instruments?: string[]
+          message_templates?: Json
+          policy?: Json
+          rooms?: string[]
+          storage_quota_bytes?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      school_student_guardians: {
+        Row: {
+          created_at: string
+          customer_id: string
+          email: string | null
+          id: string
+          is_notice_receiver: boolean
+          notices_enabled: boolean
+          phone: string | null
+          relationship: string | null
+          student_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          customer_id: string
+          email?: string | null
+          id?: string
+          is_notice_receiver?: boolean
+          notices_enabled?: boolean
+          phone?: string | null
+          relationship?: string | null
+          student_id: string
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string
+          email?: string | null
+          id?: string
+          is_notice_receiver?: boolean
+          notices_enabled?: boolean
+          phone?: string | null
+          relationship?: string | null
+          student_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "school_student_guardians_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "school_student_guardians_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "school_students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      school_students: {
+        Row: {
+          contact_email: string | null
+          contact_phone: string | null
+          created_at: string
+          customer_id: string
+          id: string
+          instrument: string
+          is_minor: boolean
+          level: string | null
+          notes: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          contact_email?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          customer_id: string
+          id?: string
+          instrument: string
+          is_minor?: boolean
+          level?: string | null
+          notes?: string | null
+          status?: string
+          user_id?: string
+        }
+        Update: {
+          contact_email?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          customer_id?: string
+          id?: string
+          instrument?: string
+          is_minor?: boolean
+          level?: string | null
+          notes?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "school_students_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      school_teacher_availability: {
+        Row: {
+          created_at: string
+          end_time: string
+          id: string
+          start_time: string
+          teacher_profile_id: string
+          user_id: string
+          weekday: number
+        }
+        Insert: {
+          created_at?: string
+          end_time: string
+          id?: string
+          start_time: string
+          teacher_profile_id: string
+          user_id?: string
+          weekday: number
+        }
+        Update: {
+          created_at?: string
+          end_time?: string
+          id?: string
+          start_time?: string
+          teacher_profile_id?: string
+          user_id?: string
+          weekday?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "school_teacher_availability_teacher_profile_id_fkey"
+            columns: ["teacher_profile_id"]
+            isOneToOne: false
+            referencedRelation: "school_teacher_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      school_teacher_blocked_dates: {
+        Row: {
+          blocked_date: string
+          created_at: string
+          id: string
+          reason: string | null
+          teacher_profile_id: string
+          user_id: string
+        }
+        Insert: {
+          blocked_date: string
+          created_at?: string
+          id?: string
+          reason?: string | null
+          teacher_profile_id: string
+          user_id?: string
+        }
+        Update: {
+          blocked_date?: string
+          created_at?: string
+          id?: string
+          reason?: string | null
+          teacher_profile_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "school_teacher_blocked_dates_teacher_profile_id_fkey"
+            columns: ["teacher_profile_id"]
+            isOneToOne: false
+            referencedRelation: "school_teacher_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      school_teacher_profiles: {
+        Row: {
+          bio: string | null
+          created_at: string
+          id: string
+          instruments: string[]
+          staff_id: string
+          user_id: string
+        }
+        Insert: {
+          bio?: string | null
+          created_at?: string
+          id?: string
+          instruments?: string[]
+          staff_id: string
+          user_id?: string
+        }
+        Update: {
+          bio?: string | null
+          created_at?: string
+          id?: string
+          instruments?: string[]
+          staff_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "school_teacher_profiles_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: true
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       services: {
         Row: {
           category_id: string | null
@@ -2735,7 +3651,7 @@ export type Database = {
         Args: { p_staff_id: string }
         Returns: string
       }
-      own_site_preview: { Args: Record<PropertyKey, never>; Returns: Json }
+      own_site_preview: { Args: never; Returns: Json }
       public_site_availability: {
         Args: {
           p_days?: number
@@ -2788,17 +3704,6 @@ export type Database = {
         }[]
       }
       public_site_slug_taken: { Args: { p_slug: string }; Returns: boolean }
-      set_business_site_published: {
-        Args: { p_published: boolean }
-        Returns: Json
-      }
-      public_site_slugs: {
-        Args: never
-        Returns: {
-          slug: string
-          updated_at: string
-        }[]
-      }
       recalc_haircut_counts: { Args: never; Returns: number }
       redeem_promo: {
         Args: {
@@ -2896,8 +3801,115 @@ export type Database = {
         }
         Returns: Json
       }
+      school_add_participant: {
+        Args: { p_enrollment_id: string; p_lesson_id: string }
+        Returns: Json
+      }
+      school_adjust_credit: {
+        Args: { p_amount: number; p_enrollment_id: string; p_reason: string }
+        Returns: Json
+      }
+      school_approve_reschedule: {
+        Args: {
+          p_new_end_at?: string
+          p_new_start_at?: string
+          p_request_id: string
+        }
+        Returns: Json
+      }
+      school_cancel_lesson: {
+        Args: { p_lesson_id: string; p_reason: string }
+        Returns: Json
+      }
+      school_close_lesson: {
+        Args: { p_attendance: Json; p_lesson_id: string }
+        Returns: Json
+      }
+      school_confirm_lesson: { Args: { p_lesson_id: string }; Returns: Json }
+      school_confirm_lesson_by_token: {
+        Args: { p_token: string }
+        Returns: Json
+      }
+      school_create_confirm_link: {
+        Args: { p_lesson_id: string }
+        Returns: Json
+      }
+      school_create_family_link: {
+        Args: {
+          p_guardian_customer_id: string
+          p_hours?: number
+          p_student_id: string
+        }
+        Returns: Json
+      }
+      school_enroll: {
+        Args: {
+          p_default_teacher_profile_id?: string
+          p_instrument: string
+          p_lesson_plan_id: string
+          p_payer_customer_id?: string
+          p_sale_id?: string
+          p_student_id: string
+        }
+        Returns: Json
+      }
+      school_family_payload: { Args: { p_token: string }; Returns: Json }
+      school_log_communication: {
+        Args: {
+          p_guardian_customer_id: string
+          p_message?: string
+          p_purpose: string
+          p_state: string
+          p_student_id: string
+        }
+        Returns: Json
+      }
+      school_module_enabled: { Args: never; Returns: boolean }
+      school_reject_reschedule: {
+        Args: { p_reason: string; p_request_id: string }
+        Returns: Json
+      }
+      school_request_reschedule: {
+        Args: {
+          p_lesson_id: string
+          p_participant_id: string
+          p_reason: string
+          p_requester_kind?: string
+        }
+        Returns: Json
+      }
+      school_revoke_link: { Args: { p_link_id: string }; Returns: Json }
+      school_schedule_lesson: {
+        Args: {
+          p_end_at: string
+          p_enrollment_id: string
+          p_instrument: string
+          p_room?: string
+          p_start_at: string
+          p_teacher_profile_id: string
+        }
+        Returns: Json
+      }
+      school_schedule_series: {
+        Args: {
+          p_count?: number
+          p_end_time: string
+          p_enrollment_id: string
+          p_first_at: string
+          p_instrument: string
+          p_room?: string
+          p_teacher_profile_id: string
+          p_until_date?: string
+          p_weekday: number
+        }
+        Returns: Json
+      }
       select_active_workspace: {
         Args: { p_workspace_id: string }
+        Returns: Json
+      }
+      set_business_site_published: {
+        Args: { p_published: boolean }
         Returns: Json
       }
       set_credit_alert: {
@@ -2920,6 +3932,7 @@ export type Database = {
         }
         Returns: string
       }
+      site_public_projection: { Args: { p_user_id: string }; Returns: Json }
       staff_can: { Args: { section: string }; Returns: boolean }
       staff_can_action: {
         Args: { action?: string; section: string }
