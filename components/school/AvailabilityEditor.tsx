@@ -7,7 +7,7 @@ import { hoursToMinutes } from "@/services/school-schedule.service";
 import { toISODate } from "@/lib/date";
 import { notifySuccess } from "@/lib/notifications";
 import type { TeacherProfile } from "@/services/school-people.service";
-import type { AvailabilityInput } from "@/services/school-schedule.service";
+import type { AvailabilityInput, WeeklyAvailabilityRow } from "@/services/school-schedule.service";
 
 interface AvailabilityEditorProps {
   teacher: TeacherProfile;
@@ -24,6 +24,19 @@ interface DraftRow extends AvailabilityInput {
 
 function keyOf(weekday: number, start_time: string): string {
   return `${weekday}|${start_time}`;
+}
+
+function weeklyToDraft(rows: WeeklyAvailabilityRow[]): DraftRow[] {
+  return rows.map((row) => ({
+    key: keyOf(row.weekday, row.start_time),
+    weekday: row.weekday,
+    start_time: row.start_time,
+    end_time: row.end_time,
+  }));
+}
+
+function weeklyKeyOf(rows: WeeklyAvailabilityRow[]): string {
+  return rows.map((r) => keyOf(r.weekday, r.start_time)).join(",");
 }
 
 /**
@@ -46,7 +59,17 @@ export function AvailabilityEditor({ teacher, onClose }: AvailabilityEditorProps
   const deleteBlockedDate = useSchoolScheduleStore((s) => s.deleteBlockedDate);
   const resetAvailability = useSchoolScheduleStore((s) => s.resetAvailability);
 
-  const [draft, setDraft] = useState<DraftRow[]>([]);
+  const [draft, setDraft] = useState<DraftRow[]>(() => weeklyToDraft(weekly));
+  // Clave de la última versión de `weekly` con la que se sincronizó el borrador.
+  // Ajustar estado durante el render (no en un effect) es el patrón de React
+  // para derivar estado de un prop que llega async: el borrador solo se
+  // re-siembra cuando la base devolvió algo nuevo, no en cada tecleo.
+  const [syncedKey, setSyncedKey] = useState(() => weeklyKeyOf(weekly));
+  const currentKey = weeklyKeyOf(weekly);
+  if (currentKey !== syncedKey) {
+    setSyncedKey(currentKey);
+    setDraft(weeklyToDraft(weekly));
+  }
   const [newDate, setNewDate] = useState("");
   const [newReason, setNewReason] = useState("");
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -55,18 +78,6 @@ export function AvailabilityEditor({ teacher, onClose }: AvailabilityEditorProps
     void fetchAvailability(teacher.id);
     return resetAvailability;
   }, [teacher.id, fetchAvailability, resetAvailability]);
-
-  // El borrador se sincroniza con lo guardado cada vez que llega de la base.
-  useEffect(() => {
-    setDraft(
-      weekly.map((row) => ({
-        key: keyOf(row.weekday, row.start_time),
-        weekday: row.weekday,
-        start_time: row.start_time,
-        end_time: row.end_time,
-      }))
-    );
-  }, [weekly]);
 
   const rowsByDay = useMemo(
     () => DAYS.map((_, i) => draft.filter((r) => r.weekday === i + WEEKDAY_NUMBER)),
