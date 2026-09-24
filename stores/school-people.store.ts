@@ -90,8 +90,11 @@ export const useSchoolPeopleStore = create<SchoolPeopleState>((set) => ({
         schoolEnrollmentsService
           .fetchEnrollments()
           .then(async (all) => {
-            const active = all.find((e) => e.student_id === id && e.status === "active");
-            return active ? schoolEnrollmentsService.fetchCreditMovements(active.id) : [];
+            const mine = all.filter((e) => e.student_id === id);
+            const ledgers = await Promise.all(
+              mine.map((e) => schoolEnrollmentsService.fetchCreditMovements(e.id))
+            );
+            return ledgers.flat();
           }),
       ]);
       set({ detail: { student, guardians, enrollments, movements }, loading: false });

@@ -1,26 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useSchoolPeopleStore } from "@/stores/school-people.store";
 import { StudentCard } from "@/components/school/StudentCard";
 import { GuardianForm } from "@/components/school/GuardianForm";
 import { EnrollmentForm } from "@/components/school/EnrollmentForm";
+import { CreditHistory } from "@/components/school/CreditHistory";
 import { formatMoney, formatShortDate } from "@/components/school/format";
 import { CollectionLoading, CollectionError } from "@/components/CollectionState";
-
-const KIND_LABELS: Record<string, string> = {
-  assignment: "Crédito por matrícula",
-  consumption: "Clase consumida",
-  adjustment: "Ajuste",
-};
-
-const MOVEMENT_ICONS: Record<string, string> = {
-  assignment: "text-emerald-500",
-  consumption: "text-rose-500",
-  adjustment: "text-amber-500",
-};
 
 /** Ficha de un alumno: datos + adultos responsables + matrículas y su detalle. */
 export default function EstudianteDetailPage() {
@@ -39,6 +28,16 @@ export default function EstudianteDetailPage() {
   const guardians = detail?.guardians ?? [];
   const enrollments = detail?.enrollments ?? [];
   const movements = detail?.movements ?? [];
+
+  // El saldo "disponible" de la tarjeta suma SOLO matrículas activas: una
+  // matrícula vencida conserva su histórico pero ya no es saldo usable, y la
+  // reconstruction por matrícula vive en CreditHistory.
+  const activeBalance = useMemo(() => {
+    const activeIds = new Set(enrollments.filter((e) => e.status === "active").map((e) => e.id));
+    return movements
+      .filter((m) => activeIds.has(m.enrollment_id))
+      .reduce((acc, m) => acc + m.amount, 0);
+  }, [enrollments, movements]);
 
   const refresh = () => {
     if (params.id) void fetchStudentDetail(params.id);
@@ -65,7 +64,7 @@ export default function EstudianteDetailPage() {
       {student && (
         <StudentCard
           student={student}
-          balance={movements.reduce((acc, m) => acc + m.amount, 0)}
+          balance={activeBalance}
           guardiansCount={guardians.length}
         />
       )}
@@ -173,31 +172,12 @@ export default function EstudianteDetailPage() {
         )}
       </section>
 
-      {/* Detalle de créditos */}
-      {movements.length > 0 && (
-        <section className="rounded-3xl border border-outline-variant/10 bg-surface-container-lowest p-5 shadow-sm">
-          <h2 className="font-bold text-on-surface">Historial de créditos</h2>
-          <ul className="mt-4 divide-y divide-outline-variant/10">
-            {[...movements]
-              .sort((a, b) => b.created_at.localeCompare(a.created_at))
-              .map((m) => (
-                <li key={m.id} className="flex items-center justify-between gap-3 py-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-on-surface">
-                      {KIND_LABELS[m.kind] ?? m.kind}
-                    </p>
-                    <p className="truncate text-xs text-on-surface-variant">
-                      {m.reason || formatShortDate(m.created_at)} · {formatShortDate(m.created_at)}
-                    </p>
-                  </div>
-                  <span className={`shrink-0 text-sm font-bold ${MOVEMENT_ICONS[m.kind] ?? "text-on-surface-variant"}`}>
-                    {m.amount > 0 ? `+${m.amount}` : m.amount}
-                  </span>
-                </li>
-              ))}
-          </ul>
-        </section>
-      )}
+      {/* Libro mayor de créditos (por matrícula, con ajuste explícito) */}
+      <CreditHistory
+        enrollments={enrollments}
+        movements={movements}
+        onChanged={refresh}
+      />
 
       {showGuardianForm && student && (
         <GuardianForm
