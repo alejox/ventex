@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSchoolPeopleStore } from "@/stores/school-people.store";
 import { TeacherForm } from "@/components/school/TeacherForm";
+import { AvailabilityEditor } from "@/components/school/AvailabilityEditor";
 import { CollectionLoading, CollectionEmpty, CollectionError, CollectionFilteredEmpty } from "@/components/CollectionState";
 import { IconMusic, IconSearch } from "@/app/assets/icons/DashboardIcons";
 
@@ -15,6 +16,7 @@ export default function ProfesoresPage() {
   const [query, setQuery] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [availabilityId, setAvailabilityId] = useState<string | null>(null);
 
   useEffect(() => {
     void fetchTeachers();
@@ -99,6 +101,17 @@ export default function ProfesoresPage() {
                 </button>
               </div>
               {t.bio && <p className="mt-3 line-clamp-2 text-sm text-on-surface-variant">{t.bio}</p>}
+              <div className="mt-4 flex items-center justify-between gap-3 border-t border-outline-variant/10 pt-3">
+                <span className="text-xs text-on-surface-variant">
+                  {t.instruments.length === 1 ? "1 instrumento" : `${t.instruments.length} instrumentos`}
+                </span>
+                <button
+                  onClick={() => setAvailabilityId(t.id)}
+                  className="rounded-lg bg-surface-container-low px-3 py-1.5 text-xs font-semibold text-on-surface transition-colors hover:bg-surface-container-high"
+                >
+                  Disponibilidad
+                </button>
+              </div>
             </div>
           ))}
         </div>
@@ -114,6 +127,13 @@ export default function ProfesoresPage() {
           onSaved={() => void fetchTeachers()}
         />
       )}
+
+      {(() => {
+        const teacher = availabilityId ? teachers.find((t) => t.id === availabilityId) : null;
+        return teacher ? (
+          <AvailabilityEditor teacher={teacher} onClose={() => setAvailabilityId(null)} />
+        ) : null;
+      })()}
     </div>
   );
 }
