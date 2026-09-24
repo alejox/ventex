@@ -24,3 +24,18 @@ export const fetchSchoolAccess = cache(async (): Promise<Profile> => {
   }
   return profile;
 });
+
+/**
+ * Mismos dos candados que `fetchSchoolAccess`, pero SIN redirigir: las rutas
+ * de API (`/api/school/*`) necesitan devolver un 403 JSON, no un
+ * `NEXT_REDIRECT`. Devuelve el perfil y el tenant efectivo (el `workspaceId`
+ * del trabajador, o su propio id si es el dueño) cuando el acceso es válido;
+ * `null` en cualquier otro caso.
+ */
+export async function schoolApiAccess(): Promise<{ profile: Profile; tenantId: string } | null> {
+  const profile = await fetchProfileServer();
+  if (!profile) return null;
+  if (!profile.modules?.school) return null;
+  if (profile.isWorker && !profile.workerPermissions?.school) return null;
+  return { profile, tenantId: profile.workspaceId ?? profile.id };
+}
