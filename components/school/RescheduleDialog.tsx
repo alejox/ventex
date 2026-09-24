@@ -71,7 +71,10 @@ export function RescheduleDialog({ mode, lesson, onDone, onClose }: RescheduleDi
   const clearError = useSchoolClassesStore((s) => s.clearError);
 
   // ---- modo request ----
-  const [participantId, setParticipantId] = useState("");
+  const participate = lesson?.participants ?? [];
+  const [participantId, setParticipantId] = useState(() =>
+    participate.length === 1 ? participate[0].participant_id : ""
+  );
   const [requestReason, setRequestReason] = useState("");
 
   // ---- modo decide ----
@@ -86,12 +89,6 @@ export function RescheduleDialog({ mode, lesson, onDone, onClose }: RescheduleDi
   useEffect(() => {
     if (mode === "decide") void fetchPendingRescheduleRequests();
   }, [mode, fetchPendingRescheduleRequests]);
-
-  const participate = lesson?.participants ?? [];
-  const single = participate.length === 1 ? participate[0] : null;
-  useEffect(() => {
-    if (single && !participantId) setParticipantId(single.participant_id);
-  }, [single, participantId]);
 
   const submitRequest = async () => {
     if (!lesson || !participantId) return;

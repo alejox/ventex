@@ -62,7 +62,6 @@ export function AttendanceDialog({ lesson, onContinue, onClose }: AttendanceDial
     return () => {
       alive = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lesson.id, fetchClosePreview]);
 
   const submit = () => {
