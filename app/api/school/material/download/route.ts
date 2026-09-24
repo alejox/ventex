@@ -76,11 +76,19 @@ export async function GET(request: NextRequest) {
   if (error || !material) {
     return NextResponse.json({ error: "Material no encontrado." }, { status: 404 });
   }
-  if (material.kind !== "file" || !material.file_path) {
-    return NextResponse.json(
-      { error: "Este material es un enlace externo, no un archivo." },
-      { status: 400 }
-    );
+  if (material.kind === "link") {
+    // La proyección familiar (`school_family_payload`) no expone
+    // `external_url` — solo id/título/instrucciones/tipo, por diseño (nunca
+    // listados de grupo). Esta ruta ya autorizó el acceso arriba (token
+    // escopeado o sesión del tenant), así que es el lugar correcto para
+    // resolver la URL real: mismo candado, sin ampliar lo que el RPC filtra.
+    if (!material.external_url) {
+      return NextResponse.json({ error: "Este material no tiene enlace configurado." }, { status: 404 });
+    }
+    return NextResponse.redirect(material.external_url);
+  }
+  if (!material.file_path) {
+    return NextResponse.json({ error: "Material no encontrado." }, { status: 404 });
   }
 
   const { data: signed, error: signError } = await admin.storage

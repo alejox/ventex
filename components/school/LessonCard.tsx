@@ -3,14 +3,17 @@
 import { useState } from "react";
 import { Select } from "@/components/ui/Select";
 import { SchoolModal } from "@/components/school/SchoolModal";
+import { ShareWhatsAppButton } from "@/components/school/ShareWhatsAppButton";
 import { useSchoolScheduleStore } from "@/stores/school-schedule.store";
 import { useSchoolClassesStore } from "@/stores/school-classes.store";
+import { useSchoolMaterialsStore } from "@/stores/school-materials.store";
 import { AttendanceDialog, type AttendanceSelection } from "@/components/school/AttendanceDialog";
 import { ConfirmCloseDialog } from "@/components/school/ConfirmCloseDialog";
 import { RescheduleDialog } from "@/components/school/RescheduleDialog";
 import { notifySuccess } from "@/lib/notifications";
 import { sessionConfirmGate } from "@/services/school-classes.service";
 import { formatSlotTime } from "@/services/school-schedule.service";
+import { buildConfirmLinkUrl } from "@/services/school-materials.service";
 import type { SchoolLesson } from "@/services/school-schedule.service";
 
 interface LessonCardProps {
@@ -58,6 +61,8 @@ export function LessonCard({ lesson }: LessonCardProps) {
   const classesSaving = useSchoolClassesStore((s) => s.saving);
   const classesError = useSchoolClassesStore((s) => s.error);
   const clearClassesError = useSchoolClassesStore((s) => s.clearError);
+  const createConfirmLink = useSchoolMaterialsStore((s) => s.createConfirmLink);
+  const materialsSaving = useSchoolMaterialsStore((s) => s.saving);
 
   const [adding, setAdding] = useState(false);
   const [chosen, setChosen] = useState("");
@@ -66,6 +71,7 @@ export function LessonCard({ lesson }: LessonCardProps) {
   const [showCancel, setShowCancel] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
   const [showReschedule, setShowReschedule] = useState(false);
+  const [confirmLinkUrl, setConfirmLinkUrl] = useState<string | null>(null);
 
   const seatsLeft = lesson.capacity - lesson.participants.length;
   const full = seatsLeft <= 0;
@@ -92,6 +98,13 @@ export function LessonCard({ lesson }: LessonCardProps) {
     if (ok) {
       notifySuccess("Clase confirmada", "Ya podés cerrarla con la asistencia.");
     }
+  };
+
+  const handleCreateConfirmLink = async () => {
+    clearClassesError();
+    const link = await createConfirmLink(lesson.id);
+    if (!link) return;
+    setConfirmLinkUrl(buildConfirmLinkUrl(window.location.origin, link.token));
   };
 
   const handleCancel = async () => {
@@ -223,6 +236,16 @@ export function LessonCard({ lesson }: LessonCardProps) {
               Cerrar clase
             </button>
           )}
+          {lesson.status === "scheduled" && (
+            <button
+              type="button"
+              onClick={() => void handleCreateConfirmLink()}
+              disabled={materialsSaving}
+              className="rounded-lg px-2.5 py-1 text-xs font-semibold text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface disabled:opacity-50"
+            >
+              Enlace de confirmación
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setShowCancel(true)}
@@ -268,6 +291,24 @@ export function LessonCard({ lesson }: LessonCardProps) {
           onClose={() => setShowReschedule(false)}
           onDone={() => setShowReschedule(false)}
         />
+      )}
+
+      {confirmLinkUrl && (
+        <SchoolModal title="Enlace de confirmación" onClose={() => setConfirmLinkUrl(null)}>
+          <div className="space-y-3 p-6 pt-4">
+            <p className="text-xs text-on-surface-variant">
+              Válido por 24 h y de un solo uso. Compartilo con el profesor para que confirme
+              la clase sin entrar al sistema; un GET (como el preview de WhatsApp) nunca la
+              confirma — solo confirma si el profesor toca el botón de la página.
+            </p>
+            <p className="break-all rounded-xl bg-surface-container-low p-3 text-xs text-on-surface-variant">
+              {confirmLinkUrl}
+            </p>
+            <ShareWhatsAppButton
+              message={`Confirmá la clase de ${lesson.instrument} del ${formatSlotTime(lesson.start_at)}: ${confirmLinkUrl}`}
+            />
+          </div>
+        </SchoolModal>
       )}
 
       {showCancel && (

@@ -4,12 +4,18 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useSchoolPeopleStore } from "@/stores/school-people.store";
+import { useSchoolMaterialsStore } from "@/stores/school-materials.store";
 import { StudentCard } from "@/components/school/StudentCard";
 import { GuardianForm } from "@/components/school/GuardianForm";
 import { EnrollmentForm } from "@/components/school/EnrollmentForm";
 import { CreditHistory } from "@/components/school/CreditHistory";
+import { MaterialForm } from "@/components/school/MaterialForm";
+import { FamilyLinkDialog } from "@/components/school/FamilyLinkDialog";
+import { ShareWhatsAppButton } from "@/components/school/ShareWhatsAppButton";
 import { formatMoney, formatShortDate } from "@/components/school/format";
+import { renderSchoolMessage, noticeShareGate } from "@/services/school-materials.service";
 import { CollectionLoading, CollectionError } from "@/components/CollectionState";
+import type { StudentGuardian } from "@/services/school-people.service";
 
 /** Ficha de un alumno: datos + adultos responsables + matrículas y su detalle. */
 export default function EstudianteDetailPage() {
@@ -23,11 +29,21 @@ export default function EstudianteDetailPage() {
   const [showGuardianForm, setShowGuardianForm] = useState(false);
   const [editingGuardian, setEditingGuardian] = useState<string | null>(null);
   const [showEnrollForm, setShowEnrollForm] = useState(false);
+  const [showMaterialForm, setShowMaterialForm] = useState(false);
+  const [linkingGuardians, setLinkingGuardians] = useState(false);
+
+  const materials = useSchoolMaterialsStore((s) => s.materialsForStudent);
+  const fetchMaterialsForStudent = useSchoolMaterialsStore((s) => s.fetchMaterialsForStudent);
+  const deleteMaterial = useSchoolMaterialsStore((s) => s.deleteMaterial);
 
   const student = detail?.student ?? null;
   const guardians = detail?.guardians ?? [];
   const enrollments = detail?.enrollments ?? [];
   const movements = detail?.movements ?? [];
+  // El receptor de avisos es el destinatario de "Compartir material": mandarle
+  // el aviso a cualquier acudiente ignoraría la preferencia que la escuela ya
+  // registró (school-academics: "exactamente un receptor de avisos").
+  const noticeReceiver: StudentGuardian | null = guardians.find((g) => g.is_notice_receiver) ?? null;
 
   // El saldo "disponible" de la tarjeta suma SOLO matrículas activas: una
   // matrícula vencida conserva su histórico pero ya no es saldo usable, y la
@@ -40,7 +56,10 @@ export default function EstudianteDetailPage() {
   }, [enrollments, movements]);
 
   const refresh = () => {
-    if (params.id) void fetchStudentDetail(params.id);
+    if (params.id) {
+      void fetchStudentDetail(params.id);
+      void fetchMaterialsForStudent(params.id);
+    }
     void fetchStudents();
   };
 
@@ -109,6 +128,12 @@ export default function EstudianteDetailPage() {
                     </span>
                   )}
                   <button
+                    onClick={() => setLinkingGuardians(true)}
+                    className="rounded-lg px-2.5 py-1 text-xs font-semibold text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface"
+                  >
+                    Enviar enlace
+                  </button>
+                  <button
                     onClick={() => {
                       setEditingGuardian(g.id);
                       setShowGuardianForm(true);
@@ -120,6 +145,75 @@ export default function EstudianteDetailPage() {
                 </div>
               </li>
             ))}
+          </ul>
+        )}
+      </section>
+
+      {/* Material de estudio (fase 5: bucket privado + enlaces de familia) */}
+      <section className="rounded-3xl border border-outline-variant/10 bg-surface-container-lowest p-5 shadow-sm">
+        <div className="flex items-center justify-between">
+          <h2 className="font-bold text-on-surface">Material de estudio</h2>
+          <button
+            onClick={() => setShowMaterialForm(true)}
+            className="rounded-lg border border-outline-variant/30 px-3 py-1.5 text-sm font-semibold text-on-surface transition-colors hover:bg-surface-container-low"
+          >
+            Subir material
+          </button>
+        </div>
+        {materials.length === 0 ? (
+          <p className="mt-3 text-sm text-on-surface-variant">
+            Sin material publicado para este alumno todavía.
+          </p>
+        ) : (
+          <ul className="mt-4 space-y-3">
+            {materials.map((m) => {
+              const gate = noticeReceiver ? noticeShareGate(noticeReceiver) : { ok: false };
+              const message = noticeReceiver
+                ? renderSchoolMessage(null, "material", {
+                    acudiente: noticeReceiver.full_name,
+                    alumno: student?.full_name ?? "",
+                    titulo: m.title,
+                    enlace: "pedí tu enlace de la escuela si no lo tenés a mano",
+                  })
+                : "";
+              return (
+                <li
+                  key={m.id}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-outline-variant/10 bg-surface-container-lowest p-4"
+                >
+                  <div className="min-w-0">
+                    <p className="font-semibold text-on-surface">{m.title}</p>
+                    <p className="mt-0.5 truncate text-sm text-on-surface-variant">
+                      {m.kind === "file" ? m.file_name : m.external_url} ·{" "}
+                      {formatShortDate(m.created_at)}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    {noticeReceiver ? (
+                      <ShareWhatsAppButton
+                        message={message}
+                        phone={noticeReceiver.phone}
+                        studentId={student?.id}
+                        guardianCustomerId={noticeReceiver.customer_id}
+                        purpose="material"
+                        disabled={!gate.ok}
+                        disabledReason={gate.reason}
+                      />
+                    ) : (
+                      <span className="text-xs text-on-surface-variant/60">
+                        Sin receptor de avisos
+                      </span>
+                    )}
+                    <button
+                      onClick={() => void deleteMaterial(m.id)}
+                      className="rounded-lg px-2.5 py-1 text-xs font-semibold text-error transition-colors hover:bg-error/10"
+                    >
+                      Borrar
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>
@@ -192,6 +286,24 @@ export default function EstudianteDetailPage() {
       )}
       {showEnrollForm && (
         <EnrollmentForm studentId={student?.id ?? null} onClose={() => setShowEnrollForm(false)} onSaved={refresh} />
+      )}
+      {showMaterialForm && student && (
+        <MaterialForm
+          studentId={student.id}
+          onClose={() => setShowMaterialForm(false)}
+          onSaved={() => {
+            setShowMaterialForm(false);
+            refresh();
+          }}
+        />
+      )}
+      {linkingGuardians && student && (
+        <FamilyLinkDialog
+          studentId={student.id}
+          studentName={student.full_name}
+          guardians={guardians}
+          onClose={() => setLinkingGuardians(false)}
+        />
       )}
     </div>
   );
