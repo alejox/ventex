@@ -132,6 +132,7 @@ export const useSchoolClassesStore = create<SchoolClassesState>((set, get) => ({
     set({ saving: true, error: null });
     try {
       await schoolClassesService.requestReschedule(input);
+      await get().fetchPendingRescheduleRequests();
       set({ saving: false });
       return true;
     } catch (e) {

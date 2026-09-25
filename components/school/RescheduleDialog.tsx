@@ -109,7 +109,7 @@ export function RescheduleDialog({ mode, lesson, onDone, onClose }: RescheduleDi
   const openApprove = (req: PendingRescheduleRequest) => {
     clearError();
     const durationMs = Date.parse(req.old_end_at) - Date.parse(req.old_start_at);
-    const start = new Date(Date.parse(req.old_start_at) + 7 * 86400000);
+    const start = new Date(Date.parse(req.old_start_at) + 1 * 86400000);
     setNewStartAt(toLocalInput(start));
     setNewEndAt(toLocalInput(new Date(start.getTime() + durationMs)));
     setApproving(req.id);

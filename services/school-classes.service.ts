@@ -514,9 +514,11 @@ export async function fetchClosePreview(lessonId: string): Promise<CloseParticip
 }
 
 const RESCHEDULE_REQUEST_SELECT =
-  "id, lesson_id, participant_id, reason, requester_kind, requested_at, school_lessons(start_at, end_at, instrument, school_teacher_profiles(staff(full_name))), school_enrollments(school_students(customers(full_name)))";
+  "id, lesson_id, participant_id, reason, requester_kind, created_at, school_lessons(start_at, end_at, instrument, school_teacher_profiles(staff(full_name))), school_enrollments(school_students(customers(full_name)))";
 
 type RescheduleRequestRow = Record<string, unknown> & {
+  created_at?: string;
+  requested_at?: string;
   school_lessons?: unknown;
   school_enrollments?: unknown;
 };
@@ -537,7 +539,7 @@ function mapPendingRescheduleRequest(raw: RescheduleRequestRow): PendingReschedu
     student_name: (customer.full_name as string) ?? "Sin nombre",
     teacher_name: (staff.full_name as string) ?? "Sin nombre",
     reason: raw.reason as string,
-    requested_at: raw.requested_at as string,
+    requested_at: (raw.created_at ?? raw.requested_at) as string,
     requester_kind: raw.requester_kind as PendingRescheduleRequest["requester_kind"],
     group_request: raw.participant_id == null,
   };
@@ -550,7 +552,7 @@ export async function fetchPendingRescheduleRequests(): Promise<PendingReschedul
     .from("school_reschedule_requests")
     .select(RESCHEDULE_REQUEST_SELECT)
     .eq("status", "pending")
-    .order("requested_at");
+    .order("created_at");
   if (error) throw error;
   return ((data ?? []) as unknown as RescheduleRequestRow[]).map(mapPendingRescheduleRequest);
 }

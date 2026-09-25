@@ -169,6 +169,9 @@ export const useSchoolScheduleStore = create<SchoolScheduleState>((set, get) => 
         });
         return result;
       }
+      const { agendaFrom, agendaTo, fetchAgenda, fetchEnrollmentViews } = get();
+      if (agendaFrom) await fetchAgenda(agendaFrom, agendaTo);
+      await fetchEnrollmentViews();
       set({ seriesDraft: null, saving: false });
       return result;
     } catch (e) {
@@ -181,8 +184,9 @@ export const useSchoolScheduleStore = create<SchoolScheduleState>((set, get) => 
     set({ saving: true, error: null });
     try {
       await schoolScheduleService.scheduleLesson(input);
-      const { agendaFrom, agendaTo, fetchAgenda } = get();
+      const { agendaFrom, agendaTo, fetchAgenda, fetchEnrollmentViews } = get();
       if (agendaFrom) await fetchAgenda(agendaFrom, agendaTo);
+      await fetchEnrollmentViews();
       set({ saving: false });
       return true;
     } catch (e) {
@@ -195,9 +199,10 @@ export const useSchoolScheduleStore = create<SchoolScheduleState>((set, get) => 
     set({ saving: true, error: null });
     try {
       await schoolScheduleService.addParticipant(lessonId, enrollmentId);
-      const { agendaFrom, agendaTo, fetchAgenda, fetchEligibleOptions } = get();
+      const { agendaFrom, agendaTo, fetchAgenda, fetchEligibleOptions, fetchEnrollmentViews } = get();
       if (agendaFrom) await fetchAgenda(agendaFrom, agendaTo);
       await fetchEligibleOptions(lessonId);
+      await fetchEnrollmentViews();
       set({ saving: false });
       return true;
     } catch (e) {

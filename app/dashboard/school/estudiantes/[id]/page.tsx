@@ -53,7 +53,7 @@ export default function EstudianteDetailPage() {
     return movements
       .filter((m) => activeIds.has(m.enrollment_id))
       .reduce((acc, m) => acc + m.amount, 0);
-  }, [enrollments, movements]);
+  }, [detail?.enrollments, detail?.movements]);
 
   const refresh = () => {
     if (params.id) {

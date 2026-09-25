@@ -50,9 +50,9 @@ export function SeriesDialog({ onClose }: SeriesDialogProps) {
   const [formError, setFormError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (enrollmentViews.length === 0) void fetchEnrollmentViews();
+    void fetchEnrollmentViews();
     if (teachers.length === 0) void fetchTeachers();
-  }, [enrollmentViews.length, teachers.length, fetchEnrollmentViews, fetchTeachers]);
+  }, [fetchEnrollmentViews, teachers.length, fetchTeachers]);
 
   const selectedEnrollment = useMemo(
     () => enrollmentViews.find((v) => v.enrollment_id === enrollmentId) ?? null,
