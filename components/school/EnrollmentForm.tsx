@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Select } from "@/components/ui/Select";
 import { SchoolModal } from "@/components/school/SchoolModal";
+import Link from "next/link";
 import { formatMoney, formatShortDate } from "@/components/school/format";
 import { fetchCustomers, fetchCustomerSales } from "@/services/customers.service";
 import type { Customer, CustomerSale } from "@/services/customers.service";
@@ -148,18 +149,29 @@ export function EnrollmentForm({ studentId, onClose, onSaved }: EnrollmentFormPr
               </option>
             ))}
           </Select>
-          <Select
-            label="Plan de clase"
-            value={planId}
-            onChange={(e) => setPlanId(e.target.value)}
-          >
-            <option value="">Seleccionar…</option>
-            {plans.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name} ({p.lesson_count} clases)
-              </option>
-            ))}
-          </Select>
+          <div className="space-y-1.5">
+            <Select
+              label="Plan de clase"
+              value={planId}
+              onChange={(e) => setPlanId(e.target.value)}
+            >
+              <option value="">Seleccionar…</option>
+              {plans.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} ({p.lesson_count} clases)
+                </option>
+              ))}
+            </Select>
+            {plans.length === 0 && (
+              <p className="text-xs text-on-surface-variant">
+                No hay planes de clase. Creá uno en{" "}
+                <Link href="/dashboard/school/planes" className="font-semibold text-primary hover:underline">
+                  Planes de clase
+                </Link>
+                .
+              </p>
+            )}
+          </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

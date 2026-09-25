@@ -5,6 +5,7 @@ import { useSchoolScheduleStore } from "@/stores/school-schedule.store";
 import { useSchoolClassesStore } from "@/stores/school-classes.store";
 import { LessonCard } from "@/components/school/LessonCard";
 import { SeriesDialog } from "@/components/school/SeriesDialog";
+import { SingleLessonDialog } from "@/components/school/SingleLessonDialog";
 import { RescheduleDialog } from "@/components/school/RescheduleDialog";
 import { CollectionLoading, CollectionError } from "@/components/CollectionState";
 import { SCHOOL_DAYS, localWeekdayOf } from "@/components/school/format";
@@ -25,6 +26,7 @@ export function AgendaWeek() {
 
   const [monday, setMonday] = useState(() => mondayOfLocal(new Date()));
   const [showSeries, setShowSeries] = useState(false);
+  const [showSingleLesson, setShowSingleLesson] = useState(false);
   const [showRescheduleDecide, setShowRescheduleDecide] = useState(false);
   const pendingReschedules = useSchoolClassesStore((s) => s.pendingRescheduleRequests);
   const fetchPendingRescheduleRequests = useSchoolClassesStore(
@@ -95,6 +97,13 @@ export function AgendaWeek() {
               ` (${pendingReschedules.length})`}
           </button>
           <button
+            type="button"
+            onClick={() => setShowSingleLesson(true)}
+            className="rounded-xl border border-outline-variant/30 px-4 py-2.5 text-sm font-semibold text-on-surface transition-colors hover:bg-surface-container-low"
+          >
+            Agendar clase
+          </button>
+          <button
             onClick={() => setShowSeries(true)}
             className="rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-dim"
           >
@@ -137,6 +146,8 @@ export function AgendaWeek() {
       )}
 
       {showSeries && <SeriesDialog onClose={() => setShowSeries(false)} />}
+
+      {showSingleLesson && <SingleLessonDialog onClose={() => setShowSingleLesson(false)} />}
 
       {showRescheduleDecide && (
         <RescheduleDialog

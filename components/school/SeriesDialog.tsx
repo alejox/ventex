@@ -6,10 +6,13 @@ import { SchoolModal } from "@/components/school/SchoolModal";
 import { useSchoolScheduleStore } from "@/stores/school-schedule.store";
 import { useSchoolPeopleStore } from "@/stores/school-people.store";
 import { useSchoolStore } from "@/stores/school.store";
-import { tsAtUtc, fmtSessionDate } from "@/services/school-schedule.service";
+import { tsAtUtc, fmtSessionDate, isoWeekdayOf } from "@/services/school-schedule.service";
 import { toISODate } from "@/lib/date";
 import { notifySuccess } from "@/lib/notifications";
-import { SCHOOL_DAYS, localWeekdayOf } from "@/components/school/format";
+import { localWeekdayOf } from "@/components/school/format";
+
+/** Nombre plural del día ISO (1 = lunes … 7 = domingo), para el aviso "Todos los …". */
+const WEEKDAY_PLURAL = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábados", "domingos"];
 
 interface SeriesDialogProps {
   onClose: () => void;
@@ -39,8 +42,11 @@ export function SeriesDialog({ onClose }: SeriesDialogProps) {
 
   const [enrollmentId, setEnrollmentId] = useState("");
   const [teacherId, setTeacherId] = useState("");
-  const [weekday, setWeekday] = useState(1);
   const [firstDate, setFirstDate] = useState(() => nextDateForWeekday(1));
+  // El día de la semana ya no se elige aparte: se deriva de la primera clase,
+  // así las dos entradas nunca pueden contradecirse (antes `planSeries`/el RPC
+  // tiraban error si no coincidían).
+  const weekday = useMemo(() => isoWeekdayOf(firstDate), [firstDate]);
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("10:00");
   const [countMode, setCountMode] = useState<"count" | "until">("count");
@@ -176,24 +182,18 @@ export function SeriesDialog({ onClose }: SeriesDialogProps) {
             </p>
           )}
 
-          <div className="grid grid-cols-2 gap-3">
-            <Select label="Día de la semana" value={String(weekday)} onChange={(e) => setWeekday(Number(e.target.value))}>
-              {SCHOOL_DAYS.map((name, i) => (
-                <option key={name} value={i + 1}>
-                  {name}
-                </option>
-              ))}
-            </Select>
-            <div className="space-y-1.5">
-              <label className="text-sm font-semibold text-on-surface">Primera clase</label>
-              <input
-                type="date"
-                value={firstDate}
-                min={toISODate(new Date())}
-                onChange={(e) => setFirstDate(e.target.value)}
-                className="w-full rounded-xl border border-outline-variant/30 bg-surface-container-lowest px-3 py-2 text-sm text-on-surface focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-              />
-            </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-semibold text-on-surface">Primera clase</label>
+            <input
+              type="date"
+              value={firstDate}
+              min={toISODate(new Date())}
+              onChange={(e) => setFirstDate(e.target.value)}
+              className="w-full rounded-xl border border-outline-variant/30 bg-surface-container-lowest px-3 py-2 text-sm text-on-surface focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+            <p className="text-xs text-on-surface-variant">
+              Todos los {WEEKDAY_PLURAL[weekday - 1]}.
+            </p>
           </div>
 
           <div className="grid grid-cols-2 gap-3">

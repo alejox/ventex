@@ -82,11 +82,11 @@ export function CreditHistory({ enrollments, movements, onChanged }: CreditHisto
 
   return (
     <section className="rounded-3xl border border-outline-variant/10 bg-surface-container-lowest p-5 shadow-sm">
-      <h2 className="font-bold text-on-surface">Historial de créditos</h2>
+      <h2 className="font-bold text-on-surface">Historial de saldo</h2>
 
       {enrollments.length === 0 ? (
         <p className="mt-3 text-sm text-on-surface-variant">
-          Sin matrículas: no hay créditos que mostrar.
+          Sin matrículas: no hay saldo que mostrar.
         </p>
       ) : (
         <div className="mt-4 space-y-5">
