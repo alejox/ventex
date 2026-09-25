@@ -55,3 +55,6 @@ next-env.d.ts
 /.claude/
 /.agents/
 .env.test.local
+.aider*
+/.codegraph/
+/supabase/.temp/
