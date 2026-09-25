@@ -1,4 +1,15 @@
 import { defineConfig } from "@playwright/test";
+import fs from "node:fs";
+
+for (const envFile of [".env.local", ".env.test.local"]) {
+  if (fs.existsSync(envFile) && typeof process.loadEnvFile === "function") {
+    try {
+      process.loadEnvFile(envFile);
+    } catch {
+      // Ignorar si el formato del archivo no es soportado
+    }
+  }
+}
 
 export default defineConfig({
   testDir: "./e2e",
