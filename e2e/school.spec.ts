@@ -35,7 +35,7 @@ test.describe("Académico — pantallas del dashboard", () => {
     });
   });
 
-  test("las pantallas de estudiantes, profesores, planes, config y agenda son alcanzables", async ({
+  test("las pantallas de estudiantes, planes, config y agenda son alcanzables", async ({
     page,
   }) => {
     await page.goto("/dashboard/school");
@@ -47,7 +47,6 @@ test.describe("Académico — pantallas del dashboard", () => {
 
     const paths = [
       "/dashboard/school/estudiantes",
-      "/dashboard/school/profesores",
       "/dashboard/school/planes",
       "/dashboard/school/config",
       "/dashboard/school/agenda",

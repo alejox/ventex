@@ -229,34 +229,35 @@ test.describe.serial("Académico — ciclo completo (cuenta E2E real)", () => {
     await expect(page.getByRole("heading", { name: "Nuevo plan de clase" })).toBeHidden({ timeout: 5000 });
   });
 
-  test("03 profesor: reutiliza el colaborador disponible y configura su perfil docente", async ({ page }) => {
+  test("03 profesor: activa el perfil docente de un colaborador desde Personal", async ({ page }) => {
     // El plan gratis de la cuenta E2E admite un solo colaborador. Reutilizarlo
     // evita que el test dependa de ampliar el plan o acumule personal de prueba.
     const staff = await findAnyStaff();
-    expect(staff, "La cuenta E2E necesita un colaborador existente para probar el módulo Escuela").not.toBeNull();
+    expect(staff, "La cuenta E2E necesita un colaborador existente para probar el módulo Académico").not.toBeNull();
     if (!staff) return;
     expect(staff.status).toBe("active");
     teacherStaffName = staff.full_name;
     const existingProfile = await findTeacherProfileByStaffId(staff.id);
 
-    await page.goto("/dashboard/school/profesores");
+    // El perfil docente ya no es una pantalla propia: es una sección opcional
+    // de la ficha de la persona en Personal (ver la baja de
+    // /dashboard/school/profesores).
+    await page.goto("/dashboard/staff");
     await page.waitForLoadState("networkidle");
-    if (existingProfile) {
-      await page.getByRole("button", { name: "Editar" }).first().click();
-      await expect(page.getByRole("heading", { name: "Editar profesor" })).toBeVisible({ timeout: 5000 });
-    } else {
-      await page.getByRole("button", { name: "Nuevo profesor" }).first().click();
-      await expect(page.getByRole("heading", { name: "Nuevo profesor" })).toBeVisible({ timeout: 5000 });
-      await pickCombo(page, "Empleado", new RegExp(`^${escapeRe(teacherStaffName)}$`), {
-        searchPlaceholder: "Buscar empleado…",
-        searchQuery: teacherStaffName,
-      });
+    await page.getByRole("heading", { name: teacherStaffName, exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Editar Personal" })).toBeVisible({ timeout: 5000 });
+
+    if (!existingProfile) {
+      await page.getByText("Es profesor", { exact: true }).click();
     }
-    await page.getByPlaceholder("Separados por coma: Guitarra, Piano…").fill(INSTRUMENT);
+    await page.getByPlaceholder("Separadas por coma: Piano, Inglés, Matemáticas…").fill(INSTRUMENT);
 
     await page.locator('button[type="submit"]').click();
-    await expect(page.getByText(existingProfile ? "Profesor actualizado" : "Profesor registrado", { exact: true }))
-      .toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole("heading", { name: "Editar Personal" })).toBeHidden({ timeout: 10000 });
+
+    const profile = await findTeacherProfileByStaffId(staff.id);
+    expect(profile).toBeTruthy();
+    expect(profile?.instruments).toContain(INSTRUMENT);
   });
 
   test("04 alumno + acudiente: crea estudiante y adulto responsable", async ({ page }) => {

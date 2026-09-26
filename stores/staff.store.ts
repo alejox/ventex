@@ -63,8 +63,13 @@ interface StaffState {
   /** Devuelve qué se pudo reversar (incluido el efectivo), o null si falló. */
   voidSettlement: (settlementId: string) => Promise<VoidSettlementResult | null>;
 
-  /** Devuelve true si el alta fue correcta (para que el componente cierre el modal). */
-  addStaff: (input: NewStaffInput) => Promise<boolean>;
+  /**
+   * Devuelve la ficha creada (o null si falló). La devuelve, y no solo un
+   * booleano, porque el perfil docente de Personal necesita el `id` recién
+   * creado para vincularse ahí mismo, en el mismo submit — sin eso habría que
+   * releer `staff` a ciegas para encontrarlo.
+   */
+  addStaff: (input: NewStaffInput) => Promise<StaffMember | null>;
   updateStaff: (id: string, input: NewStaffInput) => Promise<boolean>;
   deleteStaff: (id: string) => Promise<boolean>;
 
@@ -180,10 +185,10 @@ export const useStaffStore = create<StaffState>((set) => ({
     try {
       const member = await staffService.createStaff(input);
       set((s) => ({ staff: [...s.staff, member], submitting: false }));
-      return true;
+      return member;
     } catch (e) {
       set({ error: toMessage(e), submitting: false });
-      return false;
+      return null;
     }
   },
 

@@ -82,10 +82,10 @@ const NAV_ICONS: Record<string, IconType> = {
   calendar: IconCalendar,
   subscription: IconCreditCard,
   landing: IconGlobe,
-  // Escuela (opt-in): las cinco pantallas del módulo.
+  // Académico (opt-in): las pantallas del módulo con ícono propio (la agenda
+  // comparte el ícono del grupo).
   school: IconMusic,
   "school-estudiantes": IconUsers,
-  "school-profesores": IconUserBadge,
   "school-planes": IconFileText,
   "school-config": IconSettings,
 };

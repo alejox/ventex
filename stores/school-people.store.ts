@@ -8,7 +8,6 @@ import type {
   NewStudentInput,
   NewGuardianInput,
   NewTeacherInput,
-  StaffOption,
 } from "@/services/school-people.service";
 import * as schoolEnrollmentsService from "@/services/school-enrollments.service";
 import type { SchoolEnrollment, CreditMovement } from "@/services/school-enrollments.service";
@@ -23,7 +22,6 @@ export interface StudentDetail {
 interface SchoolPeopleState {
   students: SchoolStudent[];
   teachers: TeacherProfile[];
-  staffOptions: StaffOption[];
   detail: StudentDetail | null;
   loading: boolean;
   saving: boolean;
@@ -31,7 +29,6 @@ interface SchoolPeopleState {
 
   fetchStudents: () => Promise<void>;
   fetchTeachers: () => Promise<void>;
-  fetchStaffOptions: () => Promise<void>;
   fetchStudentDetail: (id: string) => Promise<boolean>;
   saveStudent: (id: string | null, input: NewStudentInput) => Promise<boolean>;
   saveGuardian: (id: string | null, input: NewGuardianInput) => Promise<boolean>;
@@ -43,7 +40,6 @@ const EMPTY_DETAIL: StudentDetail = { student: null, guardians: [], enrollments:
 export const useSchoolPeopleStore = create<SchoolPeopleState>((set) => ({
   students: [],
   teachers: [],
-  staffOptions: [],
   detail: EMPTY_DETAIL,
   loading: false,
   saving: false,
@@ -66,15 +62,6 @@ export const useSchoolPeopleStore = create<SchoolPeopleState>((set) => ({
       set({ teachers, loading: false });
     } catch (e) {
       set({ error: toMessage(e), loading: false });
-    }
-  },
-
-  fetchStaffOptions: async () => {
-    try {
-      const staffOptions = await schoolPeopleService.fetchEligibleStaff();
-      set({ staffOptions });
-    } catch (e) {
-      set({ error: toMessage(e) });
     }
   },
 
@@ -175,5 +162,4 @@ export const useSchoolPeopleStore = create<SchoolPeopleState>((set) => ({
 // Selectores granulares
 export const selectStudents = (s: SchoolPeopleState) => s.students;
 export const selectTeachers = (s: SchoolPeopleState) => s.teachers;
-export const selectStaffOptions = (s: SchoolPeopleState) => s.staffOptions;
 export const selectStudentDetail = (s: SchoolPeopleState) => s.detail;

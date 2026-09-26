@@ -71,7 +71,7 @@ export default function SchoolResumenPage() {
 
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         <StatCard label="Alumnos" value={summary?.students ?? 0} href="/dashboard/school/estudiantes" icon={<IconUsers className="w-5 h-5" />} />
-        <StatCard label="Profesores" value={summary?.teachers ?? 0} href="/dashboard/school/profesores" icon={<IconMusic className="w-5 h-5" />} tone="text-violet-500" />
+        <StatCard label="Profesores" value={summary?.teachers ?? 0} href="/dashboard/staff" icon={<IconMusic className="w-5 h-5" />} tone="text-violet-500" />
         <StatCard label="Planes de clase" value={summary?.plans ?? 0} href="/dashboard/school/planes" icon={<IconCalendar className="w-5 h-5" />} tone="text-sky-500" />
         <StatCard label="Matrículas activas" value={summary?.active_enrollments ?? 0} href="/dashboard/school/planes" icon={<IconReceipt className="w-5 h-5" />} tone="text-emerald-500" />
         <StatCard label="Clases en saldo" value={summary?.total_balance ?? 0} href="/dashboard/school/planes" icon={<IconCalendar className="w-5 h-5" />} tone="text-amber-500" />
@@ -114,7 +114,7 @@ export default function SchoolResumenPage() {
         <h2 className="font-bold text-on-surface">Primeros pasos</h2>
         <ul className="mt-3 space-y-2 text-sm text-on-surface-variant">
           <li>1. Configurá las especialidades y la política de reprogramación en <Link className="font-semibold text-primary hover:underline" href="/dashboard/school/config">Configuración</Link>.</li>
-          <li>2. Creá los <Link className="font-semibold text-primary hover:underline" href="/dashboard/school/profesores">profesores</Link> desde el equipo del negocio.</li>
+          <li>2. Activá el perfil docente de tus profesores desde <Link className="font-semibold text-primary hover:underline" href="/dashboard/staff">Personal</Link>.</li>
           <li>3. Armá los <Link className="font-semibold text-primary hover:underline" href="/dashboard/school/planes">planes de clase</Link> sobre los servicios del catálogo.</li>
           <li>4. Registrá <Link className="font-semibold text-primary hover:underline" href="/dashboard/school/estudiantes">alumnos</Link> y matricularlos en un plan.</li>
         </ul>

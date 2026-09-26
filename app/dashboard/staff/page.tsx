@@ -2,15 +2,20 @@
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
-import { IconUserBadge, IconPlus, IconLogOut } from "@/app/assets/icons/DashboardIcons";
+import { IconUserBadge, IconPlus, IconLogOut, IconMusic } from "@/app/assets/icons/DashboardIcons";
 import { useStaffStore } from "@/stores/staff.store";
 import { useSubscriptionStore } from "@/stores/subscription.store";
+import { useSchoolPeopleStore } from "@/stores/school-people.store";
+import { useSchoolStore } from "@/stores/school.store";
 import { fetchStaffSales } from "@/services/staff.service";
 import type { NewStaffInput, StaffMember, StaffSaleItem } from "@/services/staff.service";
+import { normalizeName } from "@/services/school-people.service";
+import type { TeacherProfile } from "@/services/school-people.service";
 import { Select } from "@/components/ui/Select";
 import { useProfile } from "@/components/ProfileProvider";
-import { staffRolesForType } from "@/config/business";
+import { staffRolesForType, effectiveModules } from "@/config/business";
 import { mergeTeam, hasStaffRecord } from "@/lib/team";
+import { AvailabilityEditor } from "@/components/school/AvailabilityEditor";
 import { GrantAccessModal } from "./components/GrantAccessModal";
 import { EditAccessModal } from "./components/EditAccessModal";
 import { PermissionsPanel } from "./components/PermissionsPanel";
@@ -57,10 +62,25 @@ export default function StaffPage() {
   const revokeAccess = useStaffStore((s) => s.revokeAccess);
   const reactivateAccess = useStaffStore((s) => s.reactivateAccess);
 
+  // Perfil docente (Académico): una sección opcional de esta misma ficha, no
+  // una pantalla aparte — ver la baja de /dashboard/school/profesores.
+  const teachers = useSchoolPeopleStore((s) => s.teachers);
+  const fetchTeachers = useSchoolPeopleStore((s) => s.fetchTeachers);
+  const saveTeacher = useSchoolPeopleStore((s) => s.saveTeacher);
+  const teacherError = useSchoolPeopleStore((s) => s.error);
+  const schoolSettings = useSchoolStore((s) => s.settings);
+  const fetchSchoolSettings = useSchoolStore((s) => s.fetchSettings);
+
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<NewStaffInput>(EMPTY_STAFF);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+
+  const [teacherEnabled, setTeacherEnabled] = useState(false);
+  const [specialtiesText, setSpecialtiesText] = useState("");
+  const [teacherBio, setTeacherBio] = useState("");
+  const [specialtiesRequired, setSpecialtiesRequired] = useState(false);
+  const [availabilityFor, setAvailabilityFor] = useState<TeacherProfile | null>(null);
 
   /** Ids de la persona sobre la que está abierto cada modal de acceso. */
   const [grantFor, setGrantFor] = useState<string | null>(null);
@@ -73,8 +93,31 @@ export default function StaffPage() {
   const roleChoices =
     form.role && !roleOptions.includes(form.role) ? [form.role, ...roleOptions] : roleOptions;
 
+  // `effectiveModules` y no `profile?.modules.school` a secas: es el mismo
+  // cálculo que ya usa el sidebar (DashboardShell) para decidir si Académico
+  // está prendido, así que esta sección no puede quedar desincronizada de él.
+  const schoolModuleActive = Boolean(
+    effectiveModules(profile?.businessType ?? null, profile?.modules ?? null).school,
+  );
+
   // Una fila por PERSONA: la ficha manda y el acceso cuelga de ella.
   const team = useMemo(() => mergeTeam(staff, accounts), [staff, accounts]);
+
+  const teacherByStaffId = useMemo(
+    () => new Map(teachers.map((t) => [t.staff_id, t])),
+    [teachers],
+  );
+
+  const specialties = useMemo(
+    () => specialtiesText.split(",").map((s) => normalizeName(s)).filter(Boolean),
+    [specialtiesText],
+  );
+  const toggleSpecialty = (name: string) => {
+    const next = specialties.includes(name)
+      ? specialties.filter((i) => i !== name)
+      : [...specialties, name];
+    setSpecialtiesText(next.join(", "));
+  };
 
   const commissionByStaff = useMemo(
     () => new Map(commissions.map((c) => [c.staff_id, c])),
@@ -118,6 +161,14 @@ export default function StaffPage() {
     fetchSubscription();
   }, [fetchStaff, fetchAccounts, fetchCommissions, fetchSubscription]);
 
+  // Perfiles docentes y catálogo de especialidades: solo tiene sentido pedirlos
+  // si el negocio tiene Académico activo (si no, la sección ni se dibuja).
+  useEffect(() => {
+    if (!schoolModuleActive) return;
+    void fetchTeachers();
+    void fetchSchoolSettings();
+  }, [schoolModuleActive, fetchTeachers, fetchSchoolSettings]);
+
   const handleRevoke = useCallback(
     async (accountId: string, name: string) => {
       if (confirm(`¿Suspender el acceso de "${name}"? Dejará de entrar inmediatamente, pero su ficha, permisos e historial se conservan.`)) {
@@ -135,6 +186,10 @@ export default function StaffPage() {
     if (atCollaboratorLimit) return;
     setEditingId(null);
     setForm(EMPTY_STAFF);
+    setTeacherEnabled(false);
+    setSpecialtiesText("");
+    setTeacherBio("");
+    setSpecialtiesRequired(false);
     setModalOpen(true);
   };
 
@@ -148,6 +203,11 @@ export default function StaffPage() {
       status: m.status,
       photo_url: m.photo_url,
     });
+    const existingTeacher = teacherByStaffId.get(m.id) ?? null;
+    setTeacherEnabled(Boolean(existingTeacher));
+    setSpecialtiesText((existingTeacher?.instruments ?? []).join(", "));
+    setTeacherBio(existingTeacher?.bio ?? "");
+    setSpecialtiesRequired(false);
     setModalOpen(true);
   };
 
@@ -155,17 +215,46 @@ export default function StaffPage() {
     setModalOpen(false);
     setEditingId(null);
     setForm(EMPTY_STAFF);
+    setTeacherEnabled(false);
+    setSpecialtiesText("");
+    setTeacherBio("");
+    setSpecialtiesRequired(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const ok = editingId
-      ? await updateStaff(editingId, form)
-      : await addStaff(form);
-    if (ok) {
-      handleClose();
-      refreshUsage();
+    if (teacherEnabled && specialties.length === 0) {
+      setSpecialtiesRequired(true);
+      return;
     }
+    setSpecialtiesRequired(false);
+
+    // La ficha manda: primero se crea/actualiza `staff`, y solo si eso salió
+    // bien se toca el perfil docente — nunca al revés.
+    const staffId = editingId
+      ? (await updateStaff(editingId, form))
+        ? editingId
+        : null
+      : (await addStaff(form))?.id ?? null;
+    if (!staffId) return;
+
+    // Marcado ON: crea o actualiza el perfil docente con las especialidades y
+    // la bio del formulario. Marcado OFF sobre alguien que YA tenía perfil: no
+    // se toca nada — nunca se borra desde acá (ver decisión en el doc de la
+    // feature). El perfil sigue existiendo, solo queda oculto en este form.
+    if (schoolModuleActive && teacherEnabled) {
+      const existingTeacher = teacherByStaffId.get(staffId) ?? null;
+      const ok = await saveTeacher(existingTeacher?.id ?? null, {
+        staff_id: staffId,
+        instruments: specialties,
+        bio: teacherBio.trim() || null,
+      });
+      if (!ok) return;
+      void fetchTeachers();
+    }
+
+    handleClose();
+    refreshUsage();
   };
 
   const initials = (name: string) =>
@@ -318,6 +407,17 @@ export default function StaffPage() {
                   </h3>
                   <p className="truncate text-[11px] text-on-surface-variant">{m.role ?? "—"}</p>
 
+                  {/* Perfil docente (Académico): un badge, no una columna aparte
+                      — la ficha sigue siendo UNA sola pantalla por persona. */}
+                  {teacherByStaffId.has(m.id) && (
+                    <p className="mt-0.5 flex items-center gap-1 truncate text-[10px] font-bold text-violet-500">
+                      <IconMusic className="h-3 w-3 shrink-0" />
+                      <span className="truncate">
+                        {teacherByStaffId.get(m.id)!.instruments.join(" · ") || "Profesor"}
+                      </span>
+                    </p>
+                  )}
+
                   {(m.phone || m.email) && (
                     <p className="mt-1.5 truncate text-[11px] text-on-surface-variant">
                       {[m.phone, m.email].filter(Boolean).join(" · ")}
@@ -421,7 +521,18 @@ export default function StaffPage() {
                       bloque al fondo para que la última acción quede a la misma
                       altura en todas las tarjetas, tengan o no comisión
                       pendiente. */}
-                  <div className="mt-auto pt-3">
+                  <div className="mt-auto pt-3 space-y-1.5">
+                    {teacherByStaffId.has(m.id) && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setAvailabilityFor(teacherByStaffId.get(m.id)!);
+                        }}
+                        className="w-full rounded-lg border border-outline-variant/20 py-1.5 text-[11px] font-semibold text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface"
+                      >
+                        Disponibilidad
+                      </button>
+                    )}
                     <button
                       onClick={(e) => { e.stopPropagation(); openSales(m); }}
                       className="w-full rounded-lg border border-outline-variant/20 py-1.5 text-[11px] font-semibold text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface"
@@ -597,9 +708,9 @@ export default function StaffPage() {
             </div>
 
             <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 sm:space-y-5 overflow-y-auto">
-              {error && (
+              {(error || teacherError) && (
                 <div className="rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim">
-                  {error}
+                  {error || teacherError}
                 </div>
               )}
 
@@ -680,6 +791,93 @@ export default function StaffPage() {
                 </button>
               </div>
 
+              {/* Perfil docente: opcional y solo si el negocio tiene Académico
+                  activo. Es la misma persona, no otra pantalla — ver la baja de
+                  /dashboard/school/profesores. */}
+              {schoolModuleActive && (
+                <div className="rounded-xl border border-outline-variant/10 bg-surface-container-low p-3 sm:p-4 space-y-3">
+                  <label className="flex items-center gap-2 text-sm font-bold text-on-surface cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={teacherEnabled}
+                      onChange={(e) => setTeacherEnabled(e.target.checked)}
+                      className="w-4 h-4 accent-primary"
+                    />
+                    Es profesor
+                  </label>
+                  <p className="-mt-2 text-xs text-on-surface-variant">
+                    Especialidades, bio y disponibilidad para Académico.
+                  </p>
+
+                  {teacherEnabled ? (
+                    <div className="space-y-3">
+                      {specialtiesRequired && (
+                        <p className="text-xs font-semibold text-error">
+                          Elegí al menos una especialidad
+                        </p>
+                      )}
+                      <div className="space-y-1.5">
+                        <label className="flex items-center gap-1 text-[13px] font-semibold text-on-surface">
+                          Especialidades <span className="text-primary">*</span>
+                        </label>
+                        {schoolSettings.instruments.length > 0 && (
+                          <div className="flex flex-wrap gap-2">
+                            {schoolSettings.instruments.map((name) => (
+                              <button
+                                key={name}
+                                type="button"
+                                onClick={() => toggleSpecialty(name)}
+                                className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+                                  specialties.includes(name)
+                                    ? "bg-primary text-white"
+                                    : "bg-surface-container text-on-surface-variant hover:bg-surface-container-high"
+                                }`}
+                              >
+                                {name}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        <input
+                          type="text"
+                          value={specialtiesText}
+                          onChange={(e) => setSpecialtiesText(e.target.value)}
+                          placeholder="Separadas por coma: Piano, Inglés, Matemáticas…"
+                          className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[13px] font-semibold text-on-surface">Bio / reseña</label>
+                        <textarea
+                          value={teacherBio}
+                          onChange={(e) => setTeacherBio(e.target.value)}
+                          rows={3}
+                          placeholder="Formación, experiencia, enfoque pedagógico…"
+                          className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary resize-none"
+                        />
+                      </div>
+                      {editingId && teacherByStaffId.has(editingId) && (
+                        <button
+                          type="button"
+                          onClick={() => setAvailabilityFor(teacherByStaffId.get(editingId) ?? null)}
+                          className="rounded-lg bg-surface-container-high px-3 py-1.5 text-xs font-semibold text-on-surface transition-colors hover:bg-surface-container-highest"
+                        >
+                          Disponibilidad
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    editingId &&
+                    teacherByStaffId.has(editingId) && (
+                      <p className="text-xs text-on-surface-variant">
+                        Este perfil docente no se borra: los datos quedan guardados y solo se
+                        ocultan estos campos.
+                      </p>
+                    )
+                  )}
+                </div>
+              )}
+
               <div className="pt-4 flex flex-col sm:flex-row gap-3 border-t border-outline-variant/10">
                 {editingId && (
                   <button
@@ -732,6 +930,10 @@ export default function StaffPage() {
           current={accountForPerms.worker_permissions ?? {}}
           onClose={() => setPermsFor(null)}
         />
+      )}
+
+      {availabilityFor && (
+        <AvailabilityEditor teacher={availabilityFor} onClose={() => setAvailabilityFor(null)} />
       )}
     </div>
   );

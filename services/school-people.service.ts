@@ -73,14 +73,6 @@ export interface NewTeacherInput {
   bio?: string | null;
 }
 
-/** Nombre de la persona del equipo, para el selector de profesor. */
-export interface StaffOption {
-  id: string;
-  full_name: string;
-  role: string | null;
-  status: string;
-}
-
 const STUDENT_SELECT =
   "id, customer_id, instrument, level, status, is_minor, contact_email, contact_phone, notes, created_at, customers(full_name, phone, email)";
 const GUARDIAN_SELECT =
@@ -307,18 +299,6 @@ export async function fetchTeacherProfiles(): Promise<TeacherProfile[]> {
   return ((data ?? []) as unknown as TeacherRow[])
     .map(mapTeacher)
     .sort((a, b) => a.full_name.localeCompare(b.full_name, "es"));
-}
-
-/** Personas del equipo disponibles para ser profesor (solo activas). */
-export async function fetchEligibleStaff(): Promise<StaffOption[]> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from("staff")
-    .select("id, full_name, role, status")
-    .eq("status", "active")
-    .order("full_name");
-  if (error) throw error;
-  return ((data ?? []) as unknown as StaffOption[]).filter((s) => s.status === "active");
 }
 
 export async function createTeacherProfile(input: NewTeacherInput): Promise<TeacherProfile> {

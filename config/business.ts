@@ -348,14 +348,17 @@ export const NAV_ITEMS: NavItem[] = [
 
   // ---- Académico (opt-in) ----
   //
-  // Las seis pantallas del módulo escolar, todas detrás de `school`. El ítem
+  // Las cinco pantallas del módulo escolar, todas detrás de `school`. El ítem
   // índice se llama "Resumen" y no "Académico" por la regla del grupo (ver el
   // comentario de NAV_ITEMS): el grupo ya se llama Académico, y repetir el
   // nombre del grupo en su primer hijo leía "Académico › Académico".
+  //
+  // Profesores dejó de ser una pantalla propia: el perfil docente (especialidades,
+  // bio, disponibilidad) es una sección opcional de la ficha de Personal, igual
+  // que el acceso al sistema — ver el comentario de `/dashboard/school/profesores`.
   { id: "school", name: "Resumen", href: "/dashboard/school", modules: ["school"] },
   { id: "school-agenda", name: "Agenda", href: "/dashboard/school/agenda", modules: ["school"] },
   { id: "school-estudiantes", name: "Estudiantes", href: "/dashboard/school/estudiantes", modules: ["school"] },
-  { id: "school-profesores", name: "Profesores", href: "/dashboard/school/profesores", modules: ["school"] },
   { id: "school-planes", name: "Planes de clase", href: "/dashboard/school/planes", modules: ["school"] },
   { id: "school-config", name: "Configuración", href: "/dashboard/school/config", modules: ["school"] },
   { id: "staff", name: "Personal", href: "/dashboard/staff", modules: ["staff"] },
@@ -548,7 +551,7 @@ const NAV_GROUP_ORDER: { id: string; label: string | null; itemIds: string[] }[]
   { id: "equipo", label: "Equipo", itemIds: ["staff", "commissions", "haircuts"] },
   // Académico es OPT-IN: el grupo entero desaparece cuando el módulo está apagado
   // (visibleNavItems lo filtra por módulo y workerNavItems por permiso + módulo).
-  { id: "escuela", label: "Académico", itemIds: ["school", "school-agenda", "school-estudiantes", "school-profesores", "school-planes", "school-config"] },
+  { id: "escuela", label: "Académico", itemIds: ["school", "school-agenda", "school-estudiantes", "school-planes", "school-config"] },
   { id: "presencia", label: "Presencia digital", itemIds: ["landing"] },
 ];
 
@@ -664,14 +667,13 @@ export function workerNavItems(
   // catálogo, que es donde se usan. Quien tiene `inventory` ya llega ahí.
 
   // Académico es UNA sección detrás de un solo permiso: quien tiene `school`
-  // ve las seis pantallas. Y como el módulo es opt-in, ni siquiera el permiso
+  // ve las cinco pantallas. Y como el módulo es opt-in, ni siquiera el permiso
   // basta — sin el módulo activo los ítems desaparecen (los RPC y las páginas
   // también cierran solos en `school_module_enabled()`).
   const SCHOOL_NAV_ITEM_IDS = [
     "school",
     "school-agenda",
     "school-estudiantes",
-    "school-profesores",
     "school-planes",
     "school-config",
   ];
