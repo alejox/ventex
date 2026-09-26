@@ -300,6 +300,11 @@ test.describe.serial("Académico — ciclo completo (cuenta E2E real)", () => {
     await page.getByRole("button", { name: "Nuevo alumno" }).first().click();
     await expect(page.getByRole("heading", { name: "Nuevo alumno" })).toBeVisible({ timeout: 5000 });
 
+    // El cliente para este alumno ya se creó arriba (createCustomer) — se
+    // elige por el link "existente" en vez de dejar que el formulario cree
+    // uno nuevo por nombre, para no duplicarlo (ambos flujos comparten el
+    // mismo StudentForm).
+    await page.getByRole("button", { name: "elegí un cliente existente" }).click();
     await pickCombo(page, "Cliente", new RegExp(`^${escapeRe(STUDENT_CUSTOMER_NAME)}$`), {
       searchPlaceholder: "Buscar cliente…",
       searchQuery: STUDENT_CUSTOMER_NAME,

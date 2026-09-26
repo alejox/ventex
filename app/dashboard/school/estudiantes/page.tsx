@@ -66,7 +66,7 @@ export default function EstudiantesPage() {
         <CollectionEmpty
           icon={<IconUsers className="h-7 w-7" />}
           title="Todavía no hay alumnos"
-          description="Registrá el primer alumno asociado a un cliente de la sección Clientes."
+          description="Registrá el primer alumno escribiendo su nombre — se crea el cliente al vuelo."
           action={{ label: "Nuevo alumno", onClick: () => setShowForm(true) }}
         />
       ) : filtered.length === 0 ? (

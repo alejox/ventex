@@ -62,6 +62,21 @@ Strategy: `ask-on-risk`. Forecast ~300–450 authored changed lines. RDD: off
       linking to Configuración. Labels "Instrumento" → "Especialidad".
       Route: delegated writer (3 non-trivial files).
 
+- [x] **T4** — (user request 2026-09-26) New student is created by typing
+      the student's name; a customer is created behind the scenes. An
+      "elegir un cliente existente" link keeps the current customer picker to
+      avoid duplicates. Route: delegated writer.
+- [ ] **T5** — Levels catalog: `school_settings.levels text[]`, edited in
+      Configuración de Académico; StudentForm "Nivel" becomes a selector
+      (legacy values preserved like specialties). Route: delegated writer.
+- [ ] **T6** — Age ranges for group plans: `school_students.birth_date`,
+      `school_lesson_plans.min_age/max_age` (optional). PlanForm edits the
+      range when `max_group_size > 1`; EnrollmentForm WARNS (does not block)
+      when the student's age is outside the range (user decision
+      2026-09-26: warn and allow). Route: delegated writer.
+      Migration `20260926120000_school_levels_and_age_ranges.sql` applied via
+      MCP by the orchestrator.
+
 ## Acceptance criteria
 
 - No "Escuela de música" or "Instrumentos" left in UI copy.
@@ -157,3 +172,55 @@ Strategy: `ask-on-risk`. Forecast ~300–450 authored changed lines. RDD: off
   fields were free text; the fill/click sites in tests 03–05 switched to
   `selectOption`/a guarded chip click. `e2e/school.spec.ts` needed no changes
   (it never touches these fields).
+- T4 done. Commit `<T4_HASH>` — feat(school): crear alumno escribiendo su
+  nombre. Route: delegated writer (writer trigger: 2+ non-trivial files —
+  StudentForm.tsx + customers.store.ts).
+  Files: components/school/StudentForm.tsx, stores/customers.store.ts,
+  app/dashboard/school/estudiantes/page.tsx, e2e/school-cycle.spec.ts,
+  odd/tasks/academico-team-teachers.md.
+  Checks: reported once at the end of T6 below (T4/T5/T6 share several files
+  — see the note there for why); this task's own logic is covered by the full
+  `npx tsc --noEmit` / `npm run lint` / `npm test` run reported on T6.
+  Decisions:
+  - Fixed the layering violation named in scope: StudentForm no longer calls
+    `fetchCustomers` from `services/customers.service.ts` directly — it reads
+    `useCustomersStore` (already used by the Clientes screen), which was the
+    natural home since it already had `fetchCustomers`/`addCustomer`.
+  - `useCustomersStore.addCustomer` now returns `Customer | null` instead of
+    `boolean` — StudentForm needs the created customer's `id` right away (not
+    a re-read of the store's list) to save the student in the same submit and
+    to keep it in `createdCustomerId` for a safe retry. Only one existing
+    caller (`app/dashboard/customers/page.tsx`), unchanged: it only ever did
+    `if (ok)`, which still works against a truthy `Customer`.
+  - Default mode for a NEW student is "type a name" (`useExistingCustomer`
+    starts `false`). The customer list is now fetched lazily — only when that
+    toggle is on, never for edit mode — instead of always on mount like the
+    old code did; no behavior anyone depended on, since the picker wasn't
+    shown at all unless choosing an existing customer.
+  - Partial-failure handling: customer creation and the student insert are
+    two separate calls (no transaction/RPC exists for this pair). If the
+    customer is created but `saveStudent` then fails, `createdCustomerId`
+    stays in component state, so a retry (same open form) reuses that id
+    instead of creating a second customer. If the user closes the modal at
+    that point instead of retrying, the created customer is simply an orphan
+    row with no linked student — accepted, documented in the component's own
+    JSDoc, same class of harmless-orphan tradeoff as ePayco's unclaimed guest
+    orders (AGENTS.md).
+  - Editing an existing student shows the customer's name as **read-only**
+    text (not an editable input): `updateCustomer` requires the customer's
+    full `NewCustomerInput` shape (email/phone/identification/doc_type/
+    tax_exempt), and StudentForm only ever has the joined `full_name` — not
+    those other fields — so submitting from here would silently null them
+    out. The read-only note links to Clientes instead. Verified via
+    `codegraph_explore`/grep that `<StudentForm student={...}>` (edit mode)
+    has no caller yet — only `app/dashboard/school/estudiantes/page.tsx`
+    renders it, always without `student` — so this path is dead code today,
+    implemented correctly ahead of whenever a caller is added.
+  - e2e (`e2e/school-cycle.spec.ts`, test "04 alumno + acudiente"): the
+    customer for `STUDENT_CUSTOMER_NAME` is already created earlier in that
+    same test via the pre-existing `createCustomer()` helper (it's reused
+    later as the enrollment's payer) — so the test clicks the new "elegí un
+    cliente existente" link and keeps the existing `pickCombo`, instead of
+    switching to the name-typing path (which would create a *second*,
+    unrelated customer with the same name). `e2e/school.spec.ts` doesn't touch
+    StudentForm at all (verified by grep) — untouched.

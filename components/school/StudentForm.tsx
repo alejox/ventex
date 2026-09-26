@@ -6,12 +6,11 @@ import { Select } from "@/components/ui/Select";
 import { SchoolModal } from "@/components/school/SchoolModal";
 import { useSchoolPeopleStore } from "@/stores/school-people.store";
 import { useSchoolStore } from "@/stores/school.store";
+import { useCustomersStore } from "@/stores/customers.store";
 import { normalizeName, normalizeContactPhone } from "@/services/school-people.service";
 import { specialtyOptions, specialtyLabel } from "@/services/school-settings.service";
-import { fetchCustomers } from "@/services/customers.service";
-import type { Customer } from "@/services/customers.service";
 import type { SchoolStudent } from "@/services/school-people.service";
-import { notifySuccess } from "@/lib/notifications";
+import { notifySuccess, notifyError } from "@/lib/notifications";
 
 interface StudentFormProps {
   student?: SchoolStudent | null;
@@ -22,16 +21,33 @@ interface StudentFormProps {
 /**
  * Alta / edición de un alumno.
  *
- * El alumno SIEMPRE referencia un cliente existente (`customers`): la ficha del
- * alumno es académica (instrumento, nivel, contactos) y la del cliente es
- * comercial (ventas, créditos, promociones). Se crean clientes en Clientes.
+ * El alumno SIEMPRE referencia un cliente (`customers`): la ficha del alumno
+ * es académica (instrumento, nivel, contactos) y la del cliente es comercial
+ * (ventas, créditos, promociones). Un alumno NUEVO crea su cliente al vuelo
+ * escribiendo solo el nombre (evita la doble pantalla Clientes → Alumnos); el
+ * link "Elegir un cliente existente" vuelve al selector de siempre para no
+ * duplicar a alguien que ya es cliente (por ejemplo, un hermano que ya compra
+ * en el POS).
+ *
+ * Fallo parcial: si el cliente se crea pero el alumno falla al guardar,
+ * `createdCustomerId` se queda en el estado del formulario — un reintento
+ * reusa ese id en vez de crear un cliente duplicado. Si el usuario cierra el
+ * modal en ese punto, el cliente creado queda huérfano (sin alumno asociado);
+ * es el mismo costo aceptado que un guest checkout sin reclamar en ePayco:
+ * una fila inerte, nunca datos duplicados o perdidos.
  */
 export function StudentForm({ student, onClose, onSaved }: StudentFormProps) {
   const saveStudent = useSchoolPeopleStore((s) => s.saveStudent);
   const schoolSettings = useSchoolStore((s) => s.settings);
   const schoolSettingsLoading = useSchoolStore((s) => s.loading);
   const fetchSchoolSettings = useSchoolStore((s) => s.fetchSettings);
-  const [customers, setCustomers] = useState<Customer[]>([]);
+  const customers = useCustomersStore((s) => s.customers);
+  const fetchCustomers = useCustomersStore((s) => s.fetchCustomers);
+  const addCustomer = useCustomersStore((s) => s.addCustomer);
+
+  const [useExistingCustomer, setUseExistingCustomer] = useState(false);
+  const [studentName, setStudentName] = useState("");
+  const [createdCustomerId, setCreatedCustomerId] = useState<string | null>(null);
   const [customerId, setCustomerId] = useState(student?.customer_id ?? "");
   const [instrument, setInstrument] = useState(student?.instrument ?? "");
   const [level, setLevel] = useState(student?.level ?? "");
@@ -42,11 +58,17 @@ export function StudentForm({ student, onClose, onSaved }: StudentFormProps) {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    fetchCustomers()
-      .then(setCustomers)
-      .catch(() => setCustomers([]));
     void fetchSchoolSettings();
   }, [fetchSchoolSettings]);
+
+  // El selector de cliente existente es la única rama que necesita la lista
+  // de clientes: un alumno nuevo por nombre no la usa, y uno en edición
+  // tampoco (el cliente ya es fijo).
+  useEffect(() => {
+    if (student) return;
+    if (!useExistingCustomer) return;
+    void fetchCustomers();
+  }, [student, useExistingCustomer, fetchCustomers]);
 
   // El catálogo de especialidades es de Configuración de Académico; el valor
   // que ya tenía este alumno (dato legado) nunca se pierde aunque haya salido
@@ -56,13 +78,46 @@ export function StudentForm({ student, onClose, onSaved }: StudentFormProps) {
     [schoolSettings.instruments, instrument],
   );
 
+  const canSubmit = student
+    ? true
+    : useExistingCustomer
+      ? Boolean(customerId)
+      : Boolean(normalizeName(studentName));
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!normalizeName(instrument)) return;
+    if (!normalizeName(instrument) || !canSubmit) return;
 
     setLoading(true);
+
+    let resolvedCustomerId = customerId;
+    if (!student && !useExistingCustomer) {
+      if (createdCustomerId) {
+        resolvedCustomerId = createdCustomerId;
+      } else {
+        const created = await addCustomer({
+          full_name: normalizeName(studentName),
+          email: "",
+          phone: "",
+          identification: "",
+          doc_type: "",
+          tax_exempt: false,
+        });
+        if (!created) {
+          setLoading(false);
+          notifyError(
+            "No se pudo crear el cliente",
+            useCustomersStore.getState().error ?? "Error inesperado",
+          );
+          return;
+        }
+        setCreatedCustomerId(created.id);
+        resolvedCustomerId = created.id;
+      }
+    }
+
     const ok = await saveStudent(student?.id ?? null, {
-      customer_id: customerId,
+      customer_id: resolvedCustomerId,
       instrument: normalizeName(instrument),
       level: normalizeName(level) || null,
       is_minor: isMinor,
@@ -82,25 +137,75 @@ export function StudentForm({ student, onClose, onSaved }: StudentFormProps) {
   return (
     <SchoolModal title={student ? "Editar alumno" : "Nuevo alumno"} onClose={onClose} maxWidth="max-w-lg">
       <form onSubmit={handleSubmit} className="p-6 space-y-6">
-        <div className="space-y-1.5">
-          <Select
-            label="Cliente"
-            value={customerId}
-            onChange={(e) => setCustomerId(e.target.value)}
-            searchable
-            searchPlaceholder="Buscar cliente…"
-          >
-            <option value="">Seleccionar…</option>
-            {customers.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.full_name}
-              </option>
-            ))}
-          </Select>
-          <p className="text-xs text-on-surface-variant">
-            El alumno se asocia a un cliente existente. Creá el cliente desde la sección Clientes si todavía no existe.
-          </p>
-        </div>
+        {student ? (
+          <div className="space-y-1.5">
+            <label className="text-sm font-semibold text-on-surface">Nombre del alumno</label>
+            <p className="w-full rounded-xl border border-outline-variant/30 bg-surface-container-lowest px-3 py-2.5 text-sm text-on-surface">
+              {student.full_name}
+            </p>
+            <p className="text-xs text-on-surface-variant">
+              Para cambiar el nombre, editá el cliente desde{" "}
+              <Link href="/dashboard/customers" className="font-semibold text-primary hover:underline">
+                Clientes
+              </Link>
+              .
+            </p>
+          </div>
+        ) : useExistingCustomer ? (
+          <div className="space-y-1.5">
+            <Select
+              label="Cliente"
+              value={customerId}
+              onChange={(e) => setCustomerId(e.target.value)}
+              searchable
+              searchPlaceholder="Buscar cliente…"
+            >
+              <option value="">Seleccionar…</option>
+              {customers.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.full_name}
+                </option>
+              ))}
+            </Select>
+            <p className="text-xs text-on-surface-variant">
+              <button
+                type="button"
+                onClick={() => {
+                  setUseExistingCustomer(false);
+                  setCustomerId("");
+                }}
+                className="font-semibold text-primary hover:underline"
+              >
+                Escribir un nombre nuevo
+              </button>
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-1.5">
+            <label className="flex items-center gap-1 text-sm font-semibold text-on-surface">
+              Nombre del alumno <span className="text-primary">*</span>
+            </label>
+            <input
+              type="text"
+              value={studentName}
+              onChange={(e) => setStudentName(e.target.value)}
+              placeholder="Ej. María González"
+              required
+              className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+            />
+            <p className="text-xs text-on-surface-variant">
+              Se crea un cliente con este nombre. Si ya es cliente,{" "}
+              <button
+                type="button"
+                onClick={() => setUseExistingCustomer(true)}
+                className="font-semibold text-primary hover:underline"
+              >
+                elegí un cliente existente
+              </button>{" "}
+              para no duplicarlo.
+            </p>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-1.5">
@@ -199,7 +304,7 @@ export function StudentForm({ student, onClose, onSaved }: StudentFormProps) {
           </button>
           <button
             type="submit"
-            disabled={loading || !customerId || !normalizeName(instrument)}
+            disabled={loading || !normalizeName(instrument) || !canSubmit}
             className="px-6 py-2.5 rounded-xl bg-primary hover:bg-primary-dim text-white text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? "Guardando…" : "Guardar alumno"}

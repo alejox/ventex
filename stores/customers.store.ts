@@ -10,7 +10,13 @@ interface CustomersState {
   submitting: boolean;
 
   fetchCustomers: () => Promise<void>;
-  addCustomer: (input: NewCustomerInput) => Promise<boolean>;
+  /**
+   * Devuelve el cliente creado (no un booleano): StudentForm necesita su `id`
+   * para crear al alumno sin volver a leer la lista, y así puede quedarse con
+   * el id si el guardado del alumno falla después (evita duplicar el cliente
+   * en el reintento).
+   */
+  addCustomer: (input: NewCustomerInput) => Promise<Customer | null>;
   updateCustomer: (id: string, input: NewCustomerInput) => Promise<boolean>;
   deleteCustomer: (id: string) => Promise<boolean>;
   registerPayment: (customerId: string, amount: number, notes?: string) => Promise<boolean>;
@@ -40,10 +46,10 @@ export const useCustomersStore = create<CustomersState>((set) => ({
     try {
       const customer = await customersService.createCustomer(input);
       set((s) => ({ customers: [...s.customers, customer], submitting: false }));
-      return true;
+      return customer;
     } catch (e) {
       set({ error: toMessage(e), submitting: false });
-      return false;
+      return null;
     }
   },
 
