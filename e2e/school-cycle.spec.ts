@@ -310,7 +310,10 @@ test.describe.serial("Académico — ciclo completo (cuenta E2E real)", () => {
       searchQuery: STUDENT_CUSTOMER_NAME,
     });
     await page.getByLabel("Especialidad").selectOption(INSTRUMENT);
-    await page.getByPlaceholder("Ej. Principiante").fill("Principiante");
+    // Nivel ahora es un <select> del catálogo de Configuración de Académico
+    // (antes texto libre) y es opcional — la suite no siembra un catálogo de
+    // niveles, así que se deja en "Sin nivel" en vez de agregar un paso de
+    // seed solo para esto.
     await page.getByText("Es menor de edad (necesita adulto responsable)").click();
 
     await page.locator('button[type="submit"]').click();

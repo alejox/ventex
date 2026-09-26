@@ -10,7 +10,7 @@ import { useSchoolStore } from "@/stores/school.store";
 import { fetchStaffSales } from "@/services/staff.service";
 import type { NewStaffInput, StaffMember, StaffSaleItem } from "@/services/staff.service";
 import type { TeacherProfile } from "@/services/school-people.service";
-import { specialtyOptions, specialtyLabel } from "@/services/school-settings.service";
+import { catalogOptions, catalogLabel } from "@/services/school-settings.service";
 import { Select } from "@/components/ui/Select";
 import { useProfile } from "@/components/ProfileProvider";
 import { staffRolesForType, effectiveModules } from "@/config/business";
@@ -111,7 +111,7 @@ export default function StaffPage() {
   // Catálogo + cualquier especialidad ya elegida que haya quedado fuera de
   // él (dato legado): nunca desaparece de las chips, solo se marca.
   const specialtyChoices = useMemo(
-    () => specialtyOptions(schoolSettings.instruments, specialties),
+    () => catalogOptions(schoolSettings.instruments, specialties),
     [schoolSettings.instruments, specialties],
   );
   const toggleSpecialty = (name: string) => {
@@ -835,7 +835,7 @@ export default function StaffPage() {
                                     : "bg-surface-container text-on-surface-variant hover:bg-surface-container-high"
                                 }`}
                               >
-                                {specialtyLabel(name, schoolSettings.instruments)}
+                                {catalogLabel(name, schoolSettings.instruments)}
                               </button>
                             ))}
                           </div>

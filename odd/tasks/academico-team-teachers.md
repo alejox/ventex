@@ -66,7 +66,7 @@ Strategy: `ask-on-risk`. Forecast ~300–450 authored changed lines. RDD: off
       the student's name; a customer is created behind the scenes. An
       "elegir un cliente existente" link keeps the current customer picker to
       avoid duplicates. Route: delegated writer.
-- [ ] **T5** — Levels catalog: `school_settings.levels text[]`, edited in
+- [x] **T5** — Levels catalog: `school_settings.levels text[]`, edited in
       Configuración de Académico; StudentForm "Nivel" becomes a selector
       (legacy values preserved like specialties). Route: delegated writer.
 - [ ] **T6** — Age ranges for group plans: `school_students.birth_date`,
@@ -172,7 +172,7 @@ Strategy: `ask-on-risk`. Forecast ~300–450 authored changed lines. RDD: off
   fields were free text; the fill/click sites in tests 03–05 switched to
   `selectOption`/a guarded chip click. `e2e/school.spec.ts` needed no changes
   (it never touches these fields).
-- T4 done. Commit `<T4_HASH>` — feat(school): crear alumno escribiendo su
+- T4 done. Commit `8d9fd13` — feat(school): crear alumno escribiendo su
   nombre. Route: delegated writer (writer trigger: 2+ non-trivial files —
   StudentForm.tsx + customers.store.ts).
   Files: components/school/StudentForm.tsx, stores/customers.store.ts,
@@ -224,3 +224,48 @@ Strategy: `ask-on-risk`. Forecast ~300–450 authored changed lines. RDD: off
     switching to the name-typing path (which would create a *second*,
     unrelated customer with the same name). `e2e/school.spec.ts` doesn't touch
     StudentForm at all (verified by grep) — untouched.
+- T5 done. Commit `<T5_HASH>` — feat(school): catálogo de niveles en
+  Configuración de Académico. Route: delegated writer (writer trigger: 2+
+  non-trivial files).
+  Files: supabase/migrations/20260926120000_school_levels_and_age_ranges.sql
+  (new — applied by the orchestrator via MCP before this task started;
+  committed here since this is the first task whose code depends on any of
+  its columns), utils/supabase/database.types.ts,
+  services/school-settings.service.ts, components/school/StudentForm.tsx,
+  components/school/EnrollmentForm.tsx, app/dashboard/school/config/page.tsx,
+  app/dashboard/staff/page.tsx, tests/school-settings.test.ts,
+  e2e/school-cycle.spec.ts, odd/tasks/academico-team-teachers.md.
+  Checks: reported once at the end of T6 (see the note there).
+  Decisions:
+  - `database.types.ts` gets ALL THREE of the migration's new columns in this
+    one commit (`school_settings.levels`, `school_students.birth_date`,
+    `school_lesson_plans.min_age`/`max_age`) even though the latter two are
+    T6's — the migration is one SQL file already applied atomically, so
+    there's no real "T5-only" slice of the generated types to carve out
+    without hand-splitting a single mechanical file for no functional
+    benefit. `services/school-people.service.ts` and
+    `services/school-enrollments.service.ts` (the code that actually reads/
+    writes birth_date and min_age/max_age) stay unstaged until T6, so this
+    commit's *behavior* is levels-only — the extra Row/Insert/Update fields
+    just sit there unused (all nullable/defaulted) until T6 lands.
+  - Renamed `specialtyOptions`/`specialtyLabel` (services/school-settings.
+    service.ts) to `catalogOptions`/`catalogLabel`: both instrument and level
+    selectors now feed off the same generic catalog-with-legacy-values
+    helper, and the old names would have been actively misleading applied to
+    "Nivel". Updated every caller in the same commit (StudentForm,
+    EnrollmentForm, staff/page.tsx, tests/school-settings.test.ts) — a global
+    rename across 4 files, not a re-export shim, since nothing external
+    consumes these two functions.
+  - Nivel keeps the same legacy-preservation UX as Especialidad (T3): a
+    student's already-saved level that later falls out of the catalog stays
+    selectable and is suffixed "(fuera del catálogo)", never silently
+    dropped. Unlike Especialidad, Nivel stays optional — "Sin nivel" is
+    always the first, default option — since a level was never required
+    before this change and nothing in the schema (`school_students.level`)
+    enforces it now either.
+  - e2e: dropped the old `.fill("Ej. Principiante")` line in test "04" (that
+    placeholder input no longer exists — Nivel is a `<select>` now) instead of
+    adding a new catalog-seeding step. The suite has no assertion anywhere
+    that reads `level` back from the database, so the test's coverage is
+    unchanged; a level-catalog seed step would only have exercised UI already
+    covered by `tests/school-settings.test.ts`'s catalog-selection tests.

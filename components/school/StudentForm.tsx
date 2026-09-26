@@ -8,7 +8,7 @@ import { useSchoolPeopleStore } from "@/stores/school-people.store";
 import { useSchoolStore } from "@/stores/school.store";
 import { useCustomersStore } from "@/stores/customers.store";
 import { normalizeName, normalizeContactPhone } from "@/services/school-people.service";
-import { specialtyOptions, specialtyLabel } from "@/services/school-settings.service";
+import { catalogOptions, catalogLabel } from "@/services/school-settings.service";
 import type { SchoolStudent } from "@/services/school-people.service";
 import { notifySuccess, notifyError } from "@/lib/notifications";
 
@@ -74,8 +74,12 @@ export function StudentForm({ student, onClose, onSaved }: StudentFormProps) {
   // que ya tenía este alumno (dato legado) nunca se pierde aunque haya salido
   // del catálogo.
   const instrumentOptions = useMemo(
-    () => specialtyOptions(schoolSettings.instruments, [instrument]),
+    () => catalogOptions(schoolSettings.instruments, [instrument]),
     [schoolSettings.instruments, instrument],
+  );
+  const levelOptions = useMemo(
+    () => catalogOptions(schoolSettings.levels, [level]),
+    [schoolSettings.levels, level],
   );
 
   const canSubmit = student
@@ -222,7 +226,7 @@ export function StudentForm({ student, onClose, onSaved }: StudentFormProps) {
               <option value="">Seleccionar…</option>
               {instrumentOptions.map((name) => (
                 <option key={name} value={name}>
-                  {specialtyLabel(name, schoolSettings.instruments)}
+                  {catalogLabel(name, schoolSettings.instruments)}
                 </option>
               ))}
             </select>
@@ -237,14 +241,29 @@ export function StudentForm({ student, onClose, onSaved }: StudentFormProps) {
             )}
           </div>
           <div className="space-y-1.5">
-            <label className="text-sm font-semibold text-on-surface">Nivel</label>
-            <input
-              type="text"
+            <label htmlFor="student-level" className="text-sm font-semibold text-on-surface">Nivel</label>
+            <select
+              id="student-level"
               value={level}
               onChange={(e) => setLevel(e.target.value)}
-              placeholder="Ej. Principiante"
               className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-            />
+            >
+              <option value="">Sin nivel</option>
+              {levelOptions.map((name) => (
+                <option key={name} value={name}>
+                  {catalogLabel(name, schoolSettings.levels)}
+                </option>
+              ))}
+            </select>
+            {!schoolSettingsLoading && levelOptions.length === 0 && (
+              <p className="text-xs text-on-surface-variant">
+                Agregá niveles en{" "}
+                <Link href="/dashboard/school/config" className="font-semibold text-primary hover:underline">
+                  Configuración de Académico
+                </Link>
+                .
+              </p>
+            )}
           </div>
         </div>
 

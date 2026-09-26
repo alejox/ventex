@@ -19,6 +19,8 @@ export interface SchoolSettings {
   id: string | null;
   /** Especialidades que puede enseñar el negocio. */
   instruments: string[];
+  /** Niveles del alumnado (Principiante, Intermedio…), a elección del negocio. */
+  levels: string[];
   /** Salas / aulas que se pueden asignar a una clase. */
   rooms: string[];
   policy: SchoolPolicy;
@@ -30,6 +32,7 @@ export interface SchoolSettings {
 
 export interface SchoolSettingsInput {
   instruments: string[];
+  levels: string[];
   rooms: string[];
   policy: SchoolPolicy;
   message_templates?: Record<string, string>;
@@ -46,6 +49,7 @@ export const SCHOOL_DEFAULT_POLICY: SchoolPolicy = {
 export const SCHOOL_DEFAULTS: SchoolSettings = {
   id: null,
   instruments: [],
+  levels: [],
   rooms: [],
   policy: SCHOOL_DEFAULT_POLICY,
   message_templates: {},
@@ -66,6 +70,7 @@ function mapSchoolSettings(raw: Record<string, unknown>): SchoolSettings {
   return {
     id: (raw.id as string) ?? null,
     instruments: (raw.instruments as string[]) ?? [],
+    levels: (raw.levels as string[]) ?? [],
     rooms: (raw.rooms as string[]) ?? [],
     policy: {
       min_advance_hours:
@@ -118,6 +123,7 @@ export async function saveSchoolSettings(input: SchoolSettingsInput): Promise<Sc
 
   const payload = {
     instruments: input.instruments,
+    levels: input.levels,
     rooms: input.rooms,
     policy: input.policy as unknown as Json,
     ...(input.message_templates
@@ -149,13 +155,16 @@ export async function saveSchoolSettings(input: SchoolSettingsInput): Promise<Sc
 }
 
 /**
- * Catálogo de especialidades + cualquier valor ya elegido que no esté en él
- * (dato legado: se guardó antes de que existiera en el catálogo, o alguien lo
- * sacó de ahí después). Nunca se oculta — perderlo al editar lo borraría en
- * silencio. El catálogo va primero, en su orden; lo legado se agrega al
- * final, sin duplicados.
+ * Un catálogo de Configuración de Académico (especialidades, niveles…) +
+ * cualquier valor ya elegido que no esté en él (dato legado: se guardó antes
+ * de que existiera en el catálogo, o alguien lo sacó de ahí después). Nunca se
+ * oculta — perderlo al editar lo borraría en silencio. El catálogo va
+ * primero, en su orden; lo legado se agrega al final, sin duplicados.
+ *
+ * Genérica a propósito: la usan el selector de especialidad (instruments) y
+ * el de nivel (levels) de StudentForm/EnrollmentForm/Personal por igual.
  */
-export function specialtyOptions(
+export function catalogOptions(
   catalog: string[],
   selected: Array<string | null | undefined>,
 ): string[] {
@@ -165,7 +174,7 @@ export function specialtyOptions(
   return [...catalog, ...Array.from(new Set(legacy))];
 }
 
-/** Etiqueta de una especialidad: marca las que quedaron fuera del catálogo. */
-export function specialtyLabel(name: string, catalog: string[]): string {
+/** Etiqueta de un valor de catálogo: marca los que quedaron fuera de él. */
+export function catalogLabel(name: string, catalog: string[]): string {
   return catalog.includes(name) ? name : `${name} (fuera del catálogo)`;
 }

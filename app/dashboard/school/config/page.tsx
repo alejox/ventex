@@ -20,6 +20,7 @@ export default function SchoolConfigPage() {
   const saveSettings = useSchoolStore((s) => s.saveSettings);
 
   const [instrumentsText, setInstrumentsText] = useState("");
+  const [levelsText, setLevelsText] = useState("");
   const [roomsText, setRoomsText] = useState("");
   const [minAdvanceHours, setMinAdvanceHours] = useState(24);
   const [maxReschedules, setMaxReschedules] = useState(2);
@@ -35,6 +36,7 @@ export default function SchoolConfigPage() {
         if (cancelled) return;
         const s = useSchoolStore.getState().settings;
         setInstrumentsText(s.instruments.join(", "));
+        setLevelsText(s.levels.join(", "));
         setRoomsText(s.rooms.join(", "));
         setMinAdvanceHours(s.policy.min_advance_hours);
         setMaxReschedules(s.policy.max_reschedules);
@@ -53,9 +55,11 @@ export default function SchoolConfigPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const instruments = instrumentsText.split(",").map((s) => s.trim()).filter(Boolean);
+    const levels = levelsText.split(",").map((s) => s.trim()).filter(Boolean);
     const rooms = roomsText.split(",").map((s) => s.trim()).filter(Boolean);
     const ok = await saveSettings({
       instruments,
+      levels,
       rooms,
       policy: {
         min_advance_hours: minAdvanceHours,
@@ -99,6 +103,19 @@ export default function SchoolConfigPage() {
           />
           <p className="text-xs text-on-surface-variant">
             Las usa el perfil docente en Personal para elegir qué enseña.
+          </p>
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-sm font-semibold text-on-surface">Niveles</label>
+          <input
+            type="text"
+            value={levelsText}
+            onChange={(e) => setLevelsText(e.target.value)}
+            placeholder="Separados por coma: Principiante, Intermedio, Avanzado…"
+            className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+          />
+          <p className="text-xs text-on-surface-variant">
+            Opcional — lo usa el selector de nivel en la ficha del alumno.
           </p>
         </div>
         <div className="space-y-1.5">
@@ -165,7 +182,7 @@ export default function SchoolConfigPage() {
       <div className="flex justify-end gap-3">
         <p className="mr-auto self-center text-xs text-on-surface-variant">
           {settings.instruments.length > 0
-            ? `${settings.instruments.length} especialidades · ${settings.rooms.length} salas`
+            ? `${settings.instruments.length} especialidades · ${settings.levels.length} niveles · ${settings.rooms.length} salas`
             : "Sin guardar todavía — los cambios se aplican al guardar."}
         </p>
         <button

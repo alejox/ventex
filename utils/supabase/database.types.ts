@@ -2299,7 +2299,9 @@ export type Database = {
           id: string
           is_active: boolean
           lesson_count: number
+          max_age: number | null
           max_group_size: number
+          min_age: number | null
           name: string
           service_id: string
           user_id: string
@@ -2311,7 +2313,9 @@ export type Database = {
           id?: string
           is_active?: boolean
           lesson_count: number
+          max_age?: number | null
           max_group_size?: number
+          min_age?: number | null
           name: string
           service_id: string
           user_id?: string
@@ -2323,7 +2327,9 @@ export type Database = {
           id?: string
           is_active?: boolean
           lesson_count?: number
+          max_age?: number | null
           max_group_size?: number
+          min_age?: number | null
           name?: string
           service_id?: string
           user_id?: string
@@ -2615,6 +2621,7 @@ export type Database = {
           created_at: string
           id: string
           instruments: string[]
+          levels: string[]
           message_templates: Json
           policy: Json
           rooms: string[]
@@ -2626,6 +2633,7 @@ export type Database = {
           created_at?: string
           id?: string
           instruments?: string[]
+          levels?: string[]
           message_templates?: Json
           policy?: Json
           rooms?: string[]
@@ -2637,6 +2645,7 @@ export type Database = {
           created_at?: string
           id?: string
           instruments?: string[]
+          levels?: string[]
           message_templates?: Json
           policy?: Json
           rooms?: string[]
@@ -2702,6 +2711,7 @@ export type Database = {
       }
       school_students: {
         Row: {
+          birth_date: string | null
           contact_email: string | null
           contact_phone: string | null
           created_at: string
@@ -2715,6 +2725,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          birth_date?: string | null
           contact_email?: string | null
           contact_phone?: string | null
           created_at?: string
@@ -2728,6 +2739,7 @@ export type Database = {
           user_id?: string
         }
         Update: {
+          birth_date?: string | null
           contact_email?: string | null
           contact_phone?: string | null
           created_at?: string

@@ -12,7 +12,7 @@ import { fetchStudents, fetchTeacherProfiles } from "@/services/school-people.se
 import type { SchoolStudent, TeacherProfile } from "@/services/school-people.service";
 import { fetchLessonPlans, fetchSellableServices, schoolEnroll } from "@/services/school-enrollments.service";
 import type { LessonPlan } from "@/services/school-enrollments.service";
-import { specialtyOptions, specialtyLabel } from "@/services/school-settings.service";
+import { catalogOptions, catalogLabel } from "@/services/school-settings.service";
 import { notifySuccess, notifyError } from "@/lib/notifications";
 
 interface EnrollmentFormProps {
@@ -64,7 +64,7 @@ export function EnrollmentForm({ studentId, onClose, onSaved }: EnrollmentFormPr
   // El catálogo es de Configuración de Académico; el valor precargado del
   // alumno (dato legado) nunca se pierde aunque haya salido del catálogo.
   const instrumentOptions = useMemo(
-    () => specialtyOptions(schoolSettings.instruments, [instrument]),
+    () => catalogOptions(schoolSettings.instruments, [instrument]),
     [schoolSettings.instruments, instrument],
   );
 
@@ -202,7 +202,7 @@ export function EnrollmentForm({ studentId, onClose, onSaved }: EnrollmentFormPr
               <option value="">Seleccionar…</option>
               {instrumentOptions.map((name) => (
                 <option key={name} value={name}>
-                  {specialtyLabel(name, schoolSettings.instruments)}
+                  {catalogLabel(name, schoolSettings.instruments)}
                 </option>
               ))}
             </select>
