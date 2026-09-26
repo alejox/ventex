@@ -229,6 +229,29 @@ test.describe.serial("Académico — ciclo completo (cuenta E2E real)", () => {
     await expect(page.getByRole("heading", { name: "Nuevo plan de clase" })).toBeHidden({ timeout: 5000 });
   });
 
+  test("02b catálogo: agrega 'Piano' a Especialidades de Académico (si falta)", async ({ page }) => {
+    // El instrumento/especialidad de alumno, matrícula y perfil docente ya no
+    // se escriben libres: salen del catálogo de Configuración de Académico
+    // (school_settings.instruments). Este paso lo asegura antes de que el
+    // resto del ciclo dependa de poder elegir "Piano" en esos selectores.
+    await page.goto("/dashboard/school/config");
+    await page.waitForLoadState("networkidle");
+    const catalogInput = page.getByPlaceholder("Separadas por coma: Piano, Inglés, Matemáticas…");
+    await expect(catalogInput).toBeVisible({ timeout: 10000 });
+    const current = await catalogInput.inputValue();
+    const values = current.split(",").map((s) => s.trim()).filter(Boolean);
+    if (values.includes(INSTRUMENT)) {
+      test.info().annotations.push({
+        type: "reused",
+        description: "'Piano' ya estaba en el catálogo de especialidades.",
+      });
+      return;
+    }
+    await catalogInput.fill([...values, INSTRUMENT].join(", "));
+    await page.locator('button[type="submit"]').click();
+    await expect(page.getByText("Configuración guardada", { exact: true })).toBeVisible({ timeout: 10000 });
+  });
+
   test("03 profesor: activa el perfil docente de un colaborador desde Personal", async ({ page }) => {
     // El plan gratis de la cuenta E2E admite un solo colaborador. Reutilizarlo
     // evita que el test dependa de ampliar el plan o acumule personal de prueba.
@@ -250,7 +273,12 @@ test.describe.serial("Académico — ciclo completo (cuenta E2E real)", () => {
     if (!existingProfile) {
       await page.getByText("Es profesor", { exact: true }).click();
     }
-    await page.getByPlaceholder("Separadas por coma: Piano, Inglés, Matemáticas…").fill(INSTRUMENT);
+    // Chip del catálogo, no texto libre: solo la clickeamos si todavía no
+    // está marcada (idempotente entre corridas contra la misma cuenta E2E).
+    const specialtyChip = page.getByRole("button", { name: INSTRUMENT, exact: true });
+    if ((await specialtyChip.getAttribute("aria-pressed")) !== "true") {
+      await specialtyChip.click();
+    }
 
     await page.locator('button[type="submit"]').click();
     await expect(page.getByRole("heading", { name: "Editar Personal" })).toBeHidden({ timeout: 10000 });
@@ -276,7 +304,7 @@ test.describe.serial("Académico — ciclo completo (cuenta E2E real)", () => {
       searchPlaceholder: "Buscar cliente…",
       searchQuery: STUDENT_CUSTOMER_NAME,
     });
-    await page.getByPlaceholder("Ej. Guitarra").fill(INSTRUMENT);
+    await page.getByLabel("Especialidad").selectOption(INSTRUMENT);
     await page.getByPlaceholder("Ej. Principiante").fill("Principiante");
     await page.getByText("Es menor de edad (necesita adulto responsable)").click();
 
@@ -339,7 +367,7 @@ test.describe.serial("Académico — ciclo completo (cuenta E2E real)", () => {
     await pickCombo(page, "Plan de clase", new RegExp(`^${escapeRe(PLAN_NAME)} `));
     // El instrumento NO se auto-completa cuando el alumno llega preseleccionado
     // por prop (solo se auto-completa en el handler `onChange` del selector).
-    await page.getByPlaceholder("Ej. Guitarra").fill(INSTRUMENT);
+    await page.getByLabel("Especialidad").selectOption(INSTRUMENT);
     await pickCombo(page, "¿Quién paga? (opcional)", new RegExp(`^${escapeRe(STUDENT_CUSTOMER_NAME)}`));
 
     await expect(page.getByText(/Venta del plan en el POS/)).toBeVisible({ timeout: 10000 });

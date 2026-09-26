@@ -9,8 +9,8 @@ import { useSchoolPeopleStore } from "@/stores/school-people.store";
 import { useSchoolStore } from "@/stores/school.store";
 import { fetchStaffSales } from "@/services/staff.service";
 import type { NewStaffInput, StaffMember, StaffSaleItem } from "@/services/staff.service";
-import { normalizeName } from "@/services/school-people.service";
 import type { TeacherProfile } from "@/services/school-people.service";
+import { specialtyOptions, specialtyLabel } from "@/services/school-settings.service";
 import { Select } from "@/components/ui/Select";
 import { useProfile } from "@/components/ProfileProvider";
 import { staffRolesForType, effectiveModules } from "@/config/business";
@@ -77,7 +77,7 @@ export default function StaffPage() {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   const [teacherEnabled, setTeacherEnabled] = useState(false);
-  const [specialtiesText, setSpecialtiesText] = useState("");
+  const [specialties, setSpecialties] = useState<string[]>([]);
   const [teacherBio, setTeacherBio] = useState("");
   const [specialtiesRequired, setSpecialtiesRequired] = useState(false);
   const [availabilityFor, setAvailabilityFor] = useState<TeacherProfile | null>(null);
@@ -108,15 +108,16 @@ export default function StaffPage() {
     [teachers],
   );
 
-  const specialties = useMemo(
-    () => specialtiesText.split(",").map((s) => normalizeName(s)).filter(Boolean),
-    [specialtiesText],
+  // Catálogo + cualquier especialidad ya elegida que haya quedado fuera de
+  // él (dato legado): nunca desaparece de las chips, solo se marca.
+  const specialtyChoices = useMemo(
+    () => specialtyOptions(schoolSettings.instruments, specialties),
+    [schoolSettings.instruments, specialties],
   );
   const toggleSpecialty = (name: string) => {
-    const next = specialties.includes(name)
-      ? specialties.filter((i) => i !== name)
-      : [...specialties, name];
-    setSpecialtiesText(next.join(", "));
+    setSpecialties((prev) =>
+      prev.includes(name) ? prev.filter((i) => i !== name) : [...prev, name],
+    );
   };
 
   const commissionByStaff = useMemo(
@@ -187,7 +188,7 @@ export default function StaffPage() {
     setEditingId(null);
     setForm(EMPTY_STAFF);
     setTeacherEnabled(false);
-    setSpecialtiesText("");
+    setSpecialties([]);
     setTeacherBio("");
     setSpecialtiesRequired(false);
     setModalOpen(true);
@@ -205,7 +206,7 @@ export default function StaffPage() {
     });
     const existingTeacher = teacherByStaffId.get(m.id) ?? null;
     setTeacherEnabled(Boolean(existingTeacher));
-    setSpecialtiesText((existingTeacher?.instruments ?? []).join(", "));
+    setSpecialties(existingTeacher?.instruments ?? []);
     setTeacherBio(existingTeacher?.bio ?? "");
     setSpecialtiesRequired(false);
     setModalOpen(true);
@@ -216,7 +217,7 @@ export default function StaffPage() {
     setEditingId(null);
     setForm(EMPTY_STAFF);
     setTeacherEnabled(false);
-    setSpecialtiesText("");
+    setSpecialties([]);
     setTeacherBio("");
     setSpecialtiesRequired(false);
   };
@@ -820,12 +821,13 @@ export default function StaffPage() {
                         <label className="flex items-center gap-1 text-[13px] font-semibold text-on-surface">
                           Especialidades <span className="text-primary">*</span>
                         </label>
-                        {schoolSettings.instruments.length > 0 && (
+                        {specialtyChoices.length > 0 ? (
                           <div className="flex flex-wrap gap-2">
-                            {schoolSettings.instruments.map((name) => (
+                            {specialtyChoices.map((name) => (
                               <button
                                 key={name}
                                 type="button"
+                                aria-pressed={specialties.includes(name)}
                                 onClick={() => toggleSpecialty(name)}
                                 className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
                                   specialties.includes(name)
@@ -833,18 +835,19 @@ export default function StaffPage() {
                                     : "bg-surface-container text-on-surface-variant hover:bg-surface-container-high"
                                 }`}
                               >
-                                {name}
+                                {specialtyLabel(name, schoolSettings.instruments)}
                               </button>
                             ))}
                           </div>
+                        ) : (
+                          <p className="text-xs text-on-surface-variant">
+                            Agregá especialidades en{" "}
+                            <Link href="/dashboard/school/config" className="font-semibold text-primary hover:underline">
+                              Configuración de Académico
+                            </Link>
+                            .
+                          </p>
                         )}
-                        <input
-                          type="text"
-                          value={specialtiesText}
-                          onChange={(e) => setSpecialtiesText(e.target.value)}
-                          placeholder="Separadas por coma: Piano, Inglés, Matemáticas…"
-                          className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-                        />
                       </div>
                       <div className="space-y-1.5">
                         <label className="text-[13px] font-semibold text-on-surface">Bio / reseña</label>

@@ -147,3 +147,25 @@ export async function saveSchoolSettings(input: SchoolSettingsInput): Promise<Sc
   if (error) throw error;
   return mapSchoolSettings(data as unknown as Record<string, unknown>);
 }
+
+/**
+ * Catálogo de especialidades + cualquier valor ya elegido que no esté en él
+ * (dato legado: se guardó antes de que existiera en el catálogo, o alguien lo
+ * sacó de ahí después). Nunca se oculta — perderlo al editar lo borraría en
+ * silencio. El catálogo va primero, en su orden; lo legado se agrega al
+ * final, sin duplicados.
+ */
+export function specialtyOptions(
+  catalog: string[],
+  selected: Array<string | null | undefined>,
+): string[] {
+  const legacy = selected.filter(
+    (v): v is string => Boolean(v && v.trim()) && !catalog.includes(v as string),
+  );
+  return [...catalog, ...Array.from(new Set(legacy))];
+}
+
+/** Etiqueta de una especialidad: marca las que quedaron fuera del catálogo. */
+export function specialtyLabel(name: string, catalog: string[]): string {
+  return catalog.includes(name) ? name : `${name} (fuera del catálogo)`;
+}

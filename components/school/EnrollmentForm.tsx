@@ -5,12 +5,14 @@ import { Select } from "@/components/ui/Select";
 import { SchoolModal } from "@/components/school/SchoolModal";
 import Link from "next/link";
 import { formatMoney, formatShortDate } from "@/components/school/format";
+import { useSchoolStore } from "@/stores/school.store";
 import { fetchCustomers, fetchCustomerSales } from "@/services/customers.service";
 import type { Customer, CustomerSale } from "@/services/customers.service";
 import { fetchStudents, fetchTeacherProfiles } from "@/services/school-people.service";
 import type { SchoolStudent, TeacherProfile } from "@/services/school-people.service";
 import { fetchLessonPlans, fetchSellableServices, schoolEnroll } from "@/services/school-enrollments.service";
 import type { LessonPlan } from "@/services/school-enrollments.service";
+import { specialtyOptions, specialtyLabel } from "@/services/school-settings.service";
 import { notifySuccess, notifyError } from "@/lib/notifications";
 
 interface EnrollmentFormProps {
@@ -29,6 +31,9 @@ interface EnrollmentFormProps {
  * diseño, no un atajo para evadir el cobro.
  */
 export function EnrollmentForm({ studentId, onClose, onSaved }: EnrollmentFormProps) {
+  const schoolSettings = useSchoolStore((s) => s.settings);
+  const schoolSettingsLoading = useSchoolStore((s) => s.loading);
+  const fetchSchoolSettings = useSchoolStore((s) => s.fetchSettings);
   const [students, setStudents] = useState<SchoolStudent[]>([]);
   const [plans, setPlans] = useState<LessonPlan[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -52,8 +57,16 @@ export function EnrollmentForm({ studentId, onClose, onSaved }: EnrollmentFormPr
       fetchCustomers().then(setCustomers),
       fetchTeacherProfiles().then(setTeachers),
       fetchSellableServices().then((s) => setServices(s.map((x) => ({ id: x.id, price: x.price })))),
+      fetchSchoolSettings(),
     ]).catch(() => {});
-  }, []);
+  }, [fetchSchoolSettings]);
+
+  // El catálogo es de Configuración de Académico; el valor precargado del
+  // alumno (dato legado) nunca se pierde aunque haya salido del catálogo.
+  const instrumentOptions = useMemo(
+    () => specialtyOptions(schoolSettings.instruments, [instrument]),
+    [schoolSettings.instruments, instrument],
+  );
 
   // Al cambiar el alumno, precargar su instrumento (en el handler, no en un effect).
   const selectedStudent = students.find((s) => s.id === selectedStudentId);
@@ -176,17 +189,32 @@ export function EnrollmentForm({ studentId, onClose, onSaved }: EnrollmentFormPr
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-1.5">
-            <label className="flex items-center gap-1 text-sm font-semibold text-on-surface">
-              Instrumento <span className="text-primary">*</span>
+            <label htmlFor="enrollment-instrument" className="flex items-center gap-1 text-sm font-semibold text-on-surface">
+              Especialidad <span className="text-primary">*</span>
             </label>
-            <input
-              type="text"
+            <select
+              id="enrollment-instrument"
               value={instrument}
               onChange={(e) => setInstrument(e.target.value)}
-              placeholder="Ej. Guitarra"
               required
               className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-            />
+            >
+              <option value="">Seleccionar…</option>
+              {instrumentOptions.map((name) => (
+                <option key={name} value={name}>
+                  {specialtyLabel(name, schoolSettings.instruments)}
+                </option>
+              ))}
+            </select>
+            {!schoolSettingsLoading && instrumentOptions.length === 0 && (
+              <p className="text-xs text-on-surface-variant">
+                Agregá especialidades en{" "}
+                <Link href="/dashboard/school/config" className="font-semibold text-primary hover:underline">
+                  Configuración de Académico
+                </Link>
+                .
+              </p>
+            )}
           </div>
           <Select
             label="Profesor por defecto"

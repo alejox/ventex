@@ -1,10 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { Select } from "@/components/ui/Select";
 import { SchoolModal } from "@/components/school/SchoolModal";
 import { useSchoolPeopleStore } from "@/stores/school-people.store";
+import { useSchoolStore } from "@/stores/school.store";
 import { normalizeName, normalizeContactPhone } from "@/services/school-people.service";
+import { specialtyOptions, specialtyLabel } from "@/services/school-settings.service";
 import { fetchCustomers } from "@/services/customers.service";
 import type { Customer } from "@/services/customers.service";
 import type { SchoolStudent } from "@/services/school-people.service";
@@ -25,6 +28,9 @@ interface StudentFormProps {
  */
 export function StudentForm({ student, onClose, onSaved }: StudentFormProps) {
   const saveStudent = useSchoolPeopleStore((s) => s.saveStudent);
+  const schoolSettings = useSchoolStore((s) => s.settings);
+  const schoolSettingsLoading = useSchoolStore((s) => s.loading);
+  const fetchSchoolSettings = useSchoolStore((s) => s.fetchSettings);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customerId, setCustomerId] = useState(student?.customer_id ?? "");
   const [instrument, setInstrument] = useState(student?.instrument ?? "");
@@ -39,7 +45,16 @@ export function StudentForm({ student, onClose, onSaved }: StudentFormProps) {
     fetchCustomers()
       .then(setCustomers)
       .catch(() => setCustomers([]));
-  }, []);
+    void fetchSchoolSettings();
+  }, [fetchSchoolSettings]);
+
+  // El catálogo de especialidades es de Configuración de Académico; el valor
+  // que ya tenía este alumno (dato legado) nunca se pierde aunque haya salido
+  // del catálogo.
+  const instrumentOptions = useMemo(
+    () => specialtyOptions(schoolSettings.instruments, [instrument]),
+    [schoolSettings.instruments, instrument],
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -89,17 +104,32 @@ export function StudentForm({ student, onClose, onSaved }: StudentFormProps) {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-1.5">
-            <label className="flex items-center gap-1 text-sm font-semibold text-on-surface">
-              Instrumento <span className="text-primary">*</span>
+            <label htmlFor="student-instrument" className="flex items-center gap-1 text-sm font-semibold text-on-surface">
+              Especialidad <span className="text-primary">*</span>
             </label>
-            <input
-              type="text"
+            <select
+              id="student-instrument"
               value={instrument}
               onChange={(e) => setInstrument(e.target.value)}
-              placeholder="Ej. Guitarra"
               required
               className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-            />
+            >
+              <option value="">Seleccionar…</option>
+              {instrumentOptions.map((name) => (
+                <option key={name} value={name}>
+                  {specialtyLabel(name, schoolSettings.instruments)}
+                </option>
+              ))}
+            </select>
+            {!schoolSettingsLoading && instrumentOptions.length === 0 && (
+              <p className="text-xs text-on-surface-variant">
+                Agregá especialidades en{" "}
+                <Link href="/dashboard/school/config" className="font-semibold text-primary hover:underline">
+                  Configuración de Académico
+                </Link>
+                .
+              </p>
+            )}
           </div>
           <div className="space-y-1.5">
             <label className="text-sm font-semibold text-on-surface">Nivel</label>
