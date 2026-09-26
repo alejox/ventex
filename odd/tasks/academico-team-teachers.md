@@ -54,6 +54,14 @@ Strategy: `ask-on-risk`. Forecast ~300–450 authored changed lines. RDD: off
       `/dashboard/school/profesores` → `/dashboard/staff`; update e2e refs.
       Route: delegated writer (2+ non-trivial files, mapping trigger).
 
+- [x] **T3** — (user request 2026-09-26) Specialty/instrument fields become
+      selectors fed by the Académico catalog (`school_settings.instruments`),
+      not free text: StudentForm, EnrollmentForm, and Personal's Perfil
+      docente (drop the comma text input, keep chip multi-select). Legacy
+      values not in the catalog stay selectable; empty catalog shows a hint
+      linking to Configuración. Labels "Instrumento" → "Especialidad".
+      Route: delegated writer (3 non-trivial files).
+
 ## Acceptance criteria
 
 - No "Escuela de música" or "Instrumentos" left in UI copy.
@@ -119,3 +127,33 @@ Strategy: `ask-on-risk`. Forecast ~300–450 authored changed lines. RDD: off
   `fetchTeachers`, `saveTeacher`) and `useSchoolStore` (`settings.instruments`
   for the specialty-chip suggestions, `fetchSettings`) — no new store/service
   was created for this.
+- T3 done. Commit `d28ada8` — feat(school): elegir especialidades desde el
+  catálogo en lugar de escribirlas. Route: delegated writer.
+  Files: components/school/StudentForm.tsx, components/school/EnrollmentForm.tsx,
+  app/dashboard/staff/page.tsx, services/school-settings.service.ts (new pure
+  `specialtyOptions`/`specialtyLabel`), tests/school-settings.test.ts (new),
+  e2e/school-cycle.spec.ts.
+  Checks: `npx tsc --noEmit` clean; `npm test` 302/302 pass (294 baseline + 8
+  new); `npm run lint` same 7 pre-existing errors/5 warnings as the T1/T2
+  baseline, none in files touched by T3.
+  Decisions: `school.config/page.tsx` (the catalog author) left untouched, as
+  scoped. `specialtyOptions(catalog, selected)` returns the catalog in order
+  plus any already-selected value(s) not in it (deduped) so a legacy
+  instrument/specialty is never silently dropped when editing; `specialtyLabel`
+  suffixes those with " (fuera del catálogo)" for display only — the stored
+  value is always the raw name. StudentForm and EnrollmentForm each call
+  `useSchoolStore`'s `fetchSettings` on mount (same pattern as the staff page)
+  since neither route already had the catalog loaded. Staff page: replaced the
+  `specialtiesText` (comma string) state with a `specialties: string[]` state
+  directly toggled by the chip buttons — dropped the now-unused `normalizeName`
+  import along with it; added `aria-pressed` to the chip buttons for a11y and
+  so e2e can detect toggle state without inspecting CSS classes. Added
+  `id`/`htmlFor` to the new `<select>`s (`student-instrument`,
+  `enrollment-instrument`) so e2e can target them via `getByLabel`, matching
+  how `components/ui/Select.tsx` already binds its own label. E2e: inserted a
+  new "02b" step in `school-cycle.spec.ts` (before "03 profesor") that adds
+  "Piano" to the Académico catalog via `/dashboard/school/config` if it's not
+  already there — the suite had no prior catalog seeding since instrument
+  fields were free text; the fill/click sites in tests 03–05 switched to
+  `selectOption`/a guarded chip click. `e2e/school.spec.ts` needed no changes
+  (it never touches these fields).
