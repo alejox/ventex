@@ -14,6 +14,8 @@ export interface SchoolStudent {
   customer_email: string | null;
   instrument: string;
   level: string | null;
+  /** Fecha de nacimiento (YYYY-MM-DD). Opcional: solo alimenta el aviso de edad. */
+  birth_date: string | null;
   status: string;
   is_minor: boolean;
   contact_email: string | null;
@@ -26,6 +28,7 @@ export interface NewStudentInput {
   customer_id: string;
   instrument: string;
   level: string | null;
+  birth_date?: string | null;
   is_minor: boolean;
   contact_email?: string | null;
   contact_phone?: string | null;
@@ -74,7 +77,7 @@ export interface NewTeacherInput {
 }
 
 const STUDENT_SELECT =
-  "id, customer_id, instrument, level, status, is_minor, contact_email, contact_phone, notes, created_at, customers(full_name, phone, email)";
+  "id, customer_id, instrument, level, birth_date, status, is_minor, contact_email, contact_phone, notes, created_at, customers(full_name, phone, email)";
 const GUARDIAN_SELECT =
   "id, student_id, customer_id, relationship, phone, email, is_notice_receiver, notices_enabled, customers(full_name)";
 const TEACHER_SELECT =
@@ -99,6 +102,7 @@ function mapStudent(raw: StudentRow): SchoolStudent {
     customer_email: (c.email as string | null) ?? null,
     instrument: raw.instrument as string,
     level: (raw.level as string | null) ?? null,
+    birth_date: (raw.birth_date as string | null) ?? null,
     status: raw.status as string,
     is_minor: (raw.is_minor as boolean) ?? false,
     contact_email: (raw.contact_email as string | null) ?? null,
@@ -181,6 +185,7 @@ export async function createStudent(input: NewStudentInput): Promise<SchoolStude
       customer_id: input.customer_id,
       instrument: normalizeName(input.instrument),
       level: input.level ? normalizeName(input.level) : null,
+      birth_date: input.birth_date || null,
       is_minor: input.is_minor,
       contact_email: input.contact_email || null,
       contact_phone: input.contact_phone ? normalizeName(input.contact_phone) : null,
@@ -200,6 +205,7 @@ export async function updateStudent(id: string, input: NewStudentInput): Promise
       customer_id: input.customer_id,
       instrument: normalizeName(input.instrument),
       level: input.level ? normalizeName(input.level) : null,
+      birth_date: input.birth_date || null,
       is_minor: input.is_minor,
       contact_email: input.contact_email || null,
       contact_phone: input.contact_phone ? normalizeName(input.contact_phone) : null,

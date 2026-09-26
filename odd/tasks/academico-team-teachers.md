@@ -69,7 +69,7 @@ Strategy: `ask-on-risk`. Forecast ~300–450 authored changed lines. RDD: off
 - [x] **T5** — Levels catalog: `school_settings.levels text[]`, edited in
       Configuración de Académico; StudentForm "Nivel" becomes a selector
       (legacy values preserved like specialties). Route: delegated writer.
-- [ ] **T6** — Age ranges for group plans: `school_students.birth_date`,
+- [x] **T6** — Age ranges for group plans: `school_students.birth_date`,
       `school_lesson_plans.min_age/max_age` (optional). PlanForm edits the
       range when `max_group_size > 1`; EnrollmentForm WARNS (does not block)
       when the student's age is outside the range (user decision
@@ -224,7 +224,7 @@ Strategy: `ask-on-risk`. Forecast ~300–450 authored changed lines. RDD: off
     switching to the name-typing path (which would create a *second*,
     unrelated customer with the same name). `e2e/school.spec.ts` doesn't touch
     StudentForm at all (verified by grep) — untouched.
-- T5 done. Commit `<T5_HASH>` — feat(school): catálogo de niveles en
+- T5 done. Commit `2bb1c53` — feat(school): catálogo de niveles en
   Configuración de Académico. Route: delegated writer (writer trigger: 2+
   non-trivial files).
   Files: supabase/migrations/20260926120000_school_levels_and_age_ranges.sql
@@ -269,3 +269,70 @@ Strategy: `ask-on-risk`. Forecast ~300–450 authored changed lines. RDD: off
     that reads `level` back from the database, so the test's coverage is
     unchanged; a level-catalog seed step would only have exercised UI already
     covered by `tests/school-settings.test.ts`'s catalog-selection tests.
+- T6 done. Commit `<T6_HASH>` — feat(school): rango de edad en grupos con
+  aviso al matricular. Route: delegated writer (writer trigger: 4+
+  non-trivial files).
+  Files: services/school-people.service.ts, services/school-enrollments.
+  service.ts, components/school/StudentForm.tsx, components/school/
+  PlanForm.tsx, components/school/EnrollmentForm.tsx,
+  app/dashboard/school/planes/page.tsx, tests/school-enrollments.test.ts
+  (new), odd/tasks/academico-team-teachers.md.
+  Checks (full branch state, T4+T5+T6 together): `npx tsc --noEmit` clean;
+  `npm test` 317/317 pass (302 baseline + 15 new, all in
+  `tests/school-enrollments.test.ts`); `npm run lint` 7 pre-existing
+  errors/5 warnings, IDENTICAL file list to the T1 baseline (confirmed via
+  `git diff --stat` before each commit) — none in any file touched by T4,
+  T5 or T6. One lint error was introduced and fixed DURING this task: an
+  initial `useEffect` in PlanForm.tsx that reset min/max age when
+  `max_group_size` dropped to 1 tripped `react-hooks/set-state-in-effect`;
+  replaced with a plain `handleMaxGroupSizeChange` wrapper around the
+  existing `onChange` (no effect at all) before committing, verified back to
+  baseline (7/5) by re-running `npm run lint`.
+  Commit boundaries — T4/T5/T6 share several files that were authored as one
+  pass (`StudentForm.tsx`, `EnrollmentForm.tsx`, `database.types.ts`), so
+  each was hand-split into three sequential, content-scoped versions (T4-only
+  → T5-on-top → T6-on-top/final) rather than assigning a whole file to one
+  commit — e.g. `StudentForm.tsx`'s T4 commit still uses the pre-rename
+  `specialtyOptions`/`specialtyLabel` names and free-text Nivel, only
+  becoming the catalog-select version in T5, then gaining `birth_date` in
+  T6. This makes each commit's diff match its task's actual scope, at the
+  cost of NOT being independently `tsc`/`test`-green in isolation (only the
+  final combined state — after all three commits — was verified, which is
+  what's reported above and is what actually ships).
+  Decisions:
+  - `birth_date`/`min_age`/`max_age` are NEVER enforced by the database (no
+    CHECK beyond the migration's own `min_age <= max_age` range validity, no
+    RPC-side rejection) — the task's own instruction and the user's
+    2026-09-26 decision are both explicit that this is a warning-only
+    feature, so `school_enroll` was left untouched.
+  - `ageOn(birthDate, today)` reads `today`'s month/day with the LOCAL
+    getters (`getMonth`/`getDate`), never `getUTC*` — `today` is meant to be
+    "today" for whoever is looking at the enrollment screen, and the
+    project's own UTC-carefulness (AGENTS.md's `tsAtUtc` notes) is about
+    scheduling INSTANTS, not about a person's day-to-day birthday. Tests for
+    it construct `Date`s with the local constructor (`new Date(y, m, d)`,
+    never an ISO `Z` string) so they're deterministic regardless of the
+    machine's timezone.
+  - Leap-day birthdays (Feb 29) resolve to March 1 in a non-leap year — not a
+    special case in the code, just a consequence of comparing month/day
+    numerically instead of constructing an invalid `Date(year, 1, 29)`.
+    Covered by test 5 in `tests/school-enrollments.test.ts`.
+  - `isOutsideAgeRange` (and therefore the EnrollmentForm warning) fails
+    CLOSED to "no warning" on any missing input — no birth date, no range on
+    the plan — never on ambiguous/partial data; the warning is additive
+    proof, not a gate, so silence is always the safe default.
+  - PlanForm: the age inputs only render when `max_group_size > 1`, and
+    picking a group size back down to 1 clears any entered min/max age in
+    the same `onChange` handler (not a derived `useEffect` — see the lint
+    fix above) so a hidden, stale range never gets silently saved on an
+    individual plan.
+  - Age range shown on plan cards (`planes/page.tsx`) reuses
+    `ageRangeLabel` from the same service as the warning, so the card and
+    the enrollment warning can never disagree on how a range renders (e.g.
+    "8–12 años" vs "Desde 8 años" vs "Hasta 12 años").
+  - New pure-logic tests went in a new `tests/school-enrollments.test.ts`
+    (that service file had no dedicated test file yet) rather than
+    `tests/school-classes.test.ts` (which already imports one unrelated
+    helper, `enrollmentBalanceOf`, from the same service) — keeps the age
+    logic's tests next to where a reader would look for
+    `school-enrollments.service.ts`'s own test coverage.

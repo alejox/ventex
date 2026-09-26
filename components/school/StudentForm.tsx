@@ -51,6 +51,7 @@ export function StudentForm({ student, onClose, onSaved }: StudentFormProps) {
   const [customerId, setCustomerId] = useState(student?.customer_id ?? "");
   const [instrument, setInstrument] = useState(student?.instrument ?? "");
   const [level, setLevel] = useState(student?.level ?? "");
+  const [birthDate, setBirthDate] = useState(student?.birth_date ?? "");
   const [isMinor, setIsMinor] = useState(student?.is_minor ?? false);
   const [contactPhone, setContactPhone] = useState(student?.contact_phone ?? "");
   const [contactEmail, setContactEmail] = useState(student?.contact_email ?? "");
@@ -124,6 +125,7 @@ export function StudentForm({ student, onClose, onSaved }: StudentFormProps) {
       customer_id: resolvedCustomerId,
       instrument: normalizeName(instrument),
       level: normalizeName(level) || null,
+      birth_date: birthDate || null,
       is_minor: isMinor,
       contact_phone: (normalizeContactPhone(contactPhone) ?? contactPhone.trim()) || null,
       contact_email: contactEmail.trim() || null,
@@ -265,6 +267,19 @@ export function StudentForm({ student, onClose, onSaved }: StudentFormProps) {
               </p>
             )}
           </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-sm font-semibold text-on-surface">Fecha de nacimiento</label>
+          <input
+            type="date"
+            value={birthDate}
+            onChange={(e) => setBirthDate(e.target.value)}
+            className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+          />
+          <p className="text-xs text-on-surface-variant">
+            Opcional — avisa (sin bloquear) si la edad no encaja en el rango de un plan grupal.
+          </p>
         </div>
 
         <label className="flex items-center gap-2 text-sm text-on-surface cursor-pointer select-none">

@@ -13,6 +13,9 @@ export interface LessonPlan {
   duration_minutes: number;
   validity_days: number;
   max_group_size: number;
+  /** Rango de edad opcional del grupo. Solo AVISA al matricular; nada lo obliga en la base. */
+  min_age: number | null;
+  max_age: number | null;
   is_active: boolean;
   created_at: string;
 }
@@ -24,6 +27,8 @@ export interface NewLessonPlanInput {
   duration_minutes: number;
   validity_days: number;
   max_group_size: number;
+  min_age?: number | null;
+  max_age?: number | null;
   is_active?: boolean;
 }
 
@@ -89,7 +94,7 @@ export interface SchoolSummary {
 }
 
 const PLAN_SELECT =
-  "id, name, service_id, lesson_count, duration_minutes, validity_days, max_group_size, is_active, created_at, services(name)";
+  "id, name, service_id, lesson_count, duration_minutes, validity_days, max_group_size, min_age, max_age, is_active, created_at, services(name)";
 const ENROLLMENT_SELECT =
   "id, student_id, lesson_plan_id, instrument, status, start_date, expiry_date, contracted_lessons, plan_name, plan_price, plan_validity_days, reschedule_count, sale_id, default_teacher_profile_id, created_at, school_students(customer_id, customers(full_name))";
 
@@ -104,6 +109,8 @@ function planRowToPlan(raw: Record<string, unknown> & { services?: unknown }): L
     duration_minutes: raw.duration_minutes as number,
     validity_days: raw.validity_days as number,
     max_group_size: raw.max_group_size as number,
+    min_age: (raw.min_age as number | null) ?? null,
+    max_age: (raw.max_age as number | null) ?? null,
     is_active: (raw.is_active as boolean) ?? true,
     created_at: raw.created_at as string,
   };
@@ -187,6 +194,46 @@ export function frozenSnapshotOf(input: {
   };
 }
 
+/**
+ * Edad cumplida en `today` a partir de una fecha de nacimiento `YYYY-MM-DD`.
+ *
+ * Compara solo mes/día (nunca construye un `Date` con el año de `today`), así
+ * que un cumpleaños 29 de febrero cae en el 1 de marzo en un año no bisiesto
+ * en vez de reventar o saltarse el año — la misma resolución que ya usan los
+ * calendarios civiles para ese caso. `null` si no hay fecha (dato opcional).
+ */
+export function ageOn(birthDate: string | null | undefined, today: Date): number | null {
+  if (!birthDate) return null;
+  const [y, m, d] = birthDate.split("-").map(Number);
+  if (!y || !m || !d) return null;
+  let age = today.getFullYear() - y;
+  const hadBirthdayThisYear =
+    today.getMonth() + 1 > m || (today.getMonth() + 1 === m && today.getDate() >= d);
+  if (!hadBirthdayThisYear) age -= 1;
+  return age;
+}
+
+/** Texto del rango de edad de un plan, o "" si el plan no tiene rango. */
+export function ageRangeLabel(min: number | null, max: number | null): string {
+  if (min === null && max === null) return "";
+  if (min !== null && max !== null) return `${min}–${max} años`;
+  if (min !== null) return `Desde ${min} años`;
+  return `Hasta ${max} años`;
+}
+
+/**
+ * Si `age` cae fuera de [min, max]. Devuelve `false` (nunca avisa) cuando
+ * falta la edad o el plan no tiene rango — el aviso es estrictamente
+ * adicional, nunca bloquea la matrícula (decisión del negocio, 2026-09-26).
+ */
+export function isOutsideAgeRange(age: number | null, min: number | null, max: number | null): boolean {
+  if (age === null) return false;
+  if (min === null && max === null) return false;
+  if (min !== null && age < min) return true;
+  if (max !== null && age > max) return true;
+  return false;
+}
+
 // ---- Planes ----
 
 export async function fetchLessonPlans(activeOnly = false): Promise<LessonPlan[]> {
@@ -209,6 +256,8 @@ export async function createLessonPlan(input: NewLessonPlanInput): Promise<Lesso
       duration_minutes: input.duration_minutes,
       validity_days: input.validity_days,
       max_group_size: input.max_group_size,
+      min_age: input.min_age ?? null,
+      max_age: input.max_age ?? null,
       is_active: input.is_active ?? true,
     })
     .select(PLAN_SELECT)
@@ -228,6 +277,8 @@ export async function updateLessonPlan(id: string, input: NewLessonPlanInput): P
       duration_minutes: input.duration_minutes,
       validity_days: input.validity_days,
       max_group_size: input.max_group_size,
+      min_age: input.min_age ?? null,
+      max_age: input.max_age ?? null,
       is_active: input.is_active ?? true,
     })
     .eq("id", id)

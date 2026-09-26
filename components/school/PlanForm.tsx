@@ -30,6 +30,8 @@ export function PlanForm({ plan, onClose, onSaved }: PlanFormProps) {
   const [durationMinutes, setDurationMinutes] = useState(plan?.duration_minutes ?? 60);
   const [validityDays, setValidityDays] = useState(plan?.validity_days ?? 30);
   const [maxGroupSize, setMaxGroupSize] = useState(plan?.max_group_size ?? 1);
+  const [minAge, setMinAge] = useState<number | "">(plan?.min_age ?? "");
+  const [maxAge, setMaxAge] = useState<number | "">(plan?.max_age ?? "");
   const [isActive, setIsActive] = useState(plan?.is_active ?? true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -40,11 +42,24 @@ export function PlanForm({ plan, onClose, onSaved }: PlanFormProps) {
       .catch(() => setServices([]));
   }, []);
 
+  const ageRangeInvalid = minAge !== "" && maxAge !== "" && minAge > maxAge;
+
+  // El rango de edad solo tiene sentido para un plan grupal: si el negocio
+  // baja el cupo a 1, se limpia en el mismo handler (no un efecto derivado)
+  // para no dejar un valor invisible guardado en un plan individual.
+  const handleMaxGroupSizeChange = (value: number) => {
+    setMaxGroupSize(value);
+    if (value <= 1) {
+      setMinAge("");
+      setMaxAge("");
+    }
+  };
+
   const selectedService = services.find((s) => s.id === serviceId);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!normalizeName(name) || !serviceId || lessonCount < 1) return;
+    if (!normalizeName(name) || !serviceId || lessonCount < 1 || ageRangeInvalid) return;
 
     setLoading(true);
     setError("");
@@ -55,6 +70,8 @@ export function PlanForm({ plan, onClose, onSaved }: PlanFormProps) {
       duration_minutes: durationMinutes,
       validity_days: validityDays,
       max_group_size: maxGroupSize,
+      min_age: minAge === "" ? null : minAge,
+      max_age: maxAge === "" ? null : maxAge,
       is_active: isActive,
     };
     try {
@@ -150,11 +167,50 @@ export function PlanForm({ plan, onClose, onSaved }: PlanFormProps) {
               type="number"
               min={1}
               value={maxGroupSize}
-              onChange={(e) => setMaxGroupSize(Number(e.target.value))}
+              onChange={(e) => handleMaxGroupSizeChange(Number(e.target.value))}
               className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
             />
           </div>
         </div>
+
+        {maxGroupSize > 1 && (
+          <div className="space-y-1.5">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-sm font-semibold text-on-surface">Edad mínima</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={120}
+                  value={minAge}
+                  onChange={(e) => setMinAge(e.target.value === "" ? "" : Number(e.target.value))}
+                  placeholder="Sin mínimo"
+                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-semibold text-on-surface">Edad máxima</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={120}
+                  value={maxAge}
+                  onChange={(e) => setMaxAge(e.target.value === "" ? "" : Number(e.target.value))}
+                  placeholder="Sin máximo"
+                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                />
+              </div>
+            </div>
+            <p className="text-xs text-on-surface-variant">
+              Opcional. Al matricular, avisa (sin bloquear) si la edad del alumno queda fuera.
+            </p>
+            {ageRangeInvalid && (
+              <p className="text-xs text-error-dim" role="alert">
+                La edad mínima no puede ser mayor que la máxima.
+              </p>
+            )}
+          </div>
+        )}
 
         <label className="flex items-center gap-2 text-sm text-on-surface cursor-pointer select-none">
           <input
@@ -182,7 +238,7 @@ export function PlanForm({ plan, onClose, onSaved }: PlanFormProps) {
           </button>
           <button
             type="submit"
-            disabled={loading || !normalizeName(name) || !serviceId || lessonCount < 1}
+            disabled={loading || !normalizeName(name) || !serviceId || lessonCount < 1 || ageRangeInvalid}
             className="px-6 py-2.5 rounded-xl bg-primary hover:bg-primary-dim text-white text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? "Guardando…" : "Guardar plan"}

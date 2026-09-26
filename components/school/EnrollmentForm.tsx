@@ -10,7 +10,7 @@ import { fetchCustomers, fetchCustomerSales } from "@/services/customers.service
 import type { Customer, CustomerSale } from "@/services/customers.service";
 import { fetchStudents, fetchTeacherProfiles } from "@/services/school-people.service";
 import type { SchoolStudent, TeacherProfile } from "@/services/school-people.service";
-import { fetchLessonPlans, fetchSellableServices, schoolEnroll } from "@/services/school-enrollments.service";
+import { fetchLessonPlans, fetchSellableServices, schoolEnroll, ageOn, ageRangeLabel, isOutsideAgeRange } from "@/services/school-enrollments.service";
 import type { LessonPlan } from "@/services/school-enrollments.service";
 import { catalogOptions, catalogLabel } from "@/services/school-settings.service";
 import { notifySuccess, notifyError } from "@/lib/notifications";
@@ -110,6 +110,17 @@ export function EnrollmentForm({ studentId, onClose, onSaved }: EnrollmentFormPr
   const planService = services.find((s) => s.id === selectedPlan?.service_id);
   const previewPrice =
     selectedPlan && planService ? planService.price * selectedPlan.lesson_count : null;
+
+  // Aviso de edad: SOLO informa, nunca bloquea la matrícula (decisión del
+  // negocio, 2026-09-26). Si falta el dato (sin fecha de nacimiento, o el plan
+  // sin rango) simplemente no hay nada que avisar.
+  const selectedStudentAge = useMemo(
+    () => ageOn(selectedStudent?.birth_date, new Date()),
+    [selectedStudent],
+  );
+  const outsideAgeRange = selectedPlan
+    ? isOutsideAgeRange(selectedStudentAge, selectedPlan.min_age, selectedPlan.max_age)
+    : false;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -274,6 +285,16 @@ export function EnrollmentForm({ studentId, onClose, onSaved }: EnrollmentFormPr
             </div>
           )}
         </div>
+
+        {outsideAgeRange && selectedStudent && selectedPlan && (
+          <p
+            className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-sm text-amber-700 dark:text-amber-400"
+            role="alert"
+          >
+            La edad de {selectedStudent.full_name} ({selectedStudentAge} años) está fuera del rango del
+            grupo ({ageRangeLabel(selectedPlan.min_age, selectedPlan.max_age)}).
+          </p>
+        )}
 
         {selectedPlan && planService && (
           <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4">

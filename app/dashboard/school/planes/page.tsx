@@ -5,7 +5,7 @@ import { PlanForm } from "@/components/school/PlanForm";
 import { formatMoney } from "@/components/school/format";
 import { CollectionLoading, CollectionEmpty, CollectionError, CollectionFilteredEmpty } from "@/components/CollectionState";
 import { IconCalendar, IconSearch } from "@/app/assets/icons/DashboardIcons";
-import { fetchLessonPlans, fetchSellableServices, setLessonPlanStatus } from "@/services/school-enrollments.service";
+import { fetchLessonPlans, fetchSellableServices, setLessonPlanStatus, ageRangeLabel } from "@/services/school-enrollments.service";
 import type { LessonPlan, SellableService } from "@/services/school-enrollments.service";
 import { notifySuccess, notifyError } from "@/lib/notifications";
 
@@ -149,6 +149,12 @@ export default function PlanesPage() {
                   <dd className="text-right font-bold text-primary">{price > 0 ? formatMoney(price) : "—"}</dd>
                   <dt className="text-on-surface-variant">Grupo</dt>
                   <dd className="text-right font-semibold text-on-surface">{p.max_group_size} {p.max_group_size === 1 ? "alumno" : "alumnos"}</dd>
+                  {ageRangeLabel(p.min_age, p.max_age) && (
+                    <>
+                      <dt className="text-on-surface-variant">Edad</dt>
+                      <dd className="text-right font-semibold text-on-surface">{ageRangeLabel(p.min_age, p.max_age)}</dd>
+                    </>
+                  )}
                 </dl>
                 <div className="mt-4 flex justify-end gap-2">
                   <button
