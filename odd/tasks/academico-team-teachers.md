@@ -77,6 +77,15 @@ Strategy: `ask-on-risk`. Forecast ~300–450 authored changed lines. RDD: off
       Migration `20260926120000_school_levels_and_age_ranges.sql` applied via
       MCP by the orchestrator.
 
+- [x] **T7** — (user report 2026-09-26: Resumen shows 0 profesores after
+      creating one in Personal) Root cause: the person was created without a
+      `school_teacher_profiles` row ("Es profesor" is opt-in, default off);
+      the summary counts profiles. Fix: default "Es profesor" ON for new
+      people when the school module is active; Resumen shows a hint linking to
+      Personal when active staff lack a teacher profile; surface saveTeacher
+      errors in the Personal modal; retry after a teacher-profile failure must
+      not create the staff row again. Route: delegated writer.
+
 ## Acceptance criteria
 
 - No "Escuela de música" or "Instrumentos" left in UI copy.
@@ -336,3 +345,61 @@ Strategy: `ask-on-risk`. Forecast ~300–450 authored changed lines. RDD: off
     helper, `enrollmentBalanceOf`, from the same service) — keeps the age
     logic's tests next to where a reader would look for
     `school-enrollments.service.ts`'s own test coverage.
+- T7 done. Commit `cc0605f` — fix(school): marcar 'Es profesor' por defecto y
+  avisar personal sin perfil docente. Route: delegated writer.
+  Files: app/dashboard/staff/page.tsx, app/dashboard/school/page.tsx,
+  services/school-enrollments.service.ts, stores/school-people.store.ts,
+  tests/school-enrollments.test.ts.
+  Checks: `npx tsc --noEmit` clean; `npm test` 322/322 pass (317 baseline + 5
+  new, all in `tests/school-enrollments.test.ts`); `npm run lint` same 7
+  pre-existing errors/5 warnings as the T1 baseline (confirmed by file path:
+  app/admin/resellers/page.tsx, app/dashboard/pedidos/PedidosClient.tsx,
+  app/dashboard/pos/components/PosCartPanel.tsx,
+  app/dashboard/school/estudiantes/[id]/page.tsx,
+  app/dashboard/settings/promociones/page.tsx, app/reseller/clients/page.tsx,
+  components/DataTable.tsx, e2e/pos-panel-overflow.spec.ts — none touched by
+  T7).
+  Decisions:
+  - `openCreate` now defaults `teacherEnabled` to `schoolModuleActive`;
+    `openEdit` is untouched (still derives from whether the person already
+    has a teacher profile). Consequence disclosed, not hidden: a new hire in
+    an Académico tenant who isn't a teacher must now either untick "Es
+    profesor" or pick at least one specialty before submitting (the existing
+    `specialtiesRequired` gate applies equally to the new default) — this is
+    the tradeoff the task's own wording ("teachers unless unticked") asked
+    for.
+  - e2e: left `e2e/school-cycle.spec.ts` test "03 profesor" untouched after
+    checking it — it opens an EXISTING staff member via "Editar Personal"
+    (`openEdit`), never "Añadir Personal" (`openCreate`), so the default-on
+    change doesn't touch its flow; its existing
+    `if (!existingProfile) { click }` guard was already idempotent against
+    DB state. `e2e/staff.spec.ts`'s "Añadir Personal" tests never submit the
+    form, so they're unaffected too. No e2e file needed a change.
+  - Added `useSchoolPeopleStore.clearError` (`set({ error: null })`, same
+    shape as `clearError` in `stores/purchase-orders.store.ts` and
+    `stores/school-materials.store.ts`) and call it from `openCreate`,
+    `openEdit` and `handleClose` — before this, a `saveTeacher` failure's
+    message stayed in the store and could reappear stale on the next modal
+    open, since none of `fetchStudents`/`fetchTeachers`/`saveStudent`/
+    `saveGuardian`/`saveTeacher` reset `error` except at their own start.
+  - Duplicate-on-retry fix: `handleSubmit` now captures `wasCreating =
+    !editingId` before the `addStaff`/`updateStaff` call; on a fresh create
+    it calls `setEditingId(staffId)` and `fetchStaff()` right after the staff
+    row lands, BEFORE attempting `saveTeacher` — so a `saveTeacher` failure
+    leaves the modal already in edit mode over the real id (a resubmit calls
+    `updateStaff` + `saveTeacher` again, never a second `addStaff`), and the
+    new row is visible in the list even if the user closes the modal instead
+    of retrying.
+  - `staff_without_teacher_profile` (new field on `SchoolSummary`) is
+    computed by a pure helper, `countStaffWithoutTeacherProfile(activeIds,
+    teacherIds)` (set difference, tested in `tests/school-enrollments.test.ts`
+    tests 16-20), fed by two extra Supabase queries already covered by
+    existing RLS (`staff` filtered `status = 'active'`, `school_teacher_profiles`
+    `staff_id` only) — no new DB objects, no migration. It's a SEPARATE number
+    from `teachers` (which stays the raw profile count): the two intentionally
+    never have to reconcile to the same total, e.g. an inactive staff member's
+    stray teacher profile inflates neither.
+  - Resumen hint: a plain sentence-with-link under the StatCard grid (not
+    the amber alert style used for `pendingCloseLessons`) since this is a
+    lower-urgency, no-deadline nudge — singular/plural handled inline
+    (`persona`/`personas`).
