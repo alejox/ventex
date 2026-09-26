@@ -19,7 +19,7 @@ import {
 } from "./helpers/db";
 
 /**
- * Ciclo completo del módulo Escuela de música, contra la cuenta E2E real
+ * Ciclo completo del módulo Académico, contra la cuenta E2E real
  * (owner, business_type `escuela`, módulos school/services/staff activos).
  *
  * Cada test es independiente (login propio vía beforeEach, como el resto de
@@ -158,7 +158,7 @@ function lessonCardByTeacher(page: Page, teacherName: string, studentName?: stri
   ).first();
 }
 
-test.describe.serial("Escuela de música — ciclo completo (cuenta E2E real)", () => {
+test.describe.serial("Académico — ciclo completo (cuenta E2E real)", () => {
   test.beforeEach(async ({ page }) => {
     // El config global usa 30s (alcanza para el resto de la suite, que pega
     // sobre rutas ya compiladas). Este spec visita muchas rutas nuevas contra

@@ -7,7 +7,7 @@ import { IconSettings } from "@/app/assets/icons/DashboardIcons";
 import { notifySuccess, notifyError } from "@/lib/notifications";
 
 /**
- * Configuración de la escuela: instrumentos, salas y la política de
+ * Configuración de Académico: especialidades, salas y la política de
  * reprogramación. Se guarda read-insert-or-update: el negocio que nunca abrió
  * esta pantalla ni siquiera tiene fila en `school_settings`.
  */
@@ -78,7 +78,7 @@ export default function SchoolConfigPage() {
           <IconSettings className="h-5 w-5" />
         </span>
         <div>
-          <h1 className="text-2xl font-bold text-on-surface">Configuración de la escuela</h1>
+          <h1 className="text-2xl font-bold text-on-surface">Configuración de Académico</h1>
           <p className="text-sm text-on-surface-variant">Qué se enseña y bajo qué reglas.</p>
         </div>
       </div>
@@ -87,18 +87,18 @@ export default function SchoolConfigPage() {
         <h2 className="font-bold text-on-surface">Catálogo</h2>
         <div className="space-y-1.5">
           <label className="flex items-center gap-1 text-sm font-semibold text-on-surface">
-            Instrumentos <span className="text-primary">*</span>
+            Especialidades <span className="text-primary">*</span>
           </label>
           <input
             type="text"
             value={instrumentsText}
             onChange={(e) => setInstrumentsText(e.target.value)}
-            placeholder="Separados por coma: Guitarra, Piano, Canto…"
+            placeholder="Separadas por coma: Piano, Inglés, Matemáticas…"
             required
             className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
           />
           <p className="text-xs text-on-surface-variant">
-            Los usa el perfil del profesor para elegir qué enseña.
+            Las usa el perfil docente en Personal para elegir qué enseña.
           </p>
         </div>
         <div className="space-y-1.5">
@@ -165,7 +165,7 @@ export default function SchoolConfigPage() {
       <div className="flex justify-end gap-3">
         <p className="mr-auto self-center text-xs text-on-surface-variant">
           {settings.instruments.length > 0
-            ? `${settings.instruments.length} instrumentos · ${settings.rooms.length} salas`
+            ? `${settings.instruments.length} especialidades · ${settings.rooms.length} salas`
             : "Sin guardar todavía — los cambios se aplican al guardar."}
         </p>
         <button

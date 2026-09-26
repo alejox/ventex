@@ -43,7 +43,7 @@ export default async function FamilyMaterialPage({
   return (
     <main className="flex min-h-screen items-center justify-center bg-surface p-4">
       <div className="w-full max-w-md rounded-3xl border border-outline-variant/10 bg-surface-container-lowest p-6 shadow-lg">
-        <h1 className="text-lg font-bold text-on-surface">Escuela de música</h1>
+        <h1 className="text-lg font-bold text-on-surface">Académico</h1>
 
         {error ? (
           <p className="mt-4 rounded-2xl bg-error/10 p-4 text-sm font-medium text-error">{error}</p>

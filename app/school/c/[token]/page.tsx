@@ -76,7 +76,7 @@ export default async function TeacherConfirmPage({
           )
         )}
 
-        <p className="mt-6 text-center text-xs text-on-surface-variant/70">Ventex — Escuela de música</p>
+        <p className="mt-6 text-center text-xs text-on-surface-variant/70">Ventex — Académico</p>
       </div>
     </main>
   );

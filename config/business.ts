@@ -63,7 +63,7 @@ export const WORKER_PERMISSION_LABELS: Record<WorkerPermission, string> = {
   vehicles: "Vehículos",
   billing: "Facturación",
   settings: "Configuración del negocio",
-  school: "Escuela de música",
+  school: "Académico",
 };
 
 /**
@@ -133,7 +133,7 @@ export const BUSINESS_OPTIONS: BusinessOption[] = [
   { id: "tienda", label: "Tienda General" },
   { id: "lavaautos", label: "Lavaautos" },
   { id: "servicios", label: "Servicios Profesionales" },
-  { id: "escuela", label: "Escuela de música" },
+  { id: "escuela", label: "Académico" },
 ];
 
 /**
@@ -181,7 +181,7 @@ export const MODULES_BY_TYPE: Record<BusinessType, ModuleOption[]> = {
     { id: "staff", label: "Personal", description: "Administra tu equipo de barberos y estilistas, con sus comisiones." },
     { id: "inventory", label: "Inventario", description: "Controla stock de productos, pomadas, ceras, shampoos y más." },
     // Opt-in, nunca preseleccionado: se elige en Ajustes (ver OPT_IN_MODULE_IDS).
-    { id: "school", label: "Escuela de música", description: "Estudiantes, profesores, planes de clase y el progreso de las clases." },
+    { id: "school", label: "Académico", description: "Estudiantes, profesores, planes de clase y el progreso de las clases." },
   ],
   // Inventario NO es un extra opcional de la tienda: es parte del núcleo y ya
   // viene en el menú base (ver BASE_NAV_BY_TYPE.tienda). Los dos extras que se
@@ -202,13 +202,13 @@ export const MODULES_BY_TYPE: Record<BusinessType, ModuleOption[]> = {
     { id: "staff", label: "Personal", description: "Administra a tus profesionales y consultores, con sus comisiones." },
     { id: "billing", label: "Facturación", description: "Genera facturas y cotizaciones para tus clientes." },
     // Opt-in, nunca preseleccionado: se elige en Ajustes (ver OPT_IN_MODULE_IDS).
-    { id: "school", label: "Escuela de música", description: "Estudiantes, profesores, planes de clase y el progreso de las clases." },
+    { id: "school", label: "Académico", description: "Estudiantes, profesores, planes de clase y el progreso de las clases." },
   ],
   // Acá `school` NO es un extra: es la razón de ser del negocio, así que viene
   // encendido desde el registro (ver CORE_MODULES_BY_TYPE). Sin Citas: la
   // escuela agenda en su propia agenda de clases, no en el calendario de citas.
   escuela: [
-    { id: "school", label: "Escuela de música", description: "Estudiantes, acudientes, profesores, matrículas, agenda de clases y asistencia." },
+    { id: "school", label: "Académico", description: "Estudiantes, acudientes, profesores, matrículas, agenda de clases y asistencia." },
     { id: "services", label: "Servicios", description: "Los planes de clase se venden como servicios en el POS: mensualidades, paquetes y clases sueltas." },
     { id: "staff", label: "Personal", description: "Tus profesores y coordinadores, con sus accesos y comisiones." },
   ],
@@ -346,12 +346,12 @@ export const NAV_ITEMS: NavItem[] = [
   // ---- El negocio, no la operación diaria ----
   { id: "vehicles", name: "Vehículos", href: "/dashboard/vehicles", modules: ["vehicles"] },
 
-  // ---- Escuela de música (opt-in) ----
+  // ---- Académico (opt-in) ----
   //
   // Las seis pantallas del módulo escolar, todas detrás de `school`. El ítem
-  // índice se llama "Resumen" y no "Escuela" por la regla del grupo (ver el
-  // comentario de NAV_ITEMS): el grupo ya se llama Escuela, y repetir el
-  // nombre del grupo en su primer hijo leía "Escuela › Escuela".
+  // índice se llama "Resumen" y no "Académico" por la regla del grupo (ver el
+  // comentario de NAV_ITEMS): el grupo ya se llama Académico, y repetir el
+  // nombre del grupo en su primer hijo leía "Académico › Académico".
   { id: "school", name: "Resumen", href: "/dashboard/school", modules: ["school"] },
   { id: "school-agenda", name: "Agenda", href: "/dashboard/school/agenda", modules: ["school"] },
   { id: "school-estudiantes", name: "Estudiantes", href: "/dashboard/school/estudiantes", modules: ["school"] },
@@ -435,8 +435,8 @@ const BASE_NAV_BY_TYPE: Record<BusinessType, string[]> = {
   tienda: ["inventory", "categories", "distributors", "purchases", "pedidos"],
   lavaautos: ["calendar"],
   servicios: ["calendar"],
-  // Sin base propia: todo su menú (Escuela, Productos y servicios, Personal)
-  // sale de sus módulos. El calendario de citas no aplica — agenda en la Escuela.
+  // Sin base propia: todo su menú (Académico, Productos y servicios, Personal)
+  // sale de sus módulos. El calendario de citas no aplica — agenda en Académico.
   escuela: [],
 };
 
@@ -546,9 +546,9 @@ const NAV_GROUP_ORDER: { id: string; label: string | null; itemIds: string[] }[]
   { id: "inventario", label: "Inventario", itemIds: ["inventory", "pedidos", "distributors", "purchases"] },
   { id: "finanzas", label: "Finanzas", itemIds: ["expenses"] },
   { id: "equipo", label: "Equipo", itemIds: ["staff", "commissions", "haircuts"] },
-  // Escuela es OPT-IN: el grupo entero desaparece cuando el módulo está apagado
+  // Académico es OPT-IN: el grupo entero desaparece cuando el módulo está apagado
   // (visibleNavItems lo filtra por módulo y workerNavItems por permiso + módulo).
-  { id: "escuela", label: "Escuela", itemIds: ["school", "school-agenda", "school-estudiantes", "school-profesores", "school-planes", "school-config"] },
+  { id: "escuela", label: "Académico", itemIds: ["school", "school-agenda", "school-estudiantes", "school-profesores", "school-planes", "school-config"] },
   { id: "presencia", label: "Presencia digital", itemIds: ["landing"] },
 ];
 
@@ -631,7 +631,7 @@ const NON_NAV_PERMISSIONS: WorkerPermission[] = ["settings"];
  * Ítems del sidebar para un trabajador, en el orden canónico de NAV_ITEMS.
  * La única fuente de verdad son sus permisos: sin permiso no hay ítem.
  *
- * `modules` (opcional) afina los ítems de la Escuela: son los ÚNICOS que
+ * `modules` (opcional) afina los ítems de Académico: son los ÚNICOS que
  * consultan el módulo acá, porque school es opt-in y un permiso suelto no
  * debe destapar la sección en un negocio que nunca la activó. El resto del
  * menú conserva su regla histórica (permiso → ítem), sin cambios.
@@ -663,7 +663,7 @@ export function workerNavItems(
   // Categorías dejó de ser un ítem de menú: su administración vive dentro del
   // catálogo, que es donde se usan. Quien tiene `inventory` ya llega ahí.
 
-  // La Escuela es UNA sección detrás de un solo permiso: quien tiene `school`
+  // Académico es UNA sección detrás de un solo permiso: quien tiene `school`
   // ve las seis pantallas. Y como el módulo es opt-in, ni siquiera el permiso
   // basta — sin el módulo activo los ítems desaparecen (los RPC y las páginas
   // también cierran solos en `school_module_enabled()`).

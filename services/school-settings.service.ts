@@ -17,7 +17,7 @@ export interface SchoolPolicy {
 
 export interface SchoolSettings {
   id: string | null;
-  /** Instrumentos que puede enseñar el negocio. */
+  /** Especialidades que puede enseñar el negocio. */
   instruments: string[];
   /** Salas / aulas que se pueden asignar a una clase. */
   rooms: string[];

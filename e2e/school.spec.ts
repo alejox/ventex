@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import { tryLogin } from "./helpers/auth";
 
 /**
- * Escuela de música es un módulo opt-in (`profiles.modules->>'school'`): el
+ * Académico es un módulo opt-in (`profiles.modules->>'school'`): el
  * tenant de prueba puede o no tenerlo activado en este entorno. Las pruebas
  * autenticadas se saltan (no fallan) cuando el módulo está apagado — igual que
  * `public-calendar-privacy.spec.ts` se salta si el sitio público no está
@@ -15,7 +15,7 @@ import { tryLogin } from "./helpers/auth";
 const INVALID_TOKEN = "token-invalido-e2e-00000000";
 const RANDOM_MATERIAL_ID = "00000000-0000-0000-0000-000000000000";
 
-test.describe("Escuela de música — pantallas del dashboard", () => {
+test.describe("Académico — pantallas del dashboard", () => {
   test.beforeEach(async ({ page }) => {
     const loggedIn = await tryLogin(page);
     test.skip(!loggedIn, "No se pudo autenticar - saltando prueba");
@@ -30,7 +30,7 @@ test.describe("Escuela de música — pantallas del dashboard", () => {
       !/\/dashboard\/school$/.test(page.url()),
       "El tenant de prueba no tiene el módulo 'school' activado (redirige a /dashboard)",
     );
-    await expect(page.getByRole("heading", { name: "Escuela de música" })).toBeVisible({
+    await expect(page.getByRole("heading", { name: "Académico" })).toBeVisible({
       timeout: 15000,
     });
   });
@@ -63,14 +63,14 @@ test.describe("Escuela de música — pantallas del dashboard", () => {
   });
 });
 
-test.describe("Escuela de música — enlaces por token (fuera de /dashboard)", () => {
+test.describe("Académico — enlaces por token (fuera de /dashboard)", () => {
   test("un token familiar inválido muestra el estado de error, nunca una excepción sin manejar", async ({
     page,
   }) => {
     const response = await page.goto(`/school/f/${INVALID_TOKEN}`);
     expect(response?.status()).toBeLessThan(500);
     await page.waitForLoadState("networkidle");
-    await expect(page.getByRole("heading", { name: "Escuela de música" })).toBeVisible({
+    await expect(page.getByRole("heading", { name: "Académico" })).toBeVisible({
       timeout: 10000,
     });
     await expect(page.getByText(/no es válido|venció|revocado/i)).toBeVisible({ timeout: 10000 });
@@ -106,7 +106,7 @@ test.describe("Escuela de música — enlaces por token (fuera de /dashboard)", 
   });
 });
 
-test.describe("Escuela de música — rutas de API sin sesión", () => {
+test.describe("Académico — rutas de API sin sesión", () => {
   test("GET /api/school/confirm no existe: 405, nunca confirma por lectura", async ({ request }) => {
     const response = await request.get("/api/school/confirm");
     expect(response.status()).toBe(405);

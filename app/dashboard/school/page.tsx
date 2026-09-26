@@ -63,7 +63,7 @@ export default function SchoolResumenPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-on-surface">Escuela de música</h1>
+        <h1 className="text-2xl font-bold text-on-surface">Académico</h1>
         <p className="mt-1 text-sm text-on-surface-variant">
           Alumnos, profesores, planes de clase y el progreso de las matrículas.
         </p>
@@ -113,7 +113,7 @@ export default function SchoolResumenPage() {
       <div className="rounded-3xl border border-outline-variant/10 bg-surface-container-lowest p-6 shadow-sm">
         <h2 className="font-bold text-on-surface">Primeros pasos</h2>
         <ul className="mt-3 space-y-2 text-sm text-on-surface-variant">
-          <li>1. Configurá los instrumentos y la política de reprogramación en <Link className="font-semibold text-primary hover:underline" href="/dashboard/school/config">Configuración</Link>.</li>
+          <li>1. Configurá las especialidades y la política de reprogramación en <Link className="font-semibold text-primary hover:underline" href="/dashboard/school/config">Configuración</Link>.</li>
           <li>2. Creá los <Link className="font-semibold text-primary hover:underline" href="/dashboard/school/profesores">profesores</Link> desde el equipo del negocio.</li>
           <li>3. Armá los <Link className="font-semibold text-primary hover:underline" href="/dashboard/school/planes">planes de clase</Link> sobre los servicios del catálogo.</li>
           <li>4. Registrá <Link className="font-semibold text-primary hover:underline" href="/dashboard/school/estudiantes">alumnos</Link> y matricularlos en un plan.</li>
