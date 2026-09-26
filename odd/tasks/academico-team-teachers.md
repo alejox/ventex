@@ -269,7 +269,7 @@ Strategy: `ask-on-risk`. Forecast ~300–450 authored changed lines. RDD: off
     that reads `level` back from the database, so the test's coverage is
     unchanged; a level-catalog seed step would only have exercised UI already
     covered by `tests/school-settings.test.ts`'s catalog-selection tests.
-- T6 done. Commit `<T6_HASH>` — feat(school): rango de edad en grupos con
+- T6 done. Commit `23f1832` — feat(school): rango de edad en grupos con
   aviso al matricular. Route: delegated writer (writer trigger: 4+
   non-trivial files).
   Files: services/school-people.service.ts, services/school-enrollments.
