@@ -91,6 +91,13 @@ export interface SchoolSummary {
   total_balance: number;
   /** Matrículas activas que vencen en los próximos 15 días. */
   expiring_soon: number;
+  /**
+   * Personal ACTIVO sin fila en `school_teacher_profiles`. Nunca es la fuente
+   * de `teachers` (ese sigue siendo el conteo de perfiles) — esto es el aviso
+   * de "faltó activar 'Es profesor'" que motivó T7: alguien creado en
+   * Personal sin tildar el checkbox no cuenta como profesor en el resumen.
+   */
+  staff_without_teacher_profile: number;
 }
 
 const PLAN_SELECT =
@@ -379,24 +386,51 @@ export async function schoolEnroll(input: EnrollmentInput): Promise<Record<strin
 
 // ---- Resumen del dashboard de la escuela ----
 
+/**
+ * Pura: cuenta cuántos ids de personal activo no aparecen entre los ids de
+ * personal que sí tienen perfil docente. Separada de `fetchSchoolSummary`
+ * para poder testearla sin tocar Supabase (tests/school-enrollments.test.ts).
+ */
+export function countStaffWithoutTeacherProfile(
+  activeStaffIds: string[],
+  teacherStaffIds: string[],
+): number {
+  const withProfile = new Set(teacherStaffIds);
+  return activeStaffIds.filter((id) => !withProfile.has(id)).length;
+}
+
 export async function fetchSchoolSummary(): Promise<SchoolSummary> {
   const supabase = createClient();
 
-  const [students, teachers, plans, enrollments, movements, expiring] = await Promise.all([
-    supabase.from("school_students").select("id", { count: "exact", head: true }),
-    supabase.from("school_teacher_profiles").select("id", { count: "exact", head: true }),
-    supabase.from("school_lesson_plans").select("id", { count: "exact", head: true }),
-    supabase.from("school_enrollments").select("id, status"),
-    supabase.from("school_class_credit_movements").select("amount, enrollment_id, school_enrollments(status)"),
-    supabase
-      .from("school_enrollments")
-      .select("id", { count: "exact", head: true })
-      .eq("status", "active")
-      .lte("expiry_date", new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10))
-      .gt("expiry_date", new Date().toISOString().slice(0, 10)),
-  ]);
+  const [students, teachers, plans, enrollments, movements, expiring, activeStaff, teacherProfiles] =
+    await Promise.all([
+      supabase.from("school_students").select("id", { count: "exact", head: true }),
+      supabase.from("school_teacher_profiles").select("id", { count: "exact", head: true }),
+      supabase.from("school_lesson_plans").select("id", { count: "exact", head: true }),
+      supabase.from("school_enrollments").select("id, status"),
+      supabase.from("school_class_credit_movements").select("amount, enrollment_id, school_enrollments(status)"),
+      supabase
+        .from("school_enrollments")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "active")
+        .lte("expiry_date", new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10))
+        .gt("expiry_date", new Date().toISOString().slice(0, 10)),
+      // Sin cabezal `count`: hace falta la lista de ids, no solo cuántos, para
+      // poder restarle los que ya tienen perfil docente.
+      supabase.from("staff").select("id").eq("status", "active"),
+      supabase.from("school_teacher_profiles").select("staff_id"),
+    ]);
 
-  const errs = [students.error, teachers.error, plans.error, enrollments.error, movements.error, expiring.error].find(Boolean);
+  const errs = [
+    students.error,
+    teachers.error,
+    plans.error,
+    enrollments.error,
+    movements.error,
+    expiring.error,
+    activeStaff.error,
+    teacherProfiles.error,
+  ].find(Boolean);
   if (errs) throw errs;
 
   const rows = (enrollments.data ?? []) as unknown as { id: string; status: string }[];
@@ -417,6 +451,11 @@ export async function fetchSchoolSummary(): Promise<SchoolSummary> {
     return status === "active" ? acc + m.amount : acc;
   }, 0);
 
+  const activeStaffIds = ((activeStaff.data ?? []) as unknown as { id: string }[]).map((s) => s.id);
+  const teacherStaffIds = ((teacherProfiles.data ?? []) as unknown as { staff_id: string }[]).map(
+    (t) => t.staff_id,
+  );
+
   return {
     students: students.count ?? 0,
     teachers: teachers.count ?? 0,
@@ -425,5 +464,6 @@ export async function fetchSchoolSummary(): Promise<SchoolSummary> {
     active_enrollments: activeEnrollments.size,
     total_balance: totalBalance,
     expiring_soon: expiring.count ?? 0,
+    staff_without_teacher_profile: countStaffWithoutTeacherProfile(activeStaffIds, teacherStaffIds),
   };
 }

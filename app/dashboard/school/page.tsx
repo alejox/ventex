@@ -78,6 +78,21 @@ export default function SchoolResumenPage() {
         <StatCard label="Vencen en 15 días" value={summary?.expiring_soon ?? 0} href="/dashboard/school/planes" icon={<IconReceipt className="w-5 h-5" />} tone="text-rose-500" />
       </div>
 
+      {/* Aviso ligado al conteo de "Profesores" de arriba: ese número solo
+          cuenta perfiles docentes, así que alguien creado en Personal sin
+          tildar "Es profesor" queda invisible ahí — este hint es lo único
+          que lo señala. */}
+      {Boolean(summary && summary.staff_without_teacher_profile > 0) && (
+        <p className="-mt-2 text-sm text-on-surface-variant">
+          <Link className="font-semibold text-primary hover:underline" href="/dashboard/staff">
+            {summary!.staff_without_teacher_profile}{" "}
+            {summary!.staff_without_teacher_profile === 1 ? "persona" : "personas"} de Personal sin
+            perfil docente
+          </Link>{" "}
+          — activalo en Personal.
+        </p>
+      )}
+
       {!classesLoading && pendingCloseLessons.length > 0 && (
         <div className="rounded-3xl border border-amber-500/30 bg-amber-500/5 p-5 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">

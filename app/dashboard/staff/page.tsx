@@ -68,6 +68,7 @@ export default function StaffPage() {
   const fetchTeachers = useSchoolPeopleStore((s) => s.fetchTeachers);
   const saveTeacher = useSchoolPeopleStore((s) => s.saveTeacher);
   const teacherError = useSchoolPeopleStore((s) => s.error);
+  const clearTeacherError = useSchoolPeopleStore((s) => s.clearError);
   const schoolSettings = useSchoolStore((s) => s.settings);
   const fetchSchoolSettings = useSchoolStore((s) => s.fetchSettings);
 
@@ -187,10 +188,14 @@ export default function StaffPage() {
     if (atCollaboratorLimit) return;
     setEditingId(null);
     setForm(EMPTY_STAFF);
-    setTeacherEnabled(false);
+    // Una persona nueva en un negocio con Académico activo es profesor salvo
+    // que se destilde: es el caso más común (T7), y quien no enseña solo
+    // desmarca el checkbox.
+    setTeacherEnabled(schoolModuleActive);
     setSpecialties([]);
     setTeacherBio("");
     setSpecialtiesRequired(false);
+    clearTeacherError();
     setModalOpen(true);
   };
 
@@ -209,6 +214,7 @@ export default function StaffPage() {
     setSpecialties(existingTeacher?.instruments ?? []);
     setTeacherBio(existingTeacher?.bio ?? "");
     setSpecialtiesRequired(false);
+    clearTeacherError();
     setModalOpen(true);
   };
 
@@ -220,6 +226,7 @@ export default function StaffPage() {
     setSpecialties([]);
     setTeacherBio("");
     setSpecialtiesRequired(false);
+    clearTeacherError();
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -232,12 +239,22 @@ export default function StaffPage() {
 
     // La ficha manda: primero se crea/actualiza `staff`, y solo si eso salió
     // bien se toca el perfil docente — nunca al revés.
+    const wasCreating = !editingId;
     const staffId = editingId
       ? (await updateStaff(editingId, form))
         ? editingId
         : null
       : (await addStaff(form))?.id ?? null;
     if (!staffId) return;
+
+    // La persona ya quedó creada aunque el perfil docente falle más abajo:
+    // pasar a modo edición sobre ese id evita que un reintento vuelva a
+    // llamar `addStaff` y duplique la ficha, y refrescar la lista la muestra
+    // aunque el usuario cierre el modal sin reintentar.
+    if (wasCreating) {
+      setEditingId(staffId);
+      void fetchStaff();
+    }
 
     // Marcado ON: crea o actualiza el perfil docente con las especialidades y
     // la bio del formulario. Marcado OFF sobre alguien que YA tenía perfil: no

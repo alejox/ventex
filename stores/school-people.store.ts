@@ -33,6 +33,7 @@ interface SchoolPeopleState {
   saveStudent: (id: string | null, input: NewStudentInput) => Promise<boolean>;
   saveGuardian: (id: string | null, input: NewGuardianInput) => Promise<boolean>;
   saveTeacher: (id: string | null, input: NewTeacherInput) => Promise<boolean>;
+  clearError: () => void;
 }
 
 const EMPTY_DETAIL: StudentDetail = { student: null, guardians: [], enrollments: [], movements: [] };
@@ -157,6 +158,8 @@ export const useSchoolPeopleStore = create<SchoolPeopleState>((set) => ({
       return false;
     }
   },
+
+  clearError: () => set({ error: null }),
 }));
 
 // Selectores granulares

@@ -1,6 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ageOn, ageRangeLabel, isOutsideAgeRange } from "../services/school-enrollments.service";
+import {
+  ageOn,
+  ageRangeLabel,
+  isOutsideAgeRange,
+  countStaffWithoutTeacherProfile,
+} from "../services/school-enrollments.service";
 
 // ---- ageOn ----
 //
@@ -77,4 +82,28 @@ test("14. Edad por encima del máximo, avisa", () => {
 test("15. En el borde exacto (mínimo o máximo), no avisa", () => {
   assert.equal(isOutsideAgeRange(8, 8, 12), false);
   assert.equal(isOutsideAgeRange(12, 8, 12), false);
+});
+
+// ---- countStaffWithoutTeacherProfile ----
+
+test("16. Nadie activo sin perfil docente: cero", () => {
+  assert.equal(countStaffWithoutTeacherProfile(["a", "b"], ["a", "b"]), 0);
+});
+
+test("17. Todo el personal activo carece de perfil docente", () => {
+  assert.equal(countStaffWithoutTeacherProfile(["a", "b", "c"], []), 3);
+});
+
+test("18. Cuenta solo a quien falta, no a quien ya tiene perfil", () => {
+  assert.equal(countStaffWithoutTeacherProfile(["a", "b", "c"], ["b"]), 2);
+});
+
+test("19. Un perfil docente de alguien inactivo (fuera de la lista activa) no descuenta a nadie más", () => {
+  // "d" tiene perfil docente pero ya no es personal activo (no aparece en la
+  // primera lista) — no debe hacer que "a" o "b" cuenten como cubiertos.
+  assert.equal(countStaffWithoutTeacherProfile(["a", "b"], ["d"]), 2);
+});
+
+test("20. Sin personal activo, no hay nada que avisar", () => {
+  assert.equal(countStaffWithoutTeacherProfile([], ["a"]), 0);
 });
