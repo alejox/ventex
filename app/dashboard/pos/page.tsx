@@ -45,7 +45,8 @@ import {
   renderRedeemMessage,
 } from "@/services/promos.service";
 import { TabRenameModal } from "./components/TabRenameModal";
-import { TabCloseConfirmModal } from "./components/TabCloseConfirmModal";
+import { AlertTriangle } from "lucide-react";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { PlanLimitModal } from "./components/PlanLimitModal";
 import { OfflineQueueBadge } from "./components/OfflineQueueBadge";
 import { RejectedSalesModal } from "./components/RejectedSalesModal";
@@ -856,17 +857,24 @@ export default function POSPage() {
         />
       )}
 
-      {closingTab && (
-        <TabCloseConfirmModal
-          tabName={closingTab.name}
-          tabCartUnits={closingTab.cart.reduce((s, l) => s + l.quantity, 0)}
-          onConfirm={() => {
-            removeTab(closingTab.id);
-            setClosingTabId(null);
-          }}
-          onClose={() => setClosingTabId(null)}
-        />
-      )}
+      {closingTab && (() => {
+        const units = closingTab.cart.reduce((s, l) => s + l.quantity, 0);
+        return (
+          <ConfirmDialog
+            open
+            title="Eliminar esta venta"
+            description={`«${closingTab.name}» tiene ${units} unidad${units !== 1 ? "es" : ""} cargada${units !== 1 ? "s" : ""}. Se pierden al eliminarla.`}
+            confirmLabel="Eliminar"
+            tone="danger"
+            icon={<AlertTriangle className="w-6 h-6" />}
+            onConfirm={() => {
+              removeTab(closingTab.id);
+              setClosingTabId(null);
+            }}
+            onCancel={() => setClosingTabId(null)}
+          />
+        );
+      })()}
 
       {isScannerOpen && (
         <BarcodeScannerModal

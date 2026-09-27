@@ -10,7 +10,7 @@ import { Select } from "@/components/ui/Select";
 import { PurchaseInvoiceDetailModal } from "@/components/PurchaseInvoiceDetailModal";
 import { DataTable, type DataColumn } from "@/components/DataTable";
 import { formatDateOnly } from "@/lib/date";
-import { CancelConfirmModal } from "./components/CancelConfirmModal";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { StatusChangeModal } from "./components/StatusChangeModal";
 import { CollectionEmpty, CollectionError, CollectionFilteredEmpty, CollectionLoading } from "@/components/CollectionState";
 
@@ -312,15 +312,32 @@ export default function PurchasesPage() {
         />
       )}
 
-      <CancelConfirmModal
-        invoice={cancelConfirmId ? invoices.find((i) => i.id === cancelConfirmId) ?? null : null}
-        submitting={submitting}
-        onCancel={() => setCancelConfirmId(null)}
-        onConfirm={() => {
-          const inv = invoices.find((i) => i.id === cancelConfirmId);
-          if (inv) handleCancelInvoice(inv);
-        }}
-      />
+      {(() => {
+        const inv = cancelConfirmId ? invoices.find((i) => i.id === cancelConfirmId) ?? null : null;
+        return (
+          <ConfirmDialog
+            open={Boolean(inv)}
+            title={`Anular compra #${inv?.invoice_number ?? ""}`}
+            description={
+              <>
+                <p>Se devolverá el stock de todos los productos al inventario.</p>
+                <p className="font-semibold text-error">
+                  Esta acción no se puede deshacer. Una compra anulada no vuelve a Pagada ni a Pendiente: si
+                  fue un error, registra una compra nueva.
+                </p>
+              </>
+            }
+            confirmLabel="Sí, anular"
+            loadingLabel="Anulando…"
+            tone="danger"
+            loading={submitting}
+            onCancel={() => setCancelConfirmId(null)}
+            onConfirm={() => {
+              if (inv) handleCancelInvoice(inv);
+            }}
+          />
+        );
+      })()}
     </div>
   );
 }

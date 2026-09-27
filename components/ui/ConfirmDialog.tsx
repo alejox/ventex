@@ -14,6 +14,10 @@ export interface ConfirmOptions {
   cancelLabel?: string;
   /** `danger` pinta el botón de confirmar en rojo (acciones que quitan algo). */
   tone?: ConfirmTone;
+  /** Ícono opcional sobre el título (se dibuja en un círculo del tono). */
+  icon?: ReactNode;
+  /** Texto del botón mientras `loading` (por defecto "Procesando…"). */
+  loadingLabel?: string;
 }
 
 interface ConfirmDialogProps extends ConfirmOptions {
@@ -27,6 +31,11 @@ interface ConfirmDialogProps extends ConfirmOptions {
 const CONFIRM_TONE: Record<ConfirmTone, string> = {
   primary: "bg-primary text-on-primary hover:bg-primary-dim",
   danger: "bg-error text-white hover:bg-error/90",
+};
+
+const ICON_TONE: Record<ConfirmTone, string> = {
+  primary: "bg-primary/10 text-primary",
+  danger: "bg-error/10 text-error",
 };
 
 /**
@@ -43,6 +52,8 @@ export function ConfirmDialog({
   confirmLabel = "Confirmar",
   cancelLabel = "Cancelar",
   tone = "primary",
+  icon,
+  loadingLabel = "Procesando…",
   loading = false,
   onConfirm,
   onCancel,
@@ -71,6 +82,11 @@ export function ConfirmDialog({
         aria-labelledby="confirm-dialog-title"
         className="bg-surface-container-lowest rounded-3xl w-full max-w-sm border border-outline-variant/10 shadow-2xl p-6 animate-in zoom-in-95 duration-200"
       >
+        {icon && (
+          <div className={`w-12 h-12 mb-4 rounded-full flex items-center justify-center ${ICON_TONE[tone]}`}>
+            {icon}
+          </div>
+        )}
         <h3 id="confirm-dialog-title" className="text-lg font-bold text-on-surface mb-2">
           {title}
         </h3>
@@ -92,7 +108,7 @@ export function ConfirmDialog({
             disabled={loading}
             className={`flex-1 px-5 py-2.5 rounded-xl text-sm font-semibold transition-colors disabled:opacity-50 ${CONFIRM_TONE[tone]}`}
           >
-            {loading ? "Procesando…" : confirmLabel}
+            {loading ? loadingLabel : confirmLabel}
           </button>
         </div>
       </div>
