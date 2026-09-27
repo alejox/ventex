@@ -1241,6 +1241,72 @@ export type Database = {
         }
         Relationships: []
       }
+      product_offers: {
+        Row: {
+          active: boolean
+          buy_qty: number | null
+          category_id: string | null
+          created_at: string
+          ends_on: string | null
+          id: string
+          kind: string
+          name: string
+          pay_qty: number | null
+          product_id: string | null
+          starts_on: string | null
+          updated_at: string
+          user_id: string
+          value: number | null
+        }
+        Insert: {
+          active?: boolean
+          buy_qty?: number | null
+          category_id?: string | null
+          created_at?: string
+          ends_on?: string | null
+          id?: string
+          kind: string
+          name: string
+          pay_qty?: number | null
+          product_id?: string | null
+          starts_on?: string | null
+          updated_at?: string
+          user_id?: string
+          value?: number | null
+        }
+        Update: {
+          active?: boolean
+          buy_qty?: number | null
+          category_id?: string | null
+          created_at?: string
+          ends_on?: string | null
+          id?: string
+          kind?: string
+          name?: string
+          pay_qty?: number | null
+          product_id?: string | null
+          starts_on?: string | null
+          updated_at?: string
+          user_id?: string
+          value?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_offers_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_offers_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       products: {
         Row: {
           allows_fractions: boolean | null
@@ -2731,7 +2797,7 @@ export type Database = {
           contact_phone?: string | null
           created_at?: string
           customer_id: string
-          full_name?: string
+          full_name: string
           id?: string
           instrument: string
           is_minor?: boolean
