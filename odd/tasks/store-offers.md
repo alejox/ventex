@@ -34,9 +34,21 @@ Give general retail (`tienda`) its own promotions model — automatic product/ca
 - [x] T5 — POS integration for `tienda`: fetch active offers, apply automatically, show offer name per line, allow removing for the sale; totals preview via existing `computeTotals`.
 - [x] T6 — Docs: AGENTS.md "Ofertas de tienda" section; verification; commits.
 
-## Phase 2 (later, not started)
+## Phase 2 — redeemable points (user chose "Puntos canjeables")
 
-- Purchase-based loyalty for `tienda` (every N purchases or $X spent → reward), with its own counters; design after phase 1 ships.
+Decisions (parent, fixed):
+
+- **Ledger, not a mutable counter.** `loyalty_points_ledger` rows (customer, sale_id, delta, kind `earn|redeem|reverse|adjust`) are the source of truth; the customer balance is derived (view or trigger-maintained column the app can only SELECT). Every movement is auditable and reversible by sale.
+- **Earn on the net charged total** (`sales.total`, i.e. after offers/manual/points discounts), only for sales with a customer, only for `tienda` tenants with points enabled. Rule configurable: 1 point per `$X` (floor). Earning must also work for sales that arrive later through the offline queue.
+- **Redeem in the POS as a discount**: configurable value per point and minimum points to redeem; the cashier chooses how many points (up to balance and up to the sale total). The redemption RPC runs **after** the sale is recorded and is tied to its `sale_id` (same reason as the haircut reward: a failed charge must not burn points). Idempotent per sale.
+- **Voiding a sale reverses both** its earned and redeemed points.
+- **Do not touch `create_sale`** nor the haircut engine. Owner configures (Ajustes → Promociones, tienda branch), `pos` permission operates; all tenancy through `get_effective_user_id()`.
+
+- [ ] P1 — Schema + earn/reverse mechanism (trigger or idempotent RPC; investigate how `sales.total` is finalized inside `create_sale` and how void works before choosing) + settings columns, applied via MCP, `.sql` saved, types regenerated, advisors checked.
+- [x] P2 — Pure logic (`pointsEarnedFor`, `maxRedeemablePoints`, `pointsDiscount`) + tests.
+- [x] P3 — Settings UI (tienda branch): enable, $ per point, value per point, minimum.
+- [ ] P4 — POS: show customer balance, redeem N points as a discount line, call redeem RPC after the sale; Clientes shows balance and movement history.
+- [ ] P5 — AGENTS.md section, verification, commits.
 
 ## Out of scope
 
@@ -47,7 +59,7 @@ Give general retail (`tienda`) its own promotions model — automatic product/ca
 
 - Route: delegated direct writer (schema + service + store + 2 pages + POS). Decisions above are fixed by the parent.
 - TDD: not configured; pure-logic tests added for T3; checks: `npx tsc --noEmit`, `npm run lint`, `npm test`, `npm run build`.
-- Delivery: work-unit commits on `feat/modular-brand`, fast-forward to `main` after parent review (user's standing workflow). Forecast ~700–900 authored lines across commits.
+- Delivery: work-unit commits on `feat/modular-brand`; user chose to upload this phase together rather than chain PRs. Strategy: `exception-ok` for the >400-line review slice, without shrinking tests, docs or code to fit a line budget. Push/merge remain subject to remote authorization.
 
 ## Acceptance criteria
 
@@ -55,6 +67,8 @@ Give general retail (`tienda`) its own promotions model — automatic product/ca
 - A `tienda` owner can create a % / amount / "lleva N paga M" offer for a product or category with dates.
 - In the POS, eligible lines get the offer discount automatically with its name visible; totals and the charged sale match; removing it restores the price.
 - tsc, lint, tests, build pass.
+
+Phase 2 additionally requires a retail-only points configuration; points earned on the final paid total for identified customers; a balance-backed POS redemption tied once to the completed sale; void reversal of both earned and redeemed movements; and balance plus movement history in Customers. A point discount must never be charged without its matching redemption, nor redeem points after its discount has changed or disappeared.
 
 ## Progress
 
@@ -78,3 +92,13 @@ Plan created after exploration.
 **Not verified (needs a human in the browser):** actual POS/Ajustes visual behavior for a live `tienda` account (offer creation → POS auto-apply → totals → "Quitar" → checkout), and that a salon/lavaautos/servicios/escuela account's Ajustes/Promociones renders byte-for-byte as before. No E2E spec was added for this feature (out of scope for phase 1; `e2e/` wasn't touched).
 
 **Known pre-existing issue found, not fixed (out of scope):** `AGENTS.md` on disk has a duplicated tail — the "Comisiones"/"Catálogo"/"Subscription billing"/"Next.js 16 specifics"/"Conventions"/"Project skills & docs" sections each appear twice (lines ~149–204 repeat ~84–139), with a stray sentence fragment at the seam. The new "Ofertas de tienda" section was inserted once, after the first (canonical) Promociones section. Flagging for the parent/user to decide whether to deduplicate separately.
+
+## Phase 2 recovery (2026-09-27)
+
+- Resumed six existing local work-unit commits on `feat/modular-brand`: P1 `786c852` (ledger schema, earn/redeem/void triggers, trigger EXECUTE revocation, generated types); P2 `3779387` (pure logic and 15 tests); P3 `8a73add` (retail loyalty settings); P4 `5c3b714` and `4023737` (POS redemption and customer history); P5 documentation `990689a`.
+- Local baseline: `npm test` passed 380/380. `gentle-ai review mode status` reports globally disabled, so native review is not started.
+- P1 remains open: repository SQL and types exist, but this recovery has no independent proof that both migrations were applied to the intended Supabase project or that advisors and grants were checked. Remote access requires separate destination/operation/credential authorization.
+- P4 remains open pending live-business verification. Audit found that customer changes, cart edits and multiple tabs could separate the discounted cart from its redemption marker. Correction `f67f920` moves the marker into each `SaleTab`, checks a snapshot before checkout, exposes removal for invalidated redemptions, blocks offline queuing with points, and routes loyalty I/O through the store in both POS and Customers while retaining lazy history loading. `npm test` passed 382/382; the worker reported `npx tsc --noEmit`, `npm run lint -- --quiet`, and `git diff --check` passing. A separate post-edit `npm run build` passed.
+- P5 remains open until remote verification is resolved and final checks are recorded. No push, PR, or merge was performed in this recovery.
+- Phase 2 authored diff through `990689a` is 1,393 additions/deletions (excluding 80 generated type lines); this exceeds the advisory ~400-line delivery budget. User explicitly chose to upload it together (`exception-ok`, no chain). RDD is globally off (`disabled/unmanaged`).
+- Next: verify remote migration state only with explicit authorization; confirm live POS/customer behavior before marking P1/P4/P5 complete. Do not call phase 2 delivered until the live boundary is confirmed.
