@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useMemo, useSyncExternalStore } from "react";
+import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
 import type { NavItem } from "@/config/business";
 import {
   IconCalendar,
@@ -151,8 +151,8 @@ function Chevron({ abierto }: { abierto: boolean }) {
  * Reglas:
  *  - Un grupo con UN solo ítem no es un módulo con submódulos: se pinta plano,
  *    con el nombre del ítem. Un padre con un único hijo es un clic de peaje.
- *  - El grupo que contiene la pantalla actual está SIEMPRE abierto y su cabecera
- *    no responde al clic: plegarlo escondería la pantalla en la que estás.
+ *  - El grupo que contiene la pantalla actual nace abierto, pero se puede plegar:
+ *    el estado activo del hijo sigue visible cuando la persona lo vuelve a abrir.
  *  - Los hijos van sin icono e indentados, como en el admin de WordPress: el
  *    icono es del módulo, y repetirlo abajo compite con él en vez de guiar.
  */
@@ -173,9 +173,13 @@ export function SidebarNavGroup({
 }) {
   const contieneActivo = group.items.some((it) => it.id === activeNavId);
   const plano = group.items.length <= 1 || !group.label;
-  // El grupo de la pantalla actual se abre siempre, lo haya abierto o no: nadie
-  // debería tener que desplegar un menú para ver dónde está parado.
-  const abierto = contieneActivo || open;
+  const [cerradoPara, setCerradoPara] = useState<string | null>(null);
+  // El contexto activo se abre por defecto, pero la excepción queda atada al
+  // ítem que la persona plegó: al navegar a otro hijo se vuelve descubrible sin
+  // disparar un setState dentro de un effect.
+  const cerradoPorUsuario = contieneActivo && cerradoPara === activeNavId;
+
+  const abierto = (contieneActivo && !cerradoPorUsuario) || open;
 
   if (plano) {
     return (
@@ -189,7 +193,7 @@ export function SidebarNavGroup({
               href={item.href}
               onClick={onNavigate}
               aria-current={activo ? "page" : undefined}
-              className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-sm font-medium ${
+              className={`flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all text-sm font-medium ${
                 activo
                   ? "bg-primary/10 text-primary"
                   : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
@@ -211,14 +215,21 @@ export function SidebarNavGroup({
     <div>
       <button
         type="button"
-        onClick={() => !contieneActivo && onToggle(group.id)}
+        onClick={() => {
+          if (contieneActivo) {
+            setCerradoPara((cerrado) => (cerrado === activeNavId ? null : activeNavId));
+            // Si estaba persistido como abierto, quitamos esa preferencia para
+            // que el cierre local no vuelva a abrirse en el mismo render.
+            if (open) onToggle(group.id);
+            return;
+          }
+          onToggle(group.id);
+        }}
         aria-expanded={abierto}
         aria-controls={panelId}
-        // El grupo activo no se pliega, así que tampoco finge ser un botón.
-        aria-disabled={contieneActivo || undefined}
-        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-sm font-semibold ${
+        className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all text-sm font-semibold ${
           contieneActivo
-            ? "bg-primary/10 text-primary cursor-default"
+            ? "bg-primary/10 text-primary"
             : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
         }`}
       >
@@ -240,9 +251,9 @@ export function SidebarNavGroup({
                 href={item.href}
                 onClick={onNavigate}
                 aria-current={activo ? "page" : undefined}
-                className={`rounded-lg px-3 py-2 text-[13px] transition-colors ${
+                className={`relative rounded-lg px-3 py-2 text-[13px] transition-colors ${
                   activo
-                    ? "bg-primary/[0.07] text-primary font-bold"
+                    ? "bg-primary/[0.1] text-primary font-bold before:absolute before:-left-[0.8125rem] before:top-1/2 before:h-5 before:w-0.5 before:-translate-y-1/2 before:rounded-full before:bg-primary"
                     : "text-on-surface-variant/80 font-medium hover:text-on-surface hover:bg-surface-container-low"
                 }`}
               >

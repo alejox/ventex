@@ -238,8 +238,8 @@ export function DashboardShell({
   return (
     <div className="flex h-screen bg-background text-on-background font-sans">
       {/* Sidebar - Desktop */}
-      <aside className={`print:hidden hidden lg:flex flex-col border-r border-outline-variant/10 bg-surface-container-lowest transition-all duration-300 ${sidebarCollapsed ? "w-20" : "w-64"}`}>
-        <div className="h-20 shrink-0 flex items-center justify-center border-b border-outline-variant/10 px-4">
+      <aside className={`print:hidden hidden lg:flex flex-col border-r border-outline-variant/10 bg-surface-container-lowest transition-all duration-300 ${sidebarCollapsed ? "w-20" : "w-60"}`}>
+        <div className="h-16 shrink-0 flex items-center justify-center border-b border-outline-variant/10 px-4">
           <Link href="/dashboard" aria-label="Ventex, ir al panel" className="inline-flex items-center justify-center rounded-lg focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary">
             {sidebarCollapsed ? (
               <LogoSymbol className="w-9 h-9" />
@@ -250,8 +250,8 @@ export function DashboardShell({
         </div>
 
         <div className="flex-1 overflow-y-auto min-h-0">
-          <nav aria-label="Navegación principal" className="p-4 space-y-1">
-            <div className={`flex items-center mb-4 mt-4 ${sidebarCollapsed ? "justify-center" : "px-4"}`}>
+          <nav aria-label="Navegación principal" className="p-3 space-y-1">
+            <div className={`flex items-center mb-3 mt-3 ${sidebarCollapsed ? "justify-center" : "px-3"}`}>
               {!sidebarCollapsed && (
                 <div className="text-[10px] font-bold text-on-surface-variant uppercase tracking-[0.2em] whitespace-nowrap overflow-hidden flex-1">
                   Menú Principal
@@ -312,7 +312,7 @@ export function DashboardShell({
                         // solo el "estas aca".
                         className={`flex items-center justify-center py-3 rounded-xl focus-visible:outline-2 focus-visible:outline-primary transition-all ${
                           isActive
-                            ? "bg-primary/20 text-primary"
+                            ? "relative bg-primary/20 text-primary before:absolute before:left-0 before:top-1/2 before:h-6 before:w-0.5 before:-translate-y-1/2 before:rounded-full before:bg-primary"
                             : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
                         }`}
                       >
@@ -337,7 +337,12 @@ export function DashboardShell({
         {/* Accesos de administración. Si un trabajador no tiene ninguno, el
             bloque entero (con su borde) desaparece en vez de quedar vacío. */}
         {showAdminLinks && (
-        <div className="shrink-0 p-4 border-t border-outline-variant/10 space-y-1">
+        <div className="shrink-0 p-3 border-t border-outline-variant/10 space-y-1">
+          {!sidebarCollapsed && (
+            <div className="px-3 pb-1 pt-1 text-[10px] font-bold uppercase tracking-[0.16em] text-on-surface-variant/70">
+              Cuenta y administración
+            </div>
+          )}
           {isSuperAdmin && (
             <Link
               href="/admin"
@@ -566,6 +571,9 @@ export function DashboardShell({
             </div>
             {showAdminLinks && (
             <div className="p-4 border-t border-outline-variant/10 space-y-1">
+              <div className="px-4 pb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-on-surface-variant/70">
+                Cuenta y administración
+              </div>
               {isSuperAdmin && (
                 <Link
                   href="/admin"
