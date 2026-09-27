@@ -17,6 +17,7 @@ import {
 import { CollectionError, CollectionLoading } from "@/components/CollectionState";
 import { notifySuccess, notifyError } from "@/lib/notifications";
 import { OffersManager } from "./OffersManager";
+import { LoyaltyManager } from "./LoyaltyManager";
 
 /**
  * Configuración → Promociones.
@@ -27,14 +28,21 @@ import { OffersManager } from "./OffersManager";
  * escrito, sin proveedor ni credenciales.
  *
  * `tienda` no tiene el motor de cortes (no agenda servicios de mostrador), así
- * que esta misma pestaña muestra en su lugar el gestor de ofertas de producto
- * (`OffersManager`). El resto de los rubros ve exactamente lo de siempre.
+ * que esta misma pestaña muestra en su lugar sus DOS promociones propias:
+ * ofertas automáticas de producto (`OffersManager`, fase 1) y puntos
+ * canjeables por compra (`LoyaltyManager`, fase 2). El resto de los rubros ve
+ * exactamente lo de siempre.
  */
 export default function PromocionesPage() {
   const profile = useProfile();
 
   if (profile?.businessType === "tienda") {
-    return <OffersManager />;
+    return (
+      <div className="flex flex-col gap-8">
+        <OffersManager />
+        <LoyaltyManager />
+      </div>
+    );
   }
 
   if (!usesHaircutPromos(profile?.businessType ?? null, profile?.modules ?? null)) {
