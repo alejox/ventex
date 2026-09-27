@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useProfile } from "@/components/ProfileProvider";
+import { usesHaircutPromos } from "@/config/business";
 
 /**
  * Navegación por pestañas de Ajustes. Cliente solo por `usePathname`.
@@ -11,11 +13,21 @@ import { usePathname } from "next/navigation";
  */
 export function SettingsTabs() {
   const pathname = usePathname();
+  const profile = useProfile();
+
+  // "Promociones" se muestra con el MISMO nombre para tienda (ofertas de
+  // producto) y para el resto (fidelización por cortes): la pestaña no
+  // cambia, solo lo que hay detrás (ver settings/promociones/page.tsx). Se
+  // oculta entera solo cuando ninguno de los dos aplica — p. ej. un negocio
+  // de servicios que apagó el módulo `services` a mano.
+  const showPromos =
+    profile?.businessType === "tienda" ||
+    usesHaircutPromos(profile?.businessType ?? null, profile?.modules ?? null);
 
   const tabs = [
     { name: "General", href: "/dashboard/settings" },
     { name: "Datos de tu negocio", href: "/dashboard/settings/business" },
-    { name: "Promociones", href: "/dashboard/settings/promociones" },
+    ...(showPromos ? [{ name: "Promociones", href: "/dashboard/settings/promociones" }] : []),
   ];
 
   return (

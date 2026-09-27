@@ -632,6 +632,23 @@ export function visibleNavItems(
 }
 
 /**
+ * ¿Este negocio usa el motor de fidelización por CORTES (contador +
+ * WhatsApp), el de salón/barbería?
+ *
+ * Única fuente de verdad: el mismo cálculo que decide si el ítem de sidebar
+ * "promociones" aparece (depende del módulo `services`). Así Ajustes nunca
+ * puede mostrar el motor de cortes a un negocio que ni siquiera vería su
+ * entrada de menú. `tienda` nunca lo usa (no tiene módulo `services`); en su
+ * lugar ve el gestor de ofertas de producto — ver `OffersManager`.
+ */
+export function usesHaircutPromos(
+  businessType: BusinessType | null,
+  modules: Modules | null,
+): boolean {
+  return visibleNavItems(businessType, modules).some((item) => item.id === "promociones");
+}
+
+/**
  * Permisos que no son un ítem del sidebar: `settings` abre la sección de
  * Ajustes (engranaje), no una ruta de NAV_ITEMS. Se excluyen para que la
  * navegación no intente resolverlos como ítem.

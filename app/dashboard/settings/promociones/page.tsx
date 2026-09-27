@@ -5,6 +5,7 @@ import { usePromosStore } from "@/stores/promos.store";
 import { useServicesStore } from "@/stores/services.store";
 import { useProfile } from "@/components/ProfileProvider";
 import { useSettingsStore } from "@/stores/settings.store";
+import { usesHaircutPromos } from "@/config/business";
 import type { RewardKind } from "@/services/promos.service";
 import {
   DEFAULT_PROMO_MESSAGE,
@@ -15,6 +16,8 @@ import {
 } from "@/services/promos.service";
 import { CollectionError, CollectionLoading } from "@/components/CollectionState";
 import { notifySuccess, notifyError } from "@/lib/notifications";
+// TODO(T4): reemplazar por el gestor de ofertas real (`./OffersManager`).
+import { OffersManagerPlaceholder as OffersManager } from "./OffersManagerPlaceholder";
 
 /**
  * Configuración → Promociones.
@@ -23,8 +26,33 @@ import { notifySuccess, notifyError } from "@/lib/notifications";
  * y qué premio hay en cada hito. El envío no se configura acá porque no hay
  * nada que configurar: es un enlace `wa.me` que abre WhatsApp con el mensaje
  * escrito, sin proveedor ni credenciales.
+ *
+ * `tienda` no tiene el motor de cortes (no agenda servicios de mostrador), así
+ * que esta misma pestaña muestra en su lugar el gestor de ofertas de producto
+ * (`OffersManager`). El resto de los rubros ve exactamente lo de siempre.
  */
 export default function PromocionesPage() {
+  const profile = useProfile();
+
+  if (profile?.businessType === "tienda") {
+    return <OffersManager />;
+  }
+
+  if (!usesHaircutPromos(profile?.businessType ?? null, profile?.modules ?? null)) {
+    // Rubro sin motor de cortes y sin ser tienda (p. ej. servicios con el
+    // módulo `services` apagado a mano): no hay nada que configurar acá. La
+    // pestaña ya está oculta en SettingsTabs; esto cubre la URL directa.
+    return (
+      <p className="text-sm text-on-surface-variant">
+        Esta sección no aplica a tu tipo de negocio.
+      </p>
+    );
+  }
+
+  return <HaircutPromosSection />;
+}
+
+function HaircutPromosSection() {
   const config = usePromosStore((s) => s.config);
   const milestones = usePromosStore((s) => s.milestones);
   const loading = usePromosStore((s) => s.loading);
