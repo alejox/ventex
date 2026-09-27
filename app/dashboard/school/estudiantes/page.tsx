@@ -15,6 +15,7 @@ export default function EstudiantesPage() {
   const loading = useSchoolPeopleStore((s) => s.loading);
   const error = useSchoolPeopleStore((s) => s.error);
   const fetchStudents = useSchoolPeopleStore((s) => s.fetchStudents);
+  const setStudentStatus = useSchoolPeopleStore((s) => s.setStudentStatus);
   const [query, setQuery] = useState("");
   const [showInactive, setShowInactive] = useState(false);
   const [showForm, setShowForm] = useState(false);
@@ -28,6 +29,17 @@ export default function EstudiantesPage() {
     () => filterStudents(students, { query, showInactive }),
     [students, query, showInactive],
   );
+
+  // Desde la lista no están cargadas las matrículas: el aviso es genérico. El
+  // detalle del alumno cuenta las activas antes de confirmar.
+  const handleToggleStatus = async (student: SchoolStudent) => {
+    const activating = student.status === "inactive";
+    const question = activating
+      ? `¿Reactivar a "${student.full_name}"? Vuelve a ofrecerse en matrículas y agenda.`
+      : `¿Desactivar a "${student.full_name}"? Deja de ofrecerse en matrículas y agenda nuevas; su ficha, historial y matrículas activas se conservan.`;
+    if (!confirm(question)) return;
+    await setStudentStatus(student.id, activating ? "active" : "inactive");
+  };
 
   const closeForm = () => {
     setShowForm(false);
@@ -96,7 +108,12 @@ export default function EstudiantesPage() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
           {filtered.map((s) => (
-            <StudentCard key={s.id} student={s} onEdit={() => setEditingStudent(s)} />
+            <StudentCard
+              key={s.id}
+              student={s}
+              onEdit={() => setEditingStudent(s)}
+              onToggleStatus={() => void handleToggleStatus(s)}
+            />
           ))}
         </div>
       )}

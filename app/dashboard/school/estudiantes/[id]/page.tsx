@@ -105,15 +105,8 @@ export default function EstudianteDetailPage() {
             balance={activeBalance}
             guardiansCount={guardians.length}
             onEdit={() => setShowStudentForm(true)}
+            onToggleStatus={() => void handleToggleStatus()}
           />
-          <div className="flex justify-end">
-            <button
-              onClick={() => void handleToggleStatus()}
-              className="rounded-lg border border-outline-variant/30 px-3 py-1.5 text-sm font-semibold text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface"
-            >
-              {student.status === "inactive" ? "Reactivar alumno" : "Desactivar alumno"}
-            </button>
-          </div>
         </>
       )}
 

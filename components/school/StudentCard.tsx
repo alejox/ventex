@@ -9,6 +9,8 @@ interface StudentCardProps {
   guardiansCount?: number;
   /** Si se pasa, agrega un botón "Editar" que no navega (para usar dentro del Link). */
   onEdit?: () => void;
+  /** Si se pasa, agrega "Desactivar"/"Reactivar" (nunca borra: la ficha y su historial se conservan). */
+  onToggleStatus?: () => void;
 }
 
 const LEVEL_LABELS: Record<string, string> = {
@@ -21,7 +23,7 @@ const LEVEL_LABELS: Record<string, string> = {
  * Tarjeta de un alumno: identidad académica + un vistazo a la relación con el
  * módulo. Se usa en la lista (`estudiantes`) y en la cabecera del detalle.
  */
-export function StudentCard({ student, balance = null, guardiansCount = 0, onEdit }: StudentCardProps) {
+export function StudentCard({ student, balance = null, guardiansCount = 0, onEdit, onToggleStatus }: StudentCardProps) {
   const levelClass = LEVEL_LABELS[student.level ?? ""] ?? "bg-surface-container text-on-surface-variant";
   const isActive = student.status !== "inactive";
 
@@ -68,6 +70,23 @@ export function StudentCard({ student, balance = null, guardiansCount = 0, onEdi
               className="rounded-lg border border-outline-variant/30 px-2.5 py-1 text-xs font-semibold text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface"
             >
               Editar
+            </button>
+          )}
+          {onToggleStatus && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onToggleStatus();
+              }}
+              className={`rounded-lg border px-2.5 py-1 text-xs font-semibold transition-colors ${
+                isActive
+                  ? "border-error/30 text-error hover:bg-error/10"
+                  : "border-outline-variant/30 text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface"
+              }`}
+            >
+              {isActive ? "Desactivar" : "Reactivar"}
             </button>
           )}
         </div>
