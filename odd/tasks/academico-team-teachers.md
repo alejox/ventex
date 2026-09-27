@@ -98,6 +98,22 @@ Strategy: `ask-on-risk`. Forecast ~300–450 authored changed lines. RDD: off
       detail; Desactivar/Reactivar via status with "Mostrar inactivos" filter
       and a warning when active enrollments exist. Route: delegated writer.
 
+- [x] **T9** — (user report 2026-09-26: "classes don't show up") Root cause:
+      PlanForm requires an active `services` row; the tenant had 0 services,
+      so plan creation dead-ended silently and nothing downstream could exist.
+      Decision (delegated to orchestrator by user): the plan creates its POS
+      service inline (name, price, duration from the plan); "Usar un servicio
+      existente" keeps linking an existing one. Route: delegated writer.
+- [x] **T10** — Guided flow: Resumen "Primeros pasos" in the real order incl.
+      step 5 (Agendar), each step checked from real data; Agenda empty state
+      and scheduling dialogs point to the missing prerequisite with a link.
+- [x] **T11** — `fetchEnrollmentScheduleViews` excludes inactive students
+      (parity with `fetchEligibleParticipantEnrollments`, gap left by T8).
+- [x] **T12** — Scheduling outside the teacher's weekly availability WARNS
+      and allows (same rule as age ranges); a single lesson on a teacher's
+      blocked date is REJECTED by `school_schedule_lesson` (parity with the
+      series RPC). RPC change as a migration file applied by the orchestrator.
+
 ## Acceptance criteria
 
 - No "Escuela de música" or "Instrumentos" left in UI copy.
@@ -529,3 +545,160 @@ Strategy: `ask-on-risk`. Forecast ~300–450 authored changed lines. RDD: off
     file, so they were split at the hunk level with `git add -p` rather than
     committed whole — verified after the fact by re-reading each commit's
     `git diff --cached` before committing.
+- T11 done. Commit `3b1675f` — fix(school): excluir alumnos inactivos de
+  fetchEnrollmentScheduleViews. Route: delegated writer.
+  Files: services/school-schedule.service.ts (hunk-split from T12's addition
+  in the same file via `git add -p` — verified via `git diff --cached`).
+  Decision: added `status` to the existing `school_students(full_name)`
+  embedded select (→ `school_students(full_name, status)`) and filtered
+  `status !== "inactive"` in the client, mirroring the EXACT technique
+  `fetchEligibleParticipantEnrollments` already uses — not a PostgREST
+  `!inner` query filter (that technique isn't used anywhere in this file;
+  matching "same technique" meant matching what's actually there).
+- T9 done. Commit `5ac1ea0` — feat(school): un plan nuevo crea su propio
+  servicio en el catálogo. Route: delegated writer (writer trigger: 2+
+  non-trivial files).
+  Files: components/school/PlanForm.tsx, stores/services.store.ts,
+  e2e/school-cycle.spec.ts, AGENTS.md.
+  Decisions:
+  - Default mode for a NEW plan drops the service picker entirely: typing
+    "Nombre" + a new "Precio" (`MoneyInput`) creates the service inline
+    (`useServicesStore().addService`, name/price/duration_minutes from the
+    plan's own fields, `status: "active"`, `has_commission: false`). "Usar
+    un servicio existente" toggles back to the original Select (fed by
+    `fetchSellableServices`, unchanged) for reusing one already in the
+    catalog (e.g. one also sold loose in the POS).
+  - `stores/services.store.ts`'s `addService` now returns the created
+    service's `id` (`string | false`) instead of a bare `boolean` — same
+    shape as `addProduct` in `inventory.store.ts` — since PlanForm needs the
+    id right away to build the plan in the same submit. Its one other
+    caller (`app/dashboard/inventory/product/page.tsx`) only ever checked
+    truthiness, so it's unaffected.
+  - Partial-failure safety: `createdServiceId` remembers the just-created
+    service id in component state; a retry (plan creation failed after the
+    service succeeded) reuses it instead of creating a second orphan
+    service. Cleared if the user explicitly switches picker mode mid-form.
+  - Editing an existing plan shows the linked service's name + price
+    READ-ONLY (with a link to Productos y servicios), never an inline price
+    edit: `updateService` needs the service's FULL `NewServiceInput` (not a
+    patch), and `services.service.ts`'s own comment on `setServiceStatus`
+    already documents exactly this risk — a partial payload rebuilt from
+    this form would silently wipe the service's real commission/category/
+    image. If the linked service is archived (no longer in
+    `fetchSellableServices`'s active-only list), the card says so instead of
+    inventing a price.
+  - Checked `school_lesson_plans` for a price column: there isn't one (only
+    `fetchSellableServices`'s joined `services.price`) — confirmed no DB
+    confusion, matches `plan_price` freezing at enrollment time.
+  - Checked for a `services.name` unique constraint: none exists in any
+    migration (`create table public.services` has no `unique` on `name`),
+    so there's no duplicate-name DB error to map to a friendly message.
+  - `e2e/school-cycle.spec.ts` test "02 plan": now clicks "Usar un servicio
+    existente" before `pickCombo`, since the default view no longer shows
+    that Select — preserves the test's original intent of reusing "01
+    catálogo"'s pre-created service instead of creating a second one.
+  - `AGENTS.md`'s "Catálogo" section (duplicated at two places in the file,
+    pre-existing — not touched) gets a new bullet: "A school lesson plan
+    owns its service by default."
+  Checks: `npx tsc --noEmit` clean; `npm test` 349/349 (see T12 for the
+  full running count); `npm run lint` at the 7-error/5-warning baseline,
+  none in files touched by T9.
+- T10 done. Commit `23097d3` — feat(school): flujo guiado en Resumen y
+  estado vacío en Agenda. Route: delegated writer (writer trigger: 4+
+  non-trivial files).
+  Files: app/dashboard/school/page.tsx, components/school/AgendaWeek.tsx,
+  services/school-enrollments.service.ts, tests/school-enrollments.test.ts.
+  Decisions:
+  - `onboardingSteps`/`allOnboardingStepsDone` (pure, in
+    `school-enrollments.service.ts` next to `fetchSchoolSummary`) computes
+    the 5 steps and their `done` state from real counts:
+    `settings.instruments.length`, `summary.teachers`, `summary.plans`,
+    `summary.active_enrollments`, and a NEW `summary.lessons` (head-count of
+    `school_lessons`, any status — "has anyone ever scheduled a class",
+    added to `SchoolSummary`/`fetchSchoolSummary`). Tests 21-24 in
+    `tests/school-enrollments.test.ts`.
+  - Resumen calls `fetchSettings()` in addition to the existing
+    `fetchSummary()` (needed for `instruments.length`); the whole "Primeros
+    pasos" card is hidden once `summary !== null && allOnboardingStepsDone`
+    — the explicit `summary !== null` guard stops a false "all done" flash
+    from the zeroed defaults before the first fetch resolves.
+  - `AgendaWeek`: a whole-week empty banner (not just each day's existing
+    "Sin clases") appears when `lessons.length === 0`, naming the real
+    blocker — no schedulable enrollments — and links to Estudiantes, or to
+    Planes first if `summary.plans === 0` too. Fetches `enrollmentViews`
+    (same store slice `SeriesDialog`/`SingleLessonDialog` use) and
+    `summary` on mount for this; both are cheap/idempotent re-fetches.
+  - The empty-enrollment message links in `SeriesDialog`/`SingleLessonDialog`
+    (also T10 scope) shipped in the **T12 commit** instead — they landed in
+    the same hooks (`useEffect` fetching `summary`) and the same JSX block
+    as T12's availability warning, and splitting hunks that tightly
+    interleaved would have been fragile busywork for no real benefit. See
+    T12's entry for those two files.
+  Checks: `npx tsc --noEmit` clean; `npm test` (full count reported once,
+  in T12's entry, after all four tasks landed); `npm run lint` at baseline,
+  none in files touched by T10.
+- T12 done. Commit `4f29343` — feat(school): aviso de disponibilidad y
+  rechazo de fecha bloqueada. Route: delegated writer (writer trigger: 4+
+  non-trivial files).
+  Files: components/school/SeriesDialog.tsx,
+  components/school/SingleLessonDialog.tsx,
+  components/school/AvailabilityEditor.tsx,
+  services/school-schedule.service.ts (the `isWithinAvailability` hunk left
+  unstaged by T11's `git add -p` split), tests/school-schedule.test.ts,
+  supabase/migrations/20260926160000_school_lesson_blocked_dates.sql (new).
+  Also carries T10's empty-enrollment message links for these same two
+  dialog files (see T10's entry above for why).
+  Decisions:
+  - `isWithinAvailability(slots, weekday, startMinutes, endMinutes)` (pure):
+    no franjas loaded → never warns (nothing to evaluate against); the
+    schedule must fall COMPLETELY inside one slot (`start >= slotStart &&
+    end <= slotEnd`), boundaries inclusive; a slot for other weekdays but
+    none for the requested one → warns; overnight slots (`end_time <=
+    start_time`) are explicitly NOT supported — documented in the JSDoc and
+    covered by test 28, rather than silently misbehaving. Tests 22-28 in
+    `tests/school-schedule.test.ts`.
+  - Both dialogs fetch `weekly` via the EXISTING
+    `useSchoolScheduleStore().fetchAvailability(teacherProfileId)` action
+    (same global slice `AvailabilityEditor` uses) instead of a new
+    store/service — tracked against a local `availabilityTeacherId` so the
+    warning never evaluates against a STALE previous teacher's slots while
+    a fetch is in flight (the guard `availabilityTeacherId !== teacherId`
+    naturally covers this without an eager `setState(null)` at the top of
+    the effect, which `react-hooks/set-state-in-effect` flags — hit this
+    during the task, fixed by dropping the eager reset instead of adding an
+    exception).
+  - Blocked-date migration
+    (`20260926160000_school_lesson_blocked_dates.sql`, NOT applied — pending
+    the orchestrator): redefines `school_schedule_lesson` starting from the
+    exact current body in `20260924010000_school_module_rpcs.sql` (grepped
+    every migration for `school_schedule_lesson`/`school_schedule_series`;
+    only that one file defines either), adding ONE check —
+    `school_teacher_blocked_dates` for `teacher_profile_id = v_teach.id`,
+    `user_id = v_uid`, `blocked_date = p_start_at::date` — placed right
+    after the instrument/teacher validation and before the advisory lock,
+    mirroring exactly `school_schedule_series`'s own blocked-date check
+    (same `::date` cast with no timezone conversion, same tenant filter).
+    Raises `SIN_HORARIO: el profesor tiene ese día bloqueado`, which
+    `stripScheduleTag`/`scheduleErrorOf` already turn into a friendly
+    "El profesor tiene ese día bloqueado." — no new error-mapping code
+    needed. Grants copied unchanged.
+  - `AvailabilityEditor.tsx` copy: the weekly-grid paragraph no longer says
+    it "defines" the schedule — it now says it guides and only warns; the
+    blocked-dates paragraph now explicitly distinguishes series (skips +
+    warns) from a single lesson (rejected outright), since the two RPCs no
+    longer behave the same way for a blocked date.
+  Checks: `npx tsc --noEmit` clean; `npm test` 349/349 (329 baseline before
+  this branch's T9-T12 work + 20 new: 4 in `tests/school-enrollments.test.ts`
+  for onboarding steps, 7 in `tests/school-schedule.test.ts` for
+  `isWithinAvailability`, plus tests already counted from T11/T9 which added
+  none); `npm run lint` 7 pre-existing errors / 5 warnings, identical file
+  list to the T1 baseline — none in any file touched by T9-T12 (confirmed by
+  path). One lint error was introduced and fixed DURING this task:
+  `react-hooks/set-state-in-effect` on the eager `setAvailabilityTeacherId(null)`
+  in both dialogs' availability-fetch effect — fixed by relying on the
+  existing `availabilityTeacherId !== teacherId` guard instead (see decision
+  above), re-verified back to the 7/5 baseline before committing.
+  Open item: migration file is written but NOT applied — needs the
+  orchestrator to run it via MCP before the blocked-date rejection is live
+  in the database (the client-side availability WARNING already works
+  without it).
