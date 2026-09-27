@@ -1,97 +1,96 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
-
-/**
- * Video de fondo del hero.
- *
- * El póster se pinta SIEMPRE y el `src` del <video> solo se monta cuando el
- * visitante realmente va a ver la animación. Sin eso, el clip de 1.9 MB se
- * descarga incluso para quien pidió que nada se mueva o está contando megas,
- * que es justo a quien más le duele.
- *
- * Dos condiciones lo apagan, y son distintas:
- *  - `prefers-reduced-motion: reduce` es una preferencia de accesibilidad: hay
- *    gente a la que el movimiento en bucle le provoca mareo. No es un "nice to
- *    have" que se pueda negociar contra lo bonito que queda.
- *  - `saveData` es el modo ahorro de datos del navegador. En un plan prepago,
- *    1.9 MB de decoración es plata del visitante.
- *
- * El estado se lee con `useSyncExternalStore`, no con `useEffect` + `setState`:
- * el proyecto tiene activa `react-hooks/set-state-in-effect` y este es el mismo
- * patrón que ya usa ThemeToggle para el tema.
- */
-
-const suscribirMedia = (consulta: string) => (avisar: () => void) => {
-  const mql = window.matchMedia(consulta);
-  mql.addEventListener("change", avisar);
-  return () => mql.removeEventListener("change", avisar);
-};
+import { useRef, useState, useSyncExternalStore } from "react";
 
 const REDUCE_MOTION = "(prefers-reduced-motion: reduce)";
-
-const suscribirReduccion = suscribirMedia(REDUCE_MOTION);
-const leerReduccion = () => window.matchMedia(REDUCE_MOTION).matches;
-
-// En el servidor no hay forma de saber la preferencia. Se asume "reducido" para
-// que el HTML inicial nunca traiga el <source>: si resulta que el visitante sí
-// quiere movimiento, el video entra al hidratar. Al revés — mandarlo siempre y
-// quitarlo después — ya habría gastado la descarga.
-const leerReduccionServidor = () => true;
-
-const suscribirNada = () => () => {};
-const hidratado = () => true;
-const noHidratado = () => false;
+const subscribeMotion = (notify: () => void) => {
+  const media = window.matchMedia(REDUCE_MOTION);
+  media.addEventListener("change", notify);
+  return () => media.removeEventListener("change", notify);
+};
+const prefersReducedMotion = () => window.matchMedia(REDUCE_MOTION).matches;
+// Do not include a video source in server HTML before preferences are known.
+const serverReducedMotion = () => true;
+const subscribeHydration = () => () => {};
+const hydrated = () => true;
+const serverHydrated = () => false;
 
 type Props = {
-  /** Ruta del mp4 (H.264 8-bit yuv420p, o no lo decodifica por hardware). */
   src: string;
-  /** Imagen que se ve antes del primer frame y cuando el video no corre. */
   poster: string;
   className?: string;
 };
 
 export function HeroVideo({ src, poster, className }: Props) {
-  const prefiereQuieto = useSyncExternalStore(
-    suscribirReduccion,
-    leerReduccion,
-    leerReduccionServidor,
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const reducedMotion = useSyncExternalStore(subscribeMotion, prefersReducedMotion, serverReducedMotion);
+  const isHydrated = useSyncExternalStore(subscribeHydration, hydrated, serverHydrated);
+  const saveData = isHydrated && Boolean(
+    (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData,
   );
-  const yaHidrato = useSyncExternalStore(suscribirNada, hidratado, noHidratado);
+  const [manualPlay, setManualPlay] = useState(false);
+  const [playing, setPlaying] = useState(false);
+  const [failed, setFailed] = useState(false);
 
-  // `saveData` no es estándar en todos los navegadores: si no existe, se ignora.
-  const ahorroDatos =
-    yaHidrato &&
-    Boolean(
-      (navigator as Navigator & { connection?: { saveData?: boolean } })
-        .connection?.saveData,
-    );
+  const shouldMountVideo = isHydrated && !failed && (manualPlay || (!reducedMotion && !saveData));
 
-  const reproducir = yaHidrato && !prefiereQuieto && !ahorroDatos;
-
-  if (!reproducir) {
-    // El póster es el mismo archivo que consume el atributo `poster` del
-    // <video>: pasarlo por next/image generaría una segunda URL para el mismo
-    // pixel y el navegador se bajaría las dos.
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img src={poster} alt="" aria-hidden className={className} />;
-  }
+  const togglePlayback = () => {
+    if (!shouldMountVideo) {
+      setFailed(false);
+      setManualPlay(true);
+      // Mounting a <video> is not proof that playback has started.
+      setPlaying(false);
+      return;
+    }
+    const video = videoRef.current;
+    if (!video) return;
+    if (video.paused) {
+      // A rejected play request (for example, browser policy) is not a media error.
+      // Keep the replay control visible; onPlay/onError are the source of truth.
+      void video.play().catch(() => {});
+    } else {
+      video.pause();
+    }
+  };
 
   return (
-    <video
-      key={src}
-      className={className}
-      poster={poster}
-      autoPlay
-      muted
-      loop
-      playsInline
-      preload="metadata"
-      // Decorativo: lo que cuenta la escena ya lo dice el copy del hero.
-      aria-hidden
-      tabIndex={-1}
-    >
-      <source src={src} type="video/mp4" />
-    </video>
+    <>
+      {shouldMountVideo ? (
+        <video
+          ref={videoRef}
+          className={className}
+          poster={poster}
+          autoPlay
+          muted
+          loop
+          playsInline
+          preload="metadata"
+          aria-hidden="true"
+          tabIndex={-1}
+          onPlay={() => setPlaying(true)}
+          onPause={() => setPlaying(false)}
+          onError={() => { setPlaying(false); setFailed(true); }}
+        >
+          <source src={src} type="video/mp4" />
+        </video>
+      ) : (
+        // The same poster URL is used by <video>; optimizing it would download a second copy.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={poster} alt="" aria-hidden="true" className={className} />
+      )}
+      {isHydrated && (
+        <div className="pointer-events-auto absolute bottom-5 right-5 z-10 flex flex-col items-end gap-2 sm:bottom-8 sm:right-8">
+          {failed && <span role="status" className="rounded-lg bg-black/80 px-3 py-2 text-xs text-white">Video no disponible. Puedes seguir usando la página.</span>}
+          <button
+            type="button"
+            onClick={togglePlayback}
+            className="rounded-full border border-white/60 bg-black/75 px-4 py-2 text-sm font-semibold text-white shadow-lg transition-colors hover:bg-black focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+            aria-label={shouldMountVideo && playing ? "Pausar video de fondo" : failed ? "Reintentar video de fondo" : "Reproducir video de fondo"}
+          >
+            {shouldMountVideo && playing ? "Pausar video" : failed ? "Reintentar video" : "Reproducir video"}
+          </button>
+        </div>
+      )}
+    </>
   );
 }
