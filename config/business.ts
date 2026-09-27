@@ -414,7 +414,10 @@ export const QUICK_ACTIONS: QuickAction[] = [
 // liquidarle. Liquidar es acto del DUEÑO —el RPC revalida `is_tenant_owner()`—
 // y por eso no figura como permiso de trabajador: un empleado nunca ve el ítem,
 // porque `workerNavItems` solo muestra lo que sus permisos nombran.
-const UNIVERSAL_NAV_IDS = ["panel", "pos", "sales", "expenses", "credits", "customers", "staff", "commissions", "subscription", "landing"];
+// `landing` NO es universal: es el editor del sitio público de reservas, y una
+// tienda general no agenda citas ni tiene nada que reservar. Vive en
+// `BASE_NAV_BY_TYPE` para salón, lavaautos, servicios y escuela.
+const UNIVERSAL_NAV_IDS = ["panel", "pos", "sales", "expenses", "credits", "customers", "staff", "commissions", "subscription"];
 
 /** Menú base por tipo de negocio (además de las universales). */
 // `purchases` acompaña a `distributors`: son el mismo dominio (a quién le
@@ -433,14 +436,19 @@ const UNIVERSAL_NAV_IDS = ["panel", "pos", "sales", "expenses", "credits", "cust
 // motivo que `inventory` —depende del módulo `inventory`, que tienda no tiene—
 // y el rubro terminaba con Compras y Proveedores pero sin la pantalla que los
 // alimenta.
+//
+// `landing` sale de acá para salón, lavaautos, servicios y escuela: los cuatro
+// atienden con cita/turno y les sirve un sitio público de reservas. Tienda NO
+// lo lleva —vende de mostrador, no agenda nada que reservar— y es el único
+// rubro que queda sin esta entrada.
 const BASE_NAV_BY_TYPE: Record<BusinessType, string[]> = {
-  salon: ["calendar"],
+  salon: ["calendar", "landing"],
   tienda: ["inventory", "categories", "distributors", "purchases", "pedidos"],
-  lavaautos: ["calendar"],
-  servicios: ["calendar"],
-  // Sin base propia: todo su menú (Académico, Productos y servicios, Personal)
-  // sale de sus módulos. El calendario de citas no aplica — agenda en Académico.
-  escuela: [],
+  lavaautos: ["calendar", "landing"],
+  servicios: ["calendar", "landing"],
+  // Sin base de calendario: agenda en Académico. `landing` sí aplica — una
+  // escuela también quiere su sitio público de matrículas.
+  escuela: ["landing"],
 };
 
 // El sidebar y el panel NO siguen la misma regla, a propósito. El menú lista
