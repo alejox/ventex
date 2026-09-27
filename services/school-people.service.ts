@@ -6,8 +6,10 @@ import { whatsappNumber } from "@/services/promos.service";
 export interface SchoolStudent {
   id: string;
   customer_id: string;
-  /** Nombre del cliente (join con `customers`). */
+  /** Nombre PROPIO del alumno (columna propia — nunca el del cliente/cuenta). */
   full_name: string;
+  /** Nombre del cliente que factura (join con `customers`). Puede ser un padre. */
+  customer_name: string;
   /** Teléfono del cliente (join con `customers`). */
   customer_phone: string | null;
   /** Email del cliente (join con `customers`). */
@@ -26,6 +28,8 @@ export interface SchoolStudent {
 
 export interface NewStudentInput {
   customer_id: string;
+  /** Nombre propio del alumno — SIEMPRE requerido, distinto del cliente. */
+  full_name: string;
   instrument: string;
   level: string | null;
   birth_date?: string | null;
@@ -77,7 +81,7 @@ export interface NewTeacherInput {
 }
 
 const STUDENT_SELECT =
-  "id, customer_id, instrument, level, birth_date, status, is_minor, contact_email, contact_phone, notes, created_at, customers(full_name, phone, email)";
+  "id, customer_id, full_name, instrument, level, birth_date, status, is_minor, contact_email, contact_phone, notes, created_at, customers(full_name, phone, email)";
 const GUARDIAN_SELECT =
   "id, student_id, customer_id, relationship, phone, email, is_notice_receiver, notices_enabled, customers(full_name)";
 const TEACHER_SELECT =
@@ -97,7 +101,8 @@ function mapStudent(raw: StudentRow): SchoolStudent {
   return {
     id: raw.id as string,
     customer_id: raw.customer_id as string,
-    full_name: (c.full_name as string) ?? "Sin nombre",
+    full_name: (raw.full_name as string) ?? "Sin nombre",
+    customer_name: (c.full_name as string) ?? "Sin nombre",
     customer_phone: (c.phone as string | null) ?? null,
     customer_email: (c.email as string | null) ?? null,
     instrument: raw.instrument as string,
@@ -183,6 +188,7 @@ export async function createStudent(input: NewStudentInput): Promise<SchoolStude
     .from("school_students")
     .insert({
       customer_id: input.customer_id,
+      full_name: normalizeName(input.full_name),
       instrument: normalizeName(input.instrument),
       level: input.level ? normalizeName(input.level) : null,
       birth_date: input.birth_date || null,
@@ -203,6 +209,7 @@ export async function updateStudent(id: string, input: NewStudentInput): Promise
     .from("school_students")
     .update({
       customer_id: input.customer_id,
+      full_name: normalizeName(input.full_name),
       instrument: normalizeName(input.instrument),
       level: input.level ? normalizeName(input.level) : null,
       birth_date: input.birth_date || null,

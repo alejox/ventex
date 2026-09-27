@@ -2716,6 +2716,7 @@ export type Database = {
           contact_phone: string | null
           created_at: string
           customer_id: string
+          full_name: string
           id: string
           instrument: string
           is_minor: boolean
@@ -2730,6 +2731,7 @@ export type Database = {
           contact_phone?: string | null
           created_at?: string
           customer_id: string
+          full_name?: string
           id?: string
           instrument: string
           is_minor?: boolean
@@ -2744,6 +2746,7 @@ export type Database = {
           contact_phone?: string | null
           created_at?: string
           customer_id?: string
+          full_name?: string
           id?: string
           instrument?: string
           is_minor?: boolean

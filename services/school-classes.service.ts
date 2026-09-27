@@ -492,7 +492,7 @@ export async function fetchClosePreview(lessonId: string): Promise<CloseParticip
   const { data, error } = await supabase
     .from("school_lesson_participants")
     .select(
-      "id, enrollment_id, attendance_status, school_enrollments(status, policy_consume_on_unjustified_absence, school_students(customers(full_name)))"
+      "id, enrollment_id, attendance_status, school_enrollments(status, policy_consume_on_unjustified_absence, school_students(full_name))"
     )
     .eq("lesson_id", lessonId)
     .order("created_at");
@@ -500,11 +500,10 @@ export async function fetchClosePreview(lessonId: string): Promise<CloseParticip
   return ((data ?? []) as unknown as Record<string, unknown>[]).map((p) => {
     const enrollment = joinedObject(p.school_enrollments);
     const student = joinedObject(enrollment.school_students);
-    const customer = joinedObject(student.customers);
     return {
       participant_id: p.id as string,
       enrollment_id: p.enrollment_id as string,
-      student_name: (customer.full_name as string) ?? "Sin nombre",
+      student_name: (student.full_name as string) ?? "Sin nombre",
       attendance_status: (p.attendance_status as CloseParticipantRow["attendance_status"]) ?? "pending",
       enrollment_status: (enrollment.status as string) ?? "inactive",
       policy_consume_on_unjustified_absence:
@@ -514,7 +513,7 @@ export async function fetchClosePreview(lessonId: string): Promise<CloseParticip
 }
 
 const RESCHEDULE_REQUEST_SELECT =
-  "id, lesson_id, participant_id, reason, requester_kind, created_at, school_lessons(start_at, end_at, instrument, school_teacher_profiles(staff(full_name))), school_enrollments(school_students(customers(full_name)))";
+  "id, lesson_id, participant_id, reason, requester_kind, created_at, school_lessons(start_at, end_at, instrument, school_teacher_profiles(staff(full_name))), school_enrollments(school_students(full_name))";
 
 type RescheduleRequestRow = Record<string, unknown> & {
   created_at?: string;
@@ -529,14 +528,13 @@ function mapPendingRescheduleRequest(raw: RescheduleRequestRow): PendingReschedu
   const staff = joinedObject(teacher.staff);
   const enrollment = joinedObject(raw.school_enrollments);
   const student = joinedObject(enrollment.school_students);
-  const customer = joinedObject(student.customers);
   return {
     id: raw.id as string,
     lesson_id: raw.lesson_id as string,
     old_start_at: lesson.start_at as string,
     old_end_at: lesson.end_at as string,
     instrument: lesson.instrument as string,
-    student_name: (customer.full_name as string) ?? "Sin nombre",
+    student_name: (student.full_name as string) ?? "Sin nombre",
     teacher_name: (staff.full_name as string) ?? "Sin nombre",
     reason: raw.reason as string,
     requested_at: (raw.created_at ?? raw.requested_at) as string,

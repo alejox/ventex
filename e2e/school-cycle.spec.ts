@@ -300,16 +300,22 @@ test.describe.serial("Académico — ciclo completo (cuenta E2E real)", () => {
     await page.getByRole("button", { name: "Nuevo alumno" }).first().click();
     await expect(page.getByRole("heading", { name: "Nuevo alumno" })).toBeVisible({ timeout: 5000 });
 
+    // El nombre del alumno es siempre un campo propio (T8): se completa acá,
+    // independiente de a qué cliente factura.
+    await page.getByLabel("Nombre del alumno").fill(STUDENT_CUSTOMER_NAME);
+
     // El cliente para este alumno ya se creó arriba (createCustomer) — se
     // elige por el link "existente" en vez de dejar que el formulario cree
     // uno nuevo por nombre, para no duplicarlo (ambos flujos comparten el
     // mismo StudentForm).
-    await page.getByRole("button", { name: "elegí un cliente existente" }).click();
-    await pickCombo(page, "Cliente", new RegExp(`^${escapeRe(STUDENT_CUSTOMER_NAME)}$`), {
+    await page
+      .getByRole("button", { name: "usar la cuenta de un cliente existente (p. ej. el padre o acudiente)" })
+      .click();
+    await pickCombo(page, "Cliente (cuenta de cobro)", new RegExp(`^${escapeRe(STUDENT_CUSTOMER_NAME)}$`), {
       searchPlaceholder: "Buscar cliente…",
       searchQuery: STUDENT_CUSTOMER_NAME,
     });
-    await page.getByLabel("Especialidad").selectOption(INSTRUMENT);
+    await pickCombo(page, "Especialidad *", INSTRUMENT);
     // Nivel ahora es un <select> del catálogo de Configuración de Académico
     // (antes texto libre) y es opcional — la suite no siembra un catálogo de
     // niveles, así que se deja en "Sin nivel" en vez de agregar un paso de
@@ -375,7 +381,7 @@ test.describe.serial("Académico — ciclo completo (cuenta E2E real)", () => {
     await pickCombo(page, "Plan de clase", new RegExp(`^${escapeRe(PLAN_NAME)} `));
     // El instrumento NO se auto-completa cuando el alumno llega preseleccionado
     // por prop (solo se auto-completa en el handler `onChange` del selector).
-    await page.getByLabel("Especialidad").selectOption(INSTRUMENT);
+    await pickCombo(page, "Especialidad *", INSTRUMENT);
     await pickCombo(page, "¿Quién paga? (opcional)", new RegExp(`^${escapeRe(STUDENT_CUSTOMER_NAME)}`));
 
     await expect(page.getByText(/Venta del plan en el POS/)).toBeVisible({ timeout: 10000 });

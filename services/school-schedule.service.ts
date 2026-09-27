@@ -558,7 +558,7 @@ export async function removeBlockedDate(id: string): Promise<void> {
 // ============================================================================
 
 const LESSON_SELECT =
-  "id, teacher_profile_id, instrument, room, start_at, end_at, capacity, status, school_teacher_profiles(staff(full_name)), school_lesson_participants(id, enrollment_id, attendance_status, school_enrollments(school_students(customers(full_name))))";
+  "id, teacher_profile_id, instrument, room, start_at, end_at, capacity, status, school_teacher_profiles(staff(full_name)), school_lesson_participants(id, enrollment_id, attendance_status, school_enrollments(school_students(full_name)))";
 
 type LessonRow = Record<string, unknown> & {
   school_teacher_profiles?: unknown;
@@ -582,11 +582,10 @@ function mapLesson(raw: LessonRow): SchoolLesson {
   const mappedParticipants: LessonParticipantView[] = participants.map((p) => {
     const enrollment = joinedObject(p.school_enrollments);
     const student = joinedObject(enrollment.school_students);
-    const customer = joinedObject(student.customers);
     return {
       participant_id: p.id as string,
       enrollment_id: p.enrollment_id as string,
-      student_name: (customer.full_name as string) ?? "Sin nombre",
+      student_name: (student.full_name as string) ?? "Sin nombre",
       attendance_status: p.attendance_status as string,
     };
   });
@@ -951,7 +950,7 @@ export async function fetchEnrollmentScheduleViews(): Promise<EnrollmentSchedule
       supabase
         .from("school_enrollments")
         .select(
-          "id, student_id, instrument, status, contracted_lessons, plan_name, school_students(customer_id, customers(full_name))"
+          "id, student_id, instrument, status, contracted_lessons, plan_name, school_students(full_name)"
         )
         .eq("status", "active")
         .order("created_at", { ascending: false }),
@@ -985,7 +984,6 @@ export async function fetchEnrollmentScheduleViews(): Promise<EnrollmentSchedule
   const rows = ((enrollments ?? []) as unknown as EnrollmentRaw[])
     .map((raw) => {
       const student = joinedObject(raw.school_students);
-      const customer = joinedObject(student.customers);
       const enrollmentId = raw.id as string;
       const view = enrollmentScheduleView(
         raw.contracted_lessons as number,
@@ -995,7 +993,7 @@ export async function fetchEnrollmentScheduleViews(): Promise<EnrollmentSchedule
       return {
         ...view,
         enrollment_id: enrollmentId,
-        student_name: (customer.full_name as string) ?? "Sin nombre",
+        student_name: (student.full_name as string) ?? "Sin nombre",
         instrument: raw.instrument as string,
         plan_name: raw.plan_name as string,
       };

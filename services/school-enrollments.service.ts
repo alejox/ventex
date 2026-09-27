@@ -103,7 +103,7 @@ export interface SchoolSummary {
 const PLAN_SELECT =
   "id, name, service_id, lesson_count, duration_minutes, validity_days, max_group_size, min_age, max_age, is_active, created_at, services(name)";
 const ENROLLMENT_SELECT =
-  "id, student_id, lesson_plan_id, instrument, status, start_date, expiry_date, contracted_lessons, plan_name, plan_price, plan_validity_days, reschedule_count, sale_id, default_teacher_profile_id, created_at, school_students(customer_id, customers(full_name))";
+  "id, student_id, lesson_plan_id, instrument, status, start_date, expiry_date, contracted_lessons, plan_name, plan_price, plan_validity_days, reschedule_count, sale_id, default_teacher_profile_id, created_at, school_students(full_name)";
 
 function planRowToPlan(raw: Record<string, unknown> & { services?: unknown }): LessonPlan {
   const joined = Array.isArray(raw.services) ? ((raw.services[0] as Record<string, unknown>) ?? {}) : ((raw.services as Record<string, unknown>) ?? {});
@@ -128,11 +128,7 @@ function enrollmentRowToEnrollment(raw: Record<string, unknown> & { school_stude
   const joined = raw.school_students;
   if (joined) {
     const studentRow = Array.isArray(joined) ? ((joined[0] as Record<string, unknown>) ?? {}) : (joined as Record<string, unknown>);
-    const customers = studentRow?.customers;
-    if (customers) {
-      const c = Array.isArray(customers) ? ((customers[0] as Record<string, unknown>) ?? {}) : (customers as Record<string, unknown>);
-      student_name = (c.full_name as string) ?? student_name;
-    }
+    student_name = (studentRow?.full_name as string) ?? student_name;
   }
   return {
     id: raw.id as string,
