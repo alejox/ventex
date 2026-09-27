@@ -1,22 +1,35 @@
-/**
- * URL canónica del sitio, en un solo lugar.
- *
- * La necesitan tres cosas que tienen que coincidir o Google las toma como
- * señales contradictorias: el `metadataBase` (del que cuelgan canónicas y
- * OpenGraph), el `Sitemap:` del robots.txt y las URLs del sitemap.
- *
- * Se lee de `NEXT_PUBLIC_SITE_URL`, la misma variable que ya usan los correos de
- * Supabase y ePayco: tener DOS nociones de "cuál es mi dominio" es la forma
- * clásica de terminar con canónicas apuntando a un host y sitemap a otro.
- *
- * El fallback es localhost a propósito y NO un dominio de producción inventado:
- * si la variable falta en el deploy, es mejor que las canónicas apunten a algo
- * obviamente roto —y se note en el primer rastreo— a que apunten a un dominio
- * plausible pero equivocado, que es un error silencioso y caro de revertir.
- */
-export const SITE_URL = (
-  process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"
-).replace(/\/$/, "");
+/** Public origin shared by canonical metadata, robots, sitemap, and JSON-LD. */
+const PRODUCTION_SITE_URL = "https://www.ventex.app";
+const DEVELOPMENT_SITE_URL = "http://localhost:3000";
+
+export function resolveSiteUrl(
+  configuredUrl: string | undefined,
+  environment = process.env.NODE_ENV,
+): string {
+  const fallback = environment === "production"
+    ? PRODUCTION_SITE_URL
+    : DEVELOPMENT_SITE_URL;
+
+  if (!configuredUrl?.trim()) return fallback;
+
+  try {
+    const url = new URL(configuredUrl.trim());
+    if (url.protocol !== "http:" && url.protocol !== "https:") return fallback;
+
+    const hostname = url.hostname.toLowerCase();
+    const isLoopback = hostname === "localhost"
+      || hostname.endsWith(".localhost")
+      || hostname === "127.0.0.1"
+      || hostname === "[::1]";
+    if (environment === "production" && isLoopback) return fallback;
+
+    return url.origin;
+  } catch {
+    return fallback;
+  }
+}
+
+export const SITE_URL = resolveSiteUrl(process.env.NEXT_PUBLIC_SITE_URL);
 
 /** Absolutiza una ruta contra la base canónica. */
 export function absoluteUrl(path = "/"): string {
