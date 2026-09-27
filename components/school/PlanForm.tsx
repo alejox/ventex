@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { Select } from "@/components/ui/Select";
+import { MoneyInput } from "@/components/ui/MoneyInput";
 import { SchoolModal } from "@/components/school/SchoolModal";
 import { formatMoney } from "@/components/school/format";
 import { normalizeName } from "@/services/school-people.service";
 import { createLessonPlan, updateLessonPlan, fetchSellableServices } from "@/services/school-enrollments.service";
 import type { LessonPlan, SellableService } from "@/services/school-enrollments.service";
+import { useServicesStore } from "@/stores/services.store";
 import { notifySuccess, notifyError } from "@/lib/notifications";
 
 interface PlanFormProps {
@@ -21,11 +23,30 @@ interface PlanFormProps {
  * El plan vive SOLO en `school_lesson_plans` y referencia un servicio del
  * catálogo ("clase de 45 min de guitarra") cuyo PRECIO se congela en cada
  * matrícula. Un mismo servicio puede tener varios planes (x4, x8, individual).
+ *
+ * Un plan NUEVO crea su propio servicio (mismo nombre y precio del plan): con
+ * el catálogo en cero, el selector de servicio salía vacío y el alta quedaba
+ * muerta en silencio — el bug real que motivó esta tarea (T9). "Usar un
+ * servicio existente" es la puerta de escape para reusar uno ya creado (ej.
+ * uno que también se vende suelto en el POS). Al EDITAR, el servicio ya está
+ * vinculado: se muestra (nombre + precio), no se vuelve a elegir — el precio
+ * se edita desde Productos y servicios, nunca desde acá (ver nota en
+ * `services.service.ts` sobre `updateService` necesitando la ficha completa:
+ * un patch parcial armado a mano desde este formulario le pisaría la
+ * comisión/categoría/imagen reales del servicio).
  */
 export function PlanForm({ plan, onClose, onSaved }: PlanFormProps) {
   const [services, setServices] = useState<SellableService[]>([]);
+  const addService = useServicesStore((s) => s.addService);
+
   const [name, setName] = useState(plan?.name ?? "");
+  const [price, setPrice] = useState("");
+  const [showExistingPicker, setShowExistingPicker] = useState(false);
   const [serviceId, setServiceId] = useState(plan?.service_id ?? "");
+  // Si el servicio se crea bien pero el plan falla después, un reintento no
+  // debe crear un SEGUNDO servicio huérfano (mismo patrón que
+  // `createdCustomerId` en StudentForm, T4).
+  const [createdServiceId, setCreatedServiceId] = useState<string | null>(null);
   const [lessonCount, setLessonCount] = useState(plan?.lesson_count ?? 4);
   const [durationMinutes, setDurationMinutes] = useState(plan?.duration_minutes ?? 60);
   const [validityDays, setValidityDays] = useState(plan?.validity_days ?? 30);
@@ -56,16 +77,58 @@ export function PlanForm({ plan, onClose, onSaved }: PlanFormProps) {
   };
 
   const selectedService = services.find((s) => s.id === serviceId);
+  // El servicio vinculado en edición puede estar archivado: `fetchSellableServices`
+  // solo trae activos, así que no aparecería acá. Se avisa en vez de inventar un precio.
+  const linkedService = plan ? services.find((s) => s.id === plan.service_id) : undefined;
+
+  const priceValid = !plan && !showExistingPicker ? price !== "" && parseFloat(price) >= 0 : true;
+  const serviceReady = plan
+    ? true
+    : showExistingPicker
+      ? Boolean(serviceId)
+      : Boolean(normalizeName(name)) && priceValid;
+
+  const canSubmit = Boolean(normalizeName(name)) && lessonCount >= 1 && !ageRangeInvalid && serviceReady;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!normalizeName(name) || !serviceId || lessonCount < 1 || ageRangeInvalid) return;
+    if (!canSubmit) return;
 
     setLoading(true);
     setError("");
+
+    let finalServiceId = serviceId;
+
+    if (!plan && !showExistingPicker) {
+      if (createdServiceId) {
+        // Reintento tras una falla previa del plan: el servicio ya existe.
+        finalServiceId = createdServiceId;
+      } else {
+        const newServiceId = await addService({
+          name: normalizeName(name),
+          description: "",
+          price,
+          duration_minutes: String(durationMinutes),
+          status: "active",
+          has_commission: false,
+          commission_type: "percentage",
+          commission_value: "",
+          image_url: null,
+        });
+        if (!newServiceId) {
+          setLoading(false);
+          setError("No se pudo crear el servicio del plan");
+          notifyError("No se pudo guardar el plan", "No se pudo crear el servicio del plan");
+          return;
+        }
+        finalServiceId = newServiceId;
+        setCreatedServiceId(newServiceId);
+      }
+    }
+
     const payload = {
       name: normalizeName(name),
-      service_id: serviceId,
+      service_id: finalServiceId,
       lesson_count: lessonCount,
       duration_minutes: durationMinutes,
       validity_days: validityDays,
@@ -107,23 +170,70 @@ export function PlanForm({ plan, onClose, onSaved }: PlanFormProps) {
               className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
             />
           </div>
-          <div className="space-y-1.5">
-            <Select
-              label="Servicio (clase)"
-              value={serviceId}
-              onChange={(e) => setServiceId(e.target.value)}
-              searchable
-              searchPlaceholder="Buscar servicio…"
-              hint={selectedService ? `Precio de la clase: ${formatMoney(selectedService.price)}` : undefined}
-            >
-              <option value="">Seleccionar…</option>
-              {services.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name} — {formatMoney(s.price)}
-                </option>
-              ))}
-            </Select>
-          </div>
+          {plan ? (
+            <div className="space-y-1.5">
+              <label className="text-sm font-semibold text-on-surface">Servicio vinculado</label>
+              <div className="w-full rounded-xl border border-outline-variant/30 bg-surface-container-lowest py-2.5 px-3 text-sm text-on-surface">
+                {plan.service_name}
+                {linkedService ? ` — ${formatMoney(linkedService.price)}` : " — servicio archivado"}
+              </div>
+              <a
+                href={`/dashboard/inventory/product?serviceId=${plan.service_id}&type=servicio`}
+                className="text-xs font-semibold text-primary hover:underline"
+              >
+                Editar precio en Productos y servicios
+              </a>
+            </div>
+          ) : showExistingPicker ? (
+            <div className="space-y-1.5">
+              <Select
+                label="Servicio (clase)"
+                value={serviceId}
+                onChange={(e) => setServiceId(e.target.value)}
+                searchable
+                searchPlaceholder="Buscar servicio…"
+                hint={selectedService ? `Precio de la clase: ${formatMoney(selectedService.price)}` : undefined}
+              >
+                <option value="">Seleccionar…</option>
+                {services.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name} — {formatMoney(s.price)}
+                  </option>
+                ))}
+              </Select>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowExistingPicker(false);
+                  setServiceId("");
+                  setCreatedServiceId(null);
+                }}
+                className="text-xs font-semibold text-primary hover:underline"
+              >
+                Crear un servicio nuevo para este plan
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              <label className="flex items-center gap-1 text-sm font-semibold text-on-surface">
+                Precio <span className="text-primary">*</span>
+              </label>
+              <MoneyInput value={price} onChange={setPrice} required />
+              <p className="text-xs text-on-surface-variant">
+                Se crea un servicio nuevo con este nombre y precio.{" "}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowExistingPicker(true);
+                    setCreatedServiceId(null);
+                  }}
+                  className="font-semibold text-primary hover:underline"
+                >
+                  Usar un servicio existente
+                </button>
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -238,7 +348,7 @@ export function PlanForm({ plan, onClose, onSaved }: PlanFormProps) {
           </button>
           <button
             type="submit"
-            disabled={loading || !normalizeName(name) || !serviceId || lessonCount < 1 || ageRangeInvalid}
+            disabled={loading || !canSubmit}
             className="px-6 py-2.5 rounded-xl bg-primary hover:bg-primary-dim text-white text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? "Guardando…" : "Guardar plan"}

@@ -10,8 +10,12 @@ interface ServicesState {
   submitting: boolean;
 
   fetchServices: () => Promise<void>;
-  /** Devuelve true si el alta fue correcta (para que el componente cierre el modal). */
-  addService: (input: NewServiceInput) => Promise<boolean>;
+  /**
+   * Devuelve el id del servicio creado (para que el llamador pueda encadenar
+   * una escritura que lo referencia, ej. un plan de clase — T9), o false si
+   * falló. Mismo patrón que `addProduct` en `inventory.store.ts`.
+   */
+  addService: (input: NewServiceInput) => Promise<string | false>;
   updateService: (id: string, input: NewServiceInput) => Promise<boolean>;
   /**
    * Activa o archiva sin abrir el formulario (acción de fila del catálogo).
@@ -44,7 +48,7 @@ export const useServicesStore = create<ServicesState>((set) => ({
     try {
       const service = await servicesService.createService(input);
       set((s) => ({ services: [...s.services, service], submitting: false }));
-      return true;
+      return service.id;
     } catch (e) {
       set({ error: toMessage(e), submitting: false });
       return false;

@@ -212,6 +212,10 @@ test.describe.serial("Académico — ciclo completo (cuenta E2E real)", () => {
     await expect(page.getByRole("heading", { name: "Nuevo plan de clase" })).toBeVisible({ timeout: 5000 });
 
     await page.getByPlaceholder("Ej. Guitarra x4").fill(PLAN_NAME);
+    // T9: el plan por defecto crea SU PROPIO servicio (nombre + precio del
+    // formulario). Este test reusa el servicio de "01 catálogo" en su lugar,
+    // así que primero hay que abrir el selector de servicio existente.
+    await page.getByRole("button", { name: "Usar un servicio existente" }).click();
     await pickCombo(page, "Servicio (clase)", new RegExp(`^${escapeRe(SERVICE_NAME)} —`), {
       searchPlaceholder: "Buscar servicio…",
       searchQuery: SERVICE_NAME,

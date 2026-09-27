@@ -89,6 +89,7 @@ A service is one row in `public.services` — never also a `products` row. It us
 - **One screen, one form.** `/dashboard/inventory` is the catalog (`lib/catalog.ts` merges both tables in memory) and `/dashboard/inventory/product` is the only creation form: `?id=` edits a product, `?serviceId=` edits a service, `?type=servicio` opens the Servicio tab. `/dashboard/services` is a permanent redirect; nav item `inventory` is named "Productos y servicios" and shows for either the `inventory` or `services` module.
 - **Services are archived, never deleted.** `sale_items.service_id` and `appointments.service_id` are `ON DELETE SET NULL`, so deleting detaches history instead of removing the service. Use `setServiceStatus`.
 - Writing to `services` requires `worker_can('services')`, not `inventory_edit` — the two halves of the catalog have separate write permissions.
+- **A school lesson plan owns its service by default.** `components/school/PlanForm.tsx` creates a `services` row (same name/price, via `useServicesStore().addService`) for every NEW plan, then points `school_lesson_plans.service_id` at it — "Usar un servicio existente" is the escape hatch to link one already in the catalog instead. This exists because with an empty catalog the old service picker had nothing to select, and plan creation dead-ended silently (T9). `school_lesson_plans` itself has no price column — the service carries the price, and `school_enrollments.plan_price` freezes it at enrollment time.
 
 # Subscription billing (ePayco)
 
@@ -153,6 +154,7 @@ A service is one row in `public.services` — never also a `products` row. It us
 - **One screen, one form.** `/dashboard/inventory` is the catalog (`lib/catalog.ts` merges both tables in memory) and `/dashboard/inventory/product` is the only creation form: `?id=` edits a product, `?serviceId=` edits a service, `?type=servicio` opens the Servicio tab. `/dashboard/services` is a permanent redirect; nav item `inventory` is named "Productos y servicios" and shows for either the `inventory` or `services` module.
 - **Services are archived, never deleted.** `sale_items.service_id` and `appointments.service_id` are `ON DELETE SET NULL`, so deleting detaches history instead of removing the service. Use `setServiceStatus`.
 - Writing to `services` requires `worker_can('services')`, not `inventory_edit` — the two halves of the catalog have separate write permissions.
+- **A school lesson plan owns its service by default.** `components/school/PlanForm.tsx` creates a `services` row (same name/price, via `useServicesStore().addService`) for every NEW plan, then points `school_lesson_plans.service_id` at it — "Usar un servicio existente" is the escape hatch to link one already in the catalog instead. This exists because with an empty catalog the old service picker had nothing to select, and plan creation dead-ended silently (T9). `school_lesson_plans` itself has no price column — the service carries the price, and `school_enrollments.plan_price` freezes it at enrollment time.
 
 # Subscription billing (ePayco)
 
