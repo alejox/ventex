@@ -37,6 +37,7 @@ import { ExpenseModal } from "@/components/ExpenseModal";
 import { useProfile } from "@/components/ProfileProvider";
 import { visibleNavItems, workerNavItems, groupNavItems, footerNavItems } from "@/config/business";
 import { SidebarNavGroup, useOpenNavGroups } from "@/components/SidebarNavGroup";
+import { SidebarTooltip } from "@/components/ui/SidebarTooltip";
 import { backdropProps } from "@/components/modal";
 import { SIDEBAR_COOKIE, SIDEBAR_COOKIE_MAX_AGE } from "@/lib/sidebar";
 import { WorkspaceSwitcher } from "@/components/WorkspaceSwitcher";
@@ -45,6 +46,26 @@ import { SupportFab, showsSupportFab, SUPPORT_FAB_CLEARANCE } from "@/components
 import { useBusinessSiteStore } from "@/stores/business-site.store";
 
 type IconType = typeof IconHome;
+
+const REDUCE_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
+const prefersReducedMotion = () =>
+  typeof window !== "undefined" && window.matchMedia(REDUCE_MOTION_QUERY).matches;
+
+/**
+ * Botón cuadrado del riel colapsado: mismo tamaño y mismo anillo de foco para
+ * los ítems de navegación y los accesos del pie (admin, revendedor, plan,
+ * ajustes). El botón de plegar queda aparte —es más chico a propósito— pero
+ * comparte el anillo.
+ *
+ * El foco usa `ring` (box-shadow) y no `outline`: un `outline` sobre una
+ * esquina redondeada lo dibuja Safari como un óvalo que no seguía el radio
+ * real del botón. El `ring` sí sigue el `border-radius`.
+ */
+const COLLAPSED_ICON_BUTTON =
+  "flex items-center justify-center w-11 h-11 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface-container-lowest";
+
+const COLLAPSED_FOCUS_RING =
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface-container-lowest";
 
 // Icono de escudo para el acceso al panel super admin (no existe en el set base).
 function IconShield({ className }: { className?: string }) {
@@ -110,6 +131,21 @@ export function DashboardShell({
   // Arranca con lo que ya pintó el servidor: el primer render del cliente tiene
   // que ser idéntico o React descarta el árbol y el menú "salta".
   const [sidebarCollapsed, setSidebarCollapsed] = useState(defaultCollapsed);
+  /**
+   * Si el contenido ANCHO (etiquetas, "Menú Principal", los grupos abiertos,
+   * el nombre de los accesos del pie) ya se puede pintar.
+   *
+   * Es un estado aparte de `sidebarCollapsed` a propósito: ese decide el
+   * ANCHO real del `<aside>`, que anima 300ms. Pintar las etiquetas apenas
+   * cambia `sidebarCollapsed` las mete dentro de una columna que todavía mide
+   * 80px, y el texto se ve partido o recortado durante toda la transición.
+   * Al expandir se espera a que la transición de `width` termine
+   * (`onTransitionEnd` del propio `<aside>`); al colapsar no hace falta
+   * esperar nada porque los iconos sueltos entran en cualquier ancho, así que
+   * el swap es inmediato. Con `prefers-reduced-motion` tampoco hay nada que
+   * esperar: no hay transición que correr.
+   */
+  const [sidebarExpandedContent, setSidebarExpandedContent] = useState(!defaultCollapsed);
 
   const handleGlobalSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -238,31 +274,53 @@ export function DashboardShell({
   return (
     <div className="flex h-screen bg-background text-on-background font-sans">
       {/* Sidebar - Desktop */}
-      <aside className={`print:hidden hidden lg:flex flex-col border-r border-outline-variant/10 bg-surface-container-lowest transition-all duration-300 ${sidebarCollapsed ? "w-20" : "w-60"}`}>
+      <aside
+        className={`print:hidden hidden lg:flex flex-col overflow-hidden border-r border-outline-variant/10 bg-surface-container-lowest transition-[width] duration-300 motion-reduce:transition-none ${sidebarCollapsed ? "w-20" : "w-60"}`}
+        onTransitionEnd={(e) => {
+          // Solo el ancho del propio <aside>: los hijos también transicionan
+          // (colores al hover, el chevron al rotar) y esos eventos burbujean
+          // hasta acá. Filtrar por target y propiedad evita pintar el
+          // contenido ancho por una transición que no es la del ancho.
+          if (e.target === e.currentTarget && e.propertyName === "width" && !sidebarCollapsed) {
+            setSidebarExpandedContent(true);
+          }
+        }}
+      >
         <div className="h-16 shrink-0 flex items-center justify-center border-b border-outline-variant/10 px-4">
           <Link href="/dashboard" aria-label="Ventex, ir al panel" className="inline-flex items-center justify-center rounded-lg focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary">
-            {sidebarCollapsed ? (
-              <LogoSymbol className="w-9 h-9" />
-            ) : (
+            {sidebarExpandedContent ? (
               <LogoHorizontal className="w-36 h-9" />
+            ) : (
+              <LogoSymbol className="w-9 h-9" />
             )}
           </Link>
         </div>
 
         <div className="flex-1 overflow-y-auto min-h-0">
           <nav aria-label="Navegación principal" className="p-3 space-y-1">
-            <div className={`flex items-center mb-3 mt-3 ${sidebarCollapsed ? "justify-center" : "px-3"}`}>
-              {!sidebarCollapsed && (
+            <div className={`flex items-center mb-3 mt-3 ${sidebarExpandedContent ? "px-3" : "justify-center"}`}>
+              {sidebarExpandedContent && (
                 <div className="text-[10px] font-bold text-on-surface-variant uppercase tracking-[0.2em] whitespace-nowrap overflow-hidden flex-1">
                   Menú Principal
                 </div>
               )}
               <button
                 type="button"
-                onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                onClick={() => {
+                  setSidebarCollapsed((prevCollapsed) => {
+                    const collapsing = !prevCollapsed;
+                    if (collapsing || prefersReducedMotion()) {
+                      // Colapsando: los iconos sueltos entran en cualquier
+                      // ancho, no hay nada que esperar. Con reduced motion no
+                      // hay animación que esperar tampoco.
+                      setSidebarExpandedContent(!collapsing);
+                    }
+                    return collapsing;
+                  });
+                }}
                 aria-label={sidebarCollapsed ? "Expandir menú" : "Minimizar menú"}
                 aria-expanded={!sidebarCollapsed}
-                className="shrink-0 w-9 h-9 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high focus-visible:outline-2 focus-visible:outline-primary transition-colors"
+                className={`shrink-0 w-9 h-9 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors ${COLLAPSED_FOCUS_RING}`}
                 title={sidebarCollapsed ? "Expandir menú" : "Minimizar menú"}
               >
                 <svg
@@ -287,10 +345,18 @@ export function DashboardShell({
                   // Colapsada, la divisoria es lo unico que agrupa trece iconos
                   // casi iguales. Desplegada, las cabeceras de modulo ya son la
                   // estructura y la linea solo agrega un corte mas al borde.
-                  i > 0 ? (sidebarCollapsed ? "pt-3 mt-3 border-t border-outline-variant/10" : "mt-1") : ""
+                  i > 0 ? (sidebarExpandedContent ? "mt-1" : "pt-3 mt-3 border-t border-outline-variant/8") : ""
                 }
               >
-                {sidebarCollapsed ? (
+                {sidebarExpandedContent ? (
+                  <SidebarNavGroup
+                    group={group}
+                    activeNavId={activeNavId}
+                    open={abiertos.has(group.id)}
+                    onToggle={toggleNavGroup}
+                    icons={NAV_ICONS}
+                  />
+                ) : (
                   // Riel de iconos: no hay dónde poner una cabecera ni un
                   // chevron, así que el acordeón no aplica y los ítems vuelven a
                   // ser iconos sueltos separados por la divisoria. Plegar lo que
@@ -299,35 +365,28 @@ export function DashboardShell({
                     const Icon = NAV_ICONS[item.id];
                     const isActive = item.id === activeNavId;
                     return (
-                      <Link
-                        key={item.id}
-                        href={item.href}
-                        aria-current={isActive ? "page" : undefined}
-                        aria-label={item.name}
-                        title={item.name}
-                        // Mas tinte que en el menu desplegado, y a proposito:
-                        // ahi el nombre del item tambien se pinta de primary y
-                        // el color viaja en dos lugares. Aca el icono es lo
-                        // unico que hay, asi que el fondo tiene que sostener
-                        // solo el "estas aca".
-                        className={`flex items-center justify-center py-3 rounded-xl focus-visible:outline-2 focus-visible:outline-primary transition-all ${
-                          isActive
-                            ? "relative bg-primary/20 text-primary before:absolute before:left-0 before:top-1/2 before:h-6 before:w-0.5 before:-translate-y-1/2 before:rounded-full before:bg-primary"
-                            : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
-                        }`}
-                      >
-                        {Icon && <Icon className="w-5 h-5 shrink-0" />}
-                      </Link>
+                      <SidebarTooltip key={item.id} label={item.name}>
+                        {(trigger) => (
+                          <Link
+                            {...trigger}
+                            href={item.href}
+                            aria-current={isActive ? "page" : undefined}
+                            aria-label={item.name}
+                            // Sin borde de acento: colisionaba con la esquina
+                            // redondeada del botón cuadrado y a veces quedaba
+                            // recortado. El fondo tintado ya dice "estás acá".
+                            className={`mx-auto ${COLLAPSED_ICON_BUTTON} ${
+                              isActive
+                                ? "bg-primary/15 text-primary"
+                                : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
+                            }`}
+                          >
+                            {Icon && <Icon className="w-5 h-5 shrink-0" />}
+                          </Link>
+                        )}
+                      </SidebarTooltip>
                     );
                   })
-                ) : (
-                  <SidebarNavGroup
-                    group={group}
-                    activeNavId={activeNavId}
-                    open={abiertos.has(group.id)}
-                    onToggle={toggleNavGroup}
-                    icons={NAV_ICONS}
-                  />
                 )}
               </div>
             ))}
@@ -338,67 +397,119 @@ export function DashboardShell({
             bloque entero (con su borde) desaparece en vez de quedar vacío. */}
         {showAdminLinks && (
         <div className="shrink-0 p-3 border-t border-outline-variant/10 space-y-1">
-          {!sidebarCollapsed && (
+          {sidebarExpandedContent && (
             <div className="px-3 pb-1 pt-1 text-[10px] font-bold uppercase tracking-[0.16em] text-on-surface-variant/70">
               Cuenta y administración
             </div>
           )}
           {isSuperAdmin && (
-            <Link
-              href="/admin"
-              className={`flex items-center gap-3 py-3 rounded-xl transition-all text-sm font-medium text-primary hover:bg-primary/10 overflow-hidden ${
-                sidebarCollapsed ? "justify-center px-0" : "px-4"
-              }`}
-              title={sidebarCollapsed ? "Panel Admin" : undefined}
-            >
-              <IconShield className="w-5 h-5 shrink-0" />
-              {!sidebarCollapsed && <span className="whitespace-nowrap">Panel Admin</span>}
-            </Link>
+            sidebarExpandedContent ? (
+              <Link
+                href="/admin"
+                className="flex items-center gap-3 px-4 py-3 rounded-xl transition-colors text-sm font-medium text-primary hover:bg-primary/10"
+              >
+                <IconShield className="w-5 h-5 shrink-0" />
+                <span className="whitespace-nowrap">Panel Admin</span>
+              </Link>
+            ) : (
+              <SidebarTooltip label="Panel Admin">
+                {(trigger) => (
+                  <Link
+                    {...trigger}
+                    href="/admin"
+                    aria-label="Panel Admin"
+                    className={`mx-auto ${COLLAPSED_ICON_BUTTON} text-primary hover:bg-primary/10`}
+                  >
+                    <IconShield className="w-5 h-5 shrink-0" />
+                  </Link>
+                )}
+              </SidebarTooltip>
+            )
           )}
           {isReseller && (
-            <Link
-              href="/reseller"
-              className={`flex items-center gap-3 py-3 rounded-xl transition-all text-sm font-medium text-primary hover:bg-primary/10 overflow-hidden ${
-                sidebarCollapsed ? "justify-center px-0" : "px-4"
-              }`}
-              title={sidebarCollapsed ? "Panel Revendedor" : undefined}
-            >
-              <IconUserBadge className="w-5 h-5 shrink-0" />
-              {!sidebarCollapsed && <span className="whitespace-nowrap">Panel Revendedor</span>}
-            </Link>
+            sidebarExpandedContent ? (
+              <Link
+                href="/reseller"
+                className="flex items-center gap-3 px-4 py-3 rounded-xl transition-colors text-sm font-medium text-primary hover:bg-primary/10"
+              >
+                <IconUserBadge className="w-5 h-5 shrink-0" />
+                <span className="whitespace-nowrap">Panel Revendedor</span>
+              </Link>
+            ) : (
+              <SidebarTooltip label="Panel Revendedor">
+                {(trigger) => (
+                  <Link
+                    {...trigger}
+                    href="/reseller"
+                    aria-label="Panel Revendedor"
+                    className={`mx-auto ${COLLAPSED_ICON_BUTTON} text-primary hover:bg-primary/10`}
+                  >
+                    <IconUserBadge className="w-5 h-5 shrink-0" />
+                  </Link>
+                )}
+              </SidebarTooltip>
+            )
           )}
           {footerNav.map((item) => {
             const Icon = NAV_ICONS[item.id];
-            return (
+            const isActive = item.id === activeNavId;
+            return sidebarExpandedContent ? (
               <Link
                 key={item.id}
                 href={item.href}
-                aria-current={item.id === activeNavId ? "page" : undefined}
-                className={`relative flex items-center gap-3 py-3 rounded-xl transition-all text-sm font-medium overflow-hidden ${
-                  sidebarCollapsed ? "justify-center px-0" : "px-4"
-                } ${
-                  item.id === activeNavId
+                aria-current={isActive ? "page" : undefined}
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors text-sm font-medium ${
+                  isActive
                     ? "bg-primary/10 text-primary"
                     : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
                 }`}
-                title={sidebarCollapsed ? item.name : undefined}
               >
                 {Icon && <Icon className="w-5 h-5 shrink-0" />}
-                {!sidebarCollapsed && <span className="whitespace-nowrap">{item.name}</span>}
+                <span className="whitespace-nowrap">{item.name}</span>
               </Link>
+            ) : (
+              <SidebarTooltip key={item.id} label={item.name}>
+                {(trigger) => (
+                  <Link
+                    {...trigger}
+                    href={item.href}
+                    aria-current={isActive ? "page" : undefined}
+                    aria-label={item.name}
+                    className={`mx-auto ${COLLAPSED_ICON_BUTTON} ${
+                      isActive
+                        ? "bg-primary/15 text-primary"
+                        : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
+                    }`}
+                  >
+                    {Icon && <Icon className="w-5 h-5 shrink-0" />}
+                  </Link>
+                )}
+              </SidebarTooltip>
             );
           })}
           {canSeeSettings && (
-            <Link
-              href="/dashboard/settings"
-              className={`flex items-center gap-3 py-3 rounded-xl transition-all text-sm font-medium text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low overflow-hidden ${
-                sidebarCollapsed ? "justify-center px-0" : "px-4"
-              }`}
-              title={sidebarCollapsed ? "Configuración" : undefined}
-            >
-              <IconSettings className="w-5 h-5 shrink-0" />
-              {!sidebarCollapsed && <span className="whitespace-nowrap">Configuración</span>}
-            </Link>
+            sidebarExpandedContent ? (
+              <Link
+                href="/dashboard/settings"
+                className="flex items-center gap-3 px-4 py-3 rounded-xl transition-colors text-sm font-medium text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
+              >
+                <IconSettings className="w-5 h-5 shrink-0" />
+                <span className="whitespace-nowrap">Configuración</span>
+              </Link>
+            ) : (
+              <SidebarTooltip label="Configuración">
+                {(trigger) => (
+                  <Link
+                    {...trigger}
+                    href="/dashboard/settings"
+                    aria-label="Configuración"
+                    className={`mx-auto ${COLLAPSED_ICON_BUTTON} text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low`}
+                  >
+                    <IconSettings className="w-5 h-5 shrink-0" />
+                  </Link>
+                )}
+              </SidebarTooltip>
+            )
           )}
         </div>
         )}
