@@ -31,12 +31,12 @@ export function LandingJsonLd({ plans }: { plans: Plan[] }) {
     "@id": `${SITE_URL}/#software`,
     name: "Ventex",
     applicationCategory: "BusinessApplication",
-    applicationSubCategory: "Point of Sale",
+    applicationSubCategory: "Business management software",
     operatingSystem: "Web, iOS, Android",
     url: SITE_URL,
     inLanguage: "es",
     description:
-      "Sistema POS con punto de venta, inventario, facturación, clientes y finanzas para tiendas, salones, lava-autos y servicios profesionales.",
+      "Plataforma de gestión para negocios con punto de venta, inventario, clientes, finanzas y herramientas según su operación.",
     featureList: [
       "Punto de venta con lectura de códigos de barras",
       "Inventario con alertas de stock bajo",
@@ -70,7 +70,7 @@ export function LandingJsonLd({ plans }: { plans: Plan[] }) {
     "@id": `${SITE_URL}/#organizacion`,
     name: "Ventex",
     url: SITE_URL,
-    logo: absoluteUrl("/assets/vertex-h.svg"),
+    logo: absoluteUrl("/brand/ventex-modular.svg"),
     description:
       "Plataforma de gestión de negocios: punto de venta, inventario, facturación y finanzas.",
   };
