@@ -31,10 +31,6 @@ export default function AdminCreditsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [movements.length]);
-
   const totalPages = Math.ceil(movements.length / pageSize) || 1;
   const safeCurrentPage = Math.min(currentPage, totalPages);
   const paginatedMovements = movements.slice(

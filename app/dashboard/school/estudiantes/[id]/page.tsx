@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useSchoolPeopleStore } from "@/stores/school-people.store";
@@ -53,12 +53,12 @@ export default function EstudianteDetailPage() {
   // El saldo "disponible" de la tarjeta suma SOLO matrículas activas: una
   // matrícula vencida conserva su histórico pero ya no es saldo usable, y la
   // reconstruction por matrícula vive en CreditHistory.
-  const activeBalance = useMemo(() => {
-    const activeIds = new Set(enrollments.filter((e) => e.status === "active").map((e) => e.id));
-    return movements
-      .filter((m) => activeIds.has(m.enrollment_id))
-      .reduce((acc, m) => acc + m.amount, 0);
-  }, [detail?.enrollments, detail?.movements]);
+  const activeEnrollmentIds = new Set(
+    enrollments.filter((e) => e.status === "active").map((e) => e.id),
+  );
+  const activeBalance = movements
+    .filter((m) => activeEnrollmentIds.has(m.enrollment_id))
+    .reduce((acc, m) => acc + m.amount, 0);
 
   const refresh = () => {
     if (params.id) {

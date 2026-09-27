@@ -7,7 +7,6 @@ import { useProfile } from "@/components/ProfileProvider";
 import { useSettingsStore } from "@/stores/settings.store";
 import type { RewardKind } from "@/services/promos.service";
 import {
-  REWARD_KIND_LABELS,
   DEFAULT_PROMO_MESSAGE,
   PROMO_VARIABLES,
   renderPromoMessage,
@@ -50,7 +49,7 @@ export default function PromocionesPage() {
 
   const [threshold, setThreshold] = useState("10");
   const [reward, setReward] = useState("");
-  const [rewardKind, setRewardKind] = useState<RewardKind>("gratis");
+  const rewardKind = "gratis" as RewardKind;
   const [rewardValue, setRewardValue] = useState("");
 
   useEffect(() => {

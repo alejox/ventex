@@ -18,7 +18,6 @@ import { notifySuccess, notifyError } from "@/lib/notifications";
 import { ProductBrowser } from "./ProductBrowser";
 import { SavedOrders } from "./SavedOrders";
 import { Select } from "@/components/ui/Select";
-import { MoneyInput } from "@/components/ui/MoneyInput";
 import { Pagination } from "@/components/Pagination";
 
 function IconZap(props: React.SVGProps<SVGSVGElement>) {
@@ -102,10 +101,6 @@ export function PedidosClient({
     fetchOrders();
   }, [fetchOrders]);
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [items.length]);
-
   const totalPages = Math.ceil(items.length / pageSize) || 1;
   const safeCurrentPage = Math.min(currentPage, totalPages);
   const paginatedItems = items.slice(
@@ -130,6 +125,7 @@ export function PedidosClient({
 
   const handleClear = useCallback(() => {
     setItems([]);
+    setCurrentPage(1);
     setQuantities({});
     setGenerated(true);
     setEditingOrderId(null);
@@ -212,6 +208,7 @@ export function PedidosClient({
         distributorName: order.distributor_name,
       })),
     );
+    setCurrentPage(1);
     setQuantities(
       Object.fromEntries(
         order.items.map((line) => [line.product_id ?? line.id, line.quantity]),
@@ -293,6 +290,7 @@ export function PedidosClient({
     );
     const result = buildSuggestedItems(initialProducts, blocked) as SuggestedOrderItem[];
     setItems(result);
+    setCurrentPage(1);
     const q: Record<string, number> = {};
     for (const item of result) {
       q[item.productId] = item.suggestedQuantity;
@@ -307,6 +305,7 @@ export function PedidosClient({
 
   const removeItem = (productId: string) => {
     setItems((prev) => prev.filter((i) => i.productId !== productId));
+    setCurrentPage(1);
     setQuantities((prev) => {
       const next = { ...prev };
       delete next[productId];
@@ -336,6 +335,7 @@ export function PedidosClient({
       distributorName: product.distributors?.business_name ?? null,
     };
     setItems((prev) => [...prev, newItem]);
+    setCurrentPage(1);
     setQuantities((prev) => ({ ...prev, [product.id]: suggested }));
     setGenerated(true);
   };

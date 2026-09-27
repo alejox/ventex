@@ -23,10 +23,6 @@ export default function AdminResellersPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [resellers.length]);
-
   const totalPages = Math.ceil(resellers.length / pageSize) || 1;
   const safeCurrentPage = Math.min(currentPage, totalPages);
   const paginatedResellers = resellers.slice(

@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useState } from "react";
 import type React from "react";
 import { Pagination } from "./Pagination";
 
@@ -117,16 +117,14 @@ export function DataTable<T>({
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSizeState, setPageSizeState] = useState(pageSize);
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [sortKey, sortDir]);
-
   const toggleSort = (key: string) => {
     if (sortKey === key) {
       setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+      setCurrentPage(1);
     } else {
       setSortKey(key);
       setSortDir("asc");
+      setCurrentPage(1);
     }
   };
 

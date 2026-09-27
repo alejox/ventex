@@ -404,7 +404,7 @@ export function PosCartPanel({
               staff.length === 1 &&
               !staffId && (
                 <p className="text-[10px] text-amber-600 dark:text-amber-400">
-                  Hay ítems que comisionan: elegí "Atendido por" para que la comisión se devengue.
+                  Hay ítems que comisionan: elegí &quot;Atendido por&quot; para que la comisión se devengue.
                 </p>
               )}
           </div>

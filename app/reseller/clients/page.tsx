@@ -41,10 +41,6 @@ export default function ResellerClientsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [query, filtered.length]);
-
   const totalPages = Math.ceil(filtered.length / pageSize) || 1;
   const safeCurrentPage = Math.min(currentPage, totalPages);
   const paginatedFiltered = filtered.slice(
@@ -76,7 +72,10 @@ export default function ResellerClientsPage() {
           <input
             type="text"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setCurrentPage(1);
+            }}
             placeholder="Buscar por nombre o correo…"
             className="bg-surface-container border border-outline-variant/20 rounded-full py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50 w-full sm:w-64"
           />
@@ -105,7 +104,13 @@ export default function ResellerClientsPage() {
         ) : filtered.length === 0 ? (
           <CollectionFilteredEmpty
             title="Ningún cliente coincide con la búsqueda"
-            action={{ label: "Limpiar búsqueda", onClick: () => setQuery("") }}
+            action={{
+              label: "Limpiar búsqueda",
+              onClick: () => {
+                setQuery("");
+                setCurrentPage(1);
+              },
+            }}
           />
         ) : (
           paginatedFiltered.map((c) => {
@@ -186,7 +191,13 @@ export default function ResellerClientsPage() {
                   <td colSpan={5}>
                     <CollectionFilteredEmpty
                       title="Ningún cliente coincide con la búsqueda"
-                      action={{ label: "Limpiar búsqueda", onClick: () => setQuery("") }}
+                    action={{
+                      label: "Limpiar búsqueda",
+                      onClick: () => {
+                        setQuery("");
+                        setCurrentPage(1);
+                      },
+                    }}
                     />
                   </td>
                 </tr>
