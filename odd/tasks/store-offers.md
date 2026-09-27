@@ -44,12 +44,12 @@ Decisions (parent, fixed):
 - **Voiding a sale reverses both** its earned and redeemed points.
 - **Do not touch `create_sale`** nor the haircut engine. Owner configures (Ajustes → Promociones, tienda branch), `pos` permission operates; all tenancy through `get_effective_user_id()`.
 
-- [ ] P1 — Schema + earn/reverse mechanism (trigger or idempotent RPC; investigate how `sales.total` is finalized inside `create_sale` and how void works before choosing) + settings columns, applied via MCP, `.sql` saved, types regenerated, advisors checked.
+- [x] P1 — Schema + earn/reverse mechanism (trigger or idempotent RPC; investigate how `sales.total` is finalized inside `create_sale` and how void works before choosing) + settings columns, applied via MCP, `.sql` saved, types regenerated, advisors checked.
 - [x] P2 — Pure logic (`pointsEarnedFor`, `maxRedeemablePoints`, `pointsDiscount`) + tests.
 - [x] P3 — Settings UI (tienda branch): enable, $ per point, value per point, minimum.
 - [ ] P4 — POS: show customer balance, redeem N points as a discount line, call redeem RPC after the sale; Clientes shows balance and movement history.
-- [ ] P5 — AGENTS.md section, verification, commits.
-- [ ] P6 — Protect the ledger-derived customer balance from direct API writes without breaking ordinary customer edits; verify the additive hardening migration in the authorized project before delivery.
+- [x] P5 — AGENTS.md section, verification, commits.
+- [x] P6 — Protect the ledger-derived customer balance from direct API writes without breaking ordinary customer edits; verify the additive hardening migration in the authorized project before delivery.
 
 ## Out of scope
 
@@ -111,3 +111,10 @@ Plan created after exploration.
 - P1 remains open because the live grant check found a blocker: `customers` has table-wide INSERT/UPDATE for API roles, so the column-level SELECT grant does **not** protect `customers.loyalty_points`; tenant users allowed to edit customers can also edit the derived balance directly. This contradicts the ledger-only invariant and must be fixed before delivery.
 - P6 local correction `558724d`: `supabase/migrations/20260927030000_protect_customer_loyalty_balance.sql` removes table-wide customer INSERT/UPDATE from API roles, restores them on existing ordinary customer columns but excludes `loyalty_points`, checks effective grants and trigger-owner access, and removes anonymous EXECUTE on the cashier RPC. No generated/identity customer columns exist in the target database. The worker reported `npm test` 385/385, `npx tsc --noEmit`, `npm run lint`, and `npm run build` passing; SQL was not applied to a local database (`psql` unavailable) or remote yet.
 - Next: request explicit authorization to apply **this third migration** to the same Supabase project using the CLI session. Then verify effective grants, advisors, and a permitted customer write/ledger balance path where practical; finish P1/P6 proof and delivery. Do not push the feature before this blocker is closed.
+
+## Phase 2 remote hardening verified (2026-09-27)
+
+- User authorized the third migration for project `omnnucpkdxbqzekzyopt` using the Supabase CLI session. Applied only `20260927030000_protect_customer_loyalty_balance.sql` through `supabase db query --linked --project-ref ... --file ...`, then recorded `20260927030000` as applied with `supabase migration repair` (query-file execution does not register migration history). Remote history now has this local version plus original loyalty versions `20260927063041` and `20260927063418`; broad historical divergence remains, so `db push` is still unsafe.
+- Effective grant probe: `anon` and `authenticated` both have **false** for INSERT and UPDATE on `customers.loyalty_points`; authenticated INSERT/UPDATE on `customers.full_name` is **true**; ledger trigger-function owner UPDATE on the balance is **true**. `anon` EXECUTE on `redeem_loyalty_points` is **false**, authenticated is **true**. This closes P1/P6's release-blocking permission gap while preserving ordinary customer writes by grant. Security advisor WARN count fell from 151 to 150; the only loyalty-specific remaining warning is authenticated EXECUTE on the intentional cashier RPC.
+- No production data mutation or rollback probe was run for ordinary customer edits or ledger trigger execution; permission and trigger-owner capability were checked instead. P4 still needs live POS/Clientes UI verification with a retail account.
+- Final local checks after hardening: `npm test` 385/385, `npx tsc --noEmit`, `npm run lint`, `git diff --check`, and `npm run build` all passed. P5 documentation and local verification are complete; live P4 remains an explicitly pending check, not a claimed pass. Delivery to `origin/main` is still pending.
