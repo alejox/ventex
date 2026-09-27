@@ -12,6 +12,9 @@ import { fetchCustomerSales } from "@/services/customers.service";
 import type { Customer, NewCustomerInput, CustomerSale } from "@/services/customers.service";
 import { usePromosStore } from "@/stores/promos.store";
 import { availableReward, renderPromoMessage, whatsappLink, businessDisplayName } from "@/services/promos.service";
+import { useLoyaltyStore } from "@/stores/loyalty.store";
+import { fetchLoyaltyLedger } from "@/services/loyalty.service";
+import type { LoyaltyLedgerEntry } from "@/services/loyalty.service";
 import { useProfile } from "@/components/ProfileProvider";
 import { useSettingsStore } from "@/stores/settings.store";
 
@@ -58,18 +61,28 @@ export default function CustomersPage() {
   const promoConfig = usePromosStore((s) => s.config);
   const milestones = usePromosStore((s) => s.milestones);
   const fetchPromos = usePromosStore((s) => s.fetchAll);
+  // Igual que el contador de cortes: se pide siempre y no cambia nada para un
+  // negocio que no es tienda o que nunca activó los puntos (ver
+  // `loyaltyConfig.enabled` más abajo).
+  const loyaltyConfig = useLoyaltyStore((s) => s.config);
+  const fetchLoyaltyConfig = useLoyaltyStore((s) => s.fetchConfig);
   const profile = useProfile();
+  const isTienda = profile?.businessType === "tienda";
   const settings = useSettingsStore((s) => s.settings);
   const fetchSettings = useSettingsStore((s) => s.fetchSettings);
   const [paymentCustomer, setPaymentCustomer] = useState<Customer | null>(null);
   const [customerSales, setCustomerSales] = useState<CustomerSale[]>([]);
   const [salesLoading, setSalesLoading] = useState(false);
+  const [loyaltyLedger, setLoyaltyLedger] = useState<LoyaltyLedgerEntry[]>([]);
+  const [loyaltyLedgerLoading, setLoyaltyLedgerLoading] = useState(false);
+  const [showLoyaltyHistory, setShowLoyaltyHistory] = useState(false);
 
   useEffect(() => {
     fetchSettings();
     fetchCustomers();
     fetchPromos();
-  }, [fetchCustomers, fetchPromos, fetchSettings]);
+    fetchLoyaltyConfig();
+  }, [fetchCustomers, fetchPromos, fetchSettings, fetchLoyaltyConfig]);
 
   const openCreate = () => {
     setEditingId(null);
@@ -93,6 +106,7 @@ export default function CustomersPage() {
 
   const openDetail = useCallback(async (c: Customer) => {
     setDetailCustomer(c);
+    setShowLoyaltyHistory(false);
     setSalesLoading(true);
     try {
       const sales = await fetchCustomerSales(c.id);
@@ -103,6 +117,30 @@ export default function CustomersPage() {
       setSalesLoading(false);
     }
   }, []);
+
+  /**
+   * Historial de puntos, pedido bajo demanda (el dueño lo abre solo si le
+   * interesa) y no junto con `openDetail`: es una consulta más contra una
+   * ficha que ya hace dos, y la mayoría de las visitas a Clientes ni siquiera
+   * son de una cuenta `tienda`.
+   */
+  const toggleLoyaltyHistory = useCallback(async () => {
+    if (showLoyaltyHistory) {
+      setShowLoyaltyHistory(false);
+      return;
+    }
+    if (!detailCustomer) return;
+    setShowLoyaltyHistory(true);
+    setLoyaltyLedgerLoading(true);
+    try {
+      const ledger = await fetchLoyaltyLedger(detailCustomer.id);
+      setLoyaltyLedger(ledger);
+    } catch {
+      setLoyaltyLedger([]);
+    } finally {
+      setLoyaltyLedgerLoading(false);
+    }
+  }, [detailCustomer, showLoyaltyHistory]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -585,6 +623,70 @@ export default function CustomersPage() {
                       </span>
                     );
                   })()}
+                </div>
+              )}
+
+              {/* Puntos de fidelización (tienda). Misma idea que el contador de
+                  cortes de arriba, pero acá SÍ hay algo que puede reconstruirse
+                  movimiento a movimiento — por eso el historial es expandible en
+                  vez de un solo número. */}
+              {isTienda && loyaltyConfig.enabled && (
+                <div className="rounded-xl border border-[#6063ee]/25 bg-[#6063ee]/5 p-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-2xl font-bold text-on-surface tabular-nums">
+                        {detailCustomer.loyalty_points}
+                        <span className="text-sm font-medium text-on-surface-variant ml-2">
+                          punto{detailCustomer.loyalty_points === 1 ? "" : "s"} disponible
+                          {detailCustomer.loyalty_points === 1 ? "" : "s"}
+                        </span>
+                      </p>
+                      <p className="text-xs text-on-surface-variant mt-1">
+                        Se ganan y se canjean solos en el Punto de Venta.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={toggleLoyaltyHistory}
+                      className="shrink-0 inline-flex items-center justify-center px-4 py-2 rounded-xl bg-surface-container-high text-on-surface text-xs font-bold hover:bg-surface-container-highest transition-colors"
+                    >
+                      {showLoyaltyHistory ? "Ocultar movimientos" : "Ver movimientos"}
+                    </button>
+                  </div>
+
+                  {showLoyaltyHistory && (
+                    <div className="mt-3 pt-3 border-t border-[#6063ee]/15">
+                      {loyaltyLedgerLoading ? (
+                        <p className="text-xs text-on-surface-variant py-2">Cargando movimientos…</p>
+                      ) : loyaltyLedger.length === 0 ? (
+                        <p className="text-xs text-on-surface-variant py-2">Todavía no hay movimientos.</p>
+                      ) : (
+                        <ul className="divide-y divide-outline-variant/10 max-h-56 overflow-y-auto">
+                          {loyaltyLedger.map((m) => (
+                            <li key={m.id} className="flex items-center justify-between gap-3 py-2 text-xs">
+                              <div className="min-w-0">
+                                <p className="font-semibold text-on-surface capitalize">
+                                  {{ earn: "Ganados", redeem: "Canjeados", reverse: "Anulación", adjust: "Ajuste" }[m.kind]}
+                                </p>
+                                <p className="text-on-surface-variant">
+                                  {new Date(m.createdAt).toLocaleDateString("es-CO", {
+                                    day: "2-digit",
+                                    month: "2-digit",
+                                    year: "numeric",
+                                  })}
+                                  {m.note ? ` · ${m.note}` : ""}
+                                </p>
+                              </div>
+                              <span className={`shrink-0 font-bold tabular-nums ${m.points > 0 ? "text-[#10b981]" : "text-error"}`}>
+                                {m.points > 0 ? "+" : ""}
+                                {m.points}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 

@@ -23,6 +23,12 @@ export interface Customer {
    */
   credit_alert: boolean;
   credit_alert_note: string | null;
+  /**
+   * Saldo de puntos canjeables (tienda). Lo mantiene un trigger a partir de
+   * `loyalty_points_ledger`, no la app — mismo motivo que `haircut_count`
+   * (ver la migración 20260927010000).
+   */
+  loyalty_points: number;
   created_at: string;
 }
 
@@ -53,7 +59,7 @@ export interface CustomerSale {
   item_count: number;
 }
 
-const SELECT = "id, full_name, email, phone, identification, doc_type, tax_exempt, credit_balance, credit_limit, credit_alert, credit_alert_note, haircut_count, haircuts_since_reward, created_at";
+const SELECT = "id, full_name, email, phone, identification, doc_type, tax_exempt, credit_balance, credit_limit, credit_alert, credit_alert_note, haircut_count, haircuts_since_reward, loyalty_points, created_at";
 
 export async function fetchCustomers(): Promise<Customer[]> {
   const supabase = createClient();
