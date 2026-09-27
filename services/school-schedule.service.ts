@@ -950,7 +950,7 @@ export async function fetchEnrollmentScheduleViews(): Promise<EnrollmentSchedule
       supabase
         .from("school_enrollments")
         .select(
-          "id, student_id, instrument, status, contracted_lessons, plan_name, school_students(full_name)"
+          "id, student_id, instrument, status, contracted_lessons, plan_name, school_students(full_name, status)"
         )
         .eq("status", "active")
         .order("created_at", { ascending: false }),
@@ -982,6 +982,12 @@ export async function fetchEnrollmentScheduleViews(): Promise<EnrollmentSchedule
   }
 
   const rows = ((enrollments ?? []) as unknown as EnrollmentRaw[])
+    // Un alumno desactivado no debe ofrecerse para agendar clases nuevas —
+    // mismo criterio y misma técnica (filtro en cliente sobre el join, no
+    // `!inner` en la query) que `fetchEligibleParticipantEnrollments`. Sus
+    // matrículas/clases ya agendadas quedan intactas, solo deja de aparecer
+    // acá (T11 — este fetch se había quedado afuera de esa exclusión).
+    .filter((raw) => joinedObject(raw.school_students).status !== "inactive")
     .map((raw) => {
       const student = joinedObject(raw.school_students);
       const enrollmentId = raw.id as string;
