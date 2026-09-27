@@ -14,7 +14,23 @@
 --
 -- The function body below is the CURRENT definition of school_schedule_lesson
 -- from 20260924010000_school_module_rpcs.sql, copied verbatim, with only the
--- new blocked-date check added (and this header). Grants are unchanged.
+-- new blocked-date check and the optional `p_local_date` parameter added.
+--
+-- Why `p_local_date`: the database runs in UTC, so `p_start_at::date` is the
+-- UTC day — a 19:00+ lesson in Colombia (UTC-5) is already "tomorrow" there
+-- and the check would look at the wrong blocked date. The browser sends the
+-- business's calendar day (same convention as commissionPeriodOf). Without it
+-- (older app versions) the check falls back to the UTC day.
+--
+-- Adding a parameter changes the signature, so the 6-arg version is dropped
+-- first; callers use named arguments and keep working. Grants are re-applied
+-- for the new signature.
+--
+-- Known follow-up: school_schedule_series computes its dates from
+-- `p_first_at::date` too, so its blocked-date skip has the same UTC shift for
+-- evening series. Not changed here.
+
+drop function if exists public.school_schedule_lesson(uuid, uuid, text, timestamptz, timestamptz, text);
 
 create or replace function public.school_schedule_lesson(
   p_enrollment_id uuid,
@@ -22,7 +38,8 @@ create or replace function public.school_schedule_lesson(
   p_instrument text,
   p_start_at timestamptz,
   p_end_at timestamptz,
-  p_room text default null
+  p_room text default null,
+  p_local_date date default null
 )
 returns jsonb
 language plpgsql
@@ -99,16 +116,16 @@ begin
     raise exception 'SIN_PERMISO: el profesor no dicta ese instrumento';
   end if;
 
-  -- Fecha bloqueada del profesor (T12). Mismo cálculo de la fecha local
-  -- (`::date`, sin conversión de zona horaria — igual que school_schedule_series)
-  -- y mismo filtro de tenant (teacher_profile_id + user_id) que ese RPC. A
-  -- diferencia de la serie, que la SALTEA porque tiene otras sesiones, una
+  -- Fecha bloqueada del profesor (T12). El día es el del NEGOCIO
+  -- (`p_local_date`, que manda el navegador); sin él se cae al día UTC. Mismo
+  -- filtro de tenant (teacher_profile_id + user_id) que school_schedule_series.
+  -- A diferencia de la serie, que la SALTEA porque tiene otras sesiones, una
   -- clase suelta en un día bloqueado se RECHAZA directamente.
   if exists (
     select 1 from public.school_teacher_blocked_dates bd
     where bd.teacher_profile_id = v_teach.id
       and bd.user_id = v_uid
-      and bd.blocked_date = p_start_at::date
+      and bd.blocked_date = coalesce(p_local_date, p_start_at::date)
   ) then
     raise exception 'SIN_HORARIO: el profesor tiene ese día bloqueado';
   end if;
@@ -183,5 +200,5 @@ begin
 end;
 $fn$;
 
-revoke all on function public.school_schedule_lesson(uuid, uuid, text, timestamptz, timestamptz, text) from public, anon;
-grant execute on function public.school_schedule_lesson(uuid, uuid, text, timestamptz, timestamptz, text) to authenticated, service_role;
+revoke all on function public.school_schedule_lesson(uuid, uuid, text, timestamptz, timestamptz, text, date) from public, anon;
+grant execute on function public.school_schedule_lesson(uuid, uuid, text, timestamptz, timestamptz, text, date) to authenticated, service_role;

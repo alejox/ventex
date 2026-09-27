@@ -1,5 +1,6 @@
 import { createClient } from "@/utils/supabase/client";
 import { toMessage } from "@/lib/errors";
+import { toISODate } from "@/lib/date";
 import { fetchEnrollment } from "@/services/school-enrollments.service";
 import type { SchoolEnrollment } from "@/services/school-enrollments.service";
 import { fetchTeacherProfiles } from "@/services/school-people.service";
@@ -900,6 +901,10 @@ export async function scheduleLesson(input: ScheduleLessonInput): Promise<Record
     p_start_at: input.start_at,
     p_end_at: input.end_at,
     ...(input.room ? { p_room: input.room } : {}),
+    // Día de calendario del negocio (reloj del navegador), no el de UTC: la
+    // base corre en UTC y una clase de las 19:00 en Colombia ya es "mañana"
+    // allá, así que el bloqueo de fecha del profesor miraría el día siguiente.
+    p_local_date: toISODate(new Date(input.start_at)),
   });
   if (error) throw error;
   return (data ?? {}) as Record<string, unknown>;

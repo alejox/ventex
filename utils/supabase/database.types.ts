@@ -3899,6 +3899,7 @@ export type Database = {
           p_end_at: string
           p_enrollment_id: string
           p_instrument: string
+          p_local_date?: string
           p_room?: string
           p_start_at: string
           p_teacher_profile_id: string
