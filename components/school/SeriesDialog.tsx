@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { Select } from "@/components/ui/Select";
 import { SchoolModal } from "@/components/school/SchoolModal";
 import { useSchoolScheduleStore } from "@/stores/school-schedule.store";
 import { useSchoolPeopleStore } from "@/stores/school-people.store";
 import { useSchoolStore } from "@/stores/school.store";
-import { tsAtUtc, fmtSessionDate, isoWeekdayOf } from "@/services/school-schedule.service";
+import { tsAtUtc, fmtSessionDate, isoWeekdayOf, hoursToMinutes, isWithinAvailability } from "@/services/school-schedule.service";
 import { toISODate } from "@/lib/date";
 import { notifySuccess } from "@/lib/notifications";
 import { localWeekdayOf } from "@/components/school/format";
@@ -35,10 +36,14 @@ export function SeriesDialog({ onClose }: SeriesDialogProps) {
   const scheduleSeries = useSchoolScheduleStore((s) => s.scheduleSeries);
   const saving = useSchoolScheduleStore((s) => s.saving);
   const error = useSchoolScheduleStore((s) => s.error);
+  const weekly = useSchoolScheduleStore((s) => s.weekly);
+  const fetchAvailability = useSchoolScheduleStore((s) => s.fetchAvailability);
 
   const teachers = useSchoolPeopleStore((s) => s.teachers);
   const fetchTeachers = useSchoolPeopleStore((s) => s.fetchTeachers);
   const settings = useSchoolStore((s) => s.settings);
+  const summary = useSchoolStore((s) => s.summary);
+  const fetchSummary = useSchoolStore((s) => s.fetchSummary);
 
   const [enrollmentId, setEnrollmentId] = useState("");
   const [teacherId, setTeacherId] = useState("");
@@ -54,11 +59,26 @@ export function SeriesDialog({ onClose }: SeriesDialogProps) {
   const [untilDate, setUntilDate] = useState("");
   const [room, setRoom] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
+  // Igual que en SingleLessonDialog: rastrea de qué profesor es la última
+  // carga de `weekly` (estado global) para no avisar con la disponibilidad de
+  // OTRO profesor mientras el fetch está en vuelo (T12).
+  const [availabilityTeacherId, setAvailabilityTeacherId] = useState<string | null>(null);
 
   useEffect(() => {
     void fetchEnrollmentViews();
     if (teachers.length === 0) void fetchTeachers();
-  }, [fetchEnrollmentViews, teachers.length, fetchTeachers]);
+    void fetchSummary();
+  }, [fetchEnrollmentViews, teachers.length, fetchTeachers, fetchSummary]);
+
+  useEffect(() => {
+    // No se resetea a null de entrada (evitaría un `setState` síncrono en el
+    // efecto): mientras el fetch está en vuelo, `availabilityTeacherId` sigue
+    // apuntando al profesor ANTERIOR, que ya no coincide con `teacherId` — el
+    // guard de `outsideAvailability` de abajo lo trata igual que "no
+    // evaluado todavía" y no avisa.
+    if (!teacherId) return;
+    void fetchAvailability(teacherId).then(() => setAvailabilityTeacherId(teacherId));
+  }, [teacherId, fetchAvailability]);
 
   const selectedEnrollment = useMemo(
     () => enrollmentViews.find((v) => v.enrollment_id === enrollmentId) ?? null,
@@ -77,6 +97,14 @@ export function SeriesDialog({ onClose }: SeriesDialogProps) {
     setTeacherId("");
     setFormError(null);
   };
+
+  // Aviso, no bloqueo (T12) — mismo criterio que el rango de edad de T6.
+  const outsideAvailability = useMemo(() => {
+    if (!teacherId || availabilityTeacherId !== teacherId) return false;
+    return !isWithinAvailability(weekly, weekday, hoursToMinutes(startTime), hoursToMinutes(endTime));
+  }, [teacherId, availabilityTeacherId, weekly, weekday, startTime, endTime]);
+
+  const selectedTeacherName = compatibleTeachers.find((t) => t.id === teacherId)?.full_name ?? "";
 
   const hasCount = countMode === "count" ? count > 0 : untilDate.length > 0;
   const previewReady =
@@ -154,7 +182,24 @@ export function SeriesDialog({ onClose }: SeriesDialogProps) {
           </Select>
           {enrollmentViews.length === 0 && (
             <p className="text-xs text-on-surface-variant">
-              No hay matrículas activas con clases disponibles para agendar.
+              No hay matrículas activas con clases disponibles para agendar.{" "}
+              {(summary?.plans ?? 0) === 0 ? (
+                <>
+                  Primero armá un{" "}
+                  <Link className="font-semibold text-primary hover:underline" href="/dashboard/school/planes">
+                    plan de clase
+                  </Link>
+                  .
+                </>
+              ) : (
+                <>
+                  Matriculá un alumno desde{" "}
+                  <Link className="font-semibold text-primary hover:underline" href="/dashboard/school/estudiantes">
+                    Estudiantes
+                  </Link>
+                  .
+                </>
+              )}
             </p>
           )}
 
@@ -216,6 +261,11 @@ export function SeriesDialog({ onClose }: SeriesDialogProps) {
               />
             </div>
           </div>
+          {outsideAvailability && (
+            <p className="rounded-xl bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-600">
+              Fuera del horario de disponibilidad de {selectedTeacherName}.
+            </p>
+          )}
 
           <div className="space-y-2 rounded-xl bg-surface-container-low p-3">
             <div className="flex items-center gap-4">

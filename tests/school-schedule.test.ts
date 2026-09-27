@@ -10,6 +10,7 @@ import {
   hasOverlap,
   hoursToMinutes,
   isoWeekdayOf,
+  isWithinAvailability,
   minutesToTime,
   mondayOf,
   overlappingOf,
@@ -18,7 +19,7 @@ import {
   seriesSessionCount,
   tsAtUtc,
 } from "../services/school-schedule.service";
-import type { OccupiedSlot, WeeklyAvailabilityRow } from "../services/school-schedule.service";
+import type { AvailabilitySlot, OccupiedSlot, WeeklyAvailabilityRow } from "../services/school-schedule.service";
 
 const slot = (start: string, end: string): OccupiedSlot => ({ start_at: start, end_at: end });
 
@@ -299,6 +300,56 @@ test("21. fmtSessionDate renderiza el día del calendario LOCAL en español cort
   assert.match(fmtSessionDate("2027-01-05"), /^5 de ene/i);
   // Entrada sin ceros a la izquierda también es estable.
   assert.equal(fmtSessionDate("2026-1-2"), fmtSessionDate("2026-01-02"));
+});
+
+// ---- isWithinAvailability (22-28; T12) ----
+
+const lunesTarde: AvailabilitySlot = { weekday: 1, start_time: "14:00", end_time: "18:00" };
+const martesManana: AvailabilitySlot = { weekday: 2, start_time: "09:00", end_time: "12:00" };
+
+test("22. Sin franjas cargadas, nunca avisa (nada que evaluar)", () => {
+  assert.equal(isWithinAvailability([], 1, hoursToMinutes("14:00"), hoursToMinutes("15:00")), true);
+});
+
+test("23. Horario completo dentro de la franja, no avisa", () => {
+  assert.equal(
+    isWithinAvailability([lunesTarde], 1, hoursToMinutes("14:30"), hoursToMinutes("15:30")),
+    true
+  );
+});
+
+test("24. En el borde exacto (inicio y fin de la franja), no avisa", () => {
+  assert.equal(
+    isWithinAvailability([lunesTarde], 1, hoursToMinutes("14:00"), hoursToMinutes("18:00")),
+    true
+  );
+});
+
+test("25. Un minuto antes del inicio o después del fin, avisa", () => {
+  assert.equal(isWithinAvailability([lunesTarde], 1, hoursToMinutes("13:59"), hoursToMinutes("15:00")), false);
+  assert.equal(isWithinAvailability([lunesTarde], 1, hoursToMinutes("14:00"), hoursToMinutes("18:01")), false);
+});
+
+test("26. Hay franjas cargadas, pero ninguna para ese día: avisa", () => {
+  assert.equal(
+    isWithinAvailability([lunesTarde], 3, hoursToMinutes("14:00"), hoursToMinutes("15:00")),
+    false
+  );
+});
+
+test("27. Con varias franjas, alcanza con caer dentro de UNA", () => {
+  assert.equal(
+    isWithinAvailability([lunesTarde, martesManana], 2, hoursToMinutes("10:00"), hoursToMinutes("11:00")),
+    true
+  );
+});
+
+test("28. Franja que cruza medianoche (fin <= inicio) no soportada: nunca contiene nada", () => {
+  const nocturna: AvailabilitySlot = { weekday: 5, start_time: "22:00", end_time: "02:00" };
+  assert.equal(
+    isWithinAvailability([nocturna], 5, hoursToMinutes("23:00"), hoursToMinutes("23:30")),
+    false
+  );
 });
 
 // ---- Helpers de aserción ----

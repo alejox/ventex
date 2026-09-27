@@ -42,10 +42,13 @@ function weeklyKeyOf(rows: WeeklyAvailabilityRow[]): string {
 /**
  * Disponibilidad semanal y días bloqueados de un profesor.
  *
- * La franja semanal es la grilla de base; los bloqueos son la excepción (un
- * feriado, una ausencia puntual) y se avisan al planificar series — nunca se
- * cuelan en silencio. La base es la autoritativa; acá se edita y se guarda por
- * diff (ver `saveWeeklyAvailability`).
+ * La franja semanal ORIENTA la agenda, no la impone: agendar fuera de ella
+ * solo muestra un aviso (ámbar, no bloqueante) en los diálogos de agendar —
+ * el profesor puede igual dar una clase suelta antes o después de su horario
+ * habitual (T12). Los bloqueos son distintos: una fecha bloqueada SÍ se
+ * respeta — una serie la saltea y avisa, y una clase suelta ese día se
+ * rechaza directamente. La base es la autoritativa para los bloqueos; acá se
+ * edita y se guarda por diff (ver `saveWeeklyAvailability`).
  */
 export function AvailabilityEditor({ teacher, onClose }: AvailabilityEditorProps) {
   const weekly = useSchoolScheduleStore((s) => s.weekly);
@@ -149,7 +152,7 @@ export function AvailabilityEditor({ teacher, onClose }: AvailabilityEditorProps
             <div>
               <h3 className="text-sm font-semibold text-on-surface">Horario semanal</h3>
               <p className="mt-0.5 text-xs text-on-surface-variant">
-                Las franjas definen la grilla; después podés bloquear días puntuales.
+                Guía la agenda: agendar fuera de estas franjas solo avisa, no lo bloquea.
               </p>
             </div>
 
@@ -205,7 +208,8 @@ export function AvailabilityEditor({ teacher, onClose }: AvailabilityEditorProps
               <div>
                 <h3 className="text-sm font-semibold text-on-surface">Días bloqueados</h3>
                 <p className="mt-0.5 text-xs text-on-surface-variant">
-                  Feriados y ausencias: una serie los saltea y te lo avisa, no los dicta igual.
+                  Feriados y ausencias: SÍ se respetan. Una serie los saltea y avisa; una clase suelta
+                  agendada ese día se rechaza directamente.
                 </p>
               </div>
 

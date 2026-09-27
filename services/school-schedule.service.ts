@@ -199,6 +199,45 @@ export function fitsCapacity(current: number, capacity: number): boolean {
   return current < capacity;
 }
 
+// ---- Disponibilidad semanal del profesor (pura; T12) ----
+
+/** Franja mínima que necesita `isWithinAvailability` (subconjunto de `WeeklyAvailabilityRow`). */
+export interface AvailabilitySlot {
+  weekday: number;
+  start_time: string;
+  end_time: string;
+}
+
+/**
+ * ¿El horario pedido cae DENTRO de alguna franja de disponibilidad del
+ * profesor ese día? Es un AVISO, no un bloqueo (mismo criterio que el rango de
+ * edad de T6): sin franjas cargadas no hay nada que avisar — un profesor sin
+ * disponibilidad configurada no está "siempre libre" ni "siempre ocupado" para
+ * este chequeo, simplemente no se evalúa. Con franjas cargadas para OTROS días
+ * pero ninguna para el día pedido, sí avisa (no hay franja que lo cubra).
+ *
+ * El horario tiene que caer COMPLETO dentro de una única franja (no alcanza
+ * con solapar): `startMinutes >= inicio` y `endMinutes <= fin` de esa franja.
+ *
+ * No soporta franjas que cruzan la medianoche (`end_time <= start_time`): se
+ * comparan minutos del mismo día, así que una franja así nunca puede contener
+ * nada — quedaría documentado acá en vez de fallar en silencio.
+ */
+export function isWithinAvailability(
+  slots: AvailabilitySlot[],
+  weekday: number,
+  startMinutes: number,
+  endMinutes: number
+): boolean {
+  if (slots.length === 0) return true;
+  return slots.some((s) => {
+    if (s.weekday !== weekday) return false;
+    const slotStart = hoursToMinutes(s.start_time);
+    const slotEnd = hoursToMinutes(s.end_time);
+    return startMinutes >= slotStart && endMinutes <= slotEnd;
+  });
+}
+
 // ---- Ventanas libres de un día (puras) ----
 
 export interface FreeWindowsInput {

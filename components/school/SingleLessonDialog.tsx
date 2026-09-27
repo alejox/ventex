@@ -1,12 +1,19 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { Select } from "@/components/ui/Select";
 import { SchoolModal } from "@/components/school/SchoolModal";
 import { useSchoolScheduleStore } from "@/stores/school-schedule.store";
 import { useSchoolPeopleStore } from "@/stores/school-people.store";
 import { useSchoolStore } from "@/stores/school.store";
-import { tsAtUtc, hoursToMinutes, minutesToTime } from "@/services/school-schedule.service";
+import {
+  tsAtUtc,
+  hoursToMinutes,
+  minutesToTime,
+  isoWeekdayOf,
+  isWithinAvailability,
+} from "@/services/school-schedule.service";
 import { fetchLessonPlans } from "@/services/school-enrollments.service";
 import type { LessonPlan } from "@/services/school-enrollments.service";
 import { toISODate } from "@/lib/date";
@@ -32,10 +39,14 @@ export function SingleLessonDialog({ onClose }: SingleLessonDialogProps) {
   const scheduleLesson = useSchoolScheduleStore((s) => s.scheduleLesson);
   const saving = useSchoolScheduleStore((s) => s.saving);
   const error = useSchoolScheduleStore((s) => s.error);
+  const weekly = useSchoolScheduleStore((s) => s.weekly);
+  const fetchAvailability = useSchoolScheduleStore((s) => s.fetchAvailability);
 
   const teachers = useSchoolPeopleStore((s) => s.teachers);
   const fetchTeachers = useSchoolPeopleStore((s) => s.fetchTeachers);
   const settings = useSchoolStore((s) => s.settings);
+  const summary = useSchoolStore((s) => s.summary);
+  const fetchSummary = useSchoolStore((s) => s.fetchSummary);
 
   const [plans, setPlans] = useState<LessonPlan[]>([]);
   const [enrollmentId, setEnrollmentId] = useState("");
@@ -44,12 +55,28 @@ export function SingleLessonDialog({ onClose }: SingleLessonDialogProps) {
   const [startTime, setStartTime] = useState("09:00");
   const [room, setRoom] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
+  // `weekly` es un estado GLOBAL compartido con AvailabilityEditor: se
+  // rastrea de qué profesor es la última carga para no mostrar el aviso con
+  // la disponibilidad de OTRO profesor mientras el fetch todavía está en
+  // vuelo (T12).
+  const [availabilityTeacherId, setAvailabilityTeacherId] = useState<string | null>(null);
 
   useEffect(() => {
     void fetchEnrollmentViews();
     if (teachers.length === 0) void fetchTeachers();
     void fetchLessonPlans().then(setPlans).catch(() => {});
-  }, [fetchEnrollmentViews, teachers.length, fetchTeachers]);
+    void fetchSummary();
+  }, [fetchEnrollmentViews, teachers.length, fetchTeachers, fetchSummary]);
+
+  useEffect(() => {
+    // No se resetea a null de entrada (evitaría un `setState` síncrono en el
+    // efecto): mientras el fetch está en vuelo, `availabilityTeacherId` sigue
+    // apuntando al profesor ANTERIOR, que ya no coincide con `teacherId` — el
+    // guard de `outsideAvailability` de abajo lo trata igual que "no
+    // evaluado todavía" y no avisa.
+    if (!teacherId) return;
+    void fetchAvailability(teacherId).then(() => setAvailabilityTeacherId(teacherId));
+  }, [teacherId, fetchAvailability]);
 
   const selectedEnrollment = useMemo(
     () => enrollmentViews.find((v) => v.enrollment_id === enrollmentId) ?? null,
@@ -75,6 +102,16 @@ export function SingleLessonDialog({ onClose }: SingleLessonDialogProps) {
     () => minutesToTime(hoursToMinutes(startTime) + durationMinutes),
     [startTime, durationMinutes]
   );
+
+  // Aviso, no bloqueo (T12): mismo criterio que el rango de edad de T6. Solo
+  // se evalúa cuando `weekly` ya corresponde al profesor elegido — evita un
+  // falso aviso con la disponibilidad del profesor anterior.
+  const outsideAvailability = useMemo(() => {
+    if (!teacherId || availabilityTeacherId !== teacherId || !date) return false;
+    return !isWithinAvailability(weekly, isoWeekdayOf(date), hoursToMinutes(startTime), hoursToMinutes(endTime));
+  }, [teacherId, availabilityTeacherId, date, weekly, startTime, endTime]);
+
+  const selectedTeacherName = compatibleTeachers.find((t) => t.id === teacherId)?.full_name ?? "";
 
   const pickEnrollment = (id: string) => {
     setEnrollmentId(id);
@@ -126,7 +163,24 @@ export function SingleLessonDialog({ onClose }: SingleLessonDialogProps) {
           </Select>
           {enrollmentViews.length === 0 && (
             <p className="text-xs text-on-surface-variant">
-              No hay matrículas activas con clases disponibles para agendar.
+              No hay matrículas activas con clases disponibles para agendar.{" "}
+              {(summary?.plans ?? 0) === 0 ? (
+                <>
+                  Primero armá un{" "}
+                  <Link className="font-semibold text-primary hover:underline" href="/dashboard/school/planes">
+                    plan de clase
+                  </Link>
+                  .
+                </>
+              ) : (
+                <>
+                  Matriculá un alumno desde{" "}
+                  <Link className="font-semibold text-primary hover:underline" href="/dashboard/school/estudiantes">
+                    Estudiantes
+                  </Link>
+                  .
+                </>
+              )}
             </p>
           )}
 
@@ -178,6 +232,11 @@ export function SingleLessonDialog({ onClose }: SingleLessonDialogProps) {
           <p className="text-xs text-on-surface-variant">
             Termina a las {endTime} ({durationMinutes} min, según el plan).
           </p>
+          {outsideAvailability && (
+            <p className="rounded-xl bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-600">
+              Fuera del horario de disponibilidad de {selectedTeacherName}.
+            </p>
+          )}
 
           <Select label="Salón" value={room} onChange={(e) => setRoom(e.target.value)}>
             <option value="">Sin salón</option>
