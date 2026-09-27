@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { LogoVertical } from "@/components/Logo";
 import { authMessage } from "@/lib/errors";
 
 type SessionStatus = "checking" | "ready" | "invalid";
@@ -119,9 +118,6 @@ function UpdatePasswordForm() {
     const invitation = searchParams.has("invitation");
     return (
       <div className="w-full max-w-[420px] mx-auto text-center">
-        <div className="flex justify-center mb-8 lg:hidden">
-          <LogoVertical className="w-[120px] h-[32px]" />
-        </div>
         <div className="w-16 h-16 rounded-full bg-error-container/20 text-error flex items-center justify-center mx-auto mb-6">
           <svg className="w-8 h-8" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
             <circle cx="12" cy="12" r="10" />
@@ -146,9 +142,6 @@ function UpdatePasswordForm() {
   if (success) {
     return (
       <div className="w-full max-w-[420px] mx-auto text-center">
-        <div className="flex justify-center mb-8 lg:hidden">
-          <LogoVertical className="w-[120px] h-[32px]" />
-        </div>
         <div className="w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto mb-6">
           <svg className="w-8 h-8" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
             <polyline points="20 6 9 17 4 12" />
@@ -172,10 +165,6 @@ function UpdatePasswordForm() {
 
   return (
     <div className="w-full max-w-[420px] mx-auto">
-      <div className="flex justify-center mb-8 lg:hidden">
-        <LogoVertical className="w-[120px] h-[32px]" />
-      </div>
-
       <div className="text-center lg:text-left mb-8">
         <h2 className="text-[28px] font-bold text-on-surface mb-2">
           Nueva contraseña

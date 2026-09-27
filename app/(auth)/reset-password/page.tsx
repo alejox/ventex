@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { LogoVertical } from "@/components/Logo";
 import { authMessage } from "@/lib/errors";
 
 const LINK_ERRORS: Record<string, string> = {
@@ -49,9 +48,6 @@ function ResetPasswordForm() {
   if (sent) {
     return (
       <div className="w-full max-w-[420px] mx-auto text-center">
-        <div className="flex justify-center mb-8 lg:hidden">
-          <LogoVertical className="w-[120px] h-[32px]" />
-        </div>
         <div className="w-16 h-16 rounded-full bg-primary/10 text-primary flex items-center justify-center mx-auto mb-6">
           <svg className="w-8 h-8" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
             <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
@@ -84,10 +80,6 @@ function ResetPasswordForm() {
 
   return (
     <div className="w-full max-w-[420px] mx-auto">
-      <div className="flex justify-center mb-8 lg:hidden">
-        <LogoVertical className="w-[120px] h-[32px]" />
-      </div>
-
       <div className="text-center lg:text-left mb-8">
         <h2 className="text-[28px] font-bold text-on-surface mb-2">
           Restablecer contraseña

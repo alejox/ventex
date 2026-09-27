@@ -2,7 +2,6 @@
 
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
-import { LogoVertical } from "@/components/Logo";
 
 function AccessDisabledContent() {
   const params = useSearchParams();
@@ -19,9 +18,6 @@ function AccessDisabledContent() {
 
   return (
     <div className="w-full max-w-[420px] mx-auto text-center">
-      <div className="flex justify-center mb-8 lg:hidden">
-        <LogoVertical className="w-[120px] h-[32px]" />
-      </div>
       <h2 className="text-[28px] font-bold text-on-surface mb-2">
         {expired ? "Invitación vencida" : suspended ? "Acceso suspendido" : "Acceso pendiente"}
       </h2>

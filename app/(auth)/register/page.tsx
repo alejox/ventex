@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useActionState, useState } from "react";
 import { useSearchParam } from "@/lib/useUrlState";
-import { LogoVertical } from "@/components/Logo";
 import { GoogleButton } from "@/components/GoogleButton";
 import { signup, type SignupState } from "@/utils/supabase/actions";
 import { BUSINESS_ICONS, MODULE_ICONS, RocketIcon } from "@/app/assets/icons/BusinessIcons";
@@ -72,9 +71,6 @@ export default function RegisterPage() {
   if (state.success) {
     return (
       <div className="w-full max-w-[420px] mx-auto text-center">
-        <div className="flex justify-center mb-8 lg:hidden">
-          <LogoVertical className="w-[180px] h-[48px]" />
-        </div>
         <div className="w-16 h-16 rounded-full bg-primary/10 text-primary flex items-center justify-center mx-auto mb-6">
           <svg className="w-8 h-8" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
             <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
@@ -106,11 +102,6 @@ export default function RegisterPage() {
 
   return (
     <div className="w-full max-w-[420px] mx-auto">
-      {/* Mobile Logo */}
-      <div className="flex justify-center mb-8 lg:hidden">
-        <LogoVertical className="w-[180px] h-[48px]" />
-      </div>
-
       {paidCheckout && (
         <div className="mb-6 rounded-2xl border border-primary/30 bg-primary/5 px-4 py-3.5">
           <p className="text-[13px] font-bold text-primary mb-1">

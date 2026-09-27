@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useSearchParam } from "@/lib/useUrlState";
-import { LogoVertical } from "@/components/Logo";
 import { GoogleButton } from "@/components/GoogleButton";
 import { useActionState, useState } from "react";
 import { login, type LoginState } from "@/utils/supabase/actions";
@@ -42,11 +41,6 @@ export default function LoginPage() {
         </svg>
         Volver al inicio
       </Link>
-
-      {/* Mobile Logo */}
-      <div className="flex justify-center mb-8 lg:hidden">
-        <LogoVertical className="w-70 h-19.5" />
-      </div>
 
       <div className="text-center lg:text-left mb-6">
         <h2 className="text-[28px] font-bold text-on-surface mb-2">

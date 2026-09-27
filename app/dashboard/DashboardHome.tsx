@@ -133,7 +133,7 @@ export function DashboardHome({ canAddExpense = false }: { canAddExpense?: boole
     <div className="flex flex-col gap-6 w-full animate-in fade-in duration-500">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-on-surface">Dashboard</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-on-surface">Panel de control</h1>
           <p className="text-sm text-on-surface-variant mt-1">Resumen general del negocio</p>
         </div>
         {canAddExpense && (
@@ -164,14 +164,14 @@ export function DashboardHome({ canAddExpense = false }: { canAddExpense?: boole
               <Link
                 key={action.id}
                 href={action.href}
-                className={`flex items-center gap-3 p-3.5 rounded-2xl bg-surface-container-lowest border border-outline-variant/10 transition-all group shadow-sm ${style.hover}`}
+                className={`flex items-center gap-3 p-3.5 rounded-2xl bg-surface-container-lowest border border-outline-variant/10 transition-all group shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${style.hover}`}
               >
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-lg shrink-0 group-hover:scale-105 transition-transform ${style.accent}`}>
                   {style.emoji}
                 </div>
                 <div className="min-w-0">
-                  <span className="text-xs font-bold text-on-surface block truncate">{action.title}</span>
-                  <span className="text-[11px] text-on-surface-variant truncate block">{style.hint}</span>
+                  <span className="text-sm font-semibold text-on-surface block truncate">{action.title}</span>
+                  <span className="text-xs text-on-surface-variant truncate block">{style.hint}</span>
                 </div>
               </Link>
             );
@@ -187,7 +187,7 @@ export function DashboardHome({ canAddExpense = false }: { canAddExpense?: boole
           value={todaySales ? `${todaySales.count}` : "—"}
           sub={todaySales ? `$${money(todaySales.revenue)}` : ""}
           loading={!todaySales}
-          accent="bg-[#6063ee]/10 text-[#6063ee]"
+          accent="bg-primary/10 text-primary"
         />
         <KpiCard
           icon={<IconTrendingUp className="w-5 h-5" />}
@@ -245,7 +245,7 @@ export function DashboardHome({ canAddExpense = false }: { canAddExpense?: boole
                         title={`Gastos: $${money(m.expense)}`}
                       />
                     </div>
-                    <span className="text-[10px] text-on-surface-variant font-medium mt-1">{m.label}</span>
+                    <span className="text-xs text-on-surface-variant font-medium mt-1">{m.label}</span>
                   </div>
                 );
               })}
@@ -290,7 +290,7 @@ export function DashboardHome({ canAddExpense = false }: { canAddExpense?: boole
                     </div>
                     <div className="min-w-0">
                       <p className="text-xs font-medium text-on-surface truncate">{t.label}</p>
-                      <p className="text-[10px] text-on-surface-variant">
+                      <p className="text-xs text-on-surface-variant">
                         {formatDateOnly(t.day, { day: "2-digit", month: "2-digit" })}
                       </p>
                     </div>
@@ -350,13 +350,13 @@ export function DashboardHome({ canAddExpense = false }: { canAddExpense?: boole
               <div key={p.id} className="flex items-center justify-between p-3 rounded-xl bg-error/5 border border-error/10">
                 <div className="min-w-0">
                   <p className="text-xs font-medium text-on-surface truncate">{p.name}</p>
-                  <p className="text-[10px] text-on-surface-variant">SKU: {p.sku}</p>
+                  <p className="text-xs text-on-surface-variant">SKU: {p.sku}</p>
                 </div>
                 <div className="text-right shrink-0 ml-3">
                   <p className={`text-xs font-bold ${(p.stock_level ?? 0) <= 0 ? "text-error" : "text-amber-500"}`}>
                     {p.stock_level} uds.
                   </p>
-                  <p className="text-[9px] text-on-surface-variant">Mín: {p.minimum_stock}</p>
+                  <p className="text-xs text-on-surface-variant">Mín: {p.minimum_stock}</p>
                 </div>
               </div>
             ))}
@@ -398,9 +398,9 @@ function KpiCard({
           {icon}
         </div>
       </div>
-      <p className="text-[11px] font-semibold text-on-surface-variant uppercase tracking-wider mb-1 truncate">{label}</p>
+      <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1">{label}</p>
       {/* Cifra larga: en móvil baja de tamaño en vez de desbordar la tarjeta. */}
-      <p className="text-lg sm:text-xl lg:text-2xl font-bold text-on-surface tabular-nums tracking-tight truncate">
+      <p className="text-lg sm:text-xl lg:text-2xl font-bold text-on-surface tabular-nums tracking-tight break-words">
         {loading ? (
           <span className="inline-block w-20 h-7 rounded bg-surface-container-high animate-pulse" />
         ) : (

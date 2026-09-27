@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { LogoHorizontal, LogoVertical } from "@/components/Logo";
+import { LogoHorizontal, LogoSymbol } from "@/components/Logo";
 import {
   IconHome,
   IconCreditCard,
@@ -102,6 +102,8 @@ export function DashboardShell({
   const router = useRouter();
   const profile = useProfile();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const mobileMenuRef = useRef<HTMLElement>(null);
+  const mobileMenuTriggerRef = useRef<HTMLButtonElement>(null);
   const [calculatorOpen, setCalculatorOpen] = useState(false);
   const [expenseOpen, setExpenseOpen] = useState(false);
   const [globalSearch, setGlobalSearch] = useState("");
@@ -148,6 +150,38 @@ export function DashboardShell({
   useEffect(() => {
     document.cookie = `${SIDEBAR_COOKIE}=${sidebarCollapsed}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}; samesite=lax`;
   }, [sidebarCollapsed]);
+
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const menu = mobileMenuRef.current;
+    const trigger = mobileMenuTriggerRef.current;
+    const focusable = () => Array.from(menu?.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ) ?? []);
+    focusable()[0]?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setMobileMenuOpen(false);
+      } else if (event.key === "Tab") {
+        const elements = focusable();
+        const first = elements[0];
+        const last = elements[elements.length - 1];
+        if (!first || !last) return;
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      trigger?.focus();
+    };
+  }, [mobileMenuOpen]);
 
   const isWorker = profile?.isWorker ?? false;
 
@@ -206,15 +240,17 @@ export function DashboardShell({
       {/* Sidebar - Desktop */}
       <aside className={`print:hidden hidden lg:flex flex-col border-r border-outline-variant/10 bg-surface-container-lowest transition-all duration-300 ${sidebarCollapsed ? "w-20" : "w-64"}`}>
         <div className="h-20 shrink-0 flex items-center justify-center border-b border-outline-variant/10 px-4">
-          {sidebarCollapsed ? (
-            <LogoVertical className="w-[30px] h-[30px]" />
-          ) : (
-            <LogoHorizontal className="w-[110px] h-[30px]" />
-          )}
+          <Link href="/dashboard" aria-label="Ventex, ir al panel" className="inline-flex items-center justify-center rounded-lg focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary">
+            {sidebarCollapsed ? (
+              <LogoSymbol className="w-9 h-9" />
+            ) : (
+              <LogoHorizontal className="w-36 h-9" />
+            )}
+          </Link>
         </div>
 
         <div className="flex-1 overflow-y-auto min-h-0">
-          <nav className="p-4 space-y-1">
+          <nav aria-label="Navegación principal" className="p-4 space-y-1">
             <div className={`flex items-center mb-4 mt-4 ${sidebarCollapsed ? "justify-center" : "px-4"}`}>
               {!sidebarCollapsed && (
                 <div className="text-[10px] font-bold text-on-surface-variant uppercase tracking-[0.2em] whitespace-nowrap overflow-hidden flex-1">
@@ -222,8 +258,11 @@ export function DashboardShell({
                 </div>
               )}
               <button
+                type="button"
                 onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-                className="shrink-0 w-6 h-6 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors"
+                aria-label={sidebarCollapsed ? "Expandir menú" : "Minimizar menú"}
+                aria-expanded={!sidebarCollapsed}
+                className="shrink-0 w-9 h-9 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high focus-visible:outline-2 focus-visible:outline-primary transition-colors"
                 title={sidebarCollapsed ? "Expandir menú" : "Minimizar menú"}
               >
                 <svg
@@ -264,13 +303,14 @@ export function DashboardShell({
                         key={item.id}
                         href={item.href}
                         aria-current={isActive ? "page" : undefined}
+                        aria-label={item.name}
                         title={item.name}
                         // Mas tinte que en el menu desplegado, y a proposito:
                         // ahi el nombre del item tambien se pinta de primary y
                         // el color viaja en dos lugares. Aca el icono es lo
                         // unico que hay, asi que el fondo tiene que sostener
                         // solo el "estas aca".
-                        className={`flex items-center justify-center py-3 rounded-xl transition-all ${
+                        className={`flex items-center justify-center py-3 rounded-xl focus-visible:outline-2 focus-visible:outline-primary transition-all ${
                           isActive
                             ? "bg-primary/20 text-primary"
                             : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
@@ -366,12 +406,19 @@ export function DashboardShell({
         <header className="print:hidden h-20 flex items-center justify-between gap-2 px-4 sm:px-6 lg:px-10 border-b border-outline-variant/10 bg-surface-container-lowest sticky top-0 z-20">
           <div className="flex items-center gap-3 sm:gap-4 shrink-0 lg:hidden">
             <button
+              ref={mobileMenuTriggerRef}
+              type="button"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="text-on-surface-variant hover:text-on-surface"
+              aria-label={mobileMenuOpen ? "Cerrar menú de navegación" : "Abrir menú de navegación"}
+              aria-expanded={mobileMenuOpen}
+              aria-controls="dashboard-mobile-menu"
+              className="flex h-10 w-10 items-center justify-center rounded-lg text-on-surface-variant hover:text-on-surface focus-visible:outline-2 focus-visible:outline-primary"
             >
               <IconMenu className="w-6 h-6" />
             </button>
-            <LogoVertical className="w-[50px] h-[24px]" />
+            <Link href="/dashboard" aria-label="Ventex, ir al panel">
+              <LogoSymbol className="h-8 w-8" />
+            </Link>
           </div>
 
           <form onSubmit={handleGlobalSearch} className="hidden lg:flex items-center gap-4 flex-1 max-w-xl">
@@ -379,6 +426,7 @@ export function DashboardShell({
               <IconSearch className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant" />
               <input
                 type="text"
+                aria-label="Buscar secciones de Ventex"
                 value={globalSearch}
                 onChange={(e) => setGlobalSearch(e.target.value)}
                 placeholder="Buscar en Ventex..."
@@ -423,6 +471,7 @@ export function DashboardShell({
             )}
             <button
               onClick={() => setCalculatorOpen(true)}
+              aria-label="Calculadora"
               className="hidden md:block shrink-0 text-on-surface-variant hover:text-on-surface transition-colors"
               title="Calculadora"
             >
@@ -444,6 +493,7 @@ export function DashboardShell({
               type="button"
               onClick={handleHelpClick}
               title="Ayuda y Soporte"
+              aria-label="Ayuda y soporte"
               className="hidden sm:block text-on-surface-variant hover:text-on-surface transition-colors"
             >
               <IconHelpCircle className="w-5 h-5" />
@@ -485,12 +535,15 @@ export function DashboardShell({
             onClick={() => setMobileMenuOpen(false)}
           ></div>
           {/* overflow-y-auto: con muchos módulos el menú no cabía y no se podía desplazar. */}
-          <aside className="relative w-64 bg-surface-container-lowest flex flex-col justify-between h-full overflow-y-auto overscroll-contain shadow-2xl">
+          <aside id="dashboard-mobile-menu" ref={mobileMenuRef} role="dialog" aria-modal="true" aria-label="Menú de navegación" className="relative w-72 max-w-[calc(100vw-3rem)] bg-surface-container-lowest flex flex-col justify-between h-full overflow-y-auto overscroll-contain shadow-2xl">
             <div>
-              <div className="h-20 flex items-center px-8 border-b border-outline-variant/10">
-                <LogoHorizontal className="w-[100px] h-[28px]" />
+              <div className="h-20 flex items-center justify-between px-6 border-b border-outline-variant/10">
+                <Link href="/dashboard" aria-label="Ventex, ir al panel" onClick={() => setMobileMenuOpen(false)}>
+                  <LogoHorizontal className="w-36 h-9" />
+                </Link>
+                <button type="button" onClick={() => setMobileMenuOpen(false)} aria-label="Cerrar menú" className="h-10 w-10 rounded-lg text-on-surface-variant hover:bg-surface-container-high focus-visible:outline-2 focus-visible:outline-primary">×</button>
               </div>
-              <nav className="p-4 space-y-1">
+              <nav aria-label="Navegación principal" className="p-4 space-y-1">
                 <div className="text-[10px] font-bold text-on-surface-variant uppercase tracking-[0.2em] mb-4 px-4 mt-4">
                   Menú Principal
                 </div>

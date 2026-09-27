@@ -76,28 +76,6 @@ const leerReduccion = () => window.matchMedia(REDUCE_MOTION).matches;
 // empieza al hidratar. Al revés, ya habría movido la pantalla una vez.
 const leerReduccionServidor = () => true;
 
-/**
- * Las MISMAS caras que los testimonios de la landing.
- *
- * Antes eran iniciales blancas sobre degradados de la marca, y ese cian
- * (`#0fdff3`) daba 1.67:1 contra el blanco — texto ilegible en la pantalla de
- * acceso. Con fotos no queda texto que leer, así que el problema desaparece de
- * raíz en vez de taparse subiéndole el contraste al degradado.
- *
- * Son archivos LOCALES ya versionados, no retratos traídos de un servicio
- * externo: eso último habría metido una petición a otro origen en la pantalla
- * más crítica de la app, rota sin conexión porque el service worker no cachea
- * fuera del dominio.
- *
- * Van con `aria-hidden` igual que antes: el dato lo dice el texto de al lado, y
- * anunciar tres fotos decorativas antes del formulario solo estorba.
- */
-const ACTIVE_USERS = [
-  { src: "/landing/fotos/avatar-mariana.webp" },
-  { src: "/landing/fotos/avatar-diego.webp" },
-  { src: "/landing/fotos/avatar-valentina.webp" },
-];
-
 export function AuthAside() {
   const [actual, setActual] = useState(0);
   const [detenido, setDetenido] = useState(false);
@@ -160,7 +138,7 @@ export function AuthAside() {
 
       <div className="flex items-center justify-center flex-1 z-10">
         <div className="max-w-md space-y-6 text-center flex flex-col items-center">
-          <LogoVertical className="w-[320px] h-[180px] mb-6" />
+          <LogoVertical variant="white" className="w-[320px] h-20 mb-6" />
 
           {/*
             * `aria-live="polite"` y no `assertive`: el texto cambia solo, y
@@ -174,27 +152,9 @@ export function AuthAside() {
             <p className="text-on-surface-variant text-base lg:text-lg">{VISTAS[actual].copia}</p>
           </div>
 
-          {/* Prueba social. Ver ACTIVE_USERS: son las mismas caras que los
-              testimonios de la landing, servidas desde nuestro propio dominio. */}
-          <div className="flex items-center justify-center gap-4 mt-8 pt-4">
-            <div className="flex -space-x-3">
-              {ACTIVE_USERS.map((user) => (
-                <Image
-                  key={user.src}
-                  src={user.src}
-                  alt=""
-                  aria-hidden="true"
-                  width={40}
-                  height={40}
-                  className="h-10 w-10 rounded-full border-2 border-surface-container-low object-cover shadow-sm"
-                />
-              ))}
-              <div className="w-10 h-10 rounded-full border-2 border-surface-container-low shadow-sm bg-surface-container-highest flex items-center justify-center text-[10px] font-bold text-on-surface-variant">
-                +15k
-              </div>
-            </div>
-            <span className="text-sm font-medium text-on-surface-variant">~15k usuarios activos</span>
-          </div>
+          <p className="mt-8 border-t border-white/20 pt-5 text-sm font-medium text-on-surface-variant">
+            Tu negocio, a tu manera.
+          </p>
         </div>
       </div>
 

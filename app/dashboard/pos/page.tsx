@@ -705,7 +705,8 @@ export default function POSPage() {
               type="button"
               onClick={() => setIsCartOpen(true)}
               disabled={cart.length === 0}
-              className="w-full h-12 flex items-center justify-between gap-3 rounded-xl bg-primary text-white px-3.5 shadow-lg shadow-primary/25 active:bg-primary-dim transition-colors disabled:opacity-40"
+              aria-label={cart.length === 0 ? "Agregá ítems para cobrar" : `Ver venta actual: ${cart.length} ítems, total $${money(totals.total)}`}
+              className="w-full min-h-12 flex items-center justify-between gap-3 rounded-xl bg-primary text-on-primary px-3.5 shadow-lg shadow-primary/25 active:bg-primary-dim focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary transition-colors disabled:opacity-40"
             >
               <span className="flex items-center gap-2.5 min-w-0">
                 <span className="relative shrink-0">
@@ -713,7 +714,7 @@ export default function POSPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
                   </svg>
                   {cartUnits > 0 && (
-                    <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-white text-primary text-[10px] font-bold flex items-center justify-center">
+                    <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-surface-container-lowest text-primary text-xs font-bold flex items-center justify-center">
                       {cartUnits}
                     </span>
                   )}
