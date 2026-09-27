@@ -4,6 +4,8 @@ import * as posService from "@/services/pos.service";
 import * as settingsService from "@/services/settings.service";
 import * as deliveryService from "@/services/delivery.service";
 import * as offlineQueue from "@/services/offline-queue.service";
+import * as offersService from "@/services/offers.service";
+import type { ProductOffer } from "@/services/offers.service";
 import { useShiftsStore } from "@/stores/shifts.store";
 import { lineKey, cartLineKey as keyOf } from "@/services/pos.service";
 import {
@@ -55,6 +57,15 @@ export interface SaleTab {
    * vacía, porque a partir de ahí lo que se cobra es otra venta.
    */
   checkoutId: string | null;
+  /**
+   * Líneas donde el cajero apretó "Quitar" sobre una oferta automática, PARA
+   * ESTA VENTA (T5). Sin esto, el siguiente cambio de carrito —sumar otra
+   * unidad, tocar otro ítem— volvería a aplicarla, porque nada más distingue
+   * "nunca calificó" de "calificó y se sacó a propósito". Se limpia sola
+   * cuando la línea desaparece del carrito (`removeFromCart`) o cuando el
+   * carrito se vacía: en la venta siguiente la oferta vuelve a ofrecerse.
+   */
+  removedOfferKeys: string[];
 }
 
 interface PosState {
@@ -66,6 +77,12 @@ interface PosState {
   catalog: CatalogItem[];
   customers: CustomerOption[];
   staff: StaffOption[];
+  /**
+   * Ofertas de producto activas (T2-T4). Se traen para todo negocio, igual
+   * que la config de promociones de salón: sin filas no hay nada que aplicar,
+   * así que es gratis para el resto de los rubros.
+   */
+  offers: ProductOffer[];
   taxRate: number;
   loading: boolean;
   error: string | null;
@@ -133,6 +150,15 @@ interface PosState {
   setCustomer: (customerId: string | null) => void;
   setStaff: (staffId: string | null) => void;
   setLineDiscounts: (discounts: { key: string; discountAmount: number }[]) => void;
+  /**
+   * Recalcula las ofertas automáticas de la pestaña activa contra
+   * `state.offers`. Se llama SIEMPRE desde acciones del store que ya mutaron
+   * el carrito (nunca desde un efecto de React) — es la forma de tener
+   * "aplica solo, en cada cambio" sin el riesgo de `react-hooks/set-state-in-effect`.
+   */
+  recomputeOffers: () => void;
+  /** El cajero saca una oferta aplicada para ESTA venta (T5). */
+  removeOffer: (key: string) => void;
   setLineStaff: (key: string, staffId: string | null) => void;
   /** Precio del mostrador para una línea de precio abierto. `null` lo borra. */
   setLinePrice: (key: string, price: number | null) => void;
@@ -195,6 +221,7 @@ const createDefaultTab = (index: number, get?: () => PosState): SaleTab => {
     isDelivery: false,
     deliveryData: { personId: null, address: "", fee: 0, notes: "" },
     checkoutId: null,
+    removedOfferKeys: [],
   };
 };
 
@@ -293,6 +320,7 @@ export const usePosStore = create<PosState>((set, get) => {
     catalog: [],
     customers: [],
     staff: [],
+    offers: [],
     taxRate: 0.19,
     loading: false,
     error: null,
@@ -337,12 +365,16 @@ export const usePosStore = create<PosState>((set, get) => {
     init: async () => {
       set({ loading: true, error: null });
       try {
-        const [catalog, customers, staff, config, executionContext] = await Promise.all([
+        const [catalog, customers, staff, config, executionContext, offers] = await Promise.all([
           posService.fetchCatalog(),
           posService.fetchCustomers(),
           posService.fetchStaff(),
           posService.fetchPosConfig(),
           getWorkspaceExecutionContext(),
+          // Sin filas para este negocio (todo lo que no sea tienda) esto
+          // vuelve `[]` y no cambia nada; que falle no puede tumbar el POS
+          // entero por una función que la mayoría de los rubros ni usa.
+          offersService.fetchActiveOffers().catch(() => []),
         ]);
         // Desglose de IVA y sobreventa son política del negocio y viven en
         // `settings`. El toggle del POS escribe `include_tax` (ver
@@ -351,10 +383,11 @@ export const usePosStore = create<PosState>((set, get) => {
         const state = get();
         if (state.activeTabId === "") {
           const firstTab = createDefaultTab(0, get);
-          set({ catalog, customers, staff, taxRate, includeTax, allowOversell, executionContext, loading: false, tabs: [firstTab], activeTabId: firstTab.id });
+          set({ catalog, customers, staff, offers, taxRate, includeTax, allowOversell, executionContext, loading: false, tabs: [firstTab], activeTabId: firstTab.id });
         } else {
-          set({ catalog, customers, staff, taxRate, includeTax, allowOversell, executionContext, loading: false });
+          set({ catalog, customers, staff, offers, taxRate, includeTax, allowOversell, executionContext, loading: false });
         }
+        get().recomputeOffers();
       } catch (e) {
         set({ error: toMessage(e), loading: false });
       }
@@ -435,6 +468,7 @@ export const usePosStore = create<PosState>((set, get) => {
           return { ...t, cart: [...t.cart, { item, unitKind, quantity: 1, staffId: t.staffId ?? null }] };
         }),
       }));
+      get().recomputeOffers();
     },
 
     addToTab: (item, tabId, unitKind = "unit") => {
@@ -461,6 +495,7 @@ export const usePosStore = create<PosState>((set, get) => {
           return { ...t, cart: [...t.cart, { item, unitKind, quantity: 1, staffId: t.staffId ?? null }] };
         }),
       }));
+      get().recomputeOffers();
     },
 
     increment: (key) => {
@@ -483,9 +518,10 @@ export const usePosStore = create<PosState>((set, get) => {
           };
         }),
       }));
+      get().recomputeOffers();
     },
 
-    decrement: (key) =>
+    decrement: (key) => {
       set((s) => ({
         tabs: s.tabs.map((t) => {
           if (t.id !== s.activeTabId) return t;
@@ -498,7 +534,9 @@ export const usePosStore = create<PosState>((set, get) => {
               .filter((l) => l.quantity > 0),
           };
         }),
-      })),
+      }));
+      get().recomputeOffers();
+    },
 
     setQuantity: (key, quantity) => {
       const s = get();
@@ -538,6 +576,7 @@ export const usePosStore = create<PosState>((set, get) => {
           };
         }),
       }));
+      get().recomputeOffers();
     },
 
     /**
@@ -584,13 +623,21 @@ export const usePosStore = create<PosState>((set, get) => {
           };
         }),
       }));
+      get().recomputeOffers();
     },
 
+    // Se limpia también de `removedOfferKeys`: si la línea vuelve a
+    // agregarse más tarde, es una línea nueva y merece que se le vuelva a
+    // ofrecer la oferta, no que cargue con un "quitado" de la vez anterior.
     removeFromCart: (key) =>
       set((s) => ({
         tabs: s.tabs.map((t) =>
           t.id === s.activeTabId
-            ? { ...t, cart: t.cart.filter((l) => keyOf(l) !== key) }
+            ? {
+                ...t,
+                cart: t.cart.filter((l) => keyOf(l) !== key),
+                removedOfferKeys: t.removedOfferKeys.filter((k) => k !== key),
+              }
             : t,
         ),
       })),
@@ -614,7 +661,14 @@ export const usePosStore = create<PosState>((set, get) => {
         }),
       })),
 
-    setLineDiscounts: (discounts) =>
+    /**
+     * Descuento MANUAL sobre una línea (DiscountModal, o el premio de cortes
+     * en salón). Limpia `offerId`/`offerName` si la línea traía una oferta
+     * automática puesta: son dos canales del mismo campo y no se pisan al
+     * revés — un descuento a mano siempre gana, nunca se suma a una oferta
+     * (ver `offerDiscountsFor`).
+     */
+    setLineDiscounts: (discounts) => {
       set((s) => ({
         tabs: s.tabs.map((t) => {
           if (t.id !== s.activeTabId) return t;
@@ -622,13 +676,56 @@ export const usePosStore = create<PosState>((set, get) => {
             ...t,
             cart: t.cart.map((line) => {
               const d = discounts.find((x) => x.key === keyOf(line));
-              return d ? { ...line, discountAmount: d.discountAmount } : line;
+              return d
+                ? { ...line, discountAmount: d.discountAmount, offerId: undefined, offerName: undefined }
+                : line;
             }),
           };
         }),
+      }));
+      get().recomputeOffers();
+    },
+
+    // Recalcula TODAS las pestañas y no solo la activa: `addToTab` agrega a
+    // una pestaña puntual (no necesariamente la activa), y una venta en
+    // segundo plano tiene el mismo derecho a sus ofertas que la que se está
+    // mirando. El costo es despreciable — son carritos de POS, no miles de
+    // filas.
+    recomputeOffers: () =>
+      set((s) => ({
+        tabs: s.tabs.map((t) => ({
+          ...t,
+          cart: offersService.applyOfferDiscounts(
+            t.cart,
+            s.offers,
+            t.removedOfferKeys,
+            offersService.todayLocal(),
+          ),
+        })),
       })),
 
-    setLinePrice: (key, price) =>
+    removeOffer: (key) => {
+      set((s) => ({
+        tabs: s.tabs.map((t) => {
+          if (t.id !== s.activeTabId) return t;
+          return {
+            ...t,
+            removedOfferKeys: t.removedOfferKeys.includes(key)
+              ? t.removedOfferKeys
+              : [...t.removedOfferKeys, key],
+            cart: t.cart.map((line) =>
+              keyOf(line) === key
+                ? { ...line, discountAmount: 0, offerId: undefined, offerName: undefined }
+                : line,
+            ),
+          };
+        }),
+      }));
+    },
+
+    // Un precio abierto cambia lo que vale la línea, así que una oferta por
+    // monto/porcentaje sobre ese mismo ítem tiene que recalcularse.
+    setLinePrice: (key, price) => {
       set((s) => ({
         tabs: s.tabs.map((t) => {
           if (t.id !== s.activeTabId) return t;
@@ -644,7 +741,9 @@ export const usePosStore = create<PosState>((set, get) => {
             ),
           };
         }),
-      })),
+      }));
+      get().recomputeOffers();
+    },
 
     setLineStaff: (key, staffId) =>
       set((s) => ({
@@ -754,7 +853,7 @@ export const usePosStore = create<PosState>((set, get) => {
         return {
           tabs: s.tabs.map((t) =>
             t.id === s.activeTabId
-              ? { ...t, cart: [], customerId: defaultCustomer, staffId: defaultStaff,                 paymentMethod: defaultMethod, transferMethod: null, cardMethod: null, splits: [], isDelivery: false, deliveryData: { personId: null, address: "", fee: 0, notes: "" }, checkoutId: null }
+              ? { ...t, cart: [], customerId: defaultCustomer, staffId: defaultStaff,                 paymentMethod: defaultMethod, transferMethod: null, cardMethod: null, splits: [], isDelivery: false, deliveryData: { personId: null, address: "", fee: 0, notes: "" }, checkoutId: null, removedOfferKeys: [] }
               : t,
           ),
         };
@@ -856,7 +955,7 @@ export const usePosStore = create<PosState>((set, get) => {
             catalog,
             tabs: s.tabs.map((t) =>
               t.id === s.activeTabId
-                ? { ...t, cart: [], customerId: defaultCustomer, staffId: defaultStaff,                 paymentMethod: defaultMethod, transferMethod: null, cardMethod: null, splits: [], isDelivery: false, deliveryData: { personId: null, address: "", fee: 0, notes: "" }, checkoutId: null }
+                ? { ...t, cart: [], customerId: defaultCustomer, staffId: defaultStaff,                 paymentMethod: defaultMethod, transferMethod: null, cardMethod: null, splits: [], isDelivery: false, deliveryData: { personId: null, address: "", fee: 0, notes: "" }, checkoutId: null, removedOfferKeys: [] }
                 : t,
             ),
           };
@@ -918,7 +1017,7 @@ export const usePosStore = create<PosState>((set, get) => {
                 catalog: applySoldUnits(s.catalog, cart),
                 tabs: s.tabs.map((t) =>
                   t.id === s.activeTabId
-                    ? { ...t, cart: [], customerId: defaultCustomer, staffId: defaultStaff, paymentMethod: defaultMethod, transferMethod: null, cardMethod: null, splits: [], isDelivery: false, deliveryData: { personId: null, address: "", fee: 0, notes: "" }, checkoutId: null }
+                    ? { ...t, cart: [], customerId: defaultCustomer, staffId: defaultStaff, paymentMethod: defaultMethod, transferMethod: null, cardMethod: null, splits: [], isDelivery: false, deliveryData: { personId: null, address: "", fee: 0, notes: "" }, checkoutId: null, removedOfferKeys: [] }
                     : t,
                 ),
               };

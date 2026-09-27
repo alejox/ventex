@@ -124,6 +124,8 @@ interface PosCartPanelProps {
   decrement: (key: string) => void;
   setQuantity: (key: string, v: number) => void;
   removeFromCart: (key: string) => void;
+  /** Saca una oferta automática (T5) de una línea, solo para esta venta. */
+  removeOffer: (key: string) => void;
   clearCart: () => void;
   onCheckout: () => void;
   onOpenDiscountModal: () => void;
@@ -172,6 +174,7 @@ export function PosCartPanel({
   decrement,
   setQuantity,
   removeFromCart,
+  removeOffer,
   clearCart,
   onCheckout,
   onOpenDiscountModal,
@@ -471,8 +474,26 @@ export function PosCartPanel({
                         ) : (
                           <span className="text-[9px] text-on-surface-variant/50">{line.item.sku}</span>
                         )}
-                        {(line.discountAmount ?? 0) > 0 && (
-                          <span className="text-[9px] text-error font-medium">-{money(line.discountAmount!)}</span>
+                        {(line.discountAmount ?? 0) > 0 && line.offerId ? (
+                          // Oferta automática (T5): lleva su nombre, para que el
+                          // cajero sepa POR QUÉ bajó el precio y no lo confunda
+                          // con un descuento que puso alguien a mano.
+                          <span className="inline-flex items-center gap-1 text-[9px] font-medium">
+                            <span className="text-[#10b981]">
+                              {line.offerName} −{money(line.discountAmount!)}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => removeOffer(cartLineKey(line))}
+                              className="text-on-surface-variant/60 hover:text-error underline underline-offset-2 transition-colors"
+                            >
+                              Quitar
+                            </button>
+                          </span>
+                        ) : (
+                          (line.discountAmount ?? 0) > 0 && (
+                            <span className="text-[9px] text-error font-medium">-{money(line.discountAmount!)}</span>
+                          )
                         )}
                         {line.item.kind === "product" &&
                           line.item.stock_level != null &&

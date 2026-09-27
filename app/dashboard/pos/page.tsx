@@ -146,6 +146,7 @@ export default function POSPage() {
   const decrement = usePosStore((s) => s.decrement);
   const setQuantity = usePosStore((s) => s.setQuantity);
   const removeFromCart = usePosStore((s) => s.removeFromCart);
+  const removeOffer = usePosStore((s) => s.removeOffer);
   const setLineKind = usePosStore((s) => s.setLineKind);
   const setLineDiscounts = usePosStore((s) => s.setLineDiscounts);
   const setCustomer = usePosStore((s) => s.setCustomer);
@@ -810,6 +811,7 @@ export default function POSPage() {
             decrement={decrement}
             setQuantity={setQuantity}
             removeFromCart={removeFromCart}
+            removeOffer={removeOffer}
             clearCart={clearCart}
             onCheckout={handleCheckoutClick}
             onOpenDiscountModal={() => setIsDiscountModalOpen(true)}
