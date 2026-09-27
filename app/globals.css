@@ -15,132 +15,137 @@
   --animate-business-word: business-word-in 420ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* Force CSS reload to apply data-theme rules */
+/* Brand colors map to the existing theme contract; semantic error/accent roles stay separate. */
 :root {
-  /* Light Mode Colors (Derived to complement Indigo Pulse dark theme) */
-  --surface: #f8f9ff;
-  --surface-dim: #e2e4f0;
+  --surface: #fafafa;
+  --surface-dim: #e8e8eb;
   --surface-bright: #ffffff;
   --surface-container-lowest: #ffffff;
-  --surface-container-low: #f2f3ff;
-  --surface-container: #eceeff;
-  --surface-container-high: #e6e8fa;
-  --surface-container-highest: #e0e2f5;
-  --on-surface: #101323;
-  --on-surface-variant: #424659;
-  --inverse-surface: #2b2e40;
-  --inverse-on-surface: #f0f1ff;
-  --outline: #73778c;
-  --outline-variant: #c3c6dc;
-  --surface-tint: #494bd7;
-  --primary: #494bd7;
+  --surface-container-low: #f7f5fa;
+  --surface-container: #f2eff7;
+  --surface-container-high: #ece8f3;
+  --surface-container-highest: #e5e0ed;
+  --on-surface: #25292d;
+  --on-surface-variant: #59626a;
+  --inverse-surface: #25292d;
+  --inverse-on-surface: #fafafa;
+  --outline: #666e77;
+  --outline-variant: #dce0e3;
+  --surface-tint: #6d21ef;
+  --primary: #6d21ef;
   --on-primary: #ffffff;
-  --primary-container: #e2e0ff;
-  --on-primary-container: #0b0664;
-  --inverse-primary: #c0c1ff;
-  --secondary: #5a5c6e;
+  --primary-container: #f0eafb;
+  --on-primary-container: #3c0b86;
+  --inverse-primary: #cdaeff;
+  --secondary: #59626a;
   --on-secondary: #ffffff;
-  --secondary-container: #e0e1f4;
-  --on-secondary-container: #171a2a;
-  --tertiary: #6a24d8;
+  --secondary-container: #e9edf0;
+  --on-secondary-container: #25292d;
+  --tertiary: #6d21ef;
   --on-tertiary: #ffffff;
-  --tertiary-container: #e7d8ff;
-  --on-tertiary-container: #22005c;
+  --tertiary-container: #f0eafb;
+  --on-tertiary-container: #3c0b86;
   --error: #ba1a1a;
   --on-error: #ffffff;
   --error-container: #ffdad6;
   --on-error-container: #410002;
-  --primary-fixed: #e2e0ff;
-  --primary-fixed-dim: #c0c1ff;
-  --on-primary-fixed: #010028;
-  --on-primary-fixed-variant: #302eb6;
-  --secondary-fixed: #e0e1f4;
-  --secondary-fixed-dim: #c4c5d7;
-  --on-secondary-fixed: #171a2a;
-  --on-secondary-fixed-variant: #424456;
-  --tertiary-fixed: #e7d8ff;
-  --tertiary-fixed-dim: #ceb0ff;
-  --on-tertiary-fixed: #22005c;
-  --on-tertiary-fixed-variant: #5100b3;
-  --primary-dim: #c0c1ff;
-  --secondary-dim: #c4c5d7;
-  --tertiary-dim: #ceb0ff;
+  --primary-fixed: #f0eafb;
+  --primary-fixed-dim: #d6bbff;
+  --on-primary-fixed: #2b075f;
+  --on-primary-fixed-variant: #4a149d;
+  --secondary-fixed: #e9edf0;
+  --secondary-fixed-dim: #cbd2d8;
+  --on-secondary-fixed: #25292d;
+  --on-secondary-fixed-variant: #485057;
+  --tertiary-fixed: #f0eafb;
+  --tertiary-fixed-dim: #d6bbff;
+  --on-tertiary-fixed: #2b075f;
+  --on-tertiary-fixed-variant: #4a149d;
+  --primary-dim: #d6bbff;
+  --secondary-dim: #cbd2d8;
+  --tertiary-dim: #d6bbff;
   --error-dim: #ffb4ab;
-  --background: #f8f9ff;
-  --on-background: #101323;
-  --surface-variant: #e0e2f5;
+  --background: #fafafa;
+  --on-background: #25292d;
+  --surface-variant: #e5e0ed;
 
-  /* Acentos de módulo (landing). Un hex fijo no sirve: el cyan y el verde se
-     eligieron mirando el fondo casi negro y sobre #f8f9ff caían a 1.55:1 y
-     2.41:1 — texto invisible. Cada tema lleva su valor, todos medidos contra
-     --surface Y --surface-container, y el indigo oscuro además contra su propio
-     tinte al 10% (el chip de los testimonios estaba en 1.36:1). */
-  --accent-pos: #494bd7; /* 6.11:1 */
+  /* Module accents remain distinct from the brand, with theme-specific
+     values for readable labels on neutral surfaces. */
+  --accent-pos: #6d21ef;
   --accent-inv: #0e7490; /* 5.10:1 */
   --accent-fin: #047857; /* 5.22:1 */
-  /* Los badges de ahorro van SÓLIDOS con `text-background`: el tinte
-     translúcido no llegaba: en claro el verde sobre su propio 8% se quedaba
-     en 4.29:1 y no sube más por más que se baje el tinte. Sólido da 5.22:1 en
-     claro y 10.01:1 en oscuro, y `background` ya invierte con el tema. */
+  /* Savings badges use solid fills with text-background for contrast. */
 }
 
 :root[data-theme="dark"], .dark {
-    /* Dark Mode Colors (Indigo Pulse from Prompt) */
-    --surface: #0b0e19;
-    --surface-dim: #0b0e19;
-    --surface-bright: #252b43;
+    --surface: #17171c;
+    --surface-dim: #121217;
+    --surface-bright: #323139;
     --surface-container-lowest: #000000;
-    --surface-container-low: #0f1322;
-    --surface-container: #14192a;
-    --surface-container-high: #1a1f32;
-    --surface-container-highest: #1f243c;
-    --on-surface: #e1e4ff;
-    --on-surface-variant: #a5aac7;
-    --inverse-surface: #fbf8ff;
-    --inverse-on-surface: #525462;
-    --outline: #6f7490;
-    --outline-variant: #414760;
-    --surface-tint: #6063ee;
-    --primary: #6063ee;
+    --surface-container-low: #1d1d23;
+    --surface-container: #24242b;
+    --surface-container-high: #2c2b34;
+    --surface-container-highest: #36353e;
+    --on-surface: #f2f0f5;
+    --on-surface-variant: #bcbac4;
+    --inverse-surface: #fafafa;
+    --inverse-on-surface: #25292d;
+    --outline: #aaa7b5;
+    --outline-variant: #55535d;
+    --surface-tint: #bd91ff;
+    /* Existing actions use text-white rather than text-on-primary. Keep the
+       action fill dark enough for those labels; use the lighter tint for text. */
+    --primary: #6d21ef;
     --on-primary: #ffffff;
-    --primary-container: #3c3dca;
-    --on-primary-container: #e2e0ff;
-    --inverse-primary: #494bd7;
-    --secondary: #c4c5d7;
-    --on-secondary: #3d3f4e;
-    --secondary-container: #383b49;
-    --on-secondary-container: #bdbed0;
-    --tertiary: #af88ff;
-    --on-tertiary: #2b0065;
-    --tertiary-container: #8342f4;
+    --primary-container: #4a178f;
+    --on-primary-container: #f0eafb;
+    --inverse-primary: #6d21ef;
+    --secondary: #cbd2d8;
+    --on-secondary: #25292d;
+    --secondary-container: #3a4148;
+    --on-secondary-container: #e9edf0;
+    --tertiary: #bd91ff;
+    --on-tertiary: #251038;
+    --tertiary-container: #4a178f;
     --on-tertiary-container: #ffffff;
     --error: #f97386;
     --on-error: #490013;
     --error-container: #871c34;
     --on-error-container: #ff97a3;
-    --primary-fixed: #7073ff;
-    --primary-fixed-dim: #6366f1;
-    --on-primary-fixed: #000000;
-    --on-primary-fixed-variant: #010028;
-    --secondary-fixed: #e0e1f4;
-    --secondary-fixed-dim: #d2d3e5;
-    --on-secondary-fixed: #3c3f4d;
-    --on-secondary-fixed-variant: #585b6a;
-    --tertiary-fixed: #8342f4;
-    --tertiary-fixed-dim: #7632e7;
-    --on-tertiary-fixed: #ffffff;
-    --on-tertiary-fixed-variant: #e5d5ff;
-    --primary-dim: #c0c1ff;
-    --secondary-dim: #b6b8c9;
-    --tertiary-dim: #8a4cfc;
+    --primary-fixed: #d6bbff;
+    --primary-fixed-dim: #bd91ff;
+    --on-primary-fixed: #2b075f;
+    --on-primary-fixed-variant: #4a149d;
+    --secondary-fixed: #e9edf0;
+    --secondary-fixed-dim: #cbd2d8;
+    --on-secondary-fixed: #25292d;
+    --on-secondary-fixed-variant: #485057;
+    --tertiary-fixed: #d6bbff;
+    --tertiary-fixed-dim: #bd91ff;
+    --on-tertiary-fixed: #2b075f;
+    --on-tertiary-fixed-variant: #4a149d;
+    --primary-dim: #5817c8;
+    --secondary-dim: #cbd2d8;
+    --tertiary-dim: #bd91ff;
     --error-dim: #c44b5f;
-    --background: #0b0e19;
-    --on-background: #e1e4ff;
-    --surface-variant: #1f243c;
-    --accent-pos: #8f92ff; /* 7.08:1 — y 5.53:1 sobre su tinte al 10% */
-    --accent-inv: #5ee9f5; /* 13.24:1 */
-    --accent-fin: #34d399; /* 10.01:1 */
+    --background: #17171c;
+    --on-background: #f2f0f5;
+    --surface-variant: #36353e;
+    --accent-pos: #bd91ff;
+    --accent-inv: #5ee9f5;
+    --accent-fin: #34d399;
 }
+
+.ventex-logo { position: relative; line-height: 0; }
+.ventex-logo img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.ventex-logo .ventex-logo-dark { display: none; }
+:root[data-theme="dark"] .ventex-logo .ventex-logo-light,
+.dark .ventex-logo .ventex-logo-light { display: none; }
+:root[data-theme="dark"] .ventex-logo .ventex-logo-dark,
+.dark .ventex-logo .ventex-logo-dark { display: block; }
+
+:root[data-theme="dark"] .text-primary,
+.dark .text-primary { color: #bd91ff; }
 
 @theme inline {
   --color-accent-pos: var(--accent-pos);
@@ -221,7 +226,9 @@
   --radius-full: 9999px;
   --radius: 0.5rem;
 
-  --font-sans: var(--font-plus-jakarta-sans), ui-sans-serif, system-ui, sans-serif;
+  /* DejaVu Sans is the approved editorial face, but the kit has no licensed
+     webfont files. Use the platform sans until those files can be supplied. */
+  --font-sans: ui-sans-serif, system-ui, sans-serif;
 
   /* Botón flotante de WhatsApp: ondas que salen del botón + un escalado suave.
      `ease-out` es lo que las hace ver fluidas — la onda arranca rápido y se

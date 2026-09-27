@@ -6,17 +6,17 @@ import type { MetadataRoute } from "next";
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Ventex — Punto de venta",
+    name: "Ventex — Gestión especializada",
     short_name: "Ventex",
     description:
-      "Punto de venta, inventario y finanzas para tu negocio. Funciona instalado en el escritorio y en el celular.",
+      "Herramientas de gestión para la operación de tu negocio. Disponible en escritorio y celular.",
     // start_url apunta al POS: es la pantalla con la que se abre el turno.
     start_url: "/dashboard/pos",
     scope: "/",
     display: "standalone",
     orientation: "any",
-    background_color: "#0b0e19",
-    theme_color: "#0b0e19",
+    background_color: "#17171c",
+    theme_color: "#17171c",
     lang: "es",
     dir: "ltr",
     categories: ["business", "finance", "productivity"],
