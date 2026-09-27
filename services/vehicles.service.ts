@@ -36,7 +36,7 @@ const SELECT = "id, plate, make_model, color, customer_id, notes, created_at, cu
 const one = <T>(embed: unknown): T | null =>
   Array.isArray(embed) ? ((embed[0] as T) ?? null) : ((embed as T) ?? null);
 
-export const normalizePlate = (plate: string) => plate.trim().toUpperCase();
+const normalizePlate = (plate: string) => plate.trim().toUpperCase();
 
 export async function fetchVehicles(): Promise<Vehicle[]> {
   const supabase = createClient();

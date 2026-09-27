@@ -14,9 +14,9 @@ import { createHash, timingSafeEqual } from "crypto";
  */
 
 export const EPAYCO_CURRENCY = "COP";
-export const EPAYCO_COUNTRY = "CO";
-export const EPAYCO_MERCHANT_NAME = "Ventex";
-export const EPAYCO_CALLING_CODE = "+57";
+const EPAYCO_COUNTRY = "CO";
+const EPAYCO_MERCHANT_NAME = "Ventex";
+const EPAYCO_CALLING_CODE = "+57";
 
 /** ePayco corta `description` en 255; recortamos nosotros para no depender. */
 const DESCRIPTION_MAX = 255;
@@ -360,7 +360,7 @@ export function pickRelevantTransaction(rows: TransactionRow[]): TransactionRow 
 // Sesión de checkout (`POST /payment/session/create`)
 // ---------------------------------------------------------------------------
 
-export interface EpaycoPayer {
+interface EpaycoPayer {
   name: string;
   email: string;
   document: string;

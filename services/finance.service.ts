@@ -2,14 +2,14 @@ import { createClient } from "@/utils/supabase/client";
 import { toISODate } from "@/lib/date";
 
 // ---- Tipos del dominio de finanzas ----
-export interface MonthlyPoint {
+interface MonthlyPoint {
   key: string; // "YYYY-MM"
   label: string;
   income: number;
   expense: number;
 }
 
-export interface FinanceTransaction {
+interface FinanceTransaction {
   id: string;
   kind: "sale" | "expense";
   label: string;

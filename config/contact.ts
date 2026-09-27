@@ -5,7 +5,7 @@
  */
 
 /** Número en formato internacional sin "+" ni espacios (lo exige wa.me). */
-export const VENTEX_WHATSAPP = "573334328530";
+const VENTEX_WHATSAPP = "573334328530";
 
 /**
  * Normaliza un teléfono a lo que exige wa.me: solo dígitos, con código de país.

@@ -1,5 +1,4 @@
 import { createClient } from "@/utils/supabase/client";
-import type { SchoolPolicy } from "@/services/school-settings.service";
 
 // ---- Tipos del dominio de planes y matrículas ----
 
@@ -163,40 +162,6 @@ function enrollmentRowToEnrollment(raw: Record<string, unknown> & { school_stude
  */
 export function enrollmentBalanceOf(movements: Pick<CreditMovement, "amount">[]): number {
   return movements.reduce((acc, m) => acc + m.amount, 0);
-}
-
-/**
- * La foto congelada que `school_enroll` va a escribir en la matrícula.
- *
- * Precedente: `promo_redemptions` congela premio y umbral al canjear. Acá se
- * congela el catálogo COMPLETO del plan (nombre, precio, vigencia) más la
- * política de la escuela, para que cambios futuros no alteren contratos ya
- * firmados. Es PREVIEW: la base es la que congela de verdad.
- */
-export function frozenSnapshotOf(input: {
-  plan: Pick<LessonPlan, "name" | "lesson_count" | "validity_days" | "duration_minutes">;
-  servicePrice: number;
-  policy: SchoolPolicy;
-}): {
-  plan_name: string;
-  contracted_lessons: number;
-  plan_price: number;
-  plan_validity_days: number;
-  policy_min_advance_hours: number;
-  policy_max_reschedules: number;
-  policy_consume_on_unjustified_absence: boolean;
-  policy_expiry_extension_days: number;
-} {
-  return {
-    plan_name: input.plan.name,
-    contracted_lessons: input.plan.lesson_count,
-    plan_price: input.servicePrice,
-    plan_validity_days: input.plan.validity_days,
-    policy_min_advance_hours: input.policy.min_advance_hours,
-    policy_max_reschedules: input.policy.max_reschedules,
-    policy_consume_on_unjustified_absence: input.policy.consume_on_unjustified_absence,
-    policy_expiry_extension_days: input.policy.expiry_extension_days,
-  };
 }
 
 /**

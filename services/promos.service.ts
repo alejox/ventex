@@ -29,13 +29,6 @@ export interface PromoConfig {
  */
 export type RewardKind = "texto" | "gratis" | "porcentaje" | "monto";
 
-export const REWARD_KIND_LABELS: Record<RewardKind, string> = {
-  texto: "Solo anunciarlo (se entrega a mano)",
-  gratis: "El servicio va gratis",
-  porcentaje: "Descuento por porcentaje",
-  monto: "Descuento de un monto fijo",
-};
-
 export interface PromoMilestone {
   id: string;
   threshold: number;
@@ -102,14 +95,6 @@ export function promoDiscountFor(
   return { key: linea.key, discountAmount };
 }
 
-/** Lo que se le entregó a un cliente, congelado el día del canje. */
-export interface PromoRedemption {
-  id: string;
-  threshold: number;
-  reward: string;
-  redeemed_at: string;
-}
-
 /**
  * El mensaje por defecto. Es genérico a propósito: el negocio lo edita en
  * Configuración, pero desde el minuto cero hay algo que mandar.
@@ -140,7 +125,7 @@ export const PROMO_VARIABLES: { token: string; help: string }[] = [
  * en cero con historial detrás — ahí no se sabe QUÉ premio fue, solo que hubo
  * uno, y el mensaje se arma igual sin nombrarlo.
  */
-export const DEFAULT_REDEEM_MESSAGE =
+const DEFAULT_REDEEM_MESSAGE =
   "¡Listo {cliente}! 🎉 Canjeaste tu promoción en {negocio}. {premio}Tu contador arranca de nuevo — ¡gracias por la fidelidad! 💈";
 
 /**

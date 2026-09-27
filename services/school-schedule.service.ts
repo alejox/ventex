@@ -51,10 +51,10 @@ export interface LessonWindow {
   end_at: string;
 }
 
-export type LessonStatus = "scheduled" | "pending_close" | "realized" | "cancelled" | "rescheduled";
+type LessonStatus = "scheduled" | "pending_close" | "realized" | "cancelled" | "rescheduled";
 
 /** Alumno anotado en una clase (con su nombre, join con la matrícula). */
-export interface LessonParticipantView {
+interface LessonParticipantView {
   participant_id: string;
   enrollment_id: string;
   student_name: string;
@@ -76,7 +76,7 @@ export interface SchoolLesson {
 }
 
 /** Sesión planificada de una serie (todavía no materializada). */
-export interface SeriesSession {
+interface SeriesSession {
   date: string;
   start_at: string;
   end_at: string;
@@ -100,7 +100,7 @@ export interface ScheduleSeriesResult {
 }
 
 /** Vista "clases contratadas vs. usadas" de una matrícula (escenario 3.8). */
-export interface EnrollmentScheduleView {
+interface EnrollmentScheduleView {
   contracted: number;
   consumed: number;
   reserved: number;
@@ -241,7 +241,7 @@ export function isWithinAvailability(
 
 // ---- Ventanas libres de un día (puras) ----
 
-export interface FreeWindowsInput {
+interface FreeWindowsInput {
   /** "YYYY-MM-DD": el día del que se piden ventanas (calendario local). */
   date: string;
   /** Franjas semanales del profesor (todas, sin filtrar por día). */
@@ -283,7 +283,7 @@ export function freeWindowsForDay(input: FreeWindowsInput): LessonWindow[] {
 
 // ---- Series (puras; espejo del RPC `school_schedule_series`) ----
 
-export interface SeriesPlanInput {
+interface SeriesPlanInput {
   /** "YYYY-MM-DD" del primer día de clase. */
   firstDate: string;
   /** 1 = lunes … 7 = domingo. */

@@ -101,7 +101,7 @@ export async function markOrderFailed(
 }
 
 /** Normaliza una fila del listado de transacciones a una observación. */
-export function observationFromTransaction(row: TransactionRow): EpaycoObservation {
+function observationFromTransaction(row: TransactionRow): EpaycoObservation {
   return {
     outcome: outcomeFromStatusText(row.status),
     ref: row.referencePayco != null ? String(row.referencePayco) : null,

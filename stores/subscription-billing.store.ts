@@ -14,7 +14,7 @@ import {
 } from "@/services/subscription-billing.service";
 import { toMessage } from "@/lib/errors";
 
-export type PollResult =
+type PollResult =
   | { status: "pending" }
   | { status: "paid" }
   | { status: "failed"; error: string | null }

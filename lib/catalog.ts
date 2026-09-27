@@ -13,7 +13,6 @@ import type { Service } from "@/services/services.service";
  * después a servicios", piensa "qué vendo". Así que la unión se hace acá, en
  * memoria, y cada mitad se sigue guardando donde corresponde.
  */
-export type CatalogKind = "product" | "service";
 
 interface CatalogRowBase {
   id: string;
@@ -98,11 +97,6 @@ export function catalogEditHref(row: CatalogRow): string {
   return row.kind === "product"
     ? `/dashboard/inventory/product?id=${row.id}`
     : `/dashboard/inventory/product?serviceId=${row.id}`;
-}
-
-/** El SKU es del producto; un servicio no lleva. */
-export function catalogSkuOf(row: CatalogRow): string | null {
-  return row.kind === "product" ? row.product.sku : null;
 }
 
 /**

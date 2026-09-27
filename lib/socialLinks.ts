@@ -115,7 +115,7 @@ function looksLikeUrl(value: string, domain: string): boolean {
  * @returns la URL a abrir, o null si el campo está vacío o el texto no puede
  *   convertirse en un enlace seguro.
  */
-export function socialHref(network: SocialNetwork, value: string | null | undefined): string | null {
+function socialHref(network: SocialNetwork, value: string | null | undefined): string | null {
   const raw = value?.trim();
   if (!raw) return null;
 

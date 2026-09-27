@@ -16,7 +16,7 @@ import { fetchCustomerPayments, registerPayment } from "@/services/customers.ser
  */
 
 /** Una venta que dejó deuda, para el detalle de la cuenta de un cliente. */
-export interface CreditSale {
+interface CreditSale {
   id: string;
   sale_number: number;
   created_at: string;

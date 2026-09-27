@@ -164,7 +164,7 @@ export interface PaymentSplit {
 }
 
 /** Línea de venta: lleva product_id o service_id según el tipo de ítem. */
-export interface CheckoutItem {
+interface CheckoutItem {
   product_id?: string;
   service_id?: string;
   quantity: number;

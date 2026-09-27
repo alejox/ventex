@@ -5,13 +5,13 @@ import type {
   WorkerPermissions,
 } from "@/config/business";
 
-export type WorkspaceMembershipStatus =
+type WorkspaceMembershipStatus =
   | "pending"
   | "active"
   | "suspended"
   | "revoked";
 
-export interface WorkspaceMembershipContext {
+interface WorkspaceMembershipContext {
   id: string;
   workspace_id: string;
   member_kind: "owner" | "member";

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { backdropProps } from "@/components/modal";
 
-export type ConfirmTone = "primary" | "danger";
+type ConfirmTone = "primary" | "danger";
 
 export interface ConfirmOptions {
   title: string;

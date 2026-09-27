@@ -9,7 +9,7 @@
  * las 18 diría "venció", con el mismo plan todavía activo.
  */
 
-export type ValidityTone = "ok" | "soon" | "urgent" | "expired";
+type ValidityTone = "ok" | "soon" | "urgent" | "expired";
 
 /** Menos de esto ya es urgencia: se avisa fuerte y se empuja a renovar. */
 const URGENT_DAYS = 7;
@@ -53,7 +53,7 @@ function startOfDay(date: Date): number {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
 }
 
-export function daysBetweenToday(value: string | null | undefined): number | null {
+function daysBetweenToday(value: string | null | undefined): number | null {
   const date = parseDate(value);
   if (!date) return null;
   return Math.round((startOfDay(date) - startOfDay(new Date())) / DAY_MS);

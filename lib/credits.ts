@@ -70,13 +70,6 @@ export const CREDIT_CHIP: Record<CreditStatus, string> = {
   excedido: "bg-error/10 text-error border-error/30",
 };
 
-export const CREDIT_DOT: Record<CreditStatus, string> = {
-  al_dia: "bg-[#10b981]",
-  debe: "bg-[#f59e0b]",
-  cerca_del_cupo: "bg-[#f59e0b]",
-  excedido: "bg-error",
-};
-
 export interface CreditSummary {
   /** Toda la plata que el negocio tiene en la calle. */
   totalPorCobrar: number;
@@ -145,13 +138,13 @@ export function creditAlertText(note: string | null | undefined): string {
 /** Cuántos movimientos entran por sección antes de resumir el resto. */
 export const STATEMENT_MAX_LINES = 5;
 
-export interface StatementSale {
+interface StatementSale {
   sale_number: number;
   created_at: string;
   credit_amount: number;
 }
 
-export interface StatementPayment {
+interface StatementPayment {
   created_at: string;
   amount: number;
 }

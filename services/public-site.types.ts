@@ -310,7 +310,7 @@ export const WEEKDAY_LABELS = [
   "Sábado",
 ] as const;
 
-export interface PublicHour {
+interface PublicHour {
   weekday: number;
   isOpen: boolean;
   /** "HH:MM" */
@@ -330,7 +330,7 @@ export interface PublicService {
   imageUrl: string | null;
 }
 
-export interface PublicProduct {
+interface PublicProduct {
   id: string;
   name: string;
   price: number;

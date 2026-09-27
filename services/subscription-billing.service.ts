@@ -27,7 +27,7 @@ export interface SubscribeResult {
   orderId: string;
 }
 
-export type BillingOrderStatus = "pending" | "paid" | "failed" | "cancelled";
+type BillingOrderStatus = "pending" | "paid" | "failed" | "cancelled";
 
 export interface BillingOrder {
   id: string;

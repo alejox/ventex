@@ -73,7 +73,7 @@ export function MoneyInput({
  * Se descarta todo lo que no sea dígito o separador decimal, y se conserva solo
  * el PRIMER punto: "1.2.3" es un error de tipeo, no un número.
  */
-export function parseMoney(text: string): string {
+function parseMoney(text: string): string {
   const cleaned = text.replace(/[^\d.,]/g, "").replace(/,/g, "");
   const [whole, ...rest] = cleaned.split(".");
   return rest.length > 0 ? `${whole}.${rest.join("").slice(0, 2)}` : whole;

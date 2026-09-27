@@ -204,11 +204,3 @@ export const useSchoolClassesStore = create<SchoolClassesState>((set, get) => ({
 
   clearError: () => set({ error: null }),
 }));
-
-// Selectores granulares
-export const selectPendingCloseLessons = (s: SchoolClassesState) => s.pendingCloseLessons;
-export const selectClosePreview = (s: SchoolClassesState) => s.closePreview;
-export const selectPendingRescheduleRequests = (s: SchoolClassesState) =>
-  s.pendingRescheduleRequests;
-export const selectClassesSaving = (s: SchoolClassesState) => s.saving;
-export const selectClassesError = (s: SchoolClassesState) => s.error;

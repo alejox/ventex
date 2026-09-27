@@ -28,7 +28,7 @@ export interface SaleListItem {
   item_total: number;
 }
 
-export interface SaleLine {
+interface SaleLine {
   id: string;
   product_name: string;
   sku: string | null;
@@ -118,7 +118,7 @@ export function itemFilterFromOption(option: string): ItemFilter {
 }
 
 /** Una opción del selector de ítem, ya lista para dibujar. */
-export interface ItemOption {
+interface ItemOption {
   value: string;
   label: string;
   categoryId: string | null;

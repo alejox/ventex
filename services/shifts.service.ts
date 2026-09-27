@@ -58,7 +58,7 @@ const SHIFT_SELECT =
  * El servidor exige justificar todo cierre descuadrado. Se marca con un código
  * para que la UI pueda pedir la nota en vez de mostrar el error crudo.
  */
-export const JUSTIFICATION_REQUIRED = "JUSTIFICACION_REQUERIDA";
+const JUSTIFICATION_REQUIRED = "JUSTIFICACION_REQUERIDA";
 
 export function isJustificationRequired(e: unknown): boolean {
   return e instanceof Error && e.message.includes(JUSTIFICATION_REQUIRED);

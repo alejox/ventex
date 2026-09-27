@@ -28,7 +28,7 @@ import type {
  * carrito se limpia igual— pero el mensaje tiene que ser distinto, porque el
  * comprobante todavía no tiene número de venta del servidor.
  */
-export type CheckoutOutcome = "sold" | "queued" | "failed";
+type CheckoutOutcome = "sold" | "queued" | "failed";
 
 export interface DeliveryData {
   personId: string | null;

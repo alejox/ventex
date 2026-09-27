@@ -52,7 +52,7 @@ export function productIdsInOpenOrders(
   return ids;
 }
 
-export interface PurchaseOrderItem {
+interface PurchaseOrderItem {
   id: string;
   product_id: string | null;
   product_name: string;
@@ -191,7 +191,7 @@ export async function createPurchaseOrder(
   return fetchPurchaseOrder(order.id);
 }
 
-export async function fetchPurchaseOrder(id: string): Promise<PurchaseOrder> {
+async function fetchPurchaseOrder(id: string): Promise<PurchaseOrder> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("purchase_orders")

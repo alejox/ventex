@@ -12,7 +12,7 @@ import type {
 import * as schoolEnrollmentsService from "@/services/school-enrollments.service";
 import type { SchoolEnrollment, CreditMovement } from "@/services/school-enrollments.service";
 
-export interface StudentDetail {
+interface StudentDetail {
   student: SchoolStudent | null;
   guardians: StudentGuardian[];
   enrollments: SchoolEnrollment[];
@@ -180,8 +180,3 @@ export const useSchoolPeopleStore = create<SchoolPeopleState>((set) => ({
 
   clearError: () => set({ error: null }),
 }));
-
-// Selectores granulares
-export const selectStudents = (s: SchoolPeopleState) => s.students;
-export const selectTeachers = (s: SchoolPeopleState) => s.teachers;
-export const selectStudentDetail = (s: SchoolPeopleState) => s.detail;

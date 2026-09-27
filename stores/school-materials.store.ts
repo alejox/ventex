@@ -22,7 +22,7 @@ import type {
 // para que el componente no tenga que orquestar el orden.
 // ============================================================================
 
-export interface UploadMaterialInput {
+interface UploadMaterialInput {
   title: string;
   instructions?: string | null;
   kind: MaterialKind;
@@ -195,10 +195,3 @@ export const useSchoolMaterialsStore = create<SchoolMaterialsState>((set, get) =
 
   clearError: () => set({ error: null }),
 }));
-
-// Selectores granulares
-export const selectMaterials = (s: SchoolMaterialsState) => s.materials;
-export const selectMaterialsForStudent = (s: SchoolMaterialsState) => s.materialsForStudent;
-export const selectCommunicationLog = (s: SchoolMaterialsState) => s.communicationLog;
-export const selectMaterialsSaving = (s: SchoolMaterialsState) => s.saving;
-export const selectMaterialsError = (s: SchoolMaterialsState) => s.error;

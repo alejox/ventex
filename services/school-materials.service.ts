@@ -25,14 +25,6 @@ export interface GateResult {
   reason?: string;
 }
 
-export const SCHOOL_MESSAGE_PURPOSE_LABELS: Record<CommunicationPurpose, string> = {
-  attendance: "Asistencia",
-  reschedule: "Reprogramación",
-  material: "Material",
-  reminder: "Recordatorio",
-  other: "Otro",
-};
-
 /**
  * Plantillas por defecto (una por propósito con variables conocidas). `other`
  * no tiene plantilla: es texto libre del operador, sin variables que rellenar.
@@ -44,7 +36,7 @@ export const SCHOOL_MESSAGE_PURPOSE_LABELS: Record<CommunicationPurpose, string>
  * así que no existe una ruta por la que el texto renderizado incluya a un
  * segundo alumno.
  */
-export const DEFAULT_SCHOOL_TEMPLATES: Record<
+const DEFAULT_SCHOOL_TEMPLATES: Record<
   Exclude<CommunicationPurpose, "other">,
   string
 > = {
@@ -346,17 +338,6 @@ export async function deleteMaterial(id: string): Promise<void> {
   const supabase = createClient();
   const { error } = await supabase.from("school_materials").delete().eq("id", id);
   if (error) throw error;
-}
-
-/** Bytes ya usados por el negocio (suma de `file_size`, ignora los enlaces). */
-export async function fetchStorageUsageBytes(): Promise<number> {
-  const supabase = createClient();
-  const { data, error } = await supabase.from("school_materials").select("file_size");
-  if (error) throw error;
-  return ((data ?? []) as { file_size: number | null }[]).reduce(
-    (acc, m) => acc + (m.file_size ?? 0),
-    0
-  );
 }
 
 // ---- Enlaces de acceso (confirmación del profesor / lectura familiar) ----

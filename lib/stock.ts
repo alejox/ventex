@@ -119,15 +119,6 @@ export const STOCK_DOT: Record<StockStatus, string> = {
  */
 export type StockUnitMode = "unit" | "package";
 
-/**
- * Precisión con la que la base guarda una cantidad: `numeric(12,3)`.
- *
- * Redondear acá y no al mostrar es lo que evita que 0.1 + 0.2 termine escrito
- * como 0.30000000000000004 — un número que nadie tecleó y que ninguna lectura
- * posterior va a poder igualar.
- */
-export const QTY_DECIMALS = 3;
-
 /** Cantidad normalizada a la precisión de la base. */
 function round3(n: number): number {
   return Math.round(n * 1000) / 1000;

@@ -49,7 +49,7 @@ export interface PurchaseInvoiceItem {
  * El servicio deriva de acá el `quantity` canónico; quien llama no tiene que
  * saber la cuenta.
  */
-export interface PurchaseLineInput {
+interface PurchaseLineInput {
   product_id: string;
   description: string;
   /** Cajas recibidas. 0 si el producto no viene por caja. */

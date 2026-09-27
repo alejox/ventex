@@ -25,7 +25,7 @@ export function usagePercent(used: number, max: number | null): number {
 }
 
 /** Acento de color por plan (fallback para planes personalizados). */
-export const PLAN_ACCENTS: Record<string, { bg: string; text: string; ring: string }> = {
+const PLAN_ACCENTS: Record<string, { bg: string; text: string; ring: string }> = {
   gratis: { bg: "bg-surface-container-high", text: "text-on-surface-variant", ring: "ring-outline-variant/30" },
   basica: { bg: "bg-primary/10", text: "text-primary", ring: "ring-primary/30" },
   oro: { bg: "bg-amber-500/15", text: "text-amber-500", ring: "ring-amber-500/40" },
@@ -50,7 +50,7 @@ export const SUBSCRIPTION_STATUS_LABELS: Record<string, string> = {
  * de la propia cuenta — no inventados. Sin este mapa la pantalla le muestra al
  * dueño "VS" en lugar de "Tarjeta Visa".
  */
-export const PAYMENT_METHOD_LABELS: Record<string, string> = {
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
   VS: "Tarjeta Visa",
   DV: "Tarjeta débito Visa",
   MC: "Tarjeta Mastercard",
@@ -82,7 +82,7 @@ export const LICENSE_STATUS_LABELS: Record<string, string> = {
   suspended: "Suspendida",
 };
 
-export const LICENSE_STATUS_ACCENTS: Record<string, { bg: string; text: string; ring: string }> = {
+const LICENSE_STATUS_ACCENTS: Record<string, { bg: string; text: string; ring: string }> = {
   pending: { bg: "bg-surface-container-high", text: "text-on-surface-variant", ring: "ring-outline-variant/30" },
   active: { bg: "bg-primary/10", text: "text-primary", ring: "ring-primary/30" },
   expired: { bg: "bg-error-container/20", text: "text-error-dim", ring: "ring-error-container/40" },

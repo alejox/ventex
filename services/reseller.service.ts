@@ -2,7 +2,7 @@ import { createClient } from "@/utils/supabase/client";
 
 // ---- Tipos del dominio del panel revendedor ----
 /** Estado de la licencia mensual de un cliente de revendedor. */
-export type LicenseStatus = "pending" | "active" | "expired" | "suspended";
+type LicenseStatus = "pending" | "active" | "expired" | "suspended";
 
 /** Cliente del revendedor con su plan y licencia (RPC reseller_clients). */
 export interface ResellerClient {

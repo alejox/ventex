@@ -54,7 +54,7 @@ function toProfile(
 }
 
 /** Perfil del usuario autenticado (cliente). Devuelve null si no hay sesión. */
-export async function fetchProfile(): Promise<Profile | null> {
+async function fetchProfile(): Promise<Profile | null> {
   const supabase = createClient();
   const {
     data: { user },

@@ -234,10 +234,3 @@ export const useSchoolScheduleStore = create<SchoolScheduleState>((set, get) => 
   resetAvailability: () => set({ weekly: [], blockedDates: [], error: null }),
   clearSeriesDraft: () => set({ seriesDraft: null }),
 }));
-
-// Selectores granulares
-export const selectLessons = (s: SchoolScheduleState) => s.lessons;
-export const selectEnrollmentViews = (s: SchoolScheduleState) => s.enrollmentViews;
-export const selectSeriesDraft = (s: SchoolScheduleState) => s.seriesDraft;
-export const selectWeekly = (s: SchoolScheduleState) => s.weekly;
-export const selectBlockedDates = (s: SchoolScheduleState) => s.blockedDates;

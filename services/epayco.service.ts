@@ -83,7 +83,7 @@ export interface EpaycoSession {
  * verificar. Antes de que el polling confíe en esto hay que confirmar la forma
  * real contra sandbox.
  */
-export interface EpaycoTransaction {
+interface EpaycoTransaction {
   x_ref_payco?: string;
   x_transaction_id?: string;
   x_amount?: string | number;
@@ -375,10 +375,4 @@ export async function findTransactionByReference(
   }
 
   return pickRelevantTransaction(transactionRows(data));
-}
-
-/** Sólo para tests de integración: obliga a pedir un JWT nuevo. */
-export function resetEpaycoSession(): void {
-  cachedToken = null;
-  loginInFlight = null;
 }

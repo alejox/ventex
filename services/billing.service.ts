@@ -1,7 +1,7 @@
 import { createClient } from "@/utils/supabase/client";
 
 // ---- Tipos del dominio de facturación ----
-export type InvoiceType = "factura" | "cotizacion";
+type InvoiceType = "factura" | "cotizacion";
 export type InvoiceStatus = "pending" | "paid" | "cancelled";
 
 export interface Invoice {

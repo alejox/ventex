@@ -1,7 +1,7 @@
 import { createClient } from "@/utils/supabase/client";
 
 // ---- Tipos del dominio de suscripciones ----
-export type SubscriptionStatus = "active" | "past_due" | "cancelled";
+type SubscriptionStatus = "active" | "past_due" | "cancelled";
 
 /** Definición parametrizable de un plan (tabla public.plans). */
 export interface Plan {

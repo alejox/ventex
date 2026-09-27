@@ -39,7 +39,7 @@ export interface SchoolSettingsInput {
   storage_quota_bytes?: number;
 }
 
-export const SCHOOL_DEFAULT_POLICY: SchoolPolicy = {
+const SCHOOL_DEFAULT_POLICY: SchoolPolicy = {
   min_advance_hours: 24,
   max_reschedules: 2,
   consume_on_unjustified_absence: false,

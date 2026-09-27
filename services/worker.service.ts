@@ -1,6 +1,6 @@
 import type { WorkerPermissions } from "@/config/business";
 
-export type WorkerAccessStatus =
+type WorkerAccessStatus =
   | "pending"
   | "active"
   | "suspended"

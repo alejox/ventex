@@ -3,7 +3,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-export type CollectionStateAction =
+type CollectionStateAction =
   | { label: string; href: string }
   | { label: string; onClick: () => void };
 

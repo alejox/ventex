@@ -96,7 +96,7 @@ export interface PendingSale {
   rejectedReason: string | null;
 }
 
-export type PendingStatus = "pending" | "rejected";
+type PendingStatus = "pending" | "rejected";
 
 /**
  * Después de esto, una venta que sigue fallando con errores que no son ni de

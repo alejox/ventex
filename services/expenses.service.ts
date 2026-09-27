@@ -47,7 +47,7 @@ export type ExpenseOrigin = "" | "manual" | "caja" | "compra" | "comision";
  * es el mismo que usa el desglose del Panel, para que la misma cosa se vea
  * igual en las dos pantallas.
  */
-export const PURCHASES_CATEGORY: ExpenseCategory = {
+const PURCHASES_CATEGORY: ExpenseCategory = {
   id: "compras",
   name: "Compras",
   description: "Facturas de compra a proveedores",
@@ -76,7 +76,7 @@ const dateOnly = (date: Date) => {
   return `${y}-${m}-${d}`;
 };
 
-export function resolveExpenseRange(period: ExpensePeriod): { from: string | null; to: string | null } {
+function resolveExpenseRange(period: ExpensePeriod): { from: string | null; to: string | null } {
   const today = startOfDay(new Date());
   const add = (days: number) => {
     const d = new Date(today);

@@ -3,7 +3,7 @@ import { getSelectedWorkspaceId } from "@/services/workspace.service";
 
 // ---- Tipos del dominio de notificaciones ----
 
-export type NotificationSeverity = "info" | "warning" | "error";
+type NotificationSeverity = "info" | "warning" | "error";
 
 export interface AppNotification {
   id: string;
