@@ -70,7 +70,7 @@ export function ResellerShell({
       </aside>
 
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="h-20 flex items-center justify-between px-6 lg:px-10 border-b border-outline-variant/10 bg-surface-container-lowest sticky top-0 z-20">
+        <header className="h-[calc(5rem+env(safe-area-inset-top))] pt-[env(safe-area-inset-top)] flex items-center justify-between px-6 lg:px-10 border-b border-outline-variant/10 bg-surface-container-lowest sticky top-0 z-20">
           <div className="flex items-center gap-3">
             <span className="lg:hidden">
               <LogoHorizontal className="w-[90px] h-[24px]" />

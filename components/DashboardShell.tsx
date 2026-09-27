@@ -517,7 +517,7 @@ export function DashboardShell({
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top Navbar */}
-        <header className="print:hidden h-20 flex items-center justify-between gap-2 px-4 sm:px-6 lg:px-10 border-b border-outline-variant/10 bg-surface-container-lowest sticky top-0 z-20">
+        <header className="print:hidden h-[calc(5rem+env(safe-area-inset-top))] pt-[env(safe-area-inset-top)] flex items-center justify-between gap-2 px-4 sm:px-6 lg:px-10 border-b border-outline-variant/10 bg-surface-container-lowest sticky top-0 z-20">
           <div className="flex items-center gap-3 sm:gap-4 shrink-0 lg:hidden">
             <button
               ref={mobileMenuTriggerRef}
@@ -651,7 +651,7 @@ export function DashboardShell({
           {/* overflow-y-auto: con muchos módulos el menú no cabía y no se podía desplazar. */}
           <aside id="dashboard-mobile-menu" ref={mobileMenuRef} role="dialog" aria-modal="true" aria-label="Menú de navegación" className="relative w-72 max-w-[calc(100vw-3rem)] bg-surface-container-lowest flex flex-col justify-between h-full overflow-y-auto overscroll-contain shadow-2xl">
             <div>
-              <div className="h-20 flex items-center justify-between px-6 border-b border-outline-variant/10">
+              <div className="h-[calc(5rem+env(safe-area-inset-top))] pt-[env(safe-area-inset-top)] flex items-center justify-between px-6 border-b border-outline-variant/10">
                 <Link href="/dashboard" aria-label="Ventex, ir al panel" onClick={() => setMobileMenuOpen(false)}>
                   <LogoHorizontal className="w-36 h-9" />
                 </Link>
