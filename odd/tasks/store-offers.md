@@ -49,6 +49,7 @@ Decisions (parent, fixed):
 - [x] P3 — Settings UI (tienda branch): enable, $ per point, value per point, minimum.
 - [ ] P4 — POS: show customer balance, redeem N points as a discount line, call redeem RPC after the sale; Clientes shows balance and movement history.
 - [ ] P5 — AGENTS.md section, verification, commits.
+- [ ] P6 — Protect the ledger-derived customer balance from direct API writes without breaking ordinary customer edits; verify the additive hardening migration in the authorized project before delivery.
 
 ## Out of scope
 
@@ -102,3 +103,11 @@ Plan created after exploration.
 - P5 remains open until remote verification is resolved and final checks are recorded. No push, PR, or merge was performed in this recovery.
 - Phase 2 authored diff through `990689a` is 1,393 additions/deletions (excluding 80 generated type lines); this exceeds the advisory ~400-line delivery budget. User explicitly chose to upload it together (`exception-ok`, no chain). RDD is globally off (`disabled/unmanaged`).
 - Next: verify remote migration state only with explicit authorization; confirm live POS/customer behavior before marking P1/P4/P5 complete. Do not call phase 2 delivered until the live boundary is confirmed.
+
+## Phase 2 remote audit and hardening (2026-09-27)
+
+- Supabase CLI login and linked project `omnnucpkdxbqzekzyopt` verified. Remote migration history records `loyalty_points` as `20260927063041` and `loyalty_points_revoke_trigger_execute` as `20260927063418`; the checked-in SQL uses `20260927010000` and `20260927020000`. Both are already deployed under those remote versions. Because local/remote migration histories diverge broadly, **do not run `supabase db push`**.
+- Read-only remote checks found the ledger, settings/customer columns, active earn/reverse/balance triggers, three idempotency indexes, and ledger RLS. The three trigger functions deny EXECUTE to `anon` and `authenticated`. Security advisors returned 151 WARN results; the loyalty-specific warnings were the intentional authenticated cashier RPC and unnecessary anonymous EXECUTE on the same RPC.
+- P1 remains open because the live grant check found a blocker: `customers` has table-wide INSERT/UPDATE for API roles, so the column-level SELECT grant does **not** protect `customers.loyalty_points`; tenant users allowed to edit customers can also edit the derived balance directly. This contradicts the ledger-only invariant and must be fixed before delivery.
+- P6 local correction: `supabase/migrations/20260927030000_protect_customer_loyalty_balance.sql` removes table-wide customer INSERT/UPDATE from API roles, restores them on existing ordinary customer columns but excludes `loyalty_points`, checks effective grants and trigger-owner access, and removes anonymous EXECUTE on the cashier RPC. No generated/identity customer columns exist in the target database. The worker reported `npm test` 385/385, `npx tsc --noEmit`, `npm run lint`, and `npm run build` passing; SQL was not applied to a local database (`psql` unavailable) or remote yet.
+- Next: request explicit authorization to apply **this third migration** to the same Supabase project using the CLI session. Then verify effective grants, advisors, and a permitted customer write/ledger balance path where practical; finish P1/P6 proof and delivery. Do not push the feature before this blocker is closed.
