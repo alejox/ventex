@@ -16,6 +16,7 @@ import { ShareWhatsAppButton } from "@/components/school/ShareWhatsAppButton";
 import { formatMoney, formatShortDate } from "@/components/school/format";
 import { renderSchoolMessage, noticeShareGate } from "@/services/school-materials.service";
 import { CollectionLoading, CollectionError } from "@/components/CollectionState";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
 import type { StudentGuardian } from "@/services/school-people.service";
 
 /** Ficha de un alumno: datos + adultos responsables + matrículas y su detalle. */
@@ -27,6 +28,7 @@ export default function EstudianteDetailPage() {
   const fetchStudentDetail = useSchoolPeopleStore((s) => s.fetchStudentDetail);
   const fetchStudents = useSchoolPeopleStore((s) => s.fetchStudents);
   const setStudentStatus = useSchoolPeopleStore((s) => s.setStudentStatus);
+  const { confirm, dialog } = useConfirm();
 
   const [showGuardianForm, setShowGuardianForm] = useState(false);
   const [editingGuardian, setEditingGuardian] = useState<string | null>(null);
@@ -75,14 +77,31 @@ export default function EstudianteDetailPage() {
     if (!student) return;
     const activating = student.status === "inactive";
     const activeEnrollments = enrollments.filter((e) => e.status === "active").length;
-    const warning =
-      !activating && activeEnrollments > 0
-        ? `\n\nTiene ${activeEnrollments} ${activeEnrollments === 1 ? "matrícula activa" : "matrículas activas"}: siguen activas (no se cancelan) — solo deja de ofrecerse para agenda y matrículas nuevas.`
-        : "";
-    const question = activating
-      ? `¿Reactivar a "${student.full_name}"? Vuelve a ofrecerse en matrículas y agenda.`
-      : `¿Desactivar a "${student.full_name}"? Deja de ofrecerse en matrículas y agenda nuevas; su ficha e historial se conservan.${warning}`;
-    if (!confirm(question)) return;
+    const ok = await confirm(
+      activating
+        ? {
+            title: `¿Reactivar a ${student.full_name}?`,
+            description: "Vuelve a ofrecerse en matrículas y agenda.",
+            confirmLabel: "Reactivar",
+          }
+        : {
+            title: `¿Desactivar a ${student.full_name}?`,
+            description: (
+              <>
+                <p>Deja de ofrecerse en matrículas y agenda nuevas. Su ficha e historial se conservan.</p>
+                {activeEnrollments > 0 && (
+                  <p className="font-semibold text-on-surface">
+                    Tiene {activeEnrollments} {activeEnrollments === 1 ? "matrícula activa" : "matrículas activas"}:
+                    siguen activas, no se cancelan.
+                  </p>
+                )}
+              </>
+            ),
+            confirmLabel: "Desactivar",
+            tone: "danger",
+          },
+    );
+    if (!ok) return;
     await setStudentStatus(student.id, activating ? "active" : "inactive");
   };
 
@@ -334,6 +353,8 @@ export default function EstudianteDetailPage() {
           onClose={() => setLinkingGuardians(false)}
         />
       )}
+
+      {dialog}
     </div>
   );
 }

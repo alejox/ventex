@@ -6,6 +6,7 @@ import { StudentCard } from "@/components/school/StudentCard";
 import { StudentForm } from "@/components/school/StudentForm";
 import { filterStudents } from "@/services/school-people.service";
 import type { SchoolStudent } from "@/services/school-people.service";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { CollectionLoading, CollectionEmpty, CollectionError, CollectionFilteredEmpty } from "@/components/CollectionState";
 import { IconUsers, IconSearch } from "@/app/assets/icons/DashboardIcons";
 
@@ -30,14 +31,28 @@ export default function EstudiantesPage() {
     [students, query, showInactive],
   );
 
+  const { confirm, dialog } = useConfirm();
+
   // Desde la lista no están cargadas las matrículas: el aviso es genérico. El
   // detalle del alumno cuenta las activas antes de confirmar.
   const handleToggleStatus = async (student: SchoolStudent) => {
     const activating = student.status === "inactive";
-    const question = activating
-      ? `¿Reactivar a "${student.full_name}"? Vuelve a ofrecerse en matrículas y agenda.`
-      : `¿Desactivar a "${student.full_name}"? Deja de ofrecerse en matrículas y agenda nuevas; su ficha, historial y matrículas activas se conservan.`;
-    if (!confirm(question)) return;
+    const ok = await confirm(
+      activating
+        ? {
+            title: `¿Reactivar a ${student.full_name}?`,
+            description: "Vuelve a ofrecerse en matrículas y agenda.",
+            confirmLabel: "Reactivar",
+          }
+        : {
+            title: `¿Desactivar a ${student.full_name}?`,
+            description:
+              "Deja de ofrecerse en matrículas y agenda nuevas. Su ficha, historial y matrículas activas se conservan.",
+            confirmLabel: "Desactivar",
+            tone: "danger",
+          },
+    );
+    if (!ok) return;
     await setStudentStatus(student.id, activating ? "active" : "inactive");
   };
 
@@ -125,6 +140,8 @@ export default function EstudiantesPage() {
           onSaved={() => void fetchStudents()}
         />
       )}
+
+      {dialog}
     </div>
   );
 }
