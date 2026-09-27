@@ -638,6 +638,7 @@ export type Database = {
           haircuts_since_reward: number
           id: string
           identification: string | null
+          loyalty_points: number
           phone: string | null
           tax_exempt: boolean | null
           user_id: string
@@ -655,6 +656,7 @@ export type Database = {
           haircuts_since_reward?: number
           id?: string
           identification?: string | null
+          loyalty_points?: number
           phone?: string | null
           tax_exempt?: boolean | null
           user_id?: string
@@ -672,6 +674,7 @@ export type Database = {
           haircuts_since_reward?: number
           id?: string
           identification?: string | null
+          loyalty_points?: number
           phone?: string | null
           tax_exempt?: boolean | null
           user_id?: string
@@ -1109,6 +1112,67 @@ export type Database = {
             columns: ["distributor_id"]
             isOneToOne: false
             referencedRelation: "distributors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      loyalty_points_ledger: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          customer_id: string
+          id: string
+          kind: string
+          note: string | null
+          points: number
+          reverses_id: string | null
+          sale_id: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          customer_id: string
+          id?: string
+          kind: string
+          note?: string | null
+          points: number
+          reverses_id?: string | null
+          sale_id?: string | null
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          customer_id?: string
+          id?: string
+          kind?: string
+          note?: string | null
+          points?: number
+          reverses_id?: string | null
+          sale_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "loyalty_points_ledger_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "loyalty_points_ledger_reverses_id_fkey"
+            columns: ["reverses_id"]
+            isOneToOne: false
+            referencedRelation: "loyalty_points_ledger"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "loyalty_points_ledger_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales"
             referencedColumns: ["id"]
           },
         ]
@@ -3009,6 +3073,10 @@ export type Database = {
           currency: string
           id: string
           include_tax: boolean
+          points_enabled: boolean
+          points_min_redeem: number
+          points_peso_per_point: number | null
+          points_value: number | null
           promo_enabled: boolean
           promo_message: string | null
           promo_service_ids: string[]
@@ -3027,6 +3095,10 @@ export type Database = {
           currency?: string
           id?: string
           include_tax?: boolean
+          points_enabled?: boolean
+          points_min_redeem?: number
+          points_peso_per_point?: number | null
+          points_value?: number | null
           promo_enabled?: boolean
           promo_message?: string | null
           promo_service_ids?: string[]
@@ -3045,6 +3117,10 @@ export type Database = {
           currency?: string
           id?: string
           include_tax?: boolean
+          points_enabled?: boolean
+          points_min_redeem?: number
+          points_peso_per_point?: number | null
+          points_value?: number | null
           promo_enabled?: boolean
           promo_message?: string | null
           promo_service_ids?: string[]
@@ -3786,6 +3862,10 @@ export type Database = {
       }
       public_site_slug_taken: { Args: { p_slug: string }; Returns: boolean }
       recalc_haircut_counts: { Args: never; Returns: number }
+      redeem_loyalty_points: {
+        Args: { p_points: number; p_sale_id: string }
+        Returns: number
+      }
       redeem_promo: {
         Args: {
           p_customer_id: string
