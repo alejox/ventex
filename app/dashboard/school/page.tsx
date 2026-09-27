@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useSchoolStore } from "@/stores/school.store";
 import { useSchoolClassesStore } from "@/stores/school-classes.store";
 import { CollectionLoading, CollectionError } from "@/components/CollectionState";
 import { formatShortDate } from "@/components/school/format";
 import { formatSlotTime } from "@/services/school-schedule.service";
+import { onboardingSteps, allOnboardingStepsDone } from "@/services/school-enrollments.service";
 import { IconUsers, IconMusic, IconCalendar, IconReceipt } from "@/app/assets/icons/DashboardIcons";
 
 function StatCard({
@@ -42,13 +43,31 @@ export default function SchoolResumenPage() {
   const loading = useSchoolStore((s) => s.loading);
   const error = useSchoolStore((s) => s.error);
   const fetchSummary = useSchoolStore((s) => s.fetchSummary);
+  const settings = useSchoolStore((s) => s.settings);
+  const fetchSettings = useSchoolStore((s) => s.fetchSettings);
   const pendingCloseLessons = useSchoolClassesStore((s) => s.pendingCloseLessons);
   const classesLoading = useSchoolClassesStore((s) => s.loading);
   const fetchPendingCloseLessons = useSchoolClassesStore((s) => s.fetchPendingCloseLessons);
 
   useEffect(() => {
     void fetchSummary();
-  }, [fetchSummary]);
+    void fetchSettings();
+  }, [fetchSummary, fetchSettings]);
+
+  // "Primeros pasos": el orden real en el que un negocio nuevo avanza, cada
+  // paso marcado con un dato que ya existe en la base (T10).
+  const steps = useMemo(
+    () =>
+      onboardingSteps({
+        instrumentsCount: settings.instruments.length,
+        teachersCount: summary?.teachers ?? 0,
+        plansCount: summary?.plans ?? 0,
+        activeEnrollments: summary?.active_enrollments ?? 0,
+        lessonsCount: summary?.lessons ?? 0,
+      }),
+    [settings.instruments.length, summary]
+  );
+  const allStepsDone = summary !== null && allOnboardingStepsDone(steps);
 
   // Superficie de alerta: clases por cerrar (scheduled + sin confirmar +
   // terminadas). Es una DERIVACIÓN que solo muestra — cerrar es explícito en
@@ -125,15 +144,24 @@ export default function SchoolResumenPage() {
         </div>
       )}
 
-      <div className="rounded-3xl border border-outline-variant/10 bg-surface-container-lowest p-6 shadow-sm">
-        <h2 className="font-bold text-on-surface">Primeros pasos</h2>
-        <ul className="mt-3 space-y-2 text-sm text-on-surface-variant">
-          <li>1. Configurá las especialidades y la política de reprogramación en <Link className="font-semibold text-primary hover:underline" href="/dashboard/school/config">Configuración</Link>.</li>
-          <li>2. Activá el perfil docente de tus profesores desde <Link className="font-semibold text-primary hover:underline" href="/dashboard/staff">Personal</Link>.</li>
-          <li>3. Armá los <Link className="font-semibold text-primary hover:underline" href="/dashboard/school/planes">planes de clase</Link> sobre los servicios del catálogo.</li>
-          <li>4. Registrá <Link className="font-semibold text-primary hover:underline" href="/dashboard/school/estudiantes">alumnos</Link> y matricularlos en un plan.</li>
-        </ul>
-      </div>
+      {!allStepsDone && (
+        <div className="rounded-3xl border border-outline-variant/10 bg-surface-container-lowest p-6 shadow-sm">
+          <h2 className="font-bold text-on-surface">Primeros pasos</h2>
+          <ul className="mt-3 space-y-2 text-sm">
+            {steps.map((step, i) => (
+              <li
+                key={step.id}
+                className={step.done ? "text-on-surface-variant line-through decoration-1" : "text-on-surface-variant"}
+              >
+                {step.done ? "✓" : `${i + 1}.`}{" "}
+                <Link className="font-semibold text-primary hover:underline" href={step.href}>
+                  {step.label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }

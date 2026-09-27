@@ -98,6 +98,8 @@ export interface SchoolSummary {
    * Personal sin tildar el checkbox no cuenta como profesor en el resumen.
    */
   staff_without_teacher_profile: number;
+  /** Clases agendadas alguna vez (cualquier estado). Paso 5 de "Primeros pasos" (T10). */
+  lessons: number;
 }
 
 const PLAN_SELECT =
@@ -398,7 +400,7 @@ export function countStaffWithoutTeacherProfile(
 export async function fetchSchoolSummary(): Promise<SchoolSummary> {
   const supabase = createClient();
 
-  const [students, teachers, plans, enrollments, movements, expiring, activeStaff, teacherProfiles] =
+  const [students, teachers, plans, enrollments, movements, expiring, activeStaff, teacherProfiles, lessons] =
     await Promise.all([
       supabase.from("school_students").select("id", { count: "exact", head: true }),
       supabase.from("school_teacher_profiles").select("id", { count: "exact", head: true }),
@@ -415,6 +417,10 @@ export async function fetchSchoolSummary(): Promise<SchoolSummary> {
       // poder restarle los que ya tienen perfil docente.
       supabase.from("staff").select("id").eq("status", "active"),
       supabase.from("school_teacher_profiles").select("staff_id"),
+      // "¿Ya agendó la primera clase?" (paso 5 de Primeros pasos) — cualquier
+      // estado cuenta, incluso una cancelada: lo que importa es que alguien ya
+      // pasó por la agenda, no cuántas clases quedan vigentes.
+      supabase.from("school_lessons").select("id", { count: "exact", head: true }),
     ]);
 
   const errs = [
@@ -426,6 +432,7 @@ export async function fetchSchoolSummary(): Promise<SchoolSummary> {
     expiring.error,
     activeStaff.error,
     teacherProfiles.error,
+    lessons.error,
   ].find(Boolean);
   if (errs) throw errs;
 
@@ -461,5 +468,70 @@ export async function fetchSchoolSummary(): Promise<SchoolSummary> {
     total_balance: totalBalance,
     expiring_soon: expiring.count ?? 0,
     staff_without_teacher_profile: countStaffWithoutTeacherProfile(activeStaffIds, teacherStaffIds),
+    lessons: lessons.count ?? 0,
   };
+}
+
+// ---- "Primeros pasos" (Resumen) ----
+
+export interface OnboardingStepInput {
+  instrumentsCount: number;
+  teachersCount: number;
+  plansCount: number;
+  activeEnrollments: number;
+  lessonsCount: number;
+}
+
+export interface OnboardingStep {
+  id: string;
+  label: string;
+  href: string;
+  done: boolean;
+}
+
+/**
+ * Pura: el orden REAL en el que un negocio nuevo tiene que avanzar (T10).
+ * Cada paso se marca hecho con un dato que YA existe en la base — nunca un
+ * checkbox que el dueño tilda a mano — para que la lista no pueda mentir.
+ * Separada de la página para poder testearla sin DOM
+ * (tests/school-enrollments.test.ts).
+ */
+export function onboardingSteps(input: OnboardingStepInput): OnboardingStep[] {
+  return [
+    {
+      id: "instruments",
+      label: "Configurá las especialidades en Configuración",
+      href: "/dashboard/school/config",
+      done: input.instrumentsCount > 0,
+    },
+    {
+      id: "teacher",
+      label: "Activá el perfil docente de un profesor en Personal",
+      href: "/dashboard/staff",
+      done: input.teachersCount > 0,
+    },
+    {
+      id: "plan",
+      label: "Armá un plan de clase",
+      href: "/dashboard/school/planes",
+      done: input.plansCount > 0,
+    },
+    {
+      id: "student",
+      label: "Registrá un alumno y matriculalo en un plan",
+      href: "/dashboard/school/estudiantes",
+      done: input.activeEnrollments > 0,
+    },
+    {
+      id: "agenda",
+      label: "Agendá la primera clase en la Agenda",
+      href: "/dashboard/school/agenda",
+      done: input.lessonsCount > 0,
+    },
+  ];
+}
+
+/** Todos los pasos hechos: la lista deja de mostrarse (T10). */
+export function allOnboardingStepsDone(steps: OnboardingStep[]): boolean {
+  return steps.every((s) => s.done);
 }

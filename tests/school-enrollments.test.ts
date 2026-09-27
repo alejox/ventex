@@ -5,6 +5,8 @@ import {
   ageRangeLabel,
   isOutsideAgeRange,
   countStaffWithoutTeacherProfile,
+  onboardingSteps,
+  allOnboardingStepsDone,
 } from "../services/school-enrollments.service";
 
 // ---- ageOn ----
@@ -106,4 +108,57 @@ test("19. Un perfil docente de alguien inactivo (fuera de la lista activa) no de
 
 test("20. Sin personal activo, no hay nada que avisar", () => {
   assert.equal(countStaffWithoutTeacherProfile([], ["a"]), 0);
+});
+
+// ---- onboardingSteps / allOnboardingStepsDone ----
+
+const ZERO_ONBOARDING = {
+  instrumentsCount: 0,
+  teachersCount: 0,
+  plansCount: 0,
+  activeEnrollments: 0,
+  lessonsCount: 0,
+};
+
+test("21. En cero, los 5 pasos están sin hacer y en el orden real", () => {
+  const steps = onboardingSteps(ZERO_ONBOARDING);
+  assert.equal(steps.length, 5);
+  assert.deepEqual(
+    steps.map((s) => s.id),
+    ["instruments", "teacher", "plan", "student", "agenda"]
+  );
+  assert.ok(steps.every((s) => s.done === false));
+  assert.equal(allOnboardingStepsDone(steps), false);
+});
+
+test("22. Cada paso se marca hecho por su propio dato, no por los demás", () => {
+  const steps = onboardingSteps({ ...ZERO_ONBOARDING, plansCount: 2 });
+  assert.equal(steps.find((s) => s.id === "plan")!.done, true);
+  assert.equal(steps.find((s) => s.id === "instruments")!.done, false);
+  assert.equal(steps.find((s) => s.id === "teacher")!.done, false);
+  assert.equal(steps.find((s) => s.id === "student")!.done, false);
+  assert.equal(steps.find((s) => s.id === "agenda")!.done, false);
+});
+
+test("23. Con los 5 datos en positivo, todos los pasos quedan hechos", () => {
+  const steps = onboardingSteps({
+    instrumentsCount: 3,
+    teachersCount: 1,
+    plansCount: 2,
+    activeEnrollments: 1,
+    lessonsCount: 4,
+  });
+  assert.ok(steps.every((s) => s.done === true));
+  assert.equal(allOnboardingStepsDone(steps), true);
+});
+
+test("24. Con un solo paso pendiente, no está 'todo hecho'", () => {
+  const steps = onboardingSteps({
+    instrumentsCount: 3,
+    teachersCount: 1,
+    plansCount: 2,
+    activeEnrollments: 1,
+    lessonsCount: 0,
+  });
+  assert.equal(allOnboardingStepsDone(steps), false);
 });

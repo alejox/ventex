@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useSchoolScheduleStore } from "@/stores/school-schedule.store";
 import { useSchoolClassesStore } from "@/stores/school-classes.store";
+import { useSchoolStore } from "@/stores/school.store";
 import { LessonCard } from "@/components/school/LessonCard";
 import { SeriesDialog } from "@/components/school/SeriesDialog";
 import { SingleLessonDialog } from "@/components/school/SingleLessonDialog";
@@ -33,9 +35,23 @@ export function AgendaWeek() {
     (s) => s.fetchPendingRescheduleRequests
   );
 
+  // Bloqueo real de "no hay nada que agendar": matrículas con clases
+  // disponibles (mismo dato que usan los diálogos de agendar) y cuántos
+  // planes existen — sin planes, "matriculá un alumno" sería un consejo
+  // vacío (T10).
+  const enrollmentViews = useSchoolScheduleStore((s) => s.enrollmentViews);
+  const fetchEnrollmentViews = useSchoolScheduleStore((s) => s.fetchEnrollmentViews);
+  const summary = useSchoolStore((s) => s.summary);
+  const fetchSummary = useSchoolStore((s) => s.fetchSummary);
+
   useEffect(() => {
     void fetchPendingRescheduleRequests();
-  }, [fetchPendingRescheduleRequests]);
+    void fetchEnrollmentViews();
+    void fetchSummary();
+  }, [fetchPendingRescheduleRequests, fetchEnrollmentViews, fetchSummary]);
+
+  const hasSchedulableEnrollments = enrollmentViews.some((v) => v.programmable > 0);
+  const hasPlans = (summary?.plans ?? 0) > 0;
 
   const range = useMemo(
     () => ({
@@ -117,7 +133,42 @@ export function AgendaWeek() {
       {loading && lessons.length === 0 ? (
         <CollectionLoading label="Cargando agenda…" />
       ) : (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+        <>
+          {lessons.length === 0 && (
+            <div className="rounded-3xl border border-outline-variant/10 bg-surface-container-lowest p-6 text-center">
+              <p className="text-sm font-semibold text-on-surface">No hay clases agendadas esta semana.</p>
+              {!hasSchedulableEnrollments ? (
+                <p className="mt-1 text-sm text-on-surface-variant">
+                  {hasPlans ? (
+                    <>
+                      No hay matrículas con clases disponibles. Matriculá un alumno desde{" "}
+                      <Link className="font-semibold text-primary hover:underline" href="/dashboard/school/estudiantes">
+                        Estudiantes
+                      </Link>
+                      .
+                    </>
+                  ) : (
+                    <>
+                      Todavía no hay ningún{" "}
+                      <Link className="font-semibold text-primary hover:underline" href="/dashboard/school/planes">
+                        plan de clase
+                      </Link>
+                      : armalo primero, después matriculá un alumno en{" "}
+                      <Link className="font-semibold text-primary hover:underline" href="/dashboard/school/estudiantes">
+                        Estudiantes
+                      </Link>
+                      .
+                    </>
+                  )}
+                </p>
+              ) : (
+                <p className="mt-1 text-sm text-on-surface-variant">
+                  Usá &quot;Agendar clase&quot; o &quot;Programar serie&quot; para la primera.
+                </p>
+              )}
+            </div>
+          )}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
           {SCHOOL_DAYS.map((dayName, i) => {
             const dayDate = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i);
             const dayLessons = byDay[i] ?? [];
@@ -142,7 +193,8 @@ export function AgendaWeek() {
               </div>
             );
           })}
-        </div>
+          </div>
+        </>
       )}
 
       {showSeries && <SeriesDialog onClose={() => setShowSeries(false)} />}
