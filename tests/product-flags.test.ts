@@ -57,6 +57,7 @@ const item = (over: Partial<CatalogItem> = {}): CatalogItem => ({
   units_per_package: 1,
   stock_level: null,
   category_name: null,
+  category_id: null,
   image_url: null,
   has_commission: false,
   commission_type: null,

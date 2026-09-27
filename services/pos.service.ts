@@ -27,6 +27,13 @@ export interface CatalogItem {
   /** Si admite media unidad. Sale de la unidad de medida del producto. */
   allows_fractions: boolean;
   category_name: string | null;
+  /**
+   * FK cruda a `categories`. A diferencia de `category_name` (para agrupar y
+   * buscar en la vitrina), esto es lo que necesita `offerDiscountsFor` para
+   * saber si una OFERTA por categoría alcanza a este ítem. Los servicios no
+   * tienen categoría propia, así que siempre llega `null` para ellos.
+   */
+  category_id: string | null;
   image_url: string | null;
   has_commission: boolean;
   commission_type: "percentage" | "fixed" | null;
@@ -64,6 +71,18 @@ export interface CartLine {
   unitKind?: SaleUnitKind;
   quantity: number;
   discountAmount?: number;
+  /**
+   * Si `discountAmount` viene de una oferta automática (T5), el id y nombre
+   * de esa oferta. `undefined` significa "sin oferta": o la línea no tiene
+   * descuento, o el descuento lo puso el cajero a mano (DiscountModal, o el
+   * premio de cortes en salón), que nunca llena estos dos campos.
+   *
+   * `offerDiscountsFor` en `services/offers.service.ts` usa justamente la
+   * presencia/ausencia de `offerId` para distinguir "descuento manual, no
+   * tocar" de "descuento de oferta, recalculable en cada cambio del carrito".
+   */
+  offerId?: string;
+  offerName?: string;
   staffId?: string | null;
   /**
    * Precio asignado en el mostrador. Solo lo aceptan los ítems `open_price`:
@@ -260,7 +279,7 @@ export async function fetchCatalog(): Promise<CatalogItem[]> {
   const [productsRes, servicesRes] = await Promise.all([
     supabase
       .from("products")
-      .select("id, name, sku, barcode, unit, price, package_price, units_per_package, stock_level, tracks_stock, open_price, allows_fractions, image_url, has_commission, commission_type, commission_value, categories(name)")
+      .select("id, name, sku, barcode, unit, price, package_price, units_per_package, stock_level, tracks_stock, open_price, allows_fractions, image_url, has_commission, commission_type, commission_value, category_id, categories(name)")
       // Un servicio entra por `services`, nunca por acá: las filas con unidad
       // "Servicio" son legadas y su servicio ya viaja en la otra consulta.
       .neq("unit", SERVICE_UNIT)
@@ -291,6 +310,10 @@ export async function fetchCatalog(): Promise<CatalogItem[]> {
     // `quantity` sobre columnas enteras.
     allows_fractions: false,
     category_name: "Servicios",
+    // Las ofertas de producto (T5) solo alcanzan productos, nunca servicios:
+    // `product_offers.category_id` referencia `categories`, que es una tabla
+    // del catálogo de PRODUCTOS.
+    category_id: null,
     // Los servicios ya pueden tener foto y el POS la dibuja igual que la de un
     // producto: en el mostrador, reconocer "Corte y barba" por la imagen es lo
     // mismo para el cajero venga de la tabla que venga.
@@ -324,6 +347,7 @@ export async function fetchCatalog(): Promise<CatalogItem[]> {
       open_price: p.open_price ?? false,
       allows_fractions: p.allows_fractions ?? false,
       category_name,
+      category_id: p.category_id ?? null,
       image_url: p.image_url ?? null,
       has_commission: p.has_commission ?? false,
       commission_type: (p.commission_type ?? null) as "percentage" | "fixed" | null,

@@ -20,6 +20,7 @@ const item: CatalogItem = {
   open_price: false,
   allows_fractions: false,
   category_name: null,
+  category_id: null,
   image_url: null,
   has_commission: false,
   commission_type: null,
