@@ -86,6 +86,18 @@ Strategy: `ask-on-risk`. Forecast ~300–450 authored changed lines. RDD: off
       errors in the Personal modal; retry after a teacher-profile failure must
       not create the staff row again. Route: delegated writer.
 
+- [x] **T8** — (user report 2026-09-26: student shows the parent's name)
+      Root cause: `school_students` had no name column; name came from the
+      linked customer. Migration `20260926140000_school_students_own_name.sql`
+      (applied via MCP by orchestrator): `full_name` NOT NULL backfilled from
+      customer, fallback trigger for old app versions, unique
+      (user_id, customer_id) dropped so siblings share an account. App: read
+      the student's own name everywhere (services/RPC selects that use
+      `customers(full_name)` for students), StudentForm always asks the
+      student's name, customer = account (may be a parent); Editar on list and
+      detail; Desactivar/Reactivar via status with "Mostrar inactivos" filter
+      and a warning when active enrollments exist. Route: delegated writer.
+
 ## Acceptance criteria
 
 - No "Escuela de música" or "Instrumentos" left in UI copy.
@@ -403,3 +415,117 @@ Strategy: `ask-on-risk`. Forecast ~300–450 authored changed lines. RDD: off
     the amber alert style used for `pendingCloseLessons`) since this is a
     lower-urgency, no-deadline nudge — singular/plural handled inline
     (`persona`/`personas`).
+- T8 done. Commits `251eca4` — fix(school): el alumno tiene nombre propio,
+  separado de la cuenta del cliente; `da85eea` — feat(school): editar y
+  desactivar alumnos. Route: delegated writer.
+  Files: supabase/migrations/20260926140000_school_students_own_name.sql (new,
+  applied via MCP by the orchestrator before this task started),
+  supabase/migrations/20260926150000_school_student_name_in_rpcs.sql (new,
+  NOT applied — see below), utils/supabase/database.types.ts,
+  services/school-people.service.ts, services/school-enrollments.service.ts,
+  services/school-schedule.service.ts, services/school-classes.service.ts,
+  components/school/StudentForm.tsx, components/school/StudentCard.tsx,
+  components/school/EnrollmentForm.tsx, stores/school-people.store.ts,
+  app/dashboard/school/estudiantes/page.tsx,
+  app/dashboard/school/estudiantes/[id]/page.tsx,
+  tests/school-people.test.ts (new), e2e/school-cycle.spec.ts.
+  Checks: `npx tsc --noEmit` clean; `npm test` 329/329 pass (322 baseline + 7
+  new, all in `tests/school-people.test.ts`); `npm run lint` same 7
+  pre-existing errors/5 warnings as the T1 baseline (confirmed by file path:
+  app/admin/credits/page.tsx, app/admin/resellers/page.tsx,
+  app/dashboard/pedidos/PedidosClient.tsx,
+  app/dashboard/pos/components/PosCartPanel.tsx, app/reseller/clients/page.tsx,
+  components/DataTable.tsx, app/dashboard/settings/promociones/page.tsx,
+  e2e/pos-panel-overflow.spec.ts — none touched by T8; the one warning already
+  inside `app/dashboard/school/estudiantes/[id]/page.tsx`
+  (`react-hooks/exhaustive-deps` on the `activeBalance` `useMemo`) was
+  verified pre-existing via `git stash` + lint on the base file before this
+  task touched it).
+  RPC migration NOT applied by this task, needs the orchestrator to run it:
+  `supabase/migrations/20260926150000_school_student_name_in_rpcs.sql` —
+  redefines `school_family_payload` (the anon SECURITY DEFINER RPC behind the
+  family read-only link, `/school/f/[token]`) to read the student's name from
+  `school_students.full_name` instead of `customers.full_name`; it had the
+  exact same "parent's name" bug the user reported, just on the family-link
+  side. Copied verbatim from the live definition in
+  `20260924010000_school_module_rpcs.sql` and dropped the now-unused `v_cust`
+  variable (its select on `customers` existed only to read that one field).
+  Decisions:
+  - Six read sites joined `school_students(...customers(full_name))` to get a
+    student's display name: `services/school-people.service.ts` (STUDENT_SELECT
+    + `mapStudent`), `services/school-enrollments.service.ts`
+    (ENROLLMENT_SELECT + `enrollmentRowToEnrollment`),
+    `services/school-schedule.service.ts` (agenda `LESSON_SELECT`,
+    `fetchEnrollmentScheduleViews`, `fetchEligibleParticipantEnrollments`),
+    `services/school-classes.service.ts` (`fetchClosePreview`,
+    `fetchPendingRescheduleRequests`). All six now read
+    `school_students(full_name)` directly — found via `codegraph_explore` plus
+    a targeted grep for `school_students(.*customers(full_name` across
+    `services/` and `supabase/migrations/`, confirming `school_family_payload`
+    was the only SQL function with the same bug.
+  - `SchoolStudent.full_name` is now genuinely the student's own name (backed
+    by the new column); the customer's name got its own field,
+    `customer_name`, so call sites that legitimately want the billing
+    account's name (none currently do outside the service itself) have
+    somewhere to read it without re-joining.
+  - StudentForm: the "Nombre del alumno" input is now always rendered and
+    always required, independent of the account (customer) choice — before,
+    typing a name WAS how the account got created, so there was no name field
+    at all in edit mode. `useExistingCustomer` now starts `true` whenever
+    `student` is passed (edit mode always shows the "pick a customer" selector,
+    pre-filled with the current account) and there is no path back to
+    "type a new name" from edit mode — the link to switch is edit-mode-only
+    hidden (`!student &&`), since re-typing a name to auto-create a *second*
+    customer account for an already-existing student made no sense in scope.
+  - Partial-failure handling from T4 (`createdCustomerId` retry) is preserved
+    unchanged — it only fires on `!useExistingCustomer` (still create-only).
+  - Coordinator instruction (mid-task): converted the three native
+    `<select>`s T3/T5 introduced (`student-instrument`, `student-level` in
+    StudentForm, `enrollment-instrument` in EnrollmentForm) to the platform's
+    `Select` (`components/ui/Select.tsx`) for the same reason every other
+    picker in this app uses it — a native dropdown's list can't be styled.
+    Required fields get the `" *"` suffix convention already used elsewhere
+    (`app/dashboard/purchases/components/PurchaseForm.tsx`'s "Proveedor *",
+    etc.) instead of a separate `<span>` asterisk, since `Select`'s `label` is
+    a plain string. `getByLabel`/`pickCombo` e2e lookups use substring
+    matching by default, so `getByLabel("Especialidad")` still resolves
+    against the label text "Especialidad *" without an e2e change to that
+    specific assertion — but `.selectOption()` doesn't exist on this
+    component, so the two Especialidad selections in
+    `e2e/school-cycle.spec.ts` (tests 04 and 05) switched to the existing
+    `pickCombo` helper.
+  - Desactivar/Reactivar and Editar live only on
+    `app/dashboard/school/estudiantes/[id]/page.tsx` (the detail page) and the
+    list (`estudiantes/page.tsx`) respectively for Editar — the "active
+    enrollments" warning in the confirm dialog needs `detail.enrollments`,
+    which only the detail page has loaded; adding a redundant enrollment fetch
+    just to put the toggle on the list page too was out of scope. `Editar` is
+    on both list and detail, per the task's explicit instruction, via a
+    reusable `onEdit` prop on `StudentCard` that calls
+    `e.preventDefault()`/`e.stopPropagation()` before opening the form (the
+    card's own `<Link>` would otherwise navigate on the same click).
+  - A deactivated student is excluded from two "add a student" pickers:
+    `EnrollmentForm`'s student `<Select>` (client-side filter after
+    `fetchStudents()`) and `fetchEligibleParticipantEnrollments` (the "sumar
+    a esta clase" agenda dialog — filtered server-side by adding `status` to
+    its `school_students` select). Existing enrollments/lessons/history for an
+    already-deactivated student are untouched — the exclusion only blocks
+    *new* assignments, matching the "archived, never deleted" pattern used
+    for `services` (AGENTS.md) and staff (T2's "toggle-off never deletes").
+  - `filterStudents` (new pure helper, `services/school-people.service.ts`)
+    combines the search query and the inactive-hide/show toggle in one place
+    so the list page's filtering logic is testable without a DOM — 7 new
+    tests in `tests/school-people.test.ts`, including one that specifically
+    asserts the query matches `full_name` (the student's own) and never
+    `customer_name` (the account's), which is the regression this whole task
+    exists to prevent.
+  - Commit split: the "fix" commit carries every file/hunk whose only change
+    is the name-source correction (plus the always-visible name field and
+    Select conversion in StudentForm, which are structurally inseparable from
+    it); the "feat" commit carries `setStudentStatus`/`filterStudents`,
+    the Editar/Desactivar UI, and the inactive-student exclusion from
+    pickers. Two files (`services/school-people.service.ts`,
+    `services/school-schedule.service.ts`) mixed both concerns in the same
+    file, so they were split at the hunk level with `git add -p` rather than
+    committed whole — verified after the fact by re-reading each commit's
+    `git diff --cached` before committing.
