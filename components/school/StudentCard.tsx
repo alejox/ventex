@@ -7,6 +7,8 @@ interface StudentCardProps {
   student: SchoolStudent;
   balance?: number | null;
   guardiansCount?: number;
+  /** Si se pasa, agrega un botón "Editar" que no navega (para usar dentro del Link). */
+  onEdit?: () => void;
 }
 
 const LEVEL_LABELS: Record<string, string> = {
@@ -19,8 +21,9 @@ const LEVEL_LABELS: Record<string, string> = {
  * Tarjeta de un alumno: identidad académica + un vistazo a la relación con el
  * módulo. Se usa en la lista (`estudiantes`) y en la cabecera del detalle.
  */
-export function StudentCard({ student, balance = null, guardiansCount = 0 }: StudentCardProps) {
+export function StudentCard({ student, balance = null, guardiansCount = 0, onEdit }: StudentCardProps) {
   const levelClass = LEVEL_LABELS[student.level ?? ""] ?? "bg-surface-container text-on-surface-variant";
+  const isActive = student.status !== "inactive";
 
   return (
     <Link
@@ -42,10 +45,32 @@ export function StudentCard({ student, balance = null, guardiansCount = 0 }: Stu
             </p>
           </div>
         </div>
-        <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-          Activo
-        </span>
+        <div className="flex shrink-0 items-center gap-2">
+          {isActive ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              Activo
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold bg-surface-container text-on-surface-variant">
+              <span className="h-1.5 w-1.5 rounded-full bg-on-surface-variant/60" />
+              Inactivo
+            </span>
+          )}
+          {onEdit && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onEdit();
+              }}
+              className="rounded-lg border border-outline-variant/30 px-2.5 py-1 text-xs font-semibold text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface"
+            >
+              Editar
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-2 text-xs">

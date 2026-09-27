@@ -225,6 +225,40 @@ export async function updateStudent(id: string, input: NewStudentInput): Promise
   return mapStudent(data as unknown as StudentRow);
 }
 
+/**
+ * Activa o desactiva sin tocar el resto de la ficha (mismo patrón que
+ * `setServiceStatus`). Nunca hay `deleteStudent`: un alumno se ARCHIVA, nunca
+ * se borra — sus matrículas y su historial de clases quedan intactos, solo
+ * deja de ofrecerse en los selectores de matrícula/agenda.
+ */
+export async function setStudentStatus(id: string, status: "active" | "inactive"): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase.from("school_students").update({ status }).eq("id", id);
+  if (error) throw error;
+}
+
+// ---- Lógica pura (sin I/O) ----
+
+export interface StudentListFilter {
+  query?: string;
+  /** Por defecto la lista oculta inactivos ("Mostrar inactivos" los revela). */
+  showInactive?: boolean;
+}
+
+/**
+ * Filtro de la lista de alumnos: texto libre (nombre o especialidad) +
+ * inactivos ocultos por defecto. Pura y testeada sin base — la fuente del
+ * texto es siempre `full_name` propio del alumno, nunca el del cliente.
+ */
+export function filterStudents(students: SchoolStudent[], filter: StudentListFilter = {}): SchoolStudent[] {
+  const q = (filter.query ?? "").trim().toLowerCase();
+  return students.filter((s) => {
+    if (!filter.showInactive && s.status !== "active") return false;
+    if (!q) return true;
+    return s.full_name.toLowerCase().includes(q) || s.instrument.toLowerCase().includes(q);
+  });
+}
+
 // ---- Adultos responsables ----
 
 export async function fetchGuardians(studentId: string): Promise<StudentGuardian[]> {

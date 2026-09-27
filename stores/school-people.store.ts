@@ -31,6 +31,7 @@ interface SchoolPeopleState {
   fetchTeachers: () => Promise<void>;
   fetchStudentDetail: (id: string) => Promise<boolean>;
   saveStudent: (id: string | null, input: NewStudentInput) => Promise<boolean>;
+  setStudentStatus: (id: string, status: "active" | "inactive") => Promise<boolean>;
   saveGuardian: (id: string | null, input: NewGuardianInput) => Promise<boolean>;
   saveTeacher: (id: string | null, input: NewTeacherInput) => Promise<boolean>;
   clearError: () => void;
@@ -103,6 +104,24 @@ export const useSchoolPeopleStore = create<SchoolPeopleState>((set) => ({
         students: id
           ? s.students.map((x) => (x.id === id ? student : x))
           : [...s.students, student].sort((a, b) => a.full_name.localeCompare(b.full_name, "es")),
+        saving: false,
+      }));
+      return true;
+    } catch (e) {
+      set({ error: toMessage(e), saving: false });
+      return false;
+    }
+  },
+
+  setStudentStatus: async (id, status) => {
+    set({ saving: true, error: null });
+    try {
+      await schoolPeopleService.setStudentStatus(id, status);
+      set((s) => ({
+        students: s.students.map((x) => (x.id === id ? { ...x, status } : x)),
+        detail: s.detail?.student?.id === id
+          ? { ...s.detail, student: { ...s.detail.student, status } }
+          : s.detail,
         saving: false,
       }));
       return true;

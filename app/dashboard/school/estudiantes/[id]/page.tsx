@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { useSchoolPeopleStore } from "@/stores/school-people.store";
 import { useSchoolMaterialsStore } from "@/stores/school-materials.store";
 import { StudentCard } from "@/components/school/StudentCard";
+import { StudentForm } from "@/components/school/StudentForm";
 import { GuardianForm } from "@/components/school/GuardianForm";
 import { EnrollmentForm } from "@/components/school/EnrollmentForm";
 import { CreditHistory } from "@/components/school/CreditHistory";
@@ -25,11 +26,13 @@ export default function EstudianteDetailPage() {
   const error = useSchoolPeopleStore((s) => s.error);
   const fetchStudentDetail = useSchoolPeopleStore((s) => s.fetchStudentDetail);
   const fetchStudents = useSchoolPeopleStore((s) => s.fetchStudents);
+  const setStudentStatus = useSchoolPeopleStore((s) => s.setStudentStatus);
 
   const [showGuardianForm, setShowGuardianForm] = useState(false);
   const [editingGuardian, setEditingGuardian] = useState<string | null>(null);
   const [showEnrollForm, setShowEnrollForm] = useState(false);
   const [showMaterialForm, setShowMaterialForm] = useState(false);
+  const [showStudentForm, setShowStudentForm] = useState(false);
   const [linkingGuardians, setLinkingGuardians] = useState(false);
 
   const materials = useSchoolMaterialsStore((s) => s.materialsForStudent);
@@ -68,6 +71,21 @@ export default function EstudianteDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.id]);
 
+  const handleToggleStatus = async () => {
+    if (!student) return;
+    const activating = student.status === "inactive";
+    const activeEnrollments = enrollments.filter((e) => e.status === "active").length;
+    const warning =
+      !activating && activeEnrollments > 0
+        ? `\n\nTiene ${activeEnrollments} ${activeEnrollments === 1 ? "matrícula activa" : "matrículas activas"}: siguen activas (no se cancelan) — solo deja de ofrecerse para agenda y matrículas nuevas.`
+        : "";
+    const question = activating
+      ? `¿Reactivar a "${student.full_name}"? Vuelve a ofrecerse en matrículas y agenda.`
+      : `¿Desactivar a "${student.full_name}"? Deja de ofrecerse en matrículas y agenda nuevas; su ficha e historial se conservan.${warning}`;
+    if (!confirm(question)) return;
+    await setStudentStatus(student.id, activating ? "active" : "inactive");
+  };
+
   if (loading && !detail) return <CollectionLoading label="Cargando alumno…" />;
   if (error && !detail) return <CollectionError message={error} onRetry={refresh} />;
 
@@ -81,11 +99,22 @@ export default function EstudianteDetailPage() {
       </Link>
 
       {student && (
-        <StudentCard
-          student={student}
-          balance={activeBalance}
-          guardiansCount={guardians.length}
-        />
+        <>
+          <StudentCard
+            student={student}
+            balance={activeBalance}
+            guardiansCount={guardians.length}
+            onEdit={() => setShowStudentForm(true)}
+          />
+          <div className="flex justify-end">
+            <button
+              onClick={() => void handleToggleStatus()}
+              className="rounded-lg border border-outline-variant/30 px-3 py-1.5 text-sm font-semibold text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface"
+            >
+              {student.status === "inactive" ? "Reactivar alumno" : "Desactivar alumno"}
+            </button>
+          </div>
+        </>
       )}
 
       {error && <CollectionError message={error} onRetry={refresh} />}
@@ -273,6 +302,13 @@ export default function EstudianteDetailPage() {
         onChanged={refresh}
       />
 
+      {showStudentForm && student && (
+        <StudentForm
+          student={student}
+          onClose={() => setShowStudentForm(false)}
+          onSaved={refresh}
+        />
+      )}
       {showGuardianForm && student && (
         <GuardianForm
           studentId={student.id}

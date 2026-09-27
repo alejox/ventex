@@ -52,7 +52,8 @@ export function EnrollmentForm({ studentId, onClose, onSaved }: EnrollmentFormPr
 
   useEffect(() => {
     void Promise.all([
-      fetchStudents().then(setStudents),
+      // Un alumno desactivado no se ofrece para matricular clases nuevas.
+      fetchStudents().then((all) => setStudents(all.filter((s) => s.status !== "inactive"))),
       fetchLessonPlans(true).then(setPlans),
       fetchCustomers().then(setCustomers),
       fetchTeacherProfiles().then(setTeachers),
@@ -200,15 +201,11 @@ export function EnrollmentForm({ studentId, onClose, onSaved }: EnrollmentFormPr
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-1.5">
-            <label htmlFor="enrollment-instrument" className="flex items-center gap-1 text-sm font-semibold text-on-surface">
-              Especialidad <span className="text-primary">*</span>
-            </label>
-            <select
+            <Select
               id="enrollment-instrument"
+              label="Especialidad *"
               value={instrument}
               onChange={(e) => setInstrument(e.target.value)}
-              required
-              className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
             >
               <option value="">Seleccionar…</option>
               {instrumentOptions.map((name) => (
@@ -216,7 +213,7 @@ export function EnrollmentForm({ studentId, onClose, onSaved }: EnrollmentFormPr
                   {catalogLabel(name, schoolSettings.instruments)}
                 </option>
               ))}
-            </select>
+            </Select>
             {!schoolSettingsLoading && instrumentOptions.length === 0 && (
               <p className="text-xs text-on-surface-variant">
                 Agregá especialidades en{" "}

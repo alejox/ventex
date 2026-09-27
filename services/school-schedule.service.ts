@@ -1020,7 +1020,7 @@ export async function fetchEligibleParticipantEnrollments(
   const enrollmentQuery = await supabase
     .from("school_enrollments")
     .select(
-      "id, instrument, plan_name, status, school_students(customer_id, customers(full_name))"
+      "id, instrument, plan_name, status, school_students(full_name, status)"
     )
     .eq("status", "active")
     .eq("instrument", lesson.instrument);
@@ -1053,12 +1053,14 @@ export async function fetchEligibleParticipantEnrollments(
 
   return enrollmentRows
     .filter((r) => !alreadyIn.has(r.id as string))
+    // Un alumno desactivado no debe poder sumarse a clases nuevas — sus
+    // matrículas/historial existentes quedan intactos, solo deja de ofrecerse.
+    .filter((r) => joinedObject(r.school_students).status !== "inactive")
     .map((raw) => {
       const student = joinedObject(raw.school_students);
-      const customer = joinedObject(student.customers);
       return {
         enrollment_id: raw.id as string,
-        student_name: (customer.full_name as string) ?? "Sin nombre",
+        student_name: (student.full_name as string) ?? "Sin nombre",
         instrument: raw.instrument as string,
         plan_name: raw.plan_name as string,
         balance: balanceByEnrollment.get(raw.id as string) ?? 0,
