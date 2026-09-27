@@ -472,18 +472,26 @@ export default function CatalogPage() {
                   {canOpen ? (
                     <Link
                       href={catalogEditHref(row)}
-                      className="flex-1 block px-4 py-3.5 active:bg-on-surface/10 transition-colors"
+                      // min-w-0: a flex item cannot shrink below its content
+                      // width by default, which pushed the movement button past
+                      // the screen edge on phones.
+                      className="flex-1 min-w-0 block px-4 py-3.5 active:bg-on-surface/10 transition-colors"
                     >
                       {cardBody}
                     </Link>
                   ) : (
-                    <div className="flex-1 px-4 py-3.5">{cardBody}</div>
+                    <div className="flex-1 min-w-0 px-4 py-3.5">{cardBody}</div>
+                  )}
+                  {/* Services have no stock to move; reserve the button's width
+                      so their prices line up with the product rows. */}
+                  {canMoveStock && row.kind === "service" && (
+                    <span aria-hidden="true" className="shrink-0 w-[3.25rem]" />
                   )}
                   {canMoveStock && row.kind === "product" && (
                     <button
                       type="button"
                       onClick={() => { setAdjustProductId(row.id); setAdjustModalOpen(true); }}
-                      className="shrink-0 px-4 flex items-center justify-center text-on-surface-variant hover:text-primary active:text-primary transition-colors"
+                      className="shrink-0 w-[3.25rem] flex items-center justify-center text-on-surface-variant hover:text-primary active:text-primary transition-colors"
                       title="Registrar movimiento"
                       aria-label={`Registrar movimiento de ${row.name}`}
                     >
