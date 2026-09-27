@@ -38,6 +38,41 @@ export interface LoyaltyLineDiscount {
   discountAmount: number;
 }
 
+export interface AppliedLoyaltyPoints {
+  points: number;
+  amount: number;
+  customerId: string;
+  previous: LoyaltyLineDiscount[];
+  applied: { key: string; quantity: number; unitPrice: number; discountAmount: number }[];
+}
+
+/** A redemption is valid only while every discounted line is unchanged. */
+export function loyaltyRedemptionMatches(
+  cart: CartLine[],
+  customerId: string | null,
+  redemption: AppliedLoyaltyPoints,
+): boolean {
+  if (customerId !== redemption.customerId || redemption.applied.length === 0) return false;
+  return redemption.applied.every((snapshot) => {
+    const line = cart.find((candidate) => cartLineKey(candidate) === snapshot.key);
+    return !!line && line.quantity === snapshot.quantity &&
+      linePrice(line) === snapshot.unitPrice &&
+      round2(line.discountAmount ?? 0) === snapshot.discountAmount;
+  });
+}
+
+/** Restore pre-redemption discounts on lines still in the cart, capped to their current value. */
+export function loyaltyDiscountsToRestore(
+  cart: CartLine[],
+  redemption: AppliedLoyaltyPoints,
+): LoyaltyLineDiscount[] {
+  return redemption.previous.flatMap((entry) => {
+    const line = cart.find((candidate) => cartLineKey(candidate) === entry.key);
+    if (!line) return [];
+    return [{ key: entry.key, discountAmount: Math.min(entry.discountAmount, linePrice(line) * line.quantity) }];
+  });
+}
+
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 // ---- Lógica pura ----

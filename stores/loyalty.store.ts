@@ -1,16 +1,12 @@
 import { create } from "zustand";
 import { toMessage } from "@/lib/errors";
 import * as loyaltyService from "@/services/loyalty.service";
-import type { LoyaltyConfig } from "@/services/loyalty.service";
+import type { LoyaltyConfig, LoyaltyLedgerEntry } from "@/services/loyalty.service";
 import { EMPTY_LOYALTY_CONFIG } from "@/services/loyalty.service";
 
 /**
  * Configuración de puntos de fidelización (tienda). El saldo y el historial
- * de UN cliente puntual, y el canje contra una venta, se piden directo al
- * servicio (`loyalty.service.ts`) desde donde hacen falta — POS y Clientes —
- * igual que ya hace `promos.store.ts` con `fetchCustomerPromoTarget`/
- * `redeemPromo`: son consultas puntuales, no estado que valga la pena
- * compartir entre pantallas.
+ * de UN cliente puntual, y el canje contra una venta, se delegan al servicio.
  */
 interface LoyaltyState {
   config: LoyaltyConfig;
@@ -20,6 +16,9 @@ interface LoyaltyState {
 
   fetchConfig: () => Promise<void>;
   saveConfig: (config: LoyaltyConfig) => Promise<boolean>;
+  fetchBalance: (customerId: string) => Promise<number>;
+  redeemPoints: (saleId: string, points: number) => Promise<number>;
+  fetchLedger: (customerId: string) => Promise<LoyaltyLedgerEntry[]>;
 }
 
 export const useLoyaltyStore = create<LoyaltyState>((set) => ({
@@ -49,4 +48,7 @@ export const useLoyaltyStore = create<LoyaltyState>((set) => ({
       return false;
     }
   },
+  fetchBalance: (customerId) => loyaltyService.fetchCustomerLoyaltyBalance(customerId),
+  redeemPoints: (saleId, points) => loyaltyService.redeemLoyaltyPoints(saleId, points),
+  fetchLedger: (customerId) => loyaltyService.fetchLoyaltyLedger(customerId),
 }));

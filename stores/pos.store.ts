@@ -5,6 +5,8 @@ import * as settingsService from "@/services/settings.service";
 import * as deliveryService from "@/services/delivery.service";
 import * as offlineQueue from "@/services/offline-queue.service";
 import * as offersService from "@/services/offers.service";
+import { loyaltyDiscountsToRestore, loyaltyLineDiscounts, loyaltyRedemptionMatches, pointsDiscountAmount } from "@/services/loyalty.service";
+import type { AppliedLoyaltyPoints } from "@/services/loyalty.service";
 import type { ProductOffer } from "@/services/offers.service";
 import { useShiftsStore } from "@/stores/shifts.store";
 import { lineKey, cartLineKey as keyOf } from "@/services/pos.service";
@@ -66,6 +68,7 @@ export interface SaleTab {
    * carrito se vacía: en la venta siguiente la oferta vuelve a ofrecerse.
    */
   removedOfferKeys: string[];
+  loyaltyApplied: AppliedLoyaltyPoints | null;
 }
 
 interface PosState {
@@ -150,6 +153,8 @@ interface PosState {
   setCustomer: (customerId: string | null) => void;
   setStaff: (staffId: string | null) => void;
   setLineDiscounts: (discounts: { key: string; discountAmount: number }[]) => void;
+  applyLoyaltyPoints: (points: number, pointsValue: number) => boolean;
+  removeLoyaltyPoints: () => void;
   /**
    * Recalcula las ofertas automáticas de la pestaña activa contra
    * `state.offers`. Se llama SIEMPRE desde acciones del store que ya mutaron
@@ -222,6 +227,7 @@ const createDefaultTab = (index: number, get?: () => PosState): SaleTab => {
     deliveryData: { personId: null, address: "", fee: 0, notes: "" },
     checkoutId: null,
     removedOfferKeys: [],
+    loyaltyApplied: null,
   };
 };
 
@@ -686,6 +692,38 @@ export const usePosStore = create<PosState>((set, get) => {
       get().recomputeOffers();
     },
 
+    applyLoyaltyPoints: (points, pointsValue) => {
+      const state = get();
+      const tab = state.tabs.find((t) => t.id === state.activeTabId);
+      if (!tab?.customerId || tab.loyaltyApplied || !Number.isInteger(points) || points <= 0) return false;
+      const discounts = loyaltyLineDiscounts(tab.cart, pointsValue, points);
+      const amount = pointsDiscountAmount(points, pointsValue);
+      const previous = discounts.map(({ key }) => ({
+        key,
+        discountAmount: tab.cart.find((line) => keyOf(line) === key)?.discountAmount ?? 0,
+      }));
+      if (!discounts.length || Math.round(discounts.reduce((sum, d) => sum + d.discountAmount - (previous.find((p) => p.key === d.key)?.discountAmount ?? 0), 0) * 100) !== Math.round(amount * 100)) return false;
+      get().setLineDiscounts(discounts);
+      const current = get().tabs.find((t) => t.id === tab.id);
+      if (!current) return false;
+      const applied = discounts.map(({ key }) => {
+        const line = current.cart.find((candidate) => keyOf(candidate) === key)!;
+        return { key, quantity: line.quantity, unitPrice: posService.linePrice(line), discountAmount: line.discountAmount ?? 0 };
+      });
+      set((s) => ({ tabs: s.tabs.map((t) => t.id === tab.id
+        ? { ...t, loyaltyApplied: { points, amount, customerId: tab.customerId!, previous, applied } }
+        : t) }));
+      return true;
+    },
+
+    removeLoyaltyPoints: () => {
+      const state = get();
+      const tab = state.tabs.find((t) => t.id === state.activeTabId);
+      if (!tab?.loyaltyApplied) return;
+      get().setLineDiscounts(loyaltyDiscountsToRestore(tab.cart, tab.loyaltyApplied));
+      set((s) => ({ tabs: s.tabs.map((t) => t.id === tab.id ? { ...t, loyaltyApplied: null } : t) }));
+    },
+
     // Recalcula TODAS las pestañas y no solo la activa: `addToTab` agrega a
     // una pestaña puntual (no necesariamente la activa), y una venta en
     // segundo plano tiene el mismo derecho a sus ofertas que la que se está
@@ -853,7 +891,7 @@ export const usePosStore = create<PosState>((set, get) => {
         return {
           tabs: s.tabs.map((t) =>
             t.id === s.activeTabId
-              ? { ...t, cart: [], customerId: defaultCustomer, staffId: defaultStaff,                 paymentMethod: defaultMethod, transferMethod: null, cardMethod: null, splits: [], isDelivery: false, deliveryData: { personId: null, address: "", fee: 0, notes: "" }, checkoutId: null, removedOfferKeys: [] }
+              ? { ...t, cart: [], customerId: defaultCustomer, staffId: defaultStaff,                 paymentMethod: defaultMethod, transferMethod: null, cardMethod: null, splits: [], isDelivery: false, deliveryData: { personId: null, address: "", fee: 0, notes: "" }, checkoutId: null, removedOfferKeys: [], loyaltyApplied: null }
               : t,
           ),
         };
@@ -863,6 +901,10 @@ export const usePosStore = create<PosState>((set, get) => {
       const state = get();
       const activeTab = state.tabs.find((t) => t.id === state.activeTabId);
       if (!activeTab || activeTab.cart.length === 0) return "failed";
+      if (activeTab.loyaltyApplied && !loyaltyRedemptionMatches(activeTab.cart, activeTab.customerId, activeTab.loyaltyApplied)) {
+        set({ error: "El carrito o cliente cambió después de aplicar puntos. Quitá los puntos y volvé a aplicarlos antes de cobrar." });
+        return "failed";
+      }
       if (!state.executionContext) {
         set({
           error: "No hay un negocio activo. Volvé a elegir el negocio antes de cobrar.",
@@ -955,7 +997,7 @@ export const usePosStore = create<PosState>((set, get) => {
             catalog,
             tabs: s.tabs.map((t) =>
               t.id === s.activeTabId
-                ? { ...t, cart: [], customerId: defaultCustomer, staffId: defaultStaff,                 paymentMethod: defaultMethod, transferMethod: null, cardMethod: null, splits: [], isDelivery: false, deliveryData: { personId: null, address: "", fee: 0, notes: "" }, checkoutId: null, removedOfferKeys: [] }
+                ? { ...t, cart: [], customerId: defaultCustomer, staffId: defaultStaff,                 paymentMethod: defaultMethod, transferMethod: null, cardMethod: null, splits: [], isDelivery: false, deliveryData: { personId: null, address: "", fee: 0, notes: "" }, checkoutId: null, removedOfferKeys: [], loyaltyApplied: null }
                 : t,
             ),
           };
@@ -975,6 +1017,10 @@ export const usePosStore = create<PosState>((set, get) => {
         // le escondería al cajero que la venta no se hizo, y la mercadería ya
         // salió del mostrador. Ver `isNetworkError`.
         if (isNetworkError(e)) {
+          if (activeTab.loyaltyApplied) {
+            set({ error: "No se pudo confirmar la venta en línea. No se encoló porque tenía puntos canjeados; comprobá la venta antes de reintentar.", submitting: false });
+            return "failed";
+          }
           // El total tal cual se lo dijo al cliente, con la misma cuenta que
           // muestra el POS. Es contra este número que se cuadra la caja si la
           // venta después no entra.
@@ -1017,7 +1063,7 @@ export const usePosStore = create<PosState>((set, get) => {
                 catalog: applySoldUnits(s.catalog, cart),
                 tabs: s.tabs.map((t) =>
                   t.id === s.activeTabId
-                    ? { ...t, cart: [], customerId: defaultCustomer, staffId: defaultStaff, paymentMethod: defaultMethod, transferMethod: null, cardMethod: null, splits: [], isDelivery: false, deliveryData: { personId: null, address: "", fee: 0, notes: "" }, checkoutId: null, removedOfferKeys: [] }
+                    ? { ...t, cart: [], customerId: defaultCustomer, staffId: defaultStaff, paymentMethod: defaultMethod, transferMethod: null, cardMethod: null, splits: [], isDelivery: false, deliveryData: { personId: null, address: "", fee: 0, notes: "" }, checkoutId: null, removedOfferKeys: [], loyaltyApplied: null }
                     : t,
                 ),
               };

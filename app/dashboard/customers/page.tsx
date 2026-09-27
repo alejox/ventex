@@ -13,7 +13,6 @@ import type { Customer, NewCustomerInput, CustomerSale } from "@/services/custom
 import { usePromosStore } from "@/stores/promos.store";
 import { availableReward, renderPromoMessage, whatsappLink, businessDisplayName } from "@/services/promos.service";
 import { useLoyaltyStore } from "@/stores/loyalty.store";
-import { fetchLoyaltyLedger } from "@/services/loyalty.service";
 import type { LoyaltyLedgerEntry } from "@/services/loyalty.service";
 import { useProfile } from "@/components/ProfileProvider";
 import { useSettingsStore } from "@/stores/settings.store";
@@ -66,6 +65,7 @@ export default function CustomersPage() {
   // `loyaltyConfig.enabled` más abajo).
   const loyaltyConfig = useLoyaltyStore((s) => s.config);
   const fetchLoyaltyConfig = useLoyaltyStore((s) => s.fetchConfig);
+  const fetchLoyaltyLedger = useLoyaltyStore((s) => s.fetchLedger);
   const profile = useProfile();
   const isTienda = profile?.businessType === "tienda";
   const settings = useSettingsStore((s) => s.settings);
@@ -140,7 +140,7 @@ export default function CustomersPage() {
     } finally {
       setLoyaltyLedgerLoading(false);
     }
-  }, [detailCustomer, showLoyaltyHistory]);
+  }, [detailCustomer, showLoyaltyHistory, fetchLoyaltyLedger]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

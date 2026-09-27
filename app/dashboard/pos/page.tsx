@@ -35,11 +35,8 @@ import { SuccessModal } from "./components/SuccessModal";
 import { usePromosStore } from "@/stores/promos.store";
 import { useLoyaltyStore } from "@/stores/loyalty.store";
 import {
-  fetchCustomerLoyaltyBalance,
-  redeemLoyaltyPoints,
   maxRedeemablePoints,
-  pointsDiscountAmount,
-  loyaltyLineDiscounts,
+  loyaltyRedemptionMatches,
 } from "@/services/loyalty.service";
 import { useOnlineStatus } from "@/lib/useOnlineStatus";
 import { useCashDrawerStore } from "@/stores/cash-drawer.store";
@@ -159,6 +156,8 @@ export default function POSPage() {
   const removeOffer = usePosStore((s) => s.removeOffer);
   const setLineKind = usePosStore((s) => s.setLineKind);
   const setLineDiscounts = usePosStore((s) => s.setLineDiscounts);
+  const applyLoyaltyPoints = usePosStore((s) => s.applyLoyaltyPoints);
+  const removeLoyaltyPoints = usePosStore((s) => s.removeLoyaltyPoints);
   const setCustomer = usePosStore((s) => s.setCustomer);
   const setStaff = usePosStore((s) => s.setStaff);
   const setPaymentMethod = usePosStore((s) => s.setPaymentMethod);
@@ -213,25 +212,12 @@ export default function POSPage() {
   const isTienda = profile?.businessType === "tienda";
   const loyaltyConfig = useLoyaltyStore((s) => s.config);
   const fetchLoyaltyConfig = useLoyaltyStore((s) => s.fetchConfig);
+  const fetchLoyaltyBalance = useLoyaltyStore((s) => s.fetchBalance);
+  const redeemLoyaltyPoints = useLoyaltyStore((s) => s.redeemPoints);
   const isOnline = useOnlineStatus();
   /** Saldo de puntos del cliente elegido, recién leído de la base. */
   const [loyaltyBalanceRaw, setLoyaltyBalance] = useState<
     { balance: number; forCustomer: string } | null
-  >(null);
-  /**
-   * Puntos ya canjeados para ESTE carrito, con el estado ANTERIOR de cada
-   * línea que tocaron (`previous`) para poder revertirlos exactamente al
-   * apretar "Quitar" — no a cero, que borraría también un descuento de oferta
-   * o manual que la línea ya traía.
-   */
-  const [loyaltyAppliedRaw, setLoyaltyApplied] = useState<
-    {
-      points: number;
-      amount: number;
-      forCustomer: string;
-      forTab: string;
-      previous: { key: string; discountAmount: number }[];
-    } | null
   >(null);
   const [redeemPointsInput, setRedeemPointsInput] = useState("");
   /** La última venta quedó en la cola del dispositivo, no en el servidor. */
@@ -433,11 +419,11 @@ export default function POSPage() {
   useEffect(() => {
     if (!isTienda || !loyaltyConfig.enabled || !customerId) return;
     let cancel = false;
-    fetchCustomerLoyaltyBalance(customerId)
+    fetchLoyaltyBalance(customerId)
       .then((balance) => { if (!cancel) setLoyaltyBalance({ balance, forCustomer: customerId }); })
       .catch(() => { if (!cancel) setLoyaltyBalance(null); });
     return () => { cancel = true; };
-  }, [customerId, isTienda, loyaltyConfig.enabled]);
+  }, [customerId, isTienda, loyaltyConfig.enabled, fetchLoyaltyBalance]);
 
   /**
    * Lo aplicado vale solo para el cliente y el carrito en los que se aplicó.
@@ -484,13 +470,9 @@ export default function POSPage() {
     [cart, taxRate, includeTax, isTaxExempt],
   );
 
-  /** Vale solo para el cliente y el carrito en los que se canjeó. */
-  const loyaltyApplied =
-    loyaltyAppliedRaw &&
-    loyaltyAppliedRaw.forCustomer === customerId &&
-    loyaltyAppliedRaw.forTab === activeTabId
-      ? loyaltyAppliedRaw
-      : null;
+  const loyaltyApplied = activeTab.loyaltyApplied;
+  const loyaltyValid = !loyaltyApplied ||
+    loyaltyRedemptionMatches(cart, customerId, loyaltyApplied);
 
   /** Vale solo para el cliente que está elegido ahora. */
   const loyaltyBalance =
@@ -529,35 +511,22 @@ export default function POSPage() {
       return;
     }
 
-    const discounts = loyaltyLineDiscounts(cart, loyaltyConfig.pointsValue, points);
-    if (discounts.length === 0) return;
-
-    // Se guarda el valor ANTERIOR de cada línea tocada: "Quitar" tiene que
-    // devolverlas a lo que tenían (que puede incluir una oferta o un
-    // descuento manual), no a cero.
-    const previous = discounts.map((d) => ({
-      key: d.key,
-      discountAmount: cart.find((l) => cartLineKey(l) === d.key)?.discountAmount ?? 0,
-    }));
-
-    setLineDiscounts(discounts);
-    setLoyaltyApplied({
-      points,
-      amount: pointsDiscountAmount(points, loyaltyConfig.pointsValue),
-      forCustomer: customerId,
-      forTab: activeTabId,
-      previous,
-    });
+    if (!applyLoyaltyPoints(points, loyaltyConfig.pointsValue ?? 0)) {
+      notifyError("No se aplicaron los puntos", "Revisá el carrito y volvé a intentarlo.");
+      return;
+    }
     setRedeemPointsInput("");
   };
 
   const handleRemoveLoyaltyPoints = () => {
-    if (!loyaltyApplied) return;
-    setLineDiscounts(loyaltyApplied.previous);
-    setLoyaltyApplied(null);
+    removeLoyaltyPoints();
   };
 
   const handleCheckout = async () => {
+    if (!loyaltyValid || (loyaltyApplied && !isOnline)) {
+      notifyError("Revisá el canje", "Quitá los puntos y volvé a aplicarlos antes de cobrar en línea.");
+      return;
+    }
     const data: ReceiptData = {
       items: cart.map((l) => ({
         name: l.item.name,
@@ -689,7 +658,6 @@ export default function POSPage() {
           );
         }
       }
-      setLoyaltyApplied(null);
       // Fuerza a releer el saldo la próxima vez que se elija este cliente: la
       // copia en memoria quedó vieja apenas se ganaron o canjearon puntos.
       setLoyaltyBalance(null);
@@ -786,6 +754,10 @@ export default function POSPage() {
   }, []);
 
   const handleCheckoutClick = () => {
+    if (!loyaltyValid || (loyaltyApplied && !isOnline)) {
+      notifyError("Revisá el canje", "Quitá los puntos y volvé a aplicarlos antes de cobrar en línea.");
+      return;
+    }
     requireShift(() => {
       setAmountTendered("");
       if (isDelivery) {
@@ -891,14 +863,14 @@ export default function POSPage() {
           <PosCartPanel
             promoSlot={
               isTienda ? (
-                loyaltyConfig.enabled && customerId ? (
+                (loyaltyConfig.enabled && customerId) || loyaltyApplied ? (
                   <div className="mx-4 mt-3 rounded-xl border border-[#6063ee]/30 bg-[#6063ee]/10 px-4 py-3 flex flex-col gap-2.5">
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="text-sm font-bold text-on-surface">
+                        {customerId && <p className="text-sm font-bold text-on-surface">
                           {loyaltyBalance ?? "—"} punto{loyaltyBalance === 1 ? "" : "s"} disponible
                           {loyaltyBalance === 1 ? "" : "s"}
-                        </p>
+                        </p>}
                         {loyaltyApplied && (
                           <p className="text-xs text-on-surface-variant">
                             Canjeados: {loyaltyApplied.points} (−${money(loyaltyApplied.amount)}). Se descuentan del saldo al cobrar.
@@ -915,6 +887,16 @@ export default function POSPage() {
                         </button>
                       )}
                     </div>
+                    {loyaltyApplied && !loyaltyValid && (
+                      <p role="alert" className="text-xs font-semibold text-error">
+                        El cliente o carrito cambió. Quitá los puntos y volvé a aplicarlos antes de cobrar.
+                      </p>
+                    )}
+                    {loyaltyApplied && !isOnline && loyaltyValid && (
+                      <p role="alert" className="text-xs font-semibold text-error">
+                        Sin conexión no se pueden canjear puntos. Quitalos antes de cobrar.
+                      </p>
+                    )}
 
                     {!loyaltyApplied && (
                       !isOnline ? (

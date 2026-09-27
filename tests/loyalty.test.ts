@@ -5,6 +5,8 @@ import {
   maxRedeemablePoints,
   pointsDiscountAmount,
   loyaltyLineDiscounts,
+  loyaltyRedemptionMatches,
+  loyaltyDiscountsToRestore,
 } from "../services/loyalty.service";
 import type { CartLine, CatalogItem } from "../services/pos.service";
 
@@ -142,4 +144,39 @@ test("15. loyaltyLineDiscounts: una línea sin remanente (ya cubierta) se salta"
   ];
   const result = loyaltyLineDiscounts(cart, 100, 10); // $1000
   assert.deepEqual(result, [{ key: "b:unit", discountAmount: 1000 }]);
+});
+
+test("16. a redemption stays valid only for its original customer and discounted line", () => {
+  const cart = [line({ discountAmount: 500 })];
+  const redemption = {
+    points: 5,
+    amount: 500,
+    customerId: "customer-a",
+    previous: [{ key: "p1:unit", discountAmount: 0 }],
+    applied: [{ key: "p1:unit", quantity: 1, unitPrice: 2000, discountAmount: 500 }],
+  };
+  assert.equal(loyaltyRedemptionMatches(cart, "customer-a", redemption), true);
+  assert.equal(loyaltyRedemptionMatches(cart, "customer-b", redemption), false);
+  assert.equal(loyaltyRedemptionMatches(cart, null, redemption), false);
+  assert.equal(loyaltyRedemptionMatches([], "customer-a", redemption), false);
+  assert.equal(loyaltyRedemptionMatches([line({ quantity: 2, discountAmount: 500 })], "customer-a", redemption), false);
+  assert.equal(loyaltyRedemptionMatches([line({ discountAmount: 300 })], "customer-a", redemption), false);
+  assert.equal(loyaltyRedemptionMatches([line({ customPrice: 2500, discountAmount: 500 })], "customer-a", redemption), false);
+});
+
+test("17. removing points restores prior discounts without resurrecting removed lines or over-discounting resized lines", () => {
+  const redemption = {
+    points: 5,
+    amount: 500,
+    customerId: "customer-a",
+    previous: [
+      { key: "p1:unit", discountAmount: 1000 },
+      { key: "gone:unit", discountAmount: 50 },
+    ],
+    applied: [{ key: "p1:unit", quantity: 2, unitPrice: 2000, discountAmount: 1500 }],
+  };
+  const cart = [line({ customPrice: 800, quantity: 1, discountAmount: 1500 })];
+  assert.deepEqual(loyaltyDiscountsToRestore(cart, redemption), [
+    { key: "p1:unit", discountAmount: 800 },
+  ]);
 });
