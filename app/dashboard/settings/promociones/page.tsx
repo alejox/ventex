@@ -16,8 +16,7 @@ import {
 } from "@/services/promos.service";
 import { CollectionError, CollectionLoading } from "@/components/CollectionState";
 import { notifySuccess, notifyError } from "@/lib/notifications";
-// TODO(T4): reemplazar por el gestor de ofertas real (`./OffersManager`).
-import { OffersManagerPlaceholder as OffersManager } from "./OffersManagerPlaceholder";
+import { OffersManager } from "./OffersManager";
 
 /**
  * Configuración → Promociones.
