@@ -11,7 +11,6 @@ import { WithdrawalModal } from "@/components/shift/WithdrawalModal";
 import {
   computeTotals,
   lineKey,
-  cartLineKey,
   linePrice,
   type PaymentMethod,
   type CartLine,
