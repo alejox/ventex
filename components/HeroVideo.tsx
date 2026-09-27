@@ -79,7 +79,7 @@ export function HeroVideo({ src, poster, className }: Props) {
         <img src={poster} alt="" aria-hidden="true" className={className} />
       )}
       {isHydrated && (
-        <div className="pointer-events-auto absolute bottom-5 right-5 z-10 flex flex-col items-end gap-2 sm:bottom-8 sm:right-8">
+        <div className="pointer-events-auto absolute bottom-5 left-5 z-10 flex flex-col items-start gap-2 sm:bottom-8 sm:left-8">
           {failed && <span role="status" className="rounded-lg bg-black/80 px-3 py-2 text-xs text-white">Video no disponible. Puedes seguir usando la página.</span>}
           <button
             type="button"

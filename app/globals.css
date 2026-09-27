@@ -121,6 +121,13 @@
     --accent-fin: #34d399;
 }
 
+/* Default display lives in a layer below utilities so callers can hide or
+   re-display the logo with `hidden` / `sm:inline-block`. As an inline utility on
+   the component it tied with `hidden` and won by CSS order, so the mobile header
+   rendered both the symbol and the full logo. */
+@layer components {
+  .ventex-logo { display: inline-block; }
+}
 .ventex-logo { position: relative; line-height: 0; }
 .ventex-logo img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .ventex-logo .ventex-logo-dark { display: none; }
