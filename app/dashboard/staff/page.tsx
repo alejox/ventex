@@ -12,6 +12,7 @@ import type { NewStaffInput, StaffMember, StaffSaleItem } from "@/services/staff
 import type { TeacherProfile } from "@/services/school-people.service";
 import { catalogOptions, catalogLabel } from "@/services/school-settings.service";
 import { Select } from "@/components/ui/Select";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { useProfile } from "@/components/ProfileProvider";
 import { staffRolesForType, effectiveModules } from "@/config/business";
 import { mergeTeam, hasStaffRecord } from "@/lib/team";
@@ -41,6 +42,7 @@ const money = (n: number) =>
   n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export default function StaffPage() {
+  const { confirm, dialog } = useConfirm();
   const staff = useStaffStore((s) => s.staff);
   const loading = useStaffStore((s) => s.loading);
   const error = useStaffStore((s) => s.error);
@@ -173,11 +175,15 @@ export default function StaffPage() {
 
   const handleRevoke = useCallback(
     async (accountId: string, name: string) => {
-      if (confirm(`¿Suspender el acceso de "${name}"? Dejará de entrar inmediatamente, pero su ficha, permisos e historial se conservan.`)) {
-        await revokeAccess(accountId);
-      }
+      const ok = await confirm({
+        title: `¿Suspender el acceso de "${name}"?`,
+        description: "Dejará de entrar inmediatamente, pero su ficha, permisos e historial se conservan.",
+        confirmLabel: "Suspender",
+        tone: "danger",
+      });
+      if (ok) await revokeAccess(accountId);
     },
-    [revokeAccess],
+    [revokeAccess, confirm],
   );
 
   const activeCount = staff.filter((m) => m.status === "active").length;
@@ -955,6 +961,8 @@ export default function StaffPage() {
       {availabilityFor && (
         <AvailabilityEditor teacher={availabilityFor} onClose={() => setAvailabilityFor(null)} />
       )}
+
+      {dialog}
     </div>
   );
 }

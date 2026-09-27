@@ -7,6 +7,7 @@ import type { ExpenseCategory, ExpenseInput, ExpenseOrigin, ExpenseRecord } from
 import { formatDateOnly, todayISO } from "@/lib/date";
 import { notifySuccess } from "@/lib/notifications";
 import { DataTable, type DataColumn } from "@/components/DataTable";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
 import Link from "next/link";
 
 const money = (value: number) => value.toLocaleString("es-CO", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -14,6 +15,7 @@ const PERIODS = [{ id: "today", label: "Hoy" }, { id: "yesterday", label: "Ayer"
 const blank = (categoryId = ""): ExpenseInput => ({ description: "", amount: 0, expense_date: todayISO(), category_id: categoryId });
 
 export default function ExpensesPage() {
+  const { confirm, dialog } = useConfirm();
   const expenses = useExpensesStore((s) => s.expenses);
   const categories = useExpensesStore((s) => s.categories);
   const loading = useExpensesStore((s) => s.loading);
@@ -173,9 +175,13 @@ export default function ExpensesPage() {
               <button
                 className="text-error text-xs font-semibold"
                 onClick={async () => {
-                  if (window.confirm("¿Eliminar este gasto? Esta acción no se puede deshacer.")) {
-                    await remove(item.id);
-                  }
+                  const ok = await confirm({
+                    title: "¿Eliminar este gasto?",
+                    description: "Esta acción no se puede deshacer.",
+                    confirmLabel: "Eliminar",
+                    tone: "danger",
+                  });
+                  if (ok) await remove(item.id);
                 }}
               >
                 Eliminar
@@ -185,9 +191,10 @@ export default function ExpensesPage() {
         ),
       },
     ],
-    // `startEdit` y `remove` son estables entre renders (setState y acción del
-    // store), así que las columnas no se rearman en cada tecla del buscador.
-    [remove],
+    // `startEdit`, `remove` y `confirm` son estables entre renders (setState,
+    // acción del store y useCallback), así que las columnas no se rearman en
+    // cada tecla del buscador.
+    [remove, confirm],
   );
 
   const total = useMemo(() => expenses.reduce((sum, item) => sum + item.amount, 0), [expenses]);
@@ -316,14 +323,15 @@ export default function ExpensesPage() {
               {!c.is_default && (
                 <button
                   onClick={async () => {
-                    if (
-                      window.confirm(
-                        `¿Desactivar "${c.name}"? Deja de ofrecerse al registrar gastos, pero los gastos que ya la usan la conservan.`,
-                      )
-                    ) {
-                      const ok = await deactivateCategory(c.id);
-                      if (ok) notifySuccess("Categoría desactivada");
-                    }
+                    const confirmed = await confirm({
+                      title: `¿Desactivar "${c.name}"?`,
+                      description: "Deja de ofrecerse al registrar gastos, pero los gastos que ya la usan la conservan.",
+                      confirmLabel: "Desactivar",
+                      tone: "danger",
+                    });
+                    if (!confirmed) return;
+                    const ok = await deactivateCategory(c.id);
+                    if (ok) notifySuccess("Categoría desactivada");
                   }}
                   className="text-xs font-semibold text-on-surface-variant hover:text-error transition-colors"
                 >
@@ -336,6 +344,7 @@ export default function ExpensesPage() {
       </ul>
     </section>
     {(form || newCategory) && <Modal title={newCategory ? (editingCategory ? "Editar categoría de gasto" : "Nueva categoría de gasto") : editing ? "Editar gasto" : "Registrar gasto"} onClose={closeModals}>{newCategory ? <form onSubmit={submitCategory} className="space-y-4"><Field label="Nombre"><input required className={inputClass} value={categoryForm.name} onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })} /></Field><Field label="Descripción"><input className={inputClass} value={categoryForm.description} onChange={(e) => setCategoryForm({ ...categoryForm, description: e.target.value })} /></Field><Field label="Color"><input type="color" className="h-11 w-full cursor-pointer rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-1" value={categoryForm.color} onChange={(e) => setCategoryForm({ ...categoryForm, color: e.target.value })} /></Field><Submit /></form> : <form onSubmit={submit} className="space-y-4"><Field label="Descripción"><input required className={inputClass} value={form?.description ?? ""} onChange={(e) => setForm({ ...form!, description: e.target.value })} /></Field><div className="grid grid-cols-2 gap-3"><Field label="Monto"><input required min="0.01" step="0.01" type="number" className={inputClass} value={form?.amount || ""} onChange={(e) => setForm({ ...form!, amount: Number(e.target.value) })} /></Field><Field label="Fecha"><input required type="date" className={inputClass} value={form?.expense_date ?? todayISO()} onChange={(e) => setForm({ ...form!, expense_date: e.target.value })} /></Field></div><Field label="Categoría"><select className={inputClass} value={form?.category_id ?? ""} onChange={(e) => setForm({ ...form!, category_id: e.target.value })}><option value="">Otros</option>{categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field><button type="button" onClick={() => openCategory()} className="text-xs font-semibold text-primary">+ Crear categoría</button><Submit /></form>}</Modal>}
+    {dialog}
   </div>;
 }
 

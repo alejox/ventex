@@ -8,9 +8,11 @@ import { IconCalendar, IconSearch } from "@/app/assets/icons/DashboardIcons";
 import { fetchLessonPlans, fetchSellableServices, setLessonPlanStatus, ageRangeLabel } from "@/services/school-enrollments.service";
 import type { LessonPlan, SellableService } from "@/services/school-enrollments.service";
 import { notifySuccess, notifyError } from "@/lib/notifications";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
 
 /** Planes de clase: la oferta que después se congela en cada matrícula. */
 export default function PlanesPage() {
+  const { confirm, dialog } = useConfirm();
   const [plans, setPlans] = useState<LessonPlan[]>([]);
   const [services, setServices] = useState<SellableService[]>([]);
   const [loading, setLoading] = useState(true);
@@ -67,7 +69,27 @@ export default function PlanesPage() {
   }, [plans, query]);
 
   const handleArchive = async (plan: LessonPlan) => {
-    if (!confirm(`Archivar el plan “${plan.name}”? Deja de ofrecerse para matrículas nuevas.\n\nLos planes se archivan, nunca se borran: las matrículas existentes conservan su historia.`)) return;
+    // Antes siempre preguntaba "Archivar", también al reactivar un plan archivado.
+    const ok = await confirm(
+      plan.is_active
+        ? {
+            title: `¿Archivar el plan “${plan.name}”?`,
+            description: (
+              <>
+                <p>Deja de ofrecerse para matrículas nuevas.</p>
+                <p>Los planes se archivan, nunca se borran: las matrículas existentes conservan su historia.</p>
+              </>
+            ),
+            confirmLabel: "Archivar",
+            tone: "danger",
+          }
+        : {
+            title: `¿Reactivar el plan “${plan.name}”?`,
+            description: "Vuelve a ofrecerse para matrículas nuevas.",
+            confirmLabel: "Reactivar",
+          },
+    );
+    if (!ok) return;
     try {
       await setLessonPlanStatus(plan.id, !plan.is_active);
       notifySuccess(plan.is_active ? "Plan archivado" : "Plan reactivado");
@@ -189,6 +211,8 @@ export default function PlanesPage() {
           onSaved={() => void load()}
         />
       )}
+
+      {dialog}
     </div>
   );
 }
