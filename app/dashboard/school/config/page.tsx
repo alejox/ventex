@@ -5,6 +5,7 @@ import { useSchoolStore } from "@/stores/school.store";
 import { CollectionLoading, CollectionError } from "@/components/CollectionState";
 import { IconSettings } from "@/app/assets/icons/DashboardIcons";
 import { notifySuccess, notifyError } from "@/lib/notifications";
+import { TagInput } from "@/components/ui/TagInput";
 
 /**
  * Configuración de Académico: especialidades, salas y la política de
@@ -19,9 +20,10 @@ export default function SchoolConfigPage() {
   const fetchSettings = useSchoolStore((s) => s.fetchSettings);
   const saveSettings = useSchoolStore((s) => s.saveSettings);
 
-  const [instrumentsText, setInstrumentsText] = useState("");
-  const [levelsText, setLevelsText] = useState("");
-  const [roomsText, setRoomsText] = useState("");
+  const [instruments, setInstruments] = useState<string[]>([]);
+  const [levels, setLevels] = useState<string[]>([]);
+  const [rooms, setRooms] = useState<string[]>([]);
+  const [instrumentsMissing, setInstrumentsMissing] = useState(false);
   const [minAdvanceHours, setMinAdvanceHours] = useState(24);
   const [maxReschedules, setMaxReschedules] = useState(2);
   const [consumeOnAbsence, setConsumeOnAbsence] = useState(false);
@@ -35,9 +37,9 @@ export default function SchoolConfigPage() {
       .then(() => {
         if (cancelled) return;
         const s = useSchoolStore.getState().settings;
-        setInstrumentsText(s.instruments.join(", "));
-        setLevelsText(s.levels.join(", "));
-        setRoomsText(s.rooms.join(", "));
+        setInstruments(s.instruments);
+        setLevels(s.levels);
+        setRooms(s.rooms);
         setMinAdvanceHours(s.policy.min_advance_hours);
         setMaxReschedules(s.policy.max_reschedules);
         setConsumeOnAbsence(s.policy.consume_on_unjustified_absence);
@@ -54,9 +56,12 @@ export default function SchoolConfigPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const instruments = instrumentsText.split(",").map((s) => s.trim()).filter(Boolean);
-    const levels = levelsText.split(",").map((s) => s.trim()).filter(Boolean);
-    const rooms = roomsText.split(",").map((s) => s.trim()).filter(Boolean);
+    // Con chips no hay `required` nativo que lo frene: se valida acá.
+    if (instruments.length === 0) {
+      setInstrumentsMissing(true);
+      notifyError("Falta una especialidad", "Agregá al menos una especialidad antes de guardar.");
+      return;
+    }
     const ok = await saveSettings({
       instruments,
       levels,
@@ -90,46 +95,43 @@ export default function SchoolConfigPage() {
       <section className="rounded-3xl border border-outline-variant/10 bg-surface-container-lowest p-6 shadow-sm space-y-5">
         <h2 className="font-bold text-on-surface">Catálogo</h2>
         <div className="space-y-1.5">
-          <label className="flex items-center gap-1 text-sm font-semibold text-on-surface">
+          <label htmlFor="school-instruments" className="flex items-center gap-1 text-sm font-semibold text-on-surface">
             Especialidades <span className="text-primary">*</span>
           </label>
-          <input
-            type="text"
-            value={instrumentsText}
-            onChange={(e) => setInstrumentsText(e.target.value)}
-            placeholder="Separadas por coma: Piano, Inglés, Matemáticas…"
-            required
-            className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-          />
           <p className="text-xs text-on-surface-variant">
-            Las usa el perfil docente en Personal para elegir qué enseña.
+            Qué se enseña. Las usa el perfil docente en Personal y la ficha del alumno.
           </p>
+          <TagInput
+            id="school-instruments"
+            values={instruments}
+            onChange={(next) => {
+              setInstruments(next);
+              if (next.length > 0) setInstrumentsMissing(false);
+            }}
+            placeholder="Ej. Piano — escribí y presioná Enter"
+            emptyHint="Agregá al menos una especialidad."
+            invalid={instrumentsMissing}
+          />
         </div>
         <div className="space-y-1.5">
-          <label className="text-sm font-semibold text-on-surface">Niveles</label>
-          <input
-            type="text"
-            value={levelsText}
-            onChange={(e) => setLevelsText(e.target.value)}
-            placeholder="Separados por coma: Principiante, Intermedio, Avanzado…"
-            className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+          <label htmlFor="school-levels" className="text-sm font-semibold text-on-surface">Niveles</label>
+          <p className="text-xs text-on-surface-variant">Opcional. Aparecen en el selector de nivel de la ficha del alumno.</p>
+          <TagInput
+            id="school-levels"
+            values={levels}
+            onChange={setLevels}
+            placeholder="Ej. Principiante — escribí y presioná Enter"
           />
-          <p className="text-xs text-on-surface-variant">
-            Opcional — lo usa el selector de nivel en la ficha del alumno.
-          </p>
         </div>
         <div className="space-y-1.5">
-          <label className="text-sm font-semibold text-on-surface">Salas / aulas</label>
-          <input
-            type="text"
-            value={roomsText}
-            onChange={(e) => setRoomsText(e.target.value)}
-            placeholder="Separadas por coma: Sala 1, Sala 2…"
-            className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+          <label htmlFor="school-rooms" className="text-sm font-semibold text-on-surface">Salas / aulas</label>
+          <p className="text-xs text-on-surface-variant">Opcional. Se asignan a una clase cuando se agenda.</p>
+          <TagInput
+            id="school-rooms"
+            values={rooms}
+            onChange={setRooms}
+            placeholder="Ej. Sala 1 — escribí y presioná Enter"
           />
-          <p className="text-xs text-on-surface-variant">
-            Se asignan a una clase cuando se agenda (fase de agenda).
-          </p>
         </div>
       </section>
 

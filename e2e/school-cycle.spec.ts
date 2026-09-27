@@ -236,19 +236,21 @@ test.describe.serial("Académico — ciclo completo (cuenta E2E real)", () => {
     // resto del ciclo dependa de poder elegir "Piano" en esos selectores.
     await page.goto("/dashboard/school/config");
     await page.waitForLoadState("networkidle");
-    const catalogInput = page.getByPlaceholder("Separadas por coma: Piano, Inglés, Matemáticas…");
+    // El catálogo se carga como chips (TagInput): cada valor es un chip con su
+    // botón "Quitar <valor>", y se agrega escribiendo + Enter.
+    const catalogInput = page.locator("#school-instruments");
     await expect(catalogInput).toBeVisible({ timeout: 10000 });
-    const current = await catalogInput.inputValue();
-    const values = current.split(",").map((s) => s.trim()).filter(Boolean);
-    if (values.includes(INSTRUMENT)) {
+    if (await page.getByRole("button", { name: `Quitar ${INSTRUMENT}`, exact: true }).count()) {
       test.info().annotations.push({
         type: "reused",
         description: "'Piano' ya estaba en el catálogo de especialidades.",
       });
       return;
     }
-    await catalogInput.fill([...values, INSTRUMENT].join(", "));
-    await page.locator('button[type="submit"]').click();
+    await catalogInput.fill(INSTRUMENT);
+    await catalogInput.press("Enter");
+    await expect(page.getByRole("button", { name: `Quitar ${INSTRUMENT}`, exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Guardar configuración" }).click();
     await expect(page.getByText("Configuración guardada", { exact: true })).toBeVisible({ timeout: 10000 });
   });
 
