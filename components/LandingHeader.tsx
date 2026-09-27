@@ -78,8 +78,15 @@ export function LandingHeader() {
       >
         <div className="flex items-center">
           <Link href="/" aria-label="Ventex — inicio" className="focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
-            <LogoSymbol variant={scrolleado ? undefined : "white"} className="h-8 w-[36px] sm:hidden" />
-            <LogoHorizontal variant={scrolleado ? undefined : "white"} className="hidden h-[37px] w-[150px] sm:inline-block" />
+            {/* Visibility lives on wrappers: Logo always sets its own display, and a
+                second display utility on the same element resolves by CSS order,
+                not by class order — that rendered both marks on mobile. */}
+            <span className="sm:hidden">
+              <LogoSymbol variant={scrolleado ? undefined : "white"} className="h-8 w-[36px]" />
+            </span>
+            <span className="hidden sm:inline">
+              <LogoHorizontal variant={scrolleado ? undefined : "white"} className="h-[37px] w-[150px]" />
+            </span>
           </Link>
         </div>
 
