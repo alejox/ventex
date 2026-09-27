@@ -11,7 +11,6 @@ import {
 import styles from "./page.module.css";
 import { PricingSection } from "@/components/PricingSection";
 import { WhatsappFab } from "@/components/WhatsappFab";
-import { RotatingBusinessWord } from "@/components/RotatingBusinessWord";
 import { HeroVideo } from "@/components/HeroVideo";
 import { ThemedShot } from "@/components/ThemedShot";
 import { LandingHeader } from "@/components/LandingHeader";
@@ -20,25 +19,12 @@ import { REGISTRABLE_BUSINESS_TYPES, type BusinessType } from "@/config/business
 import { absoluteUrl } from "@/lib/site";
 import { LandingJsonLd } from "@/components/LandingJsonLd";
 
-/**
- * El título va con la palabra clave ADELANTE y la marca al final, y usa
- * `absolute` para saltarse la plantilla del layout.
- *
- * El anterior —"Ventex — El sistema operativo para tu negocio"— no contenía
- * ninguna de las consultas por las que alguien busca esto: ni "POS", ni "punto
- * de venta", ni "facturación". Un título de marca solo posiciona para la marca,
- * y quien ya busca "Ventex" no es a quien hay que capturar.
- *
- * Los ~60 caracteres que muestra Google son el espacio más caro del sitio: la
- * marca va al final porque si se corta, se corta lo que el usuario ya conoce y
- * no la palabra por la que llegó.
- */
 export const metadata: Metadata = {
   title: {
-    absolute: "Sistema POS y punto de venta para tu negocio | Ventex",
+    absolute: "Software de gestión y punto de venta | Ventex",
   },
   description:
-    "Software POS con punto de venta, inventario, facturación y finanzas en una sola plataforma. Controla ventas y stock en tiempo real. Empieza gratis.",
+    "Ventex adapta la gestión a tu negocio: punto de venta, inventario y finanzas en una plataforma. Conoce los sectores disponibles y empieza gratis.",
   // Canónica explícita: la landing es alcanzable con parámetros de campaña
   // (?utm_...), y sin esto cada variante compite consigo misma.
   alternates: { canonical: "/" },
@@ -50,54 +36,33 @@ export const metadata: Metadata = {
     locale: "es_CO",
     siteName: "Ventex",
     url: absoluteUrl("/"),
-    title: "Sistema POS y punto de venta para tu negocio",
+    title: "Ventex — Gestión especializada para tu negocio",
     description:
-      "Punto de venta, inventario, facturación y finanzas en una sola plataforma. Empieza gratis, sin tarjeta.",
+      "Punto de venta, inventario y finanzas en una plataforma que se adapta a tu negocio.",
     images: [
       {
         url: "/landing/og.jpg",
         width: 1200,
         height: 630,
-        alt: "Ventex — sistema POS para tiendas, salones y servicios",
+        alt: "Ventex — plataforma de gestión para negocios",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Sistema POS y punto de venta para tu negocio",
+    title: "Ventex — Gestión especializada para tu negocio",
     description:
-      "Punto de venta, inventario, facturación y finanzas en una sola plataforma.",
+      "Punto de venta, inventario y finanzas en una plataforma que se adapta a tu negocio.",
     images: ["/landing/og.jpg"],
   },
 };
 
-const BUSINESS_TYPES = ["Tiendas", "Salones", "Lava-autos", "Servicios", "Proveedoras"];
-
-const SUCCESS_STORIES = [
-  {
-    image: "/landing/fotos/avatar-mariana.webp",
-    name: "Mariana C.",
-    business: "Tienda de productos",
-    quote: "Ahora encuentro todo en un solo lugar y puedo cerrar el día con mucha más tranquilidad.",
-    result: "Más control del inventario",
-    tone: "bg-primary/15 text-primary",
-  },
-  {
-    image: "/landing/fotos/avatar-diego.webp",
-    name: "Diego R.",
-    business: "Barbería independiente",
-    quote: "Registrar una venta es rápido y el equipo sabe exactamente qué se vendió y qué queda.",
-    result: "Ventas y stock conectados",
-    tone: "bg-[#0fdff3]/15 text-[#0fdff3]",
-  },
-  {
-    image: "/landing/fotos/avatar-valentina.webp",
-    name: "Valentina C.",
-    business: "Servicios profesionales",
-    quote: "Por fin puedo entender mis ingresos sin depender de varias hojas de cálculo.",
-    result: "Finanzas más claras",
-    tone: "bg-[#10b981]/15 text-[#10b981]",
-  },
+const SECTORS: Array<{ id: BusinessType; label: string }> = [
+  { id: "tienda", label: "Tiendas" },
+  { id: "salon", label: "Salones y barberías" },
+  { id: "escuela", label: "Académico" },
+  { id: "lavaautos", label: "Lava-autos" },
+  { id: "servicios", label: "Servicios profesionales" },
 ];
 
 /* ---------------- Marco de ventana ---------------- */
@@ -328,22 +293,20 @@ export default async function LandingPage() {
   --surface-container:#14192a;
   --surface-container-high:#1a1f32;
   --outline-variant:#414760;
-  --primary:#6063ee;
+  --primary:#6d21ef;
   --on-primary:#ffffff;
   --accent-fin:#34d399;
   color:var(--on-surface);
 }
         `}</style>
-        <div className="pointer-events-none absolute inset-0" aria-hidden>
-          <div className="hero-media h-full w-full">
-            <HeroVideo
-              src="/landing/hero.mp4"
-              poster="/landing/hero-poster.webp"
-              className="h-full w-full object-cover"
-            />
-          </div>
-          <div className="hero-scrim absolute inset-0" />
-          <div className="hero-fade absolute inset-0" />
+        <div className="pointer-events-none absolute inset-0">
+          <HeroVideo
+            src="/landing/hero.mp4"
+            poster="/landing/hero-poster.webp"
+            className="hero-media h-full w-full object-cover"
+          />
+          <div className="hero-scrim absolute inset-0" aria-hidden="true" />
+          <div className="hero-fade absolute inset-0" aria-hidden="true" />
         </div>
 
         <div className="relative w-full max-w-6xl mx-auto px-6 pt-28 pb-20 lg:pt-32 lg:pb-24">
@@ -361,35 +324,13 @@ export default async function LandingPage() {
                 4.5:1 — o sea tapar más de la mitad del cuadro. Con el tono
                 fuerte el mínimo baja a 0.00 y 0.21, y el video se ve entero. */}
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-outline-variant/20 bg-surface-container/60 text-xs font-semibold text-on-surface mb-9 hero-ink">
-              <span className="w-2 h-2 rounded-full bg-accent-fin" /> POS + Inventario + Finanzas en uno
+              <span className="w-2 h-2 rounded-full bg-accent-fin" /> Gestión especializada para tu negocio
             </div>
             <h1 className="hero-ink text-4xl sm:text-6xl lg:text-[4.5rem] font-black tracking-tight text-on-surface leading-[1.08]">
-              {/* El espacio explícito NO es decorativo: los <span> en block
-                  no aportan separación al textContent, así que el rastreador y
-                  el lector de pantalla leían "operativopara tuempresa". El
-                  salto visual lo da el `block`; esto solo arregla el texto. */}
-              <span className="block">El sistema operativo</span>{" "}
-              {/* "para tu" y la palabra rotativa van en renglones SEPARADOS a
-                  propósito. Siempre caen así igual —"para tu emprendimiento" no
-                  entra en la columna a ningún tamaño—, pero declararlo explícito
-                  permite darle margen propio al de abajo.
-                  Ese margen es una corrección PERCEPTUAL, no geométrica: medido,
-                  el hueco ya era el mismo que entre los otros renglones, pero la
-                  pastilla es un bloque de color sólido y pesa más que unas letras
-                  con aire alrededor, así que se leía apretada. El 0.5em salió de
-                  probarlo en pantalla, no de la cuenta. */}
-              <span className="block w-fit mx-auto text-start lg:mx-0">para tu</span>{" "}
-              <span className="mt-[0.5em] block text-center lg:text-start">
-                <RotatingBusinessWord />
-              </span>
+              Tu negocio, a tu manera.
             </h1>
-            {/* mt-10 y no mt-8: medido con la tinta real de las letras (no con
-                las cajas de línea, que incluyen ascendentes y descendentes y
-                dan negativo), la pastilla tenía 33.8px de aire arriba y 25.7px
-                abajo — quedaba descentrada por 8px y se leía pegada al copy.
-                40px iguala los dos lados. */}
-            <p className="hero-ink mt-10 text-lg sm:text-xl leading-relaxed text-on-surface max-w-xl mx-auto lg:mx-0">
-              Vende, controla tu inventario y entiende tus finanzas desde un solo lugar. Sin hojas de cálculo, sin caos.
+            <p className="hero-ink mt-8 text-lg sm:text-xl leading-relaxed text-on-surface max-w-xl mx-auto lg:mx-0">
+              Ventex se adapta a la forma de trabajar de tu negocio para ayudarte a organizar su operación desde una misma plataforma.
             </p>
             <div className="mt-11 flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
               <Link
@@ -399,13 +340,13 @@ export default async function LandingPage() {
                 Empieza gratis →
               </Link>
               <Link
-                href="/login"
+                href="#producto"
                 className="px-8 py-4 rounded-2xl bg-surface-container border border-outline-variant/20 text-on-surface font-bold hover:bg-surface-container-high transition-colors"
               >
-                Ya tengo cuenta
+                Ver el producto
               </Link>
             </div>
-            <p className="hero-ink mt-6 text-xs text-on-surface">Sin tarjeta de crédito · Listo en minutos</p>
+            <p className="hero-ink mt-6 text-xs text-on-surface">Conoce los módulos disponibles para tu sector antes de registrarte.</p>
           </div>
 
         </div>
@@ -414,10 +355,15 @@ export default async function LandingPage() {
 
       {/* Trust bar */}
       <section className="border-y border-outline-variant/10 bg-surface-container-low/40">
-        <div className="max-w-6xl mx-auto px-6 py-8 flex flex-wrap items-center justify-center gap-x-10 gap-y-3">
-          <span className="text-xs font-bold uppercase tracking-[0.2em] text-on-surface-variant">Hecho para</span>
-          {BUSINESS_TYPES.map((b) => (
-            <span key={b} className="text-sm font-bold text-on-surface-variant">{b}</span>
+        <div className="max-w-6xl mx-auto px-6 py-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-3">
+          <span className="text-xs font-bold uppercase tracking-[0.2em] text-on-surface-variant">Sectores</span>
+          {SECTORS.map((sector) => (
+            <span key={sector.id} className="text-sm font-semibold text-on-surface-variant">
+              {sector.label}
+              {!REGISTRABLE_BUSINESS_TYPES.includes(sector.id) && (
+                <span className="ml-2 rounded-full border border-outline-variant/30 px-2 py-0.5 text-xs font-medium">Próximamente</span>
+              )}
+            </span>
           ))}
         </div>
       </section>
@@ -464,10 +410,10 @@ export default async function LandingPage() {
         <div className="text-center max-w-2xl mx-auto mb-12">
           <p className="text-sm font-bold text-accent-pos mb-3">PARA TU NEGOCIO</p>
           <h2 id="verticales-title" className="text-3xl sm:text-4xl font-black tracking-tight text-on-surface">
-            Un sistema POS para cada tipo de negocio
+            Gestión que se adapta a distintos negocios
           </h2>
           <p className="mt-4 text-on-surface-variant">
-            Ventex se ajusta al tipo de negocio que tengas: cada uno ve sus propios módulos, no un menú lleno de cosas que no usa.
+            Los sectores disponibles muestran los módulos que corresponden a su operación. Otras soluciones siguen en preparación.
           </p>
         </div>
 
@@ -526,34 +472,15 @@ export default async function LandingPage() {
         </div>
       </section>
 
-      {/* Stats */}
-      <section className="border-y border-outline-variant/10 bg-surface-container-low/40">
-        <div className="max-w-6xl mx-auto px-6 py-16 grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
-          {[
-            { v: "< 1 min", l: "para registrar una venta" },
-            { v: "6", l: "módulos integrados" },
-            { v: "100%", l: "datos aislados por cuenta" },
-            { v: "0", l: "hojas de cálculo" },
-          ].map((s) => (
-            <div key={s.l} className={styles.scaleIn}>
-              <p className="text-3xl sm:text-4xl font-black bg-gradient-to-r from-[#6063ee] to-[#0fdff3] bg-clip-text text-transparent">
-                {s.v}
-              </p>
-              <p className="text-sm text-on-surface-variant mt-2">{s.l}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
       {/* Cómo funciona */}
       <section id="como-funciona" className="max-w-6xl mx-auto px-6 py-24">
         <div className="text-center max-w-2xl mx-auto mb-14">
           <p className="text-sm font-bold text-accent-pos mb-3">EN 3 PASOS</p>
-          <h2 className="text-3xl sm:text-4xl font-black tracking-tight text-on-surface">Listo para vender hoy mismo</h2>
+          <h2 className="text-3xl sm:text-4xl font-black tracking-tight text-on-surface">Empieza con los módulos de tu negocio</h2>
         </div>
         <div className="grid md:grid-cols-3 gap-6">
           {[
-            { n: "01", title: "Regístrate gratis", desc: "Crea tu cuenta en menos de un minuto. Sin tarjeta.", icon: IconUsers },
+            { n: "01", title: "Regístrate gratis", desc: "Crea tu cuenta y elige un sector disponible.", icon: IconUsers },
             { n: "02", title: "Configura tu negocio", desc: "Agrega productos, define tu IVA y tu moneda.", icon: IconBox },
             { n: "03", title: "Empieza a vender", desc: "Cobra desde el POS y mira crecer tus números.", icon: IconShoppingCart },
           ].map((s) => (
@@ -573,63 +500,6 @@ export default async function LandingPage() {
 
       {/* Precios (catálogo real de la tabla plans) */}
       <PricingSection plans={plans} periods={periods} />
-
-      {/* Casos de éxito: carrusel continuo */}
-      <section className="overflow-hidden py-24" aria-labelledby="casos-title">
-        <div className="max-w-6xl mx-auto px-6">
-          <div className="text-center max-w-3xl mx-auto">
-            <p className="text-sm font-bold text-accent-pos mb-3">CASOS DE ÉXITO</p>
-            <h2 id="casos-title" className="text-3xl sm:text-4xl font-black tracking-tight text-on-surface">
-              Historias de negocios que avanzan
-            </h2>
-            <p className="mt-4 text-lg text-on-surface-variant">
-              Menos tareas manuales. Más claridad para tomar decisiones todos los días.
-            </p>
-          </div>
-
-          <div className={`${styles.storyViewport} mt-12 -mx-6 overflow-hidden`}>
-            <div className={`${styles.storyTrack} flex w-max gap-5 px-6 py-6 hover:[animation-play-state:paused]`}>
-              {[...SUCCESS_STORIES, ...SUCCESS_STORIES].map((story, index) => (
-                <article
-                  key={`${story.name}-${index}`}
-                  className="shrink-0 w-[min(86vw,360px)] rounded-3xl border border-outline-variant/15 bg-surface-container p-7 shadow-xl shadow-black/10"
-                >
-                  <div className="flex items-start gap-4">
-                    {/* `eager` y no diferida: dentro de la pista del carrusel
-                        la carga diferida NO se dispara. Chrome decide por la
-                        posición de LAYOUT, y la pista es `w-max` con el
-                        contenido duplicado, así que las tarjetas quedan fuera
-                        del viewport horizontal aunque en pantalla se vean —
-                        resultado: avatares en blanco. Son 3 archivos únicos de
-                        ~25 KB; diferirlos no ahorraba nada. */}
-                    <Image
-                      src={story.image}
-                      alt=""
-                      width={56}
-                      height={56}
-                      loading="eager"
-                      className="h-14 w-14 shrink-0 rounded-full object-cover"
-                    />
-                    <div className="pt-1">
-                      <span className="text-2xl leading-none text-primary" aria-hidden="true">“</span>
-                      <p className="mt-1 text-[15px] italic leading-7 text-on-surface-variant">{story.quote}”</p>
-                    </div>
-                  </div>
-                  <div className="mt-7 flex items-end justify-between gap-4 border-t border-outline-variant/10 pt-5">
-                    <div>
-                      <p className="font-bold text-on-surface">{story.name}</p>
-                      <p className="mt-1 text-sm text-on-surface-variant">{story.business}</p>
-                    </div>
-                    <span className="shrink-0 rounded-full bg-accent-pos/10 px-3 py-2 text-xs font-semibold text-accent-pos">
-                      {story.result}
-                    </span>
-                  </div>
-                </article>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
 
       {/* Cierre a sangre: la foto cubre el CTA Y el footer, y la banda llega
           hasta el borde inferior de la página. Por eso el fondo vive en este
@@ -652,10 +522,10 @@ export default async function LandingPage() {
 
         <section id="cta" className="hero-ink mx-auto max-w-3xl px-6 pt-28 pb-24 sm:pt-36 sm:pb-28 text-center">
           <h2 className="text-3xl sm:text-5xl font-black tracking-tight text-on-surface leading-tight">
-            Empieza a vender con Ventex hoy
+            Organiza tu negocio con Ventex
           </h2>
           <p className="mt-5 text-lg text-on-surface max-w-lg mx-auto">
-            Gratis para empezar. Configura tu negocio en minutos y toma el control de tus ventas.
+            Crea tu cuenta, configura los módulos de tu sector y gestiona tu operación desde una misma plataforma.
           </p>
           <div className="mt-10 flex flex-col sm:flex-row gap-4 justify-center">
             <Link
@@ -677,8 +547,8 @@ export default async function LandingPage() {
             token se aclara con el tema y sobre la foto oscura desaparecería. */}
         <footer className="hero-ink border-t border-white/15">
           <div className="max-w-6xl mx-auto px-6 py-10 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <LogoHorizontal className="w-[96px] h-[26px]" />
-            <p className="text-xs text-on-surface">© 2026 Ventex. Todos los derechos reservados.</p>
+            <LogoHorizontal variant="white" className="h-[37px] w-[150px]" />
+            <p className="text-center text-xs text-on-surface">© 2026 Ventex. Todos los derechos reservados.<br />Un producto de Devtecia.</p>
             <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-xs font-medium text-on-surface">
               <Link href="/login" className="hover:text-primary transition-colors">Iniciar sesión</Link>
               <Link href="/register" className="hover:text-primary transition-colors">Registro</Link>

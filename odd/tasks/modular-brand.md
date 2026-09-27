@@ -20,7 +20,7 @@ The current inline logo and indigo tokens predate the approved three-piece mark.
 - Branch: `feat/modular-brand`, based on `65aff06` (which matches `origin/main` at start).
 - TDD: off, from prior project ODD configuration in `odd/tasks/academico-team-teachers.md`. Runner: `npm test` (`npx tsx --test tests/**/*.test.ts`). Ordinary functional checks still apply.
 - RDD: disabled by explicit global preference (`gentle-ai review mode status`), so no native review or consent flow.
-- Delivery strategy: `ask-on-risk` with user-selected `stacked-to-main` chain. Forecast: ~700–1100 authored changed lines across independent work units. Each independent PR slice targets `main`; no PR or push without a separate user decision. Running count: 0. Slice boundaries and commits: pending.
+- Delivery strategy: `ask-on-risk` with user-selected `stacked-to-main` chain. Forecast: ~700–1100 authored changed lines across independent work units. Each independent PR slice targets `main`; no PR or push without a separate user decision. Running count: 374 authored lines. Slice 1: `bbaeee4` (identity foundation); later slices pending.
 
 ## Tasks
 
@@ -32,6 +32,6 @@ The current inline logo and indigo tokens predate the approved three-piece mark.
 ## Progress and evidence
 
 - Exploration: CodeGraph-backed map of logo, theme, landing, video, PWA, shell, dashboard, POS and tenant-brand boundaries completed.
-- T1 observed: approved SVGs copied unchanged; 64/180/192/512px icon dimensions verified; maskable, app and Apple icons visually inspected; full logo seen in local landing capture at 360/390/768/1024/1440 with no document overflow. Scoped ESLint and `npx tsc --noEmit` passed; `npm run build` passed; `npm test` passed 349/349. Full-repo lint fails on seven existing `react-hooks/set-state-in-effect` errors outside changed files. Runtime harness: local production server `:3001`, landing at five widths. Rollback boundary: `public/brand/`, shared Logo, theme/layout/manifest and app/PWA icons. Commit: pending.
+- T1 observed: approved SVGs copied unchanged; 64/180/192/512px icon dimensions verified; maskable, app and Apple icons visually inspected; full logo seen in local landing capture at 360/390/768/1024/1440 with no document overflow. Scoped ESLint and `npx tsc --noEmit` passed; `npm run build` passed; `npm test` passed 349/349. Full-repo lint fails on seven existing `react-hooks/set-state-in-effect` errors outside changed files. Runtime harness: local production server `:3001`, landing at five widths. Rollback boundary: `public/brand/`, shared Logo, theme/layout/manifest and app/PWA icons. Commit: `bbaeee4` (374 authored lines). RDD outcome: disabled/unmanaged.
 - Baseline before captures: unavailable because the pre-existing dev server held the Next lock and did not respond; after captures are in `/private/tmp/ventex-brand-after-{width}.png`. Authenticated screens require safe test access.
 - User selected a chain onto `main` (stacked-to-main). Next step: close T1 commit and verify T2.

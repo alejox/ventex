@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useSyncExternalStore } from "react";
-import { LogoHorizontal } from "@/components/Logo";
+import { useRef, useState, useSyncExternalStore } from "react";
+import { LogoHorizontal, LogoSymbol } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
 /**
@@ -41,6 +41,8 @@ const leerScroll = () => window.scrollY > 24;
 const leerScrollServidor = () => false;
 
 export function LandingHeader() {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuButton = useRef<HTMLButtonElement>(null);
   const scrolleado = useSyncExternalStore(
     suscribirScroll,
     leerScroll,
@@ -49,6 +51,12 @@ export function LandingHeader() {
 
   return (
     <header
+      onKeyDown={(event) => {
+        if (event.key === "Escape" && menuOpen) {
+          setMenuOpen(false);
+          menuButton.current?.focus();
+        }
+      }}
       // Sin scrollear el header está sobre el VIDEO, que es oscuro en los dos
       // temas: ahí toma `hero-ink` (los tokens oscuros, definidos junto al hero)
       // para que el nav quede claro. Sin esto, en tema claro el texto salía
@@ -69,8 +77,9 @@ export function LandingHeader() {
         className="max-w-6xl mx-auto px-4 sm:px-6 h-16 grid grid-cols-[1fr_auto_1fr] items-center gap-2"
       >
         <div className="flex items-center">
-          <Link href="/" aria-label="Ventex — inicio">
-            <LogoHorizontal className="w-[92px] sm:w-[104px] h-[26px] sm:h-[28px]" />
+          <Link href="/" aria-label="Ventex — inicio" className="focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+            <LogoSymbol variant={scrolleado ? undefined : "white"} className="h-8 w-[36px] sm:hidden" />
+            <LogoHorizontal variant={scrolleado ? undefined : "white"} className="hidden h-[37px] w-[150px] sm:inline-block" />
           </Link>
         </div>
 
@@ -122,13 +131,36 @@ export function LandingHeader() {
           </Link>
           <Link
             href="/register"
-            className="text-sm font-semibold bg-primary text-on-primary px-3 sm:px-4 py-2 rounded-xl shadow-lg shadow-primary/20 hover:bg-primary-dim transition-colors whitespace-nowrap"
+            className="hidden sm:inline-flex text-sm font-semibold bg-primary text-on-primary px-3 sm:px-4 py-2 rounded-xl shadow-lg shadow-primary/20 hover:bg-primary-dim transition-colors whitespace-nowrap"
           >
-            <span className="sm:hidden">Empieza</span>
-            <span className="hidden sm:inline">Empieza gratis</span>
+            Empieza gratis
           </Link>
+          <button
+            ref={menuButton}
+            type="button"
+            className="lg:hidden rounded-lg border border-outline-variant/30 px-2 py-2 text-sm font-semibold text-on-surface focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+            aria-expanded={menuOpen}
+            aria-controls="landing-mobile-nav"
+            onClick={() => setMenuOpen((open) => !open)}
+          >
+            Menú
+          </button>
         </div>
       </nav>
+      {menuOpen && (
+        <nav id="landing-mobile-nav" aria-label="Secciones" className="lg:hidden border-t border-outline-variant/20 bg-background/95 px-6 py-4 text-on-surface shadow-lg backdrop-blur-xl">
+          <div className="mx-auto flex max-w-6xl flex-col gap-1">
+            {[
+              { href: "#producto", label: "Producto" },
+              { href: "#como-funciona", label: "Cómo funciona" },
+              { href: "#precios", label: "Precios" },
+            ].map((item) => (
+              <a key={item.href} href={item.href} onClick={() => setMenuOpen(false)} className="rounded-lg px-3 py-2 hover:bg-surface-container-high focus-visible:outline-2 focus-visible:outline-primary">{item.label}</a>
+            ))}
+            <Link href="/register" onClick={() => setMenuOpen(false)} className="rounded-lg px-3 py-2 font-semibold text-primary hover:bg-surface-container-high focus-visible:outline-2 focus-visible:outline-primary">Crear cuenta gratis</Link>
+          </div>
+        </nav>
+      )}
     </header>
   );
 }
