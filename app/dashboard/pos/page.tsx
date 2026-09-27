@@ -11,6 +11,7 @@ import { WithdrawalModal } from "@/components/shift/WithdrawalModal";
 import {
   computeTotals,
   lineKey,
+  cartLineKey,
   linePrice,
   type PaymentMethod,
   type CartLine,
@@ -32,6 +33,15 @@ import { DeliveryModal } from "./components/DeliveryModal";
 import { PosTabsBar } from "./components/PosTabsBar";
 import { SuccessModal } from "./components/SuccessModal";
 import { usePromosStore } from "@/stores/promos.store";
+import { useLoyaltyStore } from "@/stores/loyalty.store";
+import {
+  fetchCustomerLoyaltyBalance,
+  redeemLoyaltyPoints,
+  maxRedeemablePoints,
+  pointsDiscountAmount,
+  loyaltyLineDiscounts,
+} from "@/services/loyalty.service";
+import { useOnlineStatus } from "@/lib/useOnlineStatus";
 import { useCashDrawerStore } from "@/stores/cash-drawer.store";
 import { canKickWith } from "@/lib/cash-drawer";
 import {
@@ -199,6 +209,31 @@ export default function POSPage() {
   const promoConfig = usePromosStore((s) => s.config);
   const promoMilestones = usePromosStore((s) => s.milestones);
   const fetchPromos = usePromosStore((s) => s.fetchAll);
+
+  const isTienda = profile?.businessType === "tienda";
+  const loyaltyConfig = useLoyaltyStore((s) => s.config);
+  const fetchLoyaltyConfig = useLoyaltyStore((s) => s.fetchConfig);
+  const isOnline = useOnlineStatus();
+  /** Saldo de puntos del cliente elegido, recién leído de la base. */
+  const [loyaltyBalanceRaw, setLoyaltyBalance] = useState<
+    { balance: number; forCustomer: string } | null
+  >(null);
+  /**
+   * Puntos ya canjeados para ESTE carrito, con el estado ANTERIOR de cada
+   * línea que tocaron (`previous`) para poder revertirlos exactamente al
+   * apretar "Quitar" — no a cero, que borraría también un descuento de oferta
+   * o manual que la línea ya traía.
+   */
+  const [loyaltyAppliedRaw, setLoyaltyApplied] = useState<
+    {
+      points: number;
+      amount: number;
+      forCustomer: string;
+      forTab: string;
+      previous: { key: string; discountAmount: number }[];
+    } | null
+  >(null);
+  const [redeemPointsInput, setRedeemPointsInput] = useState("");
   /** La última venta quedó en la cola del dispositivo, no en el servidor. */
   const [lastSaleQueued, setLastSaleQueued] = useState(false);
   const [isRejectedModalOpen, setIsRejectedModalOpen] = useState(false);
@@ -230,6 +265,7 @@ export default function POSPage() {
   }, [isSuccessModalOpen, promoSend]);
 
   useEffect(() => { fetchPromos(); }, [fetchPromos]);
+  useEffect(() => { fetchLoyaltyConfig(); }, [fetchLoyaltyConfig]);
 
   const activeTab = useMemo(() => tabs.find(t => t.id === activeTabId) || tabs[0], [tabs, activeTabId]);
   const { cart, customerId, staffId, paymentMethod, transferMethod, cardMethod, splits, isDelivery, deliveryData } = activeTab;
@@ -390,6 +426,20 @@ export default function POSPage() {
   }, [customerId, promoConfig.enabled, promoMilestones]);
 
   /**
+   * Saldo de puntos del cliente elegido. Se relee de la base por el mismo
+   * motivo que el premio de cortes: `CustomerOption` no trae el saldo, y ese
+   * número cambia con cada venta.
+   */
+  useEffect(() => {
+    if (!isTienda || !loyaltyConfig.enabled || !customerId) return;
+    let cancel = false;
+    fetchCustomerLoyaltyBalance(customerId)
+      .then((balance) => { if (!cancel) setLoyaltyBalance({ balance, forCustomer: customerId }); })
+      .catch(() => { if (!cancel) setLoyaltyBalance(null); });
+    return () => { cancel = true; };
+  }, [customerId, isTienda, loyaltyConfig.enabled]);
+
+  /**
    * Lo aplicado vale solo para el cliente y el carrito en los que se aplicó.
    *
    * Se DERIVA en vez de limpiarse desde un efecto: un `setState` en el cuerpo
@@ -433,6 +483,79 @@ export default function POSPage() {
     () => computeTotals(cart, taxRate, isTaxExempt, includeTax),
     [cart, taxRate, includeTax, isTaxExempt],
   );
+
+  /** Vale solo para el cliente y el carrito en los que se canjeó. */
+  const loyaltyApplied =
+    loyaltyAppliedRaw &&
+    loyaltyAppliedRaw.forCustomer === customerId &&
+    loyaltyAppliedRaw.forTab === activeTabId
+      ? loyaltyAppliedRaw
+      : null;
+
+  /** Vale solo para el cliente que está elegido ahora. */
+  const loyaltyBalance =
+    loyaltyBalanceRaw && loyaltyBalanceRaw.forCustomer === customerId
+      ? loyaltyBalanceRaw.balance
+      : null;
+
+  /**
+   * Tope de puntos canjeables en ESTA venta. Ya en cero si hay un canje
+   * aplicado: cambiar de cantidad exige quitar el anterior primero, para no
+   * tener que reconciliar dos reparto simultáneos sobre las mismas líneas.
+   */
+  const maxLoyaltyPoints = loyaltyApplied
+    ? 0
+    : maxRedeemablePoints(loyaltyBalance ?? 0, totals.total, loyaltyConfig.pointsValue);
+
+  const handleApplyLoyaltyPoints = () => {
+    if (!customerId) return;
+    const points = parseInt(redeemPointsInput, 10);
+    if (!Number.isFinite(points) || points <= 0) {
+      notifyError("Cantidad inválida", "Ingresá cuántos puntos querés canjear.");
+      return;
+    }
+    if (loyaltyConfig.minRedeem > 0 && points < loyaltyConfig.minRedeem) {
+      notifyError(
+        "Por debajo del mínimo",
+        `Este negocio canjea desde ${loyaltyConfig.minRedeem} puntos.`,
+      );
+      return;
+    }
+    if (points > maxLoyaltyPoints) {
+      notifyError(
+        "Supera lo disponible",
+        `Como máximo se pueden canjear ${maxLoyaltyPoints} puntos en esta venta.`,
+      );
+      return;
+    }
+
+    const discounts = loyaltyLineDiscounts(cart, loyaltyConfig.pointsValue, points);
+    if (discounts.length === 0) return;
+
+    // Se guarda el valor ANTERIOR de cada línea tocada: "Quitar" tiene que
+    // devolverlas a lo que tenían (que puede incluir una oferta o un
+    // descuento manual), no a cero.
+    const previous = discounts.map((d) => ({
+      key: d.key,
+      discountAmount: cart.find((l) => cartLineKey(l) === d.key)?.discountAmount ?? 0,
+    }));
+
+    setLineDiscounts(discounts);
+    setLoyaltyApplied({
+      points,
+      amount: pointsDiscountAmount(points, loyaltyConfig.pointsValue),
+      forCustomer: customerId,
+      forTab: activeTabId,
+      previous,
+    });
+    setRedeemPointsInput("");
+  };
+
+  const handleRemoveLoyaltyPoints = () => {
+    if (!loyaltyApplied) return;
+    setLineDiscounts(loyaltyApplied.previous);
+    setLoyaltyApplied(null);
+  };
 
   const handleCheckout = async () => {
     const data: ReceiptData = {
@@ -540,6 +663,36 @@ export default function POSPage() {
         }
       }
       setPromoAplicado(null);
+
+      // Mismo orden que el premio de cortes: el canje corre DESPUÉS de que la
+      // venta quedó registrada, atado a su `sale_id`. Si la venta se encoló
+      // sin conexión (`outcome === "queued"`) todavía no hay un `sale_id` del
+      // servidor con qué canjear — el control ya viene deshabilitado offline
+      // (`isOnline`), así que en la práctica no debería llegar acá con
+      // `loyaltyApplied` puesto, pero por las dudas no se intenta.
+      if (outcome === "sold" && loyaltyApplied && selectedCustomer) {
+        const saleId = usePosStore.getState().lastSaleId;
+        try {
+          if (!saleId) throw new Error("No se encontró el id de la venta.");
+          const newBalance = await redeemLoyaltyPoints(saleId, loyaltyApplied.points);
+          notifySuccess(
+            "Puntos canjeados",
+            `Se descontaron ${loyaltyApplied.points} puntos. Saldo: ${newBalance}.`,
+          );
+        } catch (e) {
+          // La venta ya está cobrada y el descuento ya se aplicó al cliente;
+          // lo único que puede fallar es la resta del saldo. Se avisa en vez
+          // de reintentar solo, mismo trato que el premio de cortes.
+          notifyError(
+            "La venta quedó, pero los puntos NO se descontaron del saldo",
+            e instanceof Error ? e.message : "Reportalo si vuelve a pasar.",
+          );
+        }
+      }
+      setLoyaltyApplied(null);
+      // Fuerza a releer el saldo la próxima vez que se elija este cliente: la
+      // copia en memoria quedó vieja apenas se ganaron o canjearon puntos.
+      setLoyaltyBalance(null);
 
       setPromoSend(null);
       const cobroCortes =
@@ -737,7 +890,72 @@ export default function POSPage() {
 
           <PosCartPanel
             promoSlot={
-              (promoSugerido || promoAplicado) && hitoGanado ? (
+              isTienda ? (
+                loyaltyConfig.enabled && customerId ? (
+                  <div className="mx-4 mt-3 rounded-xl border border-[#6063ee]/30 bg-[#6063ee]/10 px-4 py-3 flex flex-col gap-2.5">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-on-surface">
+                          {loyaltyBalance ?? "—"} punto{loyaltyBalance === 1 ? "" : "s"} disponible
+                          {loyaltyBalance === 1 ? "" : "s"}
+                        </p>
+                        {loyaltyApplied && (
+                          <p className="text-xs text-on-surface-variant">
+                            Canjeados: {loyaltyApplied.points} (−${money(loyaltyApplied.amount)}). Se descuentan del saldo al cobrar.
+                          </p>
+                        )}
+                      </div>
+                      {loyaltyApplied && (
+                        <button
+                          type="button"
+                          onClick={handleRemoveLoyaltyPoints}
+                          className="shrink-0 text-[11px] font-bold text-on-surface-variant hover:text-error transition-colors"
+                        >
+                          Quitar
+                        </button>
+                      )}
+                    </div>
+
+                    {!loyaltyApplied && (
+                      !isOnline ? (
+                        <p className="text-xs text-on-surface-variant">
+                          Sin conexión: los puntos no se pueden canjear en esta venta.
+                        </p>
+                      ) : loyaltyConfig.pointsValue == null ? (
+                        <p className="text-xs text-on-surface-variant">
+                          Configurá cuánto vale un punto en Ajustes → Promociones para poder canjear.
+                        </p>
+                      ) : maxLoyaltyPoints <= 0 ? (
+                        <p className="text-xs text-on-surface-variant">
+                          {(loyaltyBalance ?? 0) > 0
+                            ? "El total de la venta no alcanza para canjear puntos."
+                            : "Este cliente todavía no tiene puntos."}
+                        </p>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            min={loyaltyConfig.minRedeem || 1}
+                            max={maxLoyaltyPoints}
+                            value={redeemPointsInput}
+                            onChange={(e) => setRedeemPointsInput(e.target.value)}
+                            placeholder={`Hasta ${maxLoyaltyPoints}`}
+                            aria-label="Puntos a canjear"
+                            className="w-24 bg-surface-container-lowest border border-outline-variant/30 rounded-lg py-1.5 px-2.5 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleApplyLoyaltyPoints}
+                            className="shrink-0 px-3 py-1.5 rounded-lg bg-[#6063ee] text-white text-[11px] font-bold hover:bg-[#4f52d1] transition-colors"
+                          >
+                            Canjear
+                          </button>
+                        </div>
+                      )
+                    )}
+                  </div>
+                ) : null
+              ) : (promoSugerido || promoAplicado) && hitoGanado ? (
             <div className="mx-4 mt-3 rounded-xl border border-[#10b981]/30 bg-[#10b981]/10 px-4 py-3 flex items-center gap-3">
               <span className="text-xl shrink-0">🎁</span>
               <div className="min-w-0 flex-1">
