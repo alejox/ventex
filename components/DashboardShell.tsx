@@ -307,16 +307,14 @@ export function DashboardShell({
               <button
                 type="button"
                 onClick={() => {
-                  setSidebarCollapsed((prevCollapsed) => {
-                    const collapsing = !prevCollapsed;
-                    if (collapsing || prefersReducedMotion()) {
-                      // Colapsando: los iconos sueltos entran en cualquier
-                      // ancho, no hay nada que esperar. Con reduced motion no
-                      // hay animación que esperar tampoco.
-                      setSidebarExpandedContent(!collapsing);
-                    }
-                    return collapsing;
-                  });
+                  const collapsing = !sidebarCollapsed;
+                  setSidebarCollapsed(collapsing);
+                  if (collapsing || prefersReducedMotion()) {
+                    // Colapsando: los iconos sueltos entran en cualquier
+                    // ancho, no hay nada que esperar. Con reduced motion no
+                    // hay animación que esperar tampoco.
+                    setSidebarExpandedContent(!collapsing);
+                  }
                 }}
                 aria-label={sidebarCollapsed ? "Expandir menú" : "Minimizar menú"}
                 aria-expanded={!sidebarCollapsed}
