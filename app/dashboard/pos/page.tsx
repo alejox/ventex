@@ -26,6 +26,7 @@ import { SaleConfigModal } from "@/components/SaleConfigModal";
 import { notifySuccess, notifyWarning, notifyError } from "@/lib/notifications";
 import { useOfflineSync } from "@/lib/useOfflineSync";
 import { PosCatalog } from "./components/PosCatalog";
+import { looksLikeScannerCode, resolveCatalogCode } from "./components/catalog-code";
 import { PosCartPanel } from "./components/PosCartPanel";
 import { CheckoutModal } from "./components/CheckoutModal";
 import { DeliveryModal } from "./components/DeliveryModal";
@@ -351,30 +352,6 @@ export default function POSPage() {
       });
   }, [catalog, search, activeCategory]);
 
-  const handleScannedCode = useCallback(
-    (code: string) => {
-      const q = code.trim().toLowerCase();
-      const match =
-        catalog.find((p) => p.barcode?.toLowerCase() === q) ??
-        catalog.find((p) => p.sku?.toLowerCase() === q);
-      if (!match) {
-        notifyError("C\u00f3digo no encontrado", `Ning\u00fan \u00edtem tiene el c\u00f3digo ${code}.`);
-        return;
-      }
-      // `stock_level` en null = el ítem no lleva inventario (servicio): no hay
-      // unidades que puedan faltar. Ver `CatalogItem`.
-      if (!allowOversell && match.stock_level != null && match.stock_level <= 0) {
-        notifyError("Sin stock", `${match.name} no tiene unidades disponibles.`);
-        return;
-      }
-      addToCart(match);
-      notifySuccess("Agregado a la venta", match.name);
-    },
-    [catalog, addToCart, allowOversell],
-  );
-
-  const cartUnits = useMemo(() => cart.reduce((sum, l) => sum + l.quantity, 0), [cart]);
-
   const cartQty = useMemo(() => {
     const byId = new Map<string, number>();
     for (const line of cart) {
@@ -382,6 +359,34 @@ export default function POSPage() {
     }
     return byId;
   }, [cart]);
+
+  const handleScannedCode = useCallback(
+    (code: string, source: "camera" | "input" = "camera") => {
+      const match = resolveCatalogCode(catalog, code);
+      if (!match) {
+        const query = code.trim().toLowerCase();
+        const scannerCode = looksLikeScannerCode(code) &&
+          !catalog.some((item) => item.name.toLowerCase().includes(query));
+        if (source === "camera" || scannerCode) {
+          notifyError("C\u00f3digo no encontrado", `Ning\u00fan \u00edtem tiene el c\u00f3digo ${code}.`);
+        }
+        return source === "input" && scannerCode;
+      }
+      // `stock_level` en null = el ítem no lleva inventario (servicio): no hay
+      // unidades que puedan faltar. Ver `CatalogItem`.
+      const unitQty = cart.find((line) => line.item.id === match.id && (line.unitKind ?? "unit") === "unit")?.quantity ?? 0;
+      if (!allowOversell && match.stock_level != null && unitQty + 1 > match.stock_level) {
+        notifyError("Sin stock", `${match.name} no tiene unidades disponibles.`);
+        return source === "input";
+      }
+      addToCart(match);
+      notifySuccess("Agregado a la venta", match.name);
+      return true;
+    },
+    [catalog, addToCart, allowOversell, cart],
+  );
+
+  const cartUnits = useMemo(() => cart.reduce((sum, l) => sum + l.quantity, 0), [cart]);
 
   const selectedCustomer = useMemo(
     () => customers.find((c) => c.id === customerId) ?? null,
@@ -818,6 +823,7 @@ export default function POSPage() {
             decrement={decrement}
             lineKey={lineKey}
             onOpenScanner={() => setIsScannerOpen(true)}
+            onSubmitCode={(code) => handleScannedCode(code, "input")}
             onOpenShift={() => setIsOpenShiftOpen(true)}
             onOpenWithdrawal={() => setIsWithdrawalOpen(true)}
             openCloseShift={openCloseShift}

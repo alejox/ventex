@@ -3,6 +3,10 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { IconSearch, IconImagePlaceholder } from "@/app/assets/icons/DashboardIcons";
 import type { CatalogItem } from "@/services/pos.service";
+import { shouldSubmitIdleCode } from "./catalog-code";
+
+const BARCODE_IDLE_MS = 250;
+const SCANNER_KEY_GAP_MS = 80;
 
 const money = (n: number) =>
   n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -63,6 +67,7 @@ interface PosCatalogProps {
   decrement: (key: string) => void;
   lineKey: (id: string) => string;
   onOpenScanner: () => void;
+  onSubmitCode: (code: string) => boolean;
   onOpenShift: () => void;
   onOpenWithdrawal: () => void;
   openCloseShift: () => void;
@@ -89,16 +94,28 @@ export function PosCatalog({
   decrement,
   lineKey,
   onOpenScanner,
+  onSubmitCode,
   onOpenShift,
   onOpenWithdrawal,
   openCloseShift,
 }: PosCatalogProps) {
   const router = useRouter();
   const searchRef = useRef<HTMLInputElement>(null);
+  const scanTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastAutoSubmittedRef = useRef<string | null>(null);
+  const lastInputRef = useRef({ value: "", at: 0, rapidKeys: 0 });
 
   useEffect(() => {
     searchRef.current?.focus();
+    return () => {
+      if (scanTimerRef.current) clearTimeout(scanTimerRef.current);
+    };
   }, []);
+
+  const cancelPendingScan = () => {
+    if (scanTimerRef.current) clearTimeout(scanTimerRef.current);
+    scanTimerRef.current = null;
+  };
 
   return (
     <div className="flex-1 flex flex-col min-w-0 px-6 lg:pl-10 lg:pr-6 lg:border-r border-outline-variant/10">
@@ -111,21 +128,41 @@ export function PosCatalog({
           <input
             type="text"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                const q = search.trim().toLowerCase();
-                if (q) {
-                  const match = catalog.find(
-                    (p) => p.sku?.toLowerCase() === q
-                  );
-                  if (match) {
-                    addToCart(match);
+            onChange={(e) => {
+              const value = e.target.value;
+              const now = performance.now();
+              const previous = lastInputRef.current;
+              const appended = value.startsWith(previous.value) ? value.length - previous.value.length : 0;
+              const rapidKeys = appended > 1
+                ? 3
+                : appended === 1 && now - previous.at <= SCANNER_KEY_GAP_MS
+                  ? previous.rapidKeys + 1
+                  : 0;
+              lastInputRef.current = { value, at: now, rapidKeys };
+              cancelPendingScan();
+              lastAutoSubmittedRef.current = null;
+              setSearch(value);
+              if (shouldSubmitIdleCode(catalog, value, rapidKeys)) {
+                scanTimerRef.current = setTimeout(() => {
+                  scanTimerRef.current = null;
+                  if (searchRef.current?.value !== value) return;
+                  if (onSubmitCode(value)) {
+                    lastAutoSubmittedRef.current = value;
+                    lastInputRef.current = { value: "", at: 0, rapidKeys: 0 };
                     setSearch("");
                   }
-                }
+                }, BARCODE_IDLE_MS);
+              }
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
                 e.preventDefault();
                 e.stopPropagation();
+                cancelPendingScan();
+                if (lastAutoSubmittedRef.current === e.currentTarget.value) return;
+                if (e.currentTarget.value.trim() && onSubmitCode(e.currentTarget.value)) {
+                  setSearch("");
+                }
               }
             }}
             placeholder="Buscar o escanear código"

@@ -155,6 +155,24 @@ test.describe("Punto de Venta (POS)", () => {
     await expect(searchInput).toHaveValue("Prueba");
   });
 
+  test("descarta un código escaneado desconocido y deja el buscador listo", async ({ page }) => {
+    const searchInput = page.getByPlaceholder("Buscar o escanear código");
+    const missingCode = "missing-barcode-987654321";
+    await searchInput.fill(missingCode);
+    await searchInput.press("Enter");
+
+    await expect(searchInput).toHaveValue("");
+    await expect(searchInput).toBeFocused();
+    await expect(page.getByText("Código no encontrado")).toBeVisible();
+  });
+
+  test("no borra una búsqueda manual por nombre al pulsar Enter", async ({ page }) => {
+    const searchInput = page.getByPlaceholder("Buscar o escanear código");
+    await searchInput.fill("Sandwich");
+    await searchInput.press("Enter");
+    await expect(searchInput).toHaveValue("Sandwich");
+  });
+
   test("filtra por categoría cuando hay categorías disponibles", async ({ page }) => {
     const categoryBtns = page.locator("button").filter({ hasText: /Todos/i });
     if (await categoryBtns.first().isVisible()) {
