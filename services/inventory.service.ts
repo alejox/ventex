@@ -463,7 +463,23 @@ function flagsPatch(input: NewProductInput): { tracks_stock: boolean; open_price
   };
 }
 
+/** The catalog stores the tax-inclusive shelf price, not a formatted display value. */
+export function parseProductSalePrice(raw: string, openPrice = false): number {
+  const value = raw.trim();
+  if (!/^\d+(?:\.\d+)?$/.test(value)) {
+    throw new Error("Indicá un precio de venta válido.");
+  }
+  const price = Number(value);
+  if (!Number.isFinite(price) || price < 0 || (!openPrice && price === 0)) {
+    throw new Error(openPrice
+      ? "Indicá un precio sugerido válido (cero o mayor)."
+      : "El precio de venta debe ser mayor que cero.");
+  }
+  return price;
+}
+
 export async function createProduct(input: NewProductInput): Promise<Product> {
+  const price = parseProductSalePrice(input.price, input.open_price);
   const supabase = createClient();
   const { data, error } = await supabase
     .from("products")
@@ -475,7 +491,7 @@ export async function createProduct(input: NewProductInput): Promise<Product> {
       barcode: normalizeBarcode(input.barcode),
       unit: input.unit,
       ...costPatch(input.purchase_price),
-      price: parseFloat(input.price),
+      price,
       package_price: normalizePackagePrice(input.package_price),
       ...stockPatch(input),
       ...flagsPatch(input),
@@ -520,6 +536,7 @@ export async function activateProduct(id: string): Promise<void> {
  * responsable—, por la recepción de compras y por la venta. Nunca por acá.
  */
 export async function updateProduct(id: string, input: NewProductInput): Promise<Product> {
+  const price = parseProductSalePrice(input.price, input.open_price);
   const supabase = createClient();
   const { data, error } = await supabase
     .from("products")
@@ -531,7 +548,7 @@ export async function updateProduct(id: string, input: NewProductInput): Promise
       barcode: normalizeBarcode(input.barcode),
       unit: input.unit,
       ...costPatch(input.purchase_price),
-      price: parseFloat(input.price),
+      price,
       package_price: normalizePackagePrice(input.package_price),
       ...flagsPatch(input),
       image_url: input.image_url || null,

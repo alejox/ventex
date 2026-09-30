@@ -7,7 +7,7 @@ import { useInventoryStore } from "@/stores/inventory.store";
 import { useMovementsStore } from "@/stores/inventory-movements.store";
 import { useServicesStore } from "@/stores/services.store";
 import type { NewProductInput } from "@/services/inventory.service";
-import { calculateMargin, handlePresentationModeChange } from "@/services/inventory.service";
+import { calculateMargin, handlePresentationModeChange, parseProductSalePrice } from "@/services/inventory.service";
 import type { NewServiceInput } from "@/services/services.service";
 import { DistributorQuickModal } from "@/components/DistributorQuickModal";
 import { CategoryQuickModal } from "@/components/CategoryQuickModal";
@@ -376,6 +376,13 @@ function ProductForm() {
     }
     if (isService && !(parseFloat(serviceFinalPrice) > 0)) {
       errores.price = "Indicá el precio del servicio.";
+    }
+    if (!isService) {
+      try {
+        parseProductSalePrice(sellingPriceTotal, form.open_price);
+      } catch (error) {
+        errores.price = error instanceof Error ? error.message : "Indicá un precio de venta válido.";
+      }
     }
     if (Object.keys(errores).length > 0) {
       setFieldErrors(errores);
@@ -774,7 +781,13 @@ function ProductForm() {
             <>
               <ProductPricingSection
                 purchase={{ base: purchase.base, total: purchase.total, fromBase: setPurchase.fromBase, fromTotal: setPurchase.fromTotal }}
-                selling={{ base: selling.base, total: selling.total, fromBase: setSelling.fromBase, fromTotal: setSelling.fromTotal }}
+                selling={{ base: selling.base, total: selling.total, fromBase: (value) => {
+                  setSelling.fromBase(value);
+                  setFieldErrors((previous) => ({ ...previous, price: undefined }));
+                }, fromTotal: (value) => {
+                  setSelling.fromTotal(value);
+                  setFieldErrors((previous) => ({ ...previous, price: undefined }));
+                } }}
                 purchasePriceTax={purchasePriceTax}
                 setPurchasePriceTax={setPurchasePriceTax}
                 sellingPriceTax={sellingPriceTax}
@@ -785,6 +798,8 @@ function ProductForm() {
                 margin={margin}
                 presentation={presentation}
                 unitsPerPackage={form.units_per_package ?? "1"}
+                sellingPriceError={fieldErrors.price}
+                sellingPriceRef={priceRef}
               />
 
               <ProductPresentationSection

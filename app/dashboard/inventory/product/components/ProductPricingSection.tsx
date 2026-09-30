@@ -1,5 +1,6 @@
 import { MoneyInput } from "@/components/ui/MoneyInput";
 import { Select } from "@/components/ui/Select";
+import type { Ref } from "react";
 
 interface PricePair {
   base: string;
@@ -21,6 +22,8 @@ interface ProductPricingSectionProps {
   margin: { pct: number; costPerUnit: number } | null;
   presentation: "unit" | "package";
   unitsPerPackage: string;
+  sellingPriceError?: string;
+  sellingPriceRef?: Ref<HTMLInputElement>;
 }
 
 export function ProductPricingSection({
@@ -36,6 +39,8 @@ export function ProductPricingSection({
   margin,
   presentation,
   unitsPerPackage,
+  sellingPriceError,
+  sellingPriceRef,
 }: ProductPricingSectionProps) {
   const isPackage = presentation === "package";
   const unitsCount = Math.max(parseInt(unitsPerPackage || "1") || 1, 1);
@@ -132,11 +137,20 @@ export function ProductPricingSection({
               Total <span className="text-on-surface-variant font-normal">(vitrina)</span>
             </label>
             <MoneyInput
+              id="product-selling-price"
+              ref={sellingPriceRef}
               aria-label="Precio final de venta con IVA"
+              aria-invalid={!!sellingPriceError}
+              aria-describedby={sellingPriceError ? "product-selling-price-error" : undefined}
               value={selling.total}
               onChange={selling.fromTotal}
               required
             />
+            {sellingPriceError && (
+              <p id="product-selling-price-error" className="text-xs font-medium text-error" role="alert">
+                {sellingPriceError}
+              </p>
+            )}
           </div>
         </div>
 

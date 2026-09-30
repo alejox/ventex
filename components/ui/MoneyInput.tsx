@@ -1,6 +1,6 @@
 "use client";
 
-import { useId } from "react";
+import { useId, type Ref } from "react";
 
 interface MoneyInputProps {
   /** Valor crudo (string numérico sin separadores) que maneja el formulario. */
@@ -14,6 +14,9 @@ interface MoneyInputProps {
   readOnly?: boolean;
   required?: boolean;
   "aria-label"?: string;
+  "aria-invalid"?: boolean;
+  "aria-describedby"?: string;
+  ref?: Ref<HTMLInputElement>;
 }
 
 /**
@@ -37,6 +40,9 @@ export function MoneyInput({
   readOnly,
   required,
   "aria-label": ariaLabel,
+  "aria-invalid": ariaInvalid,
+  "aria-describedby": ariaDescribedBy,
+  ref,
 }: MoneyInputProps) {
   const generatedId = useId();
   const inputId = id ?? generatedId;
@@ -50,10 +56,13 @@ export function MoneyInput({
         $
       </span>
       <input
+        ref={ref}
         id={inputId}
         type="text"
         inputMode="decimal"
         aria-label={ariaLabel}
+        aria-invalid={ariaInvalid}
+        aria-describedby={ariaDescribedBy}
         value={formatMoney(value)}
         onChange={(e) => onChange(parseMoney(e.target.value))}
         placeholder={placeholder}

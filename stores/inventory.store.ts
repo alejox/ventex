@@ -59,6 +59,8 @@ export const useInventoryStore = create<InventoryState>((set) => ({
 
   addProduct: async (input, imageFile) => {
     try {
+      // Validate before an optional Storage upload, not only before the row write.
+      inventoryService.parseProductSalePrice(input.price, input.open_price);
       const image_url = imageFile
         ? await inventoryService.uploadProductImage(imageFile)
         : input.image_url;
@@ -73,6 +75,7 @@ export const useInventoryStore = create<InventoryState>((set) => ({
 
   updateProduct: async (id, input, imageFile) => {
     try {
+      inventoryService.parseProductSalePrice(input.price, input.open_price);
       const image_url = imageFile
         ? await inventoryService.uploadProductImage(imageFile)
         : input.image_url;
