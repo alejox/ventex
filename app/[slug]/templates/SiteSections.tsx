@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { esImagenAjena } from "@/lib/remoteImage";
 import Link from "next/link";
 import type {
   PublicSite,
@@ -70,7 +71,7 @@ function AboutSection({ site, section }: SectionProps) {
         </div>
         {image ? (
           <div className="site-about-image overflow-hidden bg-[var(--site-surface-alt)]">
-            <Image src={image} alt={site.config.about.title} fill sizes="(max-width: 1024px) 100vw, 50vw" className="object-cover" />
+            <Image src={image} unoptimized={esImagenAjena(image)} alt={site.config.about.title} fill sizes="(max-width: 1024px) 100vw, 50vw" className="object-cover" />
           </div>
         ) : null}
       </div>
@@ -87,7 +88,7 @@ function ProductsSection({ site, section }: SectionProps) {
         {site.products.map((product) => (
           <li key={product.id} className="site-card site-product-card">
             <div className="site-product-image">
-              {product.imageUrl ? <Image src={product.imageUrl} alt={product.name} fill sizes="(max-width: 640px) 50vw, 25vw" className="object-cover" /> : <span className="grid h-full place-items-center text-3xl" aria-hidden="true">{product.icon ?? "+"}</span>}
+              {product.imageUrl ? <Image src={product.imageUrl} unoptimized={esImagenAjena(product.imageUrl)} alt={product.name} fill sizes="(max-width: 640px) 50vw, 25vw" className="object-cover" /> : <span className="grid h-full place-items-center text-3xl" aria-hidden="true">{product.icon ?? "+"}</span>}
             </div>
             <div className="site-product-copy"><h3 className="text-sm font-semibold text-[var(--site-text)]">{product.name}</h3><p className="mt-2 text-sm font-bold text-[var(--site-accent)]">{formatCOP(product.price)}</p></div>
           </li>
@@ -122,7 +123,7 @@ function GallerySection({ site, section }: SectionProps) {
       <div className="site-gallery-grid">
         {site.config.gallery.images.map((image, index) => (
           <div key={image.id} className={`site-gallery-image overflow-hidden bg-[var(--site-surface-alt)] ${index % 5 === 0 ? "col-span-2 row-span-2" : ""}`}>
-            <Image src={image.url} alt={image.alt} fill sizes="(max-width: 768px) 50vw, 25vw" className="object-cover" />
+            <Image src={image.url} unoptimized={esImagenAjena(image.url)} alt={image.alt} fill sizes="(max-width: 768px) 50vw, 25vw" className="object-cover" />
           </div>
         ))}
       </div>

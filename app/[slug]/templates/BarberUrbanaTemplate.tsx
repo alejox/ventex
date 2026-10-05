@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { esImagenAjena } from "@/lib/remoteImage";
 import { ArrowUpRight, MapPin, Phone, Scissors } from "lucide-react";
 import type { PublicSite } from "@/services/public-site.types";
 import { DEFAULT_SITE_IMAGES } from "@/services/public-site.types";
@@ -15,13 +16,13 @@ export function BarberUrbanaTemplate({ site, preview = false }: { site: PublicSi
       {site.whatsapp || site.address ? <div className={styles.topbar}><div className={styles.topbarInner}>{site.whatsapp ? <a href={whatsappHref(site.whatsapp, `Hola ${site.businessName}, quiero pedir un turno.`)} target="_blank" rel="noreferrer"><Phone size={13} aria-hidden="true" />{site.whatsapp}</a> : null}{site.address ? <span><MapPin size={13} aria-hidden="true" />{site.address}</span> : null}</div></div> : null}
       <header className={styles.header}>
         <div className={styles.headerInner}>
-          <a className={styles.brand} href="#inicio">{site.logoUrl ? <Image src={site.logoUrl} alt="" width={38} height={38} /> : <Scissors size={24} aria-hidden="true" />}<span>{site.businessName}</span></a>
+          <a className={styles.brand} href="#inicio">{site.logoUrl ? <Image src={site.logoUrl} unoptimized={esImagenAjena(site.logoUrl)} alt="" width={38} height={38} /> : <Scissors size={24} aria-hidden="true" />}<span>{site.businessName}</span></a>
           <nav className={styles.navLinks} aria-label="Principal"><a href="#servicios">Servicios</a><a href="#equipo">Equipo</a><a href="#contacto">Contacto</a></nav>
           {site.bookingEnabled ? <a className={styles.navCta} href="#reservar">Reservar <ArrowUpRight size={14} aria-hidden="true" /></a> : null}
         </div>
       </header>
       <section id="inicio" className={styles.hero}>
-        <Image src={hero.imageUrl ?? DEFAULT_SITE_IMAGES["barberia-urbana"]} alt="" fill preload={!preview} sizes="100vw" className={styles.heroImage} />
+        <Image src={hero.imageUrl ?? DEFAULT_SITE_IMAGES["barberia-urbana"]} unoptimized={esImagenAjena(hero.imageUrl ?? DEFAULT_SITE_IMAGES["barberia-urbana"])} alt="" fill preload={!preview} sizes="100vw" className={styles.heroImage} />
         <div className={styles.heroShade} />
         <div className={styles.heroBody}>
           <h1 className={styles.heroTitle}>{hero.title ?? site.businessName}</h1>

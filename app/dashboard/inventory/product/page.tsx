@@ -20,6 +20,7 @@ import { can } from "@/lib/permissions";
 import { useBusinessTax } from "@/lib/useBusinessTax";
 import { useBarcodeLookup } from "@/lib/useBarcodeLookup";
 import { canAutofill } from "@/lib/autofill";
+import { formatDuration } from "@/lib/duration";
 import type { OpenFactsProduct } from "@/services/openfacts.service";
 import { ProductImageUpload } from "./components/ProductImageUpload";
 import { uploadProductImage } from "@/services/inventory.service";
@@ -866,17 +867,49 @@ function ProductForm() {
                     )}
                   </div>
 
-                  <div className="space-y-1.5 max-w-[280px]">
+                  <div className="space-y-1.5 max-w-[360px]">
                     <label htmlFor="service-duration" className="text-[13px] font-semibold text-on-surface block">Duración (minutos)</label>
-                    <input
-                      id="service-duration"
-                      type="number"
-                      min="1"
-                      value={serviceDuration}
-                      onChange={(e) => setServiceDuration(e.target.value)}
-                      className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-on-surface-variant/50"
-                      placeholder="30"
-                    />
+                    {/* La conversión va PEGADA al número: se carga en minutos
+                        porque es lo que suma la agenda, pero "90" no se lee
+                        como "hora y media" de un vistazo. */}
+                    <div className="relative">
+                      <input
+                        id="service-duration"
+                        type="number"
+                        min="1"
+                        step="5"
+                        value={serviceDuration}
+                        onChange={(e) => setServiceDuration(e.target.value)}
+                        className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 pl-4 pr-36 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-on-surface-variant/50"
+                        placeholder="30"
+                        aria-describedby="service-duration-human"
+                      />
+                      {formatDuration(Number(serviceDuration)) && (
+                        <span
+                          id="service-duration-human"
+                          className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded-lg bg-primary/10 px-2 py-1 text-xs font-semibold text-primary"
+                        >
+                          = {formatDuration(Number(serviceDuration))}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[15, 30, 45, 60, 90, 120].map((m) => (
+                        <button
+                          key={m}
+                          type="button"
+                          onClick={() => setServiceDuration(String(m))}
+                          aria-pressed={Number(serviceDuration) === m}
+                          className={`rounded-lg border px-2.5 py-1 text-xs font-semibold transition-colors ${
+                            Number(serviceDuration) === m
+                              ? "border-primary bg-primary/10 text-primary"
+                              : "border-outline-variant/30 text-on-surface-variant hover:border-primary/50 hover:text-on-surface"
+                          }`}
+                        >
+                          {formatDuration(m)}
+                        </button>
+                      ))}
+                    </div>
                     <p className="text-xs text-on-surface-variant">
                       Es lo que ocupa en la agenda al reservarlo.
                     </p>

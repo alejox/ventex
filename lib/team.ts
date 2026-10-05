@@ -45,6 +45,8 @@ export function mergeTeam(staff: StaffMember[], accounts: WorkerMember[]): TeamM
       role: account.role,
       phone: null,
       email: null,
+      // Sin ficha de `staff` no hay a quién mostrar en el sitio.
+      show_on_website: false,
       // Una cuenta sin ficha de `staff` todavía no tiene dónde guardar la foto:
       // se sube sobre la ficha, y esta fila es una cuenta huérfana.
       photo_url: null,

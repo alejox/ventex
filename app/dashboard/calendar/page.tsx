@@ -11,6 +11,7 @@ import {
 } from "@/app/assets/icons/DashboardIcons";
 import { CollectionError, CollectionFilteredEmpty, CollectionLoading } from "@/components/CollectionState";
 import { toISODate } from "@/lib/date";
+import { formatDuration } from "@/lib/duration";
 import { fetchStaff } from "@/services/pos.service";
 import { Select } from "@/components/ui/Select";
 
@@ -73,6 +74,14 @@ function getWeekDays(date: Date) {
     });
   }
   return days;
+}
+
+/** "10:00 - 11:30 · 1 hora y media": la hora de fin sola obliga a hacer la cuenta. */
+function timeRange(a: Appointment): string {
+  const [sh, sm] = a.start_time.split(":").map(Number);
+  const [eh, em] = a.end_time.split(":").map(Number);
+  const dur = formatDuration(eh * 60 + em - (sh * 60 + sm));
+  return `${a.start_time.slice(0, 5)} - ${a.end_time.slice(0, 5)}${dur ? ` · ${dur}` : ""}`;
 }
 
 const HOURS = Array.from({ length: 14 }, (_, i) => i + 7); // 7:00 - 20:00
@@ -579,8 +588,7 @@ export default function CalendarPage() {
                             {appt.title}
                           </span>
                           <span className="text-xs text-on-surface-variant">
-                            {appt.start_time.slice(0, 5)} -{" "}
-                            {appt.end_time.slice(0, 5)}
+                            {timeRange(appt)}
                           </span>
                         </div>
                         {appt.customers?.full_name && (
@@ -639,8 +647,7 @@ export default function CalendarPage() {
                       {appt.title}
                     </div>
                     <div className="text-xs text-on-surface-variant">
-                      {appt.appointment_date} · {appt.start_time.slice(0, 5)} -{" "}
-                      {appt.end_time.slice(0, 5)}
+                      {appt.appointment_date} · {timeRange(appt)}
                     </div>
                     {appt.customers?.full_name && (
                       <div className="text-xs text-on-surface-variant/80 truncate">
