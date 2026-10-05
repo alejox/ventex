@@ -23,6 +23,7 @@ export type Database = {
           end_time: string
           id: string
           notes: string | null
+          sale_id: string | null
           service_id: string | null
           service_type: string | null
           staff_id: string | null
@@ -42,6 +43,7 @@ export type Database = {
           end_time: string
           id?: string
           notes?: string | null
+          sale_id?: string | null
           service_id?: string | null
           service_type?: string | null
           staff_id?: string | null
@@ -61,6 +63,7 @@ export type Database = {
           end_time?: string
           id?: string
           notes?: string | null
+          sale_id?: string | null
           service_id?: string | null
           service_type?: string | null
           staff_id?: string | null
@@ -78,6 +81,13 @@ export type Database = {
             columns: ["customer_id"]
             isOneToOne: false
             referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales"
             referencedColumns: ["id"]
           },
           {
@@ -3215,6 +3225,7 @@ export type Database = {
           pos_pin_hash: string | null
           primary_branch_id: string | null
           role: string | null
+          show_on_website: boolean
           status: string
           user_id: string
           username: string | null
@@ -3237,6 +3248,7 @@ export type Database = {
           pos_pin_hash?: string | null
           primary_branch_id?: string | null
           role?: string | null
+          show_on_website?: boolean
           status?: string
           user_id?: string
           username?: string | null
@@ -3259,6 +3271,7 @@ export type Database = {
           pos_pin_hash?: string | null
           primary_branch_id?: string | null
           role?: string | null
+          show_on_website?: boolean
           status?: string
           user_id?: string
           username?: string | null

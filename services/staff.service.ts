@@ -163,15 +163,13 @@ export interface SettleCommissionsInput {
   excludedItemIds?: string[];
 }
 
-// `show_on_website` es posterior a los tipos generados (database.types.ts):
-// los casts de este archivo se van al regenerarlos.
-const SELECT = "id, full_name, role, phone, email, status, created_at, photo_url, show_on_website" as "*";
+const SELECT = "id, full_name, role, phone, email, status, created_at, photo_url, show_on_website";
 
 export async function fetchStaff(): Promise<StaffMember[]> {
   const supabase = createClient();
   const { data, error } = await supabase.from("staff").select(SELECT).order("full_name");
   if (error) throw error;
-  return (data ?? []) as unknown as StaffMember[];
+  return (data ?? []) as StaffMember[];
 }
 
 export async function createStaff(input: NewStaffInput): Promise<StaffMember> {
@@ -186,11 +184,11 @@ export async function createStaff(input: NewStaffInput): Promise<StaffMember> {
       status: input.status,
       photo_url: input.photo_url ?? null,
       show_on_website: input.show_on_website,
-    } as never)
+    })
     .select(SELECT)
     .single();
   if (error) throw error;
-  return data as unknown as StaffMember;
+  return data as StaffMember;
 }
 
 const STAFF_PHOTOS_BUCKET = "staff-photos";
@@ -631,10 +629,10 @@ export async function updateStaff(id: string, input: NewStaffInput): Promise<Sta
       // el formulario no manda campos que no tocó.
       ...(input.photo_url !== undefined ? { photo_url: input.photo_url } : {}),
       show_on_website: input.show_on_website,
-    } as never)
+    })
     .eq("id", id)
     .select(SELECT)
     .single();
   if (error) throw error;
-  return data as unknown as StaffMember;
+  return data as StaffMember;
 }

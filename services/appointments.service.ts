@@ -229,18 +229,16 @@ export async function chargeAppointment(
  */
 export async function linkAppointmentToSale(appointmentId: string, saleId: string): Promise<void> {
   const supabase = createClient();
-  // `sale_id` es posterior a los tipos generados (database.types.ts): los
-  // casts se van al regenerarlos.
   const { error: unlinkError } = await supabase
     .from("appointments")
-    .update({ status: "confirmed", sale_id: null } as never)
-    .eq("sale_id" as never, saleId)
+    .update({ status: "confirmed", sale_id: null })
+    .eq("sale_id", saleId)
     .neq("id", appointmentId);
   if (unlinkError) throw unlinkError;
 
   const { error: linkError } = await supabase
     .from("appointments")
-    .update({ status: "completed", sale_id: saleId } as never)
+    .update({ status: "completed", sale_id: saleId })
     .eq("id", appointmentId);
   if (linkError) throw linkError;
 }
@@ -267,7 +265,7 @@ export async function fetchBillableAppointments(today: string): Promise<Billable
   const supabase = createClient();
   const { data, error } = await supabase
     .from("appointments")
-    .select("id, start_time, status, customer_id, service_id, staff_id, sale_id, customers(full_name), services(name), staff(full_name)" as "*")
+    .select("id, start_time, status, customer_id, service_id, staff_id, sale_id, customers(full_name), services(name), staff(full_name)")
     .eq("appointment_date", today)
     .in("status", ["pending", "confirmed"])
     .not("service_id", "is", null)
