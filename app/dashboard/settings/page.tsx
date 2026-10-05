@@ -213,6 +213,9 @@ function ToggleSetting({
 }
 
 function SettingsForm({ settings }: { settings: Settings }) {
+  const profile = useProfile();
+  const canManageShiftRequirement = Boolean(profile && !profile.isWorker);
+  const [requireActiveShift, setRequireActiveShift] = useState(settings.require_active_shift);
   const saveSettings = useSettingsStore((s) => s.saveSettings);
   const submitting = useSettingsStore((s) => s.submitting);
   const error = useSettingsStore((s) => s.error);
@@ -255,6 +258,7 @@ function SettingsForm({ settings }: { settings: Settings }) {
       tax_rate: Math.round(rate * 10000) / 10000,
       include_tax: includeTax,
       allow_oversell: allowOversell,
+      ...(canManageShiftRequirement ? { require_active_shift: requireActiveShift } : {}),
       currency,
       time_format: timeFormat,
       transfer_methods_enabled: transferMethods,
@@ -324,6 +328,15 @@ function SettingsForm({ settings }: { settings: Settings }) {
           </p>
         </div>
       )}
+
+      {canManageShiftRequirement && <ToggleSetting
+        title="Exigir turno activo para facturar"
+        description={requireActiveShift
+          ? "El cajero debe abrir su turno antes de cobrar una venta o una cita."
+          : "El cajero puede facturar sin abrir turno. Las ventas sin turno no se incluyen en un arqueo de caja."}
+        checked={requireActiveShift}
+        onChange={(value) => { setRequireActiveShift(value); setSaved(false); }}
+      />}
 
       <ToggleSetting
         title="Permitir vender sin stock"

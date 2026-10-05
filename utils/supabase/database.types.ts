@@ -3090,6 +3090,7 @@ export type Database = {
           promo_enabled: boolean
           promo_message: string | null
           promo_service_ids: string[]
+          require_active_shift: boolean
           tax_rate: number
           transfer_methods_enabled: Json
           updated_at: string
@@ -3112,6 +3113,7 @@ export type Database = {
           promo_enabled?: boolean
           promo_message?: string | null
           promo_service_ids?: string[]
+          require_active_shift?: boolean
           tax_rate?: number
           transfer_methods_enabled?: Json
           updated_at?: string
@@ -3134,6 +3136,7 @@ export type Database = {
           promo_enabled?: boolean
           promo_message?: string | null
           promo_service_ids?: string[]
+          require_active_shift?: boolean
           tax_rate?: number
           transfer_methods_enabled?: Json
           updated_at?: string

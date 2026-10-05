@@ -111,6 +111,7 @@ export default function POSPage() {
 
   const profile = useProfile();
   const isWorker = profile?.isWorker ?? false;
+  const requireActiveShift = useSettingsStore((s) => s.settings?.require_active_shift ?? false);
   const currentShift = useShiftsStore((s) => s.currentShift);
   const fetchCurrentShift = useShiftsStore((s) => s.fetchCurrentShift);
   const [isCloseShiftOpen, setIsCloseShiftOpen] = useState(false);
@@ -146,7 +147,7 @@ export default function POSPage() {
   }, [hasAppointments, fetchBillable]);
 
   const requireShift = (action: () => void): void => {
-    if (isWorker && !currentShift) {
+    if (isWorker && requireActiveShift && !currentShift) {
       pendingActionRef.current = action;
       setIsOpenShiftOpen(true);
       return;
@@ -884,6 +885,7 @@ export default function POSPage() {
             allowOversell={allowOversell}
             isWorker={isWorker}
             currentShift={currentShift}
+            requireActiveShift={requireActiveShift}
             addToCart={addToCart}
             increment={increment}
             decrement={decrement}

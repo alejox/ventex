@@ -2,7 +2,7 @@
 
 ## Contexto
 
-Los empleados inician sesión con llave del negocio + usuario + contraseña y aterrizan en `/dashboard/pos`. Al ingresar, el empleado **abre turno declarando la base de caja** (efectivo inicial), **no puede cobrar sin turno abierto**, y al **cerrar turno** ve el arqueo: ventas del turno por método de pago, efectivo esperado vs contado y la diferencia. El dueño no abre turnos; ve el historial de turnos de su equipo en Ajustes → Trabajadores. Las horas de apertura/cierre quedan registradas de paso (asistencia implícita).
+Los empleados inician sesión con llave del negocio + usuario + contraseña y aterrizan en `/dashboard/pos`. Al ingresar, el empleado **abre turno declarando la base de caja** (efectivo inicial), **solo necesita turno para cobrar si el administrador activa «Exigir turno activo para facturar»**, y al **cerrar turno** ve el arqueo: ventas del turno por método de pago, efectivo esperado vs contado y la diferencia. El dueño no abre turnos; ve el historial de turnos de su equipo en Ajustes → Trabajadores. Las horas de apertura/cierre quedan registradas de paso (asistencia implícita).
 
 Hallazgo técnico que condiciona el diseño: `create_sale` usaba `auth.uid()` para buscar productos/settings y atribuir la venta. Para un empleado eso apunta a su propio uuid (no al negocio), por lo que el cobro de un empleado fallaba/atribuía mal. El arreglo mínimo es usar `get_effective_user_id()` (mapea empleado → dueño) como uid efectivo dentro de `create_sale`.
 
@@ -31,7 +31,7 @@ Hallazgo técnico que condiciona el diseño: `create_sale` usaba `auth.uid()` pa
 
 **Ajuste a `create_sale`** (misma migración):
 - `v_uid := public.get_effective_user_id()` en lugar de `auth.uid()` (los lookups de productos/settings/clientes y la atribución de la venta pasan a ser del negocio; para el dueño no cambia nada).
-- Sellado del turno del lado del servidor: si el caller es empleado sin turno abierto → `raise exception 'Debes abrir turno antes de cobrar'`; si tiene, `sales.shift_id := turno`. Dueño: `shift_id null`, vende libre.
+- Sellado del turno del lado del servidor: si `settings.require_active_shift` está activo y el caller es empleado sin turno abierto → `raise exception 'Debes abrir turno antes de cobrar'`; si tiene, `sales.shift_id := turno`. Dueño: `shift_id null`, vende libre.
 
 Después de la migración: actualizar `utils/supabase/database.types.ts` (tabla `shifts`, columna `sales.shift_id`, funciones nuevas).
 
@@ -54,7 +54,7 @@ Después de la migración: actualizar `utils/supabase/database.types.ts` (tabla 
 - **`components/shift/OpenShiftModal.tsx`**: overlay **bloqueante** (sin cerrar) cuando el empleado no tiene turno abierto. Campo "Base de caja" + botón "Abrir turno". Éxito → toast y el POS queda usable.
 - **Indicador + cierre**: chip "Turno abierto desde HH:mm" y botón "Cerrar turno" en el header del POS (solo empleados con turno).
 - **`components/shift/CloseShiftModal.tsx`**: resumen en vivo (nº de ventas, total, desglose por método, efectivo esperado) + input "Efectivo contado" y notas → al confirmar muestra la **diferencia** (color según signo) y finaliza.
-- Defensa en profundidad: `create_sale` rechaza cobros de empleados sin turno aunque la UI falle.
+- Defensa en profundidad: cuando `settings.require_active_shift` está activo, `create_sale` rechaza cobros de empleados sin turno aunque la UI falle.
 
 ## 4. Historial para el dueño (Ajustes → Trabajadores)
 
@@ -85,3 +85,13 @@ Sección **"Historial de turnos"** debajo de la lista de trabajadores:
    - Doble `open_shift` → rechazado.
    - RLS: el dueño ve los turnos; un empleado de otro tenant no.
 3. Manual: entrar como empleado → modal bloqueante → abrir turno → cobrar → cerrar turno y revisar arqueo; como dueño revisar el historial.
+
+## Exigencia opcional de turno
+
+En Configuración, el administrador del negocio puede activar **Exigir turno activo para facturar**.
+`settings.require_active_shift` es `false` por defecto, también para negocios sin fila de ajustes.
+El POS y el cobro de citas consultan este ajuste; `create_sale` lo valida en el servidor.
+Un trigger impide que un empleado lo cambie aunque tenga permiso para editar otros ajustes.
+La apertura y el cierre de caja siguen disponibles con la exigencia desactivada. Las ventas
+sin turno conservan `shift_id = null` y no forman parte de un arqueo posterior. Los permisos
+de POS y las validaciones de contexto de negocio, membresía y turno siguen vigentes.

@@ -72,6 +72,7 @@ interface PosCatalogProps {
   cartQty: Map<string, number>;
   allowOversell: boolean;
   isWorker: boolean;
+  requireActiveShift: boolean;
   currentShift: { opened_at: string } | null;
   addToCart: (item: CatalogItem) => void;
   increment: (key: string) => void;
@@ -101,6 +102,7 @@ export function PosCatalog({
   cartQty,
   allowOversell,
   isWorker,
+  requireActiveShift,
   currentShift,
   addToCart,
   increment,
@@ -265,7 +267,9 @@ export function PosCatalog({
           <div className="min-w-0">
             <p className="text-sm font-bold text-on-surface">La caja está cerrada</p>
             <p className="text-xs text-on-surface-variant">
-              Puedes armar el carrito, pero para cobrar primero abre tu turno con la base de caja.
+              {requireActiveShift
+                ? "Puedes armar el carrito, pero para cobrar primero abre tu turno con la base de caja."
+                : "Puedes cobrar sin turno. Abre la caja si quieres llevar el arqueo de tus ventas."}
             </p>
           </div>
           <button

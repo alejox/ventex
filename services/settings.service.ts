@@ -37,6 +37,7 @@ export interface Settings {
   include_tax: boolean;
   /** Si el POS puede cobrar más unidades de las que hay en stock. */
   allow_oversell: boolean;
+  require_active_shift: boolean;
   /** Si el negocio cobra con tarjeta. false = ni siquiera se ofrece el medio. */
   accepts_card: boolean;
   /** Si el negocio cobra por transferencia. false = ni siquiera se ofrece. */
@@ -53,6 +54,7 @@ export interface SettingsInput {
   tax_rate: number;
   include_tax: boolean;
   allow_oversell: boolean;
+  require_active_shift?: boolean;
   accepts_card?: boolean;
   accepts_transfer?: boolean;
   currency: string;
@@ -67,6 +69,7 @@ const DEFAULTS: Settings = {
   tax_rate: 0.19,
   include_tax: true,
   allow_oversell: true,
+  require_active_shift: false,
   accepts_card: true,
   accepts_transfer: true,
   currency: "COP",
@@ -127,6 +130,7 @@ function mapSettings(raw: Record<string, unknown>): Settings {
     tax_rate: (raw.tax_rate as number) ?? DEFAULTS.tax_rate,
     include_tax: (raw.include_tax as boolean) ?? true,
     allow_oversell: (raw.allow_oversell as boolean) ?? true,
+    require_active_shift: (raw.require_active_shift as boolean) ?? false,
     accepts_card: (raw.accepts_card as boolean) ?? true,
     accepts_transfer: (raw.accepts_transfer as boolean) ?? true,
     currency: (raw.currency as string) ?? "COP",
@@ -209,6 +213,7 @@ export async function saveSettings(input: SettingsInput): Promise<Settings> {
     tax_rate: input.tax_rate,
     include_tax: input.include_tax,
     allow_oversell: input.allow_oversell,
+    ...(input.require_active_shift !== undefined ? { require_active_shift: input.require_active_shift } : {}),
     ...(input.accepts_card !== undefined ? { accepts_card: input.accepts_card } : {}),
     ...(input.accepts_transfer !== undefined ? { accepts_transfer: input.accepts_transfer } : {}),
     currency: input.currency,
