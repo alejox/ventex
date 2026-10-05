@@ -247,3 +247,16 @@ export async function saveSettings(input: SettingsInput): Promise<Settings> {
   if (error) throw error;
   return mapSettings(data as Record<string, unknown>);
 }
+
+/** Guarda únicamente la exigencia de turno, sin pisar otros ajustes pendientes. */
+export async function saveShiftRequirement(enabled: boolean): Promise<Settings> {
+  const supabase = createClient();
+  const { data: existing, error: readError } = await supabase.from("settings").select("id").maybeSingle();
+  if (readError) throw readError;
+  const query = existing
+    ? supabase.from("settings").update({ require_active_shift: enabled }).eq("id", existing.id)
+    : supabase.from("settings").insert({ require_active_shift: enabled });
+  const { data, error } = await query.select(SETTINGS_SELECT).single();
+  if (error) throw error;
+  return mapSettings(data as Record<string, unknown>);
+}

@@ -170,7 +170,7 @@ function AppointmentModalBody({
   const acceptsCard = useSettingsStore((s) => s.settings?.accepts_card) ?? true;
   const acceptsTransfer = useSettingsStore((s) => s.settings?.accepts_transfer) ?? true;
   const fetchSettings = useSettingsStore((s) => s.fetchSettings);
-  const requireActiveShift = useSettingsStore((s) => s.settings?.require_active_shift ?? false);
+  const requireActiveShift = useSettingsStore((s) => s.loading || (s.settings?.require_active_shift ?? true));
   const currentShift = useShiftsStore((s) => s.currentShift);
   const fetchCurrentShift = useShiftsStore((s) => s.fetchCurrentShift);
 

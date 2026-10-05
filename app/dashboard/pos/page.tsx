@@ -107,11 +107,20 @@ export default function POSPage() {
   const acceptsCard = useSettingsStore((s) => s.settings?.accepts_card) ?? true;
   const acceptsTransfer = useSettingsStore((s) => s.settings?.accepts_transfer) ?? true;
 
-  useEffect(() => { fetchSettings(); }, [fetchSettings]);
+  useEffect(() => {
+    void fetchSettings();
+    const refresh = () => { if (document.visibilityState === "visible") void fetchSettings(); };
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [fetchSettings]);
 
   const profile = useProfile();
   const isWorker = profile?.isWorker ?? false;
-  const requireActiveShift = useSettingsStore((s) => s.settings?.require_active_shift ?? false);
+  const requireActiveShift = useSettingsStore((s) => s.loading || (s.settings?.require_active_shift ?? true));
   const currentShift = useShiftsStore((s) => s.currentShift);
   const salesBlocked = isWorker && requireActiveShift && !currentShift;
   const fetchCurrentShift = useShiftsStore((s) => s.fetchCurrentShift);

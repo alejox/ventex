@@ -184,11 +184,13 @@ function ToggleSetting({
   title,
   description,
   checked,
+  disabled = false,
   onChange,
 }: {
   title: string;
   description: React.ReactNode;
   checked: boolean;
+  disabled?: boolean;
   onChange: (value: boolean) => void;
 }) {
   return (
@@ -202,6 +204,8 @@ function ToggleSetting({
           <input
             type="checkbox"
             className="sr-only peer"
+            disabled={disabled}
+            aria-label={title}
             checked={checked}
             onChange={(e) => onChange(e.target.checked)}
           />
@@ -215,7 +219,9 @@ function ToggleSetting({
 function SettingsForm({ settings }: { settings: Settings }) {
   const profile = useProfile();
   const canManageShiftRequirement = Boolean(profile && !profile.isWorker);
-  const [requireActiveShift, setRequireActiveShift] = useState(settings.require_active_shift);
+  const requireActiveShift = useSettingsStore((s) => s.settings?.require_active_shift ?? settings.require_active_shift);
+  const saveShiftRequirement = useSettingsStore((s) => s.saveShiftRequirement);
+  const [shiftSettingSaved, setShiftSettingSaved] = useState(false);
   const saveSettings = useSettingsStore((s) => s.saveSettings);
   const submitting = useSettingsStore((s) => s.submitting);
   const error = useSettingsStore((s) => s.error);
@@ -258,7 +264,6 @@ function SettingsForm({ settings }: { settings: Settings }) {
       tax_rate: Math.round(rate * 10000) / 10000,
       include_tax: includeTax,
       allow_oversell: allowOversell,
-      ...(canManageShiftRequirement ? { require_active_shift: requireActiveShift } : {}),
       currency,
       time_format: timeFormat,
       transfer_methods_enabled: transferMethods,
@@ -329,14 +334,22 @@ function SettingsForm({ settings }: { settings: Settings }) {
         </div>
       )}
 
-      {canManageShiftRequirement && <ToggleSetting
+      {canManageShiftRequirement && <div className="space-y-2"><ToggleSetting
         title="Exigir turno activo para facturar"
         description={requireActiveShift
           ? "El cajero debe abrir su turno antes de cobrar una venta o una cita."
           : "El cajero puede facturar sin abrir turno. Las ventas sin turno no se incluyen en un arqueo de caja."}
         checked={requireActiveShift}
-        onChange={(value) => { setRequireActiveShift(value); setSaved(false); }}
-      />}
+        disabled={submitting}
+        onChange={async (value) => {
+          setShiftSettingSaved(false);
+          if (await saveShiftRequirement(value)) setShiftSettingSaved(true);
+        }}
+      />
+        <p className="px-1 text-xs text-on-surface-variant" role="status">
+          {submitting ? "Guardando…" : shiftSettingSaved ? "Cambio guardado. Se aplica al abrir o actualizar el punto de venta." : "Este ajuste se guarda automáticamente al cambiarlo."}
+        </p>
+      </div>}
 
       <ToggleSetting
         title="Permitir vender sin stock"
