@@ -132,7 +132,7 @@ function buildInitialForm(
 
 const STATUS_OPTIONS = [
   { value: "pending", label: "Pendiente", color: "bg-amber-500/10 text-amber-600 border-amber-500/20" },
-  { value: "confirmed", label: "Confirmada", color: "bg-[#6063ee]/10 text-[#6063ee] border-[#6063ee]/20" },
+  { value: "confirmed", label: "Confirmada", color: "bg-primary/10 text-primary border-primary/20" },
   { value: "completed", label: "Completada", color: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" },
   { value: "cancelled", label: "Cancelada", color: "bg-error-container/20 text-error-dim border-error-container/30" },
 ];
@@ -151,8 +151,12 @@ function AppointmentModalBody({
   appointment,
   defaultStartTime,
 }: AppointmentModalProps) {
-  const { submitting, addAppointment, updateAppointment, updateStatus, chargeAppointment, deleteAppointment } =
-    useAppointmentsStore();
+  const submitting = useAppointmentsStore((s) => s.submitting);
+  const addAppointment = useAppointmentsStore((s) => s.addAppointment);
+  const updateAppointment = useAppointmentsStore((s) => s.updateAppointment);
+  const updateStatus = useAppointmentsStore((s) => s.updateStatus);
+  const chargeAppointment = useAppointmentsStore((s) => s.chargeAppointment);
+  const deleteAppointment = useAppointmentsStore((s) => s.deleteAppointment);
   const customers = useCustomersStore((s) => s.customers);
   const fetchCustomers = useCustomersStore((s) => s.fetchCustomers);
   const services = useServicesStore((s) => s.services);
@@ -172,6 +176,11 @@ function AppointmentModalBody({
   const [form, setForm] = useState<NewAppointmentInput>(() =>
     buildInitialForm(appointment, selectedDate, defaultStartTime),
   );
+  const [customTitle, setCustomTitle] = useState(Boolean(appointment));
+  const [savedForm, setSavedForm] = useState(form);
+  const [saving, setSaving] = useState(false);
+  const busy = submitting || saving;
+  const dirty = JSON.stringify(form) !== JSON.stringify(savedForm);
   const dialogRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const previousFocus = document.activeElement as HTMLElement | null;
@@ -227,24 +236,34 @@ function AppointmentModalBody({
     if (isWorker) fetchCurrentShift();
   }, [fetchSettings, isWorker, fetchCurrentShift]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!form.title.trim()) {
-      setError("El título es requerido");
-      return;
+  const generatedTitle = [
+    services.find((service) => service.id === form.service_id)?.name || form.service_type,
+    selectedCustomer?.full_name,
+  ].filter(Boolean).join(" · ");
+  const saveForm = async (): Promise<boolean> => {
+    const input = { ...form, title: customTitle ? form.title : generatedTitle || form.title };
+    setError("");
+    if (!input.title.trim()) {
+      setError("Elegí un servicio o personalizá el título de la cita.");
+      return false;
     }
-    if (form.start_time >= form.end_time) {
-      setError("La hora de fin debe ser posterior a la hora de inicio");
-      return;
+    if (!input.appointment_date || !input.start_time || !input.end_time || input.start_time >= input.end_time) {
+      setError("Revisá la fecha y el horario: el fin debe ser posterior al inicio.");
+      return false;
     }
-
-    let ok: boolean;
-    if (isEditing && appointment) {
-      ok = await updateAppointment(appointment.id, form);
-    } else {
-      ok = await addAppointment(form);
-    }
-    if (ok) onClose();
+    const ok = appointment
+      ? await updateAppointment(appointment.id, input)
+      : await addAppointment(input);
+    if (!ok) setError(useAppointmentsStore.getState().error ?? "No se pudo guardar la cita.");
+    if (ok) { setForm(input); setSavedForm(input); }
+    return ok;
+  };
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (busy) return;
+    setSaving(true);
+    try { if (await saveForm()) onClose(); }
+    finally { setSaving(false); }
   };
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -306,9 +325,14 @@ function AppointmentModalBody({
     setShowChargeConfirm(true);
   };
 
-  /** Confirmar desde el aviso de reserva pendiente. */
   const confirmPending = async () => {
-    await handleStatusChange("confirmed");
+    if (!appointment || busy) return;
+    setSaving(true);
+    try {
+      if (!await saveForm()) return;
+      if (await updateStatus(appointment.id, "confirmed")) toast.success("Reserva confirmada.");
+      else setError(useAppointmentsStore.getState().error ?? "No se pudo confirmar la reserva.");
+    } finally { setSaving(false); }
   };
 
   const confirmDeleteAction = async () => {
@@ -340,7 +364,7 @@ function AppointmentModalBody({
       service_id: id || null,
       // Sincroniza el texto y autocompleta título/duración a partir del servicio.
       service_type: svc ? svc.name : "",
-      title: f.title.trim() ? f.title : svc?.name ?? f.title,
+      title: customTitle ? f.title : svc?.name ?? "",
       end_time: svc ? addMinutes(f.start_time, svc.duration_minutes) : f.end_time,
     }));
   };
@@ -351,11 +375,11 @@ function AppointmentModalBody({
       event.preventDefault();
       if (showDeleteConfirm) setShowDeleteConfirm(false);
       else if (showChargeConfirm) setShowChargeConfirm(false);
-      else if (!submitting) onClose();
+      else if (!busy) onClose();
       return;
     }
     if (event.key !== "Tab") return;
-    const controls = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex="0"]') ?? []).filter((element) => element.offsetParent !== null);
+    const controls = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], summary, [tabindex="0"]') ?? []).filter((element) => element.offsetParent !== null);
     const first = controls[0];
     const last = controls[controls.length - 1];
     if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
@@ -367,10 +391,20 @@ function AppointmentModalBody({
       <div role="dialog" aria-modal="true" aria-labelledby="appointment-modal-title" className="bg-surface-container rounded-t-3xl sm:rounded-3xl w-full sm:max-w-lg max-h-[90vh] border border-outline-variant/10 shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200 flex flex-col">
         {/* Header */}
         <div className="p-4 sm:p-6 border-b border-outline-variant/10 flex justify-between items-center bg-surface-container-low shrink-0">
-          <h2 id="appointment-modal-title" className="text-lg sm:text-xl font-bold text-on-surface">
-            {isEditing ? "Editar Cita" : "Nueva Cita"}
-          </h2>
+          <div className="min-w-0">
+            <div className="flex items-center gap-3">
+              <h2 id="appointment-modal-title" className="text-lg sm:text-xl font-bold text-on-surface">
+                {isEditing ? "Editar cita" : "Nueva cita"}
+              </h2>
+              {liveStatus && <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
+                {STATUS_OPTIONS.find((option) => option.value === liveStatus)?.label}
+              </span>}
+            </div>
+            <p className="mt-1 text-sm text-on-surface-variant truncate">{generatedTitle || form.title || "Organiza la próxima visita"}</p>
+            <p className="mt-1 text-xs text-on-surface-variant">{form.appointment_date && formatDateOnly(form.appointment_date)} · {formatAppointmentTime(form.start_time, timeFormat)}–{formatAppointmentTime(form.end_time, timeFormat)}</p>
+          </div>
           <button
+            disabled={busy}
             onClick={onClose}
             className="w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors"
             aria-label="Cerrar"
@@ -381,76 +415,6 @@ function AppointmentModalBody({
           </button>
         </div>
 
-        {/* Status bar (editing only) */}
-        {isEditing && (
-          <div className="px-4 sm:px-6 py-3 border-b border-outline-variant/10 bg-surface-container-lowest shrink-0">
-            <p className="mb-2 text-xs text-on-surface-variant">Estado de la cita. Confirmarla aquí actualiza la agenda; el mensaje al cliente se envía por separado.</p>
-            {liveStatus === "pending" ? <button type="button" disabled={submitting} onClick={() => void handleStatusChange("confirmed")} className="mb-3 w-full rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-on-primary disabled:opacity-50">{submitting ? "Actualizando…" : "Confirmar reserva"}</button> : null}
-            <div className="flex flex-wrap gap-2">
-              {STATUS_OPTIONS.map((opt) => (
-                <button
-                  key={opt.value}
-                  // Explícito aunque hoy quede fuera del <form>: si alguien mueve
-                  // esta barra adentro, el default `submit` guardaría la cita
-                  // entera en cada clic de estado.
-                  type="button"
-                  disabled={submitting}
-                  aria-pressed={liveStatus === opt.value}
-                  onClick={() => handleStatusChange(opt.value)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
-                    liveStatus === opt.value
-                      ? opt.color
-                      : "bg-surface-container border-outline-variant/10 text-on-surface-variant hover:bg-surface-container-high"
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/*
-          Reserva pendiente: la ACCIÓN va arriba y es una sola. Antes había
-          que encontrar la píldora "Confirmada" entre cuatro iguales y, aparte,
-          el botón de WhatsApp más abajo; confirmar y avisar eran dos pasos que
-          se olvidaban por separado. "Confirmar y avisar" hace los dos.
-        */}
-        {isEditing && liveStatus === "pending" && (
-          <div className="px-4 sm:px-6 py-4 border-b border-amber-500/20 bg-amber-500/10 shrink-0">
-            <p className="text-sm font-bold text-on-surface">Reserva pendiente de confirmar</p>
-            <p className="text-xs text-on-surface-variant mt-0.5">
-              {selectedCustomer
-                ? `${selectedCustomer.full_name} está esperando tu confirmación.`
-                : "Confirma la cita para que quede firme en la agenda."}
-            </p>
-            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-              {customerWhatsapp ? (
-                <a
-                  href={whatsappUrl(confirmationMessage, customerWhatsapp)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={() => void confirmPending()}
-                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 py-2.5 text-sm font-semibold text-white hover:brightness-95 transition-all"
-                >
-                  Confirmar y avisar por WhatsApp
-                </a>
-              ) : null}
-              <button
-                type="button"
-                onClick={() => void confirmPending()}
-                className={`inline-flex flex-1 items-center justify-center rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors ${
-                  customerWhatsapp
-                    ? "border border-outline-variant/30 text-on-surface hover:bg-surface-container-high"
-                    : "bg-primary text-on-primary hover:bg-primary-dim"
-                }`}
-              >
-                {customerWhatsapp ? "Solo confirmar" : "Confirmar cita"}
-              </button>
-            </div>
-          </div>
-        )}
-
         {isEditing && liveSaleId && (
           <div className="px-4 sm:px-6 py-3 border-b border-emerald-500/20 bg-emerald-500/10 shrink-0 text-sm font-semibold text-emerald-700 dark:text-emerald-400">
             Cita cobrada: la venta ya está registrada.
@@ -458,27 +422,13 @@ function AppointmentModalBody({
         )}
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 sm:space-y-5 overflow-y-auto">
+        <form id="appointment-edit-form" onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 sm:space-y-5 overflow-y-auto min-h-0">
+          <fieldset disabled={busy} className="space-y-4 sm:space-y-5">
           {error && (
             <div className="rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim">
               {error}
             </div>
           )}
-
-          {/* Title */}
-          <div className="space-y-1.5">
-            <label className="text-[13px] font-semibold text-on-surface block">
-              Título *
-            </label>
-            <input
-              type="text"
-              required
-              value={form.title}
-              onChange={(e) => setForm({ ...form, title: e.target.value })}
-              className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50"
-              placeholder="Ej. Corte de cabello"
-            />
-          </div>
 
           {/* Customer */}
           <Select
@@ -521,16 +471,6 @@ function AppointmentModalBody({
                 </span>
               )}
 
-              {customerWhatsapp ? (
-                <a
-                  href={whatsappUrl(confirmationMessage, customerWhatsapp)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-[#25D366] px-4 py-2 text-sm font-semibold text-white hover:brightness-95 transition-all"
-                >
-                  Enviar confirmación por WhatsApp
-                </a>
-              ) : null}
             </div>
           ) : null}
 
@@ -627,6 +567,9 @@ function AppointmentModalBody({
             </p>
           )}
 
+          <details className="rounded-xl border border-outline-variant/20 p-3">
+            <summary className="cursor-pointer text-sm font-semibold text-on-surface">Notas y detalles opcionales</summary>
+            <div className="mt-4 space-y-4">
           {/* Description */}
           <div className="space-y-1.5">
             <label className="text-[13px] font-semibold text-on-surface block">
@@ -646,7 +589,7 @@ function AppointmentModalBody({
           {/* Notes */}
           <div className="space-y-1.5">
             <label className="text-[13px] font-semibold text-on-surface block">
-              Notas
+              Notas internas
             </label>
             <textarea
               value={form.notes}
@@ -657,51 +600,61 @@ function AppointmentModalBody({
             />
           </div>
 
-          {/* Footer */}
-          <div className="pt-4 flex flex-col sm:flex-row gap-3 border-t border-outline-variant/10">
-            <div className="flex gap-2 flex-1">
-              {isEditing && (
-                <button
-                  type="button"
-                  onClick={() => setShowDeleteConfirm(true)}
-                  className="px-4 py-2.5 rounded-xl text-sm font-semibold text-error-dim hover:bg-error-container/20 transition-colors"
-                >
-                  Eliminar
-                </button>
-              )}
-              {canCharge && (
-                <button
-                  type="button"
-                  onClick={startCharge}
-                  disabled={submitting}
-                  className="px-4 py-2.5 rounded-xl text-sm font-semibold text-emerald-600 bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors disabled:opacity-50"
-                >
-                  {chargedService ? `Cobrar $${money(chargedService.price)}` : "Cobrar"}
-                </button>
-              )}
             </div>
-            <div className="flex gap-3 flex-1 sm:flex-none">
-              <button
-                type="button"
-                onClick={onClose}
-                className="flex-1 sm:flex-none px-5 py-2.5 rounded-xl text-sm font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-colors"
-              >
-                Cancelar
+          </details>
+          <details className="text-sm text-on-surface-variant">
+            <summary className="cursor-pointer">Personalizar título</summary>
+            <div className="mt-3">
+          {/* Title */}
+          <div className="space-y-1.5">
+            <label className="text-[13px] font-semibold text-on-surface block">
+              Título *
+            </label>
+            <input
+              type="text"
+                            value={customTitle ? form.title : generatedTitle || form.title}
+              onChange={(e) => { setCustomTitle(true); setForm({ ...form, title: e.target.value }); }}
+              className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50"
+              placeholder="Ej. Corte de cabello"
+            />
+          </div>
+
+            </div>
+          </details>
+          </fieldset>
+        </form>
+        <div className="shrink-0 border-t border-outline-variant/20 bg-surface-container-lowest p-4 sm:px-6 space-y-3">
+          {isEditing && liveStatus === "confirmed" && !dirty && (
+            <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+              <span className="font-semibold text-primary" role="status">Reserva confirmada</span>
+              {customerWhatsapp ? <a href={whatsappUrl(confirmationMessage, customerWhatsapp)} target="_blank" rel="noopener noreferrer"
+                className="font-semibold text-primary underline underline-offset-4">Avisar por WhatsApp</a>
+                : <span className="text-xs text-on-surface-variant">Sin teléfono para avisar.</span>}
+            </div>
+          )}
+          <div className="flex items-center justify-between gap-2">
+            {isEditing ? <details className="relative">
+              <summary className="cursor-pointer text-sm text-on-surface-variant">Más acciones</summary>
+              <div className="absolute bottom-full left-0 mb-3 w-52 rounded-xl border border-outline-variant/30 bg-surface-container-high p-2 shadow-xl flex flex-col">
+                {STATUS_OPTIONS.filter(option => option.value !== liveStatus && option.value !== "confirmed").map(option =>
+                  <button key={option.value} type="button" disabled={busy} onClick={() => void handleStatusChange(option.value)} className="text-left rounded-lg p-2 text-sm text-on-surface hover:bg-surface-container-highest">
+                    {option.value === "cancelled" ? "Cancelar cita" : option.value === "completed" ? "Marcar completada" : "Volver a pendiente"}
+                  </button>)}
+                <button type="button" disabled={busy} onClick={() => setShowDeleteConfirm(true)} className="text-left rounded-lg p-2 text-sm text-error-dim">Eliminar cita</button>
+              </div>
+            </details> : <button type="button" onClick={onClose} className="text-sm text-on-surface-variant">Volver</button>}
+            <div className="flex flex-wrap justify-end gap-2">
+              <button type="submit" form="appointment-edit-form" disabled={busy}
+                className={`rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-50 ${isEditing ? "border border-outline-variant/30 text-on-surface" : "bg-primary text-on-primary"}`}>
+                {busy ? "Guardando…" : isEditing ? "Guardar cambios" : "Crear cita"}
               </button>
-              <button
-                type="submit"
-                disabled={submitting}
-                className="flex-1 sm:flex-none px-5 py-2.5 rounded-xl text-sm font-semibold bg-primary hover:bg-primary-dim text-on-primary shadow-[0_0_15px_rgba(96,99,238,0.2)] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {submitting
-                  ? "Guardando..."
-                  : isEditing
-                    ? "Actualizar"
-                    : "Crear Cita"}
-              </button>
+              {liveStatus === "pending" ? <button type="button" disabled={busy} onClick={() => void confirmPending()} className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary disabled:opacity-50">Confirmar reserva</button>
+                : canCharge && <button type="button" disabled={busy || dirty} onClick={startCharge} title={dirty ? "Guardá los cambios antes de cobrar" : undefined} className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary disabled:opacity-50">
+                  {chargedService ? `Cobrar $${money(chargedService.price)}` : "Cobrar"}
+                </button>}
             </div>
           </div>
-        </form>
+        </div>
       </div>
 
       {showDeleteConfirm && (
@@ -722,7 +675,7 @@ function AppointmentModalBody({
               <button
                 type="button"
                 onClick={confirmDeleteAction}
-                disabled={submitting}
+                disabled={busy}
                 className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold bg-error-dim hover:bg-error text-white transition-colors disabled:opacity-50"
               >
                 {submitting ? "Eliminando…" : "Eliminar"}
@@ -788,7 +741,7 @@ function AppointmentModalBody({
               <button
                 type="button"
                 onClick={confirmChargeAction}
-                disabled={submitting}
+                disabled={busy}
                 className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold bg-emerald-600 hover:bg-emerald-500 text-white transition-colors disabled:opacity-50"
               >
                 {submitting ? "Cobrando…" : "Confirmar cobro"}

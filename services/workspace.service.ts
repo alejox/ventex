@@ -33,6 +33,8 @@ export interface WorkspaceContext {
 }
 
 export interface WorkspaceExecutionContext {
+  /** Ficha del cajero en la membresía seleccionada, nunca la de otro negocio. */
+  staffId?: string | null;
   authUserId: string;
   workspaceId: string;
   membershipId: string;
@@ -174,5 +176,6 @@ export async function getWorkspaceExecutionContext(): Promise<WorkspaceExecution
     authUserId,
     workspaceId: context.active.workspace_id,
     membershipId: context.active.id,
+    staffId: context.active.staff_id,
   };
 }

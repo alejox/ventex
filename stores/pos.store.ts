@@ -119,6 +119,7 @@ interface PosState {
   setDefaultCustomerId: (id: string | null) => void;
 
   init: () => Promise<void>;
+  syncShiftStaff: () => void;
 
   // Gestión de pestañas
   addTab: () => void;
@@ -393,10 +394,34 @@ export const usePosStore = create<PosState>((set, get) => {
         } else {
           set({ catalog, customers, staff, offers, taxRate, includeTax, allowOversell, executionContext, loading: false });
         }
+        await useShiftsStore.getState().fetchCurrentShift();
+        get().syncShiftStaff();
         get().recomputeOffers();
       } catch (e) {
         set({ error: toMessage(e), loading: false });
       }
+    },
+
+    // También corre al abrir/cerrar turno con el POS ya montado.
+    syncShiftStaff: () => {
+      const state = get();
+      const shift = useShiftsStore.getState().currentShift;
+      const context = state.executionContext;
+      const responsible = shift && context &&
+        shift.workspace_id === context.workspaceId &&
+        shift.membership_id === context.membershipId &&
+        state.staff.some((person) => person.id === context.staffId)
+        ? context.staffId ?? null
+        : null;
+      if (state.defaultStaffId === responsible) return;
+      set({
+        defaultStaffId: responsible,
+        tabs: state.tabs.map((tab) => tab.staffId === null ? {
+          ...tab,
+          staffId: responsible,
+          cart: tab.cart.map((line) => ({ ...line, staffId: line.staffId ?? responsible })),
+        } : tab),
+      });
     },
 
     addTab: () =>
@@ -1242,4 +1267,11 @@ export const usePosStore = create<PosState>((set, get) => {
     clearStockAlert: () => set({ stockAlert: null }),
     clearPlanLimit: () => set({ planLimitHit: false }),
   };
+});
+
+// Store-to-store synchronization keeps async arrival order out of React effects.
+useShiftsStore.subscribe((state, previous) => {
+  if (state.currentShift?.id !== previous.currentShift?.id) {
+    usePosStore.getState().syncShiftStaff();
+  }
 });
