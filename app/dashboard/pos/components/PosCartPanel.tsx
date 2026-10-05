@@ -104,6 +104,7 @@ interface PosCartPanelProps {
   includeTax: boolean;
   isTaxExempt: boolean;
   submitting: boolean;
+  salesBlocked: boolean;
   allowOversell: boolean;
   transferMethod: string | null;
   setTransferMethod: (id: string | null) => void;
@@ -154,6 +155,7 @@ export function PosCartPanel({
   includeTax,
   isTaxExempt,
   submitting,
+  salesBlocked,
   allowOversell,
   transferMethod,
   setTransferMethod,
@@ -696,10 +698,11 @@ export function PosCartPanel({
 
           <div className="flex gap-2">
             <button
+              title={salesBlocked ? "Abre tu turno para vender" : undefined}
               onClick={onCheckout}
-              disabled={cart.length === 0 || submitting || missingPrice}
+              disabled={salesBlocked || cart.length === 0 || submitting || missingPrice}
               className={`flex-1 flex items-center justify-center gap-2 rounded-xl px-4 py-3 font-semibold transition-all ${
-                cart.length === 0 || missingPrice
+                salesBlocked || cart.length === 0 || missingPrice
                   ? "bg-surface-container-highest cursor-not-allowed opacity-70 text-on-surface-variant/50"
                   : "bg-primary text-white hover:bg-primary-dim shadow-sm"
               }`}

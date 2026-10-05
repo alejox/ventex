@@ -113,6 +113,7 @@ export default function POSPage() {
   const isWorker = profile?.isWorker ?? false;
   const requireActiveShift = useSettingsStore((s) => s.settings?.require_active_shift ?? false);
   const currentShift = useShiftsStore((s) => s.currentShift);
+  const salesBlocked = isWorker && requireActiveShift && !currentShift;
   const fetchCurrentShift = useShiftsStore((s) => s.fetchCurrentShift);
   const [isCloseShiftOpen, setIsCloseShiftOpen] = useState(false);
   const [isWithdrawalOpen, setIsWithdrawalOpen] = useState(false);
@@ -385,6 +386,7 @@ export default function POSPage() {
 
   const handleScannedCode = useCallback(
     (code: string, source: "camera" | "input" = "camera") => {
+      if (salesBlocked) return true;
       const match = resolveCatalogCode(catalog, code);
       if (!match) {
         const query = code.trim().toLowerCase();
@@ -406,7 +408,7 @@ export default function POSPage() {
       notifySuccess("Agregado a la venta", match.name);
       return true;
     },
-    [catalog, addToCart, allowOversell, cart],
+    [catalog, addToCart, allowOversell, cart, salesBlocked],
   );
 
   const cartUnits = useMemo(() => cart.reduce((sum, l) => sum + l.quantity, 0), [cart]);
@@ -553,6 +555,7 @@ export default function POSPage() {
   const citaActiva = citaEnCobro && citaEnCobro.forTab === activeTabId ? citaEnCobro.id : null;
 
   const handlePickCita = (cita: BillableAppointment) => {
+    if (salesBlocked) { setIsOpenShiftOpen(true); return; }
     const item = catalog.find((c) => c.kind === "service" && c.id === cita.service_id);
     if (!item) {
       notifyError(
@@ -1073,6 +1076,7 @@ export default function POSPage() {
             includeTax={includeTax}
             isTaxExempt={isTaxExempt}
             submitting={submitting}
+            salesBlocked={salesBlocked}
             allowOversell={allowOversell}
             transferMethod={transferMethod ?? null}
             setTransferMethod={setTransferMethod}

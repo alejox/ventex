@@ -115,6 +115,7 @@ export function PosCatalog({
   openCloseShift,
   topSlot,
 }: PosCatalogProps) {
+  const salesBlocked = isWorker && requireActiveShift && !currentShift;
   const router = useRouter();
   const searchRef = useRef<HTMLInputElement>(null);
   const scanTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -187,10 +188,11 @@ export function PosCatalog({
           />
           <button
             type="button"
+            disabled={salesBlocked}
             onClick={onOpenScanner}
             aria-label="Escanear código de barras"
             title="Escanear código de barras"
-            className="absolute right-1.5 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center rounded-xl text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
+            className="absolute right-1.5 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center rounded-xl text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-5 h-5">
               <path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2" />
@@ -268,7 +270,7 @@ export function PosCatalog({
             <p className="text-sm font-bold text-on-surface">La caja está cerrada</p>
             <p className="text-xs text-on-surface-variant">
               {requireActiveShift
-                ? "Puedes armar el carrito, pero para cobrar primero abre tu turno con la base de caja."
+                ? "Abre tu turno con la base de caja para habilitar los productos, servicios y la venta."
                 : "Puedes cobrar sin turno. Abre la caja si quieres llevar el arqueo de tus ventas."}
             </p>
           </div>
@@ -324,7 +326,7 @@ export function PosCatalog({
                 // En los dos casos llega en null y no hay stock que mostrar.
                 const stock = item.stock_level;
                 const outOfStock = stock != null && stock <= 0;
-                const blocked = !allowOversell && outOfStock;
+                const blocked = salesBlocked || (!allowOversell && outOfStock);
                 const atStockCap = !allowOversell && stock != null && qty >= stock;
                 return (
                   <li key={item.id}>
@@ -335,7 +337,7 @@ export function PosCatalog({
                           : stock == null
                             ? "border-emerald-500/20 bg-emerald-500/5"
                             : "border-outline-variant/10 bg-surface-container"
-                      } ${blocked && qty === 0 ? "opacity-50" : ""}`}
+                      } ${salesBlocked || (blocked && qty === 0) ? "opacity-50" : ""}`}
                     >
                       <div className="w-12 h-12 shrink-0 rounded-lg bg-surface-container-lowest flex items-center justify-center overflow-hidden">
                         {item.image_url ? (
@@ -366,6 +368,7 @@ export function PosCatalog({
                       {qty > 0 ? (
                         <div className="flex items-center gap-1 shrink-0 rounded-xl border border-outline-variant/20 bg-surface-container-lowest">
                           <button
+                            disabled={salesBlocked}
                             onClick={() => decrement(lineKey(item.id))}
                             aria-label={`Quitar una unidad de ${item.name}`}
                             className="w-10 h-10 flex items-center justify-center text-lg text-on-surface-variant active:bg-on-surface/10 rounded-l-xl"
@@ -377,7 +380,7 @@ export function PosCatalog({
                           </span>
                           <button
                             onClick={() => increment(lineKey(item.id))}
-                            disabled={atStockCap}
+                            disabled={salesBlocked || atStockCap}
                             aria-label={`Agregar una unidad de ${item.name}`}
                             className="w-10 h-10 flex items-center justify-center text-lg text-on-surface-variant active:bg-on-surface/10 rounded-r-xl disabled:opacity-30"
                           >
@@ -419,7 +422,7 @@ export function PosCatalog({
                       key={item.id}
                       type="button"
                       onClick={() => addToCart(item)}
-                      disabled={!allowOversell && outOfStock}
+                      disabled={salesBlocked || (!allowOversell && outOfStock)}
                       className={`text-left rounded-2xl p-3 border flex flex-col min-w-0 overflow-hidden transition-colors group shadow-sm relative disabled:opacity-50 disabled:cursor-not-allowed ${
                         stock == null
                           ? "bg-emerald-500/5 border-emerald-500/20 hover:border-emerald-400/40 disabled:hover:border-emerald-500/20"
@@ -500,7 +503,7 @@ export function PosCatalog({
                     <button
                       key={item.id}
                       onClick={() => addToCart(item)}
-                      disabled={!allowOversell && outOfStock}
+                      disabled={salesBlocked || (!allowOversell && outOfStock)}
                       className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-colors text-left disabled:opacity-40 disabled:cursor-not-allowed ${
                         stock == null
                           ? "bg-emerald-500/5 border-emerald-500/20 hover:border-emerald-400/40"
