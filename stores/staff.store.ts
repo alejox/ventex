@@ -8,7 +8,7 @@ import type {
   CommissionRow,
   CommissionPeriod,
   CommissionSettlement,
-  HaircutByStaff,
+  ServicesByStaff,
   SettleCommissionsInput,
   VoidSettlementResult,
 } from "@/services/staff.service";
@@ -44,15 +44,18 @@ interface StaffState {
   settlements: CommissionSettlement[];
   settlementsLoading: boolean;
 
-  /** Reporte de cortes por miembro. Va aparte de `commissions` a propósito. */
-  haircuts: HaircutByStaff[];
-  haircutsLoading: boolean;
+  /** Reporte de servicios por persona. Va aparte de `commissions` a propósito. */
+  servicesReport: ServicesByStaff[];
+  servicesReportLoading: boolean;
+  reportServices: { id: string; name: string }[] | null;
+  servicesUnassigned: number;
+  servicesReportError: string | null;
 
   fetchStaff: () => Promise<void>;
   fetchAccounts: () => Promise<void>;
   fetchCommissions: (period?: CommissionPeriod) => Promise<void>;
   fetchSettlements: () => Promise<void>;
-  fetchHaircuts: (period: CommissionPeriod) => Promise<void>;
+  fetchServicesReport: (period: CommissionPeriod) => Promise<void>;
 
   /**
    * Liquida y devuelve el id de la liquidación (para abrir su comprobante), o
@@ -82,6 +85,8 @@ interface StaffState {
   revokeAccess: (accountId: string) => Promise<boolean>;
 }
 
+let servicesReportRequest = 0;
+
 export const useStaffStore = create<StaffState>((set) => ({
   staff: [],
   // Arranca en `true`: el primer render es anterior al fetch del efecto, y con
@@ -95,8 +100,11 @@ export const useStaffStore = create<StaffState>((set) => ({
   commissionsLoading: false,
   settlements: [],
   settlementsLoading: false,
-  haircuts: [],
-  haircutsLoading: false,
+  servicesReport: [],
+  servicesReportLoading: true,
+  reportServices: null,
+  servicesUnassigned: 0,
+  servicesReportError: null,
 
   fetchStaff: async () => {
     set({ loading: true, error: null });
@@ -128,13 +136,17 @@ export const useStaffStore = create<StaffState>((set) => ({
     }
   },
 
-  fetchHaircuts: async (period) => {
-    set({ haircutsLoading: true });
+  fetchServicesReport: async (period) => {
+    const request = ++servicesReportRequest;
+    set({ servicesReportLoading: true, servicesReportError: null });
     try {
-      const haircuts = await staffService.fetchHaircutsByStaff(period);
-      set({ haircuts, haircutsLoading: false });
+      const report = await staffService.fetchServicesByStaff(period);
+      if (request !== servicesReportRequest) return;
+      set({ servicesReport: report.rows, reportServices: report.services,
+        servicesUnassigned: report.unassignedServices, servicesReportLoading: false });
     } catch (e) {
-      set({ error: toMessage(e), haircutsLoading: false });
+      if (request !== servicesReportRequest) return;
+      set({ servicesReportError: toMessage(e), servicesReportLoading: false });
     }
   },
 

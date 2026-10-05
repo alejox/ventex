@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import { useBusinessSiteStore } from "@/stores/business-site.store";
 import { useSettingsStore } from "@/stores/settings.store";
 import { emptySiteInput, slugify, toSiteInput } from "@/services/business-site.service";
@@ -8,6 +8,10 @@ import { LandingEditor } from "@/components/landing/LandingEditor";
 import { useProfile } from "@/components/ProfileProvider";
 
 export default function LandingPage() {
+  return <Suspense fallback={<div className="text-sm text-on-surface-variant">Cargando editor…</div>}><LandingContent /></Suspense>;
+}
+
+function LandingContent() {
   const site = useBusinessSiteStore((state) => state.site);
   const hours = useBusinessSiteStore((state) => state.hours);
   const loaded = useBusinessSiteStore((state) => state.loaded);

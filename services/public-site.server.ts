@@ -27,6 +27,7 @@ export async function fetchPublicSite(slug: string): Promise<PublicSite | null> 
   const raw = data as unknown as Record<string, unknown>;
   return {
     ...raw,
+    timeFormat: raw.timeFormat === "24" ? "24" : "12",
     config: normalizeLandingConfig(raw),
   } as unknown as PublicSite;
 }
@@ -61,5 +62,7 @@ export async function fetchOwnSitePreview(): Promise<PublicSite | null> {
   // publicado— no pasa por acá. Romper el 404 de un slug inexistente por un
   // error de permisos sería cambiar un problema de nadie por uno de todos.
   if (error) return null;
-  return (data as PublicSite | null) ?? null;
+  if (!data || typeof data !== "object") return null;
+  const site = data as unknown as PublicSite;
+  return { ...site, timeFormat: site.timeFormat === "24" ? "24" : "12" };
 }

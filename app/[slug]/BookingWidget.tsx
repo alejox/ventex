@@ -15,6 +15,7 @@ import type {
   DaySlot,
 } from "@/services/public-site.types";
 import { formatCOP } from "./templates/theme";
+import { formatAppointmentTime } from "@/lib/time";
 import { BOOK_SERVICE_EVENT } from "./BookServiceLink";
 
 /**
@@ -280,7 +281,7 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
           <strong className="text-[var(--site-on-surface)]">
             {longDateFmt.format(parseDateInput(confirmed.date))}
           </strong>{" "}
-          a las <strong className="text-[var(--site-on-surface)]">{confirmed.time}</strong>.
+          a las <strong className="text-[var(--site-on-surface)]">{formatAppointmentTime(confirmed.time, site.timeFormat)}</strong>.
         </p>
         <p className="mt-3 text-sm text-[var(--site-on-surface-muted)]">
           Queda <strong className="text-[var(--site-on-surface)]">pendiente de confirmación</strong>. El
@@ -537,7 +538,7 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
             <SummaryRow label="Con" value={staffMember?.fullName ?? "Cualquiera disponible"} />
             <SummaryRow
               label="Cuándo"
-              value={`${shortDateFmt.format(parseDateInput(date))} · ${time} h`}
+              value={`${shortDateFmt.format(parseDateInput(date))} · ${formatAppointmentTime(time, site.timeFormat)}`}
             />
             <SummaryRow label="Precio" value={formatCOP(service.price)} strong />
           </dl>
@@ -548,7 +549,7 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
           disabled={submitting || !time || !name || !phone}
           className="min-h-12 w-full rounded-[var(--site-radius)] bg-[var(--site-accent)] px-4 py-3.5 text-sm font-semibold text-[var(--site-on-accent)] transition-opacity focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--site-accent)] disabled:opacity-60"
         >
-          {submitting ? "Enviando…" : time ? `Reservar a las ${time}` : "Reservar turno"}
+          {submitting ? "Enviando…" : time ? `Reservar a las ${formatAppointmentTime(time, site.timeFormat)}` : "Reservar turno"}
         </button>
 
         {/* Dice qué falta, en vez de dejar un botón apagado sin explicación. */}
@@ -648,7 +649,7 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
                                     : "border-[var(--site-on-surface-border)] text-[var(--site-on-surface)] hover:border-[var(--site-accent)]"
                                 }`}
                               >
-                                {slot.time}
+                                {formatAppointmentTime(slot.time, site.timeFormat)}
                               </button>
                             </li>
                           );
@@ -662,7 +663,7 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
                             key={slot.time}
                             className="flex h-11 flex-col items-center justify-center rounded-[var(--site-radius)] bg-[var(--site-surface-alt)] text-[var(--site-on-surface-muted)]"
                           >
-                            <span className="text-sm leading-none opacity-70">{slot.time}</span>
+                            <span className="text-sm leading-none opacity-70">{formatAppointmentTime(slot.time, site.timeFormat)}</span>
                             <span className="mt-0.5 text-[0.55rem] uppercase opacity-70">
                               {slot.state === "taken" ? "Reservado" : "Pasó"}
                             </span>

@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { IconBell } from "@/app/assets/icons/DashboardIcons";
 import { useNotificationsStore } from "@/stores/notifications.store";
 import type { AppNotification } from "@/services/notifications.service";
+import { notificationDestination } from "@/services/notifications.service";
 import { backdropProps } from "@/components/modal";
 
 const SEVERITY_DOT: Record<string, string> = {
@@ -26,16 +28,17 @@ function timeAgo(iso: string): string {
 
 function NotificationRow({
   notification,
-  onRead,
+  onActivate,
 }: {
   notification: AppNotification;
-  onRead: (id: string) => void;
+  onActivate: (notification: AppNotification) => void;
 }) {
   const unread = !notification.read_at;
+  const destination = notificationDestination(notification);
   return (
     <button
       type="button"
-      onClick={() => unread && onRead(notification.id)}
+      onClick={() => onActivate(notification)}
       className={`w-full text-left px-5 py-3.5 flex gap-3.5 transition-colors hover:bg-surface-container-highest/60 ${
         unread ? "bg-primary/5" : ""
       }`}
@@ -54,6 +57,7 @@ function NotificationRow({
             {notification.body}
           </span>
         )}
+        {destination && <span className="mt-1.5 block text-xs font-semibold text-primary">Ver reserva en Calendario →</span>}
         <span className="block text-[11px] text-on-surface-variant/70 mt-1.5 font-mono">
           {timeAgo(notification.created_at)}
         </span>
@@ -67,6 +71,7 @@ function NotificationRow({
  * descuadre) y `register_cash_withdrawal` (retiro de efectivo de la caja).
  */
 export function NotificationsBell() {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const notifications = useNotificationsStore((s) => s.notifications);
   const unreadCount = useNotificationsStore((s) => s.unreadCount);
@@ -98,6 +103,15 @@ export function NotificationsBell() {
     // Al abrir se recarga: el badge puede llevar rato en pantalla.
     if (next) fetchNotifications();
   };
+
+  function activateNotification(notification: AppNotification) {
+    if (!notification.read_at) void markRead(notification.id);
+    const destination = notificationDestination(notification);
+    if (destination) {
+      setOpen(false);
+      router.push(destination);
+    }
+  }
 
   return (
     <div className="relative">
@@ -173,7 +187,7 @@ export function NotificationsBell() {
                 </div>
               ) : (
                 notifications.map((n) => (
-                  <NotificationRow key={n.id} notification={n} onRead={markRead} />
+                  <NotificationRow key={n.id} notification={n} onActivate={activateNotification} />
                 ))
               )}
             </div>

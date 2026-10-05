@@ -18,6 +18,14 @@ export interface AppNotification {
 
 const NOTIFICATION_SELECT = "id, type, severity, title, body, data, read_at, created_at";
 
+/** Booking alerts carry the appointment ID, including alerts already stored. */
+export function notificationDestination(notification: AppNotification): string | null {
+  if (notification.type !== "appointment") return null;
+  const appointmentId = notification.data?.appointment_id;
+  if (typeof appointmentId !== "string" || !appointmentId.trim()) return null;
+  return `/dashboard/calendar?appointment=${encodeURIComponent(appointmentId)}`;
+}
+
 /** Últimas notificaciones del usuario autenticado (RLS: solo las suyas). */
 export async function fetchNotifications(limit = 30): Promise<AppNotification[]> {
   const supabase = createClient();

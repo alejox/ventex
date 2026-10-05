@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { useAppointmentsStore } from "@/stores/appointments.store";
 import { useCustomersStore } from "@/stores/customers.store";
@@ -11,6 +11,10 @@ import { Select } from "@/components/ui/Select";
 import { whatsappUrl, toWhatsappNumber } from "@/config/contact";
 import type { Appointment, NewAppointmentInput } from "@/services/appointments.service";
 import { toISODate, formatDateOnly } from "@/lib/date";
+
+import { useSettingsStore } from "@/stores/settings.store";
+import { formatAppointmentTime, type TimeFormat } from "@/lib/time";
+import { AppointmentTimeInput } from "./AppointmentTimeInput";
 
 /**
  * Mensaje de confirmación ya redactado para el cliente.
@@ -24,11 +28,13 @@ function buildConfirmationMessage({
   serviceName,
   date,
   startTime,
+  timeFormat,
 }: {
   customerName: string;
   serviceName: string;
   date: string;
   startTime: string;
+  timeFormat: TimeFormat;
 }): string {
   const readableDate = date
     ? formatDateOnly(date, { weekday: "long", day: "numeric", month: "long" })
@@ -38,7 +44,7 @@ function buildConfirmationMessage({
   const greeting = firstName ? `Hola ${firstName}` : "Hola";
   const what = serviceName ? ` de ${serviceName}` : "";
 
-  return `${greeting}, te confirmamos tu cita${what} para el ${readableDate} a las ${startTime.slice(0, 5)}. ¡Te esperamos!`;
+  return `${greeting}, te confirmamos tu cita${what} para el ${readableDate} a las ${formatAppointmentTime(startTime, timeFormat)}. ¡Te esperamos!`;
 }
 
 interface AppointmentModalProps {
@@ -132,11 +138,18 @@ function AppointmentModalBody({
   const staff = useStaffStore((s) => s.staff);
   const fetchStaff = useStaffStore((s) => s.fetchStaff);
   const profile = useProfile();
+  const timeFormat = useSettingsStore((s) => s.settings?.time_format ?? "12");
   const isCarWash = profile?.businessType === "lavaautos";
 
   const [form, setForm] = useState<NewAppointmentInput>(() =>
     buildInitialForm(appointment, selectedDate, defaultStartTime),
   );
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const previousFocus = document.activeElement as HTMLElement | null;
+    dialogRef.current?.querySelector<HTMLInputElement>("input")?.focus();
+    return () => { if (previousFocus?.isConnected) previousFocus.focus(); };
+  }, []);
   const [error, setError] = useState("");
   const isEditing = !!appointment;
 
@@ -153,7 +166,8 @@ function AppointmentModalBody({
    */
   const liveStatus = useAppointmentsStore((s) =>
     appointment
-      ? (s.appointments.find((a) => a.id === appointment.id)?.status ?? appointment.status)
+      ? (s.appointments.find((a) => a.id === appointment.id)?.status
+        ?? (s.linkedAppointment?.id === appointment.id ? s.linkedAppointment.status : null) ?? appointment.status)
       : null,
   );
 
@@ -169,6 +183,7 @@ function AppointmentModalBody({
       services.find((s) => s.id === form.service_id)?.name || form.service_type || form.title,
     date: form.appointment_date,
     startTime: form.start_time,
+    timeFormat,
   });
 
   useEffect(() => {
@@ -247,12 +262,29 @@ function AppointmentModalBody({
     }));
   };
 
+  function handleDialogKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    if (event.defaultPrevented) return;
+    if (event.key === "Escape") {
+      event.preventDefault();
+      if (showDeleteConfirm) setShowDeleteConfirm(false);
+      else if (showChargeConfirm) setShowChargeConfirm(false);
+      else if (!submitting) onClose();
+      return;
+    }
+    if (event.key !== "Tab") return;
+    const controls = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex="0"]') ?? []).filter((element) => element.offsetParent !== null);
+    const first = controls[0];
+    const last = controls[controls.length - 1];
+    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+  }
+
   return (
-    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-surface-container rounded-t-3xl sm:rounded-3xl w-full sm:max-w-lg max-h-[90vh] border border-outline-variant/10 shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200 flex flex-col">
+    <div ref={dialogRef} onKeyDown={handleDialogKeyDown} className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+      <div role="dialog" aria-modal="true" aria-labelledby="appointment-modal-title" className="bg-surface-container rounded-t-3xl sm:rounded-3xl w-full sm:max-w-lg max-h-[90vh] border border-outline-variant/10 shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200 flex flex-col">
         {/* Header */}
         <div className="p-4 sm:p-6 border-b border-outline-variant/10 flex justify-between items-center bg-surface-container-low shrink-0">
-          <h2 className="text-lg sm:text-xl font-bold text-on-surface">
+          <h2 id="appointment-modal-title" className="text-lg sm:text-xl font-bold text-on-surface">
             {isEditing ? "Editar Cita" : "Nueva Cita"}
           </h2>
           <button
@@ -269,6 +301,8 @@ function AppointmentModalBody({
         {/* Status bar (editing only) */}
         {isEditing && (
           <div className="px-4 sm:px-6 py-3 border-b border-outline-variant/10 bg-surface-container-lowest shrink-0">
+            <p className="mb-2 text-xs text-on-surface-variant">Estado de la cita. Confirmarla aquí actualiza la agenda; el mensaje al cliente se envía por separado.</p>
+            {liveStatus === "pending" ? <button type="button" disabled={submitting} onClick={() => void handleStatusChange("confirmed")} className="mb-3 w-full rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-on-primary disabled:opacity-50">{submitting ? "Actualizando…" : "Confirmar reserva"}</button> : null}
             <div className="flex flex-wrap gap-2">
               {STATUS_OPTIONS.map((opt) => (
                 <button
@@ -277,6 +311,7 @@ function AppointmentModalBody({
                   // esta barra adentro, el default `submit` guardaría la cita
                   // entera en cada clic de estado.
                   type="button"
+                  disabled={submitting}
                   aria-pressed={liveStatus === opt.value}
                   onClick={() => handleStatusChange(opt.value)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
@@ -363,7 +398,7 @@ function AppointmentModalBody({
                   rel="noopener noreferrer"
                   className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-[#25D366] px-4 py-2 text-sm font-semibold text-white hover:brightness-95 transition-all"
                 >
-                  Confirmar por WhatsApp
+                  Enviar confirmación por WhatsApp
                 </a>
               ) : null}
             </div>
@@ -449,32 +484,12 @@ function AppointmentModalBody({
             />
           </div>
 
-          {/* Time range */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <label className="text-[13px] font-semibold text-on-surface block">
-                Hora Inicio *
-              </label>
-              <input
-                type="time"
-                required
-                value={form.start_time}
-                onChange={(e) => setForm({ ...form, start_time: e.target.value })}
-                className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[13px] font-semibold text-on-surface block">
-                Hora Fin *
-              </label>
-              <input
-                type="time"
-                required
-                value={form.end_time}
-                onChange={(e) => setForm({ ...form, end_time: e.target.value })}
-                className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
-              />
-            </div>
+          {/* Time range: stored as 24-hour values regardless of display. */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <AppointmentTimeInput label="Hora de inicio" value={form.start_time} format={timeFormat}
+              onChange={(value) => setForm({ ...form, start_time: value })} />
+            <AppointmentTimeInput label="Hora de fin" value={form.end_time} format={timeFormat}
+              onChange={(value) => setForm({ ...form, end_time: value })} />
           </div>
 
           {/* Description */}

@@ -2,9 +2,11 @@ import { createClient } from "@/utils/supabase/client";
 import { getSelectedWorkspaceId } from "@/services/workspace.service";
 import type { Json } from "@/utils/supabase/database.types";
 import { toWebp, verificarPeso } from "@/lib/image";
+import type { TimeFormat } from "@/lib/time";
 
 // ---- Tipos del dominio de ajustes (config por cuenta) ----
 export interface BusinessProfile {
+  timeFormat?: TimeFormat;
   logoUrl?: string;
   personType?: "natural" | "juridica";
   identificationType?: string;
@@ -28,6 +30,7 @@ export interface BusinessProfile {
 }
 
 export interface Settings {
+  time_format: TimeFormat;
   id: string | null;
   tax_rate: number;
   /** Si el negocio desglosa IVA (responsable de IVA). */
@@ -46,6 +49,7 @@ export interface Settings {
 }
 
 export interface SettingsInput {
+  time_format?: TimeFormat;
   tax_rate: number;
   include_tax: boolean;
   allow_oversell: boolean;
@@ -58,6 +62,7 @@ export interface SettingsInput {
 }
 
 const DEFAULTS: Settings = {
+  time_format: "12",
   id: null,
   tax_rate: 0.19,
   include_tax: true,
@@ -117,6 +122,7 @@ const SETTINGS_SELECT = "*";
  */
 function mapSettings(raw: Record<string, unknown>): Settings {
   return {
+    time_format: (raw.business_profile as BusinessProfile | null)?.timeFormat === "24" ? "24" : "12",
     id: (raw.id as string) ?? null,
     tax_rate: (raw.tax_rate as number) ?? DEFAULTS.tax_rate,
     include_tax: (raw.include_tax as boolean) ?? true,
@@ -192,7 +198,7 @@ export async function saveSettings(input: SettingsInput): Promise<Settings> {
   const supabase = createClient();
   const { data: existing, error: readErr } = await supabase
     .from("settings")
-    .select("id")
+    .select("id, business_profile")
     .maybeSingle();
   if (readErr) throw readErr;
 
@@ -208,7 +214,13 @@ export async function saveSettings(input: SettingsInput): Promise<Settings> {
     currency: input.currency,
     ...(input.transfer_methods_enabled ? { transfer_methods_enabled: input.transfer_methods_enabled } : {}),
     ...(input.card_methods_enabled ? { card_methods_enabled: input.card_methods_enabled } : {}),
-    ...(input.business_profile ? { business_profile: input.business_profile as Json } : {}),
+    ...(input.business_profile || input.time_format ? {
+      business_profile: {
+        ...((existing?.business_profile ?? {}) as BusinessProfile),
+        ...input.business_profile,
+        ...(input.time_format ? { timeFormat: input.time_format } : {}),
+      } as Json,
+    } : {}),
   };
 
   if (existing?.id) {

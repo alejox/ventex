@@ -1,6 +1,9 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { Suspense, useCallback, useEffect, useState, useMemo } from "react";
+import Link from "next/link";
+import { useProfile } from "@/components/ProfileProvider";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAppointmentsStore } from "@/stores/appointments.store";
 import AppointmentModal from "@/components/appointments/AppointmentModal";
 import type { Appointment } from "@/services/appointments.service";
@@ -11,8 +14,11 @@ import {
 } from "@/app/assets/icons/DashboardIcons";
 import { CollectionError, CollectionFilteredEmpty, CollectionLoading } from "@/components/CollectionState";
 import { toISODate } from "@/lib/date";
-import { fetchStaff } from "@/services/pos.service";
+import { useStaffStore } from "@/stores/staff.store";
 import { Select } from "@/components/ui/Select";
+
+import { useSettingsStore } from "@/stores/settings.store";
+import { formatAppointmentTime } from "@/lib/time";
 
 // ---- HELPERS ----
 const MONTHS_ES = [
@@ -102,16 +108,59 @@ function getStatusLabel(status: string) {
 
 // ---- COMPONENT ----
 export default function CalendarPage() {
-  const { appointments, loading, error, fetchAppointments, setSelectedDate } =
-    useAppointmentsStore();
+  return <Suspense fallback={<CollectionLoading label="Cargando calendario…" />}><CalendarContent /></Suspense>;
+}
 
-  const [displayMode, setDisplayMode] = useState<"calendar" | "list">("calendar");
+function CalendarContent() {
+  const profile = useProfile();
+  const timeFormat = useSettingsStore((s) => s.settings?.time_format ?? "12");
+  const fetchSettings = useSettingsStore((s) => s.fetchSettings);
+  useEffect(() => { void fetchSettings(); }, [fetchSettings]);
+  const appointments = useAppointmentsStore((s) => s.appointments);
+  const loading = useAppointmentsStore((s) => s.loading);
+  const error = useAppointmentsStore((s) => s.error);
+  const fetchAppointments = useAppointmentsStore((s) => s.fetchAppointments);
+  const setSelectedDate = useAppointmentsStore((s) => s.setSelectedDate);
+  const fetchLinkedAppointment = useAppointmentsStore((s) => s.fetchLinkedAppointment);
+  const linkLoading = useAppointmentsStore((s) => s.linkLoading);
+  const linkError = useAppointmentsStore((s) => s.linkError);
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const appointmentId = searchParams.get("appointment");
+
+  const [displayMode, setDisplayMode] = useState<"calendar" | "list" | "pending">("calendar");
   const [view, setView] = useState<"month" | "week" | "day">("month");
   const [currentDate, setCurrentDate] = useState(new Date());
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedAppointment, setSelectedAppointment] =
     useState<Appointment | null>(null);
+  const [selectedStatus, setSelectedStatus] = useState("all");
+  const [selectedStaffId, setSelectedStaffId] = useState<string>("all");
+  const staff = useStaffStore((s) => s.staff);
+  const fetchStaff = useStaffStore((s) => s.fetchStaff);
+  const staffList = useMemo(() => staff.filter((member) => member.status === "active"), [staff]);
   const [defaultStartTime, setDefaultStartTime] = useState<string>("09:00");
+
+  const openLinkedAppointment = useCallback((appointment: Appointment) => {
+    const date = new Date(`${appointment.appointment_date}T12:00:00`);
+    setCurrentDate(date);
+    setSelectedDate(date);
+    setView("day");
+    setDisplayMode("calendar");
+    setSelectedStaffId("all");
+    setSelectedStatus("all");
+    setSelectedAppointment(appointment);
+    setModalOpen(true);
+  }, [setSelectedDate]);
+
+  useEffect(() => {
+    if (!appointmentId) return;
+    let cancelled = false;
+    void fetchLinkedAppointment(appointmentId).then((appointment) => {
+      if (!cancelled && appointment) openLinkedAppointment(appointment);
+    });
+    return () => { cancelled = true; };
+  }, [appointmentId, fetchLinkedAppointment, openLinkedAppointment]);
 
   const today = useMemo(() => formatDate(new Date()), []);
   const currentMonth = currentDate.getMonth();
@@ -139,32 +188,34 @@ export default function CalendarPage() {
     fetchAppointments(start, end);
   }, [view, currentDate, currentMonth, currentYear, fetchAppointments]);
 
-  const [staffList, setStaffList] = useState<{ id: string; full_name: string }[]>([]);
-  const [selectedStaffId, setSelectedStaffId] = useState<string>("all");
-
   useEffect(() => {
-    fetchStaff().then(setStaffList).catch(() => {});
-  }, []);
+    void fetchStaff();
+  }, [fetchStaff]);
 
   const filteredAppointments = useMemo(() => {
     if (selectedStaffId === "all") return appointments;
-    return appointments.filter((a) => a.staff_id === selectedStaffId);
+    return appointments.filter((a) => selectedStaffId === "unassigned" ? !a.staff_id : a.staff_id === selectedStaffId);
   }, [appointments, selectedStaffId]);
+
+  const visibleAppointments = useMemo(() => filteredAppointments.filter((appointment) =>
+    displayMode === "pending" ? appointment.status === "pending" : selectedStatus === "all" || appointment.status === selectedStatus
+  ), [filteredAppointments, displayMode, selectedStatus]);
+  const pendingCount = filteredAppointments.filter((appointment) => appointment.status === "pending").length;
 
   // Group appointments by date
   const appointmentsByDate = useMemo(() => {
     const map: Record<string, Appointment[]> = {};
-    filteredAppointments.forEach((a) => {
+    visibleAppointments.forEach((a) => {
       if (!map[a.appointment_date]) map[a.appointment_date] = [];
       map[a.appointment_date].push(a);
     });
     return map;
-  }, [filteredAppointments]);
+  }, [visibleAppointments]);
 
   // Navigate
   const navigatePrev = () => {
     const d = new Date(currentDate);
-    if (view === "month") d.setMonth(d.getMonth() - 1);
+    if (view === "month") { d.setDate(1); d.setMonth(d.getMonth() - 1); }
     else if (view === "week") d.setDate(d.getDate() - 7);
     else d.setDate(d.getDate() - 1);
     setCurrentDate(d);
@@ -172,7 +223,7 @@ export default function CalendarPage() {
 
   const navigateNext = () => {
     const d = new Date(currentDate);
-    if (view === "month") d.setMonth(d.getMonth() + 1);
+    if (view === "month") { d.setDate(1); d.setMonth(d.getMonth() + 1); }
     else if (view === "week") d.setDate(d.getDate() + 7);
     else d.setDate(d.getDate() + 1);
     setCurrentDate(d);
@@ -235,12 +286,13 @@ export default function CalendarPage() {
   return (
     <div className="flex flex-col gap-6 w-full animate-in fade-in duration-500">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0">
+      <div className="flex flex-col gap-4 shrink-0">
         <div>
           <h1 className="text-2xl font-bold text-on-surface">Calendario</h1>
           <p className="text-sm text-on-surface-variant mt-1">
-            Gestiona tus citas, eventos y agenda.
+            Revisá las reservas pendientes, confirmá las citas y organizá la atención de tu equipo.
           </p>
+          {!profile?.isWorker ? <Link href="/dashboard/landing?tab=business" className="mt-2 inline-block text-sm font-semibold text-primary underline underline-offset-2">Configurar reservas y horarios</Link> : null}
         </div>
         {/*
           En móvil los cuatro grupos suman ~480px contra 390 de pantalla: la
@@ -248,21 +300,22 @@ export default function CalendarPage() {
           del viewport, alcanzable sólo con scroll horizontal. Ahora los
           controles envuelven y el botón se lleva su propia fila completa.
         */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-3">
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+        <div className="flex min-w-0 flex-wrap items-end gap-3">
+          <div className="flex min-w-0 flex-wrap items-end gap-2 sm:gap-3">
           {/* Display mode tabs */}
           <div className="flex shrink-0 items-center bg-surface-container border border-outline-variant/10 rounded-xl p-1 shadow-sm">
-            {(["calendar", "list"] as const).map((m) => (
+            {(["calendar", "list", "pending"] as const).map((m) => (
               <button
                 key={m}
                 onClick={() => setDisplayMode(m)}
+                aria-pressed={displayMode === m}
                 className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${
                   displayMode === m
                     ? "bg-surface-container-lowest text-on-surface shadow-sm"
                     : "text-on-surface-variant hover:text-on-surface"
                 }`}
               >
-                {m === "calendar" ? "Calendario" : "Lista"}
+                {m === "calendar" ? "Calendario" : m === "list" ? "Lista" : `Pendientes${loading ? "" : ` (${pendingCount})`}`}
               </button>
             ))}
           </div>
@@ -271,10 +324,12 @@ export default function CalendarPage() {
             <div className="w-48 shrink-0">
               <Select
                 size="sm"
+                label="Persona"
                 value={selectedStaffId}
                 onChange={(e) => setSelectedStaffId(e.target.value)}
               >
-                <option value="all">Todos los barberos</option>
+                <option value="all">Todas las personas</option>
+                <option value="unassigned">Sin asignar</option>
                 {staffList.map((s) => (
                   <option key={s.id} value={s.id}>{s.full_name}</option>
                 ))}
@@ -282,7 +337,7 @@ export default function CalendarPage() {
             </div>
           )}
 
-          {displayMode === "calendar" && (
+          {displayMode !== "pending" ? <div className="w-44 shrink-0"><Select size="sm" label="Estado" value={selectedStatus} onChange={(event) => setSelectedStatus(event.target.value)}><option value="all">Todos los estados</option><option value="pending">Pendiente</option><option value="confirmed">Confirmada</option><option value="completed">Completada</option><option value="cancelled">Cancelada</option></Select></div> : null}
           <div className="flex shrink-0 items-center bg-surface-container border border-outline-variant/10 rounded-xl p-1 shadow-sm">
             {(["month", "week", "day"] as const).map((v) => (
               <button
@@ -298,7 +353,6 @@ export default function CalendarPage() {
               </button>
             ))}
           </div>
-          )}
           <button
             onClick={goToday}
             disabled={isOnToday}
@@ -321,7 +375,7 @@ export default function CalendarPage() {
           {/* Fila propia en móvil: el label vuelve a verse y el botón no se corta. */}
           <button
             onClick={() => handleNewAppointment()}
-            className="w-full sm:w-auto shrink-0 bg-[#6063ee] hover:bg-[#c0c1ff] text-white hover:text-[#0b0664] text-sm font-semibold py-2.5 px-4 rounded-xl shadow-lg shadow-[#6063ee]/20 transition-colors flex items-center justify-center gap-2"
+            className="w-full sm:w-auto shrink-0 bg-primary hover:bg-primary-dim text-on-primary text-sm font-semibold py-2.5 px-4 rounded-xl shadow-lg shadow-[#6063ee]/20 transition-colors flex items-center justify-center gap-2"
           >
             <IconPlus className="w-4 h-4" />
             <span>Nueva Cita</span>
@@ -334,11 +388,12 @@ export default function CalendarPage() {
         <div className="flex items-center gap-3">
           <button
             onClick={navigatePrev}
+            aria-label="Período anterior"
             className="p-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded-xl transition-colors"
           >
             <IconChevronLeft className="w-5 h-5" />
           </button>
-          <h2 className="text-lg font-bold text-on-surface min-w-[200px] text-center">
+          <h2 className="text-lg font-bold text-on-surface min-w-0 text-center">
             {view === "month"
               ? `${MONTHS_ES[currentMonth]} ${currentYear}`
               : view === "week"
@@ -347,6 +402,7 @@ export default function CalendarPage() {
           </h2>
           <button
             onClick={navigateNext}
+            aria-label="Período siguiente"
             className="p-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded-xl transition-colors"
           >
             <IconChevronRight className="w-5 h-5" />
@@ -354,8 +410,15 @@ export default function CalendarPage() {
         </div>
       </div>
 
+      <p className="text-sm text-on-surface-variant">{displayMode === "pending" ? "Reservas pendientes del período mostrado. Abrí una reserva para revisar sus datos y confirmarla." : "Seleccioná una cita para ver sus datos. Podés filtrar por persona y estado en cualquiera de las vistas."}</p>
+      {!loading && !error && visibleAppointments.length === 0 && displayMode === "calendar" ? <CollectionFilteredEmpty title="No hay citas para esta vista" description="Probá otro período, quitá los filtros o creá una nueva cita." action={selectedStaffId !== "all" || selectedStatus !== "all" ? { label: "Quitar filtros", onClick: () => { setSelectedStaffId("all"); setSelectedStatus("all"); } } : { label: "Crear cita", onClick: () => handleNewAppointment() }} /> : null}
+
       {/* Error */}
       {error && <CollectionError message={error} />}
+      {appointmentId && linkError && <CollectionError message={linkError} onRetry={() => void fetchLinkedAppointment(appointmentId).then((appointment) => {
+        if (appointment) openLinkedAppointment(appointment);
+      })} />}
+      {appointmentId && linkLoading && <CollectionLoading label="Abriendo la reserva…" />}
 
       {/* Loading */}
       {loading && <CollectionLoading label="Cargando citas…" />}
@@ -421,7 +484,7 @@ export default function CalendarPage() {
                         className={`w-full text-center sm:text-left px-0.5 sm:px-2 py-1 text-[9px] sm:text-[10px] font-bold rounded-md truncate border-l-2 ${getStatusColor(
                           appt.status,
                         )}`}
-                        title={`${appt.start_time.slice(0, 5)} ${appt.title}`}
+                        title={`${formatAppointmentTime(appt.start_time, timeFormat)} ${appt.title}`}
                       >
                         {/*
                           En una celda de ~50px el texto completo se recortaba a
@@ -429,17 +492,13 @@ export default function CalendarPage() {
                           sólo la hora, que entera es más útil que un título
                           mutilado; el título vuelve desde `sm`.
                         */}
-                        <span className="sm:hidden">{appt.start_time.slice(0, 5)}</span>
+                        <span className="sm:hidden">{formatAppointmentTime(appt.start_time, timeFormat)}</span>
                         <span className="hidden sm:inline">
-                          {appt.start_time.slice(0, 5)} {appt.title}
+                          {formatAppointmentTime(appt.start_time, timeFormat)} {appt.title}
                         </span>
                       </button>
                     ))}
-                    {dayAppts.length > 3 && (
-                      <span className="text-[10px] text-on-surface-variant font-medium px-2">
-                        +{dayAppts.length - 3} más
-                      </span>
-                    )}
+                    {dayAppts.length > 3 && <button type="button" onClick={(event) => { event.stopPropagation(); setCurrentDate(new Date(`${cell.date}T12:00:00`)); setView("day"); }} className="px-2 text-[10px] font-semibold text-primary">Ver {dayAppts.length - 3} más</button>}
                   </div>
                 </div>
               );
@@ -485,7 +544,7 @@ export default function CalendarPage() {
                   className="h-16 border-b border-outline-variant/5 flex items-start justify-end pr-2 pt-1"
                 >
                   <span className="text-[10px] font-medium text-on-surface-variant">
-                    {String(h).padStart(2, "0")}:00
+                    {formatAppointmentTime(`${String(h).padStart(2, "0")}:00`, timeFormat)}
                   </span>
                 </div>
               ))}
@@ -527,7 +586,7 @@ export default function CalendarPage() {
                             )}px`,
                           }}
                         >
-                          {appt.start_time.slice(0, 5)} {appt.title}
+                          {formatAppointmentTime(appt.start_time, timeFormat)} {appt.title}
                         </button>
                       ))}
                     </div>
@@ -551,7 +610,7 @@ export default function CalendarPage() {
                 <div key={h} className="flex border-b border-outline-variant/5">
                   <div className="w-20 shrink-0 p-3 text-right border-r border-outline-variant/5">
                     <span className="text-xs font-medium text-on-surface-variant">
-                      {String(h).padStart(2, "0")}:00
+                      {formatAppointmentTime(`${String(h).padStart(2, "0")}:00`, timeFormat)}
                     </span>
                   </div>
                   <div
@@ -579,8 +638,8 @@ export default function CalendarPage() {
                             {appt.title}
                           </span>
                           <span className="text-xs text-on-surface-variant">
-                            {appt.start_time.slice(0, 5)} -{" "}
-                            {appt.end_time.slice(0, 5)}
+                            {formatAppointmentTime(appt.start_time, timeFormat)} -{" "}
+                            {formatAppointmentTime(appt.end_time, timeFormat)}
                           </span>
                         </div>
                         {appt.customers?.full_name && (
@@ -606,18 +665,16 @@ export default function CalendarPage() {
       )}
 
       {/* ---- LIST VIEW ---- */}
-      {!loading && displayMode === "list" && (
+      {!loading && displayMode !== "calendar" && (
         <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-3xl shadow-sm">
           <div className="p-4 border-b border-outline-variant/10">
             <h3 className="font-bold text-on-surface">
-              {appointments.length > 0
-                ? `Citas (${appointments.length})`
-                : "Citas"}
+              {displayMode === "pending" ? `Reservas pendientes (${visibleAppointments.length})` : `Citas (${visibleAppointments.length})`}
             </h3>
           </div>
-          {appointments.length > 0 ? (
+          {visibleAppointments.length > 0 ? (
             <div className="divide-y divide-outline-variant/5">
-              {appointments.map((appt) => (
+              {visibleAppointments.map((appt) => (
                 <button
                   key={appt.id}
                   onClick={() => handleEditAppointment(appt)}
@@ -639,8 +696,8 @@ export default function CalendarPage() {
                       {appt.title}
                     </div>
                     <div className="text-xs text-on-surface-variant">
-                      {appt.appointment_date} · {appt.start_time.slice(0, 5)} -{" "}
-                      {appt.end_time.slice(0, 5)}
+                      {appt.appointment_date} · {formatAppointmentTime(appt.start_time, timeFormat)} -{" "}
+                      {formatAppointmentTime(appt.end_time, timeFormat)}
                     </div>
                     {appt.customers?.full_name && (
                       <div className="text-xs text-on-surface-variant/80 truncate">
@@ -663,7 +720,7 @@ export default function CalendarPage() {
                 </button>
               ))}
             </div>
-          ) : <CollectionFilteredEmpty title="No hay citas en este período" />}
+          ) : <CollectionFilteredEmpty title={displayMode === "pending" ? "No hay reservas pendientes en este período" : "No hay citas para estos filtros"} description={displayMode === "pending" ? "Las reservas recibidas desde tu web aparecerán aquí hasta que las confirmes o canceles. Revisá otros períodos para ver más reservas." : "Probá otro período o quitá los filtros de persona y estado."} action={{ label: "Ver calendario", onClick: () => { setDisplayMode("calendar"); setSelectedStatus("all"); } }} />}
         </div>
       )}
 
@@ -671,10 +728,16 @@ export default function CalendarPage() {
 
       {/* Modal */}
       <AppointmentModal
+        key={selectedAppointment?.id ?? "new"}
         open={modalOpen}
         onClose={() => {
           setModalOpen(false);
           setSelectedAppointment(null);
+          if (appointmentId) {
+            const params = new URLSearchParams(searchParams.toString());
+            params.delete("appointment");
+            router.replace(`/dashboard/calendar${params.size ? `?${params}` : ""}`, { scroll: false });
+          }
         }}
         selectedDate={currentDate}
         appointment={selectedAppointment}

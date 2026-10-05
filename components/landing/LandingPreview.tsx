@@ -4,6 +4,8 @@ import type { BusinessHour } from "@/services/business-site.service";
 import type { LandingConfig, PublicSite } from "@/services/public-site.types";
 import { SiteTemplateRenderer } from "@/app/[slug]/templates/registry";
 import { PreviewFrame } from "./PreviewFrame";
+import { useSettingsStore } from "@/stores/settings.store";
+import { useEffect } from "react";
 
 const SAMPLE_SERVICES = [
   { id: "preview-1", name: "Servicio insignia", description: "Una experiencia creada alrededor de vos.", price: 45000, durationMinutes: 45, icon: null, imageUrl: null },
@@ -26,7 +28,11 @@ export function LandingPreview({
   bookingEnabled: boolean;
   device: "desktop" | "mobile";
 }) {
+  const timeFormat = useSettingsStore((s) => s.settings?.time_format ?? "12");
+  const fetchSettings = useSettingsStore((s) => s.fetchSettings);
+  useEffect(() => { void fetchSettings(); }, [fetchSettings]);
   const site: PublicSite = {
+    timeFormat,
     slug: "vista-previa",
     template: config.template,
     businessName: businessName || "Tu negocio",

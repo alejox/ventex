@@ -12,6 +12,10 @@ interface AppointmentsState {
   loading: boolean;
   error: string | null;
   submitting: boolean;
+  linkedAppointment: Appointment | null;
+  linkLoading: boolean;
+  linkError: string | null;
+  fetchLinkedAppointment: (id: string) => Promise<Appointment | null>;
 
   fetchAppointments: (startDate: string, endDate: string) => Promise<void>;
   addAppointment: (input: NewAppointmentInput) => Promise<boolean>;
@@ -27,22 +31,47 @@ interface AppointmentsState {
 }
 
 
+let linkRequest = 0;
+let calendarRequest = 0;
+
 export const useAppointmentsStore = create<AppointmentsState>((set) => ({
   appointments: [],
   selectedDate: new Date(),
   loading: false,
   error: null,
   submitting: false,
+  linkedAppointment: null,
+  linkLoading: false,
+  linkError: null,
+
+  fetchLinkedAppointment: async (id) => {
+    const request = ++linkRequest;
+    set({ linkLoading: true, linkError: null, linkedAppointment: null });
+    try {
+      const appointment = await appointmentsService.fetchAppointmentById(id);
+      if (request !== linkRequest) return null;
+      set({ linkedAppointment: appointment, linkLoading: false,
+        linkError: appointment ? null : "Esta reserva ya no está disponible o no tenés acceso a ella." });
+      return appointment;
+    } catch (e) {
+      if (request !== linkRequest) return null;
+      set({ linkError: toMessage(e), linkLoading: false });
+      return null;
+    }
+  },
 
   fetchAppointments: async (startDate, endDate) => {
+    const request = ++calendarRequest;
     set({ loading: true, error: null });
     try {
       const appointments = await appointmentsService.fetchAppointments(
         startDate,
         endDate,
       );
+      if (request !== calendarRequest) return;
       set({ appointments, loading: false });
     } catch (e) {
+      if (request !== calendarRequest) return;
       set({ error: toMessage(e), loading: false });
     }
   },
@@ -68,6 +97,7 @@ export const useAppointmentsStore = create<AppointmentsState>((set) => ({
       const updated = await appointmentsService.updateAppointment(id, input);
       set((s) => ({
         appointments: s.appointments.map((a) => (a.id === id ? updated : a)),
+        linkedAppointment: s.linkedAppointment?.id === id ? updated : s.linkedAppointment,
         submitting: false,
       }));
       return true;
@@ -78,17 +108,19 @@ export const useAppointmentsStore = create<AppointmentsState>((set) => ({
   },
 
   updateStatus: async (id, status) => {
-    set({ error: null });
+    set({ submitting: true, error: null });
     try {
       await appointmentsService.updateAppointmentStatus(id, status);
       set((s) => ({
+        submitting: false,
+        linkedAppointment: s.linkedAppointment?.id === id ? { ...s.linkedAppointment, status: status as Appointment["status"] } : s.linkedAppointment,
         appointments: s.appointments.map((a) =>
           a.id === id ? { ...a, status: status as Appointment["status"] } : a,
         ),
       }));
       return true;
     } catch (e) {
-      set({ error: toMessage(e) });
+      set({ error: toMessage(e), submitting: false });
       return false;
     }
   },
@@ -99,6 +131,7 @@ export const useAppointmentsStore = create<AppointmentsState>((set) => ({
       await appointmentsService.chargeAppointment(appointment);
       await appointmentsService.updateAppointmentStatus(appointment.id, "completed");
       set((s) => ({
+        linkedAppointment: s.linkedAppointment?.id === appointment.id ? { ...s.linkedAppointment, status: "completed" } : s.linkedAppointment,
         appointments: s.appointments.map((a) =>
           a.id === appointment.id ? { ...a, status: "completed" } : a,
         ),
@@ -116,6 +149,7 @@ export const useAppointmentsStore = create<AppointmentsState>((set) => ({
     try {
       await appointmentsService.deleteAppointment(id);
       set((s) => ({
+        linkedAppointment: s.linkedAppointment?.id === id ? null : s.linkedAppointment,
         appointments: s.appointments.filter((a) => a.id !== id),
       }));
       return true;

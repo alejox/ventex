@@ -52,6 +52,19 @@ const one = <T>(embed: unknown): T | null => {
 };
 
 // ---- DATA ACCESS ----
+export async function fetchAppointmentById(id: string): Promise<Appointment | null> {
+  const supabase = createClient();
+  const { data, error } = await supabase.from("appointments").select(SELECT).eq("id", id).maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  return {
+    ...data,
+    customers: one<{ full_name: string }>(data.customers),
+    services: one<{ name: string }>(data.services),
+    staff: one<{ full_name: string }>(data.staff),
+  } as Appointment;
+}
+
 export async function fetchAppointments(
   startDate: string,
   endDate: string,

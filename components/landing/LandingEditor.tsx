@@ -1,6 +1,7 @@
 "use client";
 
 import { startTransition, useDeferredValue, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { toast } from "sonner";
 import { useBusinessSiteStore } from "@/stores/business-site.store";
@@ -19,6 +20,8 @@ import type { LandingConfig, SiteContactConfig, SiteImage, SiteSectionId } from 
 import { SOCIAL_NETWORKS, SOCIAL_META } from "@/lib/socialLinks";
 import { BrandIcon } from "@/app/assets/icons/BrandIcons";
 import { LandingPreview } from "@/components/landing/LandingPreview";
+import { LandingQr } from "@/components/landing/LandingQr";
+import { SITE_URL } from "@/lib/site";
 
 type EditorTab = "design" | "sections" | "content" | "business" | "seo";
 const TABS: { id: EditorTab; label: string }[] = [
@@ -47,11 +50,13 @@ export function LandingEditor({ initial, initialHours, initialPublished, current
   const [form, setForm] = useState(initial);
   const [hours, setHours] = useState(initialHours);
   const [published, setPublishedLocal] = useState(initialPublished);
-  const [activeTab, setActiveTab] = useState<EditorTab>("design");
+  const searchParams = useSearchParams();
+  const [activeTab, setActiveTab] = useState<EditorTab>(() => searchParams.get("tab") === "business" ? "business" : "design");
   const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
   const [mobileMode, setMobileMode] = useState<"edit" | "preview">("edit");
   const [dirty, setDirty] = useState(false);
   const previewConfig = useDeferredValue(form.draft_config);
+  const savedSlug = storedSite?.slug ?? currentSlug;
 
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => {
@@ -137,7 +142,7 @@ export function LandingEditor({ initial, initialHours, initialPublished, current
           <p className="text-xs text-on-surface-variant">Editá el sitio que ven tus clientes.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {published && form.slug ? <a href={`/${form.slug}`} target="_blank" rel="noopener noreferrer" className="rounded-lg border border-outline-variant/30 px-3 py-2 text-sm font-semibold text-on-surface">Ver sitio</a> : null}
+          {published && savedSlug ? <a href={`/${savedSlug}`} target="_blank" rel="noopener noreferrer" className="rounded-lg border border-outline-variant/30 px-3 py-2 text-sm font-semibold text-on-surface">Ver sitio</a> : null}
           {published ? <button type="button" onClick={unpublish} disabled={saving} className="rounded-lg border border-error/30 px-3 py-2 text-sm font-semibold text-error disabled:opacity-50">Retirar</button> : null}
           <button type="button" onClick={() => void saveDraft()} disabled={saving} className="rounded-lg border border-outline-variant/30 px-3 py-2 text-sm font-semibold text-on-surface disabled:opacity-50">Guardar borrador</button>
           <button type="button" onClick={() => void publish()} disabled={saving} className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-on-primary disabled:opacity-50">{saving ? "Guardando…" : published ? "Publicar cambios" : "Publicar"}</button>
@@ -159,7 +164,7 @@ export function LandingEditor({ initial, initialHours, initialPublished, current
             {activeTab === "design" ? <DesignPanel config={form.draft_config} businessType={businessType} onChange={updateConfig} /> : null}
             {activeTab === "sections" ? <SectionsPanel config={form.draft_config} onChange={updateConfig} /> : null}
             {activeTab === "content" ? <ContentPanel config={form.draft_config} onChange={updateConfig} /> : null}
-            {activeTab === "business" ? <BusinessPanel form={form} hours={hours} onForm={updateForm} onHours={(next) => { setHours(next); setDirty(true); }} onConfig={updateConfig} /> : null}
+            {activeTab === "business" ? <BusinessPanel sharing={<LandingQr slug={savedSlug} saving={saving} onGenerate={saveDraft} published={published} changed={!!savedSlug && slugify(form.slug) !== savedSlug} />} form={form} hours={hours} onForm={updateForm} onHours={(next) => { setHours(next); setDirty(true); }} onConfig={updateConfig} /> : null}
             {activeTab === "seo" ? <SeoPanel config={form.draft_config} onChange={updateConfig} /> : null}
           </div>
         </aside>
@@ -191,10 +196,10 @@ function ContentPanel({ config, onChange }: PanelProps) {
   return <div className="space-y-7"><PanelTitle title="Portada" text="Las imágenes de muestra se usan hasta que subas las tuyas." /><Field label="Antetítulo"><input value={config.hero.eyebrow} onChange={(event) => onChange((current) => ({ ...current, hero: { ...current.hero, eyebrow: event.target.value } }))} className={INPUT} /></Field><Field label="Título principal"><input value={config.hero.title ?? ""} onChange={(event) => onChange((current) => ({ ...current, hero: { ...current.hero, title: event.target.value || null } }))} className={INPUT} placeholder="Usa el nombre del negocio si queda vacío" /></Field><Field label="Descripción"><textarea rows={3} value={config.hero.description ?? ""} onChange={(event) => onChange((current) => ({ ...current, hero: { ...current.hero, description: event.target.value || null } }))} className={INPUT} /></Field><ImageField label="Imagen de portada" value={config.hero.imageUrl} fallback={DEFAULT_SITE_IMAGES[config.template]} onChange={(url) => onChange((current) => ({ ...current, hero: { ...current.hero, imageUrl: url } }))} />{heroHasOverlay(config.template) ? <OverlayField config={config} onChange={onChange} /> : null}<hr className="border-outline-variant/20" /><PanelTitle title="Sobre nosotros" text="Contá qué hace diferente a tu negocio." /><Field label="Texto"><textarea rows={5} value={config.about.description ?? ""} onChange={(event) => onChange((current) => ({ ...current, about: { ...current.about, description: event.target.value || null } }))} className={INPUT} /></Field><ImageField label="Imagen de la sección" value={config.about.imageUrl} fallback={null} onChange={(url) => onChange((current) => ({ ...current, about: { ...current.about, imageUrl: url } }))} /><hr className="border-outline-variant/20" /><PanelTitle title="Galería" text="Podés mostrar hasta 12 imágenes." /><GalleryEditor config={config} onChange={onChange} /></div>;
 }
 
-function BusinessPanel({ form, hours, onForm, onHours, onConfig }: { form: SiteInput; hours: BusinessHour[]; onForm: <K extends keyof SiteInput>(key: K, value: SiteInput[K]) => void; onHours: (hours: BusinessHour[]) => void; onConfig: PanelProps["onChange"] }) {
+function BusinessPanel({ form, hours, onForm, onHours, onConfig, sharing }: { sharing: React.ReactNode; form: SiteInput; hours: BusinessHour[]; onForm: <K extends keyof SiteInput>(key: K, value: SiteInput[K]) => void; onHours: (hours: BusinessHour[]) => void; onConfig: PanelProps["onChange"] }) {
   const contact = form.draft_config.contact;
   const updateContact = (key: keyof SiteContactConfig, value: string) => onConfig((current) => ({ ...current, contact: { ...current.contact, [key]: value || null } }));
-  return <div className="space-y-6"><PanelTitle title="Dirección pública" text="Este será el enlace para compartir." /><Field label="ventex.app/"><input value={form.slug} onChange={(event) => onForm("slug", event.target.value)} className={INPUT} /></Field><label className="flex gap-3 text-sm text-on-surface"><input type="checkbox" checked={form.booking_enabled} onChange={(event) => onForm("booking_enabled", event.target.checked)} className="h-4 w-4 accent-[var(--primary)]" />Aceptar reservas en línea</label><Field label="WhatsApp"><input value={contact.whatsapp ?? ""} onChange={(event) => updateContact("whatsapp", event.target.value)} className={INPUT} placeholder="573001234567" /></Field><Field label="Dirección"><input value={contact.address ?? ""} onChange={(event) => updateContact("address", event.target.value)} className={INPUT} /></Field><div className="grid gap-3">{SOCIAL_NETWORKS.map((network) => <Field key={network} label={SOCIAL_META[network].label} icon={<BrandIcon name={network} className="h-4 w-4" colored />}><input value={contact[network] ?? ""} onChange={(event) => updateContact(network, event.target.value)} className={INPUT} placeholder={SOCIAL_META[network].placeholder} /></Field>)}</div><hr className="border-outline-variant/20" /><PanelTitle title="Horarios" text="También definen la disponibilidad de reservas." />{hours.map((hour) => <div key={hour.weekday} className="rounded-xl border border-outline-variant/30 p-3"><label className="flex items-center gap-2 text-sm font-bold text-on-surface"><input type="checkbox" checked={hour.is_open} onChange={(event) => onHours(hours.map((item) => item.weekday === hour.weekday ? { ...item, is_open: event.target.checked } : item))} />{WEEKDAY_LABELS[hour.weekday]}</label>{hour.is_open ? <div className="mt-3 flex items-center gap-2"><input type="time" value={hour.opens_at} onChange={(event) => onHours(hours.map((item) => item.weekday === hour.weekday ? { ...item, opens_at: event.target.value } : item))} className={INPUT} /><span>–</span><input type="time" value={hour.closes_at} onChange={(event) => onHours(hours.map((item) => item.weekday === hour.weekday ? { ...item, closes_at: event.target.value } : item))} className={INPUT} /></div> : null}</div>)}</div>;
+  return <div className="space-y-6"><PanelTitle title="Dirección pública" text="Este será el enlace para compartir." /><Field label={`${SITE_URL}/`}><input value={form.slug} onChange={(event) => onForm("slug", event.target.value)} className={INPUT} /></Field>{sharing}<label className="flex gap-3 text-sm text-on-surface"><input type="checkbox" checked={form.booking_enabled} onChange={(event) => onForm("booking_enabled", event.target.checked)} className="h-4 w-4 accent-[var(--primary)]" />Aceptar reservas en línea</label><Field label="WhatsApp"><input value={contact.whatsapp ?? ""} onChange={(event) => updateContact("whatsapp", event.target.value)} className={INPUT} placeholder="573001234567" /></Field><Field label="Dirección"><input value={contact.address ?? ""} onChange={(event) => updateContact("address", event.target.value)} className={INPUT} /></Field><div className="grid gap-3">{SOCIAL_NETWORKS.map((network) => <Field key={network} label={SOCIAL_META[network].label} icon={<BrandIcon name={network} className="h-4 w-4" colored />}><input value={contact[network] ?? ""} onChange={(event) => updateContact(network, event.target.value)} className={INPUT} placeholder={SOCIAL_META[network].placeholder} /></Field>)}</div><hr className="border-outline-variant/20" /><PanelTitle title="Horarios" text="También definen la disponibilidad de reservas." />{hours.map((hour) => <div key={hour.weekday} className="rounded-xl border border-outline-variant/30 p-3"><label className="flex items-center gap-2 text-sm font-bold text-on-surface"><input type="checkbox" checked={hour.is_open} onChange={(event) => onHours(hours.map((item) => item.weekday === hour.weekday ? { ...item, is_open: event.target.checked } : item))} />{WEEKDAY_LABELS[hour.weekday]}</label>{hour.is_open ? <div className="mt-3 flex items-center gap-2"><input type="time" value={hour.opens_at} onChange={(event) => onHours(hours.map((item) => item.weekday === hour.weekday ? { ...item, opens_at: event.target.value } : item))} className={INPUT} /><span>–</span><input type="time" value={hour.closes_at} onChange={(event) => onHours(hours.map((item) => item.weekday === hour.weekday ? { ...item, closes_at: event.target.value } : item))} className={INPUT} /></div> : null}</div>)}</div>;
 }
 
 function SeoPanel({ config, onChange }: PanelProps) { return <div className="space-y-5"><PanelTitle title="Google y redes" text="Controlá cómo aparece el enlace al compartirlo." /><Field label="Título"><input value={config.seo.title ?? ""} onChange={(event) => onChange((current) => ({ ...current, seo: { ...current.seo, title: event.target.value || null } }))} className={INPUT} placeholder="Nombre del negocio" /></Field><Field label="Descripción"><textarea rows={4} value={config.seo.description ?? ""} onChange={(event) => onChange((current) => ({ ...current, seo: { ...current.seo, description: event.target.value || null } }))} className={INPUT} /></Field><ImageField label="Imagen al compartir" value={config.seo.imageUrl} fallback={null} onChange={(url) => onChange((current) => ({ ...current, seo: { ...current.seo, imageUrl: url } }))} /></div>; }

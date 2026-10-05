@@ -17,6 +17,7 @@ import { COLOMBIA_TRANSFER_METHODS, DEFAULT_TRANSFER_METHODS } from "@/config/tr
 import { COLOMBIA_CARD_METHODS, DEFAULT_CARD_METHODS } from "@/config/cardMethods";
 import { Select } from "@/components/ui/Select";
 import { CashDrawerCard } from "./CashDrawerCard";
+import { formatAppointmentTime, type TimeFormat } from "@/lib/time";
 
 const CURRENCIES = [
   { code: "MXN", label: "Peso mexicano (MXN)" },
@@ -41,9 +42,9 @@ export default function SettingsPage() {
     <div className="w-full max-w-4xl mx-auto animate-in fade-in duration-300">
 
       <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-3xl p-6 md:p-8 shadow-sm mb-6">
-        <h2 className="text-lg font-bold text-on-surface mb-1">Facturación</h2>
+        <h2 className="text-lg font-bold text-on-surface mb-1">Preferencias del negocio</h2>
         <p className="text-sm text-on-surface-variant mb-8">
-          Estos valores se aplican por defecto en el punto de venta.
+          Configura la facturación y cómo se muestran los horarios de tus citas.
         </p>
 
         {loading && !settings ? (
@@ -220,6 +221,7 @@ function SettingsForm({ settings }: { settings: Settings }) {
   const [includeTax, setIncludeTax] = useState(settings.include_tax);
   const [allowOversell, setAllowOversell] = useState(settings.allow_oversell);
   const [currency, setCurrency] = useState(settings.currency);
+  const [timeFormat, setTimeFormat] = useState<TimeFormat>(settings.time_format);
   const [transferMethods, setTransferMethods] = useState<string[]>(
     () => settings.transfer_methods_enabled ?? DEFAULT_TRANSFER_METHODS
   );
@@ -254,6 +256,7 @@ function SettingsForm({ settings }: { settings: Settings }) {
       include_tax: includeTax,
       allow_oversell: allowOversell,
       currency,
+      time_format: timeFormat,
       transfer_methods_enabled: transferMethods,
       accepts_transfer: acceptsTransfer,
       accepts_card: acceptsCard,
@@ -269,6 +272,21 @@ function SettingsForm({ settings }: { settings: Settings }) {
           {error}
         </div>
       )}
+
+      <div className="space-y-3 pb-6 border-b border-outline-variant/10">
+        <h3 className="text-sm font-bold text-on-surface">Calendario y citas</h3>
+        <Select label="Formato horario" value={timeFormat} onChange={(e) => {
+          setTimeFormat(e.target.value as TimeFormat);
+          setSaved(false);
+        }}>
+          <option value="12">12 horas (AM / PM)</option>
+          <option value="24">24 horas</option>
+        </Select>
+        <p className="text-sm text-on-surface-variant">
+          Ejemplo: {formatAppointmentTime("09:00", timeFormat)} y {formatAppointmentTime("14:30", timeFormat)}.
+          Se aplica a la agenda y a la confirmación por WhatsApp. Por defecto usamos 12 horas.
+        </p>
+      </div>
 
       <ToggleSetting
         title="Desglosar IVA"

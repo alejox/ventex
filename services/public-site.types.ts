@@ -349,6 +349,8 @@ export interface PublicStaff {
 }
 
 export interface PublicSite {
+  /** Business clock preference; omitted legacy sites default to 12 hours. */
+  timeFormat?: import("@/lib/time").TimeFormat;
   slug: string;
   template: SiteTemplate;
   businessName: string;

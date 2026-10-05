@@ -1,3 +1,4 @@
+import { formatAppointmentTime } from "@/lib/time";
 import type { PublicSite } from "@/services/public-site.types";
 
 const WEEKDAY_NUMBER: Record<string, number> = {
@@ -49,7 +50,7 @@ export function BusinessStatus({ site, className = "" }: { site: PublicSite; cla
         aria-hidden="true"
         className={`h-2 w-2 rounded-full ${isOpen ? "bg-[var(--site-accent)]" : "bg-current"}`}
       />
-      {isOpen ? `Abierto ahora · hasta las ${today?.closesAt}` : "Cerrado ahora"}
+      {isOpen ? `Abierto ahora · hasta las ${formatAppointmentTime(today?.closesAt ?? "", site.timeFormat)}` : "Cerrado ahora"}
     </p>
   );
 }

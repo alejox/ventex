@@ -1,3 +1,4 @@
+import { formatAppointmentTime } from "@/lib/time";
 import Image from "next/image";
 import Link from "next/link";
 import type {
@@ -164,7 +165,7 @@ function HoursSection({ site, section }: SectionProps) {
       <div className="site-hours-grid">
         <SectionHeading section={section} />
         <ul className="site-hours-list">
-          {site.hours.map((hour) => <li key={hour.weekday} className="site-hour gap-4 text-sm"><span className="text-[var(--site-text)]">{WEEKDAY_LABELS[hour.weekday]}{hour.weekday === today ? " · hoy" : ""}</span><span className={hour.weekday === today ? "font-bold text-[color-mix(in_srgb,var(--site-accent)_62%,currentColor)]" : "text-[var(--site-muted)]"}>{hour.isOpen ? `${hour.opensAt} – ${hour.closesAt}` : "Cerrado"}</span></li>)}
+          {site.hours.map((hour) => <li key={hour.weekday} className="site-hour gap-4 text-sm"><span className="text-[var(--site-text)]">{WEEKDAY_LABELS[hour.weekday]}{hour.weekday === today ? " · hoy" : ""}</span><span className={hour.weekday === today ? "font-bold text-[color-mix(in_srgb,var(--site-accent)_62%,currentColor)]" : "text-[var(--site-muted)]"}>{hour.isOpen ? `${formatAppointmentTime(hour.opensAt, site.timeFormat)} – ${formatAppointmentTime(hour.closesAt, site.timeFormat)}` : "Cerrado"}</span></li>)}
         </ul>
       </div>
     </section>
