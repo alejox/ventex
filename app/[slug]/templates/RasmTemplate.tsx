@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { esImagenAjena } from "@/lib/remoteImage";
 import type { PublicSite } from "@/services/public-site.types";
 import { DEFAULT_SITE_IMAGES } from "@/services/public-site.types";
 import { BusinessStatus } from "./BusinessStatus";
@@ -13,7 +14,7 @@ export function RasmTemplate({ site, preview = false }: { site: PublicSite; prev
       <header id="inicio" className={styles.rasmHeader}>
         <nav aria-label="Principal" className={styles.nav}>
           <a href="#inicio" className={styles.brand}>
-            {site.logoUrl ? <Image src={site.logoUrl} alt="" width={48} height={48} className={styles.logo} /> : <span className={styles.brandMark}>✦</span>}
+            {site.logoUrl ? <Image src={site.logoUrl} unoptimized={esImagenAjena(site.logoUrl)} alt="" width={48} height={48} className={styles.logo} /> : <span className={styles.brandMark}>✦</span>}
             <span>{site.businessName}</span>
           </a>
           <div className={styles.navLinks}>
@@ -30,7 +31,7 @@ export function RasmTemplate({ site, preview = false }: { site: PublicSite; prev
             <div className={styles.heroActions}>{site.bookingEnabled ? <a href="#reservar" className={`${styles.heroCta} site-action`}>Reservar turno →</a> : null}<a href="#servicios" className={styles.textLink}>Ver servicios</a></div>
           </div>
           <div className={`${styles.heroImage} site-enter site-enter-delay-2`}>
-            <Image src={hero.imageUrl ?? DEFAULT_SITE_IMAGES.rasm} alt="" fill preload={!preview} sizes="(max-width: 1024px) 100vw, 42vw" className="object-cover" />
+            <Image src={hero.imageUrl ?? DEFAULT_SITE_IMAGES.rasm} unoptimized={esImagenAjena(hero.imageUrl ?? DEFAULT_SITE_IMAGES.rasm)} alt="" fill preload={!preview} sizes="(max-width: 1024px) 100vw, 42vw" className="object-cover" />
           </div>
         </div>
       </header>

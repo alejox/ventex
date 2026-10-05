@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { esImagenAjena } from "@/lib/remoteImage";
 import type { PublicSite } from "@/services/public-site.types";
 import { DEFAULT_SITE_IMAGES } from "@/services/public-site.types";
 import { BusinessStatus } from "./BusinessStatus";
@@ -12,7 +13,7 @@ export function FallspaTemplate({ site, preview = false }: { site: PublicSite; p
     <div style={paletteFor(site.config)} className={`site-public min-h-screen scroll-smooth ${styles.template} ${styles.fallspa}`}>
       <header id="inicio" className={styles.fallspaHeader}>
         <nav aria-label="Principal" className={styles.nav}>
-          <a href="#inicio" className={styles.brand}>{site.logoUrl ? <Image src={site.logoUrl} alt="" width={48} height={48} className={styles.logo} /> : <span className={styles.brandMark}>❀</span>}<span>{site.businessName}</span></a>
+          <a href="#inicio" className={styles.brand}>{site.logoUrl ? <Image src={site.logoUrl} unoptimized={esImagenAjena(site.logoUrl)} alt="" width={48} height={48} className={styles.logo} /> : <span className={styles.brandMark}>❀</span>}<span>{site.businessName}</span></a>
           <div className={styles.navLinks}><a href="#servicios">Servicios</a><a href="#productos">Productos</a><a href="#contacto">Contacto</a>{site.bookingEnabled ? <a href="#reservar" className={styles.navCta}>Reservar cita</a> : null}</div>
         </nav>
         <div className={styles.fallspaHero}>
@@ -25,7 +26,7 @@ export function FallspaTemplate({ site, preview = false }: { site: PublicSite; p
             <div className={styles.heroActions}><a href="#servicios" className={`${styles.heroCta} site-action`}>Descubrir más</a>{site.bookingEnabled ? <a href="#reservar" className={`${styles.heroCta} site-action`}>Reservar ahora</a> : null}</div>
           </div>
           <div className={`${styles.heroImage} site-enter site-enter-delay-2`}>
-            <Image src={hero.imageUrl ?? DEFAULT_SITE_IMAGES.fallspa} alt="" fill preload={!preview} sizes="(max-width: 1024px) 100vw, 50vw" />
+            <Image src={hero.imageUrl ?? DEFAULT_SITE_IMAGES.fallspa} unoptimized={esImagenAjena(hero.imageUrl ?? DEFAULT_SITE_IMAGES.fallspa)} alt="" fill preload={!preview} sizes="(max-width: 1024px) 100vw, 50vw" />
           </div>
           </div>
         </div>

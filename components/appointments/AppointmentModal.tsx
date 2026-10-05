@@ -6,13 +6,19 @@ import { useAppointmentsStore } from "@/stores/appointments.store";
 import { useCustomersStore } from "@/stores/customers.store";
 import { useServicesStore } from "@/stores/services.store";
 import { useStaffStore } from "@/stores/staff.store";
+import { useSettingsStore } from "@/stores/settings.store";
+import { useShiftsStore } from "@/stores/shifts.store";
 import { useProfile } from "@/components/ProfileProvider";
+import { OpenShiftModal } from "@/components/shift/OpenShiftModal";
+import { formatDuration } from "@/lib/duration";
 import { Select } from "@/components/ui/Select";
 import { whatsappUrl, toWhatsappNumber } from "@/config/contact";
-import type { Appointment, NewAppointmentInput } from "@/services/appointments.service";
+import type {
+  Appointment,
+  AppointmentPaymentMethod,
+  NewAppointmentInput,
+} from "@/services/appointments.service";
 import { toISODate, formatDateOnly } from "@/lib/date";
-
-import { useSettingsStore } from "@/stores/settings.store";
 import { formatAppointmentTime, type TimeFormat } from "@/lib/time";
 import { AppointmentTimeInput } from "./AppointmentTimeInput";
 
@@ -77,6 +83,22 @@ const addMinutes = (time: string, mins: number) => {
   return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
 };
 
+/** Minutos entre dos "HH:MM". Negativo si el fin es anterior al inicio. */
+const minutesBetween = (start: string, end: string) => {
+  const [sh, sm] = start.split(":").map(Number);
+  const [eh, em] = end.split(":").map(Number);
+  return eh * 60 + em - (sh * 60 + sm);
+};
+
+const PAYMENT_OPTIONS: { value: AppointmentPaymentMethod; label: string }[] = [
+  { value: "efectivo", label: "Efectivo" },
+  { value: "tarjeta", label: "Tarjeta" },
+  { value: "transferencia", label: "Transferencia" },
+];
+
+const money = (n: number) =>
+  n.toLocaleString("es-CO", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+
 /** Estado inicial del formulario: la cita que se edita, o una nueva sembrada. */
 function buildInitialForm(
   appointment: Appointment | null | undefined,
@@ -140,6 +162,12 @@ function AppointmentModalBody({
   const profile = useProfile();
   const timeFormat = useSettingsStore((s) => s.settings?.time_format ?? "12");
   const isCarWash = profile?.businessType === "lavaautos";
+  const isWorker = profile?.isWorker ?? false;
+  const acceptsCard = useSettingsStore((s) => s.settings?.accepts_card) ?? true;
+  const acceptsTransfer = useSettingsStore((s) => s.settings?.accepts_transfer) ?? true;
+  const fetchSettings = useSettingsStore((s) => s.fetchSettings);
+  const currentShift = useShiftsStore((s) => s.currentShift);
+  const fetchCurrentShift = useShiftsStore((s) => s.fetchCurrentShift);
 
   const [form, setForm] = useState<NewAppointmentInput>(() =>
     buildInitialForm(appointment, selectedDate, defaultStartTime),
@@ -192,6 +220,13 @@ function AppointmentModalBody({
     if (staff.length === 0) fetchStaff();
   }, [customers.length, fetchCustomers, services.length, fetchServices, staff.length, fetchStaff]);
 
+  // Lo que hace falta para COBRAR desde acá: qué medios acepta el negocio y,
+  // para un empleado, si tiene la caja abierta (`create_sale` lo exige).
+  useEffect(() => {
+    fetchSettings();
+    if (isWorker) fetchCurrentShift();
+  }, [fetchSettings, isWorker, fetchCurrentShift]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.title.trim()) {
@@ -214,6 +249,9 @@ function AppointmentModalBody({
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showChargeConfirm, setShowChargeConfirm] = useState(false);
+  const [showOpenShift, setShowOpenShift] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<AppointmentPaymentMethod>("efectivo");
+  const [chargeError, setChargeError] = useState("");
 
   const handleStatusChange = async (status: string) => {
     if (!appointment || status === liveStatus) return;
@@ -226,11 +264,52 @@ function AppointmentModalBody({
     }
   };
 
+  const liveSaleId = useAppointmentsStore((s) =>
+    appointment
+      ? (s.appointments.find((a) => a.id === appointment.id)?.sale_id ?? appointment.sale_id ?? null)
+      : null,
+  );
+
   const canCharge =
     !!appointment &&
     !!appointment.service_id &&
+    !liveSaleId &&
     liveStatus !== "completed" &&
     liveStatus !== "cancelled";
+
+  const chargedService = appointment?.service_id
+    ? services.find((s) => s.id === appointment.service_id) ?? null
+    : null;
+
+  const paymentOptions = PAYMENT_OPTIONS.filter(
+    (o) =>
+      o.value === "efectivo" ||
+      (o.value === "tarjeta" && acceptsCard) ||
+      (o.value === "transferencia" && acceptsTransfer),
+  );
+
+  /** Duración de lo que se está agendando, como la diría una persona. */
+  const durationLabel = formatDuration(minutesBetween(form.start_time, form.end_time));
+
+  /**
+   * Abre el cobro. Un empleado sin turno abierto no puede cobrar (`create_sale`
+   * lo rechaza): antes el botón fallaba en silencio y la cita quedaba
+   * pendiente aunque el cliente ya hubiera pagado. Ahora se pide abrir la caja
+   * primero y el cobro sigue solo.
+   */
+  const startCharge = () => {
+    setChargeError("");
+    if (isWorker && !currentShift) {
+      setShowOpenShift(true);
+      return;
+    }
+    setShowChargeConfirm(true);
+  };
+
+  /** Confirmar desde el aviso de reserva pendiente. */
+  const confirmPending = async () => {
+    await handleStatusChange("confirmed");
+  };
 
   const confirmDeleteAction = async () => {
     if (!appointment) return;
@@ -243,10 +322,14 @@ function AppointmentModalBody({
 
   const confirmChargeAction = async () => {
     if (!appointment) return;
-    const ok = await chargeAppointment(appointment);
+    setChargeError("");
+    const ok = await chargeAppointment(appointment, paymentMethod);
     if (ok) {
       setShowChargeConfirm(false);
+      toast.success("Cita cobrada. Quedó registrada la venta y la cita como completada.");
       onClose();
+    } else {
+      setChargeError(useAppointmentsStore.getState().error ?? "No se pudo cobrar la cita.");
     }
   };
 
@@ -324,6 +407,53 @@ function AppointmentModalBody({
                 </button>
               ))}
             </div>
+          </div>
+        )}
+
+        {/*
+          Reserva pendiente: la ACCIÓN va arriba y es una sola. Antes había
+          que encontrar la píldora "Confirmada" entre cuatro iguales y, aparte,
+          el botón de WhatsApp más abajo; confirmar y avisar eran dos pasos que
+          se olvidaban por separado. "Confirmar y avisar" hace los dos.
+        */}
+        {isEditing && liveStatus === "pending" && (
+          <div className="px-4 sm:px-6 py-4 border-b border-amber-500/20 bg-amber-500/10 shrink-0">
+            <p className="text-sm font-bold text-on-surface">Reserva pendiente de confirmar</p>
+            <p className="text-xs text-on-surface-variant mt-0.5">
+              {selectedCustomer
+                ? `${selectedCustomer.full_name} está esperando tu confirmación.`
+                : "Confirma la cita para que quede firme en la agenda."}
+            </p>
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+              {customerWhatsapp ? (
+                <a
+                  href={whatsappUrl(confirmationMessage, customerWhatsapp)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => void confirmPending()}
+                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 py-2.5 text-sm font-semibold text-white hover:brightness-95 transition-all"
+                >
+                  Confirmar y avisar por WhatsApp
+                </a>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => void confirmPending()}
+                className={`inline-flex flex-1 items-center justify-center rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors ${
+                  customerWhatsapp
+                    ? "border border-outline-variant/30 text-on-surface hover:bg-surface-container-high"
+                    : "bg-primary text-on-primary hover:bg-primary-dim"
+                }`}
+              >
+                {customerWhatsapp ? "Solo confirmar" : "Confirmar cita"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {isEditing && liveSaleId && (
+          <div className="px-4 sm:px-6 py-3 border-b border-emerald-500/20 bg-emerald-500/10 shrink-0 text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+            Cita cobrada: la venta ya está registrada.
           </div>
         )}
 
@@ -491,6 +621,11 @@ function AppointmentModalBody({
             <AppointmentTimeInput label="Hora de fin" value={form.end_time} format={timeFormat}
               onChange={(value) => setForm({ ...form, end_time: value })} />
           </div>
+          {durationLabel && (
+            <p className="-mt-2 text-xs text-on-surface-variant">
+              Duración: <strong className="text-on-surface">{durationLabel}</strong>
+            </p>
+          )}
 
           {/* Description */}
           <div className="space-y-1.5">
@@ -537,11 +672,11 @@ function AppointmentModalBody({
               {canCharge && (
                 <button
                   type="button"
-                  onClick={() => setShowChargeConfirm(true)}
+                  onClick={startCharge}
                   disabled={submitting}
                   className="px-4 py-2.5 rounded-xl text-sm font-semibold text-emerald-600 bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors disabled:opacity-50"
                 >
-                  Cobrar
+                  {chargedService ? `Cobrar $${money(chargedService.price)}` : "Cobrar"}
                 </button>
               )}
             </div>
@@ -600,10 +735,48 @@ function AppointmentModalBody({
       {showChargeConfirm && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-surface-container rounded-3xl w-full max-w-sm border border-outline-variant/10 shadow-2xl p-6 text-center animate-in zoom-in-95 duration-200">
-            <h3 className="text-lg font-bold text-on-surface mb-2">Cobrar Cita</h3>
-            <p className="text-sm text-on-surface-variant mb-6">
-              Se registrará como venta en el POS y la cita quedará marcada como completada.
+            <h3 className="text-lg font-bold text-on-surface mb-1">Cobrar cita</h3>
+            <p className="text-sm text-on-surface-variant mb-4">
+              {chargedService?.name ?? appointment?.title}
+              {selectedCustomer ? ` · ${selectedCustomer.full_name}` : ""}
             </p>
+            {chargedService && (
+              <p className="text-3xl font-bold text-on-surface tabular-nums mb-4">
+                ${money(chargedService.price)}
+              </p>
+            )}
+
+            <div className="mb-4 text-left">
+              <p className="text-[13px] font-semibold text-on-surface mb-1.5">¿Cómo paga?</p>
+              <div className="grid grid-cols-3 gap-2">
+                {paymentOptions.map((o) => (
+                  <button
+                    key={o.value}
+                    type="button"
+                    onClick={() => setPaymentMethod(o.value)}
+                    aria-pressed={paymentMethod === o.value}
+                    className={`rounded-xl border px-2 py-2.5 text-xs font-semibold transition-colors ${
+                      paymentMethod === o.value
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-outline-variant/30 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high"
+                    }`}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <p className="text-xs text-on-surface-variant mb-4">
+              Se registra la venta y la cita queda como completada.
+            </p>
+
+            {chargeError && (
+              <div className="mb-4 rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim text-left">
+                {chargeError}
+              </div>
+            )}
+
             <div className="flex gap-3">
               <button
                 type="button"
@@ -618,10 +791,20 @@ function AppointmentModalBody({
                 disabled={submitting}
                 className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold bg-emerald-600 hover:bg-emerald-500 text-white transition-colors disabled:opacity-50"
               >
-                {submitting ? "Cobrando…" : "Cobrar Cita"}
+                {submitting ? "Cobrando…" : "Confirmar cobro"}
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {showOpenShift && (
+        // Contenedor propio: el modal de turno usa z-50 y esta pantalla z-100.
+        <div className="relative z-[120]">
+          <OpenShiftModal
+            onClose={() => setShowOpenShift(false)}
+            onOpened={() => setShowChargeConfirm(true)}
+          />
         </div>
       )}
     </div>

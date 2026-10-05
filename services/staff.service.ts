@@ -22,6 +22,12 @@ export interface StaffMember {
    * en cualquier otra pantalla sin volver a subirla.
    */
   photo_url: string | null;
+  /**
+   * Aparece en el micrositio y recibe reservas online. Un cajero o la
+   * recepcionista son parte del equipo pero no atienden: no se ofrecen al
+   * cliente ni cuentan como silla libre en la reserva pública.
+   */
+  show_on_website: boolean;
 }
 
 export interface NewStaffInput {
@@ -32,6 +38,7 @@ export interface NewStaffInput {
   status: string;
   /** `null` borra la foto; omitirlo la deja como está. */
   photo_url?: string | null;
+  show_on_website: boolean;
 }
 
 /**
@@ -156,13 +163,15 @@ export interface SettleCommissionsInput {
   excludedItemIds?: string[];
 }
 
-const SELECT = "id, full_name, role, phone, email, status, created_at, photo_url";
+// `show_on_website` es posterior a los tipos generados (database.types.ts):
+// los casts de este archivo se van al regenerarlos.
+const SELECT = "id, full_name, role, phone, email, status, created_at, photo_url, show_on_website" as "*";
 
 export async function fetchStaff(): Promise<StaffMember[]> {
   const supabase = createClient();
   const { data, error } = await supabase.from("staff").select(SELECT).order("full_name");
   if (error) throw error;
-  return (data ?? []) as StaffMember[];
+  return (data ?? []) as unknown as StaffMember[];
 }
 
 export async function createStaff(input: NewStaffInput): Promise<StaffMember> {
@@ -176,11 +185,12 @@ export async function createStaff(input: NewStaffInput): Promise<StaffMember> {
       email: input.email || null,
       status: input.status,
       photo_url: input.photo_url ?? null,
-    })
+      show_on_website: input.show_on_website,
+    } as never)
     .select(SELECT)
     .single();
   if (error) throw error;
-  return data as StaffMember;
+  return data as unknown as StaffMember;
 }
 
 const STAFF_PHOTOS_BUCKET = "staff-photos";
@@ -620,10 +630,11 @@ export async function updateStaff(id: string, input: NewStaffInput): Promise<Sta
       // editar el nombre de alguien le borraba la foto sin que nadie lo pidiera:
       // el formulario no manda campos que no tocó.
       ...(input.photo_url !== undefined ? { photo_url: input.photo_url } : {}),
-    })
+      show_on_website: input.show_on_website,
+    } as never)
     .eq("id", id)
     .select(SELECT)
     .single();
   if (error) throw error;
-  return data as StaffMember;
+  return data as unknown as StaffMember;
 }

@@ -27,6 +27,10 @@ import { notifySuccess, notifyWarning, notifyError } from "@/lib/notifications";
 import { useOfflineSync } from "@/lib/useOfflineSync";
 import { PosCatalog } from "./components/PosCatalog";
 import { looksLikeScannerCode, resolveCatalogCode } from "./components/catalog-code";
+import { PosTodayAppointments } from "./components/PosTodayAppointments";
+import { useAppointmentsStore } from "@/stores/appointments.store";
+import type { BillableAppointment } from "@/services/appointments.service";
+import { toISODate } from "@/lib/date";
 import { PosCartPanel } from "./components/PosCartPanel";
 import { CheckoutModal } from "./components/CheckoutModal";
 import { DeliveryModal } from "./components/DeliveryModal";
@@ -122,6 +126,24 @@ export default function POSPage() {
     fetchCurrentShift();
     setIsCloseShiftOpen(true);
   };
+
+  // ---- Citas de hoy por cobrar ----
+  // Solo para rubros con agenda: una tienda no tiene citas y la consulta
+  // sobraría en cada apertura del POS.
+  const hasAppointments = Boolean(profile?.modules?.appointments);
+  const billable = useAppointmentsStore((s) => s.billable);
+  const fetchBillable = useAppointmentsStore((s) => s.fetchBillable);
+  const linkAppointmentSale = useAppointmentsStore((s) => s.linkSale);
+  /**
+   * Cita cargada desde la franja, y en QUÉ pestaña. Al cobrar esa pestaña se ata
+   * la venta a la cita: el trigger de la base ya lo hace cuando la cita tiene
+   * cliente, pero una cita sin cliente solo la conoce esta pantalla.
+   */
+  const [citaEnCobro, setCitaEnCobro] = useState<{ id: string; forTab: string } | null>(null);
+
+  useEffect(() => {
+    if (hasAppointments) fetchBillable(toISODate());
+  }, [hasAppointments, fetchBillable]);
 
   const requireShift = (action: () => void): void => {
     if (isWorker && !currentShift) {
@@ -526,7 +548,37 @@ export default function POSPage() {
     removeLoyaltyPoints();
   };
 
+  /** Cita de la franja que está cargada en ESTA pestaña. */
+  const citaActiva = citaEnCobro && citaEnCobro.forTab === activeTabId ? citaEnCobro.id : null;
+
+  const handlePickCita = (cita: BillableAppointment) => {
+    const item = catalog.find((c) => c.kind === "service" && c.id === cita.service_id);
+    if (!item) {
+      notifyError(
+        "No se puede cobrar desde acá",
+        `El servicio de esta cita ya no está activo. Cóbralo eligiendo otro servicio del catálogo.`,
+      );
+      return;
+    }
+    // Volver a tocar la cita que ya está cargada solo abre el carrito.
+    if (citaActiva === cita.id) {
+      setIsCartOpen(true);
+      return;
+    }
+    // Una pestaña, una cita: cargar otra con el carrito ocupado la mezclaría con
+    // lo que el cajero ya venía armando. Se abre en una pestaña nueva.
+    if (cart.length > 0) addTab();
+    setCustomer(cita.customer_id);
+    setStaff(cita.staff_id);
+    addToCart(item);
+    setCitaEnCobro({ id: cita.id, forTab: usePosStore.getState().activeTabId });
+    setIsCartOpen(true);
+  };
+
   const handleCheckout = async () => {
+    // Se fija ANTES de cobrar: al terminar, el carrito se limpia y la pestaña
+    // activa puede cambiar.
+    const citaCobrada = citaActiva;
     if (!loyaltyValid || (loyaltyApplied && !isOnline)) {
       notifyError("Revisá el canje", "Quitá los puntos y volvé a aplicarlos antes de cobrar en línea.");
       return;
@@ -576,6 +628,20 @@ export default function POSPage() {
       // `ready` es la condición que evita el ruido: una terminal sin cajón
       // configurado no tiene por qué comerse un cartel de error en cada venta.
       openCashDrawerOnSale();
+
+      // La cita queda COMPLETADA. Si tenía cliente ya lo hizo el trigger de la
+      // base; esto cubre la que no lo tenía. En "queued" no hay venta todavía:
+      // al enviarse, el trigger se encarga de las que tienen cliente.
+      if (hasAppointments) {
+        const saleId = usePosStore.getState().lastSaleId;
+        if (outcome === "sold" && citaCobrada && saleId) {
+          void linkAppointmentSale(citaCobrada, saleId).then(() => fetchBillable(toISODate()));
+        } else {
+          void fetchBillable(toISODate());
+        }
+        if (citaCobrada) setCitaEnCobro(null);
+      }
+
       if (outcome === "sold") {
         notifySuccess(
           "\u00a1Venta realizada con \u00e9xito! \ud83c\udf89",
@@ -827,6 +893,15 @@ export default function POSPage() {
             onOpenShift={() => setIsOpenShiftOpen(true)}
             onOpenWithdrawal={() => setIsWithdrawalOpen(true)}
             openCloseShift={openCloseShift}
+            topSlot={
+              hasAppointments ? (
+                <PosTodayAppointments
+                  items={billable}
+                  selectedId={citaActiva}
+                  onPick={handlePickCita}
+                />
+              ) : null
+            }
           />
 
           <div className={`lg:hidden fixed bottom-[calc(2.75rem+env(safe-area-inset-bottom))] inset-x-0 z-40 px-3 pt-3 pb-2 bg-gradient-to-t from-background via-background to-transparent transition-opacity duration-200 ${

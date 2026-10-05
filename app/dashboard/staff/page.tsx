@@ -36,6 +36,9 @@ const EMPTY_STAFF: NewStaffInput = {
   email: "",
   status: "active",
   photo_url: null,
+  // Arranca visible: en una barbería casi todo el que se suma al equipo
+  // atiende. Al cajero se lo apaga a mano, y el selector lo dice.
+  show_on_website: true,
 };
 
 const money = (n: number) =>
@@ -91,6 +94,8 @@ export default function StaffPage() {
   const [permsFor, setPermsFor] = useState<string | null>(null);
 
   const profile = useProfile();
+  /** Solo los rubros con agenda tienen reserva online donde mostrar a alguien. */
+  const hasBooking = Boolean(profile?.modules?.appointments);
   const roleOptions = staffRolesForType(profile?.businessType ?? null);
   /** Un cargo viejo que ya no está en el catálogo del rubro no se pierde. */
   const roleChoices =
@@ -214,6 +219,7 @@ export default function StaffPage() {
       email: m.email ?? "",
       status: m.status,
       photo_url: m.photo_url,
+      show_on_website: m.show_on_website ?? false,
     });
     const existingTeacher = teacherByStaffId.get(m.id) ?? null;
     setTeacherEnabled(Boolean(existingTeacher));
@@ -414,6 +420,17 @@ export default function StaffPage() {
                   {m.status !== "active" && (
                     <span className="absolute left-2 top-2 rounded-md bg-scrim/70 px-1.5 py-0.5 text-[9px] font-bold text-white">
                       Inactivo
+                    </span>
+                  )}
+
+                  {hasBooking && m.status === "active" && hasStaffRecord(m) && (
+                    <span
+                      className={`absolute left-2 bottom-2 rounded-md px-1.5 py-0.5 text-[9px] font-bold ${
+                        m.show_on_website ? "bg-primary text-on-primary" : "bg-scrim/70 text-white"
+                      }`}
+                      title={m.show_on_website ? "Aparece en tu página y recibe reservas" : "No aparece en tu página web"}
+                    >
+                      {m.show_on_website ? "En la web" : "Oculto en la web"}
                     </span>
                   )}
 
@@ -886,6 +903,34 @@ export default function StaffPage() {
                       </p>
                     )
                   )}
+                </div>
+              )}
+
+              {hasBooking && (
+                <div className="flex items-center justify-between p-3 sm:p-4 bg-surface-container-low rounded-xl border border-outline-variant/10">
+                  <div>
+                    <p className="text-sm font-bold text-on-surface">Mostrar en la página web</p>
+                    <p className="text-xs text-on-surface-variant mt-1">
+                      Los clientes lo ven en tu sitio y pueden reservar con esta persona.
+                      Apágalo para cajeros, recepción o quien no atiende.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={form.show_on_website}
+                    aria-label="Mostrar en la página web"
+                    onClick={() => setForm({ ...form, show_on_website: !form.show_on_website })}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none shrink-0 ml-4 ${
+                      form.show_on_website ? "bg-[#6063ee]" : "bg-outline-variant/30"
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        form.show_on_website ? "translate-x-6" : "translate-x-1"
+                      }`}
+                    />
+                  </button>
                 </div>
               )}
 

@@ -38,6 +38,8 @@ export interface CatalogItem {
   has_commission: boolean;
   commission_type: "percentage" | "fixed" | null;
   commission_value: number | null;
+  /** Lo que dura un servicio, en minutos. Los productos no lo tienen. */
+  duration_minutes?: number | null;
 }
 
 export interface CustomerOption {
@@ -286,7 +288,7 @@ export async function fetchCatalog(): Promise<CatalogItem[]> {
       .order("name"),
     supabase
       .from("services")
-      .select("id, name, price, image_url, has_commission, commission_type, commission_value")
+      .select("id, name, price, image_url, has_commission, commission_type, commission_value, duration_minutes")
       .eq("status", "active")
       .order("name"),
   ]);
@@ -321,6 +323,7 @@ export async function fetchCatalog(): Promise<CatalogItem[]> {
     has_commission: s.has_commission ?? false,
     commission_type: (s.commission_type ?? null) as "percentage" | "fixed" | null,
     commission_value: s.commission_value ?? null,
+    duration_minutes: s.duration_minutes ?? null,
   }));
 
   // Antes acá había que deduplicar por nombre: un servicio se guardaba en las

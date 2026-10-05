@@ -14,7 +14,8 @@ import type {
   PublicSite,
   DaySlot,
 } from "@/services/public-site.types";
-import { formatCOP } from "./templates/theme";
+import { formatCOP, whatsappHref } from "./templates/theme";
+import { formatDuration } from "@/lib/duration";
 import { formatAppointmentTime } from "@/lib/time";
 import { BOOK_SERVICE_EVENT } from "./BookServiceLink";
 
@@ -153,9 +154,12 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [notes, setNotes] = useState("");
-  const [confirmed, setConfirmed] = useState<{ date: string; time: string; service: string } | null>(
-    null,
-  );
+  const [confirmed, setConfirmed] = useState<{
+    date: string;
+    time: string;
+    service: string;
+    whatsapp: string | null;
+  } | null>(null);
 
   const storedSlotKey = usePublicBookingStore((s) => s.slotKey);
   const storedSlots = usePublicBookingStore((s) => s.slots);
@@ -253,7 +257,12 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
     });
 
     if (result) {
-      setConfirmed({ date: result.date, time: result.time, service: result.service });
+      setConfirmed({
+        date: result.date,
+        time: result.time,
+        service: result.service,
+        whatsapp: result.whatsapp ?? site.whatsapp ?? null,
+      });
       return;
     }
 
@@ -265,33 +274,60 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
   }
 
   if (confirmed) {
+    const cuando = `${longDateFmt.format(parseDateInput(confirmed.date))} a las ${formatAppointmentTime(confirmed.time, site.timeFormat)}`;
+    /*
+     * La reserva entra PENDIENTE y la confirma una persona del negocio. Antes
+     * la pantalla terminaba en "te escribimos" y el visitante no tenía nada que
+     * hacer más que esperar; con el WhatsApp del negocio a un toque, quien
+     * quiere certeza la pide en el momento, y el mensaje ya dice qué reservó.
+     */
+    const mensaje = `Hola ${site.businessName}, acabo de reservar ${confirmed.service} para el ${cuando} a nombre de ${name.trim()}. ¿Me la confirman?`;
     return (
       <div className="rounded-[var(--site-radius)] border border-[var(--site-on-surface-border)] bg-[var(--site-surface)] p-6 text-center">
-        <p className="text-3xl" aria-hidden="true">
+        <div
+          aria-hidden="true"
+          className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-[var(--site-accent)] text-xl font-bold text-[var(--site-on-accent)]"
+        >
           ✓
-        </p>
+        </div>
         <h3
-          className="mt-2 text-xl font-semibold text-[var(--site-on-surface)]"
+          className="mt-3 text-xl font-semibold text-[var(--site-on-surface)]"
           style={{ fontFamily: "var(--site-heading-font)" }}
         >
-          ¡Listo, {name.split(" ")[0]}!
+          ¡Listo, {name.split(" ")[0]}! Recibimos tu reserva
         </h3>
-        <p className="mt-3 text-sm text-[var(--site-on-surface-muted)]">
-          Pedimos <strong className="text-[var(--site-on-surface)]">{confirmed.service}</strong> para el{" "}
-          <strong className="text-[var(--site-on-surface)]">
-            {longDateFmt.format(parseDateInput(confirmed.date))}
-          </strong>{" "}
-          a las <strong className="text-[var(--site-on-surface)]">{formatAppointmentTime(confirmed.time, site.timeFormat)}</strong>.
-        </p>
-        <p className="mt-3 text-sm text-[var(--site-on-surface-muted)]">
+
+        <dl className="mt-4 space-y-1.5 rounded-[var(--site-radius)] bg-[var(--site-surface-alt)] p-4 text-left text-sm">
+          <SummaryRow label="Servicio" value={confirmed.service} />
+          <SummaryRow label="Con" value={staffMember?.fullName ?? "Cualquiera disponible"} />
+          <SummaryRow label="Cuándo" value={cuando} />
+          {service ? (
+            <SummaryRow label="Duración" value={formatDuration(service.durationMinutes)} />
+          ) : null}
+        </dl>
+
+        <p className="mt-4 text-sm text-[var(--site-on-surface-muted)]">
           Queda <strong className="text-[var(--site-on-surface)]">pendiente de confirmación</strong>. El
-          negocio te escribe al {phone} para confirmarte.
+          negocio te escribe al <strong className="text-[var(--site-on-surface)]">{phone}</strong> para
+          confirmarte.
         </p>
+
+        {confirmed.whatsapp ? (
+          <a
+            href={whatsappHref(confirmed.whatsapp, mensaje)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-5 inline-flex min-h-12 w-full items-center justify-center rounded-[var(--site-radius)] bg-[var(--site-accent)] px-4 py-3 text-sm font-semibold text-[var(--site-on-accent)]"
+          >
+            Escribir al negocio por WhatsApp
+          </a>
+        ) : null}
+
         {onClose ? (
           <button
             type="button"
             onClick={onClose}
-            className="mt-5 w-full rounded-[var(--site-radius)] border border-[var(--site-on-surface-border)] px-4 py-2.5 text-sm font-medium text-[var(--site-on-surface)]"
+            className="mt-3 w-full rounded-[var(--site-radius)] border border-[var(--site-on-surface-border)] px-4 py-2.5 text-sm font-medium text-[var(--site-on-surface)]"
           >
             Cerrar
           </button>
@@ -346,7 +382,7 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
         >
           {site.services.map((s) => (
             <option key={s.id} value={s.id}>
-              {s.name} · {formatCOP(s.price)} · {s.durationMinutes} min
+              {s.name} · {formatCOP(s.price)} · {formatDuration(s.durationMinutes)}
             </option>
           ))}
         </select>
@@ -540,6 +576,7 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
               label="Cuándo"
               value={`${shortDateFmt.format(parseDateInput(date))} · ${formatAppointmentTime(time, site.timeFormat)}`}
             />
+            <SummaryRow label="Duración" value={formatDuration(service.durationMinutes)} />
             <SummaryRow label="Precio" value={formatCOP(service.price)} strong />
           </dl>
         ) : null}

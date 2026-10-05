@@ -3,6 +3,8 @@ import { toMessage } from "@/lib/errors";
 import * as appointmentsService from "@/services/appointments.service";
 import type {
   Appointment,
+  AppointmentPaymentMethod,
+  BillableAppointment,
   NewAppointmentInput,
 } from "@/services/appointments.service";
 
@@ -25,7 +27,16 @@ interface AppointmentsState {
   ) => Promise<boolean>;
   updateStatus: (id: string, status: string) => Promise<boolean>;
   /** Cobra la cita (crea la venta del servicio) y la marca como completada. */
-  chargeAppointment: (appointment: Appointment) => Promise<boolean>;
+  chargeAppointment: (
+    appointment: Appointment,
+    paymentMethod: AppointmentPaymentMethod,
+  ) => Promise<boolean>;
+
+  /** Citas de hoy sin cobrar, para cobrarlas de una desde el POS. */
+  billable: BillableAppointment[];
+  fetchBillable: (today: string) => Promise<void>;
+  /** Ata a la cita la venta que la pagó (cobrada desde el POS). */
+  linkSale: (appointmentId: string, saleId: string) => Promise<boolean>;
   deleteAppointment: (id: string) => Promise<boolean>;
   setSelectedDate: (date: Date) => void;
 }
@@ -59,6 +70,7 @@ export const useAppointmentsStore = create<AppointmentsState>((set) => ({
       return null;
     }
   },
+  billable: [],
 
   fetchAppointments: async (startDate, endDate) => {
     const request = ++calendarRequest;
@@ -125,16 +137,16 @@ export const useAppointmentsStore = create<AppointmentsState>((set) => ({
     }
   },
 
-  chargeAppointment: async (appointment) => {
+  chargeAppointment: async (appointment, paymentMethod) => {
     set({ submitting: true, error: null });
     try {
-      await appointmentsService.chargeAppointment(appointment);
-      await appointmentsService.updateAppointmentStatus(appointment.id, "completed");
+      const saleId = await appointmentsService.chargeAppointment(appointment, paymentMethod);
       set((s) => ({
         linkedAppointment: s.linkedAppointment?.id === appointment.id ? { ...s.linkedAppointment, status: "completed" } : s.linkedAppointment,
         appointments: s.appointments.map((a) =>
-          a.id === appointment.id ? { ...a, status: "completed" } : a,
+          a.id === appointment.id ? { ...a, status: "completed", sale_id: saleId } : a,
         ),
+        billable: s.billable.filter((b) => b.id !== appointment.id),
         submitting: false,
       }));
       return true;
@@ -151,6 +163,33 @@ export const useAppointmentsStore = create<AppointmentsState>((set) => ({
       set((s) => ({
         linkedAppointment: s.linkedAppointment?.id === id ? null : s.linkedAppointment,
         appointments: s.appointments.filter((a) => a.id !== id),
+      }));
+      return true;
+    } catch (e) {
+      set({ error: toMessage(e) });
+      return false;
+    }
+  },
+
+  // Falla en silencio a propósito: la franja de citas es un atajo del POS, y
+  // un error de red ahí no puede tapar el cobro normal con un cartel.
+  fetchBillable: async (today) => {
+    try {
+      const billable = await appointmentsService.fetchBillableAppointments(today);
+      set({ billable });
+    } catch {
+      set({ billable: [] });
+    }
+  },
+
+  linkSale: async (appointmentId, saleId) => {
+    try {
+      await appointmentsService.linkAppointmentToSale(appointmentId, saleId);
+      set((s) => ({
+        billable: s.billable.filter((b) => b.id !== appointmentId),
+        appointments: s.appointments.map((a) =>
+          a.id === appointmentId ? { ...a, status: "completed", sale_id: saleId } : a,
+        ),
       }));
       return true;
     } catch (e) {

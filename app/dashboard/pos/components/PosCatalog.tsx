@@ -7,6 +7,17 @@ import { shouldSubmitIdleCode } from "./catalog-code";
 
 const BARCODE_IDLE_MS = 250;
 const SCANNER_KEY_GAP_MS = 80;
+import { formatDuration } from "@/lib/duration";
+
+/**
+ * Lo que dice la tarjeta de un servicio donde un producto dice su stock: cuánto
+ * dura. En el mostrador de una barbería "1 hora y media" decide si el turno
+ * entra antes del siguiente cliente; "Servicio" no decía nada que la foto no
+ * dijera ya.
+ */
+function serviceTag(item: CatalogItem): string {
+  return formatDuration(item.duration_minutes) || "Servicio";
+}
 
 const money = (n: number) =>
   n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -71,6 +82,8 @@ interface PosCatalogProps {
   onOpenShift: () => void;
   onOpenWithdrawal: () => void;
   openCloseShift: () => void;
+  /** Franja entre la barra de búsqueda y las categorías (citas de hoy). */
+  topSlot?: React.ReactNode;
 }
 
 export function PosCatalog({
@@ -98,6 +111,7 @@ export function PosCatalog({
   onOpenShift,
   onOpenWithdrawal,
   openCloseShift,
+  topSlot,
 }: PosCatalogProps) {
   const router = useRouter();
   const searchRef = useRef<HTMLInputElement>(null);
@@ -184,16 +198,6 @@ export function PosCatalog({
         </div>
 
         <div className="order-2 flex items-center gap-2 lg:gap-3 w-full lg:w-auto overflow-x-auto scrollbar-hide">
-          {isWorker && !currentShift && (
-            <button
-              onClick={onOpenShift}
-              className="h-12 px-4 rounded-2xl border border-outline-variant/30 text-sm font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low transition-colors shrink-0 flex items-center gap-2"
-              title="Aún no has abierto la caja de este turno"
-            >
-              <span className="w-2 h-2 rounded-full bg-on-surface-variant/40" />
-              Abrir turno
-            </button>
-          )}
           {isWorker && currentShift && (
             <>
               <button
@@ -249,6 +253,31 @@ export function PosCatalog({
           </button>
         </div>
       </div>
+
+      {/*
+        Sin turno el empleado puede armar el carrito pero NO cobrar
+        (`create_sale` lo rechaza). Antes eso se decía con un botón gris igual a
+        los demás y se descubría recién al intentar cobrar, con el cliente
+        esperando. Ahora se dice antes, una sola vez y con la acción al lado.
+      */}
+      {isWorker && !currentShift && (
+        <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-sm font-bold text-on-surface">La caja está cerrada</p>
+            <p className="text-xs text-on-surface-variant">
+              Puedes armar el carrito, pero para cobrar primero abre tu turno con la base de caja.
+            </p>
+          </div>
+          <button
+            onClick={onOpenShift}
+            className="shrink-0 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary transition-colors hover:bg-primary-dim"
+          >
+            Abrir turno
+          </button>
+        </div>
+      )}
+
+      {topSlot}
 
       <div className="flex gap-2 overflow-x-auto pb-4 mb-2 scrollbar-hide">
         {categories.map((cat) => (
@@ -321,7 +350,7 @@ export function PosCatalog({
                         </p>
                         <p className="text-[10px] font-semibold text-on-surface-variant uppercase tracking-wider">
                           {stock == null ? (
-                            <span className="text-emerald-500">Servicio</span>
+                            <span className="text-emerald-500">{serviceTag(item)}</span>
                           ) : outOfStock ? (
                             <span className={allowOversell ? "text-amber-600" : "text-error"}>Sin stock</span>
                           ) : (
@@ -437,7 +466,7 @@ export function PosCatalog({
                         </span>
                         {stock == null ? (
                           <span className="text-[10px] font-bold text-on-surface-variant shrink-0">
-                            Servicio
+                            {serviceTag(item)}
                           </span>
                         ) : (
                           <span
@@ -490,7 +519,7 @@ export function PosCatalog({
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-[10px] text-on-surface-variant font-semibold uppercase tracking-wider truncate">
-                          {stock == null ? "Servicio" : item.sku}
+                          {stock == null ? serviceTag(item) : item.sku}
                         </p>
                         <h3 className="text-xs font-medium text-on-surface truncate">{item.name}</h3>
                       </div>

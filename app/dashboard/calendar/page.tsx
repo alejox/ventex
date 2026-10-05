@@ -15,6 +15,7 @@ import {
 import { CollectionError, CollectionFilteredEmpty, CollectionLoading } from "@/components/CollectionState";
 import { toISODate } from "@/lib/date";
 import { useStaffStore } from "@/stores/staff.store";
+import { formatDuration } from "@/lib/duration";
 import { Select } from "@/components/ui/Select";
 
 import { useSettingsStore } from "@/stores/settings.store";
@@ -79,6 +80,15 @@ function getWeekDays(date: Date) {
     });
   }
   return days;
+}
+
+/** "10:00 - 11:30 · 1 hora y media": la hora de fin sola obliga a hacer la cuenta. */
+function timeRange(a: Appointment, timeFormat: Parameters<typeof formatAppointmentTime>[1]): string {
+  const [sh, sm] = a.start_time.split(":").map(Number);
+  const [eh, em] = a.end_time.split(":").map(Number);
+  const dur = formatDuration(eh * 60 + em - (sh * 60 + sm));
+  const range = `${formatAppointmentTime(a.start_time, timeFormat)} - ${formatAppointmentTime(a.end_time, timeFormat)}`;
+  return dur ? `${range} · ${dur}` : range;
 }
 
 const HOURS = Array.from({ length: 14 }, (_, i) => i + 7); // 7:00 - 20:00
@@ -638,8 +648,7 @@ function CalendarContent() {
                             {appt.title}
                           </span>
                           <span className="text-xs text-on-surface-variant">
-                            {formatAppointmentTime(appt.start_time, timeFormat)} -{" "}
-                            {formatAppointmentTime(appt.end_time, timeFormat)}
+                            {timeRange(appt, timeFormat)}
                           </span>
                         </div>
                         {appt.customers?.full_name && (
@@ -696,8 +705,7 @@ function CalendarContent() {
                       {appt.title}
                     </div>
                     <div className="text-xs text-on-surface-variant">
-                      {appt.appointment_date} · {formatAppointmentTime(appt.start_time, timeFormat)} -{" "}
-                      {formatAppointmentTime(appt.end_time, timeFormat)}
+                      {appt.appointment_date} · {timeRange(appt, timeFormat)}
                     </div>
                     {appt.customers?.full_name && (
                       <div className="text-xs text-on-surface-variant/80 truncate">

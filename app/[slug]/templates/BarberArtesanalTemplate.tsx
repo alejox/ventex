@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { esImagenAjena } from "@/lib/remoteImage";
 import { ArrowUpRight, Scissors } from "lucide-react";
 import type { PublicSite } from "@/services/public-site.types";
 import { DEFAULT_SITE_IMAGES } from "@/services/public-site.types";
@@ -14,13 +15,13 @@ export function BarberArtesanalTemplate({ site, preview = false }: { site: Publi
     <div className={`${styles.site} ${baseStyles.template} site-public`} style={paletteFor(site.config)} data-template="barberia-artesanal">
       <header className={styles.header}>
         <div className={styles.headerInner}>
-          <a className={styles.brand} href="#inicio">{site.logoUrl ? <Image src={site.logoUrl} alt="" width={36} height={36} /> : <Scissors size={22} strokeWidth={1.4} aria-hidden="true" />}<span>{site.businessName}</span></a>
+          <a className={styles.brand} href="#inicio">{site.logoUrl ? <Image src={site.logoUrl} unoptimized={esImagenAjena(site.logoUrl)} alt="" width={36} height={36} /> : <Scissors size={22} strokeWidth={1.4} aria-hidden="true" />}<span>{site.businessName}</span></a>
           <nav className={styles.navLinks} aria-label="Principal"><a href="#servicios">Servicios</a><a href="#equipo">Equipo</a><a href="#contacto">Contacto</a></nav>
           {site.bookingEnabled ? <a className={styles.navCta} href="#reservar">Reservar <ArrowUpRight size={14} aria-hidden="true" /></a> : null}
         </div>
       </header>
       <section id="inicio" className={styles.hero}>
-        <Image src={hero.imageUrl ?? DEFAULT_SITE_IMAGES["barberia-artesanal"]} alt="" fill preload={!preview} sizes="100vw" className={styles.heroImage} />
+        <Image src={hero.imageUrl ?? DEFAULT_SITE_IMAGES["barberia-artesanal"]} unoptimized={esImagenAjena(hero.imageUrl ?? DEFAULT_SITE_IMAGES["barberia-artesanal"])} alt="" fill preload={!preview} sizes="100vw" className={styles.heroImage} />
         <div className={styles.heroShade} />
         <div className={styles.heroBody}>
           <h1 className={`${styles.heroTitle} ${styles.manuscrita}`}>{hero.title ?? site.businessName}</h1>

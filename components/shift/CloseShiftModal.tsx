@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { useShiftsStore } from "@/stores/shifts.store";
+import { usePosStore } from "@/stores/pos.store";
 import type { CurrentShift, ShiftSummary } from "@/services/shifts.service";
 import { notifySuccess } from "@/lib/notifications";
 
@@ -85,6 +86,16 @@ export function CloseShiftModal({
   const needsJustification = useShiftsStore((s) => s.needsJustification);
   const resetJustification = useShiftsStore((s) => s.resetJustification);
   const fetchCurrentShift = useShiftsStore((s) => s.fetchCurrentShift);
+  /*
+   * Ventas cobradas sin conexión que todavía no llegaron a la base. Cada una
+   * viaja atada al turno en que se cobró: si el turno se cierra antes de que
+   * salgan, `create_sale` las rechaza para siempre (el turno ya no existe
+   * abierto) y la plata queda en el cajón sin venta, sin stock descontado y con
+   * un sobrante falso en el arqueo. Solo aplica al cerrar el PROPIO turno: el
+   * dueño cerrando el de otro (`shiftId`) no tiene esa cola en su navegador.
+   */
+  const pendingSales = usePosStore((s) => s.pendingSales);
+  const blockedByQueue = !shiftId && pendingSales > 0;
 
   const [step, setStep] = useState<"count" | "verdict">("count");
   const [closingCash, setClosingCash] = useState("");
@@ -116,7 +127,7 @@ export function CloseShiftModal({
 
   const handleCount = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!countedValid) return;
+    if (!countedValid || blockedByQueue) return;
     // Sin datos en vivo no hay veredicto local: se intenta cerrar y el servidor
     // responde si falta justificación.
     if (expected == null) {
@@ -318,6 +329,15 @@ export function CloseShiftModal({
             </div>
           )}
 
+          {blockedByQueue && (
+            <div className="rounded-xl bg-amber-500/10 border border-amber-500/30 px-4 py-3 text-sm text-amber-700 dark:text-amber-400">
+              Tienes {pendingSales === 1 ? "1 venta" : `${pendingSales} ventas`} sin enviar
+              (cobradas sin conexión). Espera a que se envíen antes de cerrar el
+              turno: si lo cierras ahora, esas ventas se pierden y la caja no
+              cuadra.
+            </div>
+          )}
+
           <div>
             <label className="block text-sm font-semibold text-on-surface mb-1.5">Efectivo contado</label>
             <input
@@ -347,7 +367,7 @@ export function CloseShiftModal({
             </button>
             <button
               type="submit"
-              disabled={submitting || !countedValid}
+              disabled={submitting || !countedValid || blockedByQueue}
               className="px-5 py-2.5 rounded-xl bg-primary text-white font-semibold hover:bg-primary-dim transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {submitting ? "Cerrando…" : "Continuar"}
