@@ -30,6 +30,8 @@ import { ProductPresentationSection } from "./components/ProductPresentationSect
 import { useFormatMoney } from "@/lib/useMoney";
 import { isSafeNext } from "@/lib/safe-next";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
+import { useUnsavedChangesGuard } from "@/lib/unsaved-changes";
+import { Switch } from "@/components/ui/Switch";
 
 interface FieldErrors {
   name?: string;
@@ -605,6 +607,7 @@ function ProductForm() {
   });
   if (!loadingProduct && baseline === null) setBaseline(snapshot);
   const dirty = baseline !== null && baseline !== snapshot && !saving;
+  useUnsavedChangesGuard(dirty);
 
   /** Volver/Cancelar con cambios: pregunta antes de descartarlos. */
   const guardLeave = (e: React.MouseEvent<HTMLAnchorElement>) => {
@@ -1079,23 +1082,12 @@ function ProductForm() {
                   <p id="service-active-label" className="text-sm font-bold text-on-surface">Servicio Activo</p>
                   <p id="service-active-help" className="text-xs text-on-surface-variant mt-1">Disponible para agendar y cobrar.</p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setServiceStatus((s) => (s === "active" ? "inactive" : "active"))}
-                  role="switch"
-                  aria-checked={serviceStatus === "active"}
+                <Switch
                   aria-labelledby="service-active-label"
-                  aria-describedby="service-active-help"
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 shrink-0 ml-4 ${
-                    serviceStatus === "active" ? "bg-[#6063ee]" : "bg-outline-variant/30"
-                  }`}
-                >
-                  <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      serviceStatus === "active" ? "translate-x-6" : "translate-x-1"
-                    }`}
-                  />
-                </button>
+                  checked={serviceStatus === "active"}
+                  onCheckedChange={(on) => setServiceStatus(on ? "active" : "inactive")}
+                  className="ml-4"
+                />
               </div>
             </div>
           )}
@@ -1104,24 +1096,14 @@ function ProductForm() {
           {/* Comisión */}
           <div className="pt-4 border-t border-outline-variant/10">
             <div className="flex items-center gap-3 mb-4">
-              <button
-                type="button"
-                onClick={() => {
-                  setForm({ ...form, has_commission: !form.has_commission, commission_type: "percentage", commission_value: "" });
+              <Switch
+                aria-labelledby="commission-label"
+                checked={form.has_commission}
+                onCheckedChange={(on) => {
+                  setForm({ ...form, has_commission: on, commission_type: "percentage", commission_value: "" });
                   setFieldErrors((p) => ({ ...p, commission: undefined }));
                 }}
-                role="switch"
-                aria-checked={form.has_commission}
-                aria-labelledby="commission-label"
-                aria-describedby="commission-help"
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${
-                  form.has_commission ? "bg-[#6063ee]" : "bg-outline-variant/30"
-                }`}
-              >
-                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  form.has_commission ? "translate-x-6" : "translate-x-1"
-                }`} />
-              </button>
+              />
               <div>
                 <p id="commission-label" className="text-sm font-semibold text-on-surface">Genera comisión</p>
                 <p id="commission-help" className="text-xs text-on-surface-variant">

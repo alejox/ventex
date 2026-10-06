@@ -17,14 +17,15 @@ import type { ExpenseSlice } from "@/services/finance.service";
 import { ExpensesByCategory } from "@/components/ExpensesByCategory";
 import { MoneyInput } from "@/components/ui/MoneyInput";
 import { downloadCsv, downloadXlsx, exportFilename, inclusiveEnd, sheet } from "@/lib/export";
-import { ExportButtons } from "@/app/dashboard/reports/ExportButtons";
-import { OpenOnNewParam } from "@/app/dashboard/reports/OpenOnNewParam";
+import { ExportButtons } from "@/components/ui/ExportButtons";
+import { OpenOnNewParam } from "@/components/ui/OpenOnNewParam";
 import { formatDateOnly, todayISO } from "@/lib/date";
 import { notifySuccess } from "@/lib/notifications";
 import { DataTable, type DataColumn } from "@/components/DataTable";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import Link from "next/link";
 import { useFormatMoney } from "@/lib/useMoney";
+import { Modal } from "@/components/ui/Modal";
 /**
  * El formulario guarda el monto como TEXTO crudo (lo que entrega `MoneyInput`)
  * y se convierte a número recién al guardar: con un número, el punto decimal
@@ -374,7 +375,7 @@ export default function ExpensesPage() {
               <p className="text-sm font-medium text-on-surface truncate">
                 {c.name}
                 {c.is_default && (
-                  <span className="ml-2 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
+                  <span className="ml-2 text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">
                     Por defecto
                   </span>
                 )}
@@ -416,7 +417,7 @@ export default function ExpensesPage() {
         ))}
       </ul>
     </section>
-    {(form || newCategory) && <Modal title={newCategory ? (editingCategory ? "Editar categoría de gasto" : "Nueva categoría de gasto") : editing ? "Editar gasto" : "Registrar gasto"} onClose={closeModals}>{newCategory ? <form onSubmit={submitCategory} className="space-y-4"><Field label="Nombre"><input required className={inputClass} value={categoryForm.name} onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })} /></Field><Field label="Descripción"><input className={inputClass} value={categoryForm.description} onChange={(e) => setCategoryForm({ ...categoryForm, description: e.target.value })} /></Field><Field label="Color"><input type="color" className="h-11 w-full cursor-pointer rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-1" value={categoryForm.color} onChange={(e) => setCategoryForm({ ...categoryForm, color: e.target.value })} /></Field><Submit /></form> : <form onSubmit={submit} className="space-y-4"><Field label="Descripción"><input required className={inputClass} value={form?.description ?? ""} onChange={(e) => setForm({ ...form!, description: e.target.value })} /></Field><div className="grid grid-cols-2 gap-3"><Field label="Monto"><MoneyInput required aria-label="Monto" value={form?.amount ?? ""} onChange={(raw) => setForm({ ...form!, amount: raw })} className="py-2.5" /></Field><Field label="Fecha"><input required type="date" className={inputClass} value={form?.expense_date ?? todayISO()} onChange={(e) => setForm({ ...form!, expense_date: e.target.value })} /></Field></div><Field label="Categoría"><select className={inputClass} value={form?.category_id ?? ""} onChange={(e) => setForm({ ...form!, category_id: e.target.value })}><option value="">Otros</option>{categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field><button type="button" onClick={() => openCategory()} className="text-xs font-semibold text-primary">+ Crear categoría</button><Submit /></form>}</Modal>}
+    {(form || newCategory) && <FormModal title={newCategory ? (editingCategory ? "Editar categoría de gasto" : "Nueva categoría de gasto") : editing ? "Editar gasto" : "Registrar gasto"} onClose={closeModals}>{newCategory ? <form onSubmit={submitCategory} className="space-y-4"><Field label="Nombre"><input required className={inputClass} value={categoryForm.name} onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })} /></Field><Field label="Descripción"><input className={inputClass} value={categoryForm.description} onChange={(e) => setCategoryForm({ ...categoryForm, description: e.target.value })} /></Field><Field label="Color"><input type="color" className="h-11 w-full cursor-pointer rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-1" value={categoryForm.color} onChange={(e) => setCategoryForm({ ...categoryForm, color: e.target.value })} /></Field><Submit /></form> : <form onSubmit={submit} className="space-y-4"><Field label="Descripción"><input required className={inputClass} value={form?.description ?? ""} onChange={(e) => setForm({ ...form!, description: e.target.value })} /></Field><div className="grid grid-cols-2 gap-3"><Field label="Monto"><MoneyInput required aria-label="Monto" value={form?.amount ?? ""} onChange={(raw) => setForm({ ...form!, amount: raw })} className="py-2.5" /></Field><Field label="Fecha"><input required type="date" className={inputClass} value={form?.expense_date ?? todayISO()} onChange={(e) => setForm({ ...form!, expense_date: e.target.value })} /></Field></div><Field label="Categoría"><select className={inputClass} value={form?.category_id ?? ""} onChange={(e) => setForm({ ...form!, category_id: e.target.value })}><option value="">Otros</option>{categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field><button type="button" onClick={() => openCategory()} className="text-xs font-semibold text-primary">+ Crear categoría</button><Submit /></form>}</FormModal>}
     {dialog}
   </div>;
 }
@@ -443,5 +444,5 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 const inputClass =
   "w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all";
 function Submit() { return <div className="flex justify-end pt-3"><button className="px-4 py-2.5 rounded-xl bg-primary text-on-primary text-sm font-semibold" type="submit">Guardar</button></div>; }
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) { return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"><div className="w-full max-w-md rounded-2xl bg-surface-container p-6 shadow-2xl"><div className="flex justify-between items-center mb-5"><h2 className="text-lg font-bold text-on-surface">{title}</h2><button onClick={onClose} className="text-on-surface-variant" aria-label="Cerrar">×</button></div>{children}</div></div>; }
+function FormModal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) { return <Modal open onClose={onClose} title={title} className="max-w-md!">{children}</Modal>; }
 

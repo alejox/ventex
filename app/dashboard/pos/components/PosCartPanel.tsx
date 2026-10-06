@@ -20,6 +20,7 @@ import { formatQty, parseQuantityDraft } from "@/lib/stock";
 import { creditAlertText } from "@/lib/credits";
 import { useFormatMoney } from "@/lib/useMoney";
 import type { DiscountBreakdownEntry } from "@/lib/pos-discount-breakdown";
+import { Switch } from "@/components/ui/Switch";
 
 /**
  * El campo de cantidad de una línea del carrito.
@@ -379,22 +380,12 @@ export function PosCartPanel({
 
             {/* Domicilio toggle */}
             {totals.total > 0 && profile?.businessType !== "salon" && (
-              <label className="flex items-center gap-3 py-1.5 cursor-pointer">
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={isDelivery}
-                  onClick={() => setDelivery(!isDelivery)}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${
-                    isDelivery ? "bg-primary" : "bg-outline-variant/30"
-                  }`}
-                >
-                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    isDelivery ? "translate-x-6" : "translate-x-1"
-                  }`} />
-                </button>
-                <span className="text-sm text-on-surface">Es domicilio</span>
-              </label>
+              <Switch
+                label="Es domicilio"
+                checked={isDelivery}
+                onCheckedChange={setDelivery}
+                className="py-1.5"
+              />
             )}
 
             {/* Split payment indicator */}
@@ -432,7 +423,7 @@ export function PosCartPanel({
             {cart.some((l) => l.item.kind === "service" || l.item.has_commission) &&
               staff.length === 1 &&
               !staffId && (
-                <p className="text-[10px] text-amber-600 dark:text-amber-400">
+                <p className="text-[11px] text-warning">
                   Hay ítems que comisionan: elige &quot;Atendido por&quot; para que la comisión se devengue.
                 </p>
               )}
@@ -656,7 +647,7 @@ export function PosCartPanel({
               {cart.some((l) => l.item.kind === "service" || l.item.has_commission) && staff.length !== 1 && (
                 <div className="space-y-1.5 pt-1 border-t border-outline-variant/10">
                   {staff.length === 0 ? (
-                    <p className="text-[10px] text-amber-600 dark:text-amber-400">
+                    <p className="text-[11px] text-warning">
                       Hay productos que comisionan, pero no tienes personal cargado.
                       Agrégalo en Personal para poder asignarles la comisión.
                     </p>
@@ -665,7 +656,7 @@ export function PosCartPanel({
                       .filter((l) => l.item.kind === "service" || l.item.has_commission)
                       .map((line) => (
                         <div key={`stf-${cartLineKey(line)}`} className="flex items-center gap-2">
-                          <span className="text-[10px] text-on-surface-variant shrink-0 truncate max-w-[80px]">{line.item.name}</span>
+                          <span className="text-[11px] text-on-surface-variant shrink-0 truncate max-w-[80px]">{line.item.name}</span>
                           <Select
                             size="sm"
                             value={line.staffId ?? ""}

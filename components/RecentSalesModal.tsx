@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePosStore } from "@/stores/pos.store";
-import { backdropProps } from "@/components/modal";
 import { useFormatMoney } from "@/lib/useMoney";
+import { Modal } from "@/components/ui/Modal";
 
 function IconReceipt(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -49,27 +49,19 @@ export function RecentSalesModal({ onClose, onReprint }: RecentSalesModalProps) 
   };
 
   return (
-    <div className="fixed inset-0 z-[200] flex justify-end bg-black/20 backdrop-blur-sm animate-in fade-in duration-200 print:hidden" {...backdropProps(onClose)}>
-      <div
-        className="w-full max-w-md bg-surface-container-lowest h-full flex flex-col shadow-2xl animate-in slide-in-from-right duration-300"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between p-6 border-b border-outline-variant/10">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center">
-              <IconReceipt className="w-5 h-5" />
-            </div>
-            <h2 className="text-xl font-bold text-on-surface">Ventas recientes</h2>
-          </div>
-          <button
-            onClick={onClose}
-            className="text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest p-2 rounded-full transition-colors"
-            aria-label="Cerrar modal"
-          >
-            ✕
-          </button>
+    <Modal
+      open
+      onClose={onClose}
+      title="Ventas recientes"
+      icon={
+        <div className="w-10 h-10 rounded-full bg-primary/10 text-primary-ink flex items-center justify-center">
+          <IconReceipt className="w-5 h-5" />
         </div>
-
+      }
+      placement="right"
+      className="max-w-md!"
+      bodyClassName="flex flex-col border-t border-outline-variant/10"
+    >
         <div className="flex-1 overflow-y-auto p-6">
           {loading && sales.length === 0 ? (
             <div className="flex justify-center p-8">
@@ -143,7 +135,6 @@ export function RecentSalesModal({ onClose, onReprint }: RecentSalesModalProps) 
             <span>→</span>
           </Link>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

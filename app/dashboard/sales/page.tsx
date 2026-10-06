@@ -30,7 +30,8 @@ import { PosReceipt } from "@/components/PosReceipt";
 import { buildReceiptFromSale } from "@/lib/receipt";
 import { downloadCsv, downloadXlsx, exportFilename, inclusiveEnd, sheet } from "@/lib/export";
 import { toISODate, todayISO } from "@/lib/date";
-import { ExportButtons } from "@/app/dashboard/reports/ExportButtons";
+import { ExportButtons } from "@/components/ui/ExportButtons";
+import { Modal } from "@/components/ui/Modal";
 
 const formatDate = (iso: string) =>
   new Date(iso).toLocaleString("es-CO", {
@@ -78,8 +79,8 @@ const PAYMENT_FILTERS = [
 ] as const;
 
 const STATUS_STYLES: Record<string, string> = {
-  completed: "bg-[#10b981]/10 text-[#10b981] border-[#10b981]/20",
-  refunded: "bg-[#f59e0b]/10 text-[#f59e0b] border-[#f59e0b]/20",
+  completed: "bg-success/10 text-success border-success/20",
+  refunded: "bg-warning/10 text-warning border-warning/20",
   void: "bg-error-container/20 text-error-dim border-error-container/30",
 };
 
@@ -609,16 +610,16 @@ export default function SalesPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {(filtrandoItem
           ? [
-              { label: "Unidades vendidas", value: summary ? formatQty(summary.item_units) : "—", tint: "bg-[#6063ee]/10 text-[#6063ee]", Icon: IconShoppingCart },
+              { label: "Unidades vendidas", value: summary ? formatQty(summary.item_units) : "—", tint: "bg-primary/10 text-primary-ink", Icon: IconShoppingCart },
               { label: `Vendido de ${nombreDelItem}`, value: summary ? fmtMoney(summary.item_revenue) : "—", tint: "bg-[#3b82f6]/10 text-[#3b82f6]", Icon: IconWallet },
-              { label: "Ventas que lo incluyen", value: summary ? summary.completed_count : "—", tint: "bg-[#10b981]/10 text-[#10b981]", Icon: IconWallet },
-              { label: "Precio promedio", value: summary ? fmtMoney(summary.item_avg_price) : "—", tint: "bg-[#f59e0b]/10 text-[#f59e0b]", Icon: IconTrendingUp },
+              { label: "Ventas que lo incluyen", value: summary ? summary.completed_count : "—", tint: "bg-success/10 text-success", Icon: IconWallet },
+              { label: "Precio promedio", value: summary ? fmtMoney(summary.item_avg_price) : "—", tint: "bg-warning/10 text-warning", Icon: IconTrendingUp },
             ]
           : [
-              { label: "Ventas totales", value: summary ? summary.sales_count : "—", tint: "bg-[#6063ee]/10 text-[#6063ee]", Icon: IconShoppingCart },
-              { label: "Completadas", value: summary ? summary.completed_count : "—", tint: "bg-[#10b981]/10 text-[#10b981]", Icon: IconWallet },
+              { label: "Ventas totales", value: summary ? summary.sales_count : "—", tint: "bg-primary/10 text-primary-ink", Icon: IconShoppingCart },
+              { label: "Completadas", value: summary ? summary.completed_count : "—", tint: "bg-success/10 text-success", Icon: IconWallet },
               { label: "Ingresos (completadas)", value: summary ? fmtMoney(summary.revenue) : "—", tint: "bg-[#3b82f6]/10 text-[#3b82f6]", Icon: IconWallet },
-              { label: "Ticket promedio", value: summary ? fmtMoney(summary.avg_ticket) : "—", tint: "bg-[#f59e0b]/10 text-[#f59e0b]", Icon: IconTrendingUp },
+              { label: "Ticket promedio", value: summary ? fmtMoney(summary.avg_ticket) : "—", tint: "bg-warning/10 text-warning", Icon: IconTrendingUp },
             ]
         ).map(({ label, value, tint, Icon }) => (
           <div
@@ -689,58 +690,39 @@ export default function SalesPage() {
 
       {/* Modal de detalle */}
       {detail && (
-        <div
-          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) closeSaleDetail();
-          }}
+        <Modal
+          open
+          onClose={closeSaleDetail}
+          title={`Venta #${detail.sale_number}`}
+          description={
+            <>
+              <span className="block text-xs">
+                {formatDate(detail.created_at)} · {detail.customer_name ?? "De Paso"}
+              </span>
+              {/* Quién atendió. Se muestra solo si hay alguien atribuido: un
+                  "Atendido por: —" no le dice nada al dueño. */}
+              {detail.staff_name && (
+                <span className="block text-xs mt-0.5">
+                  Atendido por: <span className="font-semibold text-on-surface">{detail.staff_name}</span>
+                </span>
+              )}
+            </>
+          }
+          bodyClassName="border-t border-outline-variant/10"
         >
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="sale-detail-title"
-            className="bg-surface-container w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-3xl border border-outline-variant/10 shadow-2xl animate-in fade-in zoom-in-95 duration-200"
-          >
-            <div className="p-6 border-b border-outline-variant/10 flex justify-between items-start gap-3">
-              <div>
-                <h2 id="sale-detail-title" className="text-lg font-bold text-on-surface">
-                  Venta #{detail.sale_number}
-                </h2>
-                {detail && (
-                  <p className="text-xs text-on-surface-variant mt-1">
-                    {formatDate(detail.created_at)} · {detail.customer_name ?? "De Paso"}
-                  </p>
-                )}
-                {/* Quién atendió. Se muestra solo si hay alguien atribuido: un
-                    "Atendido por: —" no le dice nada al dueño. */}
-                {detail.staff_name && (
-                  <p className="text-xs text-on-surface-variant mt-0.5">
-                    Atendido por: <span className="font-semibold text-on-surface">{detail.staff_name}</span>
-                  </p>
-                )}
-              </div>
-              <div className="flex items-center gap-1 shrink-0">
-                {/* Reimprimir solo una venta vigente: el recibo de una anulada
-                    se leería como un comprobante válido. */}
-                {detail.status === "completed" && receipt && (
-                  <button
-                    type="button"
-                    onClick={() => window.print()}
-                    className="px-3 py-1.5 rounded-lg text-xs font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-colors"
-                  >
-                    Reimprimir
-                  </button>
-                )}
+            {/* Reimprimir solo una venta vigente: el recibo de una anulada
+                se leería como un comprobante válido. */}
+            {detail.status === "completed" && receipt && (
+              <div className="px-6 pt-4 flex justify-end">
                 <button
                   type="button"
-                  onClick={closeSaleDetail}
-                  aria-label="Cerrar"
-                  className="w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest"
+                  onClick={() => window.print()}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-colors"
                 >
-                  ✕
+                  Reimprimir
                 </button>
               </div>
-            </div>
+            )}
 
             {detailLoading ? (
               <div className="p-12 text-center text-sm text-on-surface-variant">Cargando detalle…</div>
@@ -771,13 +753,13 @@ export default function SalesPage() {
                             {item.staff_name && item.staff_name !== detail.staff_name && item.commission_amount > 0 && " · "}
                             {item.commission_amount > 0 && (
                               <>
-                                <span className="text-[#10b981] font-medium">
+                                <span className="text-success font-medium">
                                   Comisión {fmtMoney(item.commission_amount)}
                                 </span>
                                 {/* Si la comisión ya se liquidó, anular esta
                                     venta implica plata que ya salió: decirlo acá
                                     es lo que evita el descuadre silencioso. */}
-                                <span className={item.commission_settlement_id ? "text-[#10b981]" : "text-[#b45309]"}>
+                                <span className={item.commission_settlement_id ? "text-success" : "text-warning"}>
                                   {item.commission_settlement_id ? " · pagada" : " · sin liquidar"}
                                 </span>
                               </>
@@ -798,7 +780,7 @@ export default function SalesPage() {
                   {detail.discount_amount > 0 && (
                     <div className="flex justify-between text-sm">
                       <span className="text-on-surface-variant">Descuento</span>
-                      <span className="text-[#10b981] font-medium">-{fmtMoney(detail.discount_amount)}</span>
+                      <span className="text-success font-medium">-{fmtMoney(detail.discount_amount)}</span>
                     </div>
                   )}
                   <div className="flex justify-between text-sm">
@@ -807,7 +789,7 @@ export default function SalesPage() {
                   </div>
                   <div className="flex justify-between items-center pt-3 border-t border-outline-variant/10">
                     <span className="text-base font-bold text-on-surface">Total</span>
-                    <span className="text-2xl font-black text-[#6063ee]">{fmtMoney(detail.total)}</span>
+                    <span className="text-2xl font-black text-primary-ink">{fmtMoney(detail.total)}</span>
                   </div>
                 </div>
 
@@ -845,7 +827,7 @@ export default function SalesPage() {
                             —la venta puede estar mal de verdad—, pero el dueño
                             tiene que saber que queda un saldo a favor suyo. */}
                         {voidImpact && voidImpact.paidCommission > 0 && (
-                          <p role="alert" className="text-xs rounded-lg border border-[#f59e0b]/30 bg-[#f59e0b]/10 px-3 py-2 text-on-surface">
+                          <p role="alert" className="text-xs rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-on-surface">
                             <strong className="font-bold">Ojo:</strong> {fmtMoney(voidImpact.paidCommission)} de comisión de
                             esta venta ya se liquidaron y se pagaron. Anularla no devuelve ese dinero:
                             descuéntalo en la próxima liquidación.
@@ -911,8 +893,7 @@ export default function SalesPage() {
                 )}
               </div>
             )}
-          </div>
-        </div>
+        </Modal>
       )}
     </div>
     <PosReceipt data={receipt} />

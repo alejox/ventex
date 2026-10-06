@@ -5,6 +5,7 @@ import { Select } from "@/components/ui/Select";
 import { notifyError, notifySuccess, notifyWarning } from "@/lib/notifications";
 import { useCashDrawerStore } from "@/stores/cash-drawer.store";
 import { canKickWith, DRAWER_BAUD_RATES, type DrawerTransportChoice } from "@/lib/cash-drawer";
+import { Switch } from "@/components/ui/Switch";
 
 const TRANSPORT_NAME: Record<string, string> = {
   serial: "puerto serie",
@@ -168,15 +169,12 @@ export function CashDrawerCard() {
                   mano desde el botón del punto de venta.
                 </p>
               </div>
-              <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                <input
-                  type="checkbox"
-                  className="sr-only peer"
-                  checked={config.autoOpenOnSale}
-                  onChange={(e) => setConfig({ autoOpenOnSale: e.target.checked })}
-                />
-                <div className="w-11 h-6 bg-surface-container-high peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-              </label>
+              <Switch
+                aria-label="Abrir el cajón al terminar la venta"
+                checked={config.autoOpenOnSale}
+                onCheckedChange={(v) => setConfig({ autoOpenOnSale: v })}
+                className="shrink-0"
+              />
             </div>
           </div>
 

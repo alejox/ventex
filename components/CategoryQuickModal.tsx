@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useInventoryStore } from "@/stores/inventory.store";
 import { notifySuccess } from "@/lib/notifications";
 import { findDuplicateCategory } from "@/services/inventory.service";
+import { Modal } from "@/components/ui/Modal";
 
 interface CategoryQuickModalProps {
   onClose: () => void;
@@ -44,27 +45,8 @@ export function CategoryQuickModal({ onClose, onCreated }: CategoryQuickModalPro
   };
 
   return (
-    <div
-      className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-    >
-      <div
-        className="bg-surface-container-lowest rounded-[24px] w-full max-w-sm border border-outline-variant/10 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="p-5 pb-3 flex justify-between items-center">
-          <h2 className="text-lg font-bold text-on-surface">Nueva Categoría</h2>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-low transition-colors"
-          >
-            <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-5 h-5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-5 pt-2 space-y-4">
+    <Modal open onClose={onClose} title="Nueva Categoría" size="sm" bodyClassName="">
+        <form onSubmit={handleSubmit} className="px-6 pb-6 space-y-4">
           {shownError && (
             <div className="rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim">
               {shownError}
@@ -111,7 +93,6 @@ export function CategoryQuickModal({ onClose, onCreated }: CategoryQuickModalPro
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </Modal>
   );
 }

@@ -5,12 +5,12 @@ import { useResellerStore } from "@/stores/reseller.store";
 import type { ResellerClient } from "@/services/reseller.service";
 import { LICENSE_STATUS_LABELS, licenseAccent } from "@/config/plans";
 import { BUSINESS_OPTIONS } from "@/config/business";
-import { backdropProps } from "@/components/modal";
 import { IconUsers } from "@/app/assets/icons/DashboardIcons";
 import { CollectionEmpty, CollectionError, CollectionFilteredEmpty, CollectionLoading } from "@/components/CollectionState";
 import { Pagination } from "@/components/Pagination";
 import { Select } from "@/components/ui/Select";
 import { ExpiryCell } from "@/components/ui/ExpiryCell";
+import { Modal } from "@/components/ui/Modal";
 
 export default function ResellerClientsPage() {
   const clients = useResellerStore((s) => s.clients);
@@ -296,22 +296,16 @@ function CreateClientModal({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div
-      className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
-      {...backdropProps(onClose)}
+    <Modal
+      open
+      onClose={() => {
+        if (!submitting) onClose();
+      }}
+      title="Nuevo cliente"
+      description="La cuenta se crea con la contraseña que asignes. El primer login del cliente activa su licencia y consume 1 crédito."
+      className="max-w-md!"
+      bodyClassName="border-t border-outline-variant/10"
     >
-      <div
-        className="bg-surface-container rounded-3xl w-full max-w-md border border-outline-variant/10 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="p-6 border-b border-outline-variant/10">
-          <h2 className="text-lg font-bold text-on-surface">Nuevo cliente</h2>
-          <p className="text-sm text-on-surface-variant mt-0.5">
-            La cuenta se crea con la contraseña que asignes. El primer login del
-            cliente activa su licencia y consume 1 crédito.
-          </p>
-        </div>
-
         <form onSubmit={handleSubmit}>
           <div className="p-6 space-y-4">
             {error && (
@@ -412,8 +406,7 @@ function CreateClientModal({ onClose }: { onClose: () => void }) {
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -462,21 +455,16 @@ function ManageClientModal({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
-      {...backdropProps(onClose)}
+    <Modal
+      open
+      onClose={() => {
+        if (!submitting) onClose();
+      }}
+      title="Gestionar cliente"
+      description={client.business_name || client.full_name || client.email}
+      className="max-w-md!"
+      bodyClassName="border-t border-outline-variant/10"
     >
-      <div
-        className="bg-surface-container rounded-3xl w-full max-w-md border border-outline-variant/10 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="p-6 border-b border-outline-variant/10">
-          <h2 className="text-lg font-bold text-on-surface">Gestionar cliente</h2>
-          <p className="text-sm text-on-surface-variant mt-0.5">
-            {client.business_name || client.full_name || client.email}
-          </p>
-        </div>
-
         <div className="p-6 space-y-5">
           {error && (
             <div className="rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim">
@@ -619,8 +607,7 @@ function ManageClientModal({
             {submitting ? "Guardando…" : suspended ? "Reactivar" : "Suspender"}
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }
 

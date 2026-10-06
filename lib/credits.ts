@@ -65,9 +65,9 @@ export function creditLabelOf(balance: number, limit: number | null, currency?: 
 
 /** Clases del chip. Incluyen el borde, así que el consumidor pone `border`. */
 export const CREDIT_CHIP: Record<CreditStatus, string> = {
-  al_dia: "bg-[#10b981]/10 text-[#10b981] border-[#10b981]/20",
-  debe: "bg-[#f59e0b]/10 text-[#f59e0b] border-[#f59e0b]/20",
-  cerca_del_cupo: "bg-[#f59e0b]/15 text-[#f59e0b] border-[#f59e0b]/30",
+  al_dia: "bg-success/10 text-success border-success/20",
+  debe: "bg-warning/10 text-warning border-warning/20",
+  cerca_del_cupo: "bg-warning/15 text-warning border-warning/30",
   excedido: "bg-error/10 text-error border-error/30",
 };
 

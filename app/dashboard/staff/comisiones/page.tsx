@@ -21,6 +21,7 @@ import { CollectionEmpty, CollectionError, CollectionLoading } from "@/component
 import { IconDollar } from "@/app/assets/icons/DashboardIcons";
 import { notifySuccess, notifyError } from "@/lib/notifications";
 import { useFormatMoney } from "@/lib/useMoney";
+import { Modal } from "@/components/ui/Modal";
 
 const PAYMENT_LABELS: Record<string, string> = {
   efectivo: "Efectivo",
@@ -182,7 +183,7 @@ export default function CommissionsPage() {
             onClick={() => member && setSettleFor({ member, period: settlePeriodFor(c) })}
             disabled={c.pending <= 0 || !member}
             title={c.pending > 0 ? undefined : "No hay comisión pendiente en el período elegido"}
-            className="px-3 py-1.5 rounded-lg bg-primary/10 text-primary text-[11px] font-bold hover:bg-primary hover:text-on-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-primary/10 disabled:hover:text-primary"
+            className="px-3 py-1.5 rounded-lg bg-primary/10 text-primary text-[11px] font-bold hover:bg-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-primary/10 disabled:hover:text-primary"
           >
             Liquidar
           </button>
@@ -298,13 +299,13 @@ export default function CommissionsPage() {
                         {s.staff_name}
                       </span>
                       {s.status === "void" && (
-                        <span className="inline-flex px-2 py-0.5 rounded-md text-[10px] font-bold bg-surface-variant text-on-surface-variant">
+                        <span className="inline-flex px-2 py-0.5 rounded-md text-[11px] font-bold bg-surface-variant text-on-surface-variant">
                           Anulada
                         </span>
                       )}
                       {s.voidedSalesCount > 0 && s.status !== "void" && (
                         <span
-                          className="inline-flex px-2 py-0.5 rounded-md text-[10px] font-bold bg-[#f59e0b]/15 text-[#b45309] border border-[#f59e0b]/30"
+                          className="inline-flex px-2 py-0.5 rounded-md text-[11px] font-bold bg-warning/15 text-warning border border-warning/30"
                           title={`${s.voidedSalesCount} venta(s) de esta liquidación se anularon después de pagarla`}
                         >
                           {s.voidedSalesCount} venta{s.voidedSalesCount !== 1 ? "s" : ""} anulada{s.voidedSalesCount !== 1 ? "s" : ""}
@@ -358,14 +359,24 @@ export default function CommissionsPage() {
       {receiptFor && <CommissionReceiptModal settlement={receiptFor} onClose={() => setReceiptFor(null)} />}
 
       {confirmVoid && (
-        <div className="fixed inset-0 z-[125] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-surface-container rounded-t-3xl sm:rounded-3xl w-full sm:max-w-sm border border-outline-variant/10 shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200">
-            <div className="p-6 text-center">
-              <h3 className="text-lg font-bold text-on-surface mb-2">Anular liquidación</h3>
-              <p className="text-sm text-on-surface-variant mb-4">
-                Las comisiones de {confirmVoid.staff_name} ({fmtMoney(confirmVoid.total_amount)}) vuelven a
-                quedar pendientes y el gasto asociado se elimina.
-              </p>
+        <Modal
+          open
+          onClose={() => {
+            if (!submitting) setConfirmVoid(null);
+          }}
+          title="Anular liquidación"
+          description={
+            <>
+              Las comisiones de {confirmVoid.staff_name} ({fmtMoney(confirmVoid.total_amount)}) vuelven a
+              quedar pendientes y el gasto asociado se elimina.
+            </>
+          }
+          role="alertdialog"
+          size="sm"
+          placement="sheet"
+          dismissible={false}
+          showCloseButton={false}
+        >
               {confirmVoid.cash_movement_id && (
                 <p className="text-xs text-on-surface-variant mb-6 rounded-lg border border-outline-variant/20 bg-surface-container-lowest px-3 py-2 text-left">
                   Se pagó en efectivo. Si el turno del que salió sigue <strong>abierto</strong>, la plata
@@ -402,9 +413,7 @@ export default function CommissionsPage() {
                   {submitting ? "Anulando…" : "Anular"}
                 </button>
               </div>
-            </div>
-          </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

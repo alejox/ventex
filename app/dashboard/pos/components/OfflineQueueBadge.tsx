@@ -57,7 +57,7 @@ export function OfflineQueueBadge({ onVerRechazadas }: { onVerRechazadas: () => 
     <div className="flex items-center gap-2">
       {pendingSales > 0 && (
         <span
-          className="inline-flex items-center gap-1.5 rounded-full bg-[#f59e0b]/10 text-[#b45309] dark:text-[#fbbf24] border border-[#f59e0b]/30 px-2.5 py-1 text-[12px] font-semibold"
+          className="inline-flex items-center gap-1.5 rounded-full bg-warning/10 text-warning border border-warning/30 px-2.5 py-1 text-[12px] font-semibold"
           title="Ventas cobradas sin conexión. Se envían solas cuando vuelva internet."
         >
           <span

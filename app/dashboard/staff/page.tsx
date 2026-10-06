@@ -31,6 +31,7 @@ import { StaffPhotoField } from "@/components/StaffPhotoField";
 import Image from "next/image";
 import { isUnlimitedCollaborators } from "@/config/plans";
 import { useFormatMoney } from "@/lib/useMoney";
+import { Modal } from "@/components/ui/Modal";
 
 // Los cargos NO se escriben acá: salen de STAFF_ROLES_BY_TYPE según el rubro
 // (config/business.ts). Una barbería ofrece Barbero y Estilista; una tienda,
@@ -363,7 +364,7 @@ export default function StaffPage() {
           onClick={openCreate}
           disabled={atCollaboratorLimit}
           title={atCollaboratorLimit ? "Alcanzaste el límite de colaboradores de tu plan" : undefined}
-          className="bg-[#6063ee] hover:bg-[#c0c1ff] text-white hover:text-[#0b0664] text-sm font-semibold py-2.5 px-4 rounded-xl shadow-lg shadow-[#6063ee]/20 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-[#6063ee] disabled:hover:text-white"
+          className="bg-primary hover:bg-primary-dim text-white text-sm font-semibold py-2.5 px-4 rounded-xl shadow-lg shadow-primary/20 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-primary "
         >
           <IconPlus className="w-4 h-4" />
           <span>Añadir Personal</span>
@@ -522,13 +523,13 @@ export default function StaffPage() {
                     <span aria-hidden="true" className={`absolute bottom-2 right-2 h-3.5 w-3.5 rounded-full border-2 border-surface-container ${puntoAcceso}`} />
 
                     {m.status !== "active" && (
-                      <span className="absolute left-2 top-2 rounded-md bg-scrim/70 px-1.5 py-0.5 text-[9px] font-bold text-white">
+                      <span className="absolute left-2 top-2 rounded-md bg-scrim/70 px-1.5 py-0.5 text-[11px] font-bold text-white">
                         Inactivo
                       </span>
                     )}
 
                     {hasBooking && m.status === "active" && editable && !m.show_on_website && (
-                      <span className="absolute left-2 bottom-2 rounded-md bg-scrim/70 px-1.5 py-0.5 text-[9px] font-bold text-white">
+                      <span className="absolute left-2 bottom-2 rounded-md bg-scrim/70 px-1.5 py-0.5 text-[11px] font-bold text-white">
                         Oculto en la web
                       </span>
                     )}
@@ -545,7 +546,7 @@ export default function StaffPage() {
                     <span id={summaryId} className="mt-3 block space-y-1.5">
                       {/* Lo pendiente es la pregunta real ("¿cuánto le debo?"). */}
                       <span className="flex items-baseline justify-between gap-2 rounded-lg bg-surface-container-lowest/60 px-2.5 py-2">
-                        <span className="text-[10px] font-medium uppercase tracking-wide text-on-surface-variant">Por pagar</span>
+                        <span className="text-[11px] font-medium uppercase tracking-wide text-on-surface-variant">Por pagar</span>
                         <span className={`truncate text-sm font-bold tabular-nums ${pending > 0 ? "text-on-surface" : "text-on-surface-variant"}`}>
                           {fmtMoney(pending)}
                         </span>
@@ -592,29 +593,17 @@ export default function StaffPage() {
 
       {/* Modal Ventas del Personal */}
       {salesModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-surface-container rounded-t-3xl sm:rounded-3xl w-full sm:max-w-2xl max-h-[90vh] border border-outline-variant/10 shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200 flex flex-col">
-            <div className="p-4 sm:p-6 border-b border-outline-variant/10 flex justify-between items-center bg-surface-container-low shrink-0">
-              <div>
-                <h2 className="text-lg sm:text-xl font-bold text-on-surface">
-                  {salesStaff?.full_name}
-                </h2>
-                <p className="text-xs text-on-surface-variant mt-0.5">
-                  Ventas del mes en curso
-                </p>
-              </div>
-              <button
-                onClick={() => setSalesModalOpen(false)}
-                className="w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors"
-                aria-label="Cerrar"
-              >
-                <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="20" height="20">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
+        <Modal
+          open
+          onClose={() => setSalesModalOpen(false)}
+          title={salesStaff?.full_name ?? "Ventas"}
+          description="Ventas del mes en curso"
+          size="lg"
+          placement="sheet"
+          bodyClassName="border-t border-outline-variant/10"
+        >
 
-            <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+            <div className="p-4 sm:p-6">
               {salesLoading ? (
                 <p className="text-center text-sm text-on-surface-variant py-12">Cargando ventas…</p>
               ) : sales.length === 0 ? (
@@ -623,7 +612,7 @@ export default function StaffPage() {
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse min-w-[500px]">
                     <thead>
-                      <tr className="text-[10px] uppercase tracking-wider text-on-surface-variant font-bold border-b border-outline-variant/10">
+                      <tr className="text-[11px] uppercase tracking-wider text-on-surface-variant font-bold border-b border-outline-variant/10">
                         <th className="p-3 pl-0">Venta N.°</th>
                         <th className="p-3">Fecha</th>
                         <th className="p-3">Cliente</th>
@@ -654,13 +643,13 @@ export default function StaffPage() {
                           </td>
                           <td className="p-3 pr-0 text-right">
                             {s.commissionAmount <= 0 ? (
-                              <span className="text-[10px] text-on-surface-variant/60">Sin comisión</span>
+                              <span className="text-[11px] text-on-surface-variant/60">Sin comisión</span>
                             ) : s.settlementId ? (
-                              <span className="inline-flex px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                              <span className="inline-flex px-2 py-0.5 rounded-md text-[11px] font-bold bg-success/10 text-success border border-success/20">
                                 Pagada
                               </span>
                             ) : (
-                              <span className="inline-flex px-2 py-0.5 rounded-md text-[10px] font-bold bg-[#f59e0b]/10 text-[#b45309] border border-[#f59e0b]/20">
+                              <span className="inline-flex px-2 py-0.5 rounded-md text-[11px] font-bold bg-warning/10 text-warning border border-warning/20">
                                 Pendiente
                               </span>
                             )}
@@ -673,7 +662,7 @@ export default function StaffPage() {
                         <td colSpan={5} className="p-3 pl-0 text-right text-xs font-bold text-on-surface">
                           Pendiente por liquidar
                         </td>
-                        <td className="p-3 text-right text-sm font-bold text-[#b45309] tabular-nums">
+                        <td className="p-3 text-right text-sm font-bold text-warning tabular-nums">
                           {fmtMoney(sales.filter((i) => !i.settlementId).reduce((s, i) => s + i.commissionAmount, 0))}
                         </td>
                         <td className="p-3 pr-0" />
@@ -692,38 +681,19 @@ export default function StaffPage() {
                 </div>
               )}
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {modalOpen && (
-        <div
-          className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
-          onMouseDown={(event) => { if (event.target === event.currentTarget) void requestCloseStaff(); }}
-          onKeyDown={(event) => {
-            if (event.key === "Escape" && !event.defaultPrevented) {
-              event.preventDefault();
-              void requestCloseStaff();
-            }
-          }}
+        <Modal
+          open
+          onClose={() => void requestCloseStaff()}
+          title={editingId ? "Editar Personal" : "Nuevo Personal"}
+          placement="sheet"
+          bodyClassName="border-t border-outline-variant/10"
         >
-          <div role="dialog" aria-modal="true" aria-labelledby="staff-form-title" className="bg-surface-container rounded-t-3xl sm:rounded-3xl w-full sm:max-w-lg max-h-[90vh] border border-outline-variant/10 shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200 flex flex-col">
-            <div className="p-4 sm:p-6 border-b border-outline-variant/10 flex justify-between items-center bg-surface-container-low shrink-0">
-              <h2 id="staff-form-title" className="text-lg sm:text-xl font-bold text-on-surface">
-                {editingId ? "Editar Personal" : "Nuevo Personal"}
-              </h2>
-              <button
-                onClick={() => void requestCloseStaff()}
-                className="w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors"
-                aria-label="Cerrar"
-              >
-                <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="20" height="20">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
 
-            <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 sm:space-y-5 overflow-y-auto">
+            <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 sm:space-y-5">
               {(error || teacherError) && (
                 <div className="rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim">
                   {error || teacherError}
@@ -832,7 +802,7 @@ export default function StaffPage() {
                                 onClick={() => toggleSpecialty(name)}
                                 className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
                                   specialties.includes(name)
-                                    ? "bg-primary text-white"
+                                    ? "bg-primary text-on-primary"
                                     : "bg-surface-container text-on-surface-variant hover:bg-surface-container-high"
                                 }`}
                               >
@@ -923,8 +893,7 @@ export default function StaffPage() {
                 </div>
               </div>
             </form>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {/* Turnos de caja: solo tiene sentido para quien sí entra al sistema. */}

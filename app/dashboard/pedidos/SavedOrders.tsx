@@ -6,10 +6,10 @@ import type { PurchaseOrder, PurchaseOrderStatus } from "@/services/purchase-ord
 import { isOpenStatus } from "@/services/purchase-orders.service";
 import { CollectionLoading } from "@/components/CollectionState";
 import { DataTable, type DataColumn } from "@/components/DataTable";
-import { backdropProps } from "@/components/modal";
 import { IconTrash } from "@/app/assets/icons/DashboardIcons";
 import { useFormatMoney } from "@/lib/useMoney";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
+import { Modal } from "@/components/ui/Modal";
 
 const STATUS_LABEL: Record<PurchaseOrderStatus, string> = {
   draft: "Borrador",
@@ -342,38 +342,22 @@ function OrderDetail({
 }) {
   const fmtMoney = useFormatMoney();
   return (
-    <div
-      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
-      {...backdropProps(onClose)}
+    <Modal
+      open
+      onClose={onClose}
+      title={
+        <span className="flex items-center gap-2 flex-wrap">
+          <span className="tabular-nums">Pedido #{order.order_number}</span>
+          <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md ${STATUS_STYLE[order.status]}`}>
+            {STATUS_LABEL[order.status]}
+          </span>
+        </span>
+      }
+      description={`${order.distributor_name ?? "Sin proveedor"} · ${fecha(order.created_at)}`}
+      size="lg"
+      className="max-h-[88dvh]!"
+      bodyClassName="flex flex-col border-t border-outline-variant/10"
     >
-      <div className="bg-surface-container rounded-3xl w-full max-w-2xl max-h-[88dvh] border border-outline-variant/10 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col">
-        <div className="p-6 border-b border-outline-variant/10 flex justify-between items-start gap-4 bg-surface-container-low shrink-0">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="text-xl font-bold text-on-surface tabular-nums">
-                Pedido #{order.order_number}
-              </h2>
-              <span
-                className={`text-[11px] font-bold px-2 py-0.5 rounded-md ${STATUS_STYLE[order.status]}`}
-              >
-                {STATUS_LABEL[order.status]}
-              </span>
-            </div>
-            <p className="text-sm text-on-surface-variant mt-1 truncate">
-              {order.distributor_name ?? "Sin proveedor"} · {fecha(order.created_at)}
-            </p>
-          </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 shrink-0 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors"
-            aria-label="Cerrar"
-          >
-            <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="20" height="20">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
         <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-4">
           <ul className="divide-y divide-outline-variant/10">
             {order.items.map((item) => (
@@ -438,7 +422,6 @@ function OrderDetail({
             </button>
           </div>
         )}
-      </div>
-    </div>
+    </Modal>
   );
 }

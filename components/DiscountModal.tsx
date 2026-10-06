@@ -9,11 +9,11 @@ import {
   parseDiscountPercent,
   MAX_DISCOUNT_PERCENT,
 } from "@/services/pos.service";
-import { backdropProps } from "@/components/modal";
 import { useFormatMoney } from "@/lib/useMoney";
 import { useProfile } from "@/components/ProfileProvider";
 import { can } from "@/lib/permissions";
 import { distributeFixedDiscount, parseDiscountAmount } from "@/lib/pos-discount";
+import { Modal } from "@/components/ui/Modal";
 
 interface DiscountModalProps {
   onClose: () => void;
@@ -37,29 +37,17 @@ export function DiscountModal({ onClose }: DiscountModalProps) {
   const allowed = can(profile, "pos_discount");
 
   return (
-    <div className="fixed inset-0 z-[200] flex justify-end bg-black/20 backdrop-blur-sm animate-in fade-in duration-200" {...backdropProps(onClose)}>
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="discount-modal-title"
-        className="bg-surface-container-lowest h-full w-[400px] max-w-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-200"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="p-6 border-b border-outline-variant/10">
-          <div className="flex justify-between items-start mb-4">
-            <h2 id="discount-modal-title" className="text-xl font-bold text-on-surface">Descuentos</h2>
-            <button onClick={onClose} aria-label="Cerrar" className="text-on-surface-variant hover:text-on-surface">
-              <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-            </button>
-          </div>
-          <p className="text-sm text-on-surface-variant">
-            Rebaja el precio de los ítems que elijas, en porcentaje o en pesos.
-          </p>
-        </div>
-
+    <Modal
+      open
+      onClose={onClose}
+      title="Descuentos"
+      description="Rebaja el precio de los ítems que elijas, en porcentaje o en pesos."
+      placement="right"
+      className="max-w-[400px]!"
+      bodyClassName="flex flex-col border-t border-outline-variant/10"
+    >
         {allowed ? <DiscountForm onClose={onClose} /> : <DiscountLocked onClose={onClose} />}
-      </div>
-    </div>
+    </Modal>
   );
 }
 

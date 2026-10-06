@@ -17,7 +17,7 @@ import { CollectionError } from "@/components/CollectionState";
 import { useCurrency, useFormatMoney } from "@/lib/useMoney";
 import { downloadCsv, downloadXlsx, exportFilename, sheet } from "@/lib/export";
 import { todayISO } from "@/lib/date";
-import { ExportButtons } from "./ExportButtons";
+import { ExportButtons } from "@/components/ui/ExportButtons";
 import { MonthlyChart } from "./MonthlyChart";
 
 /** Color único del desglose por medio de pago: no hay identidad que codificar. */

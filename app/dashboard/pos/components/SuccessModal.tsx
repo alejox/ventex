@@ -1,3 +1,4 @@
+import { Modal } from "@/components/ui/Modal";
 import { useFormatMoney } from "@/lib/useMoney";
 
 interface SuccessModalProps {
@@ -64,17 +65,14 @@ export function SuccessModal({
   const fmtMoney = useFormatMoney();
   const hasChange = change > 0;
   return (
-    <div
-      className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200 print:hidden"
-      onClick={onClose}
-    >
-      <div
-        className="bg-surface-container-lowest rounded-[24px] w-full max-w-sm border border-outline-variant/10 shadow-2xl p-8 text-center animate-in zoom-in-95 duration-200"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <Modal
+      open
+      onClose={onClose}
+      title={offline ? "Venta cobrada sin conexión" : "¡Venta exitosa!"}
+      icon={
         <div
-          className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6 ${
-            offline ? "bg-[#f59e0b]/10 text-[#f59e0b]" : "bg-accent-fin/10 text-accent-fin"
+          className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto ${
+            offline ? "bg-warning/10 text-warning" : "bg-accent-fin/10 text-accent-fin"
           }`}
         >
           {offline ? (
@@ -89,14 +87,17 @@ export function SuccessModal({
             </svg>
           )}
         </div>
-        <h2 className="text-2xl font-bold text-on-surface mb-2">
-          {offline ? "Venta cobrada sin conexión" : "¡Venta exitosa!"}
-        </h2>
-        <p className={`text-sm text-on-surface-variant ${total != null ? "mb-5" : "mb-8"}`}>
-          {offline
-            ? "Quedó guardada en este dispositivo y se enviará sola cuando vuelva internet. No cierres sesión ni borres los datos del navegador."
-            : "El pago se procesó correctamente. ¿Quieres imprimir el recibo de esta venta?"}
-        </p>
+      }
+      description={
+        offline
+          ? "Quedó guardada en este dispositivo y se enviará sola cuando vuelva internet. No cierres sesión ni borres los datos del navegador."
+          : "El pago se procesó correctamente. ¿Quieres imprimir el recibo de esta venta?"
+      }
+      size="sm"
+      showCloseButton={false}
+      className="text-center"
+      bodyClassName="px-8 pb-8 pt-2"
+    >
         {total != null && (
           <div className="mb-6 rounded-2xl border border-outline-variant/15 bg-surface-container p-4 text-left">
             <dl className="space-y-1.5 text-sm">
@@ -186,7 +187,6 @@ export function SuccessModal({
             Cerrar
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

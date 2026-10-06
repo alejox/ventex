@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useDeliveryStore } from "@/stores/delivery.store";
 import type { DeliveryData } from "@/stores/pos.store";
 import { useFormatMoney } from "@/lib/useMoney";
+import { Modal } from "@/components/ui/Modal";
 
 interface DeliveryModalProps {
   totals: { total: number };
@@ -34,21 +35,35 @@ export function DeliveryModal({
     deliveryData.personId !== null;
 
   return (
-    <div className="fixed inset-0 z-[250] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50 backdrop-blur-sm">
-      <div className="bg-surface-container-lowest rounded-t-[24px] sm:rounded-[24px] w-full max-w-md border border-outline-variant/10 shadow-2xl overflow-hidden animate-in slide-in-from-bottom sm:zoom-in-95 duration-200">
-        <div className="p-6 pb-4 flex justify-between items-center">
-          <h2 className="text-lg font-bold text-on-surface">Domicilio</h2>
+    <Modal
+      open
+      className="max-w-md!"
+      onClose={onClose}
+      title="Domicilio"
+      placement="sheet"
+      dismissible={false}
+      footerClassName="px-6 pb-6"
+      footer={
+        <div className="flex gap-3">
           <button
+            type="button"
             onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-low"
+            className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors"
           >
-            <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-5 h-5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={!valid}
+            className="flex-1 py-2.5 rounded-xl text-sm font-bold bg-primary hover:bg-primary-dim text-on-primary disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            Confirmar y cobrar
           </button>
         </div>
-
-        <div className="p-6 pt-0 space-y-4">
+      }
+    >
+        <div className="space-y-4">
           <div className="space-y-1.5">
             <label className="text-[13px] font-semibold text-on-surface block">
               Dirección <span className="text-primary">*</span>
@@ -59,7 +74,7 @@ export function DeliveryModal({
               onChange={(e) => setDeliveryData({ address: e.target.value })}
               className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
               placeholder="Cra 10 #15-20, Barrio Centro"
-              autoFocus
+              data-autofocus
             />
           </div>
 
@@ -141,24 +156,6 @@ export function DeliveryModal({
           </div>
         </div>
 
-        <div className="px-6 pb-6 flex gap-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors"
-          >
-            Cancelar
-          </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            disabled={!valid}
-            className="flex-1 py-2.5 rounded-xl text-sm font-bold bg-primary hover:bg-primary-dim text-on-primary disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          >
-            Confirmar y cobrar
-          </button>
-        </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

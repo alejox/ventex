@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Select } from "@/components/ui/Select";
 import { usePosStore } from "@/stores/pos.store";
 import { notifySuccess } from "@/lib/notifications";
-import { backdropProps } from "@/components/modal";
+import { Modal } from "@/components/ui/Modal";
 
 interface CustomerModalProps {
   onClose: () => void;
@@ -50,22 +50,7 @@ export function CustomerModal({ onClose }: CustomerModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200" {...backdropProps(onClose)}>
-      <div
-        className="bg-surface-container-lowest rounded-[24px] w-full max-w-md border border-outline-variant/10 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="p-6 pb-4 flex justify-between items-center border-b border-outline-variant/10">
-          <h2 className="text-xl font-bold text-on-surface">Registrar Cliente</h2>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-low transition-colors"
-          >
-            <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-5 h-5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
+    <Modal open className="max-w-md!" onClose={onClose} title="Registrar Cliente" bodyClassName="border-t border-outline-variant/10">
 
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
           <div className="space-y-1.5">
@@ -78,7 +63,7 @@ export function CustomerModal({ onClose }: CustomerModalProps) {
               onChange={(e) => setName(e.target.value)}
               placeholder="Ej. Juan Pérez"
               required
-              autoFocus
+              data-autofocus
               className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
             />
           </div>
@@ -161,7 +146,6 @@ export function CustomerModal({ onClose }: CustomerModalProps) {
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </Modal>
   );
 }

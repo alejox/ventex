@@ -54,7 +54,7 @@ export function PosTodayAppointments({
                   {a.start_time.slice(0, 5)}
                 </span>
                 <span
-                  className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold ${
+                  className={`rounded-md px-1.5 py-0.5 text-[11px] font-bold ${
                     a.status === "confirmed"
                       ? "bg-primary/10 text-primary"
                       : "bg-amber-500/10 text-amber-600"

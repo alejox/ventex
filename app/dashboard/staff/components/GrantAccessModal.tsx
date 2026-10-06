@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { IconX, IconCheck } from "@/app/assets/icons/DashboardIcons";
+import { IconCheck } from "@/app/assets/icons/DashboardIcons";
 import { useStaffStore } from "@/stores/staff.store";
 import { useProfile } from "@/components/ProfileProvider";
 import { Select } from "@/components/ui/Select";
@@ -23,6 +23,7 @@ import { samePermissions } from "./permission-diff";
 type TemplateChoice = string;
 const CUSTOM = "custom";
 import type { TeamMember } from "@/lib/team";
+import { Modal } from "@/components/ui/Modal";
 
 /**
  * Le crea acceso al sistema a alguien que YA tiene ficha de personal.
@@ -135,52 +136,48 @@ export function GrantAccessModal({
 
   if (done) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-        <div className="bg-surface-container rounded-3xl w-full max-w-md p-8 text-center border border-outline-variant/10 shadow-2xl animate-in zoom-in-95 duration-200">
-          <div className="w-14 h-14 mx-auto rounded-full bg-primary/20 flex items-center justify-center mb-4">
-            <IconCheck className="w-7 h-7 text-primary" />
+      <Modal
+        open
+        onClose={onClose}
+        title="Invitación creada"
+        icon={
+          <div className="w-14 h-14 mx-auto rounded-full bg-primary/20 flex items-center justify-center">
+            <IconCheck className="w-7 h-7 text-primary-ink" />
           </div>
-          <h2 className="text-xl font-bold text-on-surface mb-2">Invitación creada</h2>
-          <p className="text-sm text-on-surface-variant mb-6">
+        }
+        description={
+          <>
             <strong>{member.full_name}</strong> podrá aceptar el acceso con{" "}
             <strong>{email}</strong>. Si todavía no tiene una cuenta, recibirá
             un correo para crear su contraseña.
-          </p>
-          <button
-            onClick={onClose}
-            className="py-2.5 px-6 rounded-xl bg-primary text-white font-semibold hover:bg-primary-dim transition-colors"
-          >
-            Cerrar
-          </button>
-        </div>
-      </div>
+          </>
+        }
+        size="sm"
+        dismissible={false}
+        showCloseButton={false}
+        className="max-w-md! text-center"
+        bodyClassName="px-8 pb-8 pt-2"
+      >
+        <button
+          onClick={onClose}
+          className="py-2.5 px-6 rounded-xl bg-primary text-on-primary font-semibold hover:bg-primary-dim transition-colors"
+        >
+          Cerrar
+        </button>
+      </Modal>
     );
   }
 
   return (
-    <>
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-      onMouseDown={(event) => { if (event.target === event.currentTarget) void requestClose(); }}
-      onKeyDown={(event) => {
-        if (event.key === "Escape" && !event.defaultPrevented) {
-          event.preventDefault();
-          void requestClose();
-        }
-      }}
+    <Modal
+      open
+      onClose={() => void requestClose()}
+      title="Permisos y acceso"
+      description={member.full_name}
+      className="max-w-md!"
+      bodyClassName="border-t border-outline-variant/10"
     >
-      <div role="dialog" aria-modal="true" aria-label={`Permisos y acceso de ${member.full_name}`} className="bg-surface-container rounded-3xl w-full max-w-md border border-outline-variant/10 shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
-        <div className="flex items-center justify-between p-6 border-b border-outline-variant/10 shrink-0">
-          <div className="min-w-0">
-            <h2 className="text-lg font-bold text-on-surface">Permisos y acceso</h2>
-            <p className="text-sm text-on-surface-variant mt-0.5 truncate">{member.full_name}</p>
-          </div>
-          <button onClick={() => void requestClose()} aria-label="Cerrar" className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors">
-            <IconX className="w-5 h-5" />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {error && (
             <div className="rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim">
               {error}
@@ -309,9 +306,7 @@ export function GrantAccessModal({
             </button>
           </div>
         </form>
-      </div>
-    </div>
-    {dialog}
-    </>
+      {dialog}
+    </Modal>
   );
 }

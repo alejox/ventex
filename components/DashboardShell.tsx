@@ -41,7 +41,9 @@ import { useProfile } from "@/components/ProfileProvider";
 import { visibleNavItems, workerNavItems, groupNavItems, footerNavItems } from "@/config/business";
 import { SidebarNavGroup, useOpenNavGroups } from "@/components/SidebarNavGroup";
 import { SidebarTooltip } from "@/components/ui/SidebarTooltip";
-import { backdropProps } from "@/components/modal";
+import { Modal } from "@/components/ui/Modal";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
+import { hasUnsavedChanges, interceptableLinkClick, LEAVE_WITH_UNSAVED_CHANGES } from "@/lib/unsaved-changes";
 import { SIDEBAR_COOKIE, SIDEBAR_COOKIE_MAX_AGE } from "@/lib/sidebar";
 import { WorkspaceSwitcher } from "@/components/WorkspaceSwitcher";
 import { SupportFab, showsSupportFab, SUPPORT_FAB_CLEARANCE } from "@/components/SupportFab";
@@ -339,6 +341,31 @@ export function DashboardShell({
    */
   const apple = useSyncExternalStore(subscribeNever, isApplePlatform, notApple);
 
+  // Aviso de cambios sin guardar al navegar por el menú, el encabezado o la
+  // paleta: los formularios se anotan en lib/unsaved-changes.ts y el shell
+  // pregunta antes de salir. Va en captura para ganarle al onClick del <Link>.
+  const { confirm: confirmLeave, dialog: leaveDialog } = useConfirm();
+  const navigateGuarded = (href: string) => {
+    if (!hasUnsavedChanges()) {
+      router.push(href);
+      return;
+    }
+    void confirmLeave(LEAVE_WITH_UNSAVED_CHANGES).then((leave) => {
+      if (leave) router.push(href);
+    });
+  };
+  const guardNavClick = (e: React.MouseEvent) => {
+    if (!hasUnsavedChanges()) return;
+    const anchor = interceptableLinkClick(e.nativeEvent);
+    if (!anchor) return;
+    e.preventDefault();
+    e.stopPropagation();
+    // El cajón móvil se cierra antes de preguntar: su trampa de foco pelearía
+    // con la del diálogo de confirmación.
+    setMobileMenuOpen(false);
+    navigateGuarded(anchor.getAttribute("href") ?? anchor.href);
+  };
+
   const runFromDrawer = (action: () => void) => {
     setMobileMenuOpen(false);
     requestAnimationFrame(action);
@@ -350,6 +377,7 @@ export function DashboardShell({
     <div className="flex h-dvh bg-background text-on-background font-sans">
       {/* Sidebar - Desktop */}
       <aside
+        onClickCapture={guardNavClick}
         className={`print:hidden hidden lg:flex flex-col overflow-hidden border-r border-divider bg-surface-container-lowest transition-[width] duration-300 motion-reduce:transition-none ${sidebarCollapsed ? "w-20" : "w-60"}`}
         onTransitionEnd={(e) => {
           // Solo el ancho del propio <aside>: los hijos también transicionan
@@ -593,7 +621,7 @@ export function DashboardShell({
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top Navbar */}
         {/* Más bajo en móvil (A17): 64px + la muesca, en vez de 80px fijos. */}
-        <header className="print:hidden h-[calc(4rem+env(safe-area-inset-top))] lg:h-20 pt-[env(safe-area-inset-top)] lg:pt-0 flex items-center justify-between gap-2 px-4 sm:px-6 lg:px-10 border-b border-divider bg-surface-container-lowest sticky top-0 z-20">
+        <header onClickCapture={guardNavClick} className="print:hidden h-[calc(4rem+env(safe-area-inset-top))] lg:h-20 pt-[env(safe-area-inset-top)] lg:pt-0 flex items-center justify-between gap-2 px-4 sm:px-6 lg:px-10 border-b border-divider bg-surface-container-lowest sticky top-0 z-20">
           <div className="flex items-center gap-2 sm:gap-3 shrink-0 lg:hidden">
             <button
               ref={mobileMenuTriggerRef}
@@ -727,8 +755,10 @@ export function DashboardShell({
         open={paletteOpen}
         onClose={() => setPaletteOpen(false)}
         commands={paletteCommands}
-        onNavigate={(href) => router.push(href)}
+        onNavigate={navigateGuarded}
       />
+
+      {leaveDialog}
 
       {/* Mobile Menu (Overlay) */}
       {mobileMenuOpen && (
@@ -738,7 +768,7 @@ export function DashboardShell({
             onClick={() => setMobileMenuOpen(false)}
           ></div>
           {/* overflow-y-auto: con muchos módulos el menú no cabía y no se podía desplazar. */}
-          <aside id="dashboard-mobile-menu" ref={mobileMenuRef} role="dialog" aria-modal="true" aria-label="Menú de navegación" className="relative w-72 max-w-[calc(100vw-3rem)] bg-surface-container-lowest flex flex-col justify-between h-full overflow-y-auto overscroll-contain shadow-2xl">
+          <aside id="dashboard-mobile-menu" onClickCapture={guardNavClick} ref={mobileMenuRef} role="dialog" aria-modal="true" aria-label="Menú de navegación" className="relative w-72 max-w-[calc(100vw-3rem)] bg-surface-container-lowest flex flex-col justify-between h-full overflow-y-auto overscroll-contain shadow-2xl">
             <div>
               <div className="h-[calc(4rem+env(safe-area-inset-top))] pt-[env(safe-area-inset-top)] flex items-center justify-between px-6 border-b border-divider">
                 <Link href="/dashboard" aria-label="Ventex, ir al panel" onClick={() => setMobileMenuOpen(false)}>
@@ -960,7 +990,6 @@ function CalculatorModal({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") { onClose(); return; }
       if (e.key === "Enter" || e.key === "=") { evaluate(); return; }
       if (e.key === "Backspace") { backspace(); return; }
       if (e.key === ".") { inputDecimal(); return; }
@@ -986,29 +1015,15 @@ function CalculatorModal({ onClose }: { onClose: () => void }) {
   );
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" {...backdropProps(onClose)}>
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label="Calculadora"
-        className="bg-surface-container rounded-3xl w-full max-w-xs border border-outline-variant/10 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="p-4 border-b border-outline-variant/10 flex justify-between items-center bg-surface-container-low">
-          <h2 className="text-sm font-bold text-on-surface">Calculadora</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Cerrar calculadora"
-            className="-mr-1.5 w-10 h-10 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-ink"
-          >
-            <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="16" height="16">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        <div className="p-4 space-y-3">
+    <Modal
+      open
+      onClose={onClose}
+      title="Calculadora"
+      size="sm"
+      className="max-w-xs!"
+      bodyClassName="px-4 pb-4"
+    >
+        <div className="space-y-3">
           <div className="bg-surface-container-lowest rounded-2xl px-4 py-2 text-right min-h-[72px] flex flex-col justify-end">
             {expression && (
               <span className="text-xs text-on-surface-variant/60 tabular-nums mb-1">{expression}</span>
@@ -1041,7 +1056,6 @@ function CalculatorModal({ onClose }: { onClose: () => void }) {
             {btn(".", inputDecimal, "bg-surface-container-lowest text-on-surface hover:bg-surface-container")}
           </div>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

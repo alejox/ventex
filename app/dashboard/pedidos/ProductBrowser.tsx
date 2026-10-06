@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import Image from "next/image";
 import { Select } from "@/components/ui/Select";
 import { needsRestock, stockStatusOf, STOCK_CHIP, STOCK_DOT } from "@/lib/stock";
+import { Modal } from "@/components/ui/Modal";
 
 interface ProductItem {
   id: string;
@@ -48,27 +49,14 @@ export function ProductBrowser({ products, categories, addedIds, onAdd, onClose 
   }, [products, search, categoryFilter, stockFilter]);
 
   return (
-    <div
-      className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    <Modal
+      open
+      onClose={onClose}
+      title="Agregar productos al pedido"
+      size="xl"
+      className="max-w-3xl! max-h-[85vh]!"
+      bodyClassName="flex flex-col border-t border-outline-variant/10"
     >
-      <div
-        className="bg-surface-container rounded-3xl w-full max-w-3xl max-h-[85vh] border border-outline-variant/10 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="p-6 pb-4 border-b border-outline-variant/10 flex justify-between items-center shrink-0">
-          <h2 className="text-xl font-bold text-on-surface">Agregar productos al pedido</h2>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors"
-          >
-            <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-5 h-5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
         {/* Filters */}
         <div className="p-6 pb-0 space-y-4 shrink-0">
           <div className="relative">
@@ -82,7 +70,7 @@ export function ProductBrowser({ products, categories, addedIds, onAdd, onClose 
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Buscar por nombre o SKU..."
               className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 pl-11 pr-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50"
-              autoFocus
+              autoFocus data-autofocus
             />
           </div>
 
@@ -113,7 +101,7 @@ export function ProductBrowser({ products, categories, addedIds, onAdd, onClose 
         </div>
 
         {/* Product list */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 min-h-0 overflow-y-auto p-6">
           {filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center text-on-surface-variant">
               <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-10 h-10 mb-3 opacity-30">
@@ -175,7 +163,7 @@ export function ProductBrowser({ products, categories, addedIds, onAdd, onClose 
                       disabled={added}
                       className={`shrink-0 h-9 px-4 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 ${
                         added
-                          ? "bg-[#10b981]/10 text-[#10b981] border border-[#10b981]/20 cursor-default"
+                          ? "bg-success/10 text-success border border-success/20 cursor-default"
                           : "bg-primary hover:bg-primary-dim text-on-primary shadow-[0_0_12px_rgba(96,99,238,0.2)] hover:shadow-[0_0_15px_rgba(96,99,238,0.3)]"
                       }`}
                     >
@@ -214,7 +202,6 @@ export function ProductBrowser({ products, categories, addedIds, onAdd, onClose 
             Cerrar
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

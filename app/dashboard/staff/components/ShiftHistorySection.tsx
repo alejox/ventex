@@ -28,7 +28,7 @@ function ShiftStatusBadge({ difference, notes }: { difference: number | null; no
 
   if (difference === 0) {
     return (
-      <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-[#10b981]/10 text-[#10b981]">
+      <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-success/10 text-success">
         Cuadrado
       </span>
     );
@@ -92,7 +92,7 @@ export function ShiftHistorySection({ workers }: { workers: WorkerMember[] }) {
             s.difference == null
               ? "text-on-surface-variant"
               : s.difference === 0
-                ? "text-[#10b981]"
+                ? "text-success"
                 : s.difference < 0
                   ? "text-error"
                   : "text-amber-500"
@@ -109,7 +109,7 @@ export function ShiftHistorySection({ workers }: { workers: WorkerMember[] }) {
       cell: (s) =>
         s.status === "open" ? (
           <div className="flex items-center justify-end gap-2">
-            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-[#10b981]/10 text-[#10b981]">
+            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-success/10 text-success">
               Abierto
             </span>
             <button

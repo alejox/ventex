@@ -1,13 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { IconX } from "@/app/assets/icons/DashboardIcons";
 import { useStaffStore } from "@/stores/staff.store";
 import { notifySuccess } from "@/lib/notifications";
 import { type WorkerPermissions, type WorkerPermission } from "@/config/business";
 import { PermissionToggles, togglePermission } from "./PermissionToggles";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { samePermissions } from "./permission-diff";
+import { Modal } from "@/components/ui/Modal";
 
 export function PermissionsPanel({
   workerId,
@@ -63,25 +63,34 @@ export function PermissionsPanel({
 
   return (
     <>
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-      onMouseDown={(event) => { if (event.target === event.currentTarget) void requestClose(); }}
-      onKeyDown={(event) => {
-        if (event.key === "Escape" && !event.defaultPrevented) {
-          event.preventDefault();
-          void requestClose();
-        }
-      }}
-    >
-      <div role="dialog" aria-modal="true" aria-labelledby="permissions-panel-title" className="bg-surface-container rounded-3xl w-full max-w-md border border-outline-variant/10 shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
-        <div className="flex items-center justify-between p-6 border-b border-outline-variant/10 shrink-0">
-          <h2 id="permissions-panel-title" className="text-lg font-bold text-on-surface">Permisos</h2>
-          <button onClick={() => void requestClose()} aria-label="Cerrar" className="w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors">
-            <IconX className="w-5 h-5" />
-          </button>
+    <Modal
+      open
+      onClose={() => void requestClose()}
+      title="Permisos"
+      className="max-w-md!"
+      bodyClassName="border-t border-outline-variant/10"
+      footerClassName=""
+      footer={
+        <div className="flex items-center justify-between gap-4 p-6 pt-4">
+          <div className="flex gap-3 ml-auto">
+            <button
+              onClick={() => void requestClose()}
+              className="px-5 py-2.5 rounded-xl border border-outline-variant/20 text-on-surface font-semibold hover:bg-surface-container-low transition-colors"
+            >
+              Cerrar
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={submitting}
+              className="px-5 py-2.5 rounded-xl bg-primary text-white font-semibold hover:bg-primary-dim transition-colors disabled:opacity-50"
+            >
+              {submitting ? "Guardando…" : "Guardar"}
+            </button>
+          </div>
         </div>
-
-        <div className="p-6 space-y-3 overflow-y-auto">
+      }
+    >
+        <div className="p-6 space-y-3">
           {error && (
             <div className="rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim">
               {error}
@@ -124,25 +133,7 @@ export function PermissionsPanel({
           )}
         </div>
 
-        <div className="flex items-center justify-between gap-4 p-6 pt-0 shrink-0">
-          <div className="flex gap-3 ml-auto">
-            <button
-              onClick={() => void requestClose()}
-              className="px-5 py-2.5 rounded-xl border border-outline-variant/20 text-on-surface font-semibold hover:bg-surface-container-low transition-colors"
-            >
-              Cerrar
-            </button>
-            <button
-              onClick={handleSave}
-              disabled={submitting}
-              className="px-5 py-2.5 rounded-xl bg-primary text-white font-semibold hover:bg-primary-dim transition-colors disabled:opacity-50"
-            >
-              {submitting ? "Guardando…" : "Guardar"}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+    </Modal>
     {dialog}
     </>
   );

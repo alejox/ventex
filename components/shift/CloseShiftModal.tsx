@@ -14,6 +14,7 @@ import {
   sumDenominationCounts,
 } from "@/lib/pos-cash";
 import { shiftCloseReport, shiftCloseReportHtml, shiftMethodLabel } from "@/lib/pos-shift-close";
+import { Modal } from "@/components/ui/Modal";
 
 /**
  * Imprime el cierre en una ventana aparte (80 mm). Aparte y no con
@@ -215,13 +216,18 @@ export function CloseShiftModal({
   if (summary) {
     const ok = summary.difference === 0;
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-        <div className="bg-surface-container rounded-3xl w-full max-w-md border border-outline-variant/10 shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
-          <div className="p-6 border-b border-outline-variant/10 shrink-0">
-            <h2 className="text-lg font-bold text-on-surface">Arqueo de caja</h2>
-            <p className="text-sm text-on-surface-variant mt-1">Resumen del turno cerrado.</p>
-          </div>
-          <div className="p-6 space-y-4 overflow-y-auto">
+      <Modal
+        open
+        className="max-w-md!"
+        onClose={onClose}
+        title="Arqueo de caja"
+        description="Resumen del turno cerrado."
+        dismissible={false}
+        closeOnEscape={false}
+        showCloseButton={false}
+        bodyClassName="border-t border-outline-variant/10"
+      >
+          <div className="p-6 space-y-4">
             <SummaryRows
               byMethod={summary.totals_by_method ?? {}}
               salesCount={summary.sales_count}
@@ -237,14 +243,14 @@ export function CloseShiftModal({
               </div>
               <div className="flex justify-between px-4 py-3">
                 <span className="font-bold text-on-surface">Diferencia</span>
-                <span className={`font-bold tabular-nums ${ok ? "text-[#10b981]" : summary.difference < 0 ? "text-error" : "text-amber-500"}`}>
+                <span className={`font-bold tabular-nums ${ok ? "text-success" : summary.difference < 0 ? "text-error" : "text-amber-500"}`}>
                   {summary.difference > 0 ? "+" : ""}
                   {fmtMoney(summary.difference)}
                 </span>
               </div>
             </div>
             {ok ? (
-              <p className="text-xs text-[#10b981] font-semibold">La caja cuadró exactamente.</p>
+              <p className="text-xs text-success font-semibold">La caja cuadró exactamente.</p>
             ) : summary.difference < 0 ? (
               <p className="text-xs text-error">
                 Faltan {fmtMoney(Math.abs(summary.difference))} respecto a lo esperado. Se notificó al dueño.
@@ -270,14 +276,13 @@ export function CloseShiftModal({
               <button
                 type="button"
                 onClick={onClose}
-                className="sm:flex-1 min-h-12 py-3 rounded-xl bg-primary text-white font-semibold hover:bg-primary-dim transition-colors"
+                className="sm:flex-1 min-h-12 py-3 rounded-xl bg-primary text-on-primary font-semibold hover:bg-primary-dim transition-colors"
               >
                 Finalizar
               </button>
             </div>
           </div>
-        </div>
-      </div>
+      </Modal>
     );
   }
 
@@ -291,21 +296,25 @@ export function CloseShiftModal({
     // se movieron entre el conteo y el envío.
     const serverDisagrees = needsJustification && difference === 0;
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-        <div className="bg-surface-container rounded-3xl w-full max-w-md border border-outline-variant/10 shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
-          <div className="p-6 border-b border-outline-variant/10 shrink-0">
-            <h2 className="text-lg font-bold text-on-surface">
-              {difference == null || serverDisagrees
+      <Modal
+        open
+        className="max-w-md!"
+        onClose={() => {}}
+        title={
+              difference == null || serverDisagrees
                 ? "Atención: la caja no cuadra"
                 : cuadrado
                   ? "Turno cuadrado"
                   : faltante
                     ? "Atención: faltante en caja"
-                    : "Atención: sobrante en caja"}
-            </h2>
-          </div>
-
-          <div className="p-6 space-y-4 overflow-y-auto">
+                    : "Atención: sobrante en caja"
+        }
+        dismissible={false}
+        closeOnEscape={false}
+        showCloseButton={false}
+        bodyClassName="border-t border-outline-variant/10"
+      >
+          <div className="p-6 space-y-4">
             {error && (
               <div className="rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim">
                 {error}
@@ -315,7 +324,7 @@ export function CloseShiftModal({
             <div
               className={`rounded-2xl border p-4 text-center ${
                 cuadrado
-                  ? "bg-[#10b981]/5 border-[#10b981]/30"
+                  ? "bg-success/5 border-success/30"
                   : faltante
                     ? "bg-error/5 border-error/30"
                     : "bg-amber-500/5 border-amber-500/30"
@@ -351,6 +360,7 @@ export function CloseShiftModal({
                   required
                   rows={3}
                   autoFocus
+                  data-autofocus
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder={
@@ -386,32 +396,29 @@ export function CloseShiftModal({
                 type="button"
                 onClick={submit}
                 disabled={submitting || !notesValid}
-                className="px-5 py-2.5 rounded-xl bg-primary text-white font-semibold hover:bg-primary-dim transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-5 py-2.5 rounded-xl bg-primary text-on-primary font-semibold hover:bg-primary-dim transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {submitting ? "Cerrando…" : cuadrado ? "Cerrar turno" : "Justificar y cerrar"}
               </button>
             </div>
           </div>
-        </div>
-      </div>
+      </Modal>
     );
   }
 
   // ---- Paso 1: conteo ciego ----
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
-      <div
-        className="bg-surface-container rounded-3xl w-full max-w-md border border-outline-variant/10 shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="p-6 border-b border-outline-variant/10 shrink-0">
-          <h2 className="text-lg font-bold text-on-surface">Cerrar turno</h2>
-          <p className="text-sm text-on-surface-variant mt-1">
-            Cuenta todo el efectivo que hay físicamente en la caja e ingrésalo.
-          </p>
-        </div>
-
-        <form onSubmit={handleCount} className="p-6 space-y-4 overflow-y-auto">
+    <Modal
+      open
+      className="max-w-md!"
+      onClose={() => {
+        if (!submitting) onClose();
+      }}
+      title="Cerrar turno"
+      description="Cuenta todo el efectivo que hay físicamente en la caja e ingrésalo."
+      bodyClassName="border-t border-outline-variant/10"
+    >
+        <form onSubmit={handleCount} className="p-6 space-y-4">
           {error && (
             <div className="rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim">
               {error}
@@ -439,6 +446,7 @@ export function CloseShiftModal({
               onChange={(e) => setClosingCash(e.target.value)}
               placeholder="0"
               autoFocus
+                  data-autofocus
               className="w-full px-4 py-2.5 bg-surface-container-low border border-outline-variant/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 text-on-surface placeholder:text-on-surface-variant/50 text-lg font-semibold tabular-nums"
             />
             <p className="text-xs text-on-surface-variant mt-1.5">
@@ -525,13 +533,12 @@ export function CloseShiftModal({
             <button
               type="submit"
               disabled={submitting || !countedValid || blockedByQueue}
-              className="px-5 py-2.5 rounded-xl bg-primary text-white font-semibold hover:bg-primary-dim transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-5 py-2.5 rounded-xl bg-primary text-on-primary font-semibold hover:bg-primary-dim transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {submitting ? "Cerrando…" : "Continuar"}
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </Modal>
   );
 }

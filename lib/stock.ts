@@ -79,8 +79,8 @@ export function stockLabelOf(level: number, minimumStock: number): string {
 
 /** Clases del chip. Incluyen el borde, así que el consumidor pone `border`. */
 export const STOCK_CHIP: Record<StockStatus, string> = {
-  optimal: "bg-[#10b981]/10 text-[#10b981] border-[#10b981]/20",
-  low: "bg-[#f59e0b]/10 text-[#f59e0b] border-[#f59e0b]/20",
+  optimal: "bg-success/10 text-success border-success/20",
+  low: "bg-warning/10 text-warning border-warning/20",
   out: "bg-error-container/20 text-error-dim border-error-container/30",
   oversold: "bg-error/10 text-error border-error/30",
 };
@@ -99,8 +99,8 @@ export const SERVICE_CHIP = "bg-[#8b5cf6]/10 text-[#8b5cf6] border-[#8b5cf6]/20"
 export const NO_STOCK_LABEL = "Sin inventario";
 
 export const STOCK_DOT: Record<StockStatus, string> = {
-  optimal: "bg-[#10b981]",
-  low: "bg-[#f59e0b]",
+  optimal: "bg-success",
+  low: "bg-warning",
   out: "bg-error",
   oversold: "bg-error",
 };

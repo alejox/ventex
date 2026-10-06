@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { useShiftsStore } from "@/stores/shifts.store";
 import { notifySuccess } from "@/lib/notifications";
+import { Modal } from "@/components/ui/Modal";
 
 /**
  * Apertura de turno para empleados. No bloquea la entrada al POS: se pide solo
@@ -37,18 +38,16 @@ export function OpenShiftModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
-      <div
-        className="bg-surface-container rounded-3xl w-full max-w-md border border-outline-variant/10 shadow-2xl animate-in zoom-in-95 duration-200"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="p-6 border-b border-outline-variant/10">
-          <h2 className="text-lg font-bold text-on-surface">Abrir turno</h2>
-          <p className="text-sm text-on-surface-variant mt-1">
-            Antes de cobrar, declara el efectivo con el que inicia la caja.
-          </p>
-        </div>
-
+    <Modal
+      open
+      className="max-w-md!"
+      onClose={() => {
+        if (!submitting) onClose();
+      }}
+      title="Abrir turno"
+      description="Antes de cobrar, declara el efectivo con el que inicia la caja."
+      bodyClassName="border-t border-outline-variant/10"
+    >
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {error && (
             <div className="rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim">
@@ -69,7 +68,7 @@ export function OpenShiftModal({
               value={openingCash}
               onChange={(e) => setOpeningCash(e.target.value)}
               placeholder="0"
-              autoFocus
+              data-autofocus
               className="w-full px-4 py-2.5 bg-surface-container-low border border-outline-variant/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 text-on-surface placeholder:text-on-surface-variant/50 text-lg font-semibold tabular-nums"
             />
             <p className="text-xs text-on-surface-variant mt-1">
@@ -94,7 +93,6 @@ export function OpenShiftModal({
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </Modal>
   );
 }

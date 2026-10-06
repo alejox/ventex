@@ -13,8 +13,8 @@ import { Select } from "@/components/ui/Select";
 import { CollectionEmpty, CollectionError, CollectionFilteredEmpty, CollectionLoading } from "@/components/CollectionState";
 import { MoneyInput } from "@/components/ui/MoneyInput";
 import { downloadCsv, downloadXlsx, exportFilename, sheet } from "@/lib/export";
-import { ExportButtons } from "@/app/dashboard/reports/ExportButtons";
-import { OpenOnNewParam } from "@/app/dashboard/reports/OpenOnNewParam";
+import { ExportButtons } from "@/components/ui/ExportButtons";
+import { OpenOnNewParam } from "@/components/ui/OpenOnNewParam";
 import {
   INVOICE_FILTERS,
   filterCounts,
@@ -28,6 +28,7 @@ import {
 import { formatDateOnly, todayISO } from "@/lib/date";
 import type { MoneyFormatter } from "@/lib/money";
 import { useFormatMoney } from "@/lib/useMoney";
+import { Modal } from "@/components/ui/Modal";
 
 const escapeHtml = (s: string) =>
   s.replace(/[&<>"']/g, (c) =>
@@ -467,29 +468,24 @@ export default function BillingPage() {
 
       {/* Modal crear */}
       {formOpen && (
-        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-surface-container rounded-t-3xl sm:rounded-3xl w-full sm:max-w-2xl max-h-[92vh] border border-outline-variant/10 shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200 flex flex-col">
-            <div className="p-4 sm:p-6 border-b border-outline-variant/10 flex justify-between items-center bg-surface-container-low shrink-0">
-              <div className="min-w-0">
-                <h2 className="text-lg sm:text-xl font-bold text-on-surface">Nuevo Documento</h2>
-                {convertedFrom !== null && (
-                  <p className="text-xs text-on-surface-variant">
-                    Desde la cotización #{convertedFrom}. Revisa los datos antes de crearla.
-                  </p>
-                )}
-              </div>
-              <button
-                onClick={() => setFormOpen(false)}
-                className="w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors"
-                aria-label="Cerrar"
-              >
-                <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="20" height="20">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-5 overflow-y-auto">
+        <Modal
+          open
+          onClose={() => {
+            if (!submitting) setFormOpen(false);
+          }}
+          title="Nuevo Documento"
+          description={
+            convertedFrom !== null
+              ? `Desde la cotización #${convertedFrom}. Revisa los datos antes de crearla.`
+              : undefined
+          }
+          size="lg"
+          placement="sheet"
+          dismissible={false}
+          className="sm:max-h-[92vh]"
+          bodyClassName="border-t border-outline-variant/10"
+        >
+            <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-5">
               {error && (
                 <div className="rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim">
                   {error}
@@ -692,44 +688,35 @@ export default function BillingPage() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {/* Detalle */}
       {detail && (
-        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-surface-container rounded-t-3xl sm:rounded-3xl w-full sm:max-w-lg max-h-[90vh] border border-outline-variant/10 shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200 flex flex-col">
-            <div className="p-4 sm:p-6 border-b border-outline-variant/10 flex justify-between items-center bg-surface-container-low shrink-0">
-              <div className="min-w-0">
-                <h2 className="text-lg sm:text-xl font-bold text-on-surface">
-                  {TYPE_LABEL[detail.type] ?? detail.type} <span className="font-mono">#{detail.invoice_number}</span>
-                </h2>
-                <p className="text-xs text-on-surface-variant truncate">
-                  {detail.customers?.full_name ?? "Sin cliente"} · {formatDate(detail.issue_date)}
-                </p>
-              </div>
-              <div className="flex items-center gap-1 shrink-0">
-                <button
-                  onClick={() => printInvoice(detail, items)}
-                  disabled={itemsLoading}
-                  className="px-3 py-1.5 rounded-lg text-xs font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-colors disabled:opacity-50"
-                >
-                  Imprimir / PDF
-                </button>
-                <button
-                  onClick={() => setDetail(null)}
-                  className="w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors"
-                  aria-label="Cerrar"
-                >
-                  <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="20" height="20">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
+        <Modal
+          open
+          onClose={() => setDetail(null)}
+          title={
+            <>
+              {TYPE_LABEL[detail.type] ?? detail.type} <span className="font-mono">#{detail.invoice_number}</span>
+            </>
+          }
+          description={`${detail.customers?.full_name ?? "Sin cliente"} · ${formatDate(detail.issue_date)}`}
+          placement="sheet"
+          bodyClassName="border-t border-outline-variant/10"
+        >
+            <div className="px-4 sm:px-6 pt-4 flex justify-end">
+              <button
+                type="button"
+                onClick={() => printInvoice(detail, items)}
+                disabled={itemsLoading}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-colors disabled:opacity-50"
+              >
+                Imprimir / PDF
+              </button>
             </div>
 
-            <div className="p-4 sm:p-6 overflow-y-auto space-y-4">
+            <div className="p-4 sm:p-6 space-y-4">
               {/* Estado. Una COTIZACIÓN no se paga: es una oferta, y marcarla
                   "Pagada" la sumaba como ingreso en el panel. Lo que se cobra
                   es la factura que sale de ella ("Convertir en factura"). */}
@@ -859,8 +846,7 @@ export default function BillingPage() {
                 <p className="text-xs text-on-surface-variant whitespace-pre-wrap">{detail.notes}</p>
               )}
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

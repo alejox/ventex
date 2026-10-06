@@ -12,7 +12,6 @@ import {
 } from "@/config/plans";
 import { BUSINESS_OPTIONS } from "@/config/business";
 import { GrantCreditsModal } from "@/components/GrantCreditsModal";
-import { backdropProps } from "@/components/modal";
 import { IconUsers } from "@/app/assets/icons/DashboardIcons";
 import { CollectionEmpty, CollectionError, CollectionFilteredEmpty, CollectionLoading } from "@/components/CollectionState";
 import { Pagination } from "@/components/Pagination";
@@ -29,6 +28,7 @@ import {
   type CompanySortKey,
   type SortDirection,
 } from "@/app/admin/company-metrics";
+import { Modal } from "@/components/ui/Modal";
 
 const STATUSES = ["active", "past_due", "cancelled"] as const;
 
@@ -516,21 +516,16 @@ function ManagePlanModal({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
-      {...backdropProps(onClose)}
+    <Modal
+      open
+      onClose={() => {
+        if (!submitting) onClose();
+      }}
+      title="Gestionar suscripción"
+      description={company.business_name || company.full_name || company.email}
+      className="max-w-md!"
+      bodyClassName="border-t border-outline-variant/10"
     >
-      <div
-        className="bg-surface-container rounded-3xl w-full max-w-md border border-outline-variant/10 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="p-6 border-b border-outline-variant/10">
-          <h2 className="text-lg font-bold text-on-surface">Gestionar suscripción</h2>
-          <p className="text-sm text-on-surface-variant mt-0.5">
-            {company.business_name || company.full_name || company.email}
-          </p>
-        </div>
-
         <div className="p-6 space-y-5">
           {error && (
             <div className="rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim">
@@ -673,7 +668,6 @@ function ManagePlanModal({
                 : "Guardar"}
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

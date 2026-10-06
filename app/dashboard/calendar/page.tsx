@@ -107,7 +107,7 @@ function timeRange(a: Appointment, timeFormat: Parameters<typeof formatAppointme
 function getStatusColor(status: string) {
   switch (status) {
     case "confirmed":
-      return "bg-[#6063ee]/15 text-[#6063ee] border-l-[#6063ee]";
+      return "bg-primary/15 text-primary-ink border-l-primary";
     case "completed":
       return "bg-emerald-500/15 text-emerald-600 border-l-emerald-500";
     case "cancelled":
@@ -469,7 +469,7 @@ function CalendarContent() {
           {/* Fila propia en móvil: el label vuelve a verse y el botón no se corta. */}
           <button
             onClick={() => handleNewAppointment()}
-            className="w-full sm:w-auto shrink-0 bg-primary hover:bg-primary-dim text-on-primary text-sm font-semibold py-2.5 px-4 rounded-xl shadow-lg shadow-[#6063ee]/20 transition-colors flex items-center justify-center gap-2"
+            className="w-full sm:w-auto shrink-0 bg-primary hover:bg-primary-dim text-on-primary text-sm font-semibold py-2.5 px-4 rounded-xl shadow-lg shadow-primary/20 transition-colors flex items-center justify-center gap-2"
           >
             <IconPlus className="w-4 h-4" />
             <span>Nueva Cita</span>
@@ -568,7 +568,7 @@ function CalendarContent() {
                       aria-label={`Ver el ${formatDateOnly(cell.date, { weekday: "long", day: "numeric", month: "long" })}${dayAppts.length ? ` (${dayAppts.length} ${dayAppts.length === 1 ? "cita" : "citas"})` : ""}`}
                       className={`w-7 h-7 flex items-center justify-center rounded-full text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
                         isToday
-                          ? "bg-[#6063ee] text-white shadow-md shadow-[#6063ee]/30"
+                          ? "bg-primary text-on-primary shadow-md shadow-primary/30"
                           : "text-on-surface-variant hover:bg-surface-container-high"
                       }`}
                     >
@@ -584,7 +584,7 @@ function CalendarContent() {
                           e.stopPropagation();
                           handleEditAppointment(appt);
                         }}
-                        className={`w-full text-center sm:text-left px-0.5 sm:px-2 py-1 text-[9px] sm:text-[10px] font-bold rounded-md truncate border-l-2 ${getStatusColor(
+                        className={`w-full text-center sm:text-left px-0.5 sm:px-2 py-1 text-[11px] font-bold rounded-md truncate border-l-2 ${getStatusColor(
                           appt.status,
                         )}`}
                         title={`${formatAppointmentTime(appt.start_time, timeFormat)} ${appt.title}`}
@@ -601,7 +601,7 @@ function CalendarContent() {
                         </span>
                       </button>
                     ))}
-                    {dayAppts.length > 3 && <button type="button" onClick={(event) => { event.stopPropagation(); openDay(cell.date); }} className="px-2 text-[10px] font-semibold text-primary">Ver {dayAppts.length - 3} más</button>}
+                    {dayAppts.length > 3 && <button type="button" onClick={(event) => { event.stopPropagation(); openDay(cell.date); }} className="px-2 text-[11px] font-semibold text-primary">Ver {dayAppts.length - 3} más</button>}
                   </div>
                 </div>
               );
@@ -646,7 +646,7 @@ function CalendarContent() {
                   <div
                     className={`w-2 h-10 rounded-full shrink-0 ${
                       appt.status === "confirmed"
-                        ? "bg-[#6063ee]"
+                        ? "bg-primary"
                         : appt.status === "completed"
                           ? "bg-emerald-500"
                           : appt.status === "cancelled"
@@ -673,7 +673,7 @@ function CalendarContent() {
                     )}
                   </div>
                   <span
-                    className={`text-[10px] font-bold px-2 py-1 rounded-md shrink-0 border ${getStatusColor(
+                    className={`text-[11px] font-bold px-2 py-1 rounded-md shrink-0 border ${getStatusColor(
                       appt.status,
                     )}`}
                   >

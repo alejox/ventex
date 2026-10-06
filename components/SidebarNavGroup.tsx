@@ -193,9 +193,9 @@ export function SidebarNavGroup({
               href={item.href}
               onClick={onNavigate}
               aria-current={activo ? "page" : undefined}
-              className={`flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all text-sm font-medium ${
+              className={`flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-ink text-sm font-medium ${
                 activo
-                  ? "bg-primary/10 text-primary"
+                  ? "bg-primary/10 text-primary-ink"
                   : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
               }`}
             >
@@ -227,9 +227,9 @@ export function SidebarNavGroup({
         }}
         aria-expanded={abierto}
         aria-controls={panelId}
-        className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all text-sm font-semibold ${
+        className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-ink text-sm font-semibold ${
           contieneActivo
-            ? "bg-primary/10 text-primary"
+            ? "bg-primary/10 text-primary-ink"
             : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
         }`}
       >
@@ -251,9 +251,9 @@ export function SidebarNavGroup({
                 href={item.href}
                 onClick={onNavigate}
                 aria-current={activo ? "page" : undefined}
-                className={`relative rounded-lg px-3 py-2 text-[13px] transition-colors ${
+                className={`relative rounded-lg px-3 py-2 text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-ink ${
                   activo
-                    ? "bg-primary/[0.1] text-primary font-bold before:absolute before:-left-[0.8125rem] before:top-1/2 before:h-5 before:w-0.5 before:-translate-y-1/2 before:rounded-full before:bg-primary"
+                    ? "bg-primary/[0.1] text-primary-ink font-bold before:absolute before:-left-[0.8125rem] before:top-1/2 before:h-5 before:w-0.5 before:-translate-y-1/2 before:rounded-full before:bg-primary"
                     : "text-on-surface-variant/80 font-medium hover:text-on-surface hover:bg-surface-container-low"
                 }`}
               >

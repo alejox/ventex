@@ -5,6 +5,7 @@ import { useShiftsStore } from "@/stores/shifts.store";
 import { useExpensesStore } from "@/stores/expenses.store";
 import type { WithdrawalKind } from "@/services/shifts.service";
 import { notifySuccess } from "@/lib/notifications";
+import { Modal } from "@/components/ui/Modal";
 
 /**
  * Retiro de caja (sangría) durante el turno. Registrarlo es lo que evita que
@@ -64,18 +65,16 @@ export function WithdrawalModal({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
-      <div
-        className="bg-surface-container rounded-3xl w-full max-w-md border border-outline-variant/10 shadow-2xl animate-in zoom-in-95 duration-200"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="p-6 border-b border-outline-variant/10">
-          <h2 className="text-lg font-bold text-on-surface">Retiro de caja</h2>
-          <p className="text-sm text-on-surface-variant mt-1">
-            Registra el dinero que sacas de la caja para que no aparezca como faltante al cerrar.
-          </p>
-        </div>
-
+    <Modal
+      open
+      className="max-w-md!"
+      onClose={() => {
+        if (!submitting) onClose();
+      }}
+      title="Retiro de caja"
+      description="Registra el dinero que sacas de la caja para que no aparezca como faltante al cerrar."
+      bodyClassName="border-t border-outline-variant/10"
+    >
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {error && (
             <div className="rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim">
@@ -94,7 +93,7 @@ export function WithdrawalModal({ onClose }: { onClose: () => void }) {
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               placeholder="0"
-              autoFocus
+              data-autofocus
               className="w-full px-4 py-2.5 bg-surface-container-low border border-outline-variant/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 text-on-surface placeholder:text-on-surface-variant/50 text-lg font-semibold tabular-nums"
             />
           </div>
@@ -184,7 +183,6 @@ export function WithdrawalModal({ onClose }: { onClose: () => void }) {
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </Modal>
   );
 }

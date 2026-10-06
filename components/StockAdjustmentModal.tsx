@@ -6,6 +6,7 @@ import { useInventoryStore } from "@/stores/inventory.store";
 import { tracksStock } from "@/services/inventory.service";
 import { applyMovement, stockUnitsOf } from "@/lib/stock";
 import { StockQuantityFields } from "@/components/StockQuantityFields";
+import { Modal } from "@/components/ui/Modal";
 
 interface StockAdjustmentModalProps {
   preselectedProductId?: string;
@@ -92,24 +93,17 @@ export function StockAdjustmentModal({ preselectedProductId, onClose, onSuccess 
   };
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-      <div
-        className="bg-surface-container-lowest rounded-[24px] w-full max-w-md border border-outline-variant/10 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="p-6 pb-4 flex justify-between items-center">
-          <h2 className="text-xl font-bold text-on-surface">Ajustar Stock</h2>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-low transition-colors"
-          >
-            <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-5 h-5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-6 pt-0 space-y-5">
+    <Modal
+      open
+      className="max-w-md!"
+      onClose={() => {
+        if (!submitting) onClose();
+      }}
+      title="Ajustar Stock"
+      dismissible={false}
+      bodyClassName=""
+    >
+        <form onSubmit={handleSubmit} className="px-6 pb-6 space-y-5">
           {error && (
             <div className="rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim">
               {error}
@@ -251,7 +245,6 @@ export function StockAdjustmentModal({ preselectedProductId, onClose, onSuccess 
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </Modal>
   );
 }

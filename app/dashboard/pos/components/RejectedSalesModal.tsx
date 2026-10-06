@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePosStore } from "@/stores/pos.store";
 import { useFormatMoney } from "@/lib/useMoney";
+import { Modal } from "@/components/ui/Modal";
 
 const cuando = (iso: string) =>
   new Date(iso).toLocaleString("es-CO", {
@@ -45,28 +46,29 @@ export function RejectedSalesModal({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div
-      className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm print:hidden"
-      onClick={onClose}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="rechazadas-titulo"
-    >
-      <div
-        className="bg-surface-container-lowest rounded-[24px] w-full max-w-lg max-h-[85vh] flex flex-col border border-outline-variant/10 shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="p-6 pb-4 border-b border-outline-variant/15">
-          <h2 id="rechazadas-titulo" className="text-lg font-bold text-on-surface">
-            Ventas cobradas que no se registraron
-          </h2>
-          <p className="text-[13px] text-on-surface-variant mt-1.5">
-            Este dinero entró a la caja pero el servidor no aceptó la venta. Revisa cada una
-            antes de cerrar el turno.
-          </p>
+    <Modal
+      open
+      onClose={() => {
+        if (!trabajando) onClose();
+      }}
+      title="Ventas cobradas que no se registraron"
+      description="Este dinero entró a la caja pero el servidor no aceptó la venta. Revisa cada una antes de cerrar el turno."
+      className="max-h-[85vh]"
+      bodyClassName="border-t border-outline-variant/15"
+      footerClassName=""
+      footer={
+        <div className="p-4 border-t border-outline-variant/15">
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full py-2.5 rounded-xl border border-outline-variant/30 text-on-surface font-semibold hover:bg-surface-container-low transition-colors"
+          >
+            Cerrar
+          </button>
         </div>
-
-        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+      }
+    >
+        <div className="p-4 space-y-3">
           {rejectedList.length === 0 && (
             <p className="text-sm text-on-surface-variant text-center py-8">
               No quedó ninguna venta sin registrar.
@@ -153,16 +155,6 @@ export function RejectedSalesModal({ onClose }: { onClose: () => void }) {
           })}
         </div>
 
-        <div className="p-4 border-t border-outline-variant/15">
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-full py-2.5 rounded-xl border border-outline-variant/30 text-on-surface font-semibold hover:bg-surface-container-low transition-colors"
-          >
-            Cerrar
-          </button>
-        </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

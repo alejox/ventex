@@ -26,6 +26,7 @@ import { BrandIcon } from "@/app/assets/icons/BrandIcons";
 import { LandingPreview } from "@/components/landing/LandingPreview";
 import { LandingQr } from "@/components/landing/LandingQr";
 import { SITE_URL } from "@/lib/site";
+import { useUnsavedChangesGuard } from "@/lib/unsaved-changes";
 
 type EditorTab = "design" | "sections" | "content" | "business" | "seo";
 const TABS: { id: EditorTab; label: string }[] = [
@@ -66,6 +67,7 @@ export function LandingEditor({ siteId: initialSiteId, onSaved, onBack, initial,
   const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
   const [mobileMode, setMobileMode] = useState<"edit" | "preview">("edit");
   const [dirty, setDirty] = useState(false);
+  useUnsavedChangesGuard(dirty);
   const previewConfig = useDeferredValue(form.draft_config);
   const savedSlug = storedSite?.slug ?? currentSlug;
 

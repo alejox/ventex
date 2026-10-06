@@ -7,6 +7,7 @@ import { COLOMBIA_CARD_METHODS } from "@/config/cardMethods";
 import type { PaymentMethod, PaymentSplit, SaleTotals, CartLine } from "@/services/pos.service";
 import { useCurrency, useFormatMoney } from "@/lib/useMoney";
 import { COP_ADD_AMOUNTS, effectiveTendered, suggestedCashAmounts } from "@/lib/pos-cash";
+import { Modal } from "@/components/ui/Modal";
 
 /** Chips de canal (Nequi, Bold…) para una línea del pago dividido. */
 function SplitChannelChips({
@@ -24,7 +25,7 @@ function SplitChannelChips({
 
   return (
     <div className="pl-[118px] pr-8 -mt-1 space-y-1">
-      <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider block">
+      <span className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider block">
         {label}
       </span>
       <div className="flex flex-wrap gap-1.5">
@@ -172,27 +173,66 @@ export function CheckoutModal({
     setAmountTendered((prev) => String((parseFloat(prev) || 0) + amount));
 
   return (
-    <div
-      className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
-      onClick={onClose}
-    >
-      <div
-        className="bg-surface-container-lowest rounded-t-[24px] sm:rounded-[24px] w-full max-w-md border border-outline-variant/10 shadow-2xl overflow-hidden animate-in slide-in-from-bottom sm:zoom-in-95 duration-200 max-h-[90vh] flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="shrink-0 p-5 pb-3 flex justify-between items-center border-b border-outline-variant/10">
-          <h2 className="text-lg font-bold text-on-surface">Confirmar venta</h2>
+    <Modal
+      open
+      className="max-w-md!"
+      onClose={() => {
+        // Mientras se cobra no se cierra: un clic afuera no puede dejar la
+        // venta a medio registrar sin que el cajero vea el resultado.
+        if (!submitting) onClose();
+      }}
+      title="Confirmar venta"
+      placement="sheet"
+      bodyClassName="border-t border-outline-variant/10"
+      footerClassName=""
+      footer={
+        <div className="shrink-0 px-5 pb-5 pt-2 flex gap-3 border-t border-outline-variant/10">
           <button
+            type="button"
             onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-low transition-colors"
+            className="shrink-0 px-6 py-3 rounded-xl border border-outline-variant/30 text-sm font-semibold text-on-surface hover:bg-surface-container-low transition-colors"
           >
-            <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-5 h-5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={!canConfirm}
+            className="flex-1 min-w-0 py-3 rounded-xl bg-primary text-on-primary text-sm font-semibold hover:bg-primary-dim transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex flex-col sm:flex-row items-center justify-center gap-0 sm:gap-2 leading-tight"
+          >
+            {submitting ? (
+              <svg
+                className="animate-spin h-5 w-5"
+                viewBox="0 0 24 24"
+                fill="none"
+              >
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                />
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                />
+              </svg>
+            ) : (
+              <>
+                <span className="whitespace-nowrap">Confirmar venta</span>
+                <span className="tabular-nums whitespace-nowrap">
+                  {fmtMoney(totals.total)}
+                </span>
+              </>
+            )}
           </button>
         </div>
-
-        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-5 space-y-4">
+      }
+    >
+        <div className="overscroll-contain p-5 space-y-4">
           {/* Sale summary */}
           <div className="bg-surface-container p-4 rounded-2xl border border-outline-variant/10">
             <h3 className="text-sm font-semibold text-on-surface mb-3">Resumen de venta</h3>
@@ -394,7 +434,7 @@ export function CheckoutModal({
                 </label>
                 <input
                   id="pos-amount-tendered"
-                  autoFocus
+                  autoFocus data-autofocus
                   type="number"
                   inputMode="decimal"
                   step="100"
@@ -514,51 +554,6 @@ export function CheckoutModal({
           )}
         </div>
 
-        <div className="shrink-0 px-5 pb-5 pt-2 flex gap-3 border-t border-outline-variant/10">
-          <button
-            type="button"
-            onClick={onClose}
-            className="shrink-0 px-6 py-3 rounded-xl border border-outline-variant/30 text-sm font-semibold text-on-surface hover:bg-surface-container-low transition-colors"
-          >
-            Cancelar
-          </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            disabled={!canConfirm}
-            className="flex-1 min-w-0 py-3 rounded-xl bg-primary text-on-primary text-sm font-semibold hover:bg-primary-dim transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex flex-col sm:flex-row items-center justify-center gap-0 sm:gap-2 leading-tight"
-          >
-            {submitting ? (
-              <svg
-                className="animate-spin h-5 w-5"
-                viewBox="0 0 24 24"
-                fill="none"
-              >
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                />
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                />
-              </svg>
-            ) : (
-              <>
-                <span className="whitespace-nowrap">Confirmar venta</span>
-                <span className="tabular-nums whitespace-nowrap">
-                  {fmtMoney(totals.total)}
-                </span>
-              </>
-            )}
-          </button>
-        </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

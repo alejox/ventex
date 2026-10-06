@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useDistributorsStore } from "@/stores/distributors.store";
 import { Select } from "@/components/ui/Select";
 import { CitySelect } from "@/components/CitySelect";
 import { notifySuccess } from "@/lib/notifications";
+import { Modal } from "@/components/ui/Modal";
 
 interface DistributorQuickModalProps {
   onClose: () => void;
@@ -36,16 +37,6 @@ export function DistributorQuickModal({ onClose, onCreated }: DistributorQuickMo
   const [docType, setDocType] = useState("NIT");
   const [rfcRut, setRfcRut] = useState("");
   const [dv, setDv] = useState("");
-
-  // Escape cierra: el drawer se abre sobre otro formulario y quedar atrapado en
-  // él sin poder volver con el teclado es la queja clásica de este patrón.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,36 +70,17 @@ export function DistributorQuickModal({ onClose, onCreated }: DistributorQuickMo
   const labelClass = "text-[13px] font-semibold text-on-surface block";
 
   return (
-    <div
-      className="fixed inset-0 z-[200] flex justify-end bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    <Modal
+      open
+      onClose={() => {
+        if (!submitting) onClose();
+      }}
+      title="Nuevo proveedor"
+      description="Crea los proveedores que asociarás a tus facturas de compra."
+      placement="right"
+      className="sm:max-w-md!"
+      bodyClassName="flex flex-col"
     >
-      <aside
-        role="dialog"
-        aria-modal="true"
-        aria-label="Nuevo proveedor"
-        className="bg-surface-container-lowest w-full sm:max-w-md h-full border-l border-outline-variant/10 shadow-2xl flex flex-col animate-in slide-in-from-right duration-200"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <header className="px-5 pt-5 pb-4 flex justify-between items-start gap-4 shrink-0">
-          <div>
-            <h2 className="text-lg font-bold text-on-surface">Nuevo proveedor</h2>
-            <p className="text-xs text-on-surface-variant mt-0.5">
-              Crea los proveedores que asociarás a tus facturas de compra.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Cerrar"
-            className="shrink-0 w-9 h-9 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-colors"
-          >
-            <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-5 h-5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </header>
-
         <form onSubmit={handleSubmit} className="flex-1 min-h-0 flex flex-col">
           <div className="flex-1 min-h-0 overflow-y-auto px-5 pb-5 space-y-4">
             <div className="border-t border-outline-variant/10 pt-4">
@@ -250,7 +222,6 @@ export function DistributorQuickModal({ onClose, onCreated }: DistributorQuickMo
             </button>
           </footer>
         </form>
-      </aside>
-    </div>
+    </Modal>
   );
 }

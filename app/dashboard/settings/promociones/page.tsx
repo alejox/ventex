@@ -31,6 +31,7 @@ import {
   type PromoNoun,
 } from "@/config/promo-nouns";
 import { isPromoDraftDirty } from "./promo-draft";
+import { Switch } from "@/components/ui/Switch";
 
 /**
  * Configuración → Promociones.
@@ -289,22 +290,11 @@ function HaircutPromosSection() {
               </p>
             )}
           </div>
-          <button
-            type="button"
-            onClick={() => setEnabled((v) => !v)}
-            role="switch"
-            aria-checked={enabled}
+          <Switch
             aria-labelledby="promo-enabled-label"
-            className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
-              enabled ? "bg-[#6063ee]" : "bg-outline-variant/30"
-            }`}
-          >
-            <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                enabled ? "translate-x-6" : "translate-x-1"
-              }`}
-            />
-          </button>
+            checked={enabled}
+            onCheckedChange={setEnabled}
+          />
         </div>
       </section>
 
@@ -385,7 +375,7 @@ function HaircutPromosSection() {
             texto por defecto, guardarlo lo congela, y una mejora posterior del
             default ya no lo alcanza. */}
         {milestones.length > 0 && !message.includes("{premio}") && (
-          <p role="alert" className="mt-3 text-xs rounded-lg border border-[#f59e0b]/30 bg-[#f59e0b]/10 px-3 py-2 text-on-surface">
+          <p role="alert" className="mt-3 text-xs rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-on-surface">
             <strong>Tienes hitos configurados pero el mensaje no incluye {"{premio}"}</strong>, así que
             el cliente nunca se va a enterar de que ganó. Agrégalo con el botón {"{premio}"} de arriba.
           </p>

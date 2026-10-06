@@ -239,7 +239,7 @@ export function OffersManager() {
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-semibold text-on-surface truncate">{offer.name}</p>
                     {!offer.active && (
-                      <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide bg-outline-variant/20 text-on-surface-variant">
+                      <span className="shrink-0 px-1.5 py-0.5 rounded text-[11px] font-bold uppercase tracking-wide bg-outline-variant/20 text-on-surface-variant">
                         Pausada
                       </span>
                     )}

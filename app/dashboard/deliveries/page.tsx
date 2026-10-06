@@ -117,7 +117,7 @@ export default function DeliveriesPage() {
                   {d.status === "in_transit" && (
                     <button
                       onClick={() => changeStatus(d.id, "delivered")}
-                      className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#10b981]/10 text-[#10b981] hover:bg-[#10b981] hover:text-white transition-colors"
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-success/10 text-success hover:bg-success hover:text-on-success transition-colors"
                     >
                       Entregado
                     </button>

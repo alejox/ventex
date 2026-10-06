@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { CalendarDays, ChevronRight, Clock, X } from "lucide-react";
+import { CalendarDays, ChevronRight, Clock } from "lucide-react";
 import { DatePicker } from "@/components/ui/DatePicker";
+import { Modal } from "@/components/ui/Modal";
 import { AppointmentTimeInput } from "./AppointmentTimeInput";
 import { formatDateOnly } from "@/lib/date";
 import { isTaken, type BusyAppointment } from "@/lib/appointment-availability";
@@ -107,11 +108,8 @@ export function DateTimeField({ value, format, onChange, availability, hours }: 
 export function DateTimeDialog({ initial, format, availability, hours, title = "¿Cuándo?", onClose, onApply }: { initial: DateTimeValue; format: TimeFormat; availability?: Availability; hours?: OpeningHour[] | null; title?: string; onClose: () => void; onApply: (next: DateTimeValue) => void }) {
   const [draft, setDraft] = useState(initial);
   const [timeOpen, setTimeOpen] = useState(false);
-  const closeRef = useRef<HTMLButtonElement>(null);
   const duration = toMinutes(draft.end) - toMinutes(draft.start);
   const [busy, setBusy] = useState<BusyAppointment[]>([]);
-
-  useEffect(() => { closeRef.current?.focus(); }, []);
 
   // Las citas del día que se está mirando: cambian al elegir otro día.
   const loadBusy = availability?.loadBusy;
@@ -145,24 +143,28 @@ export function DateTimeDialog({ initial, format, availability, hours, title = "
     });
 
   return (
-    <div
-      className="fixed inset-0 z-[120] flex items-end justify-center bg-black/60 p-0 backdrop-blur-sm sm:items-center sm:p-4"
-      onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
-      // El formulario de afuera cierra con Escape y atrapa Tab: lo de adentro no sube.
-      onKeyDown={(event) => { event.stopPropagation(); if (event.key === "Escape") onClose(); }}
-    >
-      <div role="dialog" aria-modal="true" aria-label="Elegir fecha y hora" className="flex max-h-[92svh] w-full flex-col overflow-hidden rounded-t-3xl bg-surface-container shadow-2xl sm:max-w-md sm:rounded-3xl">
-        <div className="flex items-start justify-between gap-4 border-b border-outline-variant/10 px-6 py-4">
-          <div>
-            <h3 className="text-lg font-bold text-on-surface">{title}</h3>
-            <p className="mt-0.5 text-xs text-on-surface-variant">
-              {draft.date ? upperFirst(formatDateOnly(draft.date, { weekday: "long", day: "numeric", month: "long" })) : "Elige un día"} · {formatAppointmentTime(draft.start, format)} – {formatAppointmentTime(draft.end, format)}
-            </p>
-          </div>
-          <button ref={closeRef} type="button" onClick={onClose} aria-label="Cerrar" className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-on-surface-variant hover:bg-surface-container-high"><X size={18} aria-hidden="true" /></button>
+    // Modal propio (top layer): Escape cierra solo este paso y el formulario de
+    // la cita queda abierto debajo.
+    <Modal
+      open
+      onClose={onClose}
+      title={title}
+      description={
+        <span className="text-xs">
+          {draft.date ? upperFirst(formatDateOnly(draft.date, { weekday: "long", day: "numeric", month: "long" })) : "Elige un día"} · {formatAppointmentTime(draft.start, format)} – {formatAppointmentTime(draft.end, format)}
+        </span>
+      }
+      placement="sheet"
+      className="max-w-md! sm:max-h-[92svh]"
+      bodyClassName="border-t border-outline-variant/10"
+      footer={
+        <div className="flex justify-end gap-3">
+          <button type="button" onClick={onClose} className="rounded-xl border border-outline-variant/30 px-5 py-2.5 text-sm font-semibold text-on-surface hover:bg-surface-container-low">Cancelar</button>
+          <button type="button" disabled={invalid} onClick={() => onApply(draft)} className="rounded-xl bg-primary px-6 py-2.5 text-sm font-bold text-on-primary hover:bg-primary-dim disabled:opacity-50">Listo</button>
         </div>
-
-        <div className="space-y-5 overflow-y-auto px-6 py-5">
+      }
+    >
+        <div className="space-y-5 px-6 py-5">
           {/* Elegir un día abre «¿A qué hora?», igual que la reserva del sitio web. */}
           <DatePicker value={draft.date} onChange={(date) => { setDraft((current) => ({ ...current, date })); setTimeOpen(true); }} />
 
@@ -207,12 +209,7 @@ export function DateTimeDialog({ initial, format, availability, hours, title = "
 
         {timeOpen ? <TimeDialog date={draft.date} start={draft.start} slots={startSlots} format={format} isTaken={availability ? slotTaken : undefined} onClose={() => setTimeOpen(false)} onPick={(slot) => { setStart(slot); setTimeOpen(false); }} /> : null}
 
-        <div className="flex justify-end gap-3 border-t border-outline-variant/10 px-6 py-4">
-          <button type="button" onClick={onClose} className="rounded-xl border border-outline-variant/30 px-5 py-2.5 text-sm font-semibold text-on-surface hover:bg-surface-container-low">Cancelar</button>
-          <button type="button" disabled={invalid} onClick={() => onApply(draft)} className="rounded-xl bg-primary px-6 py-2.5 text-sm font-bold text-on-primary hover:bg-primary-dim disabled:opacity-50">Listo</button>
-        </div>
-      </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -236,21 +233,16 @@ function TimeDialog({ date, start, slots, format, isTaken: taken, onClose, onPic
   const [showAll, setShowAll] = useState(() => slots.length === 0 || (offGrid && ALL_QUARTERS.includes(start)));
 
   return (
-    <div
-      className="fixed inset-0 z-[130] flex items-end justify-center bg-black/55 p-0 sm:items-center sm:p-4"
-      onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
-      // Escape cierra solo este paso; el diálogo de abajo (y el formulario) siguen abiertos.
-      onKeyDown={(event) => { event.stopPropagation(); if (event.key === "Escape") onClose(); }}
+    <Modal
+      open
+      onClose={onClose}
+      title="¿A qué hora?"
+      description={<span className="text-xs">{date ? formatDateOnly(date, { weekday: "long", day: "numeric", month: "long" }) : ""}</span>}
+      size="lg"
+      placement="sheet"
+      className="sm:max-h-[85svh]"
+      bodyClassName="px-5 pb-5"
     >
-      <div role="dialog" aria-modal="true" aria-label="¿A qué hora?" className="max-h-[85svh] w-full overflow-y-auto rounded-t-3xl bg-surface-container-lowest p-5 shadow-2xl sm:max-w-lg sm:rounded-3xl">
-        <div className="mb-4 flex items-start justify-between gap-4">
-          <div>
-            <h3 className="text-lg font-bold text-on-surface">¿A qué hora?</h3>
-            <p className="mt-0.5 text-xs text-on-surface-variant">{date ? formatDateOnly(date, { weekday: "long", day: "numeric", month: "long" }) : ""}</p>
-          </div>
-          <button type="button" onClick={onClose} aria-label="Cerrar horarios" className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-outline-variant/30 text-on-surface hover:bg-surface-container-high"><X size={16} aria-hidden="true" /></button>
-        </div>
-
         {slots.length === 0 ? (
           <p className="mb-4 rounded-xl bg-surface-container px-3 py-2 text-sm text-on-surface-variant">Ese día el negocio está cerrado. Si igual vas a atender, elige en «Otra hora…».</p>
         ) : (
@@ -275,8 +267,7 @@ function TimeDialog({ date, start, slots, format, isTaken: taken, onClose, onPic
           ) : null}
         </div>
         {offGrid && !ALL_QUARTERS.includes(start) ? <p className="mt-4 text-xs text-on-surface-variant">La cita empieza a las {formatAppointmentTime(start, format)}. Elige otra hora, o usa «Ajustar horas exactas» para una hora a medida.</p> : null}
-      </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -300,7 +291,7 @@ function SlotGroups({ slots, start, format, taken, selectedRef, onPick }: { slot
                 return (
                   <button key={slot} ref={active ? selectedRef : undefined} type="button" aria-pressed={active} disabled={reserved} onClick={() => onPick(slot)} className={`rounded-full border px-2 py-2 text-sm font-semibold tabular-nums transition-colors ${active ? "border-primary bg-primary text-on-primary" : reserved ? "cursor-not-allowed border-outline-variant/20 text-on-surface-variant/50" : "border-outline-variant/40 text-on-surface hover:border-primary hover:text-primary"}`}>
                     <span className={reserved ? "line-through" : ""}>{formatAppointmentTime(slot, format)}</span>
-                    {reserved ? <span className="block text-[10px] font-medium leading-tight no-underline">Reservado</span> : null}
+                    {reserved ? <span className="block text-[11px] font-medium leading-tight no-underline">Reservado</span> : null}
                   </button>
                 );
               })}

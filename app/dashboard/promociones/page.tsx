@@ -14,6 +14,7 @@ import { DataTable, type DataColumn } from "@/components/DataTable";
 import { CollectionEmpty, CollectionError, CollectionLoading } from "@/components/CollectionState";
 import { IconSearch, IconUsers } from "@/app/assets/icons/DashboardIcons";
 import { notifySuccess, notifyError } from "@/lib/notifications";
+import { Modal } from "@/components/ui/Modal";
 
 /**
  * Promociones: quién está cerca del premio y a quién escribirle.
@@ -109,7 +110,7 @@ export default function PromocionesClientesPage() {
         <span>
           {c.progress}
           {c.haircut_count !== c.progress && (
-            <span className="block text-[10px] font-normal text-on-surface-variant">
+            <span className="block text-[11px] font-normal text-on-surface-variant">
               {c.haircut_count} en total
             </span>
           )}
@@ -121,7 +122,7 @@ export default function PromocionesClientesPage() {
       mobile: "detail",
       cell: (c) =>
         c.reward ? (
-          <span className="inline-flex px-2.5 py-1 rounded-md text-[11px] font-bold bg-[#10b981]/10 text-[#10b981] border border-[#10b981]/20">
+          <span className="inline-flex px-2.5 py-1 rounded-md text-[11px] font-bold bg-success/10 text-success border border-success/20">
             🎉 {c.reward}
           </span>
         ) : c.missing !== null ? (
@@ -165,7 +166,7 @@ export default function PromocionesClientesPage() {
             {puedeCanjear && (
               <button
                 onClick={() => setConfirmar(c)}
-                className="px-3 py-1.5 rounded-lg bg-primary/10 text-primary text-[11px] font-bold hover:bg-primary hover:text-on-primary transition-colors"
+                className="px-3 py-1.5 rounded-lg bg-primary/10 text-primary text-[11px] font-bold hover:bg-primary transition-colors"
               >
                 Canjear
               </button>
@@ -225,7 +226,7 @@ export default function PromocionesClientesPage() {
         </div>
         <div className="bg-surface-container rounded-2xl p-5 border border-outline-variant/10 shadow-sm">
           <p className="text-on-surface-variant text-sm font-medium mb-1">Les toca premio</p>
-          <h3 className="text-3xl font-bold text-[#10b981] tabular-nums">{conPremio}</h3>
+          <h3 className="text-3xl font-bold text-success tabular-nums">{conPremio}</h3>
         </div>
         <div className="bg-surface-container rounded-2xl p-5 border border-outline-variant/10 shadow-sm">
           <p className="text-on-surface-variant text-sm font-medium mb-1">Cortes acumulados</p>
@@ -263,17 +264,31 @@ export default function PromocionesClientesPage() {
       </div>
 
       {confirmar && (
-        <div className="fixed inset-0 z-[130] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-surface-container rounded-t-3xl sm:rounded-3xl w-full sm:max-w-sm border border-outline-variant/10 shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200">
-            <div className="p-6 text-center">
-              <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-[#10b981]/10 flex items-center justify-center text-2xl">
-                🎁
-              </div>
-              <h3 className="text-lg font-bold text-on-surface mb-2">Canjear premio</h3>
-              <p className="text-sm text-on-surface-variant mb-2">
-                <strong className="text-on-surface">{confirmar.full_name}</strong> llegó a{" "}
-                {confirmar.progress} cortes y gana: <strong className="text-on-surface">{confirmar.reward}</strong>.
-              </p>
+        <Modal
+          open
+          onClose={() => {
+            if (!canjeando) setConfirmar(null);
+          }}
+          title="Canjear premio"
+          icon={
+            <div className="w-12 h-12 mx-auto rounded-full bg-success/10 flex items-center justify-center text-2xl" aria-hidden="true">
+              🎁
+            </div>
+          }
+          description={
+            <>
+              <strong className="text-on-surface">{confirmar.full_name}</strong> llegó a{" "}
+              {confirmar.progress} cortes y gana: <strong className="text-on-surface">{confirmar.reward}</strong>.
+            </>
+          }
+          role="alertdialog"
+          size="sm"
+          placement="sheet"
+          dismissible={false}
+          showCloseButton={false}
+          className="text-center"
+          bodyClassName="px-6 pb-6 pt-2"
+        >
               {/* Con cuántos cortes queda es la consecuencia que hay que
                   entender ANTES de confirmar, no descubrir después. Y no
                   siempre es cero: el premio consume su umbral y lo que sobra
@@ -318,9 +333,7 @@ export default function PromocionesClientesPage() {
                   {canjeando ? "Canjeando…" : "Confirmar canje"}
                 </button>
               </div>
-            </div>
-          </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

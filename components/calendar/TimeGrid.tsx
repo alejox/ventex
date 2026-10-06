@@ -260,9 +260,9 @@ export function TimeGrid({
               const closedAllDay = hours !== null && hours.length > 0 && !hours.some((h) => h.weekday === weekdayOf(day.date) && h.is_open);
               return (
                 <div key={day.date} className="py-2.5 text-center">
-                  <div className={`text-[11px] font-bold uppercase tracking-wide ${isToday ? "text-[#6063ee]" : "text-on-surface-variant"}`}>{day.dayName}</div>
-                  <div className={`mx-auto mt-0.5 grid h-9 w-9 place-items-center rounded-full text-lg font-bold ${isToday ? "bg-[#6063ee] text-white" : "text-on-surface"}`}>{day.day}</div>
-                  {closedAllDay ? <div className="mt-0.5 text-[10px] font-semibold text-on-surface-variant">Cerrado</div> : null}
+                  <div className={`text-[11px] font-bold uppercase tracking-wide ${isToday ? "text-primary-ink" : "text-on-surface-variant"}`}>{day.dayName}</div>
+                  <div className={`mx-auto mt-0.5 grid h-9 w-9 place-items-center rounded-full text-lg font-bold ${isToday ? "bg-primary text-on-primary" : "text-on-surface"}`}>{day.day}</div>
+                  {closedAllDay ? <div className="mt-0.5 text-[11px] font-semibold text-on-surface-variant">Cerrado</div> : null}
                 </div>
               );
             })}
@@ -289,7 +289,7 @@ export function TimeGrid({
               {/* Horas: la etiqueta va centrada sobre su línea, como en Google. */}
               <div className="relative">
                 {hoursList.map((hour, index) => index === 0 ? null : (
-                  <span key={hour} className="absolute right-2 -translate-y-1/2 text-[10px] font-medium text-on-surface-variant" style={{ top: index * HOUR_PX }}>
+                  <span key={hour} className="absolute right-2 -translate-y-1/2 text-[11px] font-medium text-on-surface-variant" style={{ top: index * HOUR_PX }}>
                     {formatAppointmentTime(minutesToTime(hour * 60), timeFormat)}
                   </span>
                 ))}
@@ -306,7 +306,7 @@ export function TimeGrid({
                 return (
                   <div
                     key={day.date}
-                    className={`relative cursor-pointer border-l border-outline-variant/15 ${isToday ? "bg-[#6063ee]/[0.03]" : ""}`}
+                    className={`relative cursor-pointer border-l border-outline-variant/15 ${isToday ? "bg-primary/[0.03]" : ""}`}
                     onClick={(event) => {
                       if (suppressClick.current) return;
                       const top = event.currentTarget.getBoundingClientRect().top;

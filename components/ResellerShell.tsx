@@ -31,7 +31,7 @@ export function ResellerShell({
             <LogoHorizontal className="w-[100px] h-[28px]" />
           </div>
           <div className="px-4 pt-6">
-            <span className="text-[11px] font-bold text-primary uppercase tracking-[0.2em] px-4">
+            <span className="text-[11px] font-bold text-primary-ink uppercase tracking-[0.2em] px-4">
               Revendedor
             </span>
           </div>
@@ -44,9 +44,9 @@ export function ResellerShell({
                 <Link
                   key={item.id}
                   href={item.href}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-sm font-medium ${
+                  className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-ink text-sm font-medium ${
                     isActive
-                      ? "bg-primary/10 text-primary"
+                      ? "bg-primary/10 text-primary-ink"
                       : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
                   }`}
                 >
@@ -61,7 +61,7 @@ export function ResellerShell({
         <div className="p-4 border-t border-outline-variant/10">
           <Link
             href="/dashboard"
-            className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-sm font-medium text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
+            className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-ink text-sm font-medium text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
           >
             <IconHome className="w-5 h-5 shrink-0" />
             <span>Volver al panel</span>
@@ -93,9 +93,9 @@ export function ResellerShell({
               <Link
                 key={item.id}
                 href={item.href}
-                className={`whitespace-nowrap text-sm font-medium px-3 py-1.5 rounded-lg transition-colors ${
+                className={`whitespace-nowrap text-sm font-medium px-3 py-1.5 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-ink transition-colors ${
                   isActive
-                    ? "bg-primary/10 text-primary"
+                    ? "bg-primary/10 text-primary-ink"
                     : "text-on-surface-variant hover:bg-surface-container-low"
                 }`}
               >
@@ -106,7 +106,7 @@ export function ResellerShell({
           <span className="w-px h-5 shrink-0 bg-outline-variant/20" />
           <Link
             href="/dashboard"
-            className="flex items-center gap-1.5 whitespace-nowrap text-sm font-medium px-3 py-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container-low transition-colors"
+            className="flex items-center gap-1.5 whitespace-nowrap text-sm font-medium px-3 py-1.5 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-ink text-on-surface-variant hover:bg-surface-container-low transition-colors"
           >
             <IconHome className="w-4 h-4 shrink-0" />
             Volver al panel

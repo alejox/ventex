@@ -13,6 +13,7 @@ import type { StaffMember, StaffSaleItem, CommissionPeriod } from "@/services/st
 import { Select } from "@/components/ui/Select";
 import { notifySuccess } from "@/lib/notifications";
 import { useFormatMoney } from "@/lib/useMoney";
+import { Modal } from "@/components/ui/Modal";
 
 const PAYMENT_LABELS: Record<string, string> = {
   efectivo: "Efectivo",
@@ -166,32 +167,39 @@ export function SettleCommissionModal({ member, onClose, onSettled, initialPerio
   };
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="settle-title"
-        className="bg-surface-container rounded-t-3xl sm:rounded-3xl w-full sm:max-w-2xl max-h-[92dvh] border border-outline-variant/10 shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200 flex flex-col"
-      >
-        <div className="p-4 sm:p-6 border-b border-outline-variant/10 flex justify-between items-start gap-4 bg-surface-container-low shrink-0">
-          <div className="min-w-0">
-            <h2 id="settle-title" className="text-lg sm:text-xl font-bold text-on-surface truncate">
-              Liquidar comisión
-            </h2>
-            <p className="text-sm text-on-surface-variant mt-0.5 truncate">{member.full_name}</p>
-          </div>
+    <Modal
+      open
+      onClose={() => {
+        if (!submitting) onClose();
+      }}
+      title="Liquidar comisión"
+      description={member.full_name}
+      size="lg"
+      placement="sheet"
+      dismissible={false}
+      bodyClassName="border-t border-outline-variant/10"
+      footerClassName=""
+      footer={
+        <div className="p-4 sm:p-6 border-t border-outline-variant/10 flex flex-col sm:flex-row gap-3 shrink-0 bg-surface-container">
           <button
+            type="button"
             onClick={onClose}
-            aria-label="Cerrar"
-            className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors"
+            className="flex-1 px-5 py-3 rounded-xl text-sm font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-colors"
           >
-            <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="20" height="20">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={!canSettle}
+            className="flex-1 px-5 py-3 rounded-xl text-sm font-semibold bg-primary hover:bg-primary-dim text-on-primary shadow-[0_0_15px_rgba(96,99,238,0.2)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {submitting ? "Liquidando…" : `Liquidar ${fmtMoney(total)}`}
           </button>
         </div>
-
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5">
+      }
+    >
+        <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-5">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <label htmlFor="settle-from" className="text-[13px] font-semibold text-on-surface block">
@@ -257,7 +265,7 @@ export function SettleCommissionModal({ member, onClose, onSettled, initialPerio
                           type="checkbox"
                           checked={isIncluded}
                           onChange={() => toggle(item.id)}
-                          className="w-4 h-4 shrink-0 accent-[#6063ee]"
+                          className="w-4 h-4 shrink-0 accent-primary"
                           aria-label={`Incluir ${item.product_name} en la liquidación`}
                         />
                         <div className="min-w-0 flex-1">
@@ -348,24 +356,6 @@ export function SettleCommissionModal({ member, onClose, onSettled, initialPerio
           )}
         </form>
 
-        <div className="p-4 sm:p-6 border-t border-outline-variant/10 flex flex-col sm:flex-row gap-3 shrink-0 bg-surface-container">
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex-1 px-5 py-3 rounded-xl text-sm font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-colors"
-          >
-            Cancelar
-          </button>
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={!canSettle}
-            className="flex-1 px-5 py-3 rounded-xl text-sm font-semibold bg-primary hover:bg-primary-dim text-on-primary shadow-[0_0_15px_rgba(96,99,238,0.2)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {submitting ? "Liquidando…" : `Liquidar ${fmtMoney(total)}`}
-          </button>
-        </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

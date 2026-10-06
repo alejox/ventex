@@ -35,6 +35,7 @@ import {
   applyLastPurchase,
   hasFilledLines,
 } from "../purchase-form-validation";
+import { useUnsavedChangesGuard } from "@/lib/unsaved-changes";
 
 /** Fecha de hoy en horario local. `toISOString()` da UTC y adelanta un día por la tarde. */
 const todayISO = () => {
@@ -203,6 +204,7 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
   });
   const [initialSnapshot] = useState(snapshot);
   const dirty = snapshot !== initialSnapshot;
+  useUnsavedChangesGuard(dirty);
 
   useEffect(() => {
     if (!dirty) return;

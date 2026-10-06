@@ -287,7 +287,7 @@ export default function CustomersPage() {
       className: "font-bold",
       cell: (c) =>
         c.credit_balance > 0 ? (
-          <span className="text-[#f59e0b]">{fmtMoney(c.credit_balance)}</span>
+          <span className="text-warning">{fmtMoney(c.credit_balance)}</span>
         ) : (
           <span className="text-on-surface-variant">{fmtMoney(0)}</span>
         ),
@@ -298,7 +298,7 @@ export default function CustomersPage() {
       mobile: "badge",
       cell: (c) =>
         c.tax_exempt ? (
-          <span className="inline-flex px-2.5 py-1 rounded-md text-[11px] font-bold bg-[#f59e0b]/10 text-[#f59e0b] border border-[#f59e0b]/20">
+          <span className="inline-flex px-2.5 py-1 rounded-md text-[11px] font-bold bg-warning/10 text-warning border border-warning/20">
             Exento
           </span>
         ) : (
@@ -319,7 +319,7 @@ export default function CustomersPage() {
             onClick={() => setPaymentCustomer(c)}
             className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${
               c.credit_balance > 0
-                ? "text-[#f59e0b] hover:text-white hover:bg-[#f59e0b]"
+                ? "text-warning hover:text-on-warning hover:bg-warning"
                 : "text-on-surface-variant hover:text-primary hover:bg-primary/10"
             }`}
             title={c.credit_balance > 0 ? `Registrar abono (debe ${fmtMoney(c.credit_balance)})` : "Registrar abono"}
@@ -433,24 +433,15 @@ export default function CustomersPage() {
 
       {/* Modal crear/editar cliente */}
       {modalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-surface-container rounded-t-3xl sm:rounded-3xl w-full sm:max-w-lg max-h-[90vh] border border-outline-variant/10 shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200 flex flex-col">
-            <div className="p-4 sm:p-6 border-b border-outline-variant/10 flex justify-between items-center bg-surface-container-low shrink-0">
-              <h2 className="text-lg sm:text-xl font-bold text-on-surface">
-                {editingId ? "Editar Cliente" : "Nuevo Cliente"}
-              </h2>
-              <button
-                onClick={handleCloseModal}
-                className="w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors"
-                aria-label="Cerrar"
-              >
-                <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="20" height="20">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 sm:space-y-5 overflow-y-auto">
+        <Modal
+          open
+          onClose={handleCloseModal}
+          title={editingId ? "Editar Cliente" : "Nuevo Cliente"}
+          placement="sheet"
+          dismissible={false}
+          bodyClassName="border-t border-outline-variant/10"
+        >
+            <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 sm:space-y-5">
               {error && (
                 <div className="rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim">
                   {error}
@@ -574,8 +565,7 @@ export default function CustomersPage() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {/* Confirmación eliminar: con el impacto a la vista y el error adentro. */}
@@ -648,62 +638,54 @@ export default function CustomersPage() {
 
       {/* Modal Detalle del Cliente */}
       {detailCustomer && (
-        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-surface-container rounded-t-3xl sm:rounded-3xl w-full sm:max-w-2xl max-h-[90vh] border border-outline-variant/10 shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200 flex flex-col">
-            {/* Header */}
-            <div className="p-4 sm:p-6 border-b border-outline-variant/10 flex justify-between items-start bg-surface-container-low shrink-0">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-3 mb-1">
-                  <div className="w-10 h-10 rounded-full bg-primary/15 text-primary flex items-center justify-center shrink-0">
-                    <span className="text-sm font-bold">{detailCustomer.full_name.charAt(0).toUpperCase()}</span>
-                  </div>
-                  <div className="min-w-0">
-                    <h2 className="text-lg sm:text-xl font-bold text-on-surface truncate">
-                      {detailCustomer.full_name}
-                    </h2>
-                    <p className="text-xs text-on-surface-variant">
-                      {detailCustomer.doc_type ? `${detailCustomer.doc_type} ${detailCustomer.identification}` : detailCustomer.identification ?? "Sin documento"}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-on-surface-variant">
-                  {detailCustomer.phone && <span>{detailCustomer.phone}</span>}
-                  {detailCustomer.email && <span>{detailCustomer.email}</span>}
-                  <span className={detailCustomer.tax_exempt ? "text-amber-500 font-semibold" : ""}>
-                    {detailCustomer.tax_exempt ? "Exento de IVA" : "Aplica IVA"}
-                  </span>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 shrink-0 ml-4">
-                <Link
-                  href={`/dashboard/pos?customerId=${detailCustomer.id}`}
-                  className="h-9 px-3.5 rounded-xl bg-primary hover:bg-primary-dim text-on-primary text-xs font-semibold shadow-md shadow-primary/20 transition-all flex items-center gap-1.5"
-                >
-                  <IconShoppingCart className="w-3.5 h-3.5" />
-                  Nueva Venta
-                </Link>
-                <button
-                  onClick={() => handleDetailEdit(detailCustomer)}
-                  className="h-9 w-9 flex items-center justify-center rounded-xl text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-colors"
-                  title="Editar"
-                >
-                  <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-4 h-4">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                  </svg>
-                </button>
-                <button
-                  onClick={() => setDetailCustomer(null)}
-                  className="h-9 w-9 flex items-center justify-center rounded-xl text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors"
-                  aria-label="Cerrar"
-                >
-                  <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="18" height="18">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
+        <Modal
+          open
+          onClose={() => setDetailCustomer(null)}
+          title={detailCustomer.full_name}
+          icon={
+            <div className="w-10 h-10 rounded-full bg-primary/15 text-primary-ink flex items-center justify-center shrink-0">
+              <span className="text-sm font-bold">{detailCustomer.full_name.charAt(0).toUpperCase()}</span>
+            </div>
+          }
+          description={
+            <>
+              <span className="block text-xs">
+                {detailCustomer.doc_type ? `${detailCustomer.doc_type} ${detailCustomer.identification}` : detailCustomer.identification ?? "Sin documento"}
+              </span>
+              <span className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-on-surface-variant">
+                {detailCustomer.phone && <span>{detailCustomer.phone}</span>}
+                {detailCustomer.email && <span>{detailCustomer.email}</span>}
+                <span className={detailCustomer.tax_exempt ? "text-warning font-semibold" : ""}>
+                  {detailCustomer.tax_exempt ? "Exento de IVA" : "Aplica IVA"}
+                </span>
+              </span>
+            </>
+          }
+          size="lg"
+          placement="sheet"
+          bodyClassName="border-t border-outline-variant/10"
+        >
+            <div className="px-4 sm:px-6 pt-4 flex items-center justify-end gap-2">
+              <Link
+                href={`/dashboard/pos?customerId=${detailCustomer.id}`}
+                className="h-9 px-3.5 rounded-xl bg-primary hover:bg-primary-dim text-on-primary text-xs font-semibold shadow-md shadow-primary/20 transition-all flex items-center gap-1.5"
+              >
+                <IconShoppingCart className="w-3.5 h-3.5" />
+                Nueva Venta
+              </Link>
+              <button
+                type="button"
+                onClick={() => handleDetailEdit(detailCustomer)}
+                className="h-9 px-3 flex items-center gap-1.5 rounded-xl text-xs font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-colors"
+              >
+                <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-4 h-4" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+                Editar
+              </button>
             </div>
 
-            <div className="overflow-y-auto p-4 sm:p-6 space-y-6">
+            <div className="p-4 sm:p-6 space-y-6">
               {/* Stats */}
               <div className="grid grid-cols-3 gap-4">
                 <div className="bg-surface-container-low rounded-xl p-3 sm:p-4 text-center min-w-0">
@@ -792,7 +774,7 @@ export default function CustomersPage() {
                   movimiento a movimiento — por eso el historial es expandible en
                   vez de un solo número. */}
               {isTienda && loyaltyConfig.enabled && (
-                <div className="rounded-xl border border-[#6063ee]/25 bg-[#6063ee]/5 p-4">
+                <div className="rounded-xl border border-primary/25 bg-primary/5 p-4">
                   <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                     <div className="flex-1 min-w-0">
                       <p className="text-2xl font-bold text-on-surface tabular-nums">
@@ -816,7 +798,7 @@ export default function CustomersPage() {
                   </div>
 
                   {showLoyaltyHistory && (
-                    <div className="mt-3 pt-3 border-t border-[#6063ee]/15">
+                    <div className="mt-3 pt-3 border-t border-primary/15">
                       {loyaltyLedgerLoading ? (
                         <p className="text-xs text-on-surface-variant py-2">Cargando movimientos…</p>
                       ) : loyaltyLedger.length === 0 ? (
@@ -838,7 +820,7 @@ export default function CustomersPage() {
                                   {m.note ? ` · ${m.note}` : ""}
                                 </p>
                               </div>
-                              <span className={`shrink-0 font-bold tabular-nums ${m.points > 0 ? "text-[#10b981]" : "text-error"}`}>
+                              <span className={`shrink-0 font-bold tabular-nums ${m.points > 0 ? "text-success" : "text-error"}`}>
                                 {m.points > 0 ? "+" : ""}
                                 {m.points}
                               </span>
@@ -871,7 +853,7 @@ export default function CustomersPage() {
                   <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse min-w-[480px]">
                       <thead>
-                        <tr className="text-[10px] uppercase tracking-wider text-on-surface-variant font-bold border-b border-outline-variant/10">
+                        <tr className="text-[11px] uppercase tracking-wider text-on-surface-variant font-bold border-b border-outline-variant/10">
                           <th className="pb-3 pr-3">Venta</th>
                           <th className="pb-3 pr-3">Fecha</th>
                           <th className="pb-3 pr-3">Método</th>
@@ -890,7 +872,7 @@ export default function CustomersPage() {
                             <td className="py-3 pr-3 font-mono text-xs text-on-surface-variant whitespace-nowrap">
                               <span className={voided ? "line-through" : ""}>#{s.sale_number}</span>
                               {voided && (
-                                <span className="ml-2 inline-flex px-1.5 py-0.5 rounded-md font-sans text-[10px] font-bold bg-error/10 text-error border border-error/20 no-underline">
+                                <span className="ml-2 inline-flex px-1.5 py-0.5 rounded-md font-sans text-[11px] font-bold bg-error/10 text-error border border-error/20 no-underline">
                                   Anulada
                                 </span>
                               )}
@@ -922,8 +904,7 @@ export default function CustomersPage() {
                 )}
               </div>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {paymentCustomer && (

@@ -141,7 +141,7 @@ export function ModulePicker({
                 </p>
               </span>
               {mod.comingSoon ? (
-                <span className="shrink-0 rounded-full border border-outline-variant/20 bg-surface-container-highest px-2 py-0.5 text-[10px] font-bold tracking-wide text-on-surface-variant uppercase">
+                <span className="shrink-0 rounded-full border border-outline-variant/20 bg-surface-container-highest px-2 py-0.5 text-[11px] font-bold tracking-wide text-on-surface-variant uppercase">
                   Próximamente
                 </span>
               ) : (

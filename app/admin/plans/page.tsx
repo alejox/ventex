@@ -5,7 +5,7 @@ import { useAdminStore } from "@/stores/admin.store";
 import type { Plan, PlanPeriod } from "@/services/subscription.service";
 import type { PlanSaveInput } from "@/services/admin.service";
 import { formatMoney, planAccent } from "@/config/plans";
-import { backdropProps } from "@/components/modal";
+import { Modal } from "@/components/ui/Modal";
 
 export default function AdminPlansPage() {
   const plans = useAdminStore((s) => s.plans);
@@ -251,7 +251,7 @@ function PlanPeriods({ planId }: { planId: string }) {
             >
               <span className="font-semibold text-on-surface text-sm">{p.name}</span>
               {!p.is_active && (
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-surface-container-high text-on-surface-variant">
+                <span className="text-[11px] font-bold px-1.5 py-0.5 rounded bg-surface-container-high text-on-surface-variant">
                   OCULTO
                 </span>
               )}
@@ -331,23 +331,16 @@ function PeriodModal({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
-      {...backdropProps(onClose)}
+    <Modal
+      open
+      onClose={() => {
+        if (!submitting) onClose();
+      }}
+      title={period ? "Editar tiempo" : "Nueva modalidad"}
+      description="Ej: “Semestral”, que cobra $170.000 y entrega 7 meses (uno de regalo)."
+      className="max-w-md!"
+      bodyClassName="border-t border-outline-variant/10"
     >
-      <div
-        className="bg-surface-container rounded-3xl w-full max-w-md border border-outline-variant/10 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="p-6 border-b border-outline-variant/10">
-          <h2 className="text-lg font-bold text-on-surface">
-            {period ? "Editar tiempo" : "Nueva modalidad"}
-          </h2>
-          <p className="text-sm text-on-surface-variant mt-0.5">
-            Ej: “Semestral”, que cobra $170.000 y entrega 7 meses (uno de regalo).
-          </p>
-        </div>
-
         <form onSubmit={handleSubmit}>
           <div className="p-6 space-y-4">
             {error && (
@@ -431,8 +424,7 @@ function PeriodModal({
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -484,21 +476,16 @@ function NewPlanModal({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div
-      className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
-      {...backdropProps(onClose)}
+    <Modal
+      open
+      onClose={() => {
+        if (!submitting) onClose();
+      }}
+      title="Nuevo plan"
+      description="Se publica en la web y queda disponible para asignar y recargar."
+      className="max-w-md!"
+      bodyClassName="border-t border-outline-variant/10"
     >
-      <div
-        className="bg-surface-container rounded-3xl w-full max-w-md border border-outline-variant/10 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="p-6 border-b border-outline-variant/10">
-          <h2 className="text-lg font-bold text-on-surface">Nuevo plan</h2>
-          <p className="text-sm text-on-surface-variant mt-0.5">
-            Se publica en la web y queda disponible para asignar y recargar.
-          </p>
-        </div>
-
         <form onSubmit={handleSubmit}>
           <div className="p-6 space-y-4">
             {error && (
@@ -605,8 +592,7 @@ function NewPlanModal({ onClose }: { onClose: () => void }) {
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </Modal>
   );
 }
 

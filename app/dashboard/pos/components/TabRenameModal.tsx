@@ -1,3 +1,4 @@
+import { Modal } from "@/components/ui/Modal";
 interface TabRenameModalProps {
   renameValue: string;
   setRenameValue: (v: string) => void;
@@ -7,21 +8,17 @@ interface TabRenameModalProps {
 
 export function TabRenameModal({ renameValue, setRenameValue, onSubmit, onClose }: TabRenameModalProps) {
   return (
-    <div
-      className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
-      onClick={onClose}
-    >
+    <Modal open onClose={onClose} title="Renombrar venta" size="sm">
       <form
-        onClick={(e) => e.stopPropagation()}
         onSubmit={(e) => {
           e.preventDefault();
           onSubmit();
         }}
-        className="bg-surface-container-lowest rounded-3xl w-full max-w-sm border border-outline-variant/10 shadow-2xl p-6 space-y-5 animate-in zoom-in-95 duration-200"
+        className="space-y-5"
       >
-        <h2 className="text-lg font-bold text-on-surface">Renombrar venta</h2>
         <input
-          autoFocus
+          data-autofocus
+          aria-label="Nombre de la venta"
           type="text"
           value={renameValue}
           maxLength={40}
@@ -46,6 +43,6 @@ export function TabRenameModal({ renameValue, setRenameValue, onSubmit, onClose 
           </button>
         </div>
       </form>
-    </div>
+    </Modal>
   );
 }

@@ -484,7 +484,7 @@ test.describe.serial("Académico — ciclo completo (cuenta E2E real)", () => {
     });
     await expect(balanceOption).toBeVisible({ timeout: 10000 });
     await page.keyboard.press("Escape");
-    await page.locator("div.fixed").getByRole("button", { name: "Cancelar" }).click();
+    await page.getByRole("dialog", { name: "Programar serie semanal" }).getByRole("button", { name: "Cancelar" }).click();
     await expect(page.getByRole("heading", { name: "Programar serie semanal" })).toBeHidden({ timeout: 5000 });
 
     const { lessons } = await loadSchoolState();
@@ -720,9 +720,7 @@ test.describe.serial("Académico — ciclo completo (cuenta E2E real)", () => {
     await expect(page.getByText("Solicitud de reprogramación enviada", { exact: true })).toBeVisible({ timeout: 10000 });
 
     await page.getByRole("button", { name: /Reprogramaciones/ }).click();
-    const modal = page
-      .locator("div.fixed")
-      .filter({ has: page.getByRole("heading", { name: "Reprogramaciones pendientes" }) });
+    const modal = page.getByRole("dialog", { name: "Reprogramaciones pendientes" });
     await expect(modal).toBeVisible({ timeout: 5000 });
     const reqItem = modal.locator("li").filter({ hasText: studentCustomer.full_name });
     await expect(reqItem).toBeVisible({ timeout: 5000 });

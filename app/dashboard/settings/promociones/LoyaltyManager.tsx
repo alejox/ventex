@@ -6,6 +6,7 @@ import { useProfile } from "@/components/ProfileProvider";
 import { CollectionError, CollectionLoading } from "@/components/CollectionState";
 import { notifySuccess, notifyError } from "@/lib/notifications";
 import { MoneyInput } from "@/components/ui/MoneyInput";
+import { Switch } from "@/components/ui/Switch";
 
 /**
  * Configuración → Promociones → Puntos (tienda), fase 2.
@@ -89,22 +90,14 @@ export function LoyaltyManager() {
               El cliente gana puntos al comprar y los canjea como descuento en una venta futura.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => canEdit && setEnabled((v) => !v)}
-            disabled={!canEdit}
-            aria-pressed={enabled}
+          <Switch
             aria-label="Activar los puntos canjeables"
-            className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${
-              enabled ? "bg-[#6063ee]" : "bg-outline-variant/30"
-            }`}
-          >
-            <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                enabled ? "translate-x-6" : "translate-x-1"
-              }`}
-            />
-          </button>
+            checked={enabled}
+            disabled={!canEdit}
+            onCheckedChange={(on) => {
+              if (canEdit) setEnabled(on);
+            }}
+          />
         </div>
       </section>
 

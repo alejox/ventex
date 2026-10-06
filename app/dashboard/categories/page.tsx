@@ -9,6 +9,7 @@ import { CollectionEmpty, CollectionFilteredEmpty, CollectionError, CollectionLo
 import { notifySuccess } from "@/lib/notifications";
 import type { Category, NewCategoryInput } from "@/services/inventory.service";
 import { findDuplicateCategory } from "@/services/inventory.service";
+import { Modal } from "@/components/ui/Modal";
 
 function IconPencil(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -319,30 +320,13 @@ export default function CategoriesPage() {
 
       {/* Modal de Crear / Editar */}
       {modalOpen && (
-        <div
-          className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) handleCloseModal();
-          }}
+        <Modal
+          open
+          onClose={handleCloseModal}
+          title={editId ? "Editar categoría de producto" : "Nueva categoría de producto"}
+          className="max-w-md!"
+          bodyClassName="border-t border-outline-variant/10"
         >
-          <div
-            className="bg-surface-container-lowest rounded-[24px] w-full max-w-md border border-outline-variant/10 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="p-5 pb-3 flex justify-between items-center border-b border-outline-variant/10">
-              <h2 className="text-lg font-bold text-on-surface">
-                {editId ? "Editar categoría de producto" : "Nueva categoría de producto"}
-              </h2>
-              <button
-                onClick={handleCloseModal}
-                className="w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-low transition-colors"
-              >
-                <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-5 h-5">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
             <form onSubmit={handleSubmit} className="p-5 space-y-4">
               <div className="space-y-1.5">
                 <label className="text-[13px] font-semibold text-on-surface block">
@@ -399,33 +383,33 @@ export default function CategoriesPage() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {/* Modal de Confirmación de Eliminación */}
       {deleteTarget && (
-        <div
-          className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setDeleteTarget(null);
+        <Modal
+          open
+          onClose={() => {
+            if (!deleting) setDeleteTarget(null);
           }}
-        >
-          <div
-            className="bg-surface-container-lowest rounded-[24px] w-full max-w-sm border border-outline-variant/10 shadow-2xl p-6 space-y-4 animate-in zoom-in-95 duration-200"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="w-12 h-12 rounded-full bg-error/10 text-error flex items-center justify-center mx-auto">
+          title="¿Eliminar categoría?"
+          icon={
+            <div className="w-12 h-12 rounded-full bg-error/10 text-error flex items-center justify-center">
               <IconTrash className="w-6 h-6" />
             </div>
-
-            <div className="text-center space-y-1.5">
-              <h3 className="text-lg font-bold text-on-surface">
-                ¿Eliminar categoría?
-              </h3>
-              <p className="text-xs text-on-surface-variant">
-                Estás por eliminar la categoría <strong className="text-on-surface uppercase">{deleteTarget.name}</strong>.
-              </p>
+          }
+          description={
+            <>
+              Estás por eliminar la categoría <strong className="text-on-surface uppercase">{deleteTarget.name}</strong>.
+            </>
+          }
+          role="alertdialog"
+          size="sm"
+          showCloseButton={false}
+          bodyClassName="px-6 pb-6 space-y-4"
+        >
+            <div>
               {(itemCountMap[deleteTarget.id] || 0) > 0 && (
                 <div className="mt-2 p-3 rounded-xl bg-error-container/20 border border-error-container/30 text-xs text-error-dim text-left">
                   ⚠️ Hay <strong>{itemCountMap[deleteTarget.id]}</strong> {itemCountMap[deleteTarget.id] === 1 ? "producto o servicio asignado" : "productos y servicios asignados"} a esta categoría. Al eliminarla, quedarán marcados como sin categoría.
@@ -450,8 +434,7 @@ export default function CategoriesPage() {
                 {deleting ? "Eliminando..." : "Eliminar"}
               </button>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

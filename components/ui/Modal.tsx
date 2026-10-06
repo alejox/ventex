@@ -7,6 +7,14 @@ import { PortalContainerContext } from "@/components/ui/portal-container";
 
 export type ModalSize = "sm" | "md" | "lg" | "xl" | "full";
 
+/**
+ * Dónde se apoya el panel:
+ * - `center` (por defecto): tarjeta centrada.
+ * - `sheet`: hoja que sube desde abajo en el celular y tarjeta centrada desde `sm`.
+ * - `right`: cajón lateral a pantalla completa de alto, pegado a la derecha.
+ */
+export type ModalPlacement = "center" | "sheet" | "right";
+
 export interface ModalProps {
   /** Controlado: el padre decide si está abierto. Cerrado, no se monta nada. */
   open: boolean;
@@ -23,6 +31,8 @@ export interface ModalProps {
   icon?: ReactNode;
   /** Ancho máximo del panel. Por defecto `md`. */
   size?: ModalSize;
+  /** Posición del panel (centrado, hoja inferior en móvil o cajón lateral). */
+  placement?: ModalPlacement;
   children?: ReactNode;
   /** Pie fijo (acciones). Queda fuera del área que scrollea. */
   footer?: ReactNode;
@@ -47,6 +57,21 @@ export interface ModalProps {
   /** Clases del pie (por defecto lleva borde superior y `px-6 py-4`). */
   footerClassName?: string;
 }
+
+const PLACEMENT: Record<ModalPlacement, { dialog: string; panel: string }> = {
+  center: {
+    dialog: "items-center justify-center p-4",
+    panel: "max-h-[90vh] rounded-3xl animate-in fade-in zoom-in-95",
+  },
+  sheet: {
+    dialog: "items-end justify-center p-0 sm:items-center sm:p-4",
+    panel: "max-h-[92dvh] rounded-t-3xl sm:max-h-[90vh] sm:rounded-3xl animate-in slide-in-from-bottom sm:fade-in sm:zoom-in-95",
+  },
+  right: {
+    dialog: "items-stretch justify-end p-0",
+    panel: "h-full max-h-none rounded-none border-y-0 border-r-0 animate-in slide-in-from-right",
+  },
+};
 
 const SIZE: Record<ModalSize, string> = {
   sm: "max-w-sm",
@@ -91,6 +116,11 @@ function unlockScroll() {
  * adentro. Así "clic en el fondo" es simplemente "el press empezó en el
  * `<dialog>` y no en el panel", y el diálogo nunca lleva `transform` (que
  * rompería el `position: fixed` de los desplegables portaleados).
+ *
+ * Al imprimir, el diálogo se oculta (`print:hidden`): el POS imprime el recibo
+ * con un modal abierto ("Venta realizada", "Ventas recientes") y lo que tiene
+ * que salir es la página. Por eso los modales que imprimen SU contenido
+ * (comprobante de comisión, cierre de turno) no usan este componente.
  */
 export function Modal({
   open,
@@ -99,6 +129,7 @@ export function Modal({
   description,
   icon,
   size = "md",
+  placement = "center",
   children,
   footer,
   dismissible = true,
@@ -118,6 +149,7 @@ export function Modal({
       description={description}
       icon={icon}
       size={size}
+      placement={placement}
       footer={footer}
       dismissible={dismissible}
       closeOnEscape={closeOnEscape}
@@ -134,7 +166,7 @@ export function Modal({
 }
 
 type OpenModalProps = Omit<ModalProps, "open"> &
-  Required<Pick<ModalProps, "size" | "dismissible" | "closeOnEscape" | "showCloseButton" | "role" | "className" | "bodyClassName" | "footerClassName">>;
+  Required<Pick<ModalProps, "size" | "placement" | "dismissible" | "closeOnEscape" | "showCloseButton" | "role" | "className" | "bodyClassName" | "footerClassName">>;
 
 function OpenModal({
   onClose,
@@ -142,6 +174,7 @@ function OpenModal({
   description,
   icon,
   size,
+  placement,
   children,
   footer,
   dismissible,
@@ -222,10 +255,10 @@ function OpenModal({
         // `mousedown` y no `click`: ver `backdropProps` en components/modal.ts.
         if (dismissible && e.target === e.currentTarget) onCloseRef.current();
       }}
-      className="ui-modal fixed inset-0 m-0 h-dvh max-h-none w-screen max-w-none items-center justify-center overflow-hidden border-0 bg-transparent p-4 text-on-surface open:flex backdrop:bg-black/60 backdrop:backdrop-blur-sm"
+      className={`ui-modal print:hidden fixed inset-0 m-0 h-dvh max-h-none w-screen max-w-none overflow-hidden border-0 bg-transparent text-on-surface open:flex backdrop:bg-black/60 backdrop:backdrop-blur-sm ${PLACEMENT[placement].dialog}`}
     >
       <div
-        className={`flex max-h-[90vh] w-full flex-col overflow-hidden rounded-3xl border border-outline-variant/10 bg-surface-container-lowest shadow-2xl animate-in fade-in zoom-in-95 duration-200 ${SIZE[size]} ${className}`}
+        className={`flex w-full flex-col overflow-hidden border border-outline-variant/10 bg-surface-container-lowest shadow-2xl duration-200 ${PLACEMENT[placement].panel} ${SIZE[size]} ${className}`}
       >
         <div className="flex shrink-0 items-start gap-3 px-6 pt-6 pb-4">
           <div className="min-w-0 flex-1">

@@ -111,7 +111,7 @@ export default function AdminSalesPage() {
           <span className="block font-medium truncate">
             {sale.company_name || sale.payer_name || "Sin nombre"}
             {sale.is_guest && (
-              <span className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded bg-warning/15 text-warning align-middle">
+              <span className="ml-2 text-[11px] font-bold px-1.5 py-0.5 rounded bg-warning/15 text-warning align-middle">
                 INVITADO
               </span>
             )}

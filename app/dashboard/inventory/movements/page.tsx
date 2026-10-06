@@ -20,7 +20,7 @@ const typeLabel: Record<string, string> = {
 };
 
 const typeColor: Record<string, string> = {
-  in: "bg-[#10b981]/10 text-[#10b981]",
+  in: "bg-success/10 text-success",
   out: "bg-error/10 text-error",
   adjust: "bg-amber-100 text-amber-700",
 };
@@ -180,7 +180,7 @@ function MovementsContent() {
           </Link>
           <button
             onClick={() => setAdjustModalOpen(true)}
-            className="bg-[#6063ee] hover:bg-[#c0c1ff] text-white hover:text-[#0b0664] text-sm font-semibold py-2.5 px-4 rounded-xl shadow-lg shadow-[#6063ee]/20 transition-colors flex items-center justify-center gap-2"
+            className="bg-primary hover:bg-primary-dim text-white text-sm font-semibold py-2.5 px-4 rounded-xl shadow-lg shadow-primary/20 transition-colors flex items-center justify-center gap-2"
           >
             <IconPlus className="w-4 h-4" />
             <span>Ajustar Stock</span>

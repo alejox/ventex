@@ -425,7 +425,7 @@ export function PedidosClient({
             <p className="text-on-surface-variant text-sm font-medium mb-1.5">Stock Bajo / Cr&iacute;tico</p>
             <h3 className="text-4xl font-bold text-on-surface tracking-tight">{lowStockCount}</h3>
           </div>
-          <div className="w-14 h-14 rounded-xl bg-[#f59e0b]/10 text-[#f59e0b] flex items-center justify-center group-hover:scale-110 transition-transform">
+          <div className="w-14 h-14 rounded-xl bg-warning/10 text-warning flex items-center justify-center group-hover:scale-110 transition-transform">
             <IconAlertTriangle className="w-7 h-7" />
           </div>
         </div>
@@ -516,8 +516,8 @@ export function PedidosClient({
                   const isOut = ratio === 0;
                   const badgeClass = isOut
                     ? "bg-error-container/20 text-error-dim border border-error-container/30"
-                    : "bg-[#f59e0b]/10 text-[#f59e0b] border border-[#f59e0b]/20";
-                  const dotClass = isOut ? "bg-error" : "bg-[#f59e0b]";
+                    : "bg-warning/10 text-warning border border-warning/20";
+                  const dotClass = isOut ? "bg-error" : "bg-warning";
 
                   return (
                     <tr key={item.productId} className="hover:bg-surface-container-lowest transition-colors group">
@@ -645,7 +645,7 @@ export function PedidosClient({
               }}
             >
                 <option value="">Seleccionar proveedor...</option>
-                {distributors.map((d) => (
+                {distributors.filter((d) => d.status !== "inactive" || d.id === selectedDistributorId).map((d) => (
                   <option key={d.id} value={d.id}>
                     {d.business_name}{d.whatsapp ? ` (${d.whatsapp})` : ""}
                   </option>

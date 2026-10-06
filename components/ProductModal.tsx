@@ -14,6 +14,7 @@ import { MoneyInput } from "@/components/ui/MoneyInput";
 import { Select } from "@/components/ui/Select";
 import { notifySuccess } from "@/lib/notifications";
 import { useFormatMoney } from "@/lib/useMoney";
+import { Modal } from "@/components/ui/Modal";
 
 /**
  * Alta RÁPIDA de un producto. Solo producto.
@@ -200,26 +201,17 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
   };
 
   return (
-    <div
-      className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
+    <Modal
+      open
+      onClose={onClose}
+      title="Crear nuevo producto"
+      size="lg"
+      dismissible={false}
+      closeOnEscape={false}
+      className="max-h-[92dvh] sm:max-h-[88dvh]"
+      bodyClassName=""
     >
-      <div
-        className="bg-surface-container-lowest rounded-t-[24px] sm:rounded-[24px] w-full max-w-2xl max-h-[92dvh] sm:max-h-[88dvh] border border-outline-variant/10 shadow-2xl overflow-hidden animate-in slide-in-from-bottom sm:zoom-in-95 duration-200 flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="p-6 pb-4 flex justify-between items-center">
-          <h2 className="text-xl font-bold text-on-surface">Crear nuevo producto</h2>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-low transition-colors"
-          >
-            <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-5 h-5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} onKeyDown={(e) => { if (e.key === "Enter") e.preventDefault(); }} className="p-6 pt-0 space-y-6 flex-1 overflow-y-auto">
+        <form onSubmit={handleSubmit} onKeyDown={(e) => { if (e.key === "Enter") e.preventDefault(); }} className="px-6 pb-6 space-y-6">
           {/* Foto. `capture="environment"` hace que el celular abra la cámara
               trasera directo; en escritorio el mismo input abre el explorador. */}
           <label className="flex items-center gap-4 p-3 rounded-2xl border border-dashed border-outline-variant/40 cursor-pointer hover:bg-surface-container-low transition-colors">
@@ -572,7 +564,6 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
             </button>
           </div>
         </form>
-      </div>
 
       {categoryModalOpen && (
         <CategoryQuickModal
@@ -580,6 +571,6 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
           onCreated={(id) => setCategoryId(id)}
         />
       )}
-    </div>
+    </Modal>
   );
 }

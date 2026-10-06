@@ -4,11 +4,11 @@ import { useEffect, useState } from "react";
 import { useAdminStore } from "@/stores/admin.store";
 import type { CreditPack } from "@/services/admin.service";
 import { formatMoney, planAccent } from "@/config/plans";
-import { backdropProps } from "@/components/modal";
 import { IconCreditCard } from "@/app/assets/icons/DashboardIcons";
 import { CollectionEmpty, CollectionError, CollectionLoading } from "@/components/CollectionState";
 import { Pagination } from "@/components/Pagination";
 import { Select } from "@/components/ui/Select";
+import { Modal } from "@/components/ui/Modal";
 
 const REASON_LABELS: Record<string, string> = {
   grant: "Recarga",
@@ -97,7 +97,7 @@ export default function AdminCreditsPage() {
                     </span>
                   </div>
                   {!pack.is_active && (
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-surface-container-high text-on-surface-variant">
+                    <span className="text-[11px] font-bold px-1.5 py-0.5 rounded bg-surface-container-high text-on-surface-variant">
                       INACTIVA
                     </span>
                   )}
@@ -321,24 +321,16 @@ function PackModal({ pack, onClose }: { pack: CreditPack | null; onClose: () => 
   };
 
   return (
-    <div
-      className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
-      {...backdropProps(onClose)}
+    <Modal
+      open
+      onClose={() => {
+        if (!submitting) onClose();
+      }}
+      title={pack ? "Editar promoción" : "Nueva promoción"}
+      description="Un pack de recarga con créditos de regalo opcionales y precio de referencia (el cobro es por fuera)."
+      className="max-w-md!"
+      bodyClassName="border-t border-outline-variant/10"
     >
-      <div
-        className="bg-surface-container rounded-3xl w-full max-w-md border border-outline-variant/10 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="p-6 border-b border-outline-variant/10">
-          <h2 className="text-lg font-bold text-on-surface">
-            {pack ? "Editar promoción" : "Nueva promoción"}
-          </h2>
-          <p className="text-sm text-on-surface-variant mt-0.5">
-            Un pack de recarga con créditos de regalo opcionales y precio de
-            referencia (el cobro es por fuera).
-          </p>
-        </div>
-
         <form onSubmit={handleSubmit}>
           <div className="p-6 space-y-4">
             {error && (
@@ -441,7 +433,6 @@ function PackModal({ pack, onClose }: { pack: CreditPack | null; onClose: () => 
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </Modal>
   );
 }

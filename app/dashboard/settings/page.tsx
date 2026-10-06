@@ -21,6 +21,7 @@ import { COLOMBIA_CARD_METHODS, DEFAULT_CARD_METHODS } from "@/config/cardMethod
 import { Select } from "@/components/ui/Select";
 import { CashDrawerCard } from "./CashDrawerCard";
 import { formatAppointmentTime, type TimeFormat } from "@/lib/time";
+import { Switch } from "@/components/ui/Switch";
 
 const CURRENCIES = [
   { code: "MXN", label: "Peso mexicano (MXN)" },
@@ -227,13 +228,13 @@ function BusinessModulesForm() {
       )}
 
       <div className="flex items-center justify-between gap-4 pt-6 mt-4 border-t border-outline-variant/10">
-        <span className={`text-sm font-medium text-[#10b981] transition-opacity ${saved ? "opacity-100" : "opacity-0"}`}>
+        <span className={`text-sm font-medium text-success transition-opacity ${saved ? "opacity-100" : "opacity-0"}`}>
           ✓ Cambios guardados
         </span>
         <button
           type="submit"
           disabled={submitting}
-          className="py-3 px-6 rounded-xl bg-[#6063ee] text-white hover:bg-[#c0c1ff] hover:text-[#0b0664] text-sm font-bold shadow-lg shadow-[#6063ee]/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="py-3 px-6 rounded-xl bg-primary text-on-primary hover:bg-primary-dim text-sm font-bold shadow-lg shadow-primary/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {submitting ? "Guardando…" : "Guardar Cambios"}
         </button>
@@ -264,17 +265,13 @@ function ToggleSetting({
           <h3 className="text-sm font-semibold text-on-surface">{title}</h3>
           <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">{description}</p>
         </div>
-        <label className="relative inline-flex items-center cursor-pointer shrink-0">
-          <input
-            type="checkbox"
-            className="sr-only peer"
-            disabled={disabled}
-            aria-label={title}
-            checked={checked}
-            onChange={(e) => onChange(e.target.checked)}
-          />
-          <div className="w-11 h-6 bg-surface-container-high peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-        </label>
+        <Switch
+          aria-label={title}
+          checked={checked}
+          disabled={disabled}
+          onCheckedChange={onChange}
+          className="shrink-0"
+        />
       </div>
     </div>
   );
@@ -612,13 +609,13 @@ function SettingsForm({ settings }: { settings: Settings }) {
       )}
 
       <div className="flex items-center justify-between gap-4 pt-6 mt-4 border-t border-outline-variant/10">
-        <span className={`text-sm font-medium text-[#10b981] transition-opacity ${saved ? "opacity-100" : "opacity-0"}`}>
+        <span className={`text-sm font-medium text-success transition-opacity ${saved ? "opacity-100" : "opacity-0"}`}>
           ✓ Ajustes guardados
         </span>
         <button
           type="submit"
           disabled={submitting}
-          className="py-3 px-6 rounded-xl bg-[#6063ee] text-white hover:bg-[#c0c1ff] hover:text-[#0b0664] text-sm font-bold shadow-lg shadow-[#6063ee]/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="py-3 px-6 rounded-xl bg-primary text-on-primary hover:bg-primary-dim text-sm font-bold shadow-lg shadow-primary/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {submitting ? "Guardando…" : "Guardar Cambios"}
         </button>

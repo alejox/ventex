@@ -488,7 +488,7 @@ export function PosCatalog({
                         <p className="text-[15px] font-bold text-on-surface tabular-nums">
                           {fmtMoney(item.price)}
                         </p>
-                        <p className="text-[10px] font-semibold text-on-surface-variant uppercase tracking-wider">
+                        <p className="text-[11px] font-semibold text-on-surface-variant uppercase tracking-wider">
                           {stock == null ? (
                             <span className="text-emerald-500">{serviceTag(item)}</span>
                           ) : outOfStock ? (
@@ -568,7 +568,7 @@ export function PosCatalog({
                     >
                       {outOfStock && (
                         <span
-                          className={`absolute top-2 right-2 z-10 text-[10px] font-bold px-2 py-1 rounded-md border ${
+                          className={`absolute top-2 right-2 z-10 text-[11px] font-bold px-2 py-1 rounded-md border ${
                             allowOversell
                               ? "bg-amber-500/15 text-amber-600 border-amber-500/30"
                               : "bg-error/10 text-error-dim border-error/20"
@@ -591,7 +591,7 @@ export function PosCatalog({
                           <IconImagePlaceholder className="w-8 h-8 text-on-surface-variant/30" />
                         )}
                       </div>
-                      <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1">
+                      <p className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider mb-1">
                         {stock == null ? "Servicio" : item.sku ? `SKU: ${item.sku}` : "\u00a0"}
                       </p>
                       {/* `break-words`: line-clamp recorta de alto, no de ancho.
@@ -609,12 +609,12 @@ export function PosCatalog({
                           {fmtMoney(item.price)}
                         </span>
                         {stock == null ? (
-                          <span className="text-[10px] font-bold text-on-surface-variant shrink-0">
+                          <span className="text-[11px] font-bold text-on-surface-variant shrink-0">
                             {serviceTag(item)}
                           </span>
                         ) : (
                           <span
-                            className={`text-[10px] font-bold shrink-0 ${
+                            className={`text-[11px] font-bold shrink-0 ${
                               stock <= 0
                                 ? "text-amber-600"
                                 : stock <= 5
@@ -666,7 +666,7 @@ export function PosCatalog({
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-[10px] text-on-surface-variant font-semibold uppercase tracking-wider truncate">
+                        <p className="text-[11px] text-on-surface-variant font-semibold uppercase tracking-wider truncate">
                           {stock == null ? serviceTag(item) : item.sku}
                         </p>
                         <h3 className="text-xs font-medium text-on-surface truncate">{item.name}</h3>
@@ -675,7 +675,7 @@ export function PosCatalog({
                         <p className="text-xs font-bold text-on-surface">{fmtMoney(item.price)}</p>
                         {stock != null && (
                           <span
-                            className={`text-[9px] font-bold ${
+                            className={`text-[11px] font-bold ${
                               stock <= 0
                                 ? "text-amber-600"
                                 : stock <= 5

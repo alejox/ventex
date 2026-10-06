@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { useAdminStore } from "@/stores/admin.store";
 import type { AdminReseller } from "@/services/admin.service";
-import { backdropProps } from "@/components/modal";
 import { Select } from "@/components/ui/Select";
+import { Modal } from "@/components/ui/Modal";
 
 /**
  * Modal de recarga de créditos a un revendedor (solo panel super admin).
@@ -58,21 +58,16 @@ export function GrantCreditsModal({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
-      {...backdropProps(onClose)}
+    <Modal
+      open
+      className="max-w-md!"
+      onClose={() => {
+        if (!submitting) onClose();
+      }}
+      title="Recargar créditos"
+      description={reseller.business_name || reseller.full_name || reseller.email}
+      bodyClassName="border-t border-outline-variant/10"
     >
-      <div
-        className="bg-surface-container rounded-3xl w-full max-w-md border border-outline-variant/10 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="p-6 border-b border-outline-variant/10">
-          <h2 className="text-lg font-bold text-on-surface">Recargar créditos</h2>
-          <p className="text-sm text-on-surface-variant mt-0.5">
-            {reseller.business_name || reseller.full_name || reseller.email}
-          </p>
-        </div>
-
         <form onSubmit={handleSubmit}>
           <div className="p-6 space-y-4">
             {error && (
@@ -173,13 +168,12 @@ export function GrantCreditsModal({
             <button
               type="submit"
               disabled={submitting || (!packId && amount === 0)}
-              className="py-2.5 px-5 rounded-xl bg-[#6063ee] text-white hover:bg-[#c0c1ff] hover:text-[#0b0664] text-sm font-bold shadow-lg shadow-[#6063ee]/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="py-2.5 px-5 rounded-xl bg-primary text-on-primary hover:bg-primary-dim text-sm font-bold shadow-lg shadow-primary/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {submitting ? "Guardando…" : packId ? "Aplicar promoción" : "Recargar"}
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </Modal>
   );
 }

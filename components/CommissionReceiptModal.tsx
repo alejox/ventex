@@ -248,7 +248,7 @@ export function CommissionReceiptModal({ settlement, onClose }: Props) {
           </div>
 
           {settlement.voidedSalesCount > 0 && (
-            <div role="alert" className="rounded-xl border border-[#f59e0b]/30 bg-[#f59e0b]/10 px-4 py-3 text-sm text-on-surface print:text-black">
+            <div role="alert" className="rounded-xl border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-on-surface print:text-black">
               <strong className="font-bold">Atención:</strong> {settlement.voidedSalesCount} venta
               {settlement.voidedSalesCount !== 1 ? "s" : ""} de esta liquidación se anuló después de
               haberse pagado. La comisión ya salió de la caja: revisa si corresponde descontarla en la

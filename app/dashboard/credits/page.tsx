@@ -129,7 +129,7 @@ export default function CreditsPage() {
               que hay que ver ANTES de decidir, y una columna más al final se
               lee después del monto — o no se lee. */}
           {c.credit_alert && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border bg-error/10 text-error border-error/30">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold border bg-error/10 text-error border-error/30">
               <span aria-hidden>⚠</span>
               {creditAlertText(c.credit_alert_note)}
             </span>
@@ -150,7 +150,7 @@ export default function CreditsPage() {
       mobile: "trailing",
       sortKey: "deuda",
       sortValue: (c) => c.credit_balance,
-      className: "font-bold text-[#f59e0b]",
+      className: "font-bold text-warning",
       cell: (c) => fmtMoney(c.credit_balance),
     },
     {
@@ -198,7 +198,7 @@ export default function CreditsPage() {
             e.stopPropagation();
             setPaymentCustomer(c);
           }}
-          className="px-3 py-1.5 rounded-lg text-xs font-bold bg-primary/10 text-primary hover:bg-primary hover:text-on-primary transition-colors"
+          className="px-3 py-1.5 rounded-lg text-xs font-bold bg-primary/10 text-primary hover:bg-primary transition-colors"
         >
           Registrar abono
         </button>
@@ -214,7 +214,7 @@ export default function CreditsPage() {
       mobile: "trailing",
       sortKey: "pagado",
       sortValue: (c) => c.total_paid,
-      className: "font-bold text-[#10b981]",
+      className: "font-bold text-success",
       cell: (c) => fmtMoney(c.total_paid),
     },
     {
@@ -317,7 +317,7 @@ export default function CreditsPage() {
                       </span>
                     )}
                   </span>
-                  <span className="font-semibold text-[#f59e0b] tabular-nums shrink-0">
+                  <span className="font-semibold text-warning tabular-nums shrink-0">
                     {fmtMoney(s.credit_amount)}
                   </span>
                 </li>
@@ -337,7 +337,7 @@ export default function CreditsPage() {
                     {fecha(p.created_at)}
                     {p.notes && <span className="ml-1 text-on-surface-variant/60">· {p.notes}</span>}
                   </span>
-                  <span className="font-semibold text-[#10b981] tabular-nums shrink-0">
+                  <span className="font-semibold text-success tabular-nums shrink-0">
                     −{fmtMoney(p.amount)}
                   </span>
                 </li>
@@ -370,7 +370,7 @@ export default function CreditsPage() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="rounded-2xl border border-outline-variant/10 bg-surface-container-lowest p-4">
               <p className="text-xs font-semibold text-on-surface-variant">Total por cobrar</p>
-              <p className="mt-1 text-2xl font-bold text-[#f59e0b] tabular-nums">
+              <p className="mt-1 text-2xl font-bold text-warning tabular-nums">
                 {fmtMoney(summary.totalPorCobrar)}
               </p>
             </div>

@@ -222,7 +222,7 @@ function CurrentPlanCard({
             <span
               className={`text-[11px] font-semibold px-2.5 py-1 rounded-full ${
                 subscription.status === "active"
-                  ? "bg-[#10b981]/15 text-[#10b981]"
+                  ? "bg-success/15 text-success"
                   : "bg-error-container/20 text-error-dim"
               }`}
             >
@@ -297,7 +297,7 @@ const VALIDITY_TONES = {
   ok: {
     box: "bg-surface-container-low border-outline-variant/20",
     icon: "text-primary",
-    chip: "bg-[#10b981]/15 text-[#10b981]",
+    chip: "bg-success/15 text-success",
     bar: "bg-primary",
   },
   soon: {
@@ -596,7 +596,7 @@ function PlanCard({
             className={`inline-flex items-center justify-center gap-2 py-2.5 px-5 rounded-xl text-sm font-bold transition-colors whitespace-nowrap ${
               current
                 ? "border border-outline-variant/20 text-on-surface hover:bg-surface-container-high"
-                : "bg-primary text-white hover:bg-primary-dim shadow-lg shadow-primary/20"
+                : "bg-primary text-on-primary hover:bg-primary-dim shadow-lg shadow-primary/20"
             }`}
           >
             {current ? "Renovar" : `Pagar ${mensual.name.toLowerCase()}`}
@@ -619,7 +619,7 @@ function PlanCard({
 
 function Check() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4 text-[#10b981] shrink-0">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4 text-success shrink-0">
       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
     </svg>
   );

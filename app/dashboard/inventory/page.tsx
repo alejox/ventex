@@ -44,6 +44,7 @@ import { notifyError } from "@/lib/notifications";
 import { CollectionEmpty, CollectionError, CollectionFilteredEmpty, CollectionLoading } from "@/components/CollectionState";
 import { Pagination } from "@/components/Pagination";
 import { useFormatMoney } from "@/lib/useMoney";
+import { Modal } from "@/components/ui/Modal";
 
 
 function IconScanLine(props: React.SVGProps<SVGSVGElement>) {
@@ -109,7 +110,7 @@ function SortableTh({
 /** Marca de "esto ya no se vende": acompaña a la fila atenuada. */
 function ArchivedChip() {
   return (
-    <span className="ml-2 inline-flex items-center rounded-md border border-outline-variant/30 bg-surface-container-highest px-1.5 py-0.5 align-middle text-[10px] font-bold uppercase tracking-wide text-on-surface-variant">
+    <span className="ml-2 inline-flex items-center rounded-md border border-outline-variant/30 bg-surface-container-highest px-1.5 py-0.5 align-middle text-[11px] font-bold uppercase tracking-wide text-on-surface-variant">
       Archivado
     </span>
   );
@@ -485,7 +486,7 @@ export default function CatalogPage() {
               onClick={() => setScannerOpen(true)}
               aria-label="Escanear código de barras"
               title="Escanear código de barras"
-              className="lg:hidden shrink-0 w-11 h-11 flex items-center justify-center rounded-xl bg-primary/10 text-primary hover:bg-primary hover:text-on-primary transition-colors"
+              className="lg:hidden shrink-0 w-11 h-11 flex items-center justify-center rounded-xl bg-primary/10 text-primary hover:bg-primary transition-colors"
             >
               <IconScanLine className="w-5 h-5" />
             </button>
@@ -897,22 +898,29 @@ export default function CatalogPage() {
       </div>
 
       {confirmArchive && (
-        <div className="fixed inset-0 z-[110] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-surface-container rounded-t-3xl sm:rounded-3xl w-full sm:max-w-sm border border-outline-variant/10 shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200">
-            <div className="p-6 text-center">
-              <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-error-container/20 flex items-center justify-center">
-                <svg className="w-6 h-6 text-error-dim" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-              </div>
-              <h3 className="text-lg font-bold text-on-surface mb-2">
-                Archivar {confirmArchive.kind === "product" ? "Producto" : "Servicio"}
-              </h3>
-              <p className="text-sm text-on-surface-variant mb-6">
-                {confirmArchive.kind === "product"
-                  ? "El producto se desactivará y no aparecerá en el catálogo activo ni en el POS. Puedes activarlo de nuevo después."
-                  : "El servicio se desactivará y no se podrá agendar ni cobrar. Puedes activarlo de nuevo después."}
-              </p>
+        <Modal
+          open
+          onClose={() => setConfirmArchive(null)}
+          title={`Archivar ${confirmArchive.kind === "product" ? "Producto" : "Servicio"}`}
+          icon={
+            <div className="w-12 h-12 mx-auto rounded-full bg-error-container/20 flex items-center justify-center">
+              <svg className="w-6 h-6 text-error-dim" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </div>
+          }
+          description={
+            confirmArchive.kind === "product"
+              ? "El producto se desactivará y no aparecerá en el catálogo activo ni en el POS. Puedes activarlo de nuevo después."
+              : "El servicio se desactivará y no se podrá agendar ni cobrar. Puedes activarlo de nuevo después."
+          }
+          role="alertdialog"
+          size="sm"
+          placement="sheet"
+          showCloseButton={false}
+          className="text-center"
+          bodyClassName="px-6 pb-6 pt-2"
+        >
               <div className="flex gap-3">
                 <button
                   onClick={() => setConfirmArchive(null)}
@@ -930,9 +938,7 @@ export default function CatalogPage() {
                   Archivar
                 </button>
               </div>
-            </div>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {scannerOpen && (

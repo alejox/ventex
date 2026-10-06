@@ -72,7 +72,7 @@ export function MonthlyChart({
     <div>
       <div className="flex gap-2">
         {/* Eje Y: etiquetas abreviadas, alineadas con las líneas guía. */}
-        <div aria-hidden="true" className="relative w-14 shrink-0 h-48 text-[10px] text-on-surface-variant tabular-nums">
+        <div aria-hidden="true" className="relative w-14 shrink-0 h-48 text-[11px] text-on-surface-variant tabular-nums">
           {ticks.map((t) => (
             <span key={t} className="absolute right-0 translate-y-1/2 leading-none" style={{ bottom: `${pct(t)}%` }}>
               {t === 0 ? "0" : compactMoney(t, currency)}
@@ -117,7 +117,7 @@ export function MonthlyChart({
                           {v > 0 && (
                             <span
                               aria-hidden="true"
-                              className="hidden sm:block absolute inset-x-[-1rem] text-center text-[10px] font-semibold text-on-surface-variant tabular-nums whitespace-nowrap"
+                              className="hidden sm:block absolute inset-x-[-1rem] text-center text-[11px] font-semibold text-on-surface-variant tabular-nums whitespace-nowrap"
                               style={{ bottom: `calc(${pct(v)}% + 2px)` }}
                             >
                               {compactMoney(v, currency)}

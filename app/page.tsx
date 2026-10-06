@@ -90,8 +90,8 @@ function MockFrame({ label, children }: { label: string; children: React.ReactNo
     <div className="bg-surface-container rounded-3xl border border-outline-variant/15 shadow-2xl overflow-hidden text-on-surface">
       <div className="flex items-center gap-2 px-4 py-3 border-b border-outline-variant/10 bg-surface-container-low">
         <span className="w-3 h-3 rounded-full bg-error/60" />
-        <span className="w-3 h-3 rounded-full bg-[#f59e0b]/60" />
-        <span className="w-3 h-3 rounded-full bg-[#10b981]/60" />
+        <span className="w-3 h-3 rounded-full bg-warning/60" />
+        <span className="w-3 h-3 rounded-full bg-success/60" />
         <span className="ml-3 text-xs font-medium text-on-surface-variant">{label}</span>
       </div>
       {children}

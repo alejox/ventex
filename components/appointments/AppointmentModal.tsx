@@ -23,6 +23,7 @@ import { formatAppointmentTime, type TimeFormat } from "@/lib/time";
 import { DateTimeDialog, DateTimeField } from "./DateTimeField";
 import { conflictsFor, pickStaff, type BusyAppointment } from "@/lib/appointment-availability";
 import { useFormatMoney } from "@/lib/useMoney";
+import { Modal } from "@/components/ui/Modal";
 
 /**
  * Mensaje de confirmación ya redactado para el cliente.
@@ -181,7 +182,7 @@ function AppointmentModalBody({
   useEffect(() => { void fetchBusinessHours(); }, [fetchBusinessHours]);
   /** "Mover a…": abre el selector de fecha y hora y guarda al elegir. */
   const [moveOpen, setMoveOpen] = useState(false);
-  const dialogRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLFormElement>(null);
   useEffect(() => {
     const previousFocus = document.activeElement as HTMLElement | null;
     dialogRef.current?.querySelector<HTMLInputElement>("input")?.focus();
@@ -444,59 +445,68 @@ function AppointmentModalBody({
     }));
   };
 
-  function handleDialogKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
-    if (event.defaultPrevented) return;
-    if (event.key === "Escape") {
-      event.preventDefault();
-      if (showDeleteConfirm) setShowDeleteConfirm(false);
-      else if (showCompleteConfirm) setShowCompleteConfirm(false);
-      else if (showChargeConfirm) setShowChargeConfirm(false);
-      else void requestClose();
-      return;
-    }
-    if (event.key !== "Tab") return;
-    const controls = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], summary, [tabindex="0"]') ?? []).filter((element) => element.offsetParent !== null);
-    const first = controls[0];
-    const last = controls[controls.length - 1];
-    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
-    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
-  }
-
   return (
     <>
-    <div
-      ref={dialogRef}
-      onKeyDown={handleDialogKeyDown}
-      onMouseDown={(event) => { if (event.target === event.currentTarget) void requestClose(); }}
-      className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
-    >
-      <div role="dialog" aria-modal="true" aria-labelledby="appointment-modal-title" className="bg-surface-container rounded-t-3xl sm:rounded-3xl w-full sm:max-w-lg max-h-[90vh] border border-outline-variant/10 shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200 flex flex-col">
-        {/* Header */}
-        <div className="p-4 sm:p-6 border-b border-outline-variant/10 flex justify-between items-center bg-surface-container-low shrink-0">
-          <div className="min-w-0">
-            <div className="flex items-center gap-3">
-              <h2 id="appointment-modal-title" className="text-lg sm:text-xl font-bold text-on-surface">
-                {isEditing ? "Editar cita" : "Nueva cita"}
-              </h2>
-              {liveStatus && <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
-                {STATUS_OPTIONS.find((option) => option.value === liveStatus)?.label}
-              </span>}
+    <Modal
+      open
+      onClose={() => {
+        if (!busy) void requestClose();
+      }}
+      title={isEditing ? "Editar cita" : "Nueva cita"}
+      description={
+        <>
+          {liveStatus && (
+            <span className="mb-1 inline-block rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary-ink">
+              {STATUS_OPTIONS.find((option) => option.value === liveStatus)?.label}
+            </span>
+          )}
+          <span className="block truncate">{generatedTitle || form.title || "Organiza la próxima visita"}</span>
+          <span className="mt-1 block text-xs">{form.appointment_date && formatDateOnly(form.appointment_date)} · {formatAppointmentTime(form.start_time, timeFormat)}–{formatAppointmentTime(form.end_time, timeFormat)}</span>
+        </>
+      }
+      placement="sheet"
+      bodyClassName="border-t border-outline-variant/10"
+      footerClassName="border-t border-outline-variant/20 bg-surface-container-lowest p-4 sm:px-6"
+      footer={
+        <div className="space-y-3">
+          {isEditing && liveStatus === "confirmed" && !dirty && (
+            <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+              <span className="font-semibold text-primary" role="status">Reserva confirmada</span>
+              {customerWhatsapp ? <a href={whatsappUrl(confirmationMessage, customerWhatsapp)} target="_blank" rel="noopener noreferrer"
+                className="font-semibold text-primary underline underline-offset-4">Avisar por WhatsApp</a>
+                : <span className="text-xs text-on-surface-variant">Sin teléfono para avisar.</span>}
             </div>
-            <p className="mt-1 text-sm text-on-surface-variant truncate">{generatedTitle || form.title || "Organiza la próxima visita"}</p>
-            <p className="mt-1 text-xs text-on-surface-variant">{form.appointment_date && formatDateOnly(form.appointment_date)} · {formatAppointmentTime(form.start_time, timeFormat)}–{formatAppointmentTime(form.end_time, timeFormat)}</p>
+          )}
+          <div className="flex items-center justify-between gap-2">
+            {isEditing ? <details className="relative">
+              <summary className="cursor-pointer text-sm text-on-surface-variant">Más acciones</summary>
+              <div className="absolute bottom-full left-0 mb-3 w-52 rounded-xl border border-outline-variant/30 bg-surface-container-high p-2 shadow-xl flex flex-col">
+                {liveStatus !== "cancelled" && liveStatus !== "completed" && !liveSaleId ? (
+                  <button type="button" disabled={busy} onClick={() => setMoveOpen(true)} className="text-left rounded-lg p-2 text-sm text-on-surface hover:bg-surface-container-highest">
+                    Mover a…
+                  </button>
+                ) : null}
+                {STATUS_OPTIONS.filter(option => option.value !== liveStatus && option.value !== "confirmed").map(option =>
+                  <button key={option.value} type="button" disabled={busy} onClick={() => void handleStatusChange(option.value)} className="text-left rounded-lg p-2 text-sm text-on-surface hover:bg-surface-container-highest">
+                    {option.value === "cancelled" ? "Cancelar cita" : option.value === "completed" ? "Marcar completada" : "Volver a pendiente"}
+                  </button>)}
+                <button type="button" disabled={busy} onClick={() => setShowDeleteConfirm(true)} className="text-left rounded-lg p-2 text-sm text-error-dim">Eliminar cita</button>
+              </div>
+            </details> : <button type="button" onClick={() => void requestClose()} className="text-sm text-on-surface-variant">Volver</button>}
+            <div className="flex flex-wrap justify-end gap-2">
+              <button type="submit" form="appointment-edit-form" disabled={busy}
+                className={`rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-50 ${isEditing ? "border border-outline-variant/30 text-on-surface" : "bg-primary text-on-primary"}`}>
+                {busy ? "Guardando…" : isEditing ? "Guardar cambios" : "Crear cita"}
+              </button>
+              {liveStatus === "pending" ? <button type="button" disabled={busy} onClick={() => void confirmPending()} className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary disabled:opacity-50">Confirmar reserva</button>
+                : canCharge && <button type="button" disabled={busy || dirty} onClick={startCharge} title={dirty ? "Guarda los cambios antes de cobrar" : undefined} className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary disabled:opacity-50">
+                  {chargedService ? `Cobrar ${fmtMoney(chargedService.price)}` : "Cobrar"}
+                </button>}
+            </div>
           </div>
-          <button
-            disabled={busy}
-            onClick={() => void requestClose()}
-            className="w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors"
-            aria-label="Cerrar"
-          >
-            <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="20" height="20">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
         </div>
-
+      }
+    >
         {isEditing && liveSaleId && (
           <div className="px-4 sm:px-6 py-3 border-b border-emerald-500/20 bg-emerald-500/10 shrink-0 text-sm font-semibold text-emerald-700 dark:text-emerald-400">
             Cita cobrada: la venta ya está registrada.
@@ -504,7 +514,7 @@ function AppointmentModalBody({
         )}
 
         {/* Form */}
-        <form id="appointment-edit-form" onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 sm:space-y-5 overflow-y-auto min-h-0">
+        <form ref={dialogRef} id="appointment-edit-form" onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 sm:space-y-5">
           <fieldset disabled={busy} className="space-y-4 sm:space-y-5">
           {error && (
             <div className="rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim">
@@ -696,52 +706,21 @@ function AppointmentModalBody({
           </details>
           </fieldset>
         </form>
-        <div className="shrink-0 border-t border-outline-variant/20 bg-surface-container-lowest p-4 sm:px-6 space-y-3">
-          {isEditing && liveStatus === "confirmed" && !dirty && (
-            <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-              <span className="font-semibold text-primary" role="status">Reserva confirmada</span>
-              {customerWhatsapp ? <a href={whatsappUrl(confirmationMessage, customerWhatsapp)} target="_blank" rel="noopener noreferrer"
-                className="font-semibold text-primary underline underline-offset-4">Avisar por WhatsApp</a>
-                : <span className="text-xs text-on-surface-variant">Sin teléfono para avisar.</span>}
-            </div>
-          )}
-          <div className="flex items-center justify-between gap-2">
-            {isEditing ? <details className="relative">
-              <summary className="cursor-pointer text-sm text-on-surface-variant">Más acciones</summary>
-              <div className="absolute bottom-full left-0 mb-3 w-52 rounded-xl border border-outline-variant/30 bg-surface-container-high p-2 shadow-xl flex flex-col">
-                {liveStatus !== "cancelled" && liveStatus !== "completed" && !liveSaleId ? (
-                  <button type="button" disabled={busy} onClick={() => setMoveOpen(true)} className="text-left rounded-lg p-2 text-sm text-on-surface hover:bg-surface-container-highest">
-                    Mover a…
-                  </button>
-                ) : null}
-                {STATUS_OPTIONS.filter(option => option.value !== liveStatus && option.value !== "confirmed").map(option =>
-                  <button key={option.value} type="button" disabled={busy} onClick={() => void handleStatusChange(option.value)} className="text-left rounded-lg p-2 text-sm text-on-surface hover:bg-surface-container-highest">
-                    {option.value === "cancelled" ? "Cancelar cita" : option.value === "completed" ? "Marcar completada" : "Volver a pendiente"}
-                  </button>)}
-                <button type="button" disabled={busy} onClick={() => setShowDeleteConfirm(true)} className="text-left rounded-lg p-2 text-sm text-error-dim">Eliminar cita</button>
-              </div>
-            </details> : <button type="button" onClick={() => void requestClose()} className="text-sm text-on-surface-variant">Volver</button>}
-            <div className="flex flex-wrap justify-end gap-2">
-              <button type="submit" form="appointment-edit-form" disabled={busy}
-                className={`rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-50 ${isEditing ? "border border-outline-variant/30 text-on-surface" : "bg-primary text-on-primary"}`}>
-                {busy ? "Guardando…" : isEditing ? "Guardar cambios" : "Crear cita"}
-              </button>
-              {liveStatus === "pending" ? <button type="button" disabled={busy} onClick={() => void confirmPending()} className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary disabled:opacity-50">Confirmar reserva</button>
-                : canCharge && <button type="button" disabled={busy || dirty} onClick={startCharge} title={dirty ? "Guarda los cambios antes de cobrar" : undefined} className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary disabled:opacity-50">
-                  {chargedService ? `Cobrar ${fmtMoney(chargedService.price)}` : "Cobrar"}
-                </button>}
-            </div>
-          </div>
-        </div>
-      </div>
+    </Modal>
 
       {showDeleteConfirm && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-surface-container rounded-3xl w-full max-w-sm border border-outline-variant/10 shadow-2xl p-6 text-center animate-in zoom-in-95 duration-200">
-            <h3 className="text-lg font-bold text-on-surface mb-2">Eliminar Cita</h3>
-            <p className="text-sm text-on-surface-variant mb-6">
-              ¿Estás seguro de eliminar esta cita? Esta acción no se puede deshacer.
-            </p>
+        <Modal
+          open
+          onClose={() => {
+            if (!busy) setShowDeleteConfirm(false);
+          }}
+          title="Eliminar Cita"
+          description="¿Estás seguro de eliminar esta cita? Esta acción no se puede deshacer."
+          role="alertdialog"
+          size="sm"
+          showCloseButton={false}
+          className="text-center"
+        >
             <div className="flex gap-3">
               <button
                 type="button"
@@ -759,17 +738,22 @@ function AppointmentModalBody({
                 {submitting ? "Eliminando…" : "Eliminar"}
               </button>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {showCompleteConfirm && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div role="alertdialog" aria-modal="true" aria-labelledby="complete-confirm-title" className="bg-surface-container rounded-3xl w-full max-w-sm border border-outline-variant/10 shadow-2xl p-6 text-center animate-in zoom-in-95 duration-200">
-            <h3 id="complete-confirm-title" className="text-lg font-bold text-on-surface mb-2">¿Completar sin cobrar?</h3>
-            <p className="text-sm text-on-surface-variant mb-6">
-              No se generará venta ni comisión. Si el cliente ya pagó, usa «Cobrar» en su lugar.
-            </p>
+        <Modal
+          open
+          onClose={() => {
+            if (!busy) setShowCompleteConfirm(false);
+          }}
+          title="¿Completar sin cobrar?"
+          description="No se generará venta ni comisión. Si el cliente ya pagó, usa «Cobrar» en su lugar."
+          role="alertdialog"
+          size="sm"
+          showCloseButton={false}
+          className="text-center"
+        >
             <div className="flex gap-3">
               <button
                 type="button"
@@ -787,18 +771,20 @@ function AppointmentModalBody({
                 Completar sin cobrar
               </button>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {showChargeConfirm && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-surface-container rounded-3xl w-full max-w-sm border border-outline-variant/10 shadow-2xl p-6 text-center animate-in zoom-in-95 duration-200">
-            <h3 className="text-lg font-bold text-on-surface mb-1">Cobrar cita</h3>
-            <p className="text-sm text-on-surface-variant mb-4">
-              {chargedService?.name ?? appointment?.title}
-              {selectedCustomer ? ` · ${selectedCustomer.full_name}` : ""}
-            </p>
+        <Modal
+          open
+          onClose={() => {
+            if (!busy) setShowChargeConfirm(false);
+          }}
+          title="Cobrar cita"
+          description={`${chargedService?.name ?? appointment?.title ?? ""}${selectedCustomer ? ` · ${selectedCustomer.full_name}` : ""}`}
+          size="sm"
+          className="text-center"
+        >
             {chargedService && (
               <p className="text-3xl font-bold text-on-surface tabular-nums mb-4">
                 {fmtMoney(chargedService.price)}
@@ -853,8 +839,7 @@ function AppointmentModalBody({
                 {submitting ? "Cobrando…" : "Confirmar cobro"}
               </button>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {/*
@@ -874,15 +859,11 @@ function AppointmentModalBody({
       ) : null}
 
       {showOpenShift && (
-        // Contenedor propio: el modal de turno usa z-50 y esta pantalla z-100.
-        <div className="relative z-[120]">
-          <OpenShiftModal
-            onClose={() => setShowOpenShift(false)}
-            onOpened={() => setShowChargeConfirm(true)}
-          />
-        </div>
+        <OpenShiftModal
+          onClose={() => setShowOpenShift(false)}
+          onOpened={() => setShowChargeConfirm(true)}
+        />
       )}
-    </div>
     {confirmDialog}
     </>
   );

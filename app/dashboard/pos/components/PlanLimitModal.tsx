@@ -5,7 +5,7 @@ import { useEffect } from "react";
 import { useSubscriptionStore } from "@/stores/subscription.store";
 import { formatMoney, formatSalesLimit } from "@/config/plans";
 import { whatsappUrl } from "@/config/contact";
-import { backdropProps } from "@/components/modal";
+import { Modal } from "@/components/ui/Modal";
 
 /**
  * Se abre cuando `create_sale` rechaza la venta por tope del plan.
@@ -38,23 +38,19 @@ export function PlanLimitModal({ onClose }: { onClose: () => void }) {
     `y necesito subir de plan para seguir vendiendo.`;
 
   return (
-    <div
-      {...backdropProps(onClose)}
-      className="fixed inset-0 z-[120] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
-    >
-      <div
-        className="bg-surface-container rounded-t-3xl sm:rounded-3xl w-full sm:max-w-lg max-h-[90vh] overflow-y-auto border border-outline-variant/10 shadow-2xl animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200"
-      >
-        <div className="p-6 text-center border-b border-outline-variant/10">
-          <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-amber-500/15 flex items-center justify-center">
-            <svg className="w-7 h-7 text-amber-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden>
+    <Modal
+      open
+      onClose={onClose}
+      title="Alcanzaste el tope de ventas de tu plan"
+      icon={
+          <div className="w-14 h-14 rounded-full bg-warning/15 flex items-center justify-center">
+            <svg className="w-7 h-7 text-warning" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
             </svg>
           </div>
-          <h2 className="text-xl font-bold text-on-surface mb-2">
-            Alcanzaste el tope de ventas de tu plan
-          </h2>
-          <p className="text-sm text-on-surface-variant">
+      }
+      description={
+        <>
             {subscription?.max_monthly_sales != null ? (
               <>
                 Tu plan <strong className="text-on-surface">{subscription.plan_name}</strong> permite
@@ -67,9 +63,11 @@ export function PlanLimitModal({ onClose }: { onClose: () => void }) {
             ) : (
               <>Sube de plan para seguir cobrando hoy mismo.</>
             )}
-          </p>
-        </div>
-
+        </>
+      }
+      placement="sheet"
+      bodyClassName=""
+    >
         {upgrades.length > 0 && (
           <div className="p-6 space-y-3">
             {upgrades.map((plan) => (
@@ -116,7 +114,6 @@ export function PlanLimitModal({ onClose }: { onClose: () => void }) {
             Cerrar
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

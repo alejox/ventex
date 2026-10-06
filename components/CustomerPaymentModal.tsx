@@ -5,6 +5,7 @@ import { useCustomersStore } from "@/stores/customers.store";
 import { paymentAmountOf, creditAvailable } from "@/lib/credits";
 import type { Customer } from "@/services/customers.service";
 import { useFormatMoney } from "@/lib/useMoney";
+import { Modal } from "@/components/ui/Modal";
 
 interface CustomerPaymentModalProps {
   customer: Customer;
@@ -53,33 +54,50 @@ export function CustomerPaymentModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50 backdrop-blur-sm">
-      <div className="bg-surface-container-lowest rounded-t-[24px] sm:rounded-[24px] w-full max-w-sm border border-outline-variant/10 shadow-2xl overflow-hidden animate-in slide-in-from-bottom sm:zoom-in-95 duration-200">
-        <div className="p-6 pb-4 flex justify-between items-center">
-          <div>
-            <h2 className="text-lg font-bold text-on-surface">Registrar abono</h2>
-            <p className="text-sm text-on-surface-variant">{customer.full_name}</p>
-          </div>
+    <Modal
+      open
+      onClose={() => {
+        if (!submitting) onClose();
+      }}
+      title="Registrar abono"
+      description={customer.full_name}
+      size="sm"
+      dismissible={false}
+      bodyClassName="px-6 pb-4"
+      footerClassName="px-6 pb-6"
+      footer={
+        <div className="flex gap-3">
           <button
+            type="button"
             onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-low"
+            className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors"
           >
-            <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-5 h-5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={parsed == null || submitting}
+            className="flex-1 py-2.5 rounded-xl text-sm font-bold bg-primary hover:bg-primary-dim text-on-primary disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+          >
+            {submitting ? (
+              <span className="inline-block w-4 h-4 border-2 border-on-primary/30 border-t-on-primary rounded-full animate-spin" />
+            ) : null}
+            Registrar abono
           </button>
         </div>
-
-        <div className="p-6 pt-0 space-y-4">
+      }
+    >
+        <div className="space-y-4">
           {debt > 0 && (
-            <div className="p-3 rounded-xl bg-[#f59e0b]/10 border border-[#f59e0b]/20 flex items-center justify-between gap-3">
-              <p className="text-xs text-[#f59e0b] font-semibold">Debe: {fmtMoney(debt)}</p>
+            <div className="p-3 rounded-xl bg-warning/10 border border-warning/20 flex items-center justify-between gap-3">
+              <p className="text-xs text-warning font-semibold">Debe: {fmtMoney(debt)}</p>
               {/* Saldar toda la cuenta es el cobro más común y el más fácil de
                   tipear mal: acá el número lo pone el saldo, no los dedos. */}
               <button
                 type="button"
                 onClick={() => setAmount(String(debt))}
-                className="text-[11px] font-bold text-[#f59e0b] hover:underline shrink-0"
+                className="text-[11px] font-bold text-warning hover:underline shrink-0"
               >
                 Saldar todo
               </button>
@@ -106,7 +124,7 @@ export function CustomerPaymentModal({
                     : "border-outline-variant/30 focus:border-primary focus:ring-primary"
                 }`}
                 placeholder="0.00"
-                autoFocus
+                data-autofocus
               />
             </div>
             {excede && (
@@ -120,7 +138,7 @@ export function CustomerPaymentModal({
               </p>
             )}
             {!excede && parsed != null && parsed >= debt && available != null && (
-              <p className="text-xs text-[#10b981]">
+              <p className="text-xs text-success">
                 Queda al día y recupera su cupo de {fmtMoney(customer.credit_limit ?? 0)}.
               </p>
             )}
@@ -137,28 +155,6 @@ export function CustomerPaymentModal({
             />
           </div>
         </div>
-
-        <div className="px-6 pb-6 flex gap-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors"
-          >
-            Cancelar
-          </button>
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={parsed == null || submitting}
-            className="flex-1 py-2.5 rounded-xl text-sm font-bold bg-primary hover:bg-primary-dim text-on-primary disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
-          >
-            {submitting ? (
-              <span className="inline-block w-4 h-4 border-2 border-on-primary/30 border-t-on-primary rounded-full animate-spin" />
-            ) : null}
-            Registrar abono
-          </button>
-        </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

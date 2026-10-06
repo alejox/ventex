@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { PurchaseInvoice } from "@/services/purchases.service";
+import { Modal } from "@/components/ui/Modal";
 
 /**
  * Estados a los que una compra puede moverse desde esta pantalla.
@@ -33,15 +34,16 @@ export function StatusChangeModal({
   const unchanged = selected === invoice.status;
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-surface-container-lowest rounded-3xl w-full max-w-sm border border-outline-variant/10 shadow-2xl p-6 animate-in zoom-in-95 duration-200">
-        <h3 className="text-lg font-bold text-on-surface mb-2">
-          Cambiar estado de la compra #{invoice.invoice_number}
-        </h3>
-        <p className="text-sm text-on-surface-variant mb-5">
-          Elige el nuevo estado y confirma el cambio.
-        </p>
-
+    <Modal
+      open
+      onClose={() => {
+        if (!submitting) onCancel();
+      }}
+      title={`Cambiar estado de la compra #${invoice.invoice_number}`}
+      description="Elige el nuevo estado y confirma el cambio."
+      size="sm"
+      dismissible={false}
+    >
         <div className="flex flex-col gap-2 mb-6">
           {SELECTABLE_STATUSES.map((option) => {
             const isSelected = selected === option.value;
@@ -60,7 +62,7 @@ export function StatusChangeModal({
                 <span
                   aria-hidden="true"
                   className={`mt-1 w-2 h-2 rounded-full shrink-0 ${
-                    option.value === "paid" ? "bg-[#10b981]" : "bg-amber-500"
+                    option.value === "paid" ? "bg-success" : "bg-warning"
                   }`}
                 />
                 <span className="flex flex-col">
@@ -96,7 +98,6 @@ export function StatusChangeModal({
             {submitting ? "Guardando…" : "Confirmar"}
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

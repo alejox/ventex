@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { backdropProps } from "@/components/modal";
 import { notifySuccess } from "@/lib/notifications";
 import { useExpensesStore } from "@/stores/expenses.store";
 import { todayISO } from "@/lib/date";
+import { Modal } from "@/components/ui/Modal";
 
 const inputClass =
   "w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all";
@@ -63,24 +63,7 @@ export function ExpenseModal({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
-      {...backdropProps(onClose)}
-    >
-      <div className="bg-surface-container rounded-3xl w-full max-w-md border border-outline-variant/10 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-        <div className="p-6 border-b border-outline-variant/10 flex justify-between items-center bg-surface-container-low">
-          <h2 className="text-xl font-bold text-on-surface">Registrar gasto</h2>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors"
-            aria-label="Cerrar"
-          >
-            <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="20" height="20">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
+    <Modal open className="max-w-md!" onClose={() => { if (!saving) onClose(); }} title="Registrar gasto" bodyClassName="border-t border-outline-variant/10">
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
           {error && (
             <p role="alert" className="rounded-xl bg-error/10 border border-error/20 px-4 py-3 text-sm text-error">
@@ -171,7 +154,6 @@ export function ExpenseModal({
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </Modal>
   );
 }
