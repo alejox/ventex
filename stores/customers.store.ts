@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { toMessage } from "@/lib/errors";
+import type { ImportResult } from "@/lib/import/core";
 import * as customersService from "@/services/customers.service";
 import type { Customer, NewCustomerInput } from "@/services/customers.service";
 
@@ -20,10 +21,17 @@ interface CustomersState {
   updateCustomer: (id: string, input: NewCustomerInput) => Promise<boolean>;
   deleteCustomer: (id: string) => Promise<boolean>;
   registerPayment: (customerId: string, amount: number, notes?: string) => Promise<boolean>;
+  /** Borra y devuelve el mensaje de error (o `null`), para mostrarlo DENTRO del diálogo. */
+  deleteCustomerOrError: (id: string) => Promise<string | null>;
+  fetchImpact: (id: string) => Promise<customersService.CustomerImpact>;
+  importCustomers: (
+    items: customersService.CustomerImportItem[],
+    onProgress?: (done: number, total: number) => void,
+  ) => Promise<ImportResult>;
 }
 
 
-export const useCustomersStore = create<CustomersState>((set) => ({
+export const useCustomersStore = create<CustomersState>((set, get) => ({
   customers: [],
   // Arranca en `true`: el primer render es anterior al fetch del efecto, y con
   // `false` mostraba el estado vacío sobre datos que sí existen.
@@ -100,5 +108,25 @@ export const useCustomersStore = create<CustomersState>((set) => ({
       set({ error: toMessage(e) });
       return false;
     }
+  },
+
+  deleteCustomerOrError: async (id) => {
+    set({ submitting: true });
+    try {
+      await customersService.deleteCustomer(id);
+      set((s) => ({ customers: s.customers.filter((c) => c.id !== id), submitting: false }));
+      return null;
+    } catch (e) {
+      set({ submitting: false });
+      return toMessage(e);
+    }
+  },
+
+  fetchImpact: (id) => customersService.fetchCustomerImpact(id),
+
+  importCustomers: async (items, onProgress) => {
+    const result = await customersService.importCustomers(items, onProgress);
+    await get().fetchCustomers();
+    return result;
   },
 }));

@@ -72,6 +72,8 @@ interface SalesState {
   /** El motivo es obligatorio en la pantalla; ver `salesService.voidSale`. */
   voidSale: (saleId: string, reason: string) => Promise<boolean>;
   clearVoidError: () => void;
+  /** Todas las ventas de los filtros activos (no solo la página), para exportar. */
+  fetchExportRows: () => Promise<SaleListItem[]>;
 }
 
 
@@ -193,6 +195,17 @@ export const useSalesStore = create<SalesState>((set, get) => ({
   closeDetail: () => set({ detail: null, receiptExtras: null, voidImpact: null, voidError: null }),
 
   clearVoidError: () => set({ voidError: null }),
+
+  fetchExportRows: async () => {
+    const { period, customFrom, customTo, customerQuery, paymentMethod, transferMethod, itemFilter } = get();
+    return salesService.fetchSalesForExport(
+      salesService.resolvePeriod(period, customFrom, customTo),
+      customerQuery,
+      paymentMethod,
+      transferMethod,
+      itemFilter,
+    );
+  },
 
   voidSale: async (saleId, reason) => {
     set({ voiding: true, voidError: null });

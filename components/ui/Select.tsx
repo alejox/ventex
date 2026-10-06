@@ -307,7 +307,7 @@ export function Select({
           ${
             error
               ? "border-error focus:border-error focus:ring-error/20"
-              : `border-outline-variant/30 focus:border-primary focus:ring-primary/20 ${open ? "border-primary" : ""}`
+              : `border-outline-variant/30 focus:border-primary-ink focus:ring-primary-ink/25 ${open ? "border-primary-ink" : ""}`
           }
           ${className}`}
       >
@@ -359,7 +359,7 @@ export function Select({
                 onKeyDown={handleKeyDown}
                 placeholder={searchPlaceholder}
                 /* text-base en móvil: por debajo de 16px iOS hace zoom al enfocar. */
-                className="w-full h-9 rounded-lg bg-surface-container border border-outline-variant/20 px-3 text-base lg:text-sm text-on-surface focus:outline-none focus:border-primary placeholder:text-on-surface-variant/50"
+                className="w-full h-9 rounded-lg bg-surface-container border border-outline-variant/20 px-3 text-base lg:text-sm text-on-surface focus:outline-none focus:border-primary-ink placeholder:text-on-surface-variant/80"
               />
             </div>
           )}
@@ -393,7 +393,7 @@ export function Select({
                     className={`w-full flex items-center gap-2 px-3 min-h-[40px] py-2 text-left text-sm transition-colors
                       disabled:opacity-40 disabled:cursor-not-allowed
                       ${isActive ? "bg-primary/10" : ""}
-                      ${isSelected ? "text-primary font-semibold" : "text-on-surface"}`}
+                      ${isSelected ? "text-primary-ink font-semibold" : "text-on-surface"}`}
                   >
                     <span className="flex-1 min-w-0 break-words">{option.label}</span>
                     {isSelected && (

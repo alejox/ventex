@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { IconSearch, IconImagePlaceholder } from "@/app/assets/icons/DashboardIcons";
@@ -6,6 +6,7 @@ import type { CatalogItem } from "@/services/pos.service";
 import { shouldSubmitIdleCode } from "./catalog-code";
 import { useProfile } from "@/components/ProfileProvider";
 import { useFormatMoney } from "@/lib/useMoney";
+import { enterPick, highlightFor, nextHighlight } from "@/lib/pos-search-nav";
 
 const BARCODE_IDLE_MS = 250;
 const SCANNER_KEY_GAP_MS = 80;
@@ -24,38 +25,29 @@ function serviceTag(item: CatalogItem): string {
 }
 
 /**
- * Columnas de la grilla de productos (vista escritorio).
+ * Columnas de la grilla de productos (tablet y escritorio, desde 768px).
  *
- * Los breakpoints de Tailwind miden la VENTANA, pero esta grilla nunca la tiene
- * entera: el sidebar (w-64 = 256px), la factura (480px fijos desde lg) y el
- * padding del contenedor (pl-10 + pr-6 + pr-2 = 72px) se llevan 808px ANTES de
- * que empiece el catálogo. Contando columnas por ventana, a 1450px pedía 5 y el
- * precio se salía de la tarjeta e invadía la de al lado.
+ * Se cuentan contra el ancho REAL del catálogo con container queries
+ * (`@container` en el área que scrollea), no contra la ventana: el catálogo
+ * comparte la pantalla con el sidebar (240px, u 80px plegado) y la factura
+ * (360px de 1024 a 1279, 440px desde 1280), y con los cortes por ventana a
+ * 1450px pedía 5 columnas donde entraban 3 y el precio se salía de la tarjeta.
  *
- * Estos cortes se calcularon sobre el ancho REAL (ventana - 808 - gaps), para
- * que la caja de texto nunca baje de ~106px — lo que mide un precio de 7 cifras
- * a `text-base` bold:
+ * Cortes elegidos para que la tarjeta nunca baje de ~140px (un precio de 7
+ * cifras a `text-base` bold mide ~106px):
  *
- *   1024 → 1 (192px)   1080 → 2 (106px)   1240 → 3 (109px)
- *   1400 → 4 (124px)   1750 → 5 (151px)   2100 → 6 (178px)
+ *   < 420 → 2   420 → 3   760 → 4   980 → 5   1200 → 6
  *
- * Son `min-[…]` propios porque los de Tailwind no sirven acá: `xl` abarca
- * 1280-1535 y a 1280 no entran 4 columnas mientras que a 1450 sí.
+ * Una tablet de 768-1023px (factura plegable, sin sidebar) da ~712px: 3
+ * columnas. A 1024 con el sidebar plegado entran 3; desplegado, 2.
  *
- * NO MEZCLAR con variantes con nombre (`lg:`, `xl:`) para las columnas.
- * Tailwind v4 emite los `min-[…]` arbitrarios ANTES que los nombrados, así que
- * a 1451px matcheaban los dos y ganaba el último del archivo: un `lg:grid-cols-1`
- * pisaba a `min-[1400px]:grid-cols-4` y dejaba todo en una sola columna. Por eso
- * la base es `grid-cols-1` sin variante y todos los cortes son arbitrarios: así
- * se ordenan entre ellos por ancho y el más específico gana. (La grilla vive
- * dentro de un `hidden lg:block`, así que abajo de 1024 no se dibuja nunca.)
- *
- * Si cambia el ancho de la factura o del sidebar, estos números cambian.
+ * NO MEZCLAR con variantes de ventana (`lg:`, `xl:`) para las columnas: se
+ * pisarían con estas según el orden en que Tailwind las emita.
  */
 const CATALOG_GRID_COLS =
-  "grid gap-3 xl:gap-4 grid-cols-1 " +
-  "min-[1080px]:grid-cols-2 min-[1240px]:grid-cols-3 min-[1400px]:grid-cols-4 " +
-  "min-[1750px]:grid-cols-5 min-[2100px]:grid-cols-6";
+  "grid gap-3 xl:gap-4 grid-cols-2 " +
+  "@min-[420px]:grid-cols-3 @min-[760px]:grid-cols-4 " +
+  "@min-[980px]:grid-cols-5 @min-[1200px]:grid-cols-6";
 
 
 interface PosCatalogProps {
@@ -142,6 +134,7 @@ export function PosCatalog({
     !isWorker ||
     Boolean(profile?.workerPermissions?.inventory_edit || profile?.workerPermissions?.services);
   const internalSearchRef = useRef<HTMLInputElement>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
   const searchRef = externalSearchRef ?? internalSearchRef;
   const scanTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastAutoSubmittedRef = useRef<string | null>(null);
@@ -152,6 +145,31 @@ export function PosCatalog({
    */
   const lastAutoSubmitAtRef = useRef(0);
   const lastInputRef = useRef({ value: "", at: 0, rapidKeys: 0 });
+
+  /**
+   * Resultado resaltado con ↑/↓ (C18). Se ata a la búsqueda y la categoría en
+   * que se eligió: cambiar el texto (otra lectura del escáner incluida) lo
+   * suelta solo, sin un efecto que lo resetee.
+   */
+  const queryKey = `${activeCategory}\u0000${search}`;
+  const [highlight, setHighlight] = useState<{ index: number; forQuery: string; prefix: string } | null>(null);
+  const highlighted = highlightFor(highlight, queryKey, filtered.length);
+  const listId = useId();
+  /** Id del resultado en la vista que está a la vista (lista móvil o grilla). */
+  const optionId = (prefix: string, itemId: string) => `${listId}-${prefix}-${itemId}`;
+  const activeDescendant =
+    highlighted >= 0 && highlight ? optionId(highlight.prefix, filtered[highlighted].id) : undefined;
+
+  const isPickable = (item: CatalogItem) =>
+    !salesBlocked && (allowOversell || item.stock_level == null || item.stock_level > 0);
+
+  /** Agrega desde el teclado y deja el buscador listo para lo siguiente. */
+  const pickFromSearch = (item: CatalogItem) => {
+    addToCart(item);
+    lastInputRef.current = { value: "", at: 0, rapidKeys: 0 };
+    setHighlight(null);
+    setSearch("");
+  };
 
   useEffect(() => {
     searchRef.current?.focus();
@@ -189,6 +207,9 @@ export function PosCatalog({
               lastInputRef.current = { value, at: now, rapidKeys };
               cancelPendingScan();
               lastAutoSubmittedRef.current = null;
+              // Escribir (o una lectura del escáner) suelta el resaltado: si
+              // el texto volviera al de antes, no tiene que revivir.
+              if (highlight) setHighlight(null);
               setSearch(value);
               if (shouldSubmitIdleCode(catalog, value, rapidKeys)) {
                 scanTimerRef.current = setTimeout(() => {
@@ -204,12 +225,38 @@ export function PosCatalog({
               }
             }}
             onKeyDown={(e) => {
+              if ((e.key === "ArrowDown" || e.key === "ArrowUp") && filtered.length > 0) {
+                e.preventDefault();
+                const next = nextHighlight(highlighted, e.key, filtered.length);
+                // La lista móvil y la grilla conviven en el DOM; se apunta a la
+                // que está visible para que `aria-activedescendant` exista.
+                const prefix = gridRef.current?.offsetParent ? "g" : "m";
+                setHighlight({ index: next, forQuery: queryKey, prefix });
+                document
+                  .getElementById(optionId(prefix, filtered[next].id))
+                  ?.scrollIntoView({ block: "nearest" });
+                return;
+              }
+              if (e.key === "Escape" && highlighted >= 0) {
+                e.preventDefault();
+                e.stopPropagation();
+                setHighlight(null);
+                return;
+              }
               if (e.key === "Enter") {
                 e.preventDefault();
                 e.stopPropagation();
                 cancelPendingScan();
                 const value = e.currentTarget.value;
                 if (lastAutoSubmittedRef.current === value) return;
+                // Lo resaltado con flechas manda: es una elección explícita
+                // (también con el buscador vacío, recorriendo la categoría).
+                if (highlighted >= 0) {
+                  if (performance.now() - lastAutoSubmitAtRef.current < SCANNER_TRAILING_ENTER_MS) return;
+                  const item = filtered[highlighted];
+                  if (item && isPickable(item)) pickFromSearch(item);
+                  return;
+                }
                 if (!value.trim()) {
                   // Buscador vacío: Enter cobra. Salvo que sea la cola de una
                   // lectura que ya se envió sola (ver `lastAutoSubmitAtRef`).
@@ -221,11 +268,24 @@ export function PosCatalog({
                   if (onSubmitEmpty?.()) e.currentTarget.blur();
                   return;
                 }
+                // Un código exacto (lector o tipeado) sigue teniendo prioridad
+                // sobre la búsqueda por nombre: no se rompe el escaneo.
                 if (onSubmitCode(value)) {
+                  setHighlight(null);
                   setSearch("");
+                  return;
                 }
+                // Un único resultado: Enter lo agrega y limpia (C18).
+                const only = enterPick(filtered, -1);
+                if (only && isPickable(only)) pickFromSearch(only);
               }
             }}
+            role="combobox"
+            aria-expanded={search.trim().length > 0 && filtered.length > 0}
+            aria-controls={listId}
+            aria-autocomplete="list"
+            aria-activedescendant={activeDescendant}
+            aria-label="Buscar o escanear código"
             placeholder="Buscar o escanear código"
             ref={searchRef}
             className="w-full h-12 bg-surface-container-lowest rounded-2xl pl-14 pr-14 text-base lg:text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant border border-outline-variant/30 shadow-sm"
@@ -267,7 +327,7 @@ export function PosCatalog({
           )}
           <button
             onClick={() => setViewMode(viewMode === "grid" ? "list" : "grid")}
-            className="hidden lg:flex w-12 h-12 rounded-2xl border border-outline-variant/30 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low transition-colors items-center justify-center shrink-0"
+            className="hidden md:flex w-12 h-12 rounded-2xl border border-outline-variant/30 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low transition-colors items-center justify-center shrink-0"
             title={viewMode === "grid" ? "Vista lista" : "Vista cuadr\u00edcula"}
           >
             {viewMode === "grid" ? (
@@ -333,8 +393,9 @@ export function PosCatalog({
         {categories.map((cat) => (
           <button
             key={cat}
-            onClick={() => setActiveCategory(cat)}
-            className={`whitespace-nowrap px-4 py-2 rounded-full text-xs font-medium transition-colors ${
+            onClick={() => { setHighlight(null); setActiveCategory(cat); }}
+            aria-pressed={cat === activeCategory}
+            className={`whitespace-nowrap min-h-10 px-4 rounded-full text-sm font-medium transition-colors ${
               cat === activeCategory
                 ? "bg-primary text-on-primary"
                 : "bg-surface-container border border-outline-variant/10 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high"
@@ -345,7 +406,7 @@ export function PosCatalog({
         ))}
       </div>
 
-      <div className="flex-1 lg:overflow-y-auto pb-6 pr-2">
+      <div className="@container flex-1 lg:overflow-y-auto pb-6 pr-2">
         {error && (
           <div className="mb-4 rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim">
             {error}
@@ -390,8 +451,8 @@ export function PosCatalog({
           </p>
         ) : (
           <>
-            <ul className="lg:hidden space-y-1.5">
-              {filtered.map((item) => {
+            <ul id={`${listId}-m`} role="listbox" aria-label="Resultados" className="md:hidden space-y-1.5">
+              {filtered.map((item, index) => {
                 const qty = cartQty.get(item.id) ?? 0;
                 // El que manda es `stock_level`, no `kind`: un servicio puede
                 // venir de `services` o ser un producto con unidad "Servicio".
@@ -400,10 +461,11 @@ export function PosCatalog({
                 const outOfStock = stock != null && stock <= 0;
                 const blocked = salesBlocked || (!allowOversell && outOfStock);
                 const atStockCap = !allowOversell && stock != null && qty >= stock;
+                const isHighlighted = index === highlighted;
                 return (
-                  <li key={item.id}>
+                  <li key={item.id} id={optionId("m", item.id)} role="option" aria-selected={isHighlighted}>
                     <div
-                      className={`flex items-center gap-2.5 p-2 rounded-xl border transition-colors ${
+                      className={`flex items-center gap-2.5 p-2 rounded-xl border transition-colors ${isHighlighted ? "ring-2 ring-primary" : ""} ${
                         qty > 0
                           ? "border-primary bg-primary/5"
                           : stock == null
@@ -477,10 +539,10 @@ export function PosCatalog({
               })}
             </ul>
 
-            <div className="hidden lg:block">
+            <div className="hidden md:block" ref={gridRef}>
               {viewMode === "grid" ? (
-                <div className={CATALOG_GRID_COLS}>
-                  {filtered.map((item) => {
+                <div id={listId} role="listbox" aria-label="Resultados" className={CATALOG_GRID_COLS}>
+                  {filtered.map((item, index) => {
                     // null = no lleva inventario (servicio). Ver `CatalogItem`.
                     const stock = item.stock_level;
                     const outOfStock = stock != null && stock <= 0;
@@ -492,10 +554,13 @@ export function PosCatalog({
                     return (
                     <button
                       key={item.id}
+                      id={optionId("g", item.id)}
+                      role="option"
+                      aria-selected={index === highlighted}
                       type="button"
                       onClick={() => addToCart(item)}
                       disabled={salesBlocked || (!allowOversell && outOfStock)}
-                      className={`text-left rounded-2xl p-3 border flex flex-col min-w-0 overflow-hidden transition-colors group shadow-sm relative disabled:opacity-50 disabled:cursor-not-allowed ${
+                      className={`text-left rounded-2xl p-3 border flex flex-col min-w-0 overflow-hidden transition-colors group shadow-sm relative disabled:opacity-50 disabled:cursor-not-allowed ${index === highlighted ? "ring-2 ring-primary ring-offset-2 ring-offset-background" : ""} ${
                         stock == null
                           ? "bg-emerald-500/5 border-emerald-500/20 hover:border-emerald-400/40 disabled:hover:border-emerald-500/20"
                           : "bg-surface-container border-outline-variant/10 hover:border-primary/30 disabled:hover:border-outline-variant/10"
@@ -527,7 +592,7 @@ export function PosCatalog({
                         )}
                       </div>
                       <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1">
-                        {stock == null ? "Servicio" : `SKU: ${item.sku}`}
+                        {stock == null ? "Servicio" : item.sku ? `SKU: ${item.sku}` : "\u00a0"}
                       </p>
                       {/* `break-words`: line-clamp recorta de alto, no de ancho.
                           Una palabra sola y larga (INALAMBRICO) se salía igual. */}
@@ -566,17 +631,21 @@ export function PosCatalog({
                   })}
                 </div>
               ) : (
-                <div className="grid grid-cols-2 gap-2">
-                  {filtered.map((item) => {
+                <div id={listId} role="listbox" aria-label="Resultados" className="grid grid-cols-1 @min-[520px]:grid-cols-2 gap-2">
+                  {filtered.map((item, index) => {
                     // null = no lleva inventario (servicio). Ver `CatalogItem`.
                     const stock = item.stock_level;
                     const outOfStock = stock != null && stock <= 0;
                     return (
                     <button
                       key={item.id}
+                      id={optionId("g", item.id)}
+                      role="option"
+                      aria-selected={index === highlighted}
+                      type="button"
                       onClick={() => addToCart(item)}
                       disabled={salesBlocked || (!allowOversell && outOfStock)}
-                      className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-colors text-left disabled:opacity-40 disabled:cursor-not-allowed ${
+                      className={`flex items-center gap-3 px-3 py-2.5 min-h-12 rounded-xl border transition-colors text-left disabled:opacity-40 disabled:cursor-not-allowed ${index === highlighted ? "ring-2 ring-primary" : ""} ${
                         stock == null
                           ? "bg-emerald-500/5 border-emerald-500/20 hover:border-emerald-400/40"
                           : "bg-surface-container border-outline-variant/10 hover:bg-surface-container-high"

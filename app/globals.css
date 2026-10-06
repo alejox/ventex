@@ -63,6 +63,19 @@
   --accent-inv: #0e7490; /* 5.10:1 */
   --accent-fin: #047857; /* 5.22:1 */
   --warning: #b45309; /* aviso ámbar (texto/ícono): 5.02:1 sobre blanco */
+  --on-warning: #ffffff; /* sobre relleno warning: 5.02:1 */
+  /* Éxito: mismo verde que accent-fin, pero con su pareja `on-` para rellenos
+     (A11). `bg-[#10b981] text-white` daba 2.54:1; esto da 5.48:1. */
+  --success: #047857; /* texto sobre blanco: 5.48:1 */
+  --on-success: #ffffff;
+  /* Rol de TINTA de la marca (A5): texto, íconos, bordes y anillos de foco
+     sobre superficies neutras. `--primary` es el rol de RELLENO (detrás de
+     texto blanco) y en oscuro no se aclara, así que como texto/foco daba
+     2.65:1. En claro coinciden: 6.74:1 sobre #fff, 6.46:1 sobre #fafafa. */
+  --primary-ink: #6d21ef;
+  /* Divisores estructurales del shell (A12). `outline-variant/10` daba 1.03:1
+     en claro: el sidebar y el header se fundían con el contenido. */
+  --divider: #dce0e3;
   /* Savings badges use solid fills with text-background for contrast. */
 }
 
@@ -124,6 +137,13 @@
     --accent-inv: #5ee9f5;
     --accent-fin: #34d399;
     --warning: #fbbf24;
+    --on-warning: #1c1100; /* 11.14:1 */
+    --success: #34d399; /* 9.29:1 sobre #17171c */
+    --on-success: #003824; /* 6.87:1: el blanco sobre este verde no llega a AA */
+    --primary-ink: #bd91ff; /* 7.36:1 sobre #17171c, 8.66:1 sobre #000, 5.76:1 sobre surface-container-high */
+    /* En oscuro el borde lleno (#55535d) pesa demasiado; esta mezcla conserva
+       el tono sutil que tenía el shell sin desaparecer. */
+    --divider: rgb(85 83 93 / 0.45);
 }
 
 .ventex-logo { position: relative; line-height: 0; }
@@ -134,14 +154,23 @@
 :root[data-theme="dark"] .ventex-logo .ventex-logo-dark,
 .dark .ventex-logo .ventex-logo-dark { display: block; }
 
+/* Se MANTIENE a propósito (A5). Sin este parche, `text-primary` en oscuro
+   pinta #6d21ef sobre #17171c = 2.65:1 (no llega ni a 3:1), y hay cientos de
+   usos en pantallas que no son del shell. Código nuevo: `text-primary-ink`, que
+   no necesita parche. Cuando no quede ningún `text-primary`, se borra. */
 :root[data-theme="dark"] .text-primary,
-.dark .text-primary { color: #bd91ff; }
+.dark .text-primary { color: var(--primary-ink); }
 
 @theme inline {
   --color-accent-pos: var(--accent-pos);
   --color-accent-inv: var(--accent-inv);
   --color-accent-fin: var(--accent-fin);
   --color-warning: var(--warning);
+  --color-on-warning: var(--on-warning);
+  --color-success: var(--success);
+  --color-on-success: var(--on-success);
+  --color-primary-ink: var(--primary-ink);
+  --color-divider: var(--divider);
   --color-surface: var(--surface);
   --color-surface-dim: var(--surface-dim);
   --color-surface-bright: var(--surface-bright);

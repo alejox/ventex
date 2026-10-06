@@ -31,7 +31,7 @@ export default function AdminPlansPage() {
         </div>
         <button
           onClick={() => setCreating(true)}
-          className="py-2.5 px-5 rounded-full bg-[#6063ee] text-white hover:bg-[#c0c1ff] hover:text-[#0b0664] text-sm font-bold shadow-lg shadow-[#6063ee]/20 transition-colors whitespace-nowrap"
+          className="py-2.5 px-5 rounded-full bg-primary text-on-primary hover:bg-primary-dim text-sm font-bold shadow-lg shadow-primary/20 transition-colors whitespace-nowrap"
         >
           + Nuevo plan
         </button>
@@ -105,7 +105,7 @@ function PlanEditor({ plan }: { plan: Plan }) {
               setIsActive(e.target.checked);
               markDirty();
             }}
-            className="rounded border-outline-variant/40 text-primary focus:ring-primary/50"
+            className="rounded border-outline-variant/40 text-primary-ink focus:ring-primary/50"
           />
           Publicado en la web
         </label>
@@ -177,7 +177,7 @@ function PlanEditor({ plan }: { plan: Plan }) {
                   setUnlimited(e.target.checked);
                   markDirty();
                 }}
-                className="rounded border-outline-variant/40 text-primary focus:ring-primary/50"
+                className="rounded border-outline-variant/40 text-primary-ink focus:ring-primary/50"
               />
               Ilimitado
             </label>
@@ -187,13 +187,13 @@ function PlanEditor({ plan }: { plan: Plan }) {
       </div>
 
       <div className="flex items-center justify-between gap-4 pt-5 mt-5 border-t border-outline-variant/10">
-        <span className={`text-sm font-medium text-[#10b981] transition-opacity ${saved ? "opacity-100" : "opacity-0"}`}>
+        <span className={`text-sm font-medium text-success transition-opacity ${saved ? "opacity-100" : "opacity-0"}`}>
           ✓ Guardado
         </span>
         <button
           onClick={handleSave}
           disabled={submitting}
-          className="py-2.5 px-5 rounded-xl bg-[#6063ee] text-white hover:bg-[#c0c1ff] hover:text-[#0b0664] text-sm font-bold shadow-lg shadow-[#6063ee]/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="py-2.5 px-5 rounded-xl bg-primary text-on-primary hover:bg-primary-dim text-sm font-bold shadow-lg shadow-primary/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {submitting ? "Guardando…" : "Guardar cambios"}
         </button>
@@ -263,7 +263,7 @@ function PlanPeriods({ planId }: { planId: string }) {
               <div className="ml-auto flex gap-3">
                 <button
                   onClick={() => setEditing(p)}
-                  className="text-xs font-semibold text-primary hover:underline"
+                  className="text-xs font-semibold text-primary-ink hover:underline"
                 >
                   Editar
                 </button>
@@ -408,7 +408,7 @@ function PeriodModal({
                 type="checkbox"
                 checked={isActive}
                 onChange={(e) => setIsActive(e.target.checked)}
-                className="rounded border-outline-variant/40 text-primary focus:ring-primary/50"
+                className="rounded border-outline-variant/40 text-primary-ink focus:ring-primary/50"
               />
               Disponible para comprar y recargar
             </label>
@@ -425,7 +425,7 @@ function PeriodModal({
             <button
               type="submit"
               disabled={submitting}
-              className="py-2.5 px-5 rounded-xl bg-[#6063ee] text-white hover:bg-[#c0c1ff] hover:text-[#0b0664] text-sm font-bold shadow-lg shadow-[#6063ee]/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="py-2.5 px-5 rounded-xl bg-primary text-on-primary hover:bg-primary-dim text-sm font-bold shadow-lg shadow-primary/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {submitting ? "Guardando…" : "Guardar"}
             </button>
@@ -574,7 +574,7 @@ function NewPlanModal({ onClose }: { onClose: () => void }) {
                     type="checkbox"
                     checked={unlimited}
                     onChange={(e) => setUnlimited(e.target.checked)}
-                    className="rounded border-outline-variant/40 text-primary focus:ring-primary/50"
+                    className="rounded border-outline-variant/40 text-primary-ink focus:ring-primary/50"
                   />
                   Ilimitado
                 </label>
@@ -599,7 +599,7 @@ function NewPlanModal({ onClose }: { onClose: () => void }) {
             <button
               type="submit"
               disabled={submitting || taken || !slug}
-              className="py-2.5 px-5 rounded-xl bg-[#6063ee] text-white hover:bg-[#c0c1ff] hover:text-[#0b0664] text-sm font-bold shadow-lg shadow-[#6063ee]/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="py-2.5 px-5 rounded-xl bg-primary text-on-primary hover:bg-primary-dim text-sm font-bold shadow-lg shadow-primary/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {submitting ? "Creando…" : "Crear plan"}
             </button>

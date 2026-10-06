@@ -7,7 +7,7 @@ test.describe("Autenticación", () => {
   test.describe("Landing Page", () => {
     test("muestra la página de inicio correctamente", async ({ page }) => {
       await page.goto("/");
-      await expect(page.getByRole("heading", { level: 1 })).toContainText("Tu negocio, a tu manera");
+      await expect(page.getByRole("heading", { level: 1 })).toContainText("Cobra, agenda y controla tu inventario");
       await expect(page.getByRole("navigation").getByRole("link", { name: "Empieza gratis" })).toBeVisible();
       await expect(page.getByRole("navigation").getByRole("link", { name: "Iniciar sesión" })).toBeVisible();
     });
@@ -72,8 +72,12 @@ test.describe("Autenticación", () => {
     test("ofrece Barbería con Calendario, Servicios y Personal activados", async ({ page }) => {
       await page.goto("/register");
 
-      await page.getByRole("button", { name: "Salón / Barbería" }).click();
+      const salon = page.getByRole("button", { name: /Barbería o salón/ });
+      await salon.click();
+      await expect(salon).toHaveAttribute("aria-pressed", "true");
       await page.getByRole("button", { name: "Continuar" }).click();
+      // Los módulos vienen con los recomendados y se despliegan a pedido (B8).
+      await page.getByText("Personalizar").click();
 
       for (const moduleName of ["Citas", "Servicios", "Personal"]) {
         const moduleCard = page.locator("div").filter({
@@ -84,6 +88,21 @@ test.describe("Autenticación", () => {
           "true",
         );
       }
+    });
+
+    test("registro corto: sin confirmar contraseña, con ayuda de longitud y Google con el rubro", async ({ page }) => {
+      await page.goto("/register?plan=oro&meses=1&nombre=Oro");
+      await expect(page.getByText("Elegiste el plan Oro")).toBeVisible();
+      await page.getByRole("button", { name: /Tienda/ }).click();
+      await page.getByRole("button", { name: "Continuar" }).click();
+
+      await expect(page.getByLabel("Confirmar contraseña")).toHaveCount(0);
+      await expect(page.getByLabel("Tu nombre")).toHaveCount(0);
+      await expect(page.getByText("Mínimo 6 caracteres", { exact: false })).toBeVisible();
+      await page.getByLabel("Contraseña", { exact: true }).fill("abc");
+      await expect(page.getByText(/Te faltan 3 caracteres/)).toBeVisible();
+      await page.getByRole("button", { name: "Mostrar contraseña" }).click();
+      await expect(page.getByLabel("Contraseña", { exact: true })).toHaveAttribute("type", "text");
     });
   });
 

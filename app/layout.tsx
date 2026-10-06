@@ -70,12 +70,24 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  // Tiñe la barra del sistema en móvil y la de título de la app instalada.
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#fafafa" },
-    { media: "(prefers-color-scheme: dark)", color: "#17171c" },
-  ],
+  // Sin `themeColor` a propósito (A21): con las dos variantes por
+  // `prefers-color-scheme`, la barra del sistema seguía al SO aunque la persona
+  // hubiera elegido el otro tema en Ventex. El <meta name="theme-color"> lo
+  // crea el script `theme-init` de abajo con el color del tema REAL, y
+  // `toggleTheme` (components/ThemeProvider.tsx) lo actualiza al cambiarlo.
 };
+
+/**
+ * Tema inicial, antes del primer pintado:
+ * 1. la preferencia guardada (`localStorage.theme`), si es válida;
+ * 2. si no hay, la del sistema (`prefers-color-scheme`) — antes forzaba oscuro;
+ * 3. sin `matchMedia`, oscuro (el default histórico).
+ *
+ * El color de la barra se LEE de `--background` ya resuelto: el script corre
+ * después de que cargó globals.css (un script inline espera a las hojas de
+ * estilo anteriores), así que el hex vive en un solo lugar.
+ */
+const THEME_INIT_SCRIPT = `(function(){try{var d=document.documentElement;var s=null;try{s=localStorage.getItem('theme');}catch(e){}var t=(s==='light'||s==='dark')?s:((window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark');d.setAttribute('data-theme',t);d.classList.toggle('dark',t==='dark');var m=document.querySelector('meta[name="theme-color"]');if(!m){m=document.createElement('meta');m.setAttribute('name','theme-color');document.head.appendChild(m);}m.setAttribute('content',getComputedStyle(d).getPropertyValue('--background').trim()||(t==='dark'?'#17171c':'#fafafa'));}catch(e){}})();`;
 
 export default function RootLayout({
   children,
@@ -104,7 +116,7 @@ export default function RootLayout({
         <script
           id="theme-init"
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('theme')||'dark';var d=document.documentElement;d.setAttribute('data-theme',t);d.classList.toggle('dark',t==='dark');}catch(e){}})();`,
+            __html: THEME_INIT_SCRIPT,
           }}
         />
         <ThemeProvider>

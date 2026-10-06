@@ -61,14 +61,14 @@ export function TagInput({
   return (
     <div className="space-y-2">
       <div
-        className={`flex flex-wrap items-center gap-2 rounded-xl border bg-surface-container-lowest p-2 transition-colors focus-within:border-primary focus-within:ring-1 focus-within:ring-primary ${
+        className={`flex flex-wrap items-center gap-2 rounded-xl border bg-surface-container-lowest p-2 transition-colors focus-within:border-primary-ink focus-within:ring-1 focus-within:ring-primary-ink ${
           invalid ? "border-error" : "border-outline-variant/30"
         }`}
       >
         {values.map((tag, i) => (
           <span
             key={tag}
-            className="inline-flex items-center gap-1 rounded-full bg-primary/10 py-1 pl-3 pr-1 text-sm font-semibold text-primary"
+            className="inline-flex items-center gap-1 rounded-full bg-primary/10 py-1 pl-3 pr-1 text-sm font-semibold text-primary-ink"
           >
             {tag}
             <button

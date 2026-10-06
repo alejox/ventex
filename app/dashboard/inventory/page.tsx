@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -23,7 +23,16 @@ import {
   catalogMatchesStatus,
   catalogKpis,
   isArchivedRow,
+  isCatalogSortKey,
+  sortCatalogRows,
+  type CatalogSortKey,
 } from "@/lib/catalog";
+import { useUrlParams, useCurrentPathWithSearch, withBackParam } from "@/lib/useUrlState";
+import { ImportWizard } from "@/lib/import/ImportWizard";
+import { PRODUCT_IMPORT, existingProductKeys, annotateProductPreview, type ProductImportRecord } from "@/lib/import/products";
+import type { PreviewRow } from "@/lib/import/core";
+import { catalogExportRows, exportFileName } from "@/lib/import/export";
+import { downloadCsv } from "@/lib/import/spreadsheet";
 import { stockStatusOf, stockLabelOf, needsRestock, STOCK_CHIP, STOCK_DOT, SERVICE_CHIP, tracksStock, NO_STOCK_LABEL } from "@/lib/stock";
 import { useProfile } from "@/components/ProfileProvider";
 import { can } from "@/lib/permissions";
@@ -56,6 +65,44 @@ function IconLayers(props: React.SVGProps<SVGSVGElement>) {
       <polyline points="2 12 12 17 22 12" />
       <polyline points="2 17 12 22 22 17" />
     </svg>
+  );
+}
+
+/**
+ * Encabezado ordenable: el `<button>` es lo que se alcanza con Tab y el
+ * `aria-sort` del `<th>` le dice al lector de pantalla cómo está ordenado. El
+ * ↕ marca las columnas que se pueden tocar aunque no sean las que mandan.
+ */
+function SortableTh({
+  label,
+  sortKey,
+  current,
+  dir,
+  onSort,
+  className = "",
+}: {
+  label: string;
+  sortKey: CatalogSortKey;
+  current: CatalogSortKey | null;
+  dir: "asc" | "desc";
+  onSort: (key: CatalogSortKey) => void;
+  className?: string;
+}) {
+  const active = current === sortKey;
+  const ariaSort = active ? (dir === "asc" ? "ascending" : "descending") : "none";
+  return (
+    <th scope="col" aria-sort={ariaSort} className={`py-4 font-bold ${className}`}>
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        className="inline-flex items-center gap-1.5 uppercase tracking-wider font-bold rounded-md hover:text-on-surface transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+      >
+        {label}
+        <span aria-hidden="true" className={`inline-block text-[10px] leading-none ${active ? "text-primary" : "opacity-50"}`}>
+          {active ? (dir === "asc" ? "▲" : "▼") : "↕"}
+        </span>
+      </button>
+    </th>
   );
 }
 
@@ -109,6 +156,8 @@ export default function CatalogPage() {
 
   const products = useInventoryStore((s) => s.products);
   const categories = useInventoryStore((s) => s.categories);
+  const distributors = useInventoryStore((s) => s.distributors);
+  const importProducts = useInventoryStore((s) => s.importProducts);
   const loadingProducts = useInventoryStore((s) => s.loading);
   const error = useInventoryStore((s) => s.error);
   const fetchInventory = useInventoryStore((s) => s.fetchInventory);
@@ -123,13 +172,66 @@ export default function CatalogPage() {
 
   const loading = loadingProducts || loadingServices;
 
-  const [searchQuery, setSearchQuery] = useState("");
-  const [typeFilter, setTypeFilter] = useState<"" | "product" | "service">("");
-  const [categoryFilter, setCategoryFilter] = useState("");
-  const [stockFilter, setStockFilter] = useState("");
-  // Activos por defecto: lo archivado no se vende, y mezclado con lo activo
-  // se leía como si siguiera en el catálogo.
-  const [statusFilter, setStatusFilter] = useState<CatalogStatusFilter>("active");
+  /**
+   * Búsqueda, filtros, orden y página viven en la URL (D8): volver de editar un
+   * producto deja la lista donde estaba, y un refresco no la resetea. Lo que
+   * llega pegado a mano y no es válido cae al default.
+   */
+  const [filters, setFilters] = useUrlParams({
+    q: "",
+    type: "",
+    cat: "",
+    stock: "",
+    // Activos por defecto: lo archivado no se vende, y mezclado con lo activo
+    // se leía como si siguiera en el catálogo.
+    status: "active",
+    sort: "",
+    dir: "asc",
+    page: "1",
+    size: "10",
+  });
+  const searchQuery = filters.q;
+  const typeFilter: "" | "product" | "service" =
+    filters.type === "product" || filters.type === "service" ? filters.type : "";
+  const categoryFilter = filters.cat;
+  const stockFilter = filters.stock;
+  const statusFilter: CatalogStatusFilter =
+    filters.status === "archived" || filters.status === "all" ? filters.status : "active";
+  const sortKey: CatalogSortKey | null = isCatalogSortKey(filters.sort) ? filters.sort : null;
+  const sortDir: "asc" | "desc" = filters.dir === "desc" ? "desc" : "asc";
+  const currentPage = Math.max(1, Number.parseInt(filters.page, 10) || 1);
+  const pageSize = [10, 25, 50, 100].includes(Number(filters.size)) ? Number(filters.size) : 10;
+
+  const setSearchQuery = (q: string) => setFilters({ q, page: null });
+  const setTypeFilter = (type: string) => setFilters({ type, page: null });
+  const setCategoryFilter = (cat: string) => setFilters({ cat, page: null });
+  const setStockFilter = (stock: string) => setFilters({ stock, page: null });
+  const setStatusFilter = (status: CatalogStatusFilter) => setFilters({ status, page: null });
+  const setCurrentPage = (page: number) => setFilters({ page });
+  const setPageSize = (size: number) => setFilters({ size, page: null });
+  const toggleSort = (key: CatalogSortKey) =>
+    setFilters(
+      sortKey === key
+        ? { sort: key, dir: sortDir === "asc" ? "desc" : "asc", page: null }
+        : { sort: key, dir: "asc", page: null },
+    );
+
+  /** Ruta actual con sus filtros: el formulario vuelve acá al guardar o cancelar. */
+  const backTo = useCurrentPathWithSearch("/dashboard/inventory");
+  const editHref = (row: CatalogRow) => withBackParam(catalogEditHref(row), backTo, "/dashboard/inventory");
+  const movementsHref = (id: string) => `/dashboard/inventory/movements?product_id=${id}`;
+
+  const [importOpen, setImportOpen] = useState(false);
+  const existingKeys = useMemo(() => existingProductKeys(products), [products]);
+  const annotateImport = useCallback(
+    (rows: PreviewRow<ProductImportRecord>[]) =>
+      annotateProductPreview(
+        rows,
+        categories.map((c) => c.name),
+        distributors.map((d) => d.business_name),
+      ),
+    [categories, distributors],
+  );
   const [scannerOpen, setScannerOpen] = useState(false);
   const [adjustModalOpen, setAdjustModalOpen] = useState(false);
   const [adjustProductId, setAdjustProductId] = useState<string | undefined>();
@@ -172,8 +274,6 @@ export default function CatalogPage() {
     setNewProductBarcode(value);
   };
 
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
 
   /** Filtro por fila: búsqueda, tipo y categoría. */
   const matchesRow = (row: CatalogRow): boolean => {
@@ -202,7 +302,11 @@ export default function CatalogPage() {
    * un servicio, y el filtro se aplica sobre él directamente. Cada página es un
    * corte plano de la lista filtrada.
    */
-  const filteredRows = rows.filter((row) => matchesRow(row) && matchesStock(row));
+  const filteredRows = sortCatalogRows(
+    rows.filter((row) => matchesRow(row) && matchesStock(row)),
+    sortKey,
+    sortDir,
+  );
 
   const totalFilteredCount = filteredRows.length;
 
@@ -222,14 +326,12 @@ export default function CatalogPage() {
   const pageStartItem = totalFilteredCount > 0 ? rowsBeforePage + 1 : 0;
   const pageEndItem = rowsBeforePage + paginatedRows.length;
 
-  const clearFilters = () => {
-    setSearchQuery("");
-    setTypeFilter("");
-    setCategoryFilter("");
-    setStockFilter("");
-    setStatusFilter("active");
-    setCurrentPage(1);
-  };
+  const clearFilters = () =>
+    setFilters({ q: null, type: null, cat: null, stock: null, status: null, page: null });
+
+  /** Exporta lo que se está viendo: los filtros aplicados, en el orden elegido. */
+  const exportCatalog = () =>
+    downloadCsv(exportFileName("catalogo"), catalogExportRows(filteredRows, { includeCosts: canSeeCosts }));
 
   useEffect(() => {
     fetchInventory();
@@ -262,37 +364,55 @@ export default function CatalogPage() {
         {/* Móvil: secundarios a dos columnas y el primario debajo, a ancho completo.
             Cada acción se muestra solo si la persona puede ejecutarla: un botón
             que siempre falla es peor que un botón ausente. */}
-        {(canEdit || canEditServices) && (
-        <div className="grid grid-cols-2 gap-3 w-full lg:flex lg:w-auto">
+        <div className="grid grid-cols-2 gap-3 w-full lg:flex lg:flex-wrap lg:justify-end lg:w-auto">
+          {/* Movimientos de inventario (D7): antes la pantalla existía pero
+              ninguna parte de la UI llevaba a ella. */}
+          <Link href="/dashboard/inventory/movements" className="h-11 whitespace-nowrap bg-surface-container hover:bg-surface-container-high border border-outline-variant/20 text-on-surface text-sm font-semibold px-3 lg:px-4 rounded-xl transition-colors flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+            <IconMoveHorizontal className="w-4 h-4" />
+            Movimientos
+          </Link>
+          <button type="button" onClick={exportCatalog} disabled={filteredRows.length === 0} className="h-11 whitespace-nowrap bg-surface-container hover:bg-surface-container-high border border-outline-variant/20 text-on-surface text-sm font-semibold px-3 lg:px-4 rounded-xl transition-colors flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50 disabled:cursor-not-allowed">
+            <svg aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-4 h-4">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            Exportar CSV
+          </button>
+          {canEdit && (
+          <button type="button" onClick={() => setImportOpen(true)} className="h-11 whitespace-nowrap bg-surface-container hover:bg-surface-container-high border border-outline-variant/20 text-on-surface text-sm font-semibold px-3 lg:px-4 rounded-xl transition-colors flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+            <svg aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-4 h-4">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="17 8 12 3 7 8" />
+              <line x1="12" y1="3" x2="12" y2="15" />
+            </svg>
+            Importar
+          </button>
+          )}
           {/* Categorías dejó de ser un ítem del menú principal: es una tabla
               auxiliar de baja frecuencia y ocupaba un lugar de primer nivel.
-              Su puerta es esta, que está donde las categorías se usan.
-              Antes acá había un botón que SOLO creaba; editar y borrar vivían
-              en la otra pantalla. Un solo destino con las tres acciones evita
-              que el usuario tenga que adivinar cuál de las dos abre. */}
+              Su puerta es esta, que está donde las categorías se usan. */}
           {canEdit && (
-          <Link
-            href="/dashboard/categories"
-            className="h-11 whitespace-nowrap bg-surface-container hover:bg-surface-container-high border border-outline-variant/20 text-on-surface text-sm font-semibold px-3 lg:px-5 rounded-xl transition-colors flex items-center justify-center gap-2"
-          >
-            <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-4 h-4">
+          <Link href="/dashboard/categories" className="h-11 whitespace-nowrap bg-surface-container hover:bg-surface-container-high border border-outline-variant/20 text-on-surface text-sm font-semibold px-3 lg:px-4 rounded-xl transition-colors flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+            <svg aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-4 h-4">
               <path d="M20.6 13.4 12 4.8V2H9.2L2 9.2v2.8l8.6 8.6a2 2 0 0 0 2.8 0l7.2-7.2a2 2 0 0 0 0-2.8Z" />
               <circle cx="6.5" cy="6.5" r="1.5" />
             </svg>
             Categor&iacute;as
           </Link>
           )}
+          {(canEdit || canEditServices) && (
           <Link
-            href="/dashboard/inventory/product"
-            className="h-11 col-span-2 lg:col-span-1 whitespace-nowrap bg-primary hover:bg-primary-dim text-on-primary text-sm font-semibold px-5 rounded-xl shadow-[0_0_20px_rgba(96,99,238,0.25)] transition-all flex items-center justify-center gap-2 hover:shadow-[0_0_25px_rgba(96,99,238,0.35)]"
+            href={withBackParam("/dashboard/inventory/product", backTo, "/dashboard/inventory")}
+            className="h-11 col-span-2 lg:col-span-1 whitespace-nowrap bg-primary hover:bg-primary-dim text-on-primary text-sm font-semibold px-5 rounded-xl shadow-sm transition-all flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           >
-            <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-4 h-4">
+            <svg aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-4 h-4">
               <path d="M12 5v14M5 12h14" />
             </svg>
             Producto / Servicio
           </Link>
+          )}
         </div>
-        )}
       </div>
 
       {error && <CollectionError message={error} onRetry={fetchInventory} />}
@@ -416,6 +536,25 @@ export default function CatalogPage() {
               <option value="all">Todos</option>
             </Select>
           </div>
+          {/* En móvil no hay encabezados que tocar: el orden se elige acá. */}
+          <Select
+            aria-label="Ordenar por"
+            containerClassName="w-full lg:hidden"
+            value={sortKey ? `${sortKey}:${sortDir}` : ""}
+            onChange={(e) => {
+              const [key, dir] = e.target.value.split(":");
+              setFilters(key ? { sort: key, dir, page: null } : { sort: null, dir: null, page: null });
+            }}
+          >
+            <option value="">Más recientes primero</option>
+            <option value="name:asc">Nombre (A–Z)</option>
+            <option value="name:desc">Nombre (Z–A)</option>
+            <option value="price:asc">Precio: menor a mayor</option>
+            <option value="price:desc">Precio: mayor a menor</option>
+            <option value="stock:asc">Stock: menor a mayor</option>
+            <option value="stock:desc">Stock: mayor a menor</option>
+            <option value="category:asc">Categoría (A–Z)</option>
+          </Select>
         </div>
 
         {/* Móvil: la tabla de 7 columnas no entra en un teléfono, así que cada
@@ -507,10 +646,11 @@ export default function CatalogPage() {
               const canOpen = row.kind === "product" ? canEdit : canEditServices;
 
               return (
-                <li key={`${row.kind}-${row.id}`} className={`even:bg-on-surface/[0.05] ${canMoveStock ? "flex items-stretch" : ""} ${archived ? "opacity-60" : ""}`}>
+                <li key={`${row.kind}-${row.id}`} className={`even:bg-on-surface/[0.05] ${archived ? "opacity-60" : ""}`}>
+                  <div className={canMoveStock ? "flex items-stretch" : ""}>
                   {canOpen ? (
                     <Link
-                      href={catalogEditHref(row)}
+                      href={editHref(row)}
                       // min-w-0: a flex item cannot shrink below its content
                       // width by default, which pushed the movement button past
                       // the screen edge on phones.
@@ -537,6 +677,17 @@ export default function CatalogPage() {
                       <IconMoveHorizontal className="w-5 h-5" />
                     </button>
                   )}
+                  </div>
+                  {/* Fuera del enlace de la tarjeta: un enlace dentro de otro
+                      es inválido y el toque iría a cualquiera de los dos. */}
+                  {row.kind === "product" && (
+                    <Link
+                      href={movementsHref(row.id)}
+                      className="inline-flex items-center gap-1 mx-4 mb-3 -mt-1 text-xs font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded"
+                    >
+                      Ver movimientos
+                    </Link>
+                  )}
                 </li>
               );
             })
@@ -548,21 +699,21 @@ export default function CatalogPage() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-surface-container-low border-b border-outline-variant/10 text-[11px] uppercase tracking-wider text-on-surface-variant font-bold">
-                <th className="px-7 py-4 font-bold">&Iacute;tem</th>
-                <th className="px-4 py-4 font-bold">Categor&iacute;a</th>
-                <th className="px-4 py-4 font-bold">SKU</th>
-                {canSeeCosts && <th className="px-4 py-4 font-bold">Costo</th>}
-                <th className="px-4 py-4 font-bold">Precio</th>
-                <th className="px-4 py-4 font-bold">Stock</th>
-                {(canEdit || canEditServices || canMoveStock) && <th className="px-7 py-4 text-center font-bold">Acciones</th>}
+                <SortableTh label="Ítem" sortKey="name" current={sortKey} dir={sortDir} onSort={toggleSort} className="px-7" />
+                <SortableTh label="Categoría" sortKey="category" current={sortKey} dir={sortDir} onSort={toggleSort} className="px-4" />
+                <th scope="col" className="px-4 py-4 font-bold">SKU</th>
+                {canSeeCosts && <th scope="col" className="px-4 py-4 font-bold">Costo</th>}
+                <SortableTh label="Precio" sortKey="price" current={sortKey} dir={sortDir} onSort={toggleSort} className="px-4" />
+                <SortableTh label="Stock" sortKey="stock" current={sortKey} dir={sortDir} onSort={toggleSort} className="px-4" />
+                <th scope="col" className="px-7 py-4 text-center font-bold">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-outline-variant/5 text-sm">
               {loading ? (
-                <tr><td colSpan={5 + (canSeeCosts ? 1 : 0) + (canEdit || canEditServices || canMoveStock ? 1 : 0)}><CollectionLoading label="Cargando catálogo…" /></td></tr>
+                <tr><td colSpan={6 + (canSeeCosts ? 1 : 0)}><CollectionLoading label="Cargando catálogo…" /></td></tr>
               ) : filteredRows.length === 0 ? (
                 <tr>
-                  <td colSpan={5 + (canSeeCosts ? 1 : 0) + (canEdit || canEditServices || canMoveStock ? 1 : 0)}>
+                  <td colSpan={6 + (canSeeCosts ? 1 : 0)}>
                     {rows.length === 0 ? (
                       <CollectionEmpty icon={<IconBox className="h-8 w-8" />} title="Aún no hay nada en tu catálogo" description="Crea tu primer producto o servicio para empezar a vender." action={{ label: "Crear el primero", href: "/dashboard/inventory/product" }} />
                     ) : (
@@ -598,7 +749,13 @@ export default function CatalogPage() {
                               )}
                             </div>
                             <div>
-                              <span className="text-on-surface text-sm font-semibold">{row.name}</span>
+                              {canOpen ? (
+                                <Link href={editHref(row)} className="text-on-surface text-sm font-semibold hover:text-primary hover:underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded">
+                                  {row.name}
+                                </Link>
+                              ) : (
+                                <span className="text-on-surface text-sm font-semibold">{row.name}</span>
+                              )}
                               {archived && <ArchivedChip />}
                               {row.kind === "service" && (
                                 <span className="block text-xs text-on-surface-variant">
@@ -652,14 +809,26 @@ export default function CatalogPage() {
                             </span>
                           )}
                         </td>
-                        {(canEdit || canEditServices || canMoveStock) && (
                         <td className="px-7 py-3.5 text-center">
                           <div className="flex items-center justify-center gap-1">
+                            {row.kind === "product" && (
+                            <Link
+                              href={movementsHref(row.id)}
+                              className="w-9 h-9 flex items-center justify-center rounded-xl text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                              title="Ver movimientos"
+                              aria-label={`Ver movimientos de ${row.name}`}
+                            >
+                              <svg aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-4 h-4">
+                                <path d="M3 12h4l3 8 4-16 3 8h4" />
+                              </svg>
+                            </Link>
+                            )}
                             {canOpen && (
                             <Link
-                              href={catalogEditHref(row)}
-                              className="w-9 h-9 flex items-center justify-center rounded-xl text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
+                              href={editHref(row)}
+                              className="w-9 h-9 flex items-center justify-center rounded-xl text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                               title={row.kind === "product" ? "Editar producto" : "Editar servicio"}
+                              aria-label={`Editar ${row.name}`}
                             >
                               <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-4 h-4">
                                 <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
@@ -701,7 +870,6 @@ export default function CatalogPage() {
                             )}
                           </div>
                         </td>
-                        )}
                     </tr>
                   );
                 })
@@ -784,6 +952,27 @@ export default function CatalogPage() {
             setNewProductBarcode(null);
             fetchInventory();
           }}
+        />
+      )}
+
+      {canEdit && (
+        <ImportWizard
+          open={importOpen}
+          onClose={() => setImportOpen(false)}
+          title="productos"
+          entity={PRODUCT_IMPORT}
+          existing={existingKeys}
+          templateFileName="plantilla-productos.xlsx"
+          annotate={annotateImport}
+          onImport={importProducts}
+          previewKeys={["name", "sku", "price"]}
+          note={
+            <>
+              Solo productos: los servicios se crean desde <strong>Producto / Servicio</strong>, no por importación. Si
+              un producto ya existe (mismo SKU o código de barras), su stock no cambia: el stock se ajusta en{" "}
+              <strong>Movimientos</strong>.
+            </>
+          }
         />
       )}
 

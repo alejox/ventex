@@ -1,17 +1,39 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { IconPlus, IconSearch, IconTrendingDown } from "@/app/assets/icons/DashboardIcons";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { IconPlus, IconSearch, IconWallet } from "@/app/assets/icons/DashboardIcons";
 import { useExpensesStore } from "@/stores/expenses.store";
-import type { ExpenseCategory, ExpenseInput, ExpenseOrigin, ExpenseRecord } from "@/services/expenses.service";
+import {
+  EXPENSE_EXPORT_COLUMNS,
+  EXPENSE_PERIODS,
+  expenseOriginLabel,
+  resolveExpenseRange,
+  type ExpenseCategory,
+  type ExpenseInput,
+  type ExpenseOrigin,
+  type ExpenseRecord,
+} from "@/services/expenses.service";
+import type { ExpenseSlice } from "@/services/finance.service";
+import { ExpensesByCategory } from "@/components/ExpensesByCategory";
+import { MoneyInput } from "@/components/ui/MoneyInput";
+import { downloadCsv, downloadXlsx, exportFilename, inclusiveEnd, sheet } from "@/lib/export";
+import { ExportButtons } from "@/app/dashboard/reports/ExportButtons";
+import { OpenOnNewParam } from "@/app/dashboard/reports/OpenOnNewParam";
 import { formatDateOnly, todayISO } from "@/lib/date";
 import { notifySuccess } from "@/lib/notifications";
 import { DataTable, type DataColumn } from "@/components/DataTable";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import Link from "next/link";
 import { useFormatMoney } from "@/lib/useMoney";
-const PERIODS = [{ id: "today", label: "Hoy" }, { id: "yesterday", label: "Ayer" }, { id: "last7", label: "Últimos 7 días" }, { id: "month", label: "Este mes" }, { id: "lastMonth", label: "Mes pasado" }, { id: "all", label: "Todo" }] as const;
-const blank = (categoryId = ""): ExpenseInput => ({ description: "", amount: 0, expense_date: todayISO(), category_id: categoryId });
+/**
+ * El formulario guarda el monto como TEXTO crudo (lo que entrega `MoneyInput`)
+ * y se convierte a número recién al guardar: con un número, el punto decimal
+ * recién tecleado ("12.") se perdía en cada tecla.
+ */
+type ExpenseForm = Omit<ExpenseInput, "amount"> & { amount: string };
+const blank = (categoryId = ""): ExpenseForm => ({ description: "", amount: "", expense_date: todayISO(), category_id: categoryId });
+const toInput = (form: ExpenseForm): ExpenseInput => ({ ...form, amount: Number(form.amount) || 0 });
+
 
 export default function ExpensesPage() {
   const fmtMoney = useFormatMoney();
@@ -21,6 +43,9 @@ export default function ExpensesPage() {
   const loading = useExpensesStore((s) => s.loading);
   const error = useExpensesStore((s) => s.error);
   const period = useExpensesStore((s) => s.period);
+  const customFrom = useExpensesStore((s) => s.customFrom);
+  const customTo = useExpensesStore((s) => s.customTo);
+  const setCustomRange = useExpensesStore((s) => s.setCustomRange);
   const search = useExpensesStore((s) => s.search);
   const categoryId = useExpensesStore((s) => s.categoryId);
   const fetch = useExpensesStore((s) => s.fetch);
@@ -36,7 +61,8 @@ export default function ExpensesPage() {
   const addCategory = useExpensesStore((s) => s.addCategory);
   const updateCategory = useExpensesStore((s) => s.updateCategory);
   const deactivateCategory = useExpensesStore((s) => s.deactivateCategory);
-  const [form, setForm] = useState<ExpenseInput | null>(null);
+  const [form, setForm] = useState<ExpenseForm | null>(null);
+  const [exporting, setExporting] = useState(false);
   const [editing, setEditing] = useState<ExpenseRecord | null>(null);
   const [searchInput, setSearchInput] = useState(search);
   const [newCategory, setNewCategory] = useState(false);
@@ -51,7 +77,7 @@ export default function ExpensesPage() {
     setEditing(item);
     setForm({
       description: item.description,
-      amount: item.amount,
+      amount: String(item.amount),
       expense_date: item.expense_date,
       category_id: item.category?.id,
     });
@@ -103,13 +129,7 @@ export default function ExpensesPage() {
         sortValue: (item) => item.origin,
         cell: (item) => (
           <span className="text-[11px] text-on-surface-variant whitespace-nowrap">
-            {item.origin === "compra"
-              ? "Compra"
-              : item.origin === "caja"
-                ? "Retiro de caja"
-                : item.origin === "comision"
-                  ? "Liquidación de comisión"
-                  : "A mano"}
+            {expenseOriginLabel(item.origin)}
           </span>
         ),
       },
@@ -132,8 +152,6 @@ export default function ExpensesPage() {
         mobile: "actions",
         cell: (item) => (
           <div className="flex items-center justify-end gap-3 whitespace-nowrap">
-            {/* Una compra es una factura, no un gasto suelto: se edita donde
-                vive, con sus ítems y su impuesto. Acá solo se la mira. */}
             {/* Una compra es una factura, no un gasto suelto: se edita donde
                 vive, con sus ítems y su impuesto. Acá solo se la mira. */}
             {item.origin === "compra" ? (
@@ -198,24 +216,60 @@ export default function ExpensesPage() {
   );
 
   const total = useMemo(() => expenses.reduce((sum, item) => sum + item.amount, 0), [expenses]);
-  const categoryTotals = useMemo(() => {
-    const map = new Map<string, { category: ExpenseCategory; amount: number }>();
+  // Las porciones del desglose, en la MISMA forma que usa el Panel: una sola
+  // implementación del gráfico (`ExpensesByCategory`) para las dos pantallas.
+  const slices = useMemo<ExpenseSlice[]>(() => {
+    const map = new Map<string, ExpenseSlice>();
     for (const expense of expenses) {
       const category = expense.category ?? categories.find((item) => item.is_default);
-      if (!category) continue;
-      const current = map.get(category.id) ?? { category, amount: 0 };
-      current.amount += expense.amount; map.set(category.id, current);
+      const id = category?.id ?? "sin-categoria";
+      const current = map.get(id) ?? {
+        id,
+        label: category?.name ?? "Sin categoría",
+        color: category?.color ?? "#94a3b8",
+        amount: 0,
+      };
+      current.amount += expense.amount;
+      map.set(id, current);
     }
     return [...map.values()].sort((a, b) => b.amount - a.amount);
   }, [expenses, categories]);
-  const top = categoryTotals[0];
+  const top = slices[0];
   const average = expenses.length ? total / expenses.length : 0;
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault(); if (!form) return;
-    const ok = editing ? await update(editing.id, form) : await create(form);
+    const input = toInput(form);
+    const ok = editing ? await update(editing.id, input) : await create(input);
     if (ok) { notifySuccess(editing ? "Gasto actualizado" : "Gasto registrado", "El movimiento quedó guardado correctamente."); setForm(null); setEditing(null); }
   };
+  const defaultCategoryId = categories.find((c) => c.is_default)?.id;
+  const openNew = useCallback(() => {
+    setEditing(null);
+    setForm(blank(defaultCategoryId));
+  }, [defaultCategoryId]);
+
+  /**
+   * Exporta EXACTAMENTE lo que muestra la tabla: mismo período, búsqueda,
+   * categoría y origen (la lista del store ya viene filtrada desde la base).
+   */
+  const exportAs = async (kind: "csv" | "xlsx") => {
+    const range = resolveExpenseRange(period, customFrom, customTo);
+    const name = exportFilename("gastos", kind, { from: range.from, to: inclusiveEnd(range.to) }, todayISO());
+    if (kind === "csv") {
+      downloadCsv(name, EXPENSE_EXPORT_COLUMNS, expenses);
+      return;
+    }
+    setExporting(true);
+    try {
+      await downloadXlsx(name, [
+        sheet({ name: "Gastos", columns: EXPENSE_EXPORT_COLUMNS, rows: expenses, totals: ["Total", null, null, null, total] }),
+      ]);
+    } finally {
+      setExporting(false);
+    }
+  };
+
   /** Abre el formulario de categoría: vacío para crear, poblado para editar. */
   const openCategory = (category?: ExpenseCategory) => {
     setEditingCategory(category ?? null);
@@ -256,10 +310,24 @@ export default function ExpensesPage() {
   };
 
   return <div className="space-y-6">
-    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4"><div><h1 className="text-2xl font-bold text-on-surface">Gastos</h1><p className="text-sm text-on-surface-variant mt-1">Controla los gastos operativos de tu negocio.</p></div><button onClick={() => setForm(blank(categories.find((c) => c.is_default)?.id))} className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-on-primary text-sm font-semibold"><IconPlus className="w-4 h-4" />Registrar Gasto</button></div>
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4"><div><h1 className="text-2xl font-bold text-on-surface">Gastos</h1><p className="text-sm text-on-surface-variant mt-1">Controla los gastos operativos de tu negocio.</p></div><div className="flex flex-wrap items-center gap-2"><ExportButtons disabled={loading || expenses.length === 0} busy={exporting} onExport={exportAs} /><button onClick={openNew} className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-on-primary text-sm font-semibold"><IconPlus className="w-4 h-4" />Registrar gasto</button></div></div>
+    <Suspense fallback={null}><OpenOnNewParam onOpen={openNew} /></Suspense>
     {error && <div className="rounded-xl border border-error/20 bg-error/10 px-4 py-3 text-sm text-error">{error}</div>}
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4"><Kpi label="Gasto total" value={fmtMoney(total)} note="Incluye compras a proveedores" /><Kpi label="N.º de gastos" value={String(expenses.length)} /><Kpi label="Mayor categoría" value={top?.category.name ?? "—"} /><Kpi label="Gasto promedio" value={fmtMoney(average)} /></div>
-    <div className="flex flex-wrap gap-2">{PERIODS.map((item) => <button key={item.id} onClick={() => setPeriod(item.id)} className={`px-3 py-2 rounded-xl text-xs font-semibold border ${period === item.id ? "border-primary/40 bg-primary/10 text-primary" : "border-outline-variant/10 bg-surface-container text-on-surface-variant"}`}>{item.label}</button>)}</div>
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4"><Kpi label="Gasto total" value={fmtMoney(total)} note="Incluye compras a proveedores" /><Kpi label="N.º de gastos" value={String(expenses.length)} /><Kpi label="Mayor categoría" value={top?.label ?? "—"} /><Kpi label="Gasto promedio" value={fmtMoney(average)} /></div>
+    <div className="flex flex-wrap gap-2" role="group" aria-label="Período">{EXPENSE_PERIODS.map((item) => <button key={item.id} aria-pressed={period === item.id} onClick={() => setPeriod(item.id)} className={`px-3 py-2 rounded-xl text-xs font-semibold border ${period === item.id ? "border-primary/40 bg-primary/10 text-primary" : "border-outline-variant/10 bg-surface-container text-on-surface-variant"}`}>{item.label}</button>)}</div>
+    {period === "custom" && (
+      <div className="flex flex-wrap items-end gap-3 bg-surface-container rounded-2xl border border-outline-variant/10 p-4 -mt-2">
+        <label className="text-xs font-semibold text-on-surface-variant space-y-1.5">
+          <span className="block">Desde</span>
+          <input type="date" value={customFrom} max={customTo || undefined} onChange={(e) => setCustomRange(e.target.value, customTo)} className="px-3 py-2 bg-surface-container-low border border-outline-variant/20 rounded-xl text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/50" />
+        </label>
+        <label className="text-xs font-semibold text-on-surface-variant space-y-1.5">
+          <span className="block">Hasta</span>
+          <input type="date" value={customTo} min={customFrom || undefined} onChange={(e) => setCustomRange(customFrom, e.target.value)} className="px-3 py-2 bg-surface-container-low border border-outline-variant/20 rounded-xl text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/50" />
+        </label>
+        {!customFrom && !customTo && <p className="text-xs text-on-surface-variant pb-2.5">Elige al menos una fecha.</p>}
+      </div>
+    )}
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <section className="lg:col-span-2 bg-surface-container-lowest border border-outline-variant/10 rounded-2xl p-5 shadow-sm"><div className="flex flex-col sm:flex-row gap-3 mb-4"><div className="relative flex-1"><IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant" /><input value={searchInput} onChange={(e) => setSearchInput(e.target.value)} placeholder="Buscar por descripción…" className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-surface-container border border-outline-variant/20 text-sm text-on-surface" /></div><select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className="rounded-xl bg-surface-container border border-outline-variant/20 px-3 py-2.5 text-sm text-on-surface"><option value="">Todas las categorías</option>{categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select><select value={origin} onChange={(e) => setOrigin(e.target.value as ExpenseOrigin)} className="rounded-xl bg-surface-container border border-outline-variant/20 px-3 py-2.5 text-sm text-on-surface" aria-label="Filtrar por origen"><option value="">Todo origen</option><option value="manual">Cargado a mano</option><option value="caja">Retiro de caja</option><option value="comision">Liquidación de comisión</option><option value="compra">Compra a proveedor</option></select></div>
         {loading ? (
@@ -278,7 +346,12 @@ export default function ExpensesPage() {
           />
         )}
       </section>
-      <section className="bg-surface-container-lowest border border-outline-variant/10 rounded-2xl p-5 shadow-sm"><h2 className="text-sm font-bold text-on-surface mb-5">Gastos por categoría</h2>{categoryTotals.length === 0 ? <p className="py-12 text-center text-sm text-on-surface-variant">Sin datos para graficar.</p> : <div className="space-y-4">{categoryTotals.map((item) => <div key={item.category.id}><div className="flex justify-between text-xs mb-1.5"><span className="font-semibold text-on-surface">{item.category.name}</span><span className="text-on-surface-variant">{fmtMoney(item.amount)}</span></div><div className="h-3 rounded-full bg-surface-container-high overflow-hidden"><div className="h-full rounded-full" style={{ width: `${Math.max(4, (item.amount / total) * 100)}%`, backgroundColor: item.category.color }} /></div></div>)}</div>}</section>
+      <section className="bg-surface-container-lowest border border-outline-variant/10 rounded-2xl p-5 shadow-sm min-w-0">
+        <h2 className="text-sm font-bold text-on-surface mb-5">Gastos por categoría</h2>
+        {/* La misma pieza que el Panel. `stacked`: en esta columna angosta la
+            fila de tres columnas no entra ni en escritorio. */}
+        <ExpensesByCategory slices={slices} total={total} stacked emptyLabel="Sin gastos en este período." />
+      </section>
     </div>
     <section className="bg-surface-container-lowest border border-outline-variant/10 rounded-2xl p-5 shadow-sm">
       <div className="flex items-center justify-between gap-4 mb-4">
@@ -343,7 +416,7 @@ export default function ExpensesPage() {
         ))}
       </ul>
     </section>
-    {(form || newCategory) && <Modal title={newCategory ? (editingCategory ? "Editar categoría de gasto" : "Nueva categoría de gasto") : editing ? "Editar gasto" : "Registrar gasto"} onClose={closeModals}>{newCategory ? <form onSubmit={submitCategory} className="space-y-4"><Field label="Nombre"><input required className={inputClass} value={categoryForm.name} onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })} /></Field><Field label="Descripción"><input className={inputClass} value={categoryForm.description} onChange={(e) => setCategoryForm({ ...categoryForm, description: e.target.value })} /></Field><Field label="Color"><input type="color" className="h-11 w-full cursor-pointer rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-1" value={categoryForm.color} onChange={(e) => setCategoryForm({ ...categoryForm, color: e.target.value })} /></Field><Submit /></form> : <form onSubmit={submit} className="space-y-4"><Field label="Descripción"><input required className={inputClass} value={form?.description ?? ""} onChange={(e) => setForm({ ...form!, description: e.target.value })} /></Field><div className="grid grid-cols-2 gap-3"><Field label="Monto"><input required min="0.01" step="0.01" type="number" className={inputClass} value={form?.amount || ""} onChange={(e) => setForm({ ...form!, amount: Number(e.target.value) })} /></Field><Field label="Fecha"><input required type="date" className={inputClass} value={form?.expense_date ?? todayISO()} onChange={(e) => setForm({ ...form!, expense_date: e.target.value })} /></Field></div><Field label="Categoría"><select className={inputClass} value={form?.category_id ?? ""} onChange={(e) => setForm({ ...form!, category_id: e.target.value })}><option value="">Otros</option>{categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field><button type="button" onClick={() => openCategory()} className="text-xs font-semibold text-primary">+ Crear categoría</button><Submit /></form>}</Modal>}
+    {(form || newCategory) && <Modal title={newCategory ? (editingCategory ? "Editar categoría de gasto" : "Nueva categoría de gasto") : editing ? "Editar gasto" : "Registrar gasto"} onClose={closeModals}>{newCategory ? <form onSubmit={submitCategory} className="space-y-4"><Field label="Nombre"><input required className={inputClass} value={categoryForm.name} onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })} /></Field><Field label="Descripción"><input className={inputClass} value={categoryForm.description} onChange={(e) => setCategoryForm({ ...categoryForm, description: e.target.value })} /></Field><Field label="Color"><input type="color" className="h-11 w-full cursor-pointer rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-1" value={categoryForm.color} onChange={(e) => setCategoryForm({ ...categoryForm, color: e.target.value })} /></Field><Submit /></form> : <form onSubmit={submit} className="space-y-4"><Field label="Descripción"><input required className={inputClass} value={form?.description ?? ""} onChange={(e) => setForm({ ...form!, description: e.target.value })} /></Field><div className="grid grid-cols-2 gap-3"><Field label="Monto"><MoneyInput required aria-label="Monto" value={form?.amount ?? ""} onChange={(raw) => setForm({ ...form!, amount: raw })} className="py-2.5" /></Field><Field label="Fecha"><input required type="date" className={inputClass} value={form?.expense_date ?? todayISO()} onChange={(e) => setForm({ ...form!, expense_date: e.target.value })} /></Field></div><Field label="Categoría"><select className={inputClass} value={form?.category_id ?? ""} onChange={(e) => setForm({ ...form!, category_id: e.target.value })}><option value="">Otros</option>{categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field><button type="button" onClick={() => openCategory()} className="text-xs font-semibold text-primary">+ Crear categoría</button><Submit /></form>}</Modal>}
     {dialog}
   </div>;
 }
@@ -351,8 +424,8 @@ export default function ExpensesPage() {
 function Kpi({ label, value, note }: { label: string; value: string; note?: string }) {
   return (
     <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-2xl p-5">
-      <div className="flex items-center gap-2 text-error mb-3">
-        <IconTrendingDown className="w-4 h-4" />
+      <div className="flex items-center gap-2 text-on-surface-variant mb-3">
+        <IconWallet className="w-4 h-4" />
         <span className="text-[11px] uppercase tracking-wider font-semibold text-on-surface-variant">{label}</span>
       </div>
       <p className="text-xl font-bold text-on-surface truncate">{value}</p>
@@ -371,3 +444,4 @@ const inputClass =
   "w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all";
 function Submit() { return <div className="flex justify-end pt-3"><button className="px-4 py-2.5 rounded-xl bg-primary text-on-primary text-sm font-semibold" type="submit">Guardar</button></div>; }
 function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) { return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"><div className="w-full max-w-md rounded-2xl bg-surface-container p-6 shadow-2xl"><div className="flex justify-between items-center mb-5"><h2 className="text-lg font-bold text-on-surface">{title}</h2><button onClick={onClose} className="text-on-surface-variant" aria-label="Cerrar">×</button></div>{children}</div></div>; }
+

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useAdminStore } from "@/stores/admin.store";
-import type { AdminCompany, AdminCompanyActivity } from "@/services/admin.service";
+import type { AdminCompany } from "@/services/admin.service";
 import {
   formatMoney,
   planAccent,
@@ -15,12 +15,24 @@ import { GrantCreditsModal } from "@/components/GrantCreditsModal";
 import { backdropProps } from "@/components/modal";
 import { IconUsers } from "@/app/assets/icons/DashboardIcons";
 import { CollectionEmpty, CollectionError, CollectionFilteredEmpty, CollectionLoading } from "@/components/CollectionState";
+import { Pagination } from "@/components/Pagination";
 import { Select } from "@/components/ui/Select";
+import { ExpiryCell } from "@/components/ui/ExpiryCell";
+import {
+  buildCompanyRows,
+  countCompanies,
+  isWithinDays,
+  matchesCompanyFilter,
+  sortCompanyRows,
+  type CompanyFilter,
+  type CompanyRow,
+  type CompanySortKey,
+  type SortDirection,
+} from "@/app/admin/company-metrics";
 
 const STATUSES = ["active", "past_due", "cancelled"] as const;
-const MS_PER_DAY = 86_400_000;
 
-const ACTIVATION_LABELS: Record<AdminCompanyActivity["activation_stage"], string> = {
+const ACTIVATION_LABELS: Record<NonNullable<CompanyRow["activity"]>["activation_stage"], string> = {
   registered: "Solo registrada",
   setup_started: "Configuración iniciada",
   catalog_ready: "Catálogo listo",
@@ -35,29 +47,13 @@ function formatDate(iso: string): string {
   });
 }
 
-function formatDateTime(iso: string | null): string {
+function formatShortDate(iso: string | null): string {
   if (!iso) return "Sin registro";
-  return new Date(iso).toLocaleString("es-CO", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
-
-function isWithinDays(iso: string, days: number): boolean {
-  const timestamp = new Date(iso).getTime();
-  return Number.isFinite(timestamp) && timestamp >= Date.now() - days * MS_PER_DAY;
+  return new Date(iso).toLocaleDateString("es-CO", { day: "numeric", month: "short", year: "2-digit" });
 }
 
 function businessTypeLabel(type: string | null | undefined): string {
   return BUSINESS_OPTIONS.find((option) => option.id === type)?.label ?? "Sin tipo definido";
-}
-
-/** Días que faltan para el vencimiento (negativo = ya venció). */
-function daysLeft(iso: string): number {
-  return Math.ceil((new Date(iso).getTime() - Date.now()) / MS_PER_DAY);
 }
 
 /**
@@ -73,39 +69,15 @@ function projectedEnd(periodEnd: string | null, months: number): Date {
   return end;
 }
 
-/** Vencimiento del plan: fecha + días restantes, en rojo si venció o está por vencer. */
-function ExpiryCell({ periodEnd }: { periodEnd: string | null }) {
-  if (!periodEnd) {
-    return <span className="text-on-surface-variant">Sin vencimiento</span>;
-  }
-
-  const days = daysLeft(periodEnd);
-  const expired = days < 0;
-  const soon = !expired && days <= 7;
-
-  return (
-    <>
-      <span className={`block tabular-nums ${expired ? "text-error-dim font-semibold" : "text-on-surface"}`}>
-        {formatDate(periodEnd)}
-      </span>
-      <span
-        className={`block text-[11px] mt-0.5 ${
-          expired
-            ? "text-error-dim"
-            : soon
-              ? "text-amber-500 font-semibold"
-              : "text-on-surface-variant"
-        }`}
-      >
-        {expired
-          ? `Vencido hace ${Math.abs(days)} día${Math.abs(days) === 1 ? "" : "s"}`
-          : days === 0
-            ? "Vence hoy"
-            : `Faltan ${days} día${days === 1 ? "" : "s"}`}
-      </span>
-    </>
-  );
-}
+/** Columnas ordenables. Las demás (etapa, acciones) no tienen un orden natural. */
+const SORTABLE_COLUMNS: { key: CompanySortKey; label: string; align?: "right"; defaultDirection: SortDirection }[] = [
+  { key: "name", label: "Empresa", defaultDirection: "asc" },
+  { key: "plan", label: "Plan", defaultDirection: "asc" },
+  { key: "gmv", label: "GMV del mes", align: "right", defaultDirection: "desc" },
+  { key: "registered", label: "Registro", defaultDirection: "desc" },
+  { key: "lastActivity", label: "Última actividad", defaultDirection: "desc" },
+  { key: "expiry", label: "Vencimiento", defaultDirection: "asc" },
+];
 
 export default function AdminCompaniesPage() {
   const companies = useAdminStore((s) => s.companies);
@@ -119,9 +91,17 @@ export default function AdminCompaniesPage() {
   const fetchCompanies = useAdminStore((s) => s.fetchCompanies);
 
   const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<CompanyFilter>("all");
+  const [sortKey, setSortKey] = useState<CompanySortKey>("registered");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [editing, setEditing] = useState<AdminCompany | null>(null);
   const [grantingId, setGrantingId] = useState<string | null>(null);
   const granting = resellers.find((r) => r.user_id === grantingId) ?? null;
+  // Un solo "ahora" por visita: los KPIs y los filtros cuentan contra el mismo
+  // instante, y el render no lee el reloj.
+  const [now] = useState(() => Date.now());
 
   useEffect(() => {
     fetchCompanies();
@@ -134,52 +114,61 @@ export default function AdminCompaniesPage() {
 
   // La RPC excluye workers en el servidor. Cuando está disponible, su conjunto
   // de IDs también evita que admin_companies cuele cuentas de trabajadores.
-  const visibleCompanies = useMemo(
-    () =>
-      companyActivityAvailable
-        ? companies.filter((company) => activityByCompany.has(company.user_id))
-        : companies,
-    [activityByCompany, companies, companyActivityAvailable],
-  );
+  const rows = useMemo(() => {
+    const visible = companyActivityAvailable
+      ? companies.filter((company) => activityByCompany.has(company.user_id))
+      : companies;
+    return buildCompanyRows(visible, activityByCompany);
+  }, [activityByCompany, companies, companyActivityAvailable]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return visibleCompanies;
-    return visibleCompanies.filter((company) => {
-      const activity = activityByCompany.get(company.user_id);
+    const matching = rows.filter((row) => {
+      if (!matchesCompanyFilter(row, filter, now)) return false;
+      if (!q) return true;
       return (
-        (company.business_name ?? "").toLowerCase().includes(q) ||
-        (company.full_name ?? "").toLowerCase().includes(q) ||
-        (company.email ?? "").toLowerCase().includes(q) ||
-        businessTypeLabel(activity?.business_type).toLowerCase().includes(q)
+        row.name.toLowerCase().includes(q) ||
+        (row.company.full_name ?? "").toLowerCase().includes(q) ||
+        (row.company.email ?? "").toLowerCase().includes(q) ||
+        businessTypeLabel(row.activity?.business_type).toLowerCase().includes(q)
       );
     });
-  }, [activityByCompany, query, visibleCompanies]);
+    return sortCompanyRows(matching, sortKey, sortDirection);
+  }, [rows, filter, now, query, sortKey, sortDirection]);
 
-  const kpis = useMemo(() => {
-    if (companyActivity.length === 0) return null;
-    return {
-      registrations7: companyActivity.filter((item) => isWithinDays(item.registered_at, 7)).length,
-      registrations30: companyActivity.filter((item) => isWithinDays(item.registered_at, 30)).length,
-      activatedNew: companyActivity.filter(
-        (item) => isWithinDays(item.registered_at, 30) && item.activation_stage === "activated",
-      ).length,
-      active7: companyActivity.filter(
-        (item) => item.last_operational_activity_at && isWithinDays(item.last_operational_activity_at, 7),
-      ).length,
-      noActivity: companyActivity.filter((item) => !item.last_operational_activity_at).length,
-      monthlyGmv: companyActivity.reduce((total, item) => total + Number(item.monthly_gmv), 0),
-    };
-  }, [companyActivity]);
+  const totalPages = Math.ceil(filtered.length / pageSize) || 1;
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const pageRows = filtered.slice((safeCurrentPage - 1) * pageSize, safeCurrentPage * pageSize);
 
-  const kpiItems = [
-    { label: "Altas · 7 días", value: kpis?.registrations7 ?? "—" },
-    { label: "Altas · 30 días", value: kpis?.registrations30 ?? "—" },
-    { label: "Nuevas activadas · 30 días", value: kpis?.activatedNew ?? "—" },
-    { label: "Activas · últimos 7 días", value: kpis?.active7 ?? "—" },
-    { label: "Sin actividad operativa", value: kpis?.noActivity ?? "—" },
-    { label: "GMV del mes", value: kpis ? formatMoney(kpis.monthlyGmv) : "—" },
+  const hasActivity = companyActivity.length > 0;
+  const monthlyGmv = useMemo(() => rows.reduce((total, row) => total + row.monthlyGmv, 0), [rows]);
+
+  /**
+   * Cada KPI filtra la tabla (F17). Los que dependen de la RPC de actividad se
+   * muestran "—" y no se pueden tocar mientras esa RPC no responda.
+   */
+  const kpiItems: { filter: CompanyFilter; label: string; needsActivity: boolean }[] = [
+    { filter: "new7", label: "Altas · 7 días", needsActivity: false },
+    { filter: "new30", label: "Altas · 30 días", needsActivity: false },
+    { filter: "activatedNew", label: "Nuevas activadas · 30 días", needsActivity: true },
+    { filter: "active7", label: "Activas · últimos 7 días", needsActivity: true },
+    { filter: "noActivity", label: "Sin actividad operativa", needsActivity: true },
+    { filter: "expiring", label: "Vencen en 7 días", needsActivity: false },
   ];
+
+  const resetPage = () => setCurrentPage(1);
+
+  const toggleSort = (column: (typeof SORTABLE_COLUMNS)[number]) => {
+    if (sortKey === column.key) {
+      setSortDirection((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(column.key);
+      setSortDirection(column.defaultDirection);
+    }
+    resetPage();
+  };
+
+  const activeFilterLabel = kpiItems.find((item) => item.filter === filter)?.label;
 
   return (
     <div className="w-full max-w-7xl mx-auto animate-in fade-in duration-300">
@@ -187,38 +176,87 @@ export default function AdminCompaniesPage() {
         <div>
           <h1 className="text-2xl font-bold text-on-surface">Empresas</h1>
           <p className="text-sm text-on-surface-variant mt-1">
-            {visibleCompanies.length} empresa{visibleCompanies.length === 1 ? "" : "s"} registrada
-            {visibleCompanies.length === 1 ? "" : "s"}. Seguimiento de adquisición y uso real.
+            {rows.length} empresa{rows.length === 1 ? "" : "s"} registrada
+            {rows.length === 1 ? "" : "s"}. Seguimiento de adquisición y uso real.
           </p>
         </div>
         <input
-          type="text"
+          type="search"
           value={query}
-          onChange={(event) => setQuery(event.target.value)}
+          aria-label="Buscar empresas"
+          onChange={(event) => {
+            setQuery(event.target.value);
+            resetPage();
+          }}
           placeholder="Buscar por empresa, correo o tipo…"
-          className="bg-surface-container border border-outline-variant/20 rounded-full py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50 w-full sm:w-80"
+          className="bg-surface-container border border-outline-variant/40 rounded-full py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary-ink focus:ring-1 focus:ring-primary-ink transition-all placeholder:text-on-surface-variant/80 w-full sm:w-80"
         />
       </div>
 
       {error && <div className="mb-4"><CollectionError message={error} onRetry={fetchCompanies} /></div>}
       {companyActivityError && (
-        <div className="rounded-xl bg-amber-500/10 border border-amber-500/25 px-4 py-3 text-sm text-amber-700 dark:text-amber-300 mb-4">
+        <div className="rounded-xl bg-warning/10 border border-warning/25 px-4 py-3 text-sm text-warning mb-4">
           {companyActivityError}
         </div>
       )}
 
-      <section aria-label="Indicadores de empresas" className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 mb-6">
-        {kpiItems.map((item) => (
-          <div key={item.label} className="rounded-2xl bg-surface-container-lowest border border-outline-variant/10 p-4 shadow-sm">
-            <p className="text-xs text-on-surface-variant min-h-8">{item.label}</p>
-            <p className="text-xl font-bold text-on-surface tabular-nums mt-1">{item.value}</p>
-          </div>
-        ))}
+      <section aria-label="Indicadores de empresas (tocar uno filtra la tabla)" className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-7 gap-3 mb-4">
+        {kpiItems.map((item) => {
+          const disabled = item.needsActivity && !hasActivity;
+          const active = filter === item.filter;
+          const value = disabled ? "—" : countCompanies(rows, item.filter, now);
+          return (
+            <button
+              key={item.filter}
+              type="button"
+              disabled={disabled}
+              aria-pressed={active}
+              onClick={() => {
+                setFilter(active ? "all" : item.filter);
+                resetPage();
+              }}
+              className={`text-left rounded-2xl border p-4 shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-ink disabled:cursor-not-allowed ${
+                active
+                  ? "bg-primary/10 border-primary-ink/50"
+                  : "bg-surface-container-lowest border-outline-variant/40 hover:bg-surface-container-low"
+              }`}
+            >
+              <span className="block text-xs text-on-surface-variant min-h-8">{item.label}</span>
+              <span className={`block text-xl font-bold tabular-nums mt-1 ${active ? "text-primary-ink" : "text-on-surface"}`}>
+                {value}
+              </span>
+            </button>
+          );
+        })}
+        {/* El GMV no es un subconjunto de empresas: informa, no filtra. */}
+        <div className="rounded-2xl bg-surface-container-lowest border border-outline-variant/40 p-4 shadow-sm">
+          <p className="text-xs text-on-surface-variant min-h-8">GMV de inquilinos · mes</p>
+          <p className="text-xl font-bold text-on-surface tabular-nums mt-1 break-words">{formatMoney(monthlyGmv)}</p>
+        </div>
       </section>
+
+      {filter !== "all" && (
+        <div className="mb-4 flex flex-wrap items-center gap-2 text-sm text-on-surface-variant">
+          <span>
+            Filtrando por <strong className="text-on-surface">{activeFilterLabel}</strong> · {filtered.length} empresa
+            {filtered.length === 1 ? "" : "s"}
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              setFilter("all");
+              resetPage();
+            }}
+            className="rounded-lg px-2 py-1 font-semibold text-primary-ink hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-ink"
+          >
+            Quitar filtro
+          </button>
+        </div>
+      )}
 
       {loading && companies.length === 0 ? (
         <CollectionLoading label="Cargando empresas…" />
-      ) : visibleCompanies.length === 0 ? (
+      ) : rows.length === 0 ? (
         <CollectionEmpty
           icon={<IconUsers className="h-8 w-8" />}
           title="Aún no hay empresas"
@@ -227,20 +265,61 @@ export default function AdminCompaniesPage() {
       ) : filtered.length === 0 ? (
         <CollectionFilteredEmpty
           title="Ninguna empresa coincide con la búsqueda"
-          action={{ label: "Limpiar búsqueda", onClick: () => setQuery("") }}
+          action={{
+            label: "Limpiar filtros",
+            onClick: () => {
+              setQuery("");
+              setFilter("all");
+              resetPage();
+            },
+          }}
         />
       ) : (
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-          {filtered.map((company) => (
-            <CompanyCard
-              key={company.user_id}
-              company={company}
-              activity={activityByCompany.get(company.user_id) ?? null}
-              onManage={() => setEditing(company)}
-              onGrant={() => setGrantingId(company.user_id)}
-            />
-          ))}
-        </div>
+        <>
+          <div className="bg-surface-container-lowest border border-outline-variant/40 rounded-2xl shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[960px] text-sm">
+                <caption className="sr-only">Empresas registradas. Las columnas con botón se pueden ordenar.</caption>
+                <thead>
+                  <tr className="border-b border-outline-variant/40 text-left text-xs text-on-surface-variant">
+                    {SORTABLE_COLUMNS.slice(0, 2).map((column) => (
+                      <SortableHeader key={column.key} column={column} sortKey={sortKey} sortDirection={sortDirection} onSort={toggleSort} />
+                    ))}
+                    <th scope="col" className="px-3 py-3 font-semibold">Etapa</th>
+                    {SORTABLE_COLUMNS.slice(2).map((column) => (
+                      <SortableHeader key={column.key} column={column} sortKey={sortKey} sortDirection={sortDirection} onSort={toggleSort} />
+                    ))}
+                    <th scope="col" className="px-3 py-3"><span className="sr-only">Acciones</span></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pageRows.map((row) => (
+                    <CompanyTableRow
+                      key={row.company.user_id}
+                      row={row}
+                      now={now}
+                      onManage={() => setEditing(row.company)}
+                      onGrant={() => setGrantingId(row.company.user_id)}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <Pagination
+            currentPage={safeCurrentPage}
+            totalPages={totalPages}
+            totalItems={filtered.length}
+            pageSize={pageSize}
+            pageSizeOptions={[25, 50, 100]}
+            className="mt-3 rounded-2xl border border-outline-variant/40 shadow-sm"
+            onPageChange={setCurrentPage}
+            onPageSizeChange={(size) => {
+              setPageSize(size);
+              resetPage();
+            }}
+          />
+        </>
       )}
 
       {editing && <ManagePlanModal company={editing} plans={plans} onClose={() => setEditing(null)} />}
@@ -249,131 +328,134 @@ export default function AdminCompaniesPage() {
   );
 }
 
-function CompanyCard({
-  company,
-  activity,
+function SortableHeader({
+  column,
+  sortKey,
+  sortDirection,
+  onSort,
+}: {
+  column: (typeof SORTABLE_COLUMNS)[number];
+  sortKey: CompanySortKey;
+  sortDirection: SortDirection;
+  onSort: (column: (typeof SORTABLE_COLUMNS)[number]) => void;
+}) {
+  const active = sortKey === column.key;
+  return (
+    <th
+      scope="col"
+      aria-sort={active ? (sortDirection === "asc" ? "ascending" : "descending") : "none"}
+      className={`px-3 py-2 font-semibold ${column.align === "right" ? "text-right" : ""}`}
+    >
+      <button
+        type="button"
+        onClick={() => onSort(column)}
+        className={`inline-flex items-center gap-1 rounded-lg px-1 py-1 -mx-1 hover:text-on-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-ink ${
+          active ? "text-on-surface" : ""
+        }`}
+      >
+        {column.label}
+        <span aria-hidden="true" className={active ? "text-primary-ink" : "opacity-60"}>
+          {active ? (sortDirection === "asc" ? "↑" : "↓") : "↕"}
+        </span>
+      </button>
+    </th>
+  );
+}
+
+function CompanyTableRow({
+  row,
+  now,
   onManage,
   onGrant,
 }: {
-  company: AdminCompany;
-  activity: AdminCompanyActivity | null;
+  row: CompanyRow;
+  now: number;
   onManage: () => void;
   onGrant: () => void;
 }) {
+  const { company, activity } = row;
   const accent = planAccent(company.plan_id);
-  const registeredAt = activity?.registered_at ?? company.created_at;
-  const isNew = isWithinDays(registeredAt, 7);
+  const isNew = isWithinDays(row.registeredAt, 7, now);
   const stage = activity ? ACTIVATION_LABELS[activity.activation_stage] : "Información pendiente";
-  const monthlyGmv = activity ? Number(activity.monthly_gmv) : company.monthly_sales;
-
-  const counts = [
-    { label: "Clientes", value: activity?.customers_count ?? "—" },
-    { label: "Productos", value: activity?.products_count ?? "—" },
-    { label: "Servicios", value: activity?.services_count ?? "—" },
-    { label: "Colaboradores", value: activity?.staff_count ?? company.staff_count },
-  ];
+  const counts = activity
+    ? `${activity.customers_count} clientes · ${activity.products_count} productos · ${activity.services_count} servicios · ${activity.staff_count} colaboradores`
+    : `${company.staff_count} colaboradores`;
 
   return (
-    <article className="bg-surface-container-lowest border border-outline-variant/10 rounded-3xl p-5 shadow-sm">
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <h2 className="font-bold text-on-surface truncate">
-              {company.business_name || company.full_name || "Sin nombre"}
-            </h2>
-            {isNew && (
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/15 text-primary">NUEVA</span>
-            )}
-            {company.is_super_admin && (
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/15 text-primary">ADMIN</span>
-            )}
-            {company.is_reseller && (
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400">REVENDEDOR</span>
-            )}
-          </div>
-          <p className="text-xs text-on-surface-variant truncate mt-0.5">{company.email}</p>
-          <p className="text-xs text-on-surface font-medium mt-1">{businessTypeLabel(activity?.business_type)}</p>
-          {company.reseller_name && (
-            <p className="text-[11px] text-on-surface-variant mt-0.5">Cliente de: {company.reseller_name}</p>
+    <tr className="border-b border-outline-variant/20 last:border-0 align-top hover:bg-surface-container-low/60">
+      <td className="px-3 py-3 max-w-[260px]">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="font-semibold text-on-surface truncate">{row.name}</span>
+          {isNew && (
+            <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-full bg-primary/15 text-primary-ink">Nueva</span>
+          )}
+          {company.is_super_admin && (
+            <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-full bg-primary/15 text-primary-ink">Admin</span>
+          )}
+          {company.is_reseller && (
+            <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-full bg-warning/15 text-warning">Revendedor</span>
           )}
         </div>
-        <div className="shrink-0 text-right">
-          <span className={`inline-block text-xs font-bold px-2.5 py-1 rounded-full ring-1 ${accent.bg} ${accent.text} ${accent.ring}`}>
-            {company.plan_name ?? company.plan_id}
-          </span>
-          <p className="text-[11px] text-on-surface-variant mt-1">
-            {SUBSCRIPTION_STATUS_LABELS[company.status] ?? company.status}
-          </p>
-        </div>
-      </div>
-
-      <div className="mt-4 flex flex-wrap items-center gap-2">
-        <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-surface-container-high text-on-surface">
-          {stage}
+        <span className="block text-xs text-on-surface-variant truncate">{company.email}</span>
+        <span className="block text-xs text-on-surface-variant">
+          {businessTypeLabel(activity?.business_type)}
+          {company.reseller_name ? ` · Cliente de ${company.reseller_name}` : ""}
+        </span>
+      </td>
+      <td className="px-3 py-3">
+        <span className={`inline-block text-xs font-bold px-2 py-0.5 rounded-full ring-1 ${accent.bg} ${accent.text} ${accent.ring}`}>
+          {company.plan_name ?? company.plan_id}
+        </span>
+        <span className="block text-[11px] text-on-surface-variant mt-1">
+          {SUBSCRIPTION_STATUS_LABELS[company.status] ?? company.status}
         </span>
         {company.license_status && (
-          <span className={`text-[11px] font-bold px-2 py-1 rounded-full ring-1 ${licenseAccent(company.license_status).bg} ${licenseAccent(company.license_status).text} ${licenseAccent(company.license_status).ring}`}>
+          <span className={`inline-block mt-1 text-[11px] font-bold px-1.5 py-0.5 rounded-full ring-1 ${licenseAccent(company.license_status).bg} ${licenseAccent(company.license_status).text} ${licenseAccent(company.license_status).ring}`}>
             Licencia: {LICENSE_STATUS_LABELS[company.license_status] ?? company.license_status}
           </span>
         )}
-      </div>
-
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4">
-        {counts.map((item) => (
-          <div key={item.label} className="rounded-xl bg-surface-container-low px-3 py-2">
-            <p className="text-[11px] text-on-surface-variant">{item.label}</p>
-            <p className="text-base font-bold text-on-surface tabular-nums">{item.value}</p>
-          </div>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-4 pt-4 border-t border-outline-variant/10 text-xs">
-        <div>
-          <p className="text-on-surface-variant">Ventas del mes</p>
-          <p className="text-on-surface font-semibold tabular-nums mt-0.5">{activity?.monthly_sales_count ?? "—"}</p>
-        </div>
-        <div>
-          <p className="text-on-surface-variant">GMV del mes</p>
-          <p className="text-on-surface font-semibold tabular-nums mt-0.5">{formatMoney(monthlyGmv)}</p>
-        </div>
-        <div>
-          <p className="text-on-surface-variant">GMV histórico</p>
-          <p className="text-on-surface font-semibold tabular-nums mt-0.5">{formatMoney(company.total_sales)}</p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4 pt-4 border-t border-outline-variant/10 text-xs">
-        <div>
-          <p className="text-on-surface-variant">Registro</p>
-          <p className="text-on-surface mt-0.5">{formatDateTime(registeredAt)}</p>
-        </div>
-        <div>
-          <p className="text-on-surface-variant">Último ingreso</p>
-          <p className="text-on-surface mt-0.5">{formatDateTime(activity?.last_sign_in_at ?? null)}</p>
-        </div>
-        <div>
-          <p className="text-on-surface-variant">Última actividad operativa</p>
-          <p className="text-on-surface mt-0.5">{formatDateTime(activity?.last_operational_activity_at ?? null)}</p>
-        </div>
-      </div>
-
-      <div className="mt-4 pt-4 border-t border-outline-variant/10 flex flex-wrap items-center justify-between gap-3">
-        <div className="text-xs">
-          <p className="text-on-surface-variant">Vencimiento</p>
-          <ExpiryCell periodEnd={company.period_end} />
-        </div>
-        <div className="flex gap-2">
+      </td>
+      <td className="px-3 py-3 max-w-[220px]">
+        <span className="block text-xs font-semibold text-on-surface">{stage}</span>
+        <span className="block text-[11px] text-on-surface-variant mt-0.5">{counts}</span>
+      </td>
+      <td className="px-3 py-3 text-right tabular-nums">
+        <span className="block font-semibold text-on-surface">{formatMoney(row.monthlyGmv)}</span>
+        <span className="block text-[11px] text-on-surface-variant">
+          {activity ? `${activity.monthly_sales_count} ventas` : "—"} · hist. {formatMoney(company.total_sales)}
+        </span>
+      </td>
+      <td className="px-3 py-3 text-xs text-on-surface whitespace-nowrap">{formatShortDate(row.registeredAt)}</td>
+      <td className="px-3 py-3 text-xs whitespace-nowrap">
+        <span className="block text-on-surface">{formatShortDate(row.lastActivityAt)}</span>
+        <span className="block text-[11px] text-on-surface-variant">
+          Ingreso: {formatShortDate(activity?.last_sign_in_at ?? null)}
+        </span>
+      </td>
+      <td className="px-3 py-3 text-xs whitespace-nowrap">
+        <ExpiryCell periodEnd={company.period_end} />
+      </td>
+      <td className="px-3 py-3">
+        <div className="flex justify-end gap-2">
           {company.is_reseller && (
-            <button onClick={onGrant} className="h-10 px-4 rounded-xl border border-amber-500/40 text-amber-600 dark:text-amber-400 text-sm font-semibold hover:bg-amber-500/10 transition-colors">
+            <button
+              type="button"
+              onClick={onGrant}
+              className="h-9 px-3 rounded-xl border border-warning/40 text-warning text-xs font-semibold hover:bg-warning/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-ink"
+            >
               Créditos
             </button>
           )}
-          <button onClick={onManage} className="h-10 px-4 rounded-xl bg-primary text-on-primary text-sm font-bold hover:opacity-90 transition-opacity">
+          <button
+            type="button"
+            onClick={onManage}
+            className="h-9 px-3 rounded-xl bg-primary text-on-primary text-xs font-bold hover:bg-primary-dim transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-ink focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+          >
             Gestionar
           </button>
         </div>
-      </div>
-    </article>
+      </td>
+    </tr>
   );
 }
 
@@ -563,7 +645,7 @@ function ManagePlanModal({
               )}
 
               {option === "none" && !company.period_end && (
-                <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
+                <p className="text-xs text-warning mt-2">
                   Sin meses, el plan {selectedPlan?.name} queda activo sin fecha de
                   vencimiento. Elige cuántos meses le asignas.
                 </p>
@@ -582,7 +664,7 @@ function ManagePlanModal({
           <button
             onClick={handleSave}
             disabled={submitting}
-            className="py-2.5 px-5 rounded-xl bg-[#6063ee] text-white hover:bg-[#c0c1ff] hover:text-[#0b0664] text-sm font-bold shadow-lg shadow-[#6063ee]/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="py-2.5 px-5 rounded-xl bg-primary text-on-primary hover:bg-primary-dim text-sm font-bold shadow-lg shadow-primary/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {submitting
               ? "Guardando…"

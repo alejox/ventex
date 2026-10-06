@@ -4,7 +4,7 @@ test("landing keeps its video optional and usable with reduced motion", async ({
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");
 
-  await expect(page.getByRole("heading", { name: "Tu negocio, a tu manera." })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: /Cobra, agenda y controla tu inventario/ })).toBeVisible();
   await expect(page.locator("video")).toHaveCount(0);
   const play = page.getByRole("button", { name: "Reproducir video de fondo" });
   await expect(play).toBeVisible();
@@ -32,7 +32,7 @@ test("landing falls back to the poster when video loading fails", async ({ page 
   failVideo = false;
   await page.getByRole("button", { name: "Reintentar video de fondo" }).click();
   await expect(page.locator('video source[src="/landing/hero.mp4"]')).toHaveCount(1);
-  await expect(page.getByRole("heading", { name: "Tu negocio, a tu manera." })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: /Cobra, agenda y controla tu inventario/ })).toBeVisible();
 });
 
 test("mobile landing navigation and availability labels remain reachable", async ({ page }) => {

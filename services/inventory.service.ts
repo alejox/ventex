@@ -1,11 +1,16 @@
 import { createClient } from "@/utils/supabase/client";
+import type { TablesUpdate } from "@/utils/supabase/database.types";
 import { getSelectedWorkspaceId } from "@/services/workspace.service";
 import { toWebp, verificarPeso } from "@/lib/image";
+import { runInBatches, errorMessage as importErrorMessage, type ImportResult } from "@/lib/import/core";
+import type { ProductImportRecord } from "@/lib/import/products";
 
 // ---- Tipos del dominio de inventario ----
 export interface DistributorBrief {
   id: string;
   business_name: string;
+  /** "inactive" = archivado: no se ofrece para asociar productos nuevos. */
+  status?: string | null;
 }
 export interface Category {
   id: string;
@@ -334,7 +339,7 @@ export async function attachCosts<T extends { id: string; purchase_price?: numbe
 
 const PRODUCT_IMAGES_BUCKET = "product-images";
 
-const DISTRIBUTOR_SELECT = "id, business_name";
+const DISTRIBUTOR_SELECT = "id, business_name, status";
 
 /**
  * Sube una imagen de producto al bucket de Storage bajo la carpeta del usuario
@@ -484,7 +489,8 @@ export async function createProduct(input: NewProductInput): Promise<Product> {
   const { data, error } = await supabase
     .from("products")
     .insert({
-      name: input.name.trim().toUpperCase(),
+      // Tal como lo escribieron (D20): "Gaseosa Postobón" no es "GASEOSA POSTOBÓN".
+      name: input.name.trim(),
       category_id: input.category_id || null,
       distributor_id: input.distributor_id || null,
       sku: normalizeSku(input.sku),
@@ -541,7 +547,8 @@ export async function updateProduct(id: string, input: NewProductInput): Promise
   const { data, error } = await supabase
     .from("products")
     .update({
-      name: input.name.trim().toUpperCase(),
+      // Tal como lo escribieron (D20): "Gaseosa Postobón" no es "GASEOSA POSTOBÓN".
+      name: input.name.trim(),
       category_id: input.category_id || null,
       distributor_id: input.distributor_id || null,
       sku: normalizeSku(input.sku),
@@ -609,4 +616,129 @@ export async function deleteCategory(id: string): Promise<void> {
     .delete()
     .eq("id", id);
   if (error) throw error;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Importación masiva                                                         */
+/* -------------------------------------------------------------------------- */
+
+/** Una fila de la vista previa ya aprobada: el registro y su línea del archivo. */
+export interface ProductImportItem {
+  line: number;
+  record: ProductImportRecord;
+  /** Producto existente que se actualiza (sin esto, se crea). */
+  existingId?: string;
+}
+
+const IMPORT_BATCH = 100;
+
+/**
+ * Importa productos: crea las categorías que falten, inserta los nuevos por
+ * lotes y actualiza los existentes de a uno (cada uno con SOLO las columnas que
+ * el archivo trajo: una celda vacía no borra el dato guardado).
+ *
+ * Sin `user_id`: el DEFAULT de la columna lo resuelve con
+ * `get_effective_user_id()`, así que lo que importa un empleado queda en el
+ * negocio del dueño, igual que cualquier alta a mano. El stock de un producto
+ * existente NO se toca (ver `updateProduct`): se mueve por Movimientos.
+ */
+export async function importProducts(
+  items: ProductImportItem[],
+  ctx: { categories: Category[]; distributors: DistributorBrief[] },
+  onProgress?: (done: number, total: number) => void,
+): Promise<ImportResult> {
+  const supabase = createClient();
+  const failed: ImportResult["failed"] = [];
+
+  // 1. Categorías: las que faltan se crean una vez, antes de los productos.
+  const categoryIds = new Map(ctx.categories.map((c) => [normalizeCategoryName(c.name), c.id]));
+  const missingCategories = [
+    ...new Set(
+      items
+        .map((i) => i.record.categoryName)
+        .filter((n): n is string => !!n)
+        .map(normalizeCategoryName)
+        .filter((n) => !categoryIds.has(n)),
+    ),
+  ];
+  for (const name of missingCategories) {
+    try {
+      const created = await createCategory({ name, description: "" });
+      categoryIds.set(created.name, created.id);
+    } catch {
+      // Otra persona pudo crearla en el medio: se relee y se sigue.
+      const { data } = await supabase.from("categories").select("id, name").ilike("name", name).maybeSingle();
+      if (data) categoryIds.set(normalizeCategoryName(data.name), data.id);
+    }
+  }
+  const categoryIdOf = (name: string | null) => (name ? categoryIds.get(normalizeCategoryName(name)) ?? null : null);
+
+  const distributorIds = new Map(
+    ctx.distributors.map((d) => [d.business_name.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().trim(), d.id]),
+  );
+  const distributorIdOf = (name: string | null) =>
+    name ? distributorIds.get(name.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().trim()) ?? null : null;
+
+  const creates = items.filter((i) => !i.existingId);
+  const updates = items.filter((i) => i.existingId);
+  const total = items.length;
+  let done = 0;
+
+  // 2. Altas, por lotes.
+  const insertRowOf = (item: ProductImportItem) => {
+    const r = item.record;
+    const tracks = r.tracksStock !== false;
+    return {
+      name: r.name,
+      price: r.price,
+      sku: r.sku ? normalizeSku(r.sku) : generateSku(),
+      barcode: normalizeBarcode(r.barcode ?? undefined),
+      unit: r.unit ?? "Unidad",
+      category_id: categoryIdOf(r.categoryName),
+      distributor_id: distributorIdOf(r.distributorName),
+      ...(r.cost !== null ? { purchase_price: r.cost } : {}),
+      stock_level: tracks ? r.stock ?? 0 : 0,
+      ...(tracks ? (r.minimumStock !== null ? { minimum_stock: r.minimumStock } : {}) : { minimum_stock: 0 }),
+      tracks_stock: tracks,
+      open_price: false,
+      has_commission: false,
+      units_per_package: 1,
+    };
+  };
+  const inserted = await runInBatches(
+    creates,
+    IMPORT_BATCH,
+    async (batch) => {
+      const { error } = await supabase.from("products").insert(batch.map(insertRowOf));
+      if (error) throw error;
+    },
+    async (item) => {
+      const { error } = await supabase.from("products").insert(insertRowOf(item));
+      if (error) throw error;
+    },
+    (n) => onProgress?.((done = n), total),
+  );
+  failed.push(...inserted.failed);
+
+  // 3. Actualizaciones: solo lo que el archivo trajo.
+  let updated = 0;
+  for (const item of updates) {
+    const r = item.record;
+    const patch: TablesUpdate<"products"> = { name: r.name, price: r.price };
+    if (r.sku) patch.sku = normalizeSku(r.sku);
+    if (r.barcode) patch.barcode = normalizeBarcode(r.barcode);
+    if (r.unit) patch.unit = r.unit;
+    if (r.categoryName) patch.category_id = categoryIdOf(r.categoryName);
+    const distributorId = distributorIdOf(r.distributorName);
+    if (distributorId) patch.distributor_id = distributorId;
+    if (r.cost !== null) patch.purchase_price = r.cost;
+    if (r.minimumStock !== null) patch.minimum_stock = r.minimumStock;
+    if (r.tracksStock !== null) patch.tracks_stock = r.tracksStock;
+    const { error } = await supabase.from("products").update(patch).eq("id", item.existingId!);
+    if (error) failed.push({ line: item.line, message: importErrorMessage(error) });
+    else updated++;
+    onProgress?.(++done, total);
+  }
+
+  return { created: inserted.ok, updated, skipped: 0, failed: failed.sort((a, b) => a.line - b.line) };
 }

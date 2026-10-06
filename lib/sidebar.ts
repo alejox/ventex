@@ -17,7 +17,11 @@ export const SIDEBAR_COOKIE = "sidebar_collapsed";
 /** Un año: es una preferencia de interfaz, no una sesión. */
 export const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 
-/** Sin cookie, el menú arranca plegado (el default histórico del shell). */
+/**
+ * Sin cookie, el menú arranca EXPANDIDO (A24): quien entra por primera vez
+ * necesita leer los nombres de las secciones, no adivinar trece iconos. Plegarlo
+ * es una preferencia que se gana con el uso y queda guardada en la cookie.
+ */
 export function parseSidebarCollapsed(value: string | undefined): boolean {
-  return value === undefined ? true : value === "true";
+  return value === "true";
 }

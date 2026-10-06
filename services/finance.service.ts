@@ -257,7 +257,10 @@ const isMissingRpc = (error: { code?: string; message?: string }) =>
  * lo tiene todavía, cae a la ruta paginada de siempre (`fetchOverviewPaged`),
  * que es correcta pero descarga TODO el historial.
  */
-export async function fetchOverview(): Promise<FinanceOverview> {
+export async function fetchOverview(
+  range: IsoRange = ALL_TIME,
+  months: number = MONTHS,
+): Promise<FinanceOverview> {
   if (!financeRpcMissing) {
     const supabase = createClient();
     const rpc = supabase.rpc as unknown as (
@@ -267,23 +270,28 @@ export async function fetchOverview(): Promise<FinanceOverview> {
     const { data, error } = await rpc.call(supabase, "finance_overview", {
       // El mes y el día se cortan en la zona del negocio, que es la del
       // dispositivo que mira el panel (mismo criterio que el resto de la app).
-      p_tz: Intl.DateTimeFormat().resolvedOptions().timeZone || "America/Bogota",
-      p_months: MONTHS,
+      p_tz: browserTimeZone(),
+      p_months: months,
+      // `to` es EXCLUSIVO, igual que en el RPC.
+      p_from: range.from ?? null,
+      p_to: range.to ?? null,
     });
-    if (!error) return overviewFromRpc((data ?? {}) as FinanceOverviewRpc);
+    if (!error) return overviewFromRpc((data ?? {}) as FinanceOverviewRpc, lastMonths(months));
     if (!isMissingRpc(error)) throw error;
     financeRpcMissing = true;
   }
-  return fetchOverviewPaged();
+  return fetchOverviewPaged(range, months);
 }
 
 /** Ruta de respaldo: trae las filas y agrega en el navegador. */
-async function fetchOverviewPaged(): Promise<FinanceOverview> {
+async function fetchOverviewPaged(range: IsoRange, monthCount: number): Promise<FinanceOverview> {
   const supabase = createClient();
+  const inInstant = instantFilter(range);
+  const inDay = dayFilter(range);
   // Las tres consultas se paginan (fetchAllRows): sin eso PostgREST devolvía
   // las primeras 1.000 filas y los KPIs del panel salían por debajo de lo real.
   // El `id` desempata el orden para que ninguna fila caiga entre dos páginas.
-  const [sales, expenses, paidInvoices] = await Promise.all([
+  const [allSales, allExpenses, allPaidInvoices] = await Promise.all([
     fetchAllRows((from, to) =>
       supabase
         .from("sales")
@@ -324,6 +332,12 @@ async function fetchOverviewPaged(): Promise<FinanceOverview> {
     ),
   ]);
 
+  // El período se aplica acá y no en la consulta: es la ruta de respaldo (la
+  // base sin el RPC) y así las tres consultas siguen siendo las de siempre.
+  const sales = allSales.filter((s) => inInstant(s.created_at));
+  const expenses = allExpenses.filter((e) => inDay(e.expense_date));
+  const paidInvoices = allPaidInvoices.filter((i) => inDay(i.issue_date));
+
   // Facturas de VENTA pagadas: ingreso. Las pendientes ya quedaron afuera por
   // el filtro de status; las cotizaciones, aunque digan "Pagada", no cuentan.
   const salesInvoices = paidInvoices.filter((i) => invoiceRole(i.type) === "income");
@@ -339,7 +353,7 @@ async function fetchOverviewPaged(): Promise<FinanceOverview> {
     expenses.reduce((sum, e) => sum + e.amount, 0) +
     purchases.reduce((sum, i) => sum + i.total, 0);
 
-  const months = lastMonths(MONTHS);
+  const months = lastMonths(monthCount);
   const buckets = new Map(months.map((m) => [m.key, { ...m, income: 0, expense: 0 }]));
   for (const s of completed) {
     const b = buckets.get(monthKeyOfInstant(s.created_at));
@@ -466,4 +480,456 @@ export async function createExpense(input: NewExpenseInput): Promise<Expense> {
     .single();
   if (error) throw error;
   return data as Expense;
+}
+
+// ---------------------------------------------------------------------------
+// Período del panel (F2): selector, rango y comparación contra el anterior.
+// Todo lo de esta sección es puro salvo las funciones `fetch*`.
+// ---------------------------------------------------------------------------
+
+/** Rango en ISO (instantes). `to` es EXCLUSIVO, igual que en los RPC. */
+export interface IsoRange {
+  from: string | null;
+  to: string | null;
+}
+
+export const ALL_TIME: IsoRange = { from: null, to: null };
+
+/** Zona del negocio: la del dispositivo que mira (mismo criterio que el resto). */
+export function browserTimeZone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "America/Bogota";
+  } catch {
+    return "America/Bogota";
+  }
+}
+
+/** ¿Este instante cae en el rango? (para `timestamptz`) */
+function instantFilter(range: IsoRange) {
+  const from = range.from ? new Date(range.from).getTime() : -Infinity;
+  const to = range.to ? new Date(range.to).getTime() : Infinity;
+  return (iso: string) => {
+    const t = new Date(iso).getTime();
+    return t >= from && t < to;
+  };
+}
+
+/** ¿Este día de calendario cae en el rango? (para columnas `date`) */
+function dayFilter(range: IsoRange) {
+  const from = range.from ? toISODate(new Date(range.from)) : null;
+  const to = range.to ? toISODate(new Date(range.to)) : null;
+  return (day: string) => (!from || day >= from) && (!to || day < to);
+}
+
+export type HomePeriodId = "today" | "last7" | "month" | "lastMonth" | "custom";
+
+export const HOME_PERIODS: { id: HomePeriodId; label: string }[] = [
+  { id: "today", label: "Hoy" },
+  { id: "last7", label: "7 días" },
+  { id: "month", label: "Este mes" },
+  { id: "lastMonth", label: "Mes pasado" },
+  { id: "custom", label: "Personalizado" },
+];
+
+/** Rango de calendario LOCAL: medianoches del negocio, `to` exclusivo. */
+export interface LocalRange {
+  from: Date;
+  to: Date;
+}
+
+const midnight = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+const plusDays = (d: Date, n: number) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+const daysBetween = (a: Date, b: Date) =>
+  Math.round((midnight(b).getTime() - midnight(a).getTime()) / 86_400_000);
+
+/** "YYYY-MM-DD" → medianoche local de ese día. */
+function localDay(iso: string): Date {
+  const [y, m, d] = iso.slice(0, 10).split("-").map(Number);
+  return new Date(y, (m ?? 1) - 1, d ?? 1);
+}
+
+/**
+ * Rango del período elegido.
+ *
+ * "Este mes" corta en MAÑANA y no en el primero del mes siguiente: los datos
+ * son los mismos (el futuro no tiene ventas), pero así el rango dice cuántos
+ * días van, que es lo que necesita la comparación para ser justa.
+ *
+ * "Personalizado" sin las dos fechas devuelve null: no hay nada que pedir.
+ */
+export function homePeriodRange(
+  id: HomePeriodId,
+  now: Date = new Date(),
+  customFrom = "",
+  customTo = "",
+): LocalRange | null {
+  const today = midnight(now);
+  switch (id) {
+    case "today":
+      return { from: today, to: plusDays(today, 1) };
+    case "last7":
+      return { from: plusDays(today, -6), to: plusDays(today, 1) };
+    case "month":
+      return { from: new Date(today.getFullYear(), today.getMonth(), 1), to: plusDays(today, 1) };
+    case "lastMonth":
+      return {
+        from: new Date(today.getFullYear(), today.getMonth() - 1, 1),
+        to: new Date(today.getFullYear(), today.getMonth(), 1),
+      };
+    case "custom": {
+      if (!customFrom || !customTo) return null;
+      const a = localDay(customFrom);
+      const b = localDay(customTo);
+      const [from, to] = a <= b ? [a, b] : [b, a];
+      return { from, to: plusDays(to, 1) };
+    }
+  }
+}
+
+/**
+ * El período contra el que se compara.
+ *
+ * - Hoy, 7 días y Personalizado: el tramo del MISMO largo inmediatamente antes
+ *   (hoy contra ayer, la semana contra la anterior).
+ * - Este mes y Mes pasado: el mes anterior, con los MISMOS días transcurridos.
+ *   Comparar del 1 al 6 de octubre contra septiembre entero daría "▼ 80 %"
+ *   todos los principios de mes, y es mentira.
+ */
+export function previousPeriod(id: HomePeriodId, range: LocalRange): LocalRange {
+  const span = daysBetween(range.from, range.to);
+  if (id === "lastMonth") {
+    // Un mes completo se compara con el mes completo anterior, sea del largo que sea.
+    return { from: new Date(range.from.getFullYear(), range.from.getMonth() - 1, 1), to: range.from };
+  }
+  if (id === "month") {
+    const from = new Date(range.from.getFullYear(), range.from.getMonth() - 1, 1);
+    const sameSpan = plusDays(from, span);
+    // Un mes más corto (marzo contra febrero) no puede invadir el actual.
+    const to = sameSpan < range.from ? sameSpan : range.from;
+    return { from, to };
+  }
+  return { from: plusDays(range.from, -span), to: range.from };
+}
+
+/** Rango local → ISO para los RPC. */
+export function toIsoRange(range: LocalRange): IsoRange {
+  return { from: range.from.toISOString(), to: range.to.toISOString() };
+}
+
+/** Cómo se nombra un rango: "6 oct", "1–6 sep", "28 sep – 4 oct", "sep 2026". */
+export function rangeLabel(range: LocalRange): string {
+  const last = plusDays(range.to, -1);
+  const span = daysBetween(range.from, range.to);
+  const month = (d: Date) => d.toLocaleDateString("es-CO", { month: "short" }).replace(".", "");
+  const isWholeMonth =
+    range.from.getDate() === 1 &&
+    range.to.getDate() === 1 &&
+    span >= 28 &&
+    span <= 31;
+  if (isWholeMonth) return `${month(range.from)} ${range.from.getFullYear()}`;
+  if (span === 1) return `${range.from.getDate()} ${month(range.from)}`;
+  if (range.from.getMonth() === last.getMonth() && range.from.getFullYear() === last.getFullYear()) {
+    return `${range.from.getDate()}–${last.getDate()} ${month(last)}`;
+  }
+  return `${range.from.getDate()} ${month(range.from)} – ${last.getDate()} ${month(last)}`;
+}
+
+/**
+ * Variación relativa contra el período anterior. null cuando el anterior es
+ * cero: "▲ ∞ %" no informa nada, y "▲ 100 %" sería inventado.
+ */
+export function pctChange(current: number, previous: number): number | null {
+  if (!Number.isFinite(current) || !Number.isFinite(previous) || previous === 0) return null;
+  return (current - previous) / Math.abs(previous);
+}
+
+/** "▲ 12 %", "▼ 3,5 %", "= 0 %". Una cifra decimal solo debajo de 10 %. */
+export function formatChange(pct: number): string {
+  const abs = Math.abs(pct * 100);
+  const rounded = abs < 10 ? Math.round(abs * 10) / 10 : Math.round(abs);
+  if (rounded === 0) return "= 0 %";
+  const text = rounded.toLocaleString("es-CO", { maximumFractionDigits: 1 });
+  return `${pct > 0 ? "▲" : "▼"} ${text} %`;
+}
+
+export type ChangeTone = "good" | "bad" | "neutral";
+
+/** Subir es bueno en ingresos y flujo, y malo en egresos. */
+export function changeTone(pct: number | null, higherIsBetter: boolean): ChangeTone {
+  if (pct === null || Math.abs(pct) < 0.0005) return "neutral";
+  return pct > 0 === higherIsBetter ? "good" : "bad";
+}
+
+/** Variaciones de los KPIs del período contra el anterior. */
+export interface PeriodComparison {
+  revenue: number | null;
+  expenses: number | null;
+  net: number | null;
+  salesCount: number | null;
+}
+
+export function comparePeriods(current: FinanceOverview, previous: FinanceOverview): PeriodComparison {
+  return {
+    revenue: pctChange(current.revenue, previous.revenue),
+    expenses: pctChange(current.expenses, previous.expenses),
+    net: pctChange(current.net, previous.net),
+    salesCount: pctChange(current.salesCount, previous.salesCount),
+  };
+}
+
+/** Primer día del mes `n - 1` meses atrás: el arranque del gráfico de `n` meses. */
+export function chartStart(n: number = MONTHS, now: Date = new Date()): Date {
+  return new Date(now.getFullYear(), now.getMonth() - (n - 1), 1);
+}
+
+/**
+ * Datos del panel: el período, el anterior y los seis meses del gráfico, en
+ * paralelo. Son tres llamadas al mismo RPC, que agrega en SQL y devuelve unos
+ * cientos de bytes cada una sin importar cuántas ventas tenga el negocio.
+ */
+export async function fetchHomeOverview(
+  current: LocalRange,
+  previous: LocalRange,
+): Promise<{ current: FinanceOverview; previous: FinanceOverview; chart: FinanceOverview }> {
+  const [cur, prev, chart] = await Promise.all([
+    fetchOverview(toIsoRange(current), 1),
+    fetchOverview(toIsoRange(previous), 1),
+    fetchOverview({ from: chartStart().toISOString(), to: null }, MONTHS),
+  ]);
+  return { current: cur, previous: prev, chart };
+}
+
+// ---- Gráfico (F4) ----
+
+/** Paso "redondo" (1, 2, 2,5, 5 × 10^n) para las líneas guía del eje. */
+function niceStep(raw: number): number {
+  if (raw <= 0) return 1;
+  const exp = Math.floor(Math.log10(raw));
+  const base = 10 ** exp;
+  const f = raw / base;
+  const nice = f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10;
+  return nice * base;
+}
+
+/**
+ * Escala del gráfico: tope redondeado y marcas del eje. El tope es el primer
+ * múltiplo del paso que cubre el máximo, así las líneas guía caen en números
+ * que se leen ("$ 500 mil", no "$ 487.312").
+ */
+export function chartScale(values: number[], tickCount = 4): { max: number; ticks: number[] } {
+  const peak = Math.max(0, ...values.filter((v) => Number.isFinite(v)));
+  if (peak === 0) return { max: 1, ticks: [0] };
+  // Se prueban tres densidades de marcas y gana la de techo más bajo: con un
+  // solo paso, 487.312 terminaba en un eje hasta 600.000.
+  let step = niceStep(peak / tickCount);
+  let max = Math.ceil(peak / step - 1e-9) * step;
+  for (const n of [tickCount - 1, tickCount + 1]) {
+    if (n < 2) continue;
+    const st = niceStep(peak / n);
+    const mx = Math.ceil(peak / st - 1e-9) * st;
+    if (mx < max) {
+      step = st;
+      max = mx;
+    }
+  }
+  const ticks: number[] = [];
+  for (let i = 0; i * step <= max + step / 2; i++) ticks.push(Math.round(i * step * 100) / 100);
+  return { max, ticks };
+}
+
+/** Monto abreviado para etiquetas del gráfico: "$ 1,2 M", "$ 850 mil". */
+export function compactMoney(amount: number, currency = "COP"): string {
+  try {
+    return new Intl.NumberFormat("es-CO", {
+      style: "currency",
+      currency,
+      notation: "compact",
+      maximumFractionDigits: 1,
+    }).format(amount);
+  } catch {
+    return String(Math.round(amount));
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Pendientes de hoy (F6)
+// ---------------------------------------------------------------------------
+
+export type PendingId =
+  | "appointments"
+  | "credits"
+  | "overdueInvoices"
+  | "commissions"
+  | "openShift"
+  | "license";
+
+/**
+ * Qué pendientes aplican a esta persona. NO decide por tipo de negocio ni por
+ * módulo: recibe los ids del menú que ya calcularon `visibleNavItems` /
+ * `workerNavItems` (config/business.ts) y pregunta "¿existe la pantalla?". Así
+ * un pendiente nunca aparece en un negocio que no tiene a dónde llevarlo, y la
+ * regla de visibilidad sigue viviendo en un solo lugar.
+ */
+export function pendingChecksFor(navIds: readonly string[], isOwner: boolean): PendingId[] {
+  const has = (id: string) => navIds.includes(id);
+  const out: PendingId[] = [];
+  if (has("calendar")) out.push("appointments");
+  if (has("credits")) out.push("credits");
+  if (has("billing")) out.push("overdueInvoices");
+  // Liquidar es del dueño (el RPC revalida `is_tenant_owner()`).
+  if (isOwner && has("commissions")) out.push("commissions");
+  if (has("pos")) out.push("openShift");
+  // La licencia la paga el dueño; un trabajador no tiene nada que hacer con ella.
+  if (isOwner && has("subscription")) out.push("license");
+  return out;
+}
+
+/** Lo que devuelven las consultas: conteos, y para la licencia los DÍAS que faltan. */
+export type PendingCounts = Partial<Record<PendingId, number>>;
+
+export interface PendingItem {
+  id: PendingId;
+  count: number;
+  label: string;
+  href: string;
+  tone: "info" | "warn" | "danger";
+}
+
+/** Días antes del vencimiento en que se empieza a avisar de la licencia. */
+export const LICENSE_WARN_DAYS = 7;
+
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+/**
+ * Conteos → tarjetas. Lo que está en cero (o no se pudo consultar) no se
+ * muestra: "0 facturas vencidas" es ruido en un bloque que se llama
+ * "Pendientes". La licencia es distinta: su número son DÍAS, y solo se avisa
+ * dentro de la ventana.
+ */
+export function pendingItems(
+  checks: PendingId[],
+  counts: PendingCounts,
+  shiftHref = "/dashboard/staff",
+): PendingItem[] {
+  const out: PendingItem[] = [];
+  for (const id of checks) {
+    const n = counts[id];
+    if (n === undefined || !Number.isFinite(n)) continue;
+    switch (id) {
+      case "appointments":
+        if (n > 0) out.push({ id, count: n, label: `${plural(n, "cita", "citas")} para hoy`, href: "/dashboard/calendar", tone: "info" });
+        break;
+      case "credits":
+        if (n > 0) out.push({ id, count: n, label: `${plural(n, "cliente", "clientes")} con fiado por cobrar`, href: "/dashboard/credits", tone: "warn" });
+        break;
+      case "overdueInvoices":
+        if (n > 0) out.push({ id, count: n, label: plural(n, "factura vencida", "facturas vencidas"), href: "/dashboard/billing?filtro=vencidas", tone: "danger" });
+        break;
+      case "commissions":
+        if (n > 0) out.push({ id, count: n, label: `${plural(n, "comisión", "comisiones")} sin liquidar`, href: "/dashboard/staff/comisiones", tone: "warn" });
+        break;
+      case "openShift":
+        if (n > 0) out.push({ id, count: n, label: plural(n, "turno de caja abierto", "turnos de caja abiertos"), href: shiftHref, tone: "info" });
+        break;
+      case "license":
+        if (n <= LICENSE_WARN_DAYS) {
+          const label =
+            n < 0
+              ? `Tu plan venció hace ${plural(-n, "día", "días")}`
+              : n === 0
+                ? "Tu plan vence hoy"
+                : `Tu plan vence en ${plural(n, "día", "días")}`;
+          out.push({ id, count: n, label, href: "/dashboard/subscription", tone: n <= 2 ? "danger" : "warn" });
+        }
+        break;
+    }
+  }
+  return out;
+}
+
+/**
+ * Días de calendario entre hoy y una fecha (negativo = ya pasó). Acepta una
+ * columna `date` ("YYYY-MM-DD", sin correrla por zona) o un instante.
+ */
+export function daysFromToday(value: string, now: Date = new Date()): number {
+  const target = value.length <= 10 ? localDay(value) : midnight(new Date(value));
+  return daysBetween(midnight(now), target);
+}
+
+type CountResult = PromiseLike<{ count: number | null; error: unknown }>;
+
+/** Un conteo que falla no tumba el bloque: ese pendiente simplemente no se muestra. */
+async function safeCount(query: CountResult): Promise<number | undefined> {
+  try {
+    const { count, error } = await query;
+    return error ? undefined : (count ?? 0);
+  } catch {
+    return undefined;
+  }
+}
+
+async function licenseDaysLeft(now: Date): Promise<number | undefined> {
+  try {
+    const supabase = createClient();
+    // Una licencia de revendedor manda sobre el cobro en línea (ver AGENTS.md).
+    const [lic, sub] = await Promise.all([
+      supabase.from("client_licenses").select("period_end").maybeSingle(),
+      supabase.from("subscriptions").select("current_period_end").maybeSingle(),
+    ]);
+    const end =
+      (!lic.error && lic.data?.period_end) || (!sub.error && sub.data?.current_period_end) || null;
+    return end ? daysFromToday(end, now) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Conteos de los pendientes pedidos, todos en paralelo. Son `count` con
+ * `head: true`: la base cuenta y no devuelve ni una fila. Ninguno lanza.
+ */
+export async function fetchPendingCounts(checks: PendingId[], now: Date = new Date()): Promise<PendingCounts> {
+  const supabase = createClient();
+  const today = toISODate(now);
+  const head = { count: "exact" as const, head: true };
+
+  const tasks: Record<PendingId, () => Promise<number | undefined>> = {
+    appointments: () =>
+      safeCount(
+        supabase
+          .from("appointments")
+          .select("id", head)
+          .eq("appointment_date", today)
+          .in("status", ["pending", "confirmed"]),
+      ),
+    credits: () => safeCount(supabase.from("customers").select("id", head).gt("credit_balance", 0)),
+    overdueInvoices: () =>
+      safeCount(
+        supabase
+          .from("invoices")
+          .select("id", head)
+          .eq("type", "factura")
+          .eq("status", "pending")
+          .lt("due_date", today),
+      ),
+    commissions: () =>
+      safeCount(
+        supabase
+          .from("sale_items")
+          .select("id, sales!inner(status)", head)
+          .gt("commission_amount", 0)
+          .is("commission_settlement_id", null)
+          .eq("sales.status", "completed"),
+      ),
+    openShift: () => safeCount(supabase.from("shifts").select("id", head).eq("status", "open")),
+    license: () => licenseDaysLeft(now),
+  };
+
+  const values = await Promise.all(checks.map((id) => tasks[id]()));
+  const out: PendingCounts = {};
+  checks.forEach((id, i) => {
+    const v = values[i];
+    if (v !== undefined) out[id] = v;
+  });
+  return out;
 }

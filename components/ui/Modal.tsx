@@ -244,7 +244,7 @@ function OpenModal({
               type="button"
               aria-label="Cerrar"
               onClick={() => onCloseRef.current()}
-              className="-mr-2 -mt-2 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              className="-mr-2 -mt-2 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-ink"
             >
               <X className="h-5 w-5" aria-hidden="true" />
             </button>

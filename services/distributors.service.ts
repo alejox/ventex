@@ -1,4 +1,7 @@
 import { createClient } from "@/utils/supabase/client";
+import type { TablesUpdate } from "@/utils/supabase/database.types";
+import { runInBatches, errorMessage as importErrorMessage, type ImportResult } from "@/lib/import/core";
+import type { DistributorImportRecord } from "@/lib/import/distributors";
 
 // ---- Tipos del dominio de distribuidores ----
 export interface Distributor {
@@ -89,4 +92,82 @@ export async function createDistributor(input: NewDistributorInput): Promise<Dis
     .single();
   if (error) throw error;
   return data as Distributor;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Archivar, impacto del borrado e importación                                */
+/* -------------------------------------------------------------------------- */
+
+/** Archivar/reactivar: `distributors.status` ya existe, no hace falta migración. */
+export async function setDistributorStatus(id: string, status: "active" | "inactive"): Promise<Distributor> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("distributors")
+    .update({ status })
+    .eq("id", id)
+    .select(SELECT)
+    .single();
+  if (error) throw error;
+  return data as Distributor;
+}
+
+/**
+ * Qué arrastra borrar un proveedor, verificado contra las FK en vivo:
+ * - compras (`invoices`) y pedidos: quedan SIN proveedor (`ON DELETE SET NULL`);
+ * - productos: la FK es `NO ACTION`, así que con productos asociados la base
+ *   RECHAZA el borrado. Por eso la pantalla ofrece Archivar en ese caso.
+ */
+export async function fetchDistributorImpact(id: string): Promise<{ purchases: number; products: number }> {
+  // (`purchase_orders` también queda en NULL, pero es un borrador: no se cuenta.)
+  const supabase = createClient();
+  const [purchases, products] = await Promise.all([
+    supabase.from("invoices").select("id", { count: "exact", head: true }).eq("distributor_id", id),
+    supabase.from("products").select("id", { count: "exact", head: true }).eq("distributor_id", id),
+  ]);
+  if (purchases.error) throw purchases.error;
+  if (products.error) throw products.error;
+  return { purchases: purchases.count ?? 0, products: products.count ?? 0 };
+}
+
+export interface DistributorImportItem {
+  line: number;
+  record: DistributorImportRecord;
+  existingId?: string;
+}
+
+/** Crea por lotes y actualiza de a uno, solo con lo que el archivo trajo. */
+export async function importDistributors(
+  items: DistributorImportItem[],
+  onProgress?: (done: number, total: number) => void,
+): Promise<ImportResult> {
+  const supabase = createClient();
+  const total = items.length;
+  let done = 0;
+  const insertRowOf = ({ record: r }: DistributorImportItem) => ({ ...r });
+  const creates = items.filter((i) => !i.existingId);
+  const inserted = await runInBatches(
+    creates,
+    200,
+    async (batch) => {
+      const { error } = await supabase.from("distributors").insert(batch.map(insertRowOf));
+      if (error) throw error;
+    },
+    async (item) => {
+      const { error } = await supabase.from("distributors").insert(insertRowOf(item));
+      if (error) throw error;
+    },
+    (n) => onProgress?.((done = n), total),
+  );
+  const failed = [...inserted.failed];
+  let updated = 0;
+  for (const item of items.filter((i) => i.existingId)) {
+    const patch: TablesUpdate<"distributors"> = Object.fromEntries(
+      Object.entries(item.record).filter(([, value]) => value !== null && value !== ""),
+    );
+    const { error } = await supabase.from("distributors").update(patch).eq("id", item.existingId!);
+    if (error) failed.push({ line: item.line, message: importErrorMessage(error) });
+    else updated++;
+    onProgress?.(++done, total);
+  }
+  return { created: inserted.ok, updated, skipped: 0, failed: failed.sort((a, b) => a.line - b.line) };
 }

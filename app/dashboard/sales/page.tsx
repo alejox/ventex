@@ -7,6 +7,8 @@ import { useSalesStore } from "@/stores/sales.store";
 import {
   SALES_PERIODS,
   SALES_PAGE_SIZE,
+  resolvePeriod,
+  salesExportColumns,
   fetchItemFilterOptions,
   hasItemFilter,
   itemFilterFromOption,
@@ -26,6 +28,9 @@ import { useFormatMoney } from "@/lib/useMoney";
 import { notifySuccess } from "@/lib/notifications";
 import { PosReceipt } from "@/components/PosReceipt";
 import { buildReceiptFromSale } from "@/lib/receipt";
+import { downloadCsv, downloadXlsx, exportFilename, inclusiveEnd, sheet } from "@/lib/export";
+import { toISODate, todayISO } from "@/lib/date";
+import { ExportButtons } from "@/app/dashboard/reports/ExportButtons";
 
 const formatDate = (iso: string) =>
   new Date(iso).toLocaleString("es-CO", {
@@ -353,6 +358,42 @@ export default function SalesPage() {
     );
   };
 
+  const fetchExportRows = useSalesStore((s) => s.fetchExportRows);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+
+  /**
+   * Exporta TODAS las ventas de los filtros activos (período, cliente, medio
+   * de pago, ítem), no solo las 50 de la página: se piden de nuevo, completas.
+   */
+  const exportSales = async (kind: "csv" | "xlsx") => {
+    setExporting(true);
+    setExportError(null);
+    try {
+      const rows = await fetchExportRows();
+      const cols = salesExportColumns(
+        (s) => paymentLabelOf(s.payment_method, s.transfer_method, s.card_method),
+        filtrandoItem ? nombreDelItem || "el ítem" : undefined,
+      );
+      const range = resolvePeriod(period, customFrom, customTo);
+      const name = exportFilename(
+        "ventas",
+        kind,
+        {
+          from: range.from ? toISODate(new Date(range.from)) : null,
+          to: range.to ? inclusiveEnd(toISODate(new Date(range.to))) : null,
+        },
+        todayISO(),
+      );
+      if (kind === "csv") downloadCsv(name, cols, rows);
+      else await downloadXlsx(name, [sheet({ name: "Ventas", columns: cols, rows })]);
+    } catch {
+      setExportError("No se pudo generar la exportación. Intenta de nuevo.");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const firstRow = total === 0 ? 0 : page * SALES_PAGE_SIZE + 1;
   const lastRow = Math.min((page + 1) * SALES_PAGE_SIZE, total);
 
@@ -365,7 +406,11 @@ export default function SalesPage() {
           <h1 className="text-2xl font-bold text-on-surface">Historial de Ventas</h1>
           <p className="text-sm text-on-surface-variant mt-1">Consulta las ventas registradas desde el punto de venta.</p>
         </div>
+        <ExportButtons disabled={loading || total === 0} busy={exporting} onExport={exportSales} />
       </div>
+      {exportError && (
+        <p role="alert" className="-mt-3 text-xs text-error">{exportError}</p>
+      )}
 
       {/* Búsqueda por cliente. Filtra en el servidor, no sobre la página
           cargada: buscar solo entre 50 filas daría resultados que mienten. */}

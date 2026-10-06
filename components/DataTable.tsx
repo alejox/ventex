@@ -3,6 +3,8 @@
 import { Fragment, useState } from "react";
 import type React from "react";
 import { Pagination } from "./Pagination";
+import { Select } from "./ui/Select";
+import { DEFAULT_TABLE_STATE, type SortDir, type TableState } from "@/lib/useUrlState";
 
 /**
  * Papel que juega la columna cuando la fila se dibuja como tarjeta en móvil.
@@ -46,6 +48,12 @@ export interface DataColumn<T> {
    * `02 sep`). Devolver acá el número crudo o el ISO lo arregla.
    */
   sortValue?: (row: T) => string | number;
+  /**
+   * La celda ya trae su propio enlace o botón. Si es la celda título de una
+   * fila accionable, `DataTable` NO la envuelve en otro botón (un interactivo
+   * dentro de otro es inválido y el lector de pantalla no sabe cuál anunciar).
+   */
+  interactive?: boolean;
 }
 
 interface DataTableProps<T> {
@@ -58,7 +66,7 @@ interface DataTableProps<T> {
   renderExpanded?: (row: T) => React.ReactNode;
   /** Etiqueta accesible de la tabla. */
   caption?: string;
-  /** Hace la fila entera accionable (abrir el detalle, por ejemplo). */
+  /** Hace la fila accionable (abrir el detalle, por ejemplo). */
   onRowClick?: (row: T) => void;
   /**
    * Cuántos pares etiqueta/valor quedan a la vista en la tarjeta antes de que
@@ -84,6 +92,15 @@ interface DataTableProps<T> {
    * celdas, que deja afuera todo lo que una celda dibuja como JSX.
    */
   getSearchText?: (row: T) => string;
+  /**
+   * Estado controlado (búsqueda, orden, página). Con `useTableUrlState()` vive
+   * en la URL y volver de editar deja la lista donde estaba. Sin esto, la
+   * tabla lo maneja sola en memoria, como siempre.
+   */
+  state?: TableState;
+  onStateChange?: (patch: Partial<TableState>) => void;
+  /** Controles extra junto al buscador (chips de filtro, por ejemplo). */
+  toolbar?: React.ReactNode;
 }
 
 /** Minúsculas y sin tildes: "Gómez" tiene que aparecer buscando "gomez". */
@@ -108,10 +125,38 @@ export function matchesSearch(text: string, query: string): boolean {
   return false;
 }
 
+/**
+ * Qué pasa al tocar el encabezado `key`: la misma columna invierte el sentido;
+ * otra columna arranca ascendente. Pura, para testearla.
+ */
+export function nextSort(
+  current: { sort: string | null; dir: SortDir },
+  key: string,
+): { sort: string; dir: SortDir } {
+  if (current.sort === key) return { sort: key, dir: current.dir === "asc" ? "desc" : "asc" };
+  return { sort: key, dir: "asc" };
+}
+
+/** Valor de `aria-sort` de un encabezado. Undefined si la columna no se ordena. */
+export function ariaSortOf(
+  sortKey: string | undefined,
+  current: { sort: string | null; dir: SortDir },
+): "ascending" | "descending" | "none" | undefined {
+  if (!sortKey) return undefined;
+  if (current.sort !== sortKey) return "none";
+  return current.dir === "asc" ? "ascending" : "descending";
+}
+
 const alignClass = {
   left: "text-left",
   center: "text-center",
   right: "text-right",
+} as const;
+
+const justifyClass = {
+  left: "justify-start",
+  center: "justify-center",
+  right: "justify-end",
 } as const;
 
 const stringify = (node: React.ReactNode): string => {
@@ -120,6 +165,32 @@ const stringify = (node: React.ReactNode): string => {
   if (typeof node === "number") return String(node);
   return "";
 };
+
+/**
+ * El clic de la fila es un ATAJO de mouse; la acción accesible es el botón de
+ * la celda título. Si el clic cayó sobre otro interactivo de la fila (un botón
+ * de acción, un enlace), ese interactivo es el que manda.
+ */
+const INTERACTIVE = "a,button,input,select,textarea,label,[role='button'],[role='switch'],[role='checkbox']";
+function clickedInsideInteractive(e: React.MouseEvent): boolean {
+  const target = e.target as HTMLElement | null;
+  const hit = target?.closest?.(INTERACTIVE);
+  return Boolean(hit && hit !== e.currentTarget && (e.currentTarget as HTMLElement).contains(hit));
+}
+
+function SortIcon({ state }: { state: "ascending" | "descending" | "none" }) {
+  // ↕ en las columnas ordenables que no mandan: sin él no hay forma de saber
+  // cuáles encabezados se pueden tocar.
+  const glyph = state === "ascending" ? "▲" : state === "descending" ? "▼" : "↕";
+  return (
+    <span
+      aria-hidden="true"
+      className={`inline-block text-[10px] leading-none ${state === "none" ? "opacity-50" : "text-primary"}`}
+    >
+      {glyph}
+    </span>
+  );
+}
 
 /**
  * Una lista, dos formas.
@@ -145,26 +216,28 @@ export function DataTable<T>({
   searchable = false,
   searchPlaceholder = "Buscar…",
   getSearchText,
+  state: controlledState,
+  onStateChange,
+  toolbar,
 }: DataTableProps<T>) {
   // Qué tarjetas tienen el detalle abierto. Se guarda por clave de fila para
   // que abrir una no reordene ni cierre las demás.
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-  const [sortKey, setSortKey] = useState<string | null>(null);
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSizeState, setPageSizeState] = useState(pageSize);
-  const [query, setQuery] = useState("");
-
-  const toggleSort = (key: string) => {
-    if (sortKey === key) {
-      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-      setCurrentPage(1);
-    } else {
-      setSortKey(key);
-      setSortDir("asc");
-      setCurrentPage(1);
-    }
+  const [internalState, setInternalState] = useState<TableState>({
+    ...DEFAULT_TABLE_STATE,
+    size: pageSize,
+  });
+  const st = controlledState ?? internalState;
+  const update = (patch: Partial<TableState>) => {
+    onStateChange?.(patch);
+    if (!controlledState) setInternalState((prev) => ({ ...prev, ...patch }));
   };
+
+  const sortKey = st.sort;
+  const sortDir = st.dir;
+  const query = searchable ? st.q : "";
+
+  const toggleSort = (key: string) => update({ ...nextSort(st, key), page: 1 });
 
   const rowSearchText = (row: T): string =>
     getSearchText
@@ -175,79 +248,87 @@ export function DataTable<T>({
       ? rows.filter((row) => matchesSearch(rowSearchText(row), query))
       : rows;
 
-  const sortedRows = [...filteredRows].sort((a, b) => {
-    if (!sortKey) return 0;
-    const col = columns.find((c) => c.sortKey === sortKey);
-    if (!col) return 0;
+  const sortCol = sortKey ? columns.find((c) => c.sortKey === sortKey) : undefined;
+  const sortedRows = !sortCol
+    ? filteredRows
+    : [...filteredRows].sort((a, b) => {
+        // Con `sortValue` se ordena por el dato; sin él, por el texto
+        // renderizado, que es como se comportaban todas las tablas antes.
+        if (sortCol.sortValue) {
+          const va = sortCol.sortValue(a);
+          const vb = sortCol.sortValue(b);
+          const cmp =
+            typeof va === "number" && typeof vb === "number"
+              ? va - vb
+              : String(va).localeCompare(String(vb), "es", { numeric: true, sensitivity: "base" });
+          return sortDir === "asc" ? cmp : -cmp;
+        }
+        const va = stringify(sortCol.cell(a));
+        const vb = stringify(sortCol.cell(b));
+        const cmp = va.localeCompare(vb, "es", { numeric: true, sensitivity: "base" });
+        return sortDir === "asc" ? cmp : -cmp;
+      });
 
-    // Con `sortValue` se ordena por el dato; sin él, por el texto renderizado,
-    // que es como se comportaban todas las tablas antes de que existiera.
-    if (col.sortValue) {
-      const va = col.sortValue(a);
-      const vb = col.sortValue(b);
-      const cmp =
-        typeof va === "number" && typeof vb === "number"
-          ? va - vb
-          : String(va).localeCompare(String(vb), "es", { numeric: true, sensitivity: "base" });
-      return sortDir === "asc" ? cmp : -cmp;
-    }
-
-    const va = stringify(col.cell(a));
-    const vb = stringify(col.cell(b));
-    const cmp = va.localeCompare(vb, "es", { numeric: true, sensitivity: "base" });
-    return sortDir === "asc" ? cmp : -cmp;
-  });
-
+  const pageSizeState = st.size;
   const effectivePageSize = pagination ? pageSizeState : sortedRows.length;
   const totalPages = Math.ceil(sortedRows.length / (effectivePageSize || 1)) || 1;
-  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const safeCurrentPage = Math.min(Math.max(st.page, 1), totalPages);
   const displayRows = pagination
     ? sortedRows.slice((safeCurrentPage - 1) * effectivePageSize, safeCurrentPage * effectivePageSize)
     : sortedRows;
 
-  const renderSortIcon = (key: string) => {
-    if (sortKey !== key) return null;
-    return (
-      <span className="inline-block ml-1 transition-transform">
-        {sortDir === "asc" ? "▲" : "▼"}
-      </span>
-    );
-  };
   const role = (c: DataColumn<T>): MobileRole => c.mobile ?? "field";
+  const sortableCols = columns.filter((c) => c.sortKey);
 
-  /**
-   * La fila accionable también tiene que responder al teclado, no solo al click.
-   *
-   * Cuando hay detalle desplegable, tocar la fila lo ABRE Y LO CIERRA, además
-   * de avisarle a `onRowClick`. Sin el toggle, el detalle que se abre no se
-   * puede cerrar: la única forma de sacarlo de la pantalla sería recargarla.
-   */
-  const rowInteraction = (row: T) => {
-    if (!onRowClick && !renderExpanded) return null;
+  const rowIsActionable = Boolean(onRowClick || renderExpanded);
+  const activate = (row: T) => {
     const key = rowKey(row);
-    const activate = () => {
-      if (renderExpanded) setExpanded((prev) => ({ ...prev, [key]: !prev[key] }));
-      onRowClick?.(row);
-    };
-    return {
-      onClick: activate,
-      onKeyDown: (e: React.KeyboardEvent) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          activate();
-        }
-      },
-      role: "button" as const,
-      tabIndex: 0,
-      className: "cursor-pointer",
-    };
+    if (renderExpanded) setExpanded((prev) => ({ ...prev, [key]: !prev[key] }));
+    onRowClick?.(row);
   };
 
   const titleCol = columns.find((c) => role(c) === "title");
+  // La celda que lleva el botón accesible de la fila: la de título, o la
+  // primera si ninguna columna se declaró como título.
+  const actionCol = titleCol ?? columns[0];
   const subtitleCol = columns.find((c) => role(c) === "subtitle");
   const trailingCol = columns.find((c) => role(c) === "trailing");
   const badgeCols = columns.filter((c) => role(c) === "badge");
   const actionCols = columns.filter((c) => role(c) === "actions");
+
+  /**
+   * Contenido de la celda título. En una fila accionable va dentro de un
+   * `<button>`: es lo que se alcanza con Tab y se activa con Enter. Antes la
+   * fila entera era `role="button"` y contenía otros botones, que es un
+   * interactivo dentro de otro y el lector de pantalla no sabe qué anunciar.
+   */
+  const renderActionCell = (c: DataColumn<T>, row: T, isOpen: boolean) => {
+    const content = c.cell(row);
+    if (!rowIsActionable || c !== actionCol || c.interactive) return content;
+    return (
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          activate(row);
+        }}
+        aria-expanded={renderExpanded ? isOpen : undefined}
+        className="text-left w-full rounded-md hover:underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+      >
+        {content}
+      </button>
+    );
+  };
+
+  const rowClickProps = (row: T) =>
+    rowIsActionable
+      ? {
+          onClick: (e: React.MouseEvent) => {
+            if (clickedInsideInteractive(e)) return;
+            activate(row);
+          },
+        }
+      : {};
 
   // Divulgación progresiva: los primeros `collapseAfter` campos quedan a la
   // vista y el resto —más lo marcado como `detail`— entra al desplegable.
@@ -258,35 +339,63 @@ export function DataTable<T>({
     ...columns.filter((c) => role(c) === "detail"),
   ];
 
+  const showTopBar = searchable || toolbar != null || sortableCols.length > 0;
+
   return (
     <>
-      {searchable && (
-        <div className="p-4 border-b border-outline-variant/10">
-          <div className="relative w-full sm:max-w-sm">
-            <input
-              type="search"
-              value={query}
-              onChange={(e) => {
-                setQuery(e.target.value);
-                // Lo encontrado puede no llegar a la página en la que estabas.
-                setCurrentPage(1);
-              }}
-              placeholder={searchPlaceholder}
-              aria-label={searchPlaceholder}
-              className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-xl py-2.5 pl-9 pr-3 text-base lg:text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/40"
-            />
-            <svg
-              aria-hidden="true"
-              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant/60"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              viewBox="0 0 24 24"
-            >
-              <circle cx="11" cy="11" r="8" />
-              <path d="m21 21-4.35-4.35" />
-            </svg>
-          </div>
+      {showTopBar && (
+        <div
+          className={`flex flex-col sm:flex-row sm:items-center gap-3 ${
+            searchable || toolbar != null ? "p-4 border-b border-outline-variant/10" : "px-4 pt-3 lg:hidden"
+          }`}
+        >
+          {searchable && (
+            <div className="relative w-full sm:max-w-sm">
+              <input
+                type="search"
+                value={st.q}
+                onChange={(e) => {
+                  // Lo encontrado puede no llegar a la página en la que estabas.
+                  update({ q: e.target.value, page: 1 });
+                }}
+                placeholder={searchPlaceholder}
+                aria-label={searchPlaceholder}
+                className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-xl py-2.5 pl-9 pr-3 text-base lg:text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/80"
+              />
+              <svg
+                aria-hidden="true"
+                className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant/60"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                viewBox="0 0 24 24"
+              >
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.35-4.35" />
+              </svg>
+            </div>
+          )}
+          {toolbar != null && <div className="flex flex-wrap items-center gap-2 min-w-0">{toolbar}</div>}
+          {/* En móvil no hay encabezados que tocar: el orden se elige acá. */}
+          {sortableCols.length > 0 && (
+            <div className="lg:hidden sm:ml-auto w-full sm:w-56">
+              <Select
+                size="sm"
+                aria-label="Ordenar por"
+                value={sortKey ? `${sortKey}:${sortDir}` : ""}
+                onChange={(e) => {
+                  const [key, dir] = e.target.value.split(":");
+                  update(key ? { sort: key, dir: dir === "desc" ? "desc" : "asc", page: 1 } : { sort: null, dir: "asc", page: 1 });
+                }}
+              >
+                <option value="">Orden predeterminado</option>
+                {sortableCols.flatMap((c) => [
+                  <option key={`${c.sortKey}:asc`} value={`${c.sortKey}:asc`}>{`${c.header} ↑`}</option>,
+                  <option key={`${c.sortKey}:desc`} value={`${c.sortKey}:desc`}>{`${c.header} ↓`}</option>,
+                ])}
+              </Select>
+            </div>
+          )}
         </div>
       )}
 
@@ -301,25 +410,35 @@ export function DataTable<T>({
         <table className="w-full text-left border-collapse" style={{ minWidth }}>
           {caption && <caption className="sr-only">{caption}</caption>}
           <thead>
-            <tr className="bg-surface-container-low border-b border-outline-variant/10 text-[10px] uppercase tracking-wider text-on-surface-variant font-bold">
-              {columns.map((c) => (
-                <th
-                  key={c.header}
-                  scope="col"
-                  className={`p-4 ${alignClass[c.align ?? "left"]} ${c.headerClassName ?? ""} ${c.sortKey ? "cursor-pointer select-none hover:text-on-surface transition-colors" : ""}`}
-                  onClick={c.sortKey ? () => toggleSort(c.sortKey!) : undefined}
-                >
-                  <span className="inline-flex items-center">
-                    {c.header}
-                    {renderSortIcon(c.sortKey ?? "")}
-                  </span>
-                </th>
-              ))}
+            <tr className="bg-surface-container-low border-b border-outline-variant/10 text-[11px] uppercase tracking-wider text-on-surface-variant font-bold">
+              {columns.map((c) => {
+                const ariaSort = ariaSortOf(c.sortKey, st);
+                return (
+                  <th
+                    key={c.header}
+                    scope="col"
+                    aria-sort={ariaSort}
+                    className={`p-4 ${alignClass[c.align ?? "left"]} ${c.headerClassName ?? ""}`}
+                  >
+                    {c.sortKey ? (
+                      <button
+                        type="button"
+                        onClick={() => toggleSort(c.sortKey!)}
+                        className={`inline-flex items-center gap-1.5 uppercase tracking-wider font-bold rounded-md hover:text-on-surface transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${justifyClass[c.align ?? "left"]}`}
+                      >
+                        {c.header}
+                        <SortIcon state={ariaSort ?? "none"} />
+                      </button>
+                    ) : (
+                      c.header
+                    )}
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody className="divide-y divide-outline-variant/5 text-sm">
             {displayRows.map((row) => {
-              const interaction = rowInteraction(row);
               const key = rowKey(row);
               const isOpen = renderExpanded != null && (expanded[key] ?? false);
               return (
@@ -327,16 +446,15 @@ export function DataTable<T>({
               // elementos hermanos salidos del mismo `map`.
               <Fragment key={key}>
               <tr
-                {...interaction}
-                aria-expanded={renderExpanded ? isOpen : undefined}
-                className={`hover:bg-surface-container-lowest transition-colors ${interaction?.className ?? ""}`}
+                {...rowClickProps(row)}
+                className={`hover:bg-surface-container-lowest transition-colors ${rowIsActionable ? "cursor-pointer" : ""}`}
               >
                 {columns.map((c) => (
                   <td
                     key={c.header}
                     className={`p-4 ${alignClass[c.align ?? "left"]} ${c.className ?? ""}`}
                   >
-                    {c.cell(row)}
+                    {renderActionCell(c, row, isOpen)}
                   </td>
                 ))}
               </tr>
@@ -362,21 +480,20 @@ export function DataTable<T>({
       {/* Móvil */}
       <ul className="lg:hidden divide-y divide-outline-variant/20">
         {displayRows.map((row) => {
-          const interaction = rowInteraction(row);
           const key = rowKey(row);
           const isOpen = expanded[key] ?? false;
           return (
           <li
             key={key}
-            {...interaction}
-            className={`px-4 py-3.5 even:bg-on-surface/[0.05] ${interaction ? "active:bg-on-surface/10 cursor-pointer" : ""}`}
+            {...rowClickProps(row)}
+            className={`px-4 py-3.5 even:bg-on-surface/[0.05] ${rowIsActionable ? "active:bg-on-surface/10 cursor-pointer" : ""}`}
           >
             {/* Encabezado */}
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
                 {titleCol && (
                   <div className="text-[15px] leading-snug font-semibold text-on-surface break-words">
-                    {titleCol.cell(row)}
+                    {renderActionCell(titleCol, row, isOpen)}
                   </div>
                 )}
                 {subtitleCol && (
@@ -404,7 +521,7 @@ export function DataTable<T>({
               <dl className="mt-2.5 space-y-1">
                 {visibleFieldCols.map((c) => (
                   <div key={c.header} className="flex items-baseline justify-between gap-3">
-                    <dt className="text-[11px] uppercase tracking-wider font-bold text-on-surface-variant/70 shrink-0">
+                    <dt className="text-[11px] uppercase tracking-wider font-bold text-on-surface-variant shrink-0">
                       {c.header}
                     </dt>
                     <dd className="text-sm text-on-surface-variant text-right min-w-0 break-words">
@@ -421,7 +538,7 @@ export function DataTable<T>({
                   <dl className="mt-1 space-y-1">
                     {hiddenFieldCols.map((c) => (
                       <div key={c.header} className="flex items-baseline justify-between gap-3">
-                        <dt className="text-[11px] uppercase tracking-wider font-bold text-on-surface-variant/70 shrink-0">
+                        <dt className="text-[11px] uppercase tracking-wider font-bold text-on-surface-variant shrink-0">
                           {c.header}
                         </dt>
                         <dd className="text-sm text-on-surface-variant text-right min-w-0 break-words">
@@ -482,11 +599,8 @@ export function DataTable<T>({
           totalPages={totalPages}
           totalItems={sortedRows.length}
           pageSize={pageSizeState}
-          onPageChange={setCurrentPage}
-          onPageSizeChange={(newSize) => {
-            setPageSizeState(newSize);
-            setCurrentPage(1);
-          }}
+          onPageChange={(page) => update({ page })}
+          onPageSizeChange={(newSize) => update({ size: newSize, page: 1 })}
           pageSizeOptions={pageSizeOptions}
         />
       )}

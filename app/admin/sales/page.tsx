@@ -20,8 +20,8 @@ import { CollectionEmpty, CollectionError, CollectionFilteredEmpty } from "@/com
  */
 
 const STATUS_META: Record<string, { label: string; cls: string }> = {
-  paid: { label: "Cobrada", cls: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" },
-  pending: { label: "Pendiente", cls: "bg-amber-500/10 text-amber-600 border-amber-500/20" },
+  paid: { label: "Cobrada", cls: "bg-success/10 text-success border-success/20" },
+  pending: { label: "Pendiente", cls: "bg-warning/10 text-warning border-warning/20" },
   failed: { label: "Rechazada", cls: "bg-error-container/20 text-error-dim border-error-container/30" },
   cancelled: { label: "Cancelada", cls: "bg-surface-container-high text-on-surface-variant border-outline-variant/30" },
 };
@@ -111,7 +111,7 @@ export default function AdminSalesPage() {
           <span className="block font-medium truncate">
             {sale.company_name || sale.payer_name || "Sin nombre"}
             {sale.is_guest && (
-              <span className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-600 align-middle">
+              <span className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded bg-warning/15 text-warning align-middle">
                 INVITADO
               </span>
             )}
@@ -230,7 +230,7 @@ export default function AdminSalesPage() {
           {/* Un cobro sin cuenta detrás es plata que entró y no activó nada:
               es lo único de esta pantalla que pide una acción. */}
           {stats.unclaimed > 0 && (
-            <div className="mt-4 rounded-2xl border border-amber-500/25 bg-amber-500/10 px-4 py-3 text-sm text-amber-600">
+            <div className="mt-4 rounded-2xl border border-warning/25 bg-warning/10 px-4 py-3 text-sm text-warning">
               Hay {stats.unclaimed} pago{stats.unclaimed === 1 ? "" : "s"} de invitado cobrado
               {stats.unclaimed === 1 ? "" : "s"} que todavía no reclamó ninguna cuenta. Se activan
               solos cuando la persona se registra con el mismo correo.
@@ -269,7 +269,7 @@ export default function AdminSalesPage() {
                   onClick={() => setFilter(option.id)}
                   className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors ${
                     filter === option.id
-                      ? "bg-[#6063ee] text-white"
+                      ? "bg-primary text-on-primary"
                       : "bg-surface-container-lowest border border-outline-variant/20 text-on-surface-variant hover:text-on-surface"
                   }`}
                 >
@@ -281,7 +281,7 @@ export default function AdminSalesPage() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Buscar por cuenta, correo u orden…"
-              className="min-w-0 flex-1 sm:flex-none sm:w-72 rounded-full bg-surface-container-lowest border border-outline-variant/20 px-4 py-2 text-sm text-on-surface outline-none focus:border-primary"
+              className="min-w-0 flex-1 sm:flex-none sm:w-72 rounded-full bg-surface-container-lowest border border-outline-variant/20 px-4 py-2 text-sm text-on-surface outline-none focus:border-primary-ink"
             />
           </div>
 
@@ -335,9 +335,9 @@ function StatCard({
 }) {
   const hintColor = {
     neutral: "text-on-surface-variant",
-    up: "text-emerald-600",
+    up: "text-success",
     down: "text-error-dim",
-    warn: "text-amber-600",
+    warn: "text-warning",
   }[tone];
 
   return (

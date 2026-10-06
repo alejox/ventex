@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { IconPlus } from "@/app/assets/icons/DashboardIcons";
 import { useDistributorsStore } from "@/stores/distributors.store";
 import { DataTable, type DataColumn } from "@/components/DataTable";
@@ -8,6 +8,22 @@ import { Select } from "@/components/ui/Select";
 import { CitySelect } from "@/components/CitySelect";
 import { CollectionEmpty, CollectionError, CollectionLoading } from "@/components/CollectionState";
 import type { Distributor, NewDistributorInput } from "@/services/distributors.service";
+import { Button } from "@/components/ui/Button";
+import { Modal } from "@/components/ui/Modal";
+import { useTableUrlState, useUrlParams } from "@/lib/useUrlState";
+import { ImportWizard } from "@/lib/import/ImportWizard";
+import { DISTRIBUTOR_IMPORT, existingDistributorKeys } from "@/lib/import/distributors";
+import { distributorsExportRows, exportFileName } from "@/lib/import/export";
+import { downloadCsv } from "@/lib/import/spreadsheet";
+import { docTypeOptionsFor, PHONE_PLACEHOLDER } from "@/lib/import/doc-types";
+import { parsePhone } from "@/lib/import/values";
+import {
+  distributorImpact,
+  filterDistributorsByStatus,
+  isArchivedDistributor,
+  parseDistributorStatusFilter,
+  type DistributorStatusFilter,
+} from "./distributor-list";
 
 function IconTruck(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -20,7 +36,11 @@ function IconTruck(props: React.SVGProps<SVGSVGElement>) {
   );
 }
 
-const DOC_TYPES = ["NIT", "CC", "RUT", "RFC"];
+const STATUS_OPTIONS: { value: DistributorStatusFilter; label: string }[] = [
+  { value: "active", label: "Activos" },
+  { value: "archived", label: "Archivados" },
+  { value: "all", label: "Todos" },
+];
 
 const EMPTY_DISTRIBUTOR: NewDistributorInput = {
   business_name: "",
@@ -43,13 +63,30 @@ export default function DistributorsPage() {
   const fetchDistributors = useDistributorsStore((s) => s.fetchDistributors);
   const addDistributor = useDistributorsStore((s) => s.addDistributor);
   const updateDistributor = useDistributorsStore((s) => s.updateDistributor);
-
-  const deleteDistributor = useDistributorsStore((s) => s.deleteDistributor);
+  const deleteDistributorOrError = useDistributorsStore((s) => s.deleteDistributorOrError);
+  const setDistributorStatus = useDistributorsStore((s) => s.setDistributorStatus);
+  const fetchImpact = useDistributorsStore((s) => s.fetchImpact);
+  const importDistributors = useDistributorsStore((s) => s.importDistributors);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState<NewDistributorInput>(EMPTY_DISTRIBUTOR);
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [phoneErrors, setPhoneErrors] = useState<{ phone?: string; whatsapp?: string }>({});
+  const [importOpen, setImportOpen] = useState(false);
+
+  // Búsqueda, orden, página y estado viven en la URL.
+  const table = useTableUrlState();
+  const [filters, setFilters] = useUrlParams({ estado: "active" });
+  const statusFilter = parseDistributorStatusFilter(filters.estado);
+  const visibleDistributors = filterDistributorsByStatus(distributors, statusFilter);
+  const existingKeys = useMemo(() => existingDistributorKeys(distributors), [distributors]);
+
+  // Diálogo de borrado: impacto antes de confirmar, error adentro.
+  const [deleting, setDeleting] = useState<Distributor | null>(null);
+  const [impact, setImpact] = useState<{ purchases: number; products: number } | null>(null);
+  const [impactError, setImpactError] = useState(false);
+  const [dialogError, setDialogError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchDistributors();
@@ -58,6 +95,7 @@ export default function DistributorsPage() {
   const openCreateModal = () => {
     setEditId(null);
     setForm(EMPTY_DISTRIBUTOR);
+    setPhoneErrors({});
     setModalOpen(true);
   };
 
@@ -75,14 +113,29 @@ export default function DistributorsPage() {
       doc_type: d.doc_type ?? "NIT",
       dv: d.dv ?? "",
     });
+    setPhoneErrors({});
     setModalOpen(true);
+  };
+
+  const phoneErrorOf = (value: string) => {
+    const r = parsePhone(value);
+    return r.ok ? undefined : r.error;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // El WhatsApp recibe las órdenes de compra: uno mal escrito falla en
+    // silencio el día que se manda el pedido.
+    const errors = { phone: phoneErrorOf(form.phone), whatsapp: phoneErrorOf(form.whatsapp) };
+    setPhoneErrors(errors);
+    if (errors.phone || errors.whatsapp) {
+      document.getElementById(errors.phone ? "distributor-phone" : "distributor-whatsapp")?.focus();
+      return;
+    }
+    const input = { ...form, business_name: form.business_name.trim() };
     const ok = editId
-      ? await updateDistributor(editId, form)
-      : await addDistributor(form);
+      ? await updateDistributor(editId, input)
+      : await addDistributor(input);
     if (ok) {
       setModalOpen(false);
       setEditId(null);
@@ -95,6 +148,50 @@ export default function DistributorsPage() {
     setEditId(null);
     setForm(EMPTY_DISTRIBUTOR);
   };
+
+  const askDelete = async (d: Distributor) => {
+    setDeleting(d);
+    setImpact(null);
+    setImpactError(false);
+    setDialogError(null);
+    try {
+      setImpact(await fetchImpact(d.id));
+    } catch {
+      setImpactError(true);
+    }
+  };
+
+  const closeDelete = () => {
+    if (submitting) return;
+    setDeleting(null);
+  };
+
+  const handleDelete = async () => {
+    if (!deleting) return;
+    const err = await deleteDistributorOrError(deleting.id);
+    if (err) setDialogError(err);
+    else setDeleting(null);
+  };
+
+  /** Archivar desde el diálogo de borrado: la alternativa que no rompe nada. */
+  const archiveFromDialog = async () => {
+    if (!deleting) return;
+    const err = await setDistributorStatus(deleting.id, "inactive");
+    if (err) setDialogError(err);
+    else setDeleting(null);
+  };
+
+  const toggleArchived = async (d: Distributor) => {
+    setActionError(null);
+    const err = await setDistributorStatus(d.id, isArchivedDistributor(d) ? "active" : "inactive");
+    if (err) setActionError(`No se pudo actualizar ${d.business_name}: ${err}`);
+  };
+
+  const exportCsv = () => {
+    downloadCsv(exportFileName("proveedores"), distributorsExportRows(visibleDistributors));
+  };
+
+  const deleteInfo = impact ? distributorImpact(impact) : null;
 
   // Vive dentro del componente porque la acción de editar cierra sobre el estado.
   const columns: DataColumn<Distributor>[] = [
@@ -110,6 +207,7 @@ export default function DistributorsPage() {
       header: "Contacto",
       mobile: "subtitle",
       sortKey: "contacto",
+      sortValue: (d) => d.contact_name ?? "",
       className: "text-on-surface-variant",
       cell: (d) => (
         <>
@@ -138,6 +236,7 @@ export default function DistributorsPage() {
     {
       header: "Documento",
       sortKey: "doc",
+      sortValue: (d) => d.rfc_rut ?? "",
       className: "text-on-surface-variant font-mono text-xs",
       cell: (d) => (
         <span className="font-mono text-xs">
@@ -152,12 +251,12 @@ export default function DistributorsPage() {
       cell: (d) => (
         <span
           className={`inline-flex px-2.5 py-1 rounded-md text-[11px] font-bold border ${
-            d.status === "active"
-              ? "bg-[#10b981]/10 text-[#10b981] border-[#10b981]/20"
-              : "bg-surface-variant text-on-surface-variant border-transparent"
+            isArchivedDistributor(d)
+              ? "bg-surface-container-highest text-on-surface-variant border-outline-variant/30"
+              : "bg-[#10b981]/10 text-[#047857] dark:text-[#10b981] border-[#10b981]/20"
           }`}
         >
-          {d.status === "active" ? "Activo" : d.status}
+          {isArchivedDistributor(d) ? "Archivado" : "Activo"}
         </span>
       ),
     },
@@ -168,6 +267,7 @@ export default function DistributorsPage() {
       cell: (d) => (
         <div className="flex items-center justify-center gap-1">
           <button
+            type="button"
             onClick={() => openEditModal(d)}
             className="w-11 h-11 lg:w-9 lg:h-9 inline-flex items-center justify-center rounded-xl text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
             title="Editar proveedor"
@@ -179,7 +279,21 @@ export default function DistributorsPage() {
             </svg>
           </button>
           <button
-            onClick={() => setConfirmDelete(d.id)}
+            type="button"
+            onClick={() => toggleArchived(d)}
+            className="w-11 h-11 lg:w-9 lg:h-9 inline-flex items-center justify-center rounded-xl text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors"
+            title={isArchivedDistributor(d) ? "Reactivar proveedor" : "Archivar proveedor"}
+            aria-label={isArchivedDistributor(d) ? `Reactivar ${d.business_name}` : `Archivar ${d.business_name}`}
+          >
+            <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-4 h-4">
+              <polyline points="21 8 21 21 3 21 3 8" />
+              <rect x="1" y="3" width="22" height="5" />
+              <line x1="10" y1="12" x2="14" y2="12" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            onClick={() => askDelete(d)}
             className="w-11 h-11 lg:w-9 lg:h-9 inline-flex items-center justify-center rounded-xl text-on-surface-variant hover:text-error-dim hover:bg-error-container/10 transition-colors"
             title="Eliminar proveedor"
             aria-label={`Eliminar ${d.business_name}`}
@@ -200,16 +314,25 @@ export default function DistributorsPage() {
           <h1 className="text-2xl font-bold text-on-surface">Proveedores</h1>
           <p className="text-sm text-on-surface-variant mt-1">Gestiona tus proveedores.</p>
         </div>
-        <button
-          onClick={openCreateModal}
-          className="bg-[#6063ee] hover:bg-[#c0c1ff] text-white hover:text-[#0b0664] text-sm font-semibold py-2.5 px-4 rounded-xl shadow-lg shadow-[#6063ee]/20 transition-colors flex items-center justify-center gap-2"
-        >
-          <IconPlus className="w-4 h-4" />
-          <span>Añadir Proveedor</span>
-        </button>
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
+          <Button variant="secondary" onClick={() => setImportOpen(true)}>
+            Importar
+          </Button>
+          <Button variant="secondary" onClick={exportCsv} disabled={visibleDistributors.length === 0}>
+            Exportar CSV
+          </Button>
+          <Button onClick={openCreateModal} icon={<IconPlus className="w-4 h-4" />} className="col-span-2">
+            Añadir proveedor
+          </Button>
+        </div>
       </div>
 
-      {error && <CollectionError message={error} onRetry={fetchDistributors} />}
+      {error && !modalOpen && <CollectionError message={error} onRetry={fetchDistributors} />}
+      {actionError && (
+        <p role="alert" className="rounded-xl border border-error/30 bg-error/10 px-4 py-3 text-sm text-error">
+          {actionError}
+        </p>
+      )}
 
       {loading ? (
         <CollectionLoading label="Cargando proveedores…" />
@@ -218,50 +341,113 @@ export default function DistributorsPage() {
       ) : (
         <div className="bg-surface-container rounded-3xl border border-outline-variant/10 shadow-sm overflow-hidden">
           <DataTable
-            rows={distributors}
+            rows={visibleDistributors}
             rowKey={(d) => d.id}
             minWidth={760}
             caption="Directorio de proveedores"
             columns={columns}
+            state={table.state}
+            onStateChange={table.setState}
+            searchable
+            searchPlaceholder="Buscar por nombre, contacto, NIT, teléfono o correo"
+            getSearchText={(d) =>
+              [d.business_name, d.contact_name, d.rfc_rut, d.phone, d.whatsapp, d.email, d.city].filter(Boolean).join(" ")
+            }
+            toolbar={
+              <div role="group" aria-label="Filtrar por estado" className="flex gap-1.5">
+                {STATUS_OPTIONS.map((o) => (
+                  <button
+                    key={o.value}
+                    type="button"
+                    aria-pressed={statusFilter === o.value}
+                    onClick={() => {
+                      setFilters({ estado: o.value });
+                      table.setState({ page: 1 });
+                    }}
+                    className={`h-9 px-3.5 rounded-full border text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                      statusFilter === o.value
+                        ? "bg-primary text-on-primary border-primary"
+                        : "bg-surface-container-lowest text-on-surface-variant border-outline-variant/30 hover:text-on-surface"
+                    }`}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            }
           />
         </div>
       )}
 
-      {confirmDelete && (
-        <div className="fixed inset-0 z-[110] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-surface-container rounded-t-3xl sm:rounded-3xl w-full sm:max-w-sm border border-outline-variant/10 shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200">
-            <div className="p-6 text-center">
-              <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-error-container/20 flex items-center justify-center">
-                <svg className="w-6 h-6 text-error-dim" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-              </div>
-              <h3 className="text-lg font-bold text-on-surface mb-2">Eliminar Proveedor</h3>
-              <p className="text-sm text-on-surface-variant mb-6">
-                ¿Estás seguro de eliminar este proveedor? Esta acción no se puede deshacer.
-              </p>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setConfirmDelete(null)}
-                  className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-colors"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={async () => {
-                    await deleteDistributor(confirmDelete);
-                    setConfirmDelete(null);
-                  }}
-                  disabled={submitting}
-                  className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold bg-error-dim hover:bg-error text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {submitting ? "Eliminando…" : "Eliminar"}
-                </button>
-              </div>
-            </div>
+      <Modal
+        open={deleting !== null}
+        onClose={closeDelete}
+        role="alertdialog"
+        size="sm"
+        title="¿Eliminar proveedor?"
+        description={deleting ? `Vas a eliminar ${deleting.business_name}. Esta acción no se puede deshacer.` : undefined}
+        dismissible={!submitting}
+        closeOnEscape={!submitting}
+        footer={
+          <div className="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end">
+            <Button variant="ghost" onClick={closeDelete} disabled={submitting}>
+              Cancelar
+            </Button>
+            {deleting && !isArchivedDistributor(deleting) && (
+              <Button variant="secondary" onClick={archiveFromDialog} disabled={submitting}>
+                Archivar
+              </Button>
+            )}
+            <Button
+              variant="danger"
+              onClick={handleDelete}
+              loading={submitting}
+              loadingLabel="Eliminando…"
+              disabled={(impact === null && !impactError) || (deleteInfo !== null && !deleteInfo.canDelete)}
+            >
+              Eliminar
+            </Button>
           </div>
+        }
+      >
+        <div className="space-y-3 text-sm">
+          {impact === null && !impactError ? (
+            <p className="text-on-surface-variant" role="status">Revisando qué tiene asociado…</p>
+          ) : deleteInfo === null ? (
+            <p className="text-on-surface-variant">
+              No pudimos revisar sus compras y productos. Si tiene productos asociados, la eliminación fallará.
+            </p>
+          ) : deleteInfo.lines.length === 0 ? (
+            <p className="text-on-surface-variant">No tiene compras ni productos asociados.</p>
+          ) : (
+            <ul className="list-disc pl-5 space-y-1 text-on-surface">
+              {deleteInfo.lines.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+          )}
+          <p className="text-on-surface-variant">
+            Archivar lo oculta de las listas sin borrar su historial, y puedes reactivarlo cuando quieras.
+          </p>
+          {dialogError && (
+            <p role="alert" className="rounded-xl border border-error/30 bg-error/10 px-3 py-2 text-error">
+              No se pudo completar: {dialogError}
+            </p>
+          )}
         </div>
-      )}
+      </Modal>
+
+      <ImportWizard
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        title="proveedores"
+        entity={DISTRIBUTOR_IMPORT}
+        existing={existingKeys}
+        templateFileName="plantilla-proveedores.xlsx"
+        previewKeys={["business_name", "rfc_rut", "phone"]}
+        onImport={importDistributors}
+        note="Un proveedor que ya existe se reconoce por su NIT o documento."
+      />
 
       {/* Modal Nuevo / Editar Proveedor */}
       {modalOpen && (
@@ -290,20 +476,21 @@ export default function DistributorsPage() {
               )}
 
               <div className="space-y-1.5">
-                <label className="text-[13px] font-semibold text-on-surface block">Nombre del Negocio</label>
+                <label htmlFor="distributor-name" className="text-[13px] font-semibold text-on-surface block">Nombre del negocio</label>
                 <input
+                  id="distributor-name"
                   type="text"
                   required
                   value={form.business_name}
-                  onChange={(e) => setForm({ ...form, business_name: e.target.value.toUpperCase() })}
+                  onChange={(e) => setForm({ ...form, business_name: e.target.value })}
                   className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50"
-                  placeholder="Ej. Proveedora del Norte S.A."
+                  placeholder="Ej. Distribuidora El Sol S.A.S."
                 />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-on-surface block">Nombre del Contacto</label>
+                  <label className="text-[13px] font-semibold text-on-surface block">Nombre del contacto</label>
                   <input
                     type="text"
                     value={form.contact_name}
@@ -313,7 +500,7 @@ export default function DistributorsPage() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-on-surface block">Correo Electrónico</label>
+                  <label className="text-[13px] font-semibold text-on-surface block">Correo electrónico</label>
                   <input
                     type="email"
                     value={form.email}
@@ -325,28 +512,49 @@ export default function DistributorsPage() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[13px] font-semibold text-on-surface block">Teléfono</label>
+                <label htmlFor="distributor-phone" className="text-[13px] font-semibold text-on-surface block">Teléfono</label>
                 <input
+                  id="distributor-phone"
                   type="tel"
                   value={form.phone}
-                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50"
-                  placeholder="+52 55 1234 5678"
+                  onChange={(e) => {
+                    setForm({ ...form, phone: e.target.value });
+                    if (phoneErrors.phone) setPhoneErrors({ ...phoneErrors, phone: undefined });
+                  }}
+                  onBlur={() => setPhoneErrors({ ...phoneErrors, phone: phoneErrorOf(form.phone) })}
+                  aria-invalid={phoneErrors.phone ? true : undefined}
+                  aria-describedby={phoneErrors.phone ? "distributor-phone-error" : undefined}
+                  className={`w-full bg-surface-container-lowest border rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/80 ${phoneErrors.phone ? "border-error" : "border-outline-variant/30"}`}
+                  placeholder={PHONE_PLACEHOLDER}
                 />
+                {phoneErrors.phone && (
+                  <p id="distributor-phone-error" className="text-xs text-error">{phoneErrors.phone}</p>
+                )}
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[13px] font-semibold text-on-surface block">
+                <label htmlFor="distributor-whatsapp" className="text-[13px] font-semibold text-on-surface block">
                   WhatsApp para pedidos
                 </label>
                 <input
+                  id="distributor-whatsapp"
                   type="tel"
                   value={form.whatsapp}
-                  onChange={(e) => setForm({ ...form, whatsapp: e.target.value })}
-                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50"
-                  placeholder="+52 55 1234 5678"
+                  onChange={(e) => {
+                    setForm({ ...form, whatsapp: e.target.value });
+                    if (phoneErrors.whatsapp) setPhoneErrors({ ...phoneErrors, whatsapp: undefined });
+                  }}
+                  onBlur={() => setPhoneErrors({ ...phoneErrors, whatsapp: phoneErrorOf(form.whatsapp) })}
+                  aria-invalid={phoneErrors.whatsapp ? true : undefined}
+                  aria-describedby="distributor-whatsapp-hint"
+                  className={`w-full bg-surface-container-lowest border rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/80 ${phoneErrors.whatsapp ? "border-error" : "border-outline-variant/30"}`}
+                  placeholder={PHONE_PLACEHOLDER}
                 />
-                <p className="text-xs text-on-surface-variant/60">N&uacute;mero al que se enviar&aacute;n las &oacute;rdenes de compra.</p>
+                <p id="distributor-whatsapp-hint" className={`text-xs ${phoneErrors.whatsapp ? "text-error" : "text-on-surface-variant"}`}>
+                  {phoneErrors.whatsapp
+                    ? `${phoneErrors.whatsapp}. Escríbelo con indicativo, por ejemplo ${PHONE_PLACEHOLDER}.`
+                    : "Número al que se enviarán las órdenes de compra."}
+                </p>
               </div>
 
               <div className="space-y-1.5">
@@ -358,12 +566,13 @@ export default function DistributorsPage() {
                     value={form.doc_type}
                     onChange={(e) => setForm({ ...form, doc_type: e.target.value })}
                   >
-                    {DOC_TYPES.map((t) => (
-                      <option key={t} value={t}>{t}</option>
+                    {docTypeOptionsFor(form.doc_type).map((t) => (
+                      <option key={t.value} value={t.value}>{t.value}</option>
                     ))}
                   </Select>
                   <input
                     type="text"
+                    aria-label="Número de documento"
                     value={form.rfc_rut}
                     onChange={(e) => setForm({ ...form, rfc_rut: e.target.value })}
                     className="flex-1 bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all font-mono placeholder:text-on-surface-variant/50"
@@ -377,6 +586,7 @@ export default function DistributorsPage() {
                     className="w-14 shrink-0 bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-2 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all font-mono text-center placeholder:text-on-surface-variant/50"
                     placeholder="DV"
                     title="Dígito de verificación"
+                    aria-label="Dígito de verificación"
                   />
                 </div>
               </div>
@@ -385,10 +595,10 @@ export default function DistributorsPage() {
                 <label className="text-[13px] font-semibold text-on-surface block">Dirección</label>
                 <textarea
                   value={form.address}
-                  onChange={(e) => setForm({ ...form, address: e.target.value.toUpperCase() })}
+                  onChange={(e) => setForm({ ...form, address: e.target.value })}
                   rows={3}
                   className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50 resize-none"
-                  placeholder="Calle, código postal"
+                  placeholder="Ej. Cra 7 # 12-34, barrio"
                 />
               </div>
 

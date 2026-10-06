@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { LogoHorizontal, LogoSymbol } from "@/components/Logo";
 import {
@@ -29,6 +29,7 @@ import {
   IconGlobe,
   IconMusic,
   IconThunder,
+  IconTrendingUp,
 } from "@/app/assets/icons/DashboardIcons";
 import { whatsappUrl } from "@/config/contact";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -44,11 +45,19 @@ import { backdropProps } from "@/components/modal";
 import { SIDEBAR_COOKIE, SIDEBAR_COOKIE_MAX_AGE } from "@/lib/sidebar";
 import { WorkspaceSwitcher } from "@/components/WorkspaceSwitcher";
 import { SupportFab, showsSupportFab, SUPPORT_FAB_CLEARANCE } from "@/components/SupportFab";
+import { HEADER_ICON_BUTTON } from "@/components/ui/HeaderIconButton";
+import { CommandPalette, NAV_KEYWORDS, type PaletteCommand } from "@/components/ui/CommandPalette";
 
 import { useBusinessSiteStore } from "@/stores/business-site.store";
 import { useSettingsStore } from "@/stores/settings.store";
 
 type IconType = typeof IconHome;
+
+// Atajo de la paleta según la plataforma, sin desajuste de hidratación: el
+// servidor (y el primer render del cliente) dicen "Ctrl K"; en Apple, "⌘K".
+const subscribeNever = () => () => {};
+const isApplePlatform = () => /Mac|iPhone|iPad/.test(navigator.platform);
+const notApple = () => false;
 
 const REDUCE_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 const prefersReducedMotion = () =>
@@ -65,10 +74,30 @@ const prefersReducedMotion = () =>
  * real del botón. El `ring` sí sigue el `border-radius`.
  */
 const COLLAPSED_ICON_BUTTON =
-  "flex items-center justify-center w-11 h-11 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface-container-lowest";
+  "flex items-center justify-center w-11 h-11 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-ink focus-visible:ring-offset-2 focus-visible:ring-offset-surface-container-lowest";
 
 const COLLAPSED_FOCUS_RING =
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface-container-lowest";
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-ink focus-visible:ring-offset-2 focus-visible:ring-offset-surface-container-lowest";
+
+/** Fila de "Acciones rápidas" del cajón móvil: mismo alto y aspecto que un ítem del menú. */
+const QUICK_ACTION =
+  "flex w-full items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-ink";
+
+function CalculatorIcon() {
+  return (
+    <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-5 h-5 shrink-0" aria-hidden="true">
+      <rect x="4" y="2" width="16" height="20" rx="2" />
+      <line x1="8" y1="6" x2="16" y2="6" />
+      <line x1="8" y1="10" x2="8" y2="10.01" />
+      <line x1="12" y1="10" x2="12" y2="10.01" />
+      <line x1="16" y1="10" x2="16" y2="10.01" />
+      <line x1="8" y1="14" x2="8" y2="14.01" />
+      <line x1="12" y1="14" x2="12" y2="14.01" />
+      <line x1="16" y1="14" x2="16" y2="14.01" />
+      <line x1="8" y1="18" x2="16" y2="18" />
+    </svg>
+  );
+}
 
 // Icono de escudo para el acceso al panel super admin (no existe en el set base).
 function IconShield({ className }: { className?: string }) {
@@ -86,6 +115,7 @@ const NAV_ICONS: Record<string, IconType> = {
   pos: IconCreditCard,
   sales: IconShoppingCart,
   expenses: IconWallet,
+  reports: IconTrendingUp,
   // Reloj y no billetera: lo de Créditos todavía NO es plata en la caja.
   credits: IconClock,
   staff: IconUserBadge,
@@ -119,7 +149,7 @@ const NAV_ICONS: Record<string, IconType> = {
 
 export function DashboardShell({
   children,
-  defaultCollapsed = true,
+  defaultCollapsed = false,
 }: {
   children: React.ReactNode;
   /** Preferencia leída de la cookie en el layout de servidor (ver lib/sidebar.ts). */
@@ -133,7 +163,7 @@ export function DashboardShell({
   const mobileMenuTriggerRef = useRef<HTMLButtonElement>(null);
   const [calculatorOpen, setCalculatorOpen] = useState(false);
   const [expenseOpen, setExpenseOpen] = useState(false);
-  const [globalSearch, setGlobalSearch] = useState("");
+  const [paletteOpen, setPaletteOpen] = useState(false);
   // Arranca con lo que ya pintó el servidor: el primer render del cliente tiene
   // que ser idéntico o React descarta el árbol y el menú "salta".
   const [sidebarCollapsed, setSidebarCollapsed] = useState(defaultCollapsed);
@@ -153,22 +183,18 @@ export function DashboardShell({
    */
   const [sidebarExpandedContent, setSidebarExpandedContent] = useState(!defaultCollapsed);
 
-  const handleGlobalSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!globalSearch.trim()) return;
-    const q = globalSearch.trim().toLowerCase();
-    if (q.includes("cita") || q.includes("agenda") || q.includes("turno") || q.includes("calendario")) {
-      router.push("/dashboard/calendar");
-    } else if (q.includes("cliente")) {
-      router.push("/dashboard/customers");
-    } else if (q.includes("venta") || q.includes("pos") || q.includes("cobrar")) {
-      router.push("/dashboard/pos");
-    } else {
-      // El resto cae en el catálogo, que ahora incluye los servicios: buscar
-      // "corte" ya no necesita su propia rama porque llega al mismo lugar.
-      router.push("/dashboard/inventory");
-    }
-  };
+  // ⌘K / Ctrl+K abre (o cierra) la paleta "Ir a…" desde cualquier pantalla.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setMobileMenuOpen(false);
+        setPaletteOpen((value) => !value);
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   const handleHelpClick = () => {
     const businessName = profile?.businessName?.trim();
@@ -283,11 +309,48 @@ export function DashboardShell({
   const userName = profile?.fullName ?? "Admin";
   const userEmail = profile?.email ?? "";
 
+  /**
+   * Comandos de la paleta "Ir a…": exactamente lo que esta persona ve en el
+   * menú (ya filtrado por rol, módulos y permisos), más los accesos del pie.
+   * No se recalcula visibilidad acá — `navigation` ya es la fuente de verdad.
+   */
+  const paletteCommands = useMemo<PaletteCommand[]>(() => {
+    const commands: PaletteCommand[] = [];
+    for (const group of navGroups) {
+      for (const item of group.items) {
+        commands.push({ id: item.id, label: item.name, href: item.href, group: group.label, keywords: NAV_KEYWORDS[item.id] });
+      }
+    }
+    for (const item of footerNav) {
+      commands.push({ id: item.id, label: item.name, href: item.href, group: "Cuenta", keywords: NAV_KEYWORDS[item.id] });
+    }
+    if (canSeeSettings) {
+      commands.push({ id: "settings", label: "Configuración", href: "/dashboard/settings", group: "Cuenta", keywords: NAV_KEYWORDS.settings });
+    }
+    if (isSuperAdmin) commands.push({ id: "admin", label: "Panel Admin", href: "/admin", group: "Administración" });
+    if (isReseller) commands.push({ id: "reseller", label: "Panel Revendedor", href: "/reseller", group: "Administración" });
+    return commands;
+  }, [navGroups, footerNav, canSeeSettings, isSuperAdmin, isReseller]);
+
+  /**
+   * Acciones rápidas del cajón móvil: cierra el cajón y abre la acción en el
+   * cuadro siguiente. Así el cajón le devuelve el foco a su botón ANTES de que
+   * el modal lo tome, y al cerrar el modal el foco vuelve a un lugar que existe.
+   */
+  const apple = useSyncExternalStore(subscribeNever, isApplePlatform, notApple);
+
+  const runFromDrawer = (action: () => void) => {
+    setMobileMenuOpen(false);
+    requestAnimationFrame(action);
+  };
+
   return (
-    <div className="flex h-screen bg-background text-on-background font-sans">
+    // h-dvh y no h-screen (A17): en iOS Safari 100vh incluye la barra del
+    // navegador y el final del contenido quedaba tapado.
+    <div className="flex h-dvh bg-background text-on-background font-sans">
       {/* Sidebar - Desktop */}
       <aside
-        className={`print:hidden hidden lg:flex flex-col overflow-hidden border-r border-outline-variant/10 bg-surface-container-lowest transition-[width] duration-300 motion-reduce:transition-none ${sidebarCollapsed ? "w-20" : "w-60"}`}
+        className={`print:hidden hidden lg:flex flex-col overflow-hidden border-r border-divider bg-surface-container-lowest transition-[width] duration-300 motion-reduce:transition-none ${sidebarCollapsed ? "w-20" : "w-60"}`}
         onTransitionEnd={(e) => {
           // Solo el ancho del propio <aside>: los hijos también transicionan
           // (colores al hover, el chevron al rotar) y esos eventos burbujean
@@ -298,8 +361,8 @@ export function DashboardShell({
           }
         }}
       >
-        <div className="h-16 shrink-0 flex items-center justify-center border-b border-outline-variant/10 px-4">
-          <Link href="/dashboard" aria-label="Ventex, ir al panel" className="inline-flex items-center justify-center rounded-lg focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary">
+        <div className="h-16 lg:h-20 shrink-0 flex items-center justify-center border-b border-divider px-4">
+          <Link href="/dashboard" aria-label="Ventex, ir al panel" className="inline-flex items-center justify-center rounded-lg focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary-ink">
             {sidebarExpandedContent ? (
               <LogoHorizontal className="w-36 h-9" />
             ) : (
@@ -312,7 +375,7 @@ export function DashboardShell({
           <nav aria-label="Navegación principal" className="p-3 space-y-1">
             <div className={`flex items-center mb-3 mt-3 ${sidebarExpandedContent ? "px-3" : "justify-center"}`}>
               {sidebarExpandedContent && (
-                <div className="text-[10px] font-bold text-on-surface-variant uppercase tracking-[0.2em] whitespace-nowrap overflow-hidden flex-1">
+                <div className="text-[11px] font-bold text-on-surface-variant uppercase tracking-[0.16em] whitespace-nowrap overflow-hidden flex-1">
                   Menú Principal
                 </div>
               )}
@@ -355,7 +418,7 @@ export function DashboardShell({
                   // Colapsada, la divisoria es lo unico que agrupa trece iconos
                   // casi iguales. Desplegada, las cabeceras de modulo ya son la
                   // estructura y la linea solo agrega un corte mas al borde.
-                  i > 0 ? (sidebarExpandedContent ? "mt-1" : "pt-3 mt-3 border-t border-outline-variant/8") : ""
+                  i > 0 ? (sidebarExpandedContent ? "mt-1" : "pt-3 mt-3 border-t border-divider") : ""
                 }
               >
                 {sidebarExpandedContent ? (
@@ -387,7 +450,7 @@ export function DashboardShell({
                             // recortado. El fondo tintado ya dice "estás acá".
                             className={`mx-auto ${COLLAPSED_ICON_BUTTON} ${
                               isActive
-                                ? "bg-primary/15 text-primary"
+                                ? "bg-primary/15 text-primary-ink"
                                 : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
                             }`}
                           >
@@ -406,9 +469,9 @@ export function DashboardShell({
         {/* Accesos de administración. Si un trabajador no tiene ninguno, el
             bloque entero (con su borde) desaparece en vez de quedar vacío. */}
         {showAdminLinks && (
-        <div className="shrink-0 p-3 border-t border-outline-variant/10 space-y-1">
+        <div className="shrink-0 p-3 border-t border-divider space-y-1">
           {sidebarExpandedContent && (
-            <div className="px-3 pb-1 pt-1 text-[10px] font-bold uppercase tracking-[0.16em] text-on-surface-variant/70">
+            <div className="px-3 pb-1 pt-1 text-[11px] font-bold uppercase tracking-[0.16em] text-on-surface-variant">
               Cuenta y administración
             </div>
           )}
@@ -416,7 +479,7 @@ export function DashboardShell({
             sidebarExpandedContent ? (
               <Link
                 href="/admin"
-                className="flex items-center gap-3 px-4 py-3 rounded-xl transition-colors text-sm font-medium text-primary hover:bg-primary/10"
+                className="flex items-center gap-3 px-4 py-3 rounded-xl transition-colors text-sm font-medium text-primary-ink hover:bg-primary/10"
               >
                 <IconShield className="w-5 h-5 shrink-0" />
                 <span className="whitespace-nowrap">Panel Admin</span>
@@ -428,7 +491,7 @@ export function DashboardShell({
                     {...trigger}
                     href="/admin"
                     aria-label="Panel Admin"
-                    className={`mx-auto ${COLLAPSED_ICON_BUTTON} text-primary hover:bg-primary/10`}
+                    className={`mx-auto ${COLLAPSED_ICON_BUTTON} text-primary-ink hover:bg-primary/10`}
                   >
                     <IconShield className="w-5 h-5 shrink-0" />
                   </Link>
@@ -440,7 +503,7 @@ export function DashboardShell({
             sidebarExpandedContent ? (
               <Link
                 href="/reseller"
-                className="flex items-center gap-3 px-4 py-3 rounded-xl transition-colors text-sm font-medium text-primary hover:bg-primary/10"
+                className="flex items-center gap-3 px-4 py-3 rounded-xl transition-colors text-sm font-medium text-primary-ink hover:bg-primary/10"
               >
                 <IconUserBadge className="w-5 h-5 shrink-0" />
                 <span className="whitespace-nowrap">Panel Revendedor</span>
@@ -452,7 +515,7 @@ export function DashboardShell({
                     {...trigger}
                     href="/reseller"
                     aria-label="Panel Revendedor"
-                    className={`mx-auto ${COLLAPSED_ICON_BUTTON} text-primary hover:bg-primary/10`}
+                    className={`mx-auto ${COLLAPSED_ICON_BUTTON} text-primary-ink hover:bg-primary/10`}
                   >
                     <IconUserBadge className="w-5 h-5 shrink-0" />
                   </Link>
@@ -470,7 +533,7 @@ export function DashboardShell({
                 aria-current={isActive ? "page" : undefined}
                 className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors text-sm font-medium ${
                   isActive
-                    ? "bg-primary/10 text-primary"
+                    ? "bg-primary/10 text-primary-ink"
                     : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
                 }`}
               >
@@ -487,7 +550,7 @@ export function DashboardShell({
                     aria-label={item.name}
                     className={`mx-auto ${COLLAPSED_ICON_BUTTON} ${
                       isActive
-                        ? "bg-primary/15 text-primary"
+                        ? "bg-primary/15 text-primary-ink"
                         : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
                     }`}
                   >
@@ -529,8 +592,9 @@ export function DashboardShell({
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top Navbar */}
-        <header className="print:hidden h-[calc(5rem+env(safe-area-inset-top))] pt-[env(safe-area-inset-top)] flex items-center justify-between gap-2 px-4 sm:px-6 lg:px-10 border-b border-outline-variant/10 bg-surface-container-lowest sticky top-0 z-20">
-          <div className="flex items-center gap-3 sm:gap-4 shrink-0 lg:hidden">
+        {/* Más bajo en móvil (A17): 64px + la muesca, en vez de 80px fijos. */}
+        <header className="print:hidden h-[calc(4rem+env(safe-area-inset-top))] lg:h-20 pt-[env(safe-area-inset-top)] lg:pt-0 flex items-center justify-between gap-2 px-4 sm:px-6 lg:px-10 border-b border-divider bg-surface-container-lowest sticky top-0 z-20">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0 lg:hidden">
             <button
               ref={mobileMenuTriggerRef}
               type="button"
@@ -538,30 +602,32 @@ export function DashboardShell({
               aria-label={mobileMenuOpen ? "Cerrar menú de navegación" : "Abrir menú de navegación"}
               aria-expanded={mobileMenuOpen}
               aria-controls="dashboard-mobile-menu"
-              className="flex h-10 w-10 items-center justify-center rounded-lg text-on-surface-variant hover:text-on-surface focus-visible:outline-2 focus-visible:outline-primary"
+              className={`-ml-2 ${HEADER_ICON_BUTTON}`}
             >
-              <IconMenu className="w-6 h-6" />
+              <IconMenu className="w-6 h-6" aria-hidden="true" />
             </button>
-            <Link href="/dashboard" aria-label="Ventex, ir al panel">
+            <Link href="/dashboard" aria-label="Ventex, ir al panel" className="rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-ink">
               <LogoSymbol className="h-8 w-8" />
             </Link>
           </div>
 
-          <form onSubmit={handleGlobalSearch} className="hidden lg:flex items-center gap-4 flex-1 max-w-xl">
-            <div className="relative w-full">
-              <IconSearch className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant" />
-              <input
-                type="text"
-                aria-label="Buscar secciones de Ventex"
-                value={globalSearch}
-                onChange={(e) => setGlobalSearch(e.target.value)}
-                placeholder="Buscar en Ventex..."
-                className="w-full bg-surface-container border border-outline-variant/20 rounded-full py-2.5 pl-11 pr-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50"
-              />
-            </div>
-          </form>
+          {/* No es un buscador: abre la paleta "Ir a…" (A15). Tiene forma de
+              campo porque es donde la gente lo busca, pero dice lo que hace. */}
+          <button
+            type="button"
+            onClick={() => setPaletteOpen(true)}
+            aria-haspopup="dialog"
+            aria-keyshortcuts="Control+K Meta+K"
+            className="hidden lg:flex items-center gap-3 flex-1 max-w-xl rounded-full border border-outline-variant bg-surface-container py-2.5 pl-4 pr-3 text-left text-sm text-on-surface-variant transition-colors hover:bg-surface-container-high focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-ink"
+          >
+            <IconSearch className="w-4 h-4 shrink-0" aria-hidden="true" />
+            <span className="flex-1 truncate">Ir a una sección…</span>
+            <kbd className="rounded-md border border-outline-variant bg-surface-container-lowest px-1.5 py-0.5 font-sans text-[11px] font-semibold text-on-surface-variant">
+              {apple ? "⌘K" : "Ctrl K"}
+            </kbd>
+          </button>
 
-          <div className="flex items-center gap-2 sm:gap-4 md:gap-6 ml-auto min-w-0">
+          <div className="flex items-center gap-1 sm:gap-2 md:gap-3 ml-auto min-w-0">
             <WorkspaceSwitcher />
             {/* Solo cuando el sitio existe y está publicado. Antes se mostraba
                 siempre y, sin sitio, llevaba a Ajustes: un botón que dice "Ver
@@ -572,59 +638,63 @@ export function DashboardShell({
                 href={`/${siteSlug}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-semibold hover:bg-primary/20 transition-colors shrink-0"
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 min-h-9 rounded-full bg-primary/10 text-primary-ink text-xs font-semibold hover:bg-primary/20 transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-ink"
                 title="Ver mi sitio público de reservas"
               >
-                <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-3.5 h-3.5">
+                <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-3.5 h-3.5" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                 </svg>
                 <span>Ver sitio web</span>
               </a>
             )}
+            {/* En tablet el header no tiene el campo: queda este botón. En el
+                teléfono la paleta vive en el cajón, en "Acciones rápidas". */}
+            <button
+              type="button"
+              onClick={() => setPaletteOpen(true)}
+              aria-label="Ir a una sección"
+              aria-haspopup="dialog"
+              title="Ir a una sección (Ctrl K)"
+              className={`hidden sm:inline-flex lg:hidden ${HEADER_ICON_BUTTON}`}
+            >
+              <IconSearch className="w-5 h-5" aria-hidden="true" />
+            </button>
             {/* Registrar gasto es global: un gasto no pertenece a ninguna
                 pantalla, ocurre cuando ocurre. Estaba solo en el Panel, así que
                 había que navegar hasta ahí para anotarlo.
                 Solo el dueño: escribir gastos es suyo a nivel RLS. */}
             {!isWorker && (
               <button
+                type="button"
                 onClick={() => setExpenseOpen(true)}
-                className="hidden sm:block shrink-0 text-on-surface-variant hover:text-on-surface transition-colors"
+                className={`hidden sm:inline-flex ${HEADER_ICON_BUTTON}`}
                 title="Registrar gasto"
                 aria-label="Registrar gasto"
               >
-                <IconWallet className="w-5 h-5" />
+                <IconWallet className="w-5 h-5" aria-hidden="true" />
               </button>
             )}
             <button
+              type="button"
               onClick={() => setCalculatorOpen(true)}
               aria-label="Calculadora"
-              className="hidden md:block shrink-0 text-on-surface-variant hover:text-on-surface transition-colors"
+              className={`hidden md:inline-flex ${HEADER_ICON_BUTTON}`}
               title="Calculadora"
             >
-              <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-5 h-5">
-                <rect x="4" y="2" width="16" height="20" rx="2" />
-                <line x1="8" y1="6" x2="16" y2="6" />
-                <line x1="8" y1="10" x2="8" y2="10.01" />
-                <line x1="12" y1="10" x2="12" y2="10.01" />
-                <line x1="16" y1="10" x2="16" y2="10.01" />
-                <line x1="8" y1="14" x2="8" y2="14.01" />
-                <line x1="12" y1="14" x2="12" y2="14.01" />
-                <line x1="16" y1="14" x2="16" y2="14.01" />
-                <line x1="8" y1="18" x2="16" y2="18" />
-              </svg>
+              <CalculatorIcon />
             </button>
             <ThemeToggle />
             <NotificationsBell />
             <button
               type="button"
               onClick={handleHelpClick}
-              title="Ayuda y Soporte"
+              title="Ayuda y soporte"
               aria-label="Ayuda y soporte"
-              className="hidden sm:block text-on-surface-variant hover:text-on-surface transition-colors"
+              className={`hidden sm:inline-flex ${HEADER_ICON_BUTTON}`}
             >
-              <IconHelpCircle className="w-5 h-5" />
+              <IconHelpCircle className="w-5 h-5" aria-hidden="true" />
             </button>
-            <div className="w-px h-6 bg-outline-variant/20 hidden sm:block"></div>
+            <div className="w-px h-6 bg-divider hidden sm:block mx-1" aria-hidden="true"></div>
             <ShellUserMenu name={userName} email={userEmail} showSettings={canSeeSettings} />
           </div>
         </header>
@@ -634,7 +704,7 @@ export function DashboardShell({
             espacio para el botón flotante de soporte se reserva en ESTE
             contenedor: es el que decide dónde termina el contenido. */}
         <main
-          className={`flex-1 overflow-auto bg-background p-6 lg:p-10 print:p-0 print:bg-white print:overflow-visible ${
+          className={`flex-1 overflow-auto bg-background p-4 sm:p-6 lg:p-10 print:p-0 print:bg-white print:overflow-visible ${
             showsSupportFab(pathname) ? SUPPORT_FAB_CLEARANCE : ""
           }`}
         >
@@ -653,6 +723,13 @@ export function DashboardShell({
         <CalculatorModal onClose={() => setCalculatorOpen(false)} />
       )}
 
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        commands={paletteCommands}
+        onNavigate={(href) => router.push(href)}
+      />
+
       {/* Mobile Menu (Overlay) */}
       {mobileMenuOpen && (
         <div className="fixed inset-0 z-50 flex lg:hidden">
@@ -663,14 +740,50 @@ export function DashboardShell({
           {/* overflow-y-auto: con muchos módulos el menú no cabía y no se podía desplazar. */}
           <aside id="dashboard-mobile-menu" ref={mobileMenuRef} role="dialog" aria-modal="true" aria-label="Menú de navegación" className="relative w-72 max-w-[calc(100vw-3rem)] bg-surface-container-lowest flex flex-col justify-between h-full overflow-y-auto overscroll-contain shadow-2xl">
             <div>
-              <div className="h-[calc(5rem+env(safe-area-inset-top))] pt-[env(safe-area-inset-top)] flex items-center justify-between px-6 border-b border-outline-variant/10">
+              <div className="h-[calc(4rem+env(safe-area-inset-top))] pt-[env(safe-area-inset-top)] flex items-center justify-between px-6 border-b border-divider">
                 <Link href="/dashboard" aria-label="Ventex, ir al panel" onClick={() => setMobileMenuOpen(false)}>
                   <LogoHorizontal className="w-36 h-9" />
                 </Link>
-                <button type="button" onClick={() => setMobileMenuOpen(false)} aria-label="Cerrar menú" className="h-10 w-10 rounded-lg text-on-surface-variant hover:bg-surface-container-high focus-visible:outline-2 focus-visible:outline-primary">×</button>
+                <button type="button" onClick={() => setMobileMenuOpen(false)} aria-label="Cerrar menú" className={`-mr-2 text-xl ${HEADER_ICON_BUTTON}`}>×</button>
               </div>
+              {/* Acciones rápidas (A17): en el teléfono el header no tiene lugar
+                  para la paleta, el gasto ni la calculadora, y no existían en
+                  ninguna otra parte de la pantalla. */}
+              <section aria-labelledby="mobile-quick-actions" className="px-4 pt-4">
+                <h2 id="mobile-quick-actions" className="text-[11px] font-bold text-on-surface-variant uppercase tracking-[0.16em] mb-2 px-4">
+                  Acciones rápidas
+                </h2>
+                <div className="space-y-1">
+                  <button
+                    type="button"
+                    onClick={() => runFromDrawer(() => setPaletteOpen(true))}
+                    className={QUICK_ACTION}
+                  >
+                    <IconSearch className="w-5 h-5 shrink-0" aria-hidden="true" />
+                    Ir a una sección…
+                  </button>
+                  {!isWorker && (
+                    <button
+                      type="button"
+                      onClick={() => runFromDrawer(() => setExpenseOpen(true))}
+                      className={QUICK_ACTION}
+                    >
+                      <IconWallet className="w-5 h-5 shrink-0" aria-hidden="true" />
+                      Registrar gasto
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => runFromDrawer(() => setCalculatorOpen(true))}
+                    className={QUICK_ACTION}
+                  >
+                    <CalculatorIcon />
+                    Calculadora
+                  </button>
+                </div>
+              </section>
               <nav aria-label="Navegación principal" className="p-4 space-y-1">
-                <div className="text-[10px] font-bold text-on-surface-variant uppercase tracking-[0.2em] mb-4 px-4 mt-4">
+                <div className="text-[11px] font-bold text-on-surface-variant uppercase tracking-[0.16em] mb-2 px-4 mt-2">
                   Menú Principal
                 </div>
                 {/* Mismos clústeres que en escritorio: si el menú del teléfono
@@ -691,15 +804,15 @@ export function DashboardShell({
               </nav>
             </div>
             {showAdminLinks && (
-            <div className="p-4 border-t border-outline-variant/10 space-y-1">
-              <div className="px-4 pb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-on-surface-variant/70">
+            <div className="p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] border-t border-divider space-y-1">
+              <div className="px-4 pb-1 text-[11px] font-bold uppercase tracking-[0.16em] text-on-surface-variant">
                 Cuenta y administración
               </div>
               {isSuperAdmin && (
                 <Link
                   href="/admin"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-sm font-medium text-primary hover:bg-primary/10"
+                  className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-sm font-medium text-primary-ink hover:bg-primary/10"
                 >
                   <IconShield className="w-5 h-5" />
                   Panel Admin
@@ -709,7 +822,7 @@ export function DashboardShell({
                 <Link
                   href="/reseller"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-sm font-medium text-primary hover:bg-primary/10"
+                  className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-sm font-medium text-primary-ink hover:bg-primary/10"
                 >
                   <IconUserBadge className="w-5 h-5" />
                   Panel Revendedor
@@ -725,7 +838,7 @@ export function DashboardShell({
                     aria-current={item.id === activeNavId ? "page" : undefined}
                     className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-sm font-medium ${
                       item.id === activeNavId
-                        ? "bg-primary/10 text-primary"
+                        ? "bg-primary/10 text-primary-ink"
                         : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
                     }`}
                   >
@@ -875,14 +988,19 @@ function CalculatorModal({ onClose }: { onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" {...backdropProps(onClose)}>
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Calculadora"
         className="bg-surface-container rounded-3xl w-full max-w-xs border border-outline-variant/10 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-4 border-b border-outline-variant/10 flex justify-between items-center bg-surface-container-low">
           <h2 className="text-sm font-bold text-on-surface">Calculadora</h2>
           <button
+            type="button"
             onClick={onClose}
-            className="w-7 h-7 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors"
+            aria-label="Cerrar calculadora"
+            className="-mr-1.5 w-10 h-10 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-ink"
           >
             <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="16" height="16">
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />

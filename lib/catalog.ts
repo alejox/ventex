@@ -166,3 +166,58 @@ export function catalogKpis(rows: CatalogRow[]): {
   }
   return { products, services, lowStock, archived };
 }
+
+/** Columnas por las que se puede ordenar el catálogo. */
+export type CatalogSortKey = "name" | "price" | "stock" | "category";
+
+/**
+ * Ordena el catálogo SIN mutar la lista. Sin clave devuelve el orden de
+ * `catalogRowsOf` (lo último creado primero).
+ *
+ * - Nombre y categoría: alfabético en español, sin distinguir mayúsculas ni
+ *   tildes, con números en orden natural ("Talla 2" antes que "Talla 10").
+ * - Stock: lo que no lleva conteo (servicios y productos sin inventario) va
+ *   SIEMPRE al final, en los dos sentidos: no es "cero", es "no aplica".
+ * - Categoría vacía también va al final.
+ * - Empates: se conserva el orden previo (sort estable).
+ */
+export function sortCatalogRows(
+  rows: CatalogRow[],
+  key: CatalogSortKey | null | undefined,
+  dir: "asc" | "desc" = "asc",
+): CatalogRow[] {
+  if (!key) return rows;
+  const sign = dir === "asc" ? 1 : -1;
+  const text = (a: string, b: string) => a.localeCompare(b, "es", { numeric: true, sensitivity: "base" });
+  const stockOf = (row: CatalogRow): number | null =>
+    row.kind === "product" && row.product.tracks_stock !== false ? row.product.stock_level : null;
+
+  return [...rows].sort((a, b) => {
+    switch (key) {
+      case "name":
+        return sign * text(a.name, b.name);
+      case "price":
+        return sign * (a.price - b.price);
+      case "category": {
+        if (!a.categoryName || !b.categoryName) {
+          return a.categoryName === b.categoryName ? 0 : a.categoryName ? -1 : 1;
+        }
+        return sign * text(a.categoryName, b.categoryName);
+      }
+      case "stock": {
+        const sa = stockOf(a);
+        const sb = stockOf(b);
+        if (sa === null || sb === null) return sa === sb ? 0 : sa === null ? 1 : -1;
+        return sign * (sa - sb);
+      }
+      default:
+        return 0;
+    }
+  });
+}
+
+export const CATALOG_SORT_KEYS: CatalogSortKey[] = ["name", "price", "stock", "category"];
+
+export function isCatalogSortKey(value: string): value is CatalogSortKey {
+  return (CATALOG_SORT_KEYS as string[]).includes(value);
+}

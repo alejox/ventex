@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useResellerStore } from "@/stores/reseller.store";
 import { IconCreditCard } from "@/app/assets/icons/DashboardIcons";
 import { CollectionEmpty, CollectionError } from "@/components/CollectionState";
+import { ExpiryCell, needsRenewal } from "@/components/ui/ExpiryCell";
 
 const REASON_LABELS: Record<string, string> = {
   grant: "Créditos otorgados",
@@ -19,6 +20,21 @@ export default function ResellerOverviewPage() {
   const loading = useResellerStore((s) => s.loading);
   const error = useResellerStore((s) => s.error);
   const fetchOverview = useResellerStore((s) => s.fetchOverview);
+  const clients = useResellerStore((s) => s.clients);
+  const [now] = useState(() => Date.now());
+
+  /**
+   * "Por renovar" (F19): vencidas o que vencen en 7 días, la más urgente
+   * primero. Las suspendidas quedan afuera: suspender fue una decisión del
+   * revendedor, no un olvido que haya que recordarle.
+   */
+  const toRenew = useMemo(
+    () =>
+      clients
+        .filter((c) => c.license_status !== "suspended" && needsRenewal(c.period_end, now))
+        .sort((a, b) => new Date(a.period_end ?? 0).getTime() - new Date(b.period_end ?? 0).getTime()),
+    [clients, now],
+  );
 
   useEffect(() => {
     fetchOverview();
@@ -61,16 +77,51 @@ export default function ResellerOverviewPage() {
           </div>
 
           {totalBalance === 0 && (
-            <div className="rounded-xl bg-amber-500/10 border border-amber-500/30 px-4 py-3 text-sm text-amber-600 dark:text-amber-400 mt-6">
+            <div className="rounded-xl bg-warning/10 border border-warning/30 px-4 py-3 text-sm text-warning mt-6">
               No tienes créditos disponibles. Tus clientes no podrán activar ni renovar su
               licencia hasta que el administrador te otorgue más créditos.
             </div>
           )}
 
+          <section
+            aria-labelledby="reseller-to-renew"
+            className="bg-surface-container-lowest border border-outline-variant/40 rounded-3xl p-6 md:p-8 shadow-sm mt-6"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 mb-4">
+              <div>
+                <h2 id="reseller-to-renew" className="text-lg font-bold text-on-surface">Por renovar</h2>
+                <p className="text-xs text-on-surface-variant mt-0.5">Licencias vencidas o que vencen en los próximos 7 días.</p>
+              </div>
+              <Link href="/reseller/clients" className="text-sm font-semibold text-primary-ink hover:underline whitespace-nowrap">
+                Gestionar clientes →
+              </Link>
+            </div>
+            {toRenew.length === 0 ? (
+              <p className="text-sm text-on-surface-variant py-2">Ninguna licencia por renovar. Todo al día.</p>
+            ) : (
+              <ul className="divide-y divide-outline-variant/30">
+                {toRenew.map((c) => (
+                  <li key={c.user_id} className="flex items-start justify-between gap-4 py-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-on-surface truncate">
+                        {c.business_name || c.full_name || "Sin nombre"}
+                      </p>
+                      <p className="text-xs text-on-surface-variant truncate">
+                        {c.plan_name ?? planName(c.plan_id)}
+                        {c.email ? ` · ${c.email}` : ""}
+                      </p>
+                    </div>
+                    <ExpiryCell periodEnd={c.period_end} className="shrink-0 text-right text-xs" />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
           <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-3xl p-6 md:p-8 shadow-sm mt-6">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-lg font-bold text-on-surface">Movimientos de créditos</h2>
-              <Link href="/reseller/clients" className="text-sm font-semibold text-primary hover:underline">
+              <Link href="/reseller/clients" className="text-sm font-semibold text-primary-ink hover:underline">
                 Ver clientes →
               </Link>
             </div>
@@ -102,7 +153,7 @@ export default function ResellerOverviewPage() {
                     </div>
                     <span
                       className={`text-sm font-bold tabular-nums ${
-                        m.delta > 0 ? "text-primary" : "text-on-surface-variant"
+                        m.delta > 0 ? "text-primary-ink" : "text-on-surface-variant"
                       }`}
                     >
                       {m.delta > 0 ? `+${m.delta}` : m.delta}
@@ -138,7 +189,7 @@ function StatCard({
       <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">{label}</p>
       <p
         className={`text-2xl font-bold mt-2 tabular-nums break-words ${
-          highlight ? "text-primary" : "text-on-surface"
+          highlight ? "text-primary-ink" : "text-on-surface"
         }`}
       >
         {value}

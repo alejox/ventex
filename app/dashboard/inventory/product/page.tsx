@@ -28,10 +28,26 @@ import { toMessage } from "@/lib/errors";
 import { ProductPricingSection } from "./components/ProductPricingSection";
 import { ProductPresentationSection } from "./components/ProductPresentationSection";
 import { useFormatMoney } from "@/lib/useMoney";
+import { isSafeNext } from "@/lib/safe-next";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
 
 interface FieldErrors {
   name?: string;
   price?: string;
+  commission?: string;
+}
+
+/**
+ * Valida el valor de la comisión. Antes el `noValidate` del formulario dejaba
+ * pasar un 150 % y se guardaba: el empleado se llevaba más de lo que se cobró.
+ */
+function commissionError(hasCommission: boolean, type: string, raw: string): string | undefined {
+  if (!hasCommission) return undefined;
+  const value = raw.trim() === "" ? NaN : Number(raw);
+  if (raw.trim() === "") return "Indica el valor de la comisión o desactívala.";
+  if (!Number.isFinite(value) || value < 0) return "La comisión no puede ser negativa.";
+  if (type !== "fixed" && value > 100) return "Un porcentaje de comisión no puede pasar de 100 %.";
+  return undefined;
 }
 
 const UNIT_MAP: Record<string, string> = {
@@ -76,8 +92,16 @@ function ProductForm() {
    * dashboard para que un `from` manipulado no redirija fuera de la app.
    */
   const from = searchParams.get("from");
+  /**
+   * `back` lo arma el catálogo con su URL completa (búsqueda, filtros, página):
+   * volver ahí deja la lista donde estaba (D8). Se valida con `isSafeNext` y
+   * además tiene que quedar dentro del panel.
+   */
+  const back = searchParams.get("back");
   const backTo =
-    from && /^\/dashboard\/[a-z0-9/-]*$/i.test(from) ? from : "/dashboard/inventory";
+    back && isSafeNext(back) && back.startsWith("/dashboard/")
+      ? back
+      : from && /^\/dashboard\/[a-z0-9/-]*$/i.test(from) ? from : "/dashboard/inventory";
 
   const profile = useProfile();
   const products = useInventoryStore((s) => s.products);
@@ -120,6 +144,9 @@ function ProductForm() {
   const [imagePreview, setImagePreview] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const [saving, setSaving] = useState(false);
+  /** Estado del formulario al terminar de cargar: base para saber si hay cambios. */
+  const [baseline, setBaseline] = useState<string | null>(null);
+  const { confirm: confirmLeave, dialog: leaveDialog } = useConfirm();
   // Fallo de la subida de la foto. Va junto a la foto, no al pie: es lo que hay
   // que cambiar (otra imagen, o ninguna) para poder guardar.
   const [imageError, setImageError] = useState<string | null>(null);
@@ -127,6 +154,7 @@ function ProductForm() {
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const nameRef = useRef<HTMLInputElement>(null);
   const priceRef = useRef<HTMLInputElement>(null);
+  const commissionRef = useRef<HTMLInputElement>(null);
   const [seededId, setSeededId] = useState<string | null>(null);
   const [distributorModalOpen, setDistributorModalOpen] = useState(false);
   const [categoryModalOpen, setCategoryModalOpen] = useState(false);
@@ -387,10 +415,12 @@ function ProductForm() {
         errores.price = error instanceof Error ? error.message : "Indica un precio de venta válido.";
       }
     }
+    const commission = commissionError(form.has_commission, form.commission_type, form.commission_value);
+    if (commission) errores.commission = commission;
     if (Object.keys(errores).length > 0) {
       setFieldErrors(errores);
       // Al primer campo con problema, que puede estar fuera de la pantalla.
-      (errores.name ? nameRef : priceRef).current?.focus();
+      (errores.name ? nameRef : errores.price ? priceRef : commissionRef).current?.focus();
       return;
     }
 
@@ -432,7 +462,8 @@ function ProductForm() {
         }
 
         const serviceInput: NewServiceInput = {
-          name: form.name.trim().toUpperCase(),
+          // Tal como lo escribieron (D20).
+          name: form.name.trim(),
           description: serviceDescription,
           price: serviceFinalPrice,
           duration_minutes: durationMinutes,
@@ -453,7 +484,7 @@ function ProductForm() {
 
       const payload = {
         ...form,
-        name: form.name.trim().toUpperCase(),
+        name: form.name.trim(),
         purchase_price: purchasePriceTotal,
         price: sellingPriceTotal,
         // El stock solo se define en el alta: `updateProduct` ya no escribe la
@@ -552,6 +583,56 @@ function ProductForm() {
     form.barcode ?? "",
     handleBarcodeFound,
   );
+  /**
+   * Cambios sin guardar (D18). El estado al terminar de cargar es la línea
+   * base; cualquier diferencia con ella pide confirmación al salir.
+   */
+  const snapshot = JSON.stringify({
+    form,
+    itemType,
+    serviceFinalPrice,
+    serviceDuration,
+    serviceDescription,
+    serviceStatus,
+    presentation,
+    purchasePriceTotal,
+    sellingPriceTotal,
+    initialPackages,
+    initialLoose,
+    entryPackages,
+    entryLoose,
+    image: imageFile?.name ?? null,
+  });
+  if (!loadingProduct && baseline === null) setBaseline(snapshot);
+  const dirty = baseline !== null && baseline !== snapshot && !saving;
+
+  /** Volver/Cancelar con cambios: pregunta antes de descartarlos. */
+  const guardLeave = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (!dirty) return;
+    e.preventDefault();
+    void confirmLeave({
+      title: "¿Salir sin guardar?",
+      description: "Tienes cambios sin guardar en este formulario. Si sales, se pierden.",
+      confirmLabel: "Salir sin guardar",
+      cancelLabel: "Seguir editando",
+      tone: "danger",
+    }).then((leave) => {
+      if (leave) router.push(backTo);
+    });
+  };
+
+  // Recargar o cerrar la pestaña con cambios: aviso nativo del navegador (es
+  // el único que puede frenar esa salida).
+  useEffect(() => {
+    if (!dirty) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [dirty]);
+
   if (loadingProduct) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -566,6 +647,7 @@ function ProductForm() {
       <div className="flex items-center gap-3 sm:gap-4 mb-6 sm:mb-8">
         <Link
           href={backTo}
+          onClick={guardLeave}
           aria-label="Volver"
           className="w-10 h-10 shrink-0 flex items-center justify-center rounded-xl text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors"
         >
@@ -660,12 +742,12 @@ function ProductForm() {
                   onChange={(e) => { setForm({ ...form, name: e.target.value }); setFieldErrors((p) => ({ ...p, name: undefined })); }}
                   aria-invalid={!!fieldErrors.name}
                   aria-describedby={fieldErrors.name ? "product-name-error" : undefined}
-                  className={`w-full bg-surface-container-lowest border rounded-xl py-3 px-4 text-sm text-on-surface uppercase focus:outline-none focus:ring-2 transition-all placeholder:text-on-surface-variant/50 ${
+                  className={`w-full bg-surface-container-lowest border rounded-xl py-3 px-4 text-sm text-on-surface focus:outline-none focus:ring-2 transition-all placeholder:text-on-surface-variant/50 ${
                     fieldErrors.name
                       ? "border-error focus:border-error focus:ring-error/20"
                       : "border-outline-variant/30 focus:border-primary focus:ring-primary/20"
                   }`}
-                  placeholder={itemType === "Servicio" ? "Ej. CORTE TRADICIONAL + BARBA" : "Ej. CERA MATE FIJADORA"}
+                  placeholder={itemType === "Servicio" ? "Ej. Corte tradicional + barba" : "Ej. Cera mate fijadora"}
                   required
                 />
                 {fieldErrors.name && (
@@ -685,7 +767,9 @@ function ProductForm() {
                   value={form.category_id}
                   onChange={(e) => setForm({ ...form, category_id: e.target.value })}
                 >
-                  <option value="" disabled>Selecciona...</option>
+                  {/* Seleccionable (D21): sin esto, una categoría puesta por error
+                      no se podía quitar nunca. */}
+                  <option value="">Sin categoría</option>
                   {categories.map((cat) => (
                     <option key={cat.id} value={cat.id}>{cat.name}</option>
                   ))}
@@ -719,7 +803,8 @@ function ProductForm() {
                     onChange={(e) => setForm({ ...form, distributor_id: e.target.value })}
                   >
                     <option value="">Sin proveedor</option>
-                    {distributors.map((d) => (
+                    {/* Un proveedor archivado no se ofrece, salvo que ya sea el de este producto. */}
+                    {distributors.filter((d) => d.status !== "inactive" || d.id === form.distributor_id).map((d) => (
                       <option key={d.id} value={d.id}>{d.business_name}</option>
                     ))}
                   </Select>
@@ -1021,7 +1106,10 @@ function ProductForm() {
             <div className="flex items-center gap-3 mb-4">
               <button
                 type="button"
-                onClick={() => setForm({ ...form, has_commission: !form.has_commission, commission_type: "percentage", commission_value: "" })}
+                onClick={() => {
+                  setForm({ ...form, has_commission: !form.has_commission, commission_type: "percentage", commission_value: "" });
+                  setFieldErrors((p) => ({ ...p, commission: undefined }));
+                }}
                 role="switch"
                 aria-checked={form.has_commission}
                 aria-labelledby="commission-label"
@@ -1047,25 +1135,55 @@ function ProductForm() {
                 <Select
                   label="Tipo de comisión"
                   value={form.commission_type}
-                  onChange={(e) => setForm({ ...form, commission_type: e.target.value })}
+                  onChange={(e) => {
+                    setForm({ ...form, commission_type: e.target.value });
+                    if (form.commission_value.trim()) {
+                      setFieldErrors((p) => ({
+                        ...p,
+                        commission: commissionError(true, e.target.value, form.commission_value),
+                      }));
+                    }
+                  }}
                 >
                   <option value="percentage">Porcentaje (%)</option>
                   <option value="fixed">Valor fijo ($)</option>
                 </Select>
                 <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-on-surface block">
+                  <label htmlFor="commission-value" className="text-[13px] font-semibold text-on-surface block">
                     {form.commission_type === "fixed" ? "Valor por unidad ($)" : "Porcentaje (%)"}
                   </label>
                   <input
+                    id="commission-value"
+                    ref={commissionRef}
                     type="number"
+                    inputMode="decimal"
                     step="0.01"
                     min="0"
                     max={form.commission_type === "fixed" ? "999999" : "100"}
                     value={form.commission_value}
-                    onChange={(e) => setForm({ ...form, commission_value: e.target.value })}
-                    className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-on-surface-variant/50"
+                    onChange={(e) => {
+                      setForm({ ...form, commission_value: e.target.value });
+                      // Validación EN VIVO: el 150 % se marca mientras se escribe,
+                      // no recién al guardar.
+                      const err = e.target.value.trim()
+                        ? commissionError(true, form.commission_type, e.target.value)
+                        : undefined;
+                      setFieldErrors((p) => ({ ...p, commission: err }));
+                    }}
+                    aria-invalid={!!fieldErrors.commission}
+                    aria-describedby={fieldErrors.commission ? "commission-value-error" : undefined}
+                    className={`w-full bg-surface-container-lowest border rounded-xl py-3 px-4 text-sm text-on-surface focus:outline-none focus:ring-2 transition-all placeholder:text-on-surface-variant/50 ${
+                      fieldErrors.commission
+                        ? "border-error focus:border-error focus:ring-error/20"
+                        : "border-outline-variant/30 focus:border-primary focus:ring-primary/20"
+                    }`}
                     placeholder={form.commission_type === "fixed" ? "0.00" : "0"}
                   />
+                  {fieldErrors.commission && (
+                    <p id="commission-value-error" className="text-xs font-medium text-error">
+                      {fieldErrors.commission}
+                    </p>
+                  )}
                 </div>
               </div>
             )}
@@ -1090,9 +1208,12 @@ function ProductForm() {
           </p>
         )}
 
-        <div className="flex justify-between items-center pt-2">
+        {/* Barra de acciones fija abajo en el teléfono (D18): en un formulario
+            de esta longitud "Guardar" quedaba a varios scrolls de distancia. */}
+        <div className="sticky bottom-0 z-20 -mx-4 sm:-mx-6 lg:mx-0 px-4 sm:px-6 lg:px-0 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] lg:pb-0 bg-surface/95 backdrop-blur border-t border-outline-variant/20 lg:border-0 lg:bg-transparent lg:backdrop-blur-none lg:static flex justify-between items-center gap-3">
           <Link
             href={backTo}
+            onClick={guardLeave}
             className="px-5 py-3 rounded-xl text-sm font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors"
           >
             Cancelar
@@ -1132,6 +1253,8 @@ function ProductForm() {
           onCreated={(id) => setForm((prev) => ({ ...prev, category_id: id }))}
         />
       )}
+
+      {leaveDialog}
     </div>
   );
 }

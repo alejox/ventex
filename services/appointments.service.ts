@@ -1,4 +1,5 @@
 import type { BusyAppointment } from "@/lib/appointment-availability";
+import type { OpeningHour } from "@/lib/appointment-hours";
 import { createClient } from "@/utils/supabase/client";
 import { findOrCreateVehicleByPlate } from "@/services/vehicles.service";
 import { createSale } from "@/services/pos.service";
@@ -102,6 +103,50 @@ export const STAFF_BUSY_MESSAGE = "Esa persona ya tiene una cita en ese horario.
 
 function mapAppointmentError(error: { code?: string; message?: string }): Error | typeof error {
   return error.code === "23P01" ? new Error(STAFF_BUSY_MESSAGE) : error;
+}
+
+/**
+ * Mueve la cita (fecha y horario) sin tocar nada más: es lo que hace arrastrarla
+ * en la grilla o "Mover a…". No pasa por `updateAppointment` porque ese reescribe
+ * la ficha completa (y el vehículo); acá solo cambian tres columnas.
+ */
+export async function rescheduleAppointment(
+  id: string,
+  date: string,
+  start: string,
+  end: string,
+): Promise<Appointment> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("appointments")
+    .update({ appointment_date: date, start_time: start, end_time: end })
+    .eq("id", id)
+    .select(SELECT)
+    .single();
+  if (error) throw mapAppointmentError(error);
+  return {
+    ...data,
+    customers: one<{ full_name: string }>(data.customers),
+    services: one<{ name: string }>(data.services),
+    staff: one<{ full_name: string }>(data.staff),
+  } as Appointment;
+}
+
+/**
+ * Horario de atención del negocio (`business_hours`, el mismo que usa la
+ * reserva pública). La policy de lectura deja leerlo a todo el negocio,
+ * trabajadores incluidos. `null` si nunca se cargó: la grilla vuelve al rango
+ * de siempre y no sombrea nada.
+ */
+export async function fetchBusinessHours(): Promise<OpeningHour[] | null> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("business_hours")
+    .select("weekday, is_open, opens_at, closes_at")
+    .order("weekday");
+  if (error) throw error;
+  if (!data || data.length === 0) return null;
+  return data.map((h) => ({ ...h, opens_at: h.opens_at.slice(0, 5), closes_at: h.closes_at.slice(0, 5) }));
 }
 
 /** Las citas no canceladas de un día, para saber quién está libre. */

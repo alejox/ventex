@@ -70,7 +70,7 @@ export function MoneyInput({
         readOnly={readOnly}
         required={required}
         /* text-base en móvil: por debajo de 16px iOS hace zoom al enfocar. */
-        className={`w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 pl-8 pr-4 text-base sm:text-sm text-on-surface tabular-nums focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-on-surface-variant/50 ${className}`}
+        className={`w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 pl-8 pr-4 text-base sm:text-sm text-on-surface tabular-nums focus:outline-none focus:border-primary-ink focus:ring-2 focus:ring-primary-ink/25 transition-all placeholder:text-on-surface-variant/80 ${className}`}
       />
     </div>
   );

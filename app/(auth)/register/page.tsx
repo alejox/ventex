@@ -1,110 +1,94 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState, useTransition } from "react";
 import { useSearchParam } from "@/lib/useUrlState";
 import { GoogleButton } from "@/components/GoogleButton";
 import { whatsappUrl } from "@/config/contact";
-import { signup, type SignupState } from "@/utils/supabase/actions";
-import { BUSINESS_ICONS, MODULE_ICONS, RocketIcon } from "@/app/assets/icons/BusinessIcons";
-import {
-  defaultModulesForType,
-  REGISTER_BUSINESS_OPTIONS,
-  MODULES_BY_TYPE,
-  type BusinessType,
-} from "@/config/business";
+import { resendSignupEmail, signup, type SignupState } from "@/utils/supabase/actions";
+import { defaultModulesForType, type BusinessType, type Modules } from "@/config/business";
+import { BusinessTypeCards, ModulePicker } from "@/components/onboarding/BusinessTypeCards";
+import { onboardingPath, sanitizeMonths, sanitizePlanId } from "@/lib/signup-intent";
 
-// --- Component ---
+/** Segundos entre reenvíos del correo de confirmación. */
+const RESEND_COOLDOWN_S = 60;
+const MIN_PASSWORD = 6;
+
+/**
+ * Registro en DOS pasos (B8): qué negocio tienes → correo y contraseña.
+ *
+ * El nombre del negocio, el tuyo y el teléfono ya no se piden acá: los pide el
+ * `OnboardingModal` al entrar por primera vez, que es el mismo paso que ya
+ * hacía quien se registra con Google. Así los dos caminos terminan igual, y el
+ * rubro y los módulos elegidos acá viajan en el enlace de vuelta para que el
+ * modal los traiga precargados (ver `lib/signup-intent.ts`).
+ */
 export default function RegisterPage() {
-  const [step, setStep] = useState(1);
-  // Sin preselección silenciosa: aunque solo haya un rubro registrable, el
-  // usuario debe tocar su tarjeta antes de continuar. El tipo de negocio es
-  // obligatorio y nadie entra al sistema sin haberlo elegido.
-  const [businessType, setBusinessType] = useState("");
-  const [modules, setModules] = useState<Record<string, boolean>>(
-    defaultModulesForType(null),
-  );
+  const [step, setStep] = useState<1 | 2>(1);
+  // Sin preselección silenciosa: el usuario debe tocar su tarjeta antes de
+  // continuar. El tipo de negocio es obligatorio.
+  const [businessType, setBusinessType] = useState<BusinessType | "">("");
+  const [modules, setModules] = useState<Modules>(defaultModulesForType(null));
 
-  // El rubro puede no ofrecer extras opcionales (la tienda hoy no los tiene):
-  // en ese caso el paso de módulos no existe y el asistente pasa de 3 pasos a
-  // 2, en lugar de mostrar una pantalla vacía con un botón "Continuar".
-  const moduleOptions = MODULES_BY_TYPE[businessType as BusinessType] ?? [];
-  const hasModuleStep = moduleOptions.length > 0;
-  const totalSteps = hasModuleStep ? 3 : 2;
-
-  // Step 3 state
   const [emailInput, setEmailInput] = useState<string | null>(null);
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [businessName, setBusinessName] = useState("");
-  // Controlado por la misma razón que el resto del paso 3: React 19 resetea el
-  // `<form action>` al terminar la acción, y los inputs no controlados volvían
-  // vacíos tras un error del servidor (correo ya registrado, etc.). Los de
-  // texto controlados sobreviven porque React espeja `value` en `defaultValue`.
+  // Controlado: React 19 resetea el `<form action>` al terminar la acción y los
+  // inputs no controlados volvían vacíos tras un error del servidor.
   const [acceptedTerms, setAcceptedTerms] = useState(false);
-  const [state, formAction, pending] = useActionState<SignupState, FormData>(
-    signup,
-    { success: false, error: null },
-  );
+  const [state, formAction, pending] = useActionState<SignupState, FormData>(signup, {
+    success: false,
+    error: null,
+  });
+  /** Envío que el usuario descartó con "¿Escribiste mal tu correo? Volver". */
+  const [dismissedSentAt, setDismissedSentAt] = useState<number | null>(null);
 
   /**
    * Vuelta del checkout de invitado (`?paid=1&email=`): el pago ya está
    * acreditado y esperando atado a ese correo. Se precarga el campo para que la
    * cuenta se cree con el MISMO correo, que es lo que después le permite a
    * `claim_guest_orders` reconocer el pago como de este usuario.
-   *
-   * El correo de la URL es sólo el valor inicial: si el usuario lo edita, gana
-   * lo que escribió (y ahí el pago no se reclama solo, por eso el aviso lo
-   * dice).
    */
   const paidCheckout = useSearchParam("paid") === "1";
   const paidEmail = useSearchParam("email");
   const email = emailInput ?? paidEmail ?? "";
-  const setEmail = setEmailInput;
 
-  const handleNext = () => setStep(step === 1 && !hasModuleStep ? 3 : step + 1);
-  const handleBack = () => setStep(step === 3 && !hasModuleStep ? 1 : step - 1);
+  /**
+   * "Empezar con {plan}" de la landing (B14): se registra primero y, al terminar
+   * el onboarding, va derecho al checkout de ese plan. El nombre solo se usa
+   * para el aviso; el id es lo que viaja y se valida.
+   */
+  const plan = sanitizePlanId(useSearchParam("plan"));
+  const months = sanitizeMonths(useSearchParam("meses"));
+  const planName = (useSearchParam("nombre") ?? "").slice(0, 30);
+
+  const next = onboardingPath({
+    businessType: businessType || null,
+    modules,
+    plan,
+    months,
+  });
+
   const selectBusinessType = (type: BusinessType) => {
     setBusinessType(type);
     setModules(defaultModulesForType(type));
   };
 
-  const confirmMismatch = confirmPassword !== "" && confirmPassword !== password;
+  const showConfirmation =
+    state.success && state.sentAt !== undefined && state.sentAt !== dismissedSentAt;
 
-  if (state.success) {
+  if (showConfirmation) {
     return (
-      <div className="w-full max-w-[420px] mx-auto text-center">
-        <div className="w-16 h-16 rounded-full bg-primary/10 text-primary flex items-center justify-center mx-auto mb-6">
-          <svg className="w-8 h-8" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-            <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
-          </svg>
-        </div>
-        <h2 className="text-[28px] font-bold text-on-surface mb-2">
-          Revisa tu correo
-        </h2>
-        <p className="text-on-surface-variant text-sm mb-8 leading-relaxed">
-          Te enviamos un enlace de confirmación a <strong className="text-on-surface">{email}</strong>.
-          Revisa tu bandeja de entrada y haz clic en el enlace para activar tu cuenta.
-        </p>
-        <div className="bg-surface-container-low rounded-xl p-4 mb-8 text-left">
-          <p className="text-xs text-on-surface-variant font-medium mb-2">¿No encuentras el correo?</p>
-          <ul className="text-xs text-on-surface-variant space-y-1.5 list-disc list-inside">
-            <li>Revisa tu carpeta de spam o correo no deseado</li>
-            <li>Asegúrate de haber escrito bien tu correo</li>
-          </ul>
-        </div>
-        <Link
-          href="/login"
-          className="inline-block w-full bg-primary hover:bg-primary-dim text-on-primary font-semibold py-3.5 rounded-xl transition-all text-[15px] text-center"
-        >
-          Ir a Iniciar Sesión
-        </Link>
-      </div>
+      <CheckEmail
+        email={state.email ?? email}
+        next={state.next ?? next}
+        key={state.sentAt}
+        onBack={() => setDismissedSentAt(state.sentAt ?? null)}
+      />
     );
   }
+
+  const passwordTooShort = password.length > 0 && password.length < MIN_PASSWORD;
 
   return (
     <div className="w-full max-w-[420px] mx-auto">
@@ -122,85 +106,75 @@ export default function RegisterPage() {
         </div>
       )}
 
-      {/* Volver.
-          En el primer paso sale al login; en los siguientes retrocede un paso.
-          Antes el asistente no tenía NINGUNA forma de volver: quien se
-          equivocaba de tipo de negocio en el paso 1 quedaba atrapado y tenía
-          que recargar y empezar de cero. */}
+      {plan && !paidCheckout && (
+        <div className="mb-6 rounded-2xl border border-primary/30 bg-primary/5 px-4 py-3.5">
+          <p className="text-[13px] font-bold text-primary mb-1">
+            {planName ? `Elegiste el plan ${planName}` : "Elegiste un plan de pago"}
+          </p>
+          <p className="text-[12px] text-on-surface-variant leading-relaxed">
+            Crea tu cuenta y, apenas termines de configurar tu negocio, te llevamos
+            al pago de ese plan.
+          </p>
+        </div>
+      )}
+
+      {/* Volver: en el primer paso sale al login; en el segundo retrocede. */}
       <div className="mb-6">
         {step === 1 ? (
           <Link
             href="/login"
             className="inline-flex items-center gap-2 h-10 -ml-2 px-2 rounded-lg text-sm font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors"
           >
-            <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-4 h-4">
-              <path d="M19 12H5M12 19l-7-7 7-7" />
-            </svg>
-            Volver al inicio de sesi&oacute;n
+            <BackArrow />
+            Volver al inicio de sesión
           </Link>
         ) : (
           <button
             type="button"
-            onClick={handleBack}
+            onClick={() => setStep(1)}
             className="inline-flex items-center gap-2 h-10 -ml-2 px-2 rounded-lg text-sm font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors"
           >
-            <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-4 h-4">
-              <path d="M19 12H5M12 19l-7-7 7-7" />
-            </svg>
-            Atr&aacute;s
+            <BackArrow />
+            Atrás
           </button>
         )}
       </div>
 
       {step === 1 && (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <div className="text-center lg:text-center mb-8">
+          <div className="text-center mb-8">
             <h2 className="text-[28px] font-bold text-on-surface mb-2 tracking-tight">
-              Personaliza tu experiencia
+              ¿Qué negocio tienes?
             </h2>
             <p className="text-on-surface-variant text-[15px]">
-              Selecciona el tipo de negocio que mejor te describe para configurar tu panel.
+              Así preparamos tu panel con las herramientas que necesitas.
             </p>
           </div>
 
-          <div className="space-y-3 mb-8">
-            {REGISTER_BUSINESS_OPTIONS.map((option) => (
-              <button
-                key={option.id}
-                onClick={() => selectBusinessType(option.id)}
-                className={`w-full py-4 px-6 rounded-[20px] border flex flex-col items-center justify-center gap-3 transition-all duration-300 ${businessType === option.id
-                    ? "bg-primary/5 border-primary ring-1 ring-primary/50 shadow-[0_0_20px_rgba(96,99,238,0.1)]"
-                    : "bg-surface-container-low border-outline-variant/10 hover:bg-surface-container hover:border-outline-variant/20"
-                  }`}
-              >
-                <div className={`w-11 h-11 rounded-full flex items-center justify-center border transition-all duration-300 ${businessType === option.id
-                    ? "bg-primary border-primary text-on-primary shadow-md"
-                    : "bg-surface-container-highest border-outline-variant/20 text-on-surface-variant"
-                  }`}>
-                  {BUSINESS_ICONS[option.id]}
-                </div>
-                <span className={`text-[15px] font-semibold transition-colors ${businessType === option.id ? 'text-primary' : 'text-on-surface'}`}>
-                  {option.label}
-                </span>
-              </button>
-            ))}
+          <div className="mb-8">
+            <BusinessTypeCards value={businessType} onChange={selectBusinessType} />
           </div>
 
           <button
-            onClick={handleNext}
+            type="button"
+            onClick={() => setStep(2)}
             disabled={!businessType}
             className="w-full bg-primary hover:bg-primary-dim disabled:bg-surface-container-high disabled:text-on-surface-variant/50 disabled:cursor-not-allowed text-on-primary font-semibold py-3.5 rounded-xl transition-all text-[15px] shadow-[0_0_15px_rgba(96,99,238,0.15)] flex justify-center items-center gap-2"
           >
             Continuar
           </button>
+          {!businessType && (
+            <p className="mt-2 text-center text-[12px] text-on-surface-variant">
+              Elige un tipo de negocio para continuar.
+            </p>
+          )}
 
           <div className="mt-6 flex flex-col items-center">
             <span className="text-[13px] text-on-surface-variant font-medium mb-4">
-              Paso 1 de {totalSteps}: Perfil de Negocio
+              Paso 1 de 2: Tu negocio
             </span>
-            {/* En pestaña nueva a propósito: el registro es un formulario de
-                varios pasos con estado en el cliente, y navegar fuera para leer
-                un documento legal le borra al visitante todo lo que ya escribió. */}
+            {/* En pestaña nueva a propósito: navegar fuera para leer un
+                documento legal le borraría al visitante lo que ya eligió. */}
             <div className="flex gap-4 text-[12px] text-on-surface-variant/70">
               <Link href="/terminos" target="_blank" rel="noreferrer" className="hover:text-on-surface transition-colors">Términos y Condiciones</Link>
               <Link href="/privacidad" target="_blank" rel="noreferrer" className="hover:text-on-surface transition-colors">Privacidad</Link>
@@ -218,84 +192,28 @@ export default function RegisterPage() {
       )}
 
       {step === 2 && (
-        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <div className="text-center lg:text-center mb-8 flex flex-col items-center">
-            <div className="w-12 h-12 rounded-2xl bg-surface-container-high border border-outline-variant/10 flex items-center justify-center text-primary mb-5 shadow-sm">
-              <RocketIcon />
-            </div>
-            <h2 className="text-[28px] font-bold text-on-surface mb-2 tracking-tight">
-              Potencia tu negocio
-            </h2>
-            <p className="text-on-surface-variant text-[15px]">
-              Selecciona las herramientas que necesitas.
-            </p>
-          </div>
-
-          <div className="space-y-4 mb-8">
-            {moduleOptions.map((mod) => {
-              const isOn = !mod.comingSoon && !!modules[mod.id];
-              return (
-                <div key={mod.id} className={`p-5 rounded-[24px] border transition-all duration-300 ${mod.comingSoon ? 'bg-surface-container-low/50 border-outline-variant/10 opacity-70' : isOn ? 'bg-primary/5 border-primary/40' : 'bg-surface-container-low border-outline-variant/10 hover:bg-surface-container'}`}>
-                  <div className="flex justify-between items-start mb-3">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center border transition-colors ${isOn ? 'bg-primary text-on-primary border-primary' : 'bg-surface-container-highest border-outline-variant/20 text-on-surface-variant'}`}>
-                      {MODULE_ICONS[mod.id]}
-                    </div>
-                    {mod.comingSoon ? (
-                      <span className="text-[11px] font-bold uppercase tracking-wide text-on-surface-variant bg-surface-container-highest border border-outline-variant/20 px-2.5 py-1 rounded-full">
-                        Próximamente
-                      </span>
-                    ) : (
-                      <button
-                        type="button"
-                        aria-label={`Activar ${mod.label}`}
-                        aria-pressed={isOn}
-                        onClick={() => setModules({ ...modules, [mod.id]: !modules[mod.id] })}
-                        className={`w-11 h-6 rounded-full relative transition-colors duration-300 focus:outline-none ${isOn ? 'bg-primary' : 'bg-surface-container-highest border border-outline-variant/20'}`}
-                      >
-                        <span className={`absolute top-[2px] w-5 h-5 bg-white rounded-full shadow-sm transition-all duration-300 ${isOn ? 'left-[22px]' : 'left-[2px]'}`}></span>
-                      </button>
-                    )}
-                  </div>
-                  <h3 className="text-[17px] font-bold text-on-surface mb-2">{mod.label}</h3>
-                  <p className="text-[13px] text-on-surface-variant leading-relaxed">
-                    {mod.description}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
-
-          <button
-            onClick={handleNext}
-            className="w-full bg-primary hover:bg-primary-dim text-on-primary font-semibold py-3.5 rounded-xl transition-all text-[15px] shadow-[0_0_15px_rgba(96,99,238,0.15)] flex justify-center items-center gap-2 mb-4"
-          >
-            Continuar
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M5 12h14M12 5l7 7-7 7" />
-            </svg>
-          </button>
-
-          <div className="mt-4 flex flex-col items-center">
-            <span className="text-[13px] text-on-surface-variant font-medium">
-              Paso 2 de 3: Módulos Adicionales
-            </span>
-          </div>
-        </div>
-      )}
-
-      {step === 3 && (
         <div className="animate-in fade-in slide-in-from-right-4 duration-500">
-          <div className="text-center lg:text-left mb-8">
+          <div className="text-center lg:text-left mb-6">
             <h2 className="text-[28px] font-bold text-on-surface mb-2 tracking-tight">
               Crea tu cuenta
             </h2>
             <p className="text-on-surface-variant text-[15px]">
-              Ingresa tus datos para finalizar el registro.
+              Solo tu correo y una contraseña. El nombre de tu negocio lo pones al entrar.
             </p>
           </div>
 
           <div className="mb-6">
-            <GoogleButton label="Registrarme con Google" />
+            <ModulePicker
+              businessType={businessType}
+              modules={modules}
+              onChange={setModules}
+              idPrefix="reg"
+            />
+          </div>
+
+          <div className="mb-6">
+            {/* Google conserva el rubro, los módulos y el plan: van en `next`. */}
+            <GoogleButton label="Registrarme con Google" next={next} />
             <div className="flex items-center gap-3 mt-6">
               <div className="h-px flex-1 bg-outline-variant/20" />
               <span className="text-[12px] text-on-surface-variant">o con tu correo</span>
@@ -306,6 +224,8 @@ export default function RegisterPage() {
           <form action={formAction} className="space-y-5">
             <input type="hidden" name="business_type" value={businessType} />
             <input type="hidden" name="modules" value={JSON.stringify(modules)} />
+            {plan && <input type="hidden" name="plan" value={plan} />}
+            {months && <input type="hidden" name="months" value={months} />}
             {state.error && (
               <div
                 role="alert"
@@ -314,73 +234,6 @@ export default function RegisterPage() {
                 {state.error}
               </div>
             )}
-
-            <div className="space-y-1.5">
-              <label htmlFor="reg-business-name" className="text-[13px] font-semibold text-on-surface block">
-                Nombre del negocio
-              </label>
-              <div className="relative">
-                <input
-                  id="reg-business-name"
-                  type="text"
-                  name="business_name"
-                  autoComplete="organization"
-                  placeholder="Mi Tienda"
-                  value={businessName}
-                  onChange={(e) => setBusinessName(e.target.value)}
-                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-10 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50"
-                  required
-                />
-                <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-on-surface-variant/70" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-                  <polyline points="9 22 9 12 15 12 15 22" />
-                </svg>
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <label htmlFor="reg-full-name" className="text-[13px] font-semibold text-on-surface block">
-                Tu nombre
-              </label>
-              <div className="relative">
-                <input
-                  id="reg-full-name"
-                  type="text"
-                  name="full_name"
-                  autoComplete="name"
-                  placeholder="Juan Pérez"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-10 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50"
-                  required
-                />
-                <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-on-surface-variant/70" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                  <circle cx="12" cy="7" r="4" />
-                </svg>
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <label htmlFor="reg-phone" className="text-[13px] font-semibold text-on-surface block">
-                Teléfono <span className="font-normal text-on-surface-variant/70">(opcional)</span>
-              </label>
-              <div className="relative">
-                <input
-                  id="reg-phone"
-                  type="tel"
-                  name="phone"
-                  autoComplete="tel"
-                  placeholder="+57 300 123 4567"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-10 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50"
-                />
-                <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-on-surface-variant/70" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" />
-                </svg>
-              </div>
-            </div>
 
             <div className="space-y-1.5">
               <label htmlFor="reg-email" className="text-[13px] font-semibold text-on-surface block">
@@ -394,11 +247,11 @@ export default function RegisterPage() {
                   autoComplete="email"
                   placeholder="nombre@ejemplo.com"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => setEmailInput(e.target.value)}
                   className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-10 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50"
                   required
                 />
-                <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-on-surface-variant/70" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <svg aria-hidden className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-on-surface-variant/70" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                   <rect x="3" y="5" width="18" height="14" rx="2" ry="2" />
                   <polyline points="3 7 12 13 21 7" />
                 </svg>
@@ -417,12 +270,18 @@ export default function RegisterPage() {
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-10 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50"
+                  aria-describedby="reg-password-hint"
+                  aria-invalid={passwordTooShort || undefined}
+                  className={`w-full bg-surface-container-lowest border rounded-xl py-3 px-10 text-sm text-on-surface focus:outline-none focus:ring-1 transition-all placeholder:text-on-surface-variant/50 ${
+                    passwordTooShort
+                      ? "border-error/60 focus:border-error focus:ring-error"
+                      : "border-outline-variant/30 focus:border-primary focus:ring-primary"
+                  }`}
                   required
-                  minLength={6}
+                  minLength={MIN_PASSWORD}
                   autoComplete="new-password"
                 />
-                <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-on-surface-variant/70" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <svg aria-hidden className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-on-surface-variant/70" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                   <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
                   <path d="M7 11V7a5 5 0 0110 0v4" />
                 </svg>
@@ -433,64 +292,18 @@ export default function RegisterPage() {
                   aria-pressed={showPassword}
                   className="absolute right-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant/70 hover:text-on-surface transition-colors"
                 >
-                  {showPassword ? (
-                    <svg
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      viewBox="0 0 24 24"
-                      width="16"
-                      height="16"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24M1 1l22 22" />
-                    </svg>
-                  ) : (
-                    <svg
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      viewBox="0 0 24 24"
-                      width="16"
-                      height="16"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                      <circle cx="12" cy="12" r="3" />
-                    </svg>
-                  )}
+                  <EyeIcon open={showPassword} />
                 </button>
               </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <label htmlFor="reg-confirm-password" className="text-[13px] font-semibold text-on-surface block">
-                Confirmar contraseña
-              </label>
-              <div className="relative">
-                <input
-                  id="reg-confirm-password"
-                  type={showPassword ? "text" : "password"}
-                  name="confirm_password"
-                  placeholder="••••••••"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className={`w-full bg-surface-container-lowest border rounded-xl py-3 px-10 text-sm text-on-surface focus:outline-none focus:ring-1 transition-all placeholder:text-on-surface-variant/50 ${confirmMismatch
-                      ? "border-error/60 focus:border-error focus:ring-error"
-                      : "border-outline-variant/30 focus:border-primary focus:ring-primary"
-                    }`}
-                  required
-                  minLength={6}
-                  autoComplete="new-password"
-                />
-                <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-on-surface-variant/70" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                  <path d="M7 11V7a5 5 0 0110 0v4" />
-                </svg>
-              </div>
-              {confirmMismatch && (
-                <p className="text-[12px] text-error pl-1">Las contraseñas no coinciden.</p>
-              )}
+              {/* B19: el requisito se dice ANTES de chocar con él. */}
+              <p
+                id="reg-password-hint"
+                className={`text-[12px] pl-1 ${passwordTooShort ? "text-error" : "text-on-surface-variant"}`}
+              >
+                {passwordTooShort
+                  ? `Te faltan ${MIN_PASSWORD - password.length} caracteres (mínimo ${MIN_PASSWORD}).`
+                  : `Mínimo ${MIN_PASSWORD} caracteres. Usa el ojo para revisarla.`}
+              </p>
             </div>
 
             <div className="flex items-center gap-3 pt-1 pb-2">
@@ -500,17 +313,16 @@ export default function RegisterPage() {
                   id="terms"
                   checked={acceptedTerms}
                   onChange={(e) => {
-                    // React sincroniza `defaultValue` de los inputs de texto
-                    // controlados, pero NO el `defaultChecked` de un checkbox: el
-                    // reset del form lo volvería a desmarcar aunque el estado diga
-                    // `true`. Se espeja a mano para que el reset lo conserve.
+                    // React no sincroniza `defaultChecked` de un checkbox
+                    // controlado: el reset del form lo desmarcaría. Se espeja a
+                    // mano para que el reset lo conserve.
                     e.currentTarget.defaultChecked = e.currentTarget.checked;
                     setAcceptedTerms(e.currentTarget.checked);
                   }}
                   required
                   className="peer appearance-none w-4 h-4 border border-outline-variant/40 rounded bg-surface-container-lowest checked:bg-primary checked:border-primary transition-colors cursor-pointer"
                 />
-                <svg className="absolute w-3 h-3 left-0.5 top-0.5 text-on-primary pointer-events-none opacity-0 peer-checked:opacity-100 transition-opacity" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
+                <svg aria-hidden className="absolute w-3 h-3 left-0.5 top-0.5 text-on-primary pointer-events-none opacity-0 peer-checked:opacity-100 transition-opacity" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
                   <polyline points="20 6 9 17 4 12" />
                 </svg>
               </div>
@@ -528,18 +340,15 @@ export default function RegisterPage() {
 
             <button
               type="submit"
-              disabled={pending || !password || confirmMismatch}
+              disabled={pending}
               className="w-full bg-primary hover:bg-primary-dim disabled:bg-primary/50 disabled:cursor-not-allowed text-on-primary font-semibold py-3.5 rounded-xl transition-all text-[15px] shadow-[0_0_15px_rgba(96,99,238,0.15)] flex justify-center items-center gap-2"
             >
               {pending ? (
-                <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
+                <Spinner />
               ) : (
                 <>
-                  Finalizar Registro
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  Crear mi cuenta
+                  <svg aria-hidden width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M5 12h14M12 5l7 7-7 7" />
                   </svg>
                 </>
@@ -547,7 +356,7 @@ export default function RegisterPage() {
             </button>
             <div className="mt-4 flex flex-col items-center">
               <span className="text-[13px] text-on-surface-variant font-medium">
-                Paso {totalSteps} de {totalSteps}: Datos de Cuenta
+                Paso 2 de 2: Tu cuenta
               </span>
             </div>
           </form>
@@ -558,11 +367,151 @@ export default function RegisterPage() {
               href="/login"
               className="text-primary font-semibold hover:text-primary-dim transition-colors"
             >
-              Iniciar Sesión
+              Iniciar sesión
             </Link>
           </div>
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * "Revisa tu correo" (B13): reenviar con cooldown y volver a corregir el correo
+ * sin perder lo elegido (el formulario sigue montado en el padre con su estado).
+ */
+function CheckEmail({
+  email,
+  next,
+  onBack,
+}: {
+  email: string;
+  next: string;
+  onBack: () => void;
+}) {
+  // El cooldown corre con el reloj de ESTE navegador: `sentAt` lo marca el
+  // servidor y un desfase de reloj alargaría o anularía la espera.
+  const [lastSentAt, setLastSentAt] = useState(() => Date.now());
+  const [now, setNow] = useState(lastSentAt);
+  const [resending, startResend] = useTransition();
+  const [feedback, setFeedback] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const remaining = Math.max(0, Math.ceil((lastSentAt + RESEND_COOLDOWN_S * 1000 - now) / 1000));
+
+  // Reloj del cooldown. El `setNow` corre en el callback del intervalo, no en
+  // el cuerpo del efecto, así que no hay render en cascada.
+  useEffect(() => {
+    if (remaining <= 0) return;
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [remaining]);
+
+  const resend = () => {
+    setFeedback(null);
+    startResend(async () => {
+      const result = await resendSignupEmail(email, next);
+      const sent = Date.now();
+      if (result.ok) {
+        setLastSentAt(sent);
+        setFeedback({ ok: true, text: "Te enviamos un correo nuevo." });
+      } else {
+        setFeedback({ ok: false, text: result.error ?? "No pudimos reenviar el correo." });
+      }
+      setNow(sent);
+    });
+  };
+
+  return (
+    <div className="w-full max-w-[420px] mx-auto text-center">
+      <div className="w-16 h-16 rounded-full bg-primary/10 text-primary flex items-center justify-center mx-auto mb-6">
+        {/* Sobre: dice "correo" de un vistazo (antes era un pulso). */}
+        <svg aria-hidden className="w-8 h-8" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+          <rect x="3" y="5" width="18" height="14" rx="2" />
+          <path d="m3 7 9 6 9-6" />
+        </svg>
+      </div>
+      <h2 className="text-[28px] font-bold text-on-surface mb-2">Revisa tu correo</h2>
+      <p className="text-on-surface-variant text-sm mb-6 leading-relaxed">
+        Te enviamos un enlace de confirmación a{" "}
+        <strong className="text-on-surface break-all">{email}</strong>. Ábrelo para
+        activar tu cuenta y terminar de configurar tu negocio.
+      </p>
+
+      <div className="bg-surface-container-low rounded-xl p-4 mb-6 text-left">
+        <p className="text-xs text-on-surface-variant font-medium mb-2">¿No encuentras el correo?</p>
+        <ul className="text-xs text-on-surface-variant space-y-1.5 list-disc list-inside">
+          <li>Revisa tu carpeta de spam o correo no deseado.</li>
+          <li>Puede tardar uno o dos minutos en llegar.</li>
+        </ul>
+      </div>
+
+      <button
+        type="button"
+        onClick={resend}
+        disabled={resending || remaining > 0}
+        className="w-full rounded-xl border border-outline-variant/30 bg-surface-container-lowest py-3 text-[15px] font-semibold text-on-surface transition-colors hover:bg-surface-container disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {resending
+          ? "Reenviando…"
+          : remaining > 0
+            ? `Reenviar correo (${remaining} s)`
+            : "Reenviar correo"}
+      </button>
+      <p
+        role="status"
+        aria-live="polite"
+        className={`mt-2 min-h-[1.25rem] text-[12px] ${feedback && !feedback.ok ? "text-error" : "text-on-surface-variant"}`}
+      >
+        {feedback?.text ?? ""}
+      </p>
+
+      <p className="mt-4 text-[13px] text-on-surface-variant">
+        ¿Escribiste mal tu correo?{" "}
+        <button
+          type="button"
+          onClick={onBack}
+          className="font-semibold text-primary hover:underline"
+        >
+          Volver
+        </button>
+      </p>
+
+      <Link
+        href="/login"
+        className="mt-6 inline-block text-[13px] font-semibold text-on-surface-variant hover:text-on-surface transition-colors"
+      >
+        Ir a iniciar sesión
+      </Link>
+    </div>
+  );
+}
+
+function BackArrow() {
+  return (
+    <svg aria-hidden fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-4 h-4">
+      <path d="M19 12H5M12 19l-7-7 7-7" />
+    </svg>
+  );
+}
+
+function EyeIcon({ open }: { open: boolean }) {
+  return open ? (
+    <svg aria-hidden fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="16" height="16">
+      <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24M1 1l22 22" />
+    </svg>
+  ) : (
+    <svg aria-hidden fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="16" height="16">
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+
+function Spinner() {
+  return (
+    <svg aria-hidden className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+    </svg>
   );
 }

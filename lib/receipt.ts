@@ -83,6 +83,12 @@ export interface ReceiptData extends ReceiptBusiness {
   date: Date;
   /** Si el negocio desglosa IVA (responsable de IVA). */
   includeTax: boolean;
+  /**
+   * De dónde salió el descuento (C12): "Ofertas: 2x1 Gaseosa", "Descuento
+   * manual", "Premio", "Puntos". Solo lo trae una venta recién cobrada —la
+   * base no guarda el origen—; vacío o ausente = una sola línea de descuento.
+   */
+  discountBreakdown?: { label: string; amount: number }[];
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -138,6 +144,8 @@ export interface CartReceiptInput {
   queued: boolean;
   /** Precio de la línea (`linePrice` del POS): se inyecta para no duplicar la regla. */
   priceOf: (line: CartLine) => number;
+  /** Desglose del descuento por origen (ver `discountBreakdown`). */
+  discountBreakdown?: { label: string; amount: number }[];
 }
 
 /** Comprobante de una venta recién cobrada en el POS. */
@@ -187,6 +195,9 @@ export function buildReceiptFromCart(input: CartReceiptInput): ReceiptData {
     seller: sellerUnlessCashier(input.seller, input.cashier),
     date: input.date,
     includeTax: input.includeTax,
+    ...(input.discountBreakdown && input.discountBreakdown.length > 0
+      ? { discountBreakdown: input.discountBreakdown.filter((d) => d.amount > 0) }
+      : {}),
   };
 }
 

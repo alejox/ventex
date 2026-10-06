@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { toMessage } from "@/lib/errors";
+import type { ImportResult } from "@/lib/import/core";
 import * as inventoryService from "@/services/inventory.service";
 import type {
   Product,
@@ -31,10 +32,19 @@ interface InventoryState {
   deleteCategory: (id: string) => Promise<boolean>;
   archiveProduct: (id: string) => Promise<boolean>;
   activateProduct: (id: string) => Promise<boolean>;
+  /**
+   * Importación masiva (ver `importProducts` del service). Recarga el
+   * inventario al terminar. Lanza si falla algo ANTES de empezar; los errores
+   * por fila vuelven en `failed`.
+   */
+  importProducts: (
+    items: inventoryService.ProductImportItem[],
+    onProgress?: (done: number, total: number) => void,
+  ) => Promise<ImportResult>;
 }
 
 
-export const useInventoryStore = create<InventoryState>((set) => ({
+export const useInventoryStore = create<InventoryState>((set, get) => ({
   products: [],
   categories: [],
   distributors: [],
@@ -164,5 +174,12 @@ export const useInventoryStore = create<InventoryState>((set) => ({
       set({ error: toMessage(e) });
       return false;
     }
+  },
+
+  importProducts: async (items, onProgress) => {
+    const { categories, distributors } = get();
+    const result = await inventoryService.importProducts(items, { categories, distributors }, onProgress);
+    await get().fetchInventory();
+    return result;
   },
 }));

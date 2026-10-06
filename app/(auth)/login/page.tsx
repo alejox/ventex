@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useSearchParam } from "@/lib/useUrlState";
 import { GoogleButton } from "@/components/GoogleButton";
+import { isSafeNext } from "@/lib/safe-next";
 import { useActionState, useState } from "react";
 import { login, type LoginState } from "@/utils/supabase/actions";
 
@@ -197,7 +198,8 @@ export default function LoginPage() {
           <span className="text-[12px] text-on-surface-variant">o continúa con</span>
           <div className="h-px flex-1 bg-outline-variant/20" />
         </div>
-        <GoogleButton />
+        {/* Con Google también se vuelve a donde iba (p. ej. la orden recién pagada). */}
+        <GoogleButton next={isSafeNext(next) ? next : "/dashboard"} />
       </div>
 
       <div className="mt-8 text-center text-[13px] text-on-surface-variant">

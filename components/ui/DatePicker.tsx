@@ -77,7 +77,7 @@ export function DatePicker({
                 selected
                   ? "bg-primary font-bold text-on-primary"
                   : iso === today
-                    ? "border border-primary font-semibold text-primary hover:bg-surface-container-high"
+                    ? "border border-primary-ink font-semibold text-primary-ink hover:bg-surface-container-high"
                     : "text-on-surface hover:bg-surface-container-high"
               }`}
             >

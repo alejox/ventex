@@ -48,7 +48,7 @@ export default function AdminResellersPage() {
         </div>
         <button
           onClick={() => setPromoting(true)}
-          className="py-2.5 px-5 rounded-full bg-[#6063ee] text-white hover:bg-[#c0c1ff] hover:text-[#0b0664] text-sm font-bold shadow-lg shadow-[#6063ee]/20 transition-colors whitespace-nowrap"
+          className="py-2.5 px-5 rounded-full bg-primary text-on-primary hover:bg-primary-dim text-sm font-bold shadow-lg shadow-primary/20 transition-colors whitespace-nowrap"
         >
           + Nuevo revendedor
         </button>
@@ -106,7 +106,7 @@ export default function AdminResellersPage() {
 
               <button
                 onClick={() => setGranting(r)}
-                className="mt-4 w-full h-10 rounded-xl bg-[#6063ee] text-white text-sm font-bold hover:bg-[#c0c1ff] hover:text-[#0b0664] transition-colors"
+                className="mt-4 w-full h-10 rounded-xl bg-primary text-on-primary text-sm font-bold hover:bg-primary-dim transition-colors"
               >
                 Otorgar créditos
               </button>
@@ -183,7 +183,7 @@ export default function AdminResellersPage() {
                     <td className="px-5 py-4 text-right">
                       <button
                         onClick={() => setGranting(r)}
-                        className="text-sm font-semibold text-primary hover:underline whitespace-nowrap"
+                        className="text-sm font-semibold text-primary-ink hover:underline whitespace-nowrap"
                       >
                         Otorgar créditos
                       </button>
@@ -262,7 +262,7 @@ function PromoteResellerModal({ onClose }: { onClose: () => void }) {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="revendedor@correo.com"
-                className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 text-on-surface transition-shadow placeholder:text-on-surface-variant/50"
+                className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 text-on-surface transition-shadow placeholder:text-on-surface-variant/80"
               />
             </div>
           </div>
@@ -278,7 +278,7 @@ function PromoteResellerModal({ onClose }: { onClose: () => void }) {
             <button
               type="submit"
               disabled={submitting}
-              className="py-2.5 px-5 rounded-xl bg-[#6063ee] text-white hover:bg-[#c0c1ff] hover:text-[#0b0664] text-sm font-bold shadow-lg shadow-[#6063ee]/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="py-2.5 px-5 rounded-xl bg-primary text-on-primary hover:bg-primary-dim text-sm font-bold shadow-lg shadow-primary/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {submitting ? "Guardando…" : "Promover"}
             </button>

@@ -6,8 +6,9 @@ import {
   IconShoppingCart,
   IconBox,
   IconUsers,
-  IconCar,
 } from "@/app/assets/icons/DashboardIcons";
+import { BUSINESS_ICONS } from "@/app/assets/icons/BusinessIcons";
+import { BUSINESS_COPY } from "@/components/LandingBusinessCopy";
 import styles from "./page.module.css";
 import { PricingSection } from "@/components/PricingSection";
 import { WhatsappFab } from "@/components/WhatsappFab";
@@ -57,12 +58,29 @@ export const metadata: Metadata = {
   },
 };
 
-const SECTORS: Array<{ id: BusinessType; label: string }> = [
-  { id: "tienda", label: "Tiendas" },
-  { id: "salon", label: "Salones y barberías" },
-  { id: "escuela", label: "Académico" },
-  { id: "lavaautos", label: "Lava-autos" },
-  { id: "servicios", label: "Servicios profesionales" },
+/** Abiertos al registro primero; los que vienen después, al final (B7). */
+const isOpen = (id: BusinessType) => REGISTRABLE_BUSINESS_TYPES.includes(id);
+const byAvailability = (a: { id: BusinessType }, b: { id: BusinessType }) =>
+  Number(isOpen(b.id)) - Number(isOpen(a.id));
+
+const SECTORS: Array<{ id: BusinessType; label: string }> = (
+  ["salon", "tienda", "escuela", "lavaautos", "servicios"] as BusinessType[]
+)
+  .map((id) => ({ id, label: BUSINESS_COPY[id].plural }))
+  .sort(byAvailability);
+
+/** Lo que el sitio de reservas le resuelve al negocio. */
+const SITE_BENEFITS = [
+  "Reservas sin llamadas ni mensajes de ida y vuelta",
+  "Solo muestra los horarios que de verdad tienes libres",
+  "Plantillas para barbería, salón y spa con tus colores y fotos",
+];
+
+/** Beneficios concretos bajo el titular: qué cambia el primer día (B6). */
+const HERO_BENEFITS = [
+  "Tus clientes reservan online, a cualquier hora",
+  "El inventario se descuenta solo con cada venta",
+  "Comisiones y cierre de caja calculados por ti",
 ];
 
 /* ---------------- Marco de ventana ---------------- */
@@ -162,52 +180,102 @@ const FEATURES = [
  * Verticales con foto del negocio de verdad, no un mockup flotando.
  *
  * Los bullets salen de los módulos que cada tipo realmente habilita en
- * `config/business.ts` — no de adjetivos. "Historial por placa" es una pantalla
- * que existe; "solución integral" no significa nada.
+ * `config/business.ts` — no de adjetivos. Nombres y descripciones, de
+ * `BUSINESS_COPY`: las mismas palabras que el registro y el onboarding.
  *
  * `foto` admite null: una tarjeta sin foto renderiza el icono del vertical en
- * vez de rellenar con una imagen genérica que no muestre ese negocio. Hoy las
- * cuatro tienen foto propia.
+ * vez de rellenar con una imagen genérica que no muestre ese negocio (hoy, la
+ * academia).
  */
 const VERTICALES: Array<{
   id: BusinessType;
-  label: string;
   foto: string | null;
   alt: string;
   bullets: string[];
 }> = [
   {
-    id: "tienda",
-    label: "Tiendas",
-    foto: "/landing/fotos/pago-con-datafono.webp",
-    alt: "Cajero cobrando con datáfono en el mostrador de una tienda",
-    bullets: ["Inventario y categorías", "Compras y distribuidores", "Pedidos por encargo"],
-  },
-  {
     id: "salon",
-    label: "Salones y barberías",
     foto: "/landing/fotos/barberia-tablet.webp",
     alt: "Barbero revisando su agenda en una tablet dentro de la barbería",
-    bullets: ["Citas y agenda", "Comisiones por barbero", "Promoción de cortes"],
+    bullets: ["Citas y reservas online", "Comisiones por barbero", "Promoción de cortes"],
+  },
+  {
+    id: "tienda",
+    foto: "/landing/fotos/pago-con-datafono.webp",
+    alt: "Cajero cobrando con datáfono en el mostrador de una tienda",
+    bullets: ["Inventario con alertas de stock", "Compras y distribuidores", "Ofertas y puntos para clientes"],
+  },
+  {
+    id: "escuela",
+    foto: null,
+    alt: "",
+    bullets: ["Estudiantes y acudientes", "Matrículas y planes de clase", "Agenda de clases y asistencia"],
   },
   {
     id: "lavaautos",
-    label: "Lava-autos",
     foto: "/landing/fotos/lavaautos.webp",
     alt: "Operario lavando un auto a presión en una estación de lavado",
     bullets: ["Turnos de lavado", "Historial por placa", "Insumos y detailing"],
   },
   {
     id: "servicios",
-    label: "Servicios profesionales",
-    // Foto propia y no la de la oficina: esa última se usa recortada como
-    // avatar en los testimonios, y repetir la misma cara en dos secciones
-    // delata el banco de imágenes.
     foto: "/landing/fotos/servicios-profesional.webp",
     alt: "Profesional de servicios sonriendo en su oficina",
     bullets: ["Agenda de consultas", "Catálogo de honorarios", "Clientes y seguimiento"],
   },
 ];
+
+/**
+ * Plantillas del sitio de reservas. Las fotos son las mismas que usa el sitio
+ * público (`services/public-site.types.ts`), así que lo que se ve acá es lo que
+ * el negocio publica, no una maqueta inventada.
+ */
+const SITE_SHOTS: Array<{ foto: string; negocio: string; rubro: string; servicio: string; hora: string }> = [
+  { foto: "/site-templates/qutter-hero.webp", negocio: "Barbería Clásica", rubro: "Barbería", servicio: "Corte + barba", hora: "10:30" },
+  { foto: "/site-templates/rasm-hero.webp", negocio: "Studio Color", rubro: "Salón de belleza", servicio: "Color y peinado", hora: "15:00" },
+  { foto: "/site-templates/fallspa-hero.webp", negocio: "Calma Spa", rubro: "Spa", servicio: "Masaje relajante", hora: "17:30" },
+];
+
+function SiteShot({ shot, className = "" }: { shot: (typeof SITE_SHOTS)[number]; className?: string }) {
+  const slug = shot.negocio.toLowerCase().replace(/\s+/g, "-");
+  return (
+    <figure className={`overflow-hidden rounded-3xl border border-outline-variant/15 bg-surface-container shadow-xl ${className}`}>
+      <div className="flex items-center gap-2 border-b border-outline-variant/10 bg-surface-container-low px-4 py-2.5">
+        <span className="h-2.5 w-2.5 rounded-full bg-outline-variant/50" aria-hidden />
+        <span className="h-2.5 w-2.5 rounded-full bg-outline-variant/50" aria-hidden />
+        <span className="ml-2 truncate rounded-full bg-surface-container px-3 py-0.5 text-[11px] text-on-surface-variant">
+          ventex.app/{slug}
+        </span>
+      </div>
+      <div className="relative aspect-[4/5] w-full">
+        <Image
+          src={shot.foto}
+          alt=""
+          fill
+          sizes="(max-width: 768px) 80vw, 300px"
+          className="object-cover"
+        />
+        {/* Texto fijo claro sobre velo oscuro fijo: abajo hay una FOTO, no una
+            superficie del tema (mismo criterio que el hero). */}
+        <div className="absolute inset-0 bg-[linear-gradient(to_top,rgb(11_14_25/.85),rgb(11_14_25/.15)_60%)]" aria-hidden />
+        <div className="absolute inset-x-0 bottom-0 p-4 text-[#f4f5ff]">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] opacity-80">{shot.rubro}</p>
+          <p className="text-lg font-black leading-tight">{shot.negocio}</p>
+          <div className="mt-3 rounded-2xl bg-[rgb(255_255_255/.94)] p-3 text-[#14192a]">
+            <p className="text-[11px] font-semibold text-[#4b5068]">{shot.servicio}</p>
+            <p className="text-sm font-bold">Hoy · {shot.hora}</p>
+            <span className="mt-2 block rounded-xl bg-[#14192a] py-1.5 text-center text-xs font-bold text-white">
+              Reservar
+            </span>
+          </div>
+        </div>
+      </div>
+      <figcaption className="sr-only">
+        Sitio de reservas de ejemplo para {shot.rubro.toLowerCase()}
+      </figcaption>
+    </figure>
+  );
+}
 
 /**
  * Los precios salen de la tabla `plans`: revalidamos cada 5 minutos para que un
@@ -324,14 +392,27 @@ export default async function LandingPage() {
                 4.5:1 — o sea tapar más de la mitad del cuadro. Con el tono
                 fuerte el mínimo baja a 0.00 y 0.21, y el video se ve entero. */}
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-outline-variant/20 bg-surface-container/60 text-xs font-semibold text-on-surface mb-9 hero-ink">
-              <span className="w-2 h-2 rounded-full bg-accent-fin" /> Gestión especializada para tu negocio
+              <span className="w-2 h-2 rounded-full bg-accent-fin" /> Para barberías, salones, tiendas y academias
             </div>
-            <h1 className="hero-ink text-4xl sm:text-6xl lg:text-[4.5rem] font-black tracking-tight text-on-surface leading-[1.08]">
-              Tu negocio, a tu manera.
+            {/* B6: el titular dice QUÉ hace y PARA QUIÉN, no un eslogan que
+                sirve para cualquier software. */}
+            <h1 className="hero-ink text-4xl sm:text-6xl lg:text-[4.25rem] font-black tracking-tight text-on-surface leading-[1.08]">
+              Cobra, agenda y controla tu inventario en un solo lugar
             </h1>
             <p className="hero-ink mt-8 text-lg sm:text-xl leading-relaxed text-on-surface max-w-xl mx-auto lg:mx-0">
-              Ventex se adapta a la forma de trabajar de tu negocio para ayudarte a organizar su operación desde una misma plataforma.
+              Ventex es el punto de venta con agenda y sitio de reservas para tu negocio:
+              cobras en segundos y las ventas, el stock y las comisiones quedan al día solos.
             </p>
+            <ul className="hero-ink mt-7 grid gap-2.5 text-sm sm:text-base text-on-surface max-w-xl mx-auto lg:mx-0 text-left">
+              {HERO_BENEFITS.map((b) => (
+                <li key={b} className="flex items-start gap-3">
+                  <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent-fin/20 text-[11px] font-black text-accent-fin" aria-hidden>
+                    ✓
+                  </span>
+                  {b}
+                </li>
+              ))}
+            </ul>
             <div className="mt-11 flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
               <Link
                 href="/register"
@@ -346,7 +427,7 @@ export default async function LandingPage() {
                 Ver el producto
               </Link>
             </div>
-            <p className="hero-ink mt-6 text-xs text-on-surface">Conoce los módulos disponibles para tu sector antes de registrarte.</p>
+            <p className="hero-ink mt-6 text-xs text-on-surface">Plan gratis para siempre, sin tarjeta. Lo configuras en minutos.</p>
           </div>
 
         </div>
@@ -405,71 +486,118 @@ export default async function LandingPage() {
       </section>
 
 
+      {/* Sitio de reservas online (B6): lo que ve el cliente del negocio. */}
+      <section id="reservas" className="border-y border-outline-variant/10 bg-surface-container-low/40" aria-labelledby="reservas-title">
+        <div className="max-w-6xl mx-auto px-6 py-24 grid gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] lg:items-center">
+          <div>
+            <p className="text-sm font-bold text-accent-pos mb-3">SITIO DE RESERVAS</p>
+            <h2 id="reservas-title" className="text-3xl sm:text-4xl font-black tracking-tight text-on-surface">
+              Tu propia página para que te reserven a cualquier hora
+            </h2>
+            <p className="mt-4 text-on-surface-variant leading-relaxed">
+              Publica tu sitio con tus servicios, precios y horarios. Tus clientes
+              eligen servicio, profesional y hora desde el celular, y la cita aparece
+              en tu agenda de Ventex.
+            </p>
+            <ul className="mt-6 space-y-3">
+              {SITE_BENEFITS.map((b) => (
+                <li key={b} className="flex items-start gap-3 text-sm text-on-surface">
+                  <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent-pos/15 text-[11px] font-black text-accent-pos" aria-hidden>
+                    ✓
+                  </span>
+                  {b}
+                </li>
+              ))}
+            </ul>
+            <Link
+              href="/register"
+              className="mt-8 inline-block px-7 py-3.5 rounded-2xl bg-primary text-on-primary font-bold shadow-lg shadow-primary/25 hover:bg-primary-dim transition-colors"
+            >
+              Crea tu sitio gratis →
+            </Link>
+          </div>
+
+          {/* Tres capturas; en móvil solo la del medio, para no alargar la página. */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 sm:items-end">
+            {SITE_SHOTS.map((shot, i) => (
+              <SiteShot
+                key={shot.foto}
+                shot={shot}
+                className={i === 1 ? "mx-auto w-full max-w-[18rem] sm:max-w-none sm:-translate-y-6" : "hidden sm:block"}
+              />
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* Verticales: el producto adentro del negocio */}
-      <section className="max-w-6xl mx-auto px-6 pb-24" aria-labelledby="verticales-title">
+      <section className="max-w-6xl mx-auto px-6 py-24" aria-labelledby="verticales-title">
         <div className="text-center max-w-2xl mx-auto mb-12">
           <p className="text-sm font-bold text-accent-pos mb-3">PARA TU NEGOCIO</p>
           <h2 id="verticales-title" className="text-3xl sm:text-4xl font-black tracking-tight text-on-surface">
-            Gestión que se adapta a distintos negocios
+            Hecho para la forma en que trabaja tu negocio
           </h2>
           <p className="mt-4 text-on-surface-variant">
-            Los sectores disponibles muestran los módulos que corresponden a su operación. Otras soluciones siguen en preparación.
+            Eliges tu tipo de negocio al registrarte y tu panel trae las herramientas que usas.
           </p>
         </div>
 
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          {VERTICALES.map((v) => {
-            /* La disponibilidad NO se escribe a mano acá: sale de
-               `REGISTRABLE_BUSINESS_TYPES`, que es la misma lista que decide qué
-               puede elegir alguien en el registro. Si mañana se abre lava-autos,
-               el sello desaparece solo — y al revés, nunca queda anunciando un
-               rubro que el registro no acepta. */
-            const proximamente = !REGISTRABLE_BUSINESS_TYPES.includes(v.id);
+        {/* B7: los rubros abiertos al registro van primero y con tarjeta
+            completa. La disponibilidad sale de `REGISTRABLE_BUSINESS_TYPES`, la
+            misma lista que decide qué se puede elegir al registrarse: si mañana
+            se abre uno, pasa solo de "Próximamente" a tarjeta. */}
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {VERTICALES.filter((v) => isOpen(v.id)).map((v) => {
+            const copy = BUSINESS_COPY[v.id];
             return (
-            <article
-              key={v.label}
-              className="overflow-hidden rounded-3xl border border-outline-variant/15 bg-surface-container"
-            >
-              <div className="relative aspect-[3/2] w-full bg-surface-container-high">
-                {v.foto ? (
-                  <Image
-                    src={v.foto}
-                    alt={v.alt}
-                    fill
-                    sizes="(max-width: 640px) 86vw, (max-width: 1024px) 45vw, 25vw"
-                    className="object-cover"
-                  />
-                ) : (
-                  <span className="absolute inset-0 flex items-center justify-center bg-accent-pos/10 text-accent-pos">
-                    <IconCar className="h-10 w-10" />
-                  </span>
-                )}
-                {proximamente && (
-                  /* El velo va oscuro fijo y el texto claro fijo, no por token:
-                     abajo hay una FOTO, no una superficie del tema, así que el
-                     contraste no puede depender de si el sitio está en claro. */
-                  <span className="absolute inset-0 flex items-center justify-center bg-[rgb(11_14_25/.62)] backdrop-blur-[2px]">
-                    <span className="rounded-full border border-white/25 bg-[rgb(11_14_25/.55)] px-4 py-1.5 text-xs font-bold uppercase tracking-[0.14em] text-[#e1e4ff]">
-                      Próximamente
+              <article
+                key={v.id}
+                className="overflow-hidden rounded-3xl border border-outline-variant/15 bg-surface-container"
+              >
+                <div className="relative aspect-[3/2] w-full bg-surface-container-high">
+                  {v.foto ? (
+                    <Image
+                      src={v.foto}
+                      alt={v.alt}
+                      fill
+                      sizes="(max-width: 640px) 86vw, (max-width: 1024px) 45vw, 33vw"
+                      className="object-cover"
+                    />
+                  ) : (
+                    <span className="absolute inset-0 flex items-center justify-center bg-accent-pos/10 text-accent-pos [&_svg]:h-14 [&_svg]:w-14" aria-hidden>
+                      {BUSINESS_ICONS[v.id]}
                     </span>
-                  </span>
-                )}
-              </div>
-              <div className="p-6">
-                <h3 className="font-bold text-on-surface">{v.label}</h3>
-                <ul className="mt-3 space-y-2">
-                  {v.bullets.map((b) => (
-                    <li key={b} className="flex items-start gap-2.5 text-sm text-on-surface-variant">
-                      <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent-pos" aria-hidden />
-                      {b}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </article>
+                  )}
+                </div>
+                <div className="p-6">
+                  <h3 className="font-bold text-on-surface">{copy.plural}</h3>
+                  <p className="mt-1 text-sm text-on-surface-variant">{copy.description}</p>
+                  <ul className="mt-3 space-y-2">
+                    {v.bullets.map((b) => (
+                      <li key={b} className="flex items-start gap-2.5 text-sm text-on-surface-variant">
+                        <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent-pos" aria-hidden />
+                        {b}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </article>
             );
           })}
         </div>
+
+        {VERTICALES.some((v) => !isOpen(v.id)) && (
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 rounded-2xl border border-dashed border-outline-variant/30 px-5 py-4 text-sm text-on-surface-variant">
+            <span className="rounded-full border border-outline-variant/30 px-2.5 py-0.5 text-xs font-bold uppercase tracking-wide">
+              Próximamente
+            </span>
+            {VERTICALES.filter((v) => !isOpen(v.id)).map((v) => (
+              <span key={v.id} className="font-semibold text-on-surface">
+                {BUSINESS_COPY[v.id].plural}
+              </span>
+            ))}
+          </div>
+        )}
       </section>
 
       {/* Cómo funciona */}
@@ -480,7 +608,7 @@ export default async function LandingPage() {
         </div>
         <div className="grid md:grid-cols-3 gap-6">
           {[
-            { n: "01", title: "Regístrate gratis", desc: "Crea tu cuenta y elige un sector disponible.", icon: IconUsers },
+            { n: "01", title: "Regístrate gratis", desc: "Elige tu tipo de negocio y crea tu cuenta con tu correo o con Google.", icon: IconUsers },
             { n: "02", title: "Configura tu negocio", desc: "Agrega productos, define tu IVA y tu moneda.", icon: IconBox },
             { n: "03", title: "Empieza a vender", desc: "Cobra desde el POS y mira crecer tus números.", icon: IconShoppingCart },
           ].map((s) => (

@@ -19,6 +19,7 @@ import { useProfile } from "@/components/ProfileProvider";
 import { formatQty, parseQuantityDraft } from "@/lib/stock";
 import { creditAlertText } from "@/lib/credits";
 import { useFormatMoney } from "@/lib/useMoney";
+import type { DiscountBreakdownEntry } from "@/lib/pos-discount-breakdown";
 
 /**
  * El campo de cantidad de una línea del carrito.
@@ -74,8 +75,8 @@ function CartQuantityField({
          carrito realmente tiene: un campo vacío o un "0" a medio escribir no
          se quedan pegados contradiciendo al total. */
       onBlur={() => setDraft(null)}
-      className={`text-center text-xs font-semibold text-on-surface bg-transparent outline-none tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
-        allowsFractions ? "w-14" : "w-8"
+      className={`h-10 text-center text-sm font-semibold text-on-surface bg-transparent outline-none tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+        allowsFractions ? "w-16" : "w-10"
       }`}
     />
   );
@@ -90,6 +91,8 @@ interface PosCartPanelProps {
   promoSlot?: React.ReactNode;
   cart: CartLine[];
   totals: SaleTotals;
+  /** Descuento por origen (C12); lo arma la pantalla con `discountBreakdown`. */
+  discountParts?: DiscountBreakdownEntry[];
   paymentMethod: PaymentMethod;
   setPaymentMethod: (m: PaymentMethod) => void;
   customerId: string | null;
@@ -150,6 +153,7 @@ export function PosCartPanel({
   promoSlot,
   cart,
   totals,
+  discountParts = [],
   paymentMethod,
   setPaymentMethod,
   customerId,
@@ -198,6 +202,8 @@ export function PosCartPanel({
 }: PosCartPanelProps) {
   const fmtMoney = useFormatMoney();
   const profile = useProfile();
+  /** Subtotal/IVA plegados: el pie tiene que dejar lugar a las líneas. */
+  const [showDetail, setShowDetail] = useState(false);
   // El aviso del dueño sobre este cliente, si lo tiene marcado.
   const avisoDelCliente = (() => {
     const elegido = customers.find((c) => c.id === customerId);
@@ -218,7 +224,7 @@ export function PosCartPanel({
 
       <div
         className={`fixed inset-y-0 right-0 z-50 w-full max-w-[480px] shadow-2xl transition-transform duration-300 ease-out
-          lg:static lg:z-auto lg:w-[480px] lg:max-w-none lg:translate-x-0 lg:shadow-none lg:transition-none
+          lg:static lg:z-auto lg:w-[360px] xl:w-[440px] lg:max-w-none lg:translate-x-0 lg:shadow-none lg:transition-none
           bg-surface-container-lowest flex flex-col h-full shrink-0 border-l border-outline-variant/10
           ${isCartOpen ? "translate-x-0" : "translate-x-full"}`}
       >
@@ -233,7 +239,7 @@ export function PosCartPanel({
                 </div>
               </h2>
               <div className="flex items-center gap-3 text-on-surface-variant shrink-0">
-                <button onClick={onOpenDiscountModal} className="hover:text-primary" title="Descuentos globales">
+                <button onClick={onOpenDiscountModal} className="w-10 h-10 -m-1 flex items-center justify-center rounded-lg hover:text-primary hover:bg-surface-container-high" title="Descuentos globales" aria-label="Descuentos">
                   <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-5 h-5">
                     <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
                     <line x1="7" y1="7" x2="7.01" y2="7" />
@@ -245,7 +251,7 @@ export function PosCartPanel({
                 <button
                   onClick={() => onReprintLast?.()}
                   disabled={!onReprintLast}
-                  className="hover:text-primary disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-on-surface-variant"
+                  className="w-10 h-10 -m-1 flex items-center justify-center rounded-lg hover:text-primary hover:bg-surface-container-high disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-on-surface-variant"
                   title={onReprintLast ? "Reimprimir última venta" : "Todavía no hay una venta para reimprimir"}
                   aria-label="Reimprimir última venta"
                 >
@@ -255,7 +261,7 @@ export function PosCartPanel({
                     <rect x="6" y="14" width="12" height="8"/>
                   </svg>
                 </button>
-                <button onClick={onOpenSaleConfigModal} className="hover:text-primary" title="Configuración">
+                <button onClick={onOpenSaleConfigModal} className="w-10 h-10 -m-1 flex items-center justify-center rounded-lg hover:text-primary hover:bg-surface-container-high" title="Configuración" aria-label="Configuración">
                   <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-5 h-5">
                     <line x1="4" y1="21" x2="4" y2="14"/>
                     <line x1="4" y1="10" x2="4" y2="3"/>
@@ -271,7 +277,7 @@ export function PosCartPanel({
                 <button
                   onClick={() => setIsCartOpen(false)}
                   aria-label="Cerrar factura"
-                  className="lg:hidden -mr-1.5 w-9 h-9 flex items-center justify-center rounded-full hover:bg-surface-container-high hover:text-on-surface transition-colors"
+                  className="lg:hidden -mr-1.5 w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container-high hover:text-on-surface transition-colors"
                 >
                   <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-5 h-5">
                     <path d="M6 18L18 6M6 6l12 12" />
@@ -448,135 +454,161 @@ export function PosCartPanel({
               </div>
             ) : (
               <>
-                <div className="space-y-1">
-                {cart.map((line) => (
-                  <div
-                    key={cartLineKey(line)}
+                {/* Líneas táctiles (C6): −/+ y quitar de 40px, papelera siempre
+                    visible (en una pantalla táctil no hay hover que la revele)
+                    y el nombre a 14px. Nombre y total arriba; controles abajo,
+                    para que en la factura angosta de tablet entren sin apretarse. */}
+                <ul className="divide-y divide-outline-variant/10">
+                {cart.map((line) => {
+                  const key = cartLineKey(line);
+                  const discount = line.discountAmount ?? 0;
+                  const atStock =
+                    !allowOversell &&
+                    line.item.kind === "product" &&
+                    line.item.stock_level != null &&
+                    line.quantity >= line.item.stock_level;
+                  return (
+                  <li
+                    key={key}
                     // Al resaltarse, se trae a la vista si quedó fuera del scroll:
                     // un resaltado que no se ve no confirma nada.
-                    ref={flashKey === cartLineKey(line) ? (el) => el?.scrollIntoView({ block: "nearest" }) : undefined}
-                    data-flash={flashKey === cartLineKey(line) ? "true" : undefined}
-                    className={`group flex items-center gap-2 py-1.5 px-1.5 -mx-1 rounded-lg transition-colors duration-500 ${
-                      flashKey === cartLineKey(line)
+                    ref={flashKey === key ? (el) => el?.scrollIntoView({ block: "nearest" }) : undefined}
+                    data-flash={flashKey === key ? "true" : undefined}
+                    className={`py-2 px-1.5 -mx-1 rounded-lg transition-colors duration-500 ${
+                      flashKey === key
                         ? "bg-primary/15 ring-1 ring-primary/40"
                         : "hover:bg-surface-container-low"
                     } ${line.item.kind === "service" ? "border-l-2 border-emerald-500/60 pl-2.5" : ""}`}
                   >
-                    <div className="flex items-center shrink-0">
-                      <button
-                        onClick={() => decrement(cartLineKey(line))}
-                        className="w-5 h-5 flex items-center justify-center rounded text-on-surface-variant/60 hover:text-on-surface transition-colors text-xs"
-                      >
-                        <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-3 h-3"><path strokeLinecap="round" d="M5 12h14" /></svg>
-                      </button>
-                      {/* `step` y los decimales salen de la unidad de medida
-                          del producto: 1,5 kg es una venta y media unidad de un
-                          televisor es un error de tipeo. El servidor revalida
-                          con la misma regla (CANTIDAD_ENTERA). */}
-                      <CartQuantityField
-                        quantity={line.quantity}
-                        allowsFractions={line.item.allows_fractions}
-                        min={line.item.allows_fractions ? 0.001 : 1}
-                        max={allowOversell ? undefined : line.item.stock_level ?? undefined}
-                        label={`Cantidad de ${line.item.name}`}
-                        onCommit={(v) => setQuantity(cartLineKey(line), v)}
-                      />
-                      <button
-                        onClick={() => increment(cartLineKey(line))}
-                        disabled={
-                          !allowOversell &&
-                          line.item.kind === "product" &&
-                          line.item.stock_level != null &&
-                          line.quantity >= line.item.stock_level
-                        }
-                        className="w-5 h-5 flex items-center justify-center rounded text-on-surface-variant/60 hover:text-on-surface transition-colors disabled:opacity-30 disabled:cursor-not-allowed text-xs"
-                      >
-                        <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-3 h-3"><path strokeLinecap="round" d="M12 5v14M5 12h14" /></svg>
-                      </button>
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-                      <span className="text-xs font-medium text-on-surface truncate block">{line.item.name}</span>
-                      <div className="flex items-center gap-1 mt-0.5">
-                        {line.item.kind === "service" ? (
-                          <span className="text-[9px] text-emerald-500 font-medium">Servicio</span>
-                        ) : line.unitKind === "package" ? (
-                          <span className="text-[9px] text-primary font-medium">Caja ×{line.item.units_per_package}</span>
-                        ) : (
-                          <span className="text-[9px] text-on-surface-variant/50">{line.item.sku}</span>
-                        )}
-                        {(line.discountAmount ?? 0) > 0 && line.offerId ? (
-                          // Oferta automática (T5): lleva su nombre, para que el
-                          // cajero sepa POR QUÉ bajó el precio y no lo confunda
-                          // con un descuento que puso alguien a mano.
-                          <span className="inline-flex items-center gap-1 text-[9px] font-medium">
-                            <span className="text-accent-fin">
-                              {line.offerName} −{fmtMoney(line.discountAmount!)}
+                    <div className="flex items-start gap-2">
+                      <div className="flex-1 min-w-0">
+                        <span className="text-sm font-medium text-on-surface leading-snug line-clamp-2 break-words">
+                          {line.item.name}
+                        </span>
+                        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 mt-0.5 text-[11px]">
+                          {line.item.kind === "service" ? (
+                            <span className="text-emerald-500 font-medium">Servicio</span>
+                          ) : line.unitKind === "package" ? (
+                            <span className="text-primary font-medium">Caja ×{line.item.units_per_package}</span>
+                          ) : line.item.sku ? (
+                            <span className="text-on-surface-variant/70">{line.item.sku}</span>
+                          ) : null}
+                          {discount > 0 && line.offerId ? (
+                            // Oferta automática (T5): lleva su nombre, para que el
+                            // cajero sepa POR QUÉ bajó el precio y no lo confunda
+                            // con un descuento que puso alguien a mano.
+                            <span className="inline-flex items-center gap-1.5 font-medium">
+                              <span className="text-accent-fin">
+                                {line.offerName} −{fmtMoney(discount)}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => removeOffer(key)}
+                                className="min-h-6 text-on-surface-variant/70 hover:text-error underline underline-offset-2 transition-colors"
+                              >
+                                Quitar
+                              </button>
                             </span>
-                            <button
-                              type="button"
-                              onClick={() => removeOffer(cartLineKey(line))}
-                              className="text-on-surface-variant/60 hover:text-error underline underline-offset-2 transition-colors"
-                            >
-                              Quitar
-                            </button>
-                          </span>
-                        ) : (
-                          (line.discountAmount ?? 0) > 0 && (
-                            <span className="text-[9px] text-error font-medium">-{fmtMoney(line.discountAmount!)}</span>
-                          )
-                        )}
-                        {line.item.kind === "product" &&
-                          line.item.stock_level != null &&
-                          line.quantity * lineUnits(line) > line.item.stock_level && (
-                            <AlertTriangle className="w-3 h-3 text-amber-500 shrink-0" />
-                        )}
+                          ) : (
+                            discount > 0 && (
+                              <span className="text-error font-medium">
+                                {(line.manualDiscount ?? 0) >= discount ? "Descuento manual" : "Descuento"} −{fmtMoney(discount)}
+                              </span>
+                            )
+                          )}
+                          {line.item.kind === "product" &&
+                            line.item.stock_level != null &&
+                            line.quantity * lineUnits(line) > line.item.stock_level && (
+                              <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" aria-label="Supera el stock" />
+                          )}
+                        </div>
                       </div>
-                    </div>
 
-                    {/* Precio abierto: el importe es un campo, no una etiqueta.
-                        Vacío NO cae al precio del catálogo — el servidor rechaza
-                        la venta (PRECIO_REQUERIDO) antes que cobrar el precio de
-                        la semana pasada sin que nadie lo haya mirado. */}
-                    {line.item.open_price ? (
-                      <div className="flex items-center gap-1 shrink-0">
-                        <span className="text-[10px] text-on-surface-variant">$</span>
-                        <input
-                          type="number"
-                          min="0"
-                          inputMode="decimal"
-                          aria-label={`Precio de ${line.item.name}`}
-                          value={line.customPrice ?? ""}
-                          placeholder={String(line.item.price)}
-                          onChange={(e) => {
-                            const raw = e.target.value;
-                            const v = parseFloat(raw);
-                            setLinePrice(cartLineKey(line), raw === "" || !Number.isFinite(v) ? null : v);
-                          }}
-                          className={`w-16 text-right text-xs font-bold text-on-surface bg-surface-container-lowest border rounded-md px-1.5 py-1 outline-none tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
-                            line.customPrice == null
-                              ? "border-amber-500/60 focus:border-amber-500"
-                              : "border-outline-variant/30 focus:border-primary"
-                          }`}
-                        />
-                        <span className="text-xs font-bold text-on-surface tabular-nums w-14 text-right">
+                      {/* Precio abierto: el importe es un campo, no una etiqueta.
+                          Vacío NO cae al precio del catálogo — el servidor rechaza
+                          la venta (PRECIO_REQUERIDO) antes que cobrar el precio de
+                          la semana pasada sin que nadie lo haya mirado. */}
+                      {line.item.open_price ? (
+                        <div className="flex flex-col items-end gap-1 shrink-0">
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs text-on-surface-variant">$</span>
+                            <input
+                              type="number"
+                              min="0"
+                              inputMode="decimal"
+                              aria-label={`Precio de ${line.item.name}`}
+                              value={line.customPrice ?? ""}
+                              placeholder={String(line.item.price)}
+                              onChange={(e) => {
+                                const raw = e.target.value;
+                                const v = parseFloat(raw);
+                                setLinePrice(key, raw === "" || !Number.isFinite(v) ? null : v);
+                              }}
+                              className={`w-24 h-10 text-right text-sm font-bold text-on-surface bg-surface-container-lowest border rounded-lg px-2 outline-none tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                                line.customPrice == null
+                                  ? "border-amber-500/60 focus:border-amber-500"
+                                  : "border-outline-variant/30 focus:border-primary"
+                              }`}
+                            />
+                          </div>
+                          <span className="text-sm font-bold text-on-surface tabular-nums">
+                            {fmtMoney(linePrice(line) * line.quantity)}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-sm font-bold text-on-surface tabular-nums shrink-0">
                           {fmtMoney(linePrice(line) * line.quantity)}
                         </span>
-                      </div>
-                    ) : (
-                      <span className="text-xs font-bold text-on-surface tabular-nums shrink-0">{fmtMoney(linePrice(line) * line.quantity)}</span>
-                    )}
+                      )}
+                    </div>
 
-                    <button
-                      onClick={() => removeFromCart(cartLineKey(line))}
-                      className="shrink-0 w-4 h-4 flex items-center justify-center text-on-surface-variant/30 hover:text-error transition-colors opacity-0 group-hover:opacity-100"
-                      aria-label="Quitar &iacute;tem"
-                    >
-                      <IconTrash className="w-3 h-3" />
-                    </button>
-                  </div>
-                ))}
-              </div>
+                    <div className="flex items-center justify-between gap-2 mt-1.5">
+                      <div className="flex items-center rounded-xl border border-outline-variant/20 bg-surface-container-lowest">
+                        <button
+                          type="button"
+                          onClick={() => decrement(key)}
+                          aria-label={`Quitar una unidad de ${line.item.name}`}
+                          className="w-10 h-10 flex items-center justify-center rounded-l-xl text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high active:bg-on-surface/10 transition-colors"
+                        >
+                          <svg fill="none" stroke="currentColor" strokeWidth="2.25" viewBox="0 0 24 24" className="w-4 h-4" aria-hidden="true"><path strokeLinecap="round" d="M5 12h14" /></svg>
+                        </button>
+                        {/* `step` y los decimales salen de la unidad de medida
+                            del producto: 1,5 kg es una venta y media unidad de un
+                            televisor es un error de tipeo. El servidor revalida
+                            con la misma regla (CANTIDAD_ENTERA). */}
+                        <CartQuantityField
+                          quantity={line.quantity}
+                          allowsFractions={line.item.allows_fractions}
+                          min={line.item.allows_fractions ? 0.001 : 1}
+                          max={allowOversell ? undefined : line.item.stock_level ?? undefined}
+                          label={`Cantidad de ${line.item.name}`}
+                          onCommit={(v) => setQuantity(key, v)}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => increment(key)}
+                          disabled={atStock}
+                          aria-label={`Agregar una unidad de ${line.item.name}`}
+                          className="w-10 h-10 flex items-center justify-center rounded-r-xl text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high active:bg-on-surface/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                        >
+                          <svg fill="none" stroke="currentColor" strokeWidth="2.25" viewBox="0 0 24 24" className="w-4 h-4" aria-hidden="true"><path strokeLinecap="round" d="M12 5v14M5 12h14" /></svg>
+                        </button>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => removeFromCart(key)}
+                        className="shrink-0 w-10 h-10 flex items-center justify-center rounded-xl text-on-surface-variant hover:text-error hover:bg-error/10 transition-colors"
+                        aria-label={`Quitar ${line.item.name} de la venta`}
+                        title="Quitar de la venta"
+                      >
+                        <IconTrash className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </li>
+                  );
+                })}
+              </ul>
 
               {cart.some((l) => l.item.kind === "product" && l.item.package_price != null) && (
                 <div className="space-y-1.5 pt-1 border-t border-outline-variant/10">
@@ -655,12 +687,21 @@ export function PosCartPanel({
 
         </div>
 
-        <div className="p-4 pb-[max(1rem,env(safe-area-inset-bottom))] bg-surface-container-lowest mt-auto shrink-0 border-t border-outline-variant/10 lg:border-t-0">
+        <div className="p-4 pb-[max(1rem,env(safe-area-inset-bottom))] bg-surface-container-lowest mt-auto shrink-0 border-t border-outline-variant/10">
           {cart.length > 0 && (
-            <div className="flex items-center justify-between mb-3 px-1">
-              <span className="text-xs font-semibold text-on-surface-variant">
-                {cart.length} ítem{cart.length !== 1 ? "s" : ""} &middot; {cartUnits} unidad{cartUnits !== 1 ? "es" : ""}
-              </span>
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <button
+                type="button"
+                onClick={() => setShowDetail((v) => !v)}
+                aria-expanded={showDetail}
+                aria-controls="pos-cart-detail"
+                className="inline-flex min-h-9 items-center gap-1 rounded-lg px-2 text-xs font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors"
+              >
+                <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className={`w-3.5 h-3.5 transition-transform ${showDetail ? "rotate-180" : ""}`} aria-hidden="true">
+                  <path d="M6 9l6 6 6-6" />
+                </svg>
+                {showDetail ? "Ocultar detalle" : "Ver detalle"}
+              </button>
               {/* Lejos de "Vender" a propósito (C5): pegado al botón de cobrar
                   era fácil vaciar la venta con el dedo equivocado. Igual se
                   puede deshacer unos segundos desde el aviso. */}
@@ -668,7 +709,7 @@ export function PosCartPanel({
                 type="button"
                 onClick={clearCart}
                 disabled={submitting}
-                className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-semibold text-on-surface-variant hover:text-error hover:bg-error/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                className="inline-flex min-h-9 items-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-on-surface-variant hover:text-error hover:bg-error/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-3.5 h-3.5" aria-hidden="true">
                   <polyline points="3 6 5 6 21 6" />
@@ -679,9 +720,8 @@ export function PosCartPanel({
             </div>
           )}
 
-          {cart.length > 0 && (
-            <div className="space-y-2 mb-4 bg-surface-container p-4 rounded-2xl border border-outline-variant/10">
-              <p className="text-sm font-bold text-on-surface mb-1">Detalle</p>
+          {cart.length > 0 && showDetail && (
+            <div id="pos-cart-detail" className="space-y-1.5 mb-3 bg-surface-container px-4 py-3 rounded-2xl border border-outline-variant/10">
               {isTaxExempt ? (
                 <>
                   <div className="flex justify-between text-sm text-on-surface-variant">
@@ -698,7 +738,7 @@ export function PosCartPanel({
                   </div>
                   <div className="flex justify-between text-sm text-on-surface-variant">
                     <span>IVA (exento)</span>
-                    <span className="font-semibold text-on-surface">$0.00</span>
+                    <span className="font-semibold text-on-surface">{fmtMoney(0)}</span>
                   </div>
                 </>
               ) : includeTax ? (
@@ -718,16 +758,31 @@ export function PosCartPanel({
                   <span className="font-semibold text-on-surface">{fmtMoney(totals.subtotal)}</span>
                 </div>
               )}
-              {totals.discount > 0 && (
-                <div className="flex justify-between text-sm text-on-surface-variant">
-                  <span>Descuento</span>
-                  <span className="font-semibold">-{fmtMoney(totals.discount)}</span>
+            </div>
+          )}
+
+          {/* De dónde sale el descuento (C12). Siempre a la vista, no detrás de
+              "Ver detalle": es lo que el cliente pregunta al ver el total. */}
+          {cart.length > 0 && totals.discount > 0 && (
+            <div className="mb-3 space-y-1 px-1" aria-label="Descuentos de la venta">
+              {(discountParts.length > 0
+                ? discountParts
+                : [{ origin: "other" as const, label: "Descuento", amount: totals.discount }]
+              ).map((part) => (
+                <div key={part.origin} className="flex items-baseline justify-between gap-3 text-sm">
+                  <span className="min-w-0 text-on-surface-variant">
+                    {part.label}
+                    {"names" in part && part.names?.length ? (
+                      <span className="block truncate text-[11px] text-on-surface-variant/80">
+                        {part.names.join(", ")}
+                      </span>
+                    ) : null}
+                  </span>
+                  <span className="shrink-0 font-semibold text-accent-fin tabular-nums">
+                    −{fmtMoney(part.amount)}
+                  </span>
                 </div>
-              )}
-              <div className="flex justify-between items-baseline border-t border-outline-variant/20 pt-2.5 mt-1">
-                <span className="text-sm font-semibold text-on-surface">Total a pagar</span>
-                <span className="text-lg font-bold text-on-surface tabular-nums">{fmtMoney(totals.total)}</span>
-              </div>
+              ))}
             </div>
           )}
 
@@ -740,12 +795,26 @@ export function PosCartPanel({
             </p>
           )}
 
+          {/* El total es lo más visible de la pantalla (C11): fijo al pie,
+              justo encima de "Vender", con cuántos ítems lleva. */}
+          <div className="flex items-end justify-between gap-3 mb-3 px-1" aria-live="polite">
+            <div className="min-w-0">
+              <p className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Total a pagar</p>
+              <p className="text-xs text-on-surface-variant tabular-nums">
+                {cart.length} ítem{cart.length !== 1 ? "s" : ""} &middot; {formatQty(cartUnits)} unidad{cartUnits !== 1 ? "es" : ""}
+              </p>
+            </div>
+            <p className="min-w-0 truncate text-[32px] xl:text-[40px] leading-none font-bold text-on-surface tabular-nums tracking-tight">
+              {fmtMoney(totals.total)}
+            </p>
+          </div>
+
           <div className="flex gap-2">
             <button
               title={salesBlocked ? "Abre tu turno para vender" : undefined}
               onClick={onCheckout}
               disabled={salesBlocked || cart.length === 0 || submitting || missingPrice}
-              className={`flex-1 flex items-center justify-center gap-2 rounded-xl px-4 py-3 font-semibold transition-all ${
+              className={`flex-1 min-h-14 flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-base font-semibold transition-all ${
                 salesBlocked || cart.length === 0 || missingPrice
                   ? "bg-surface-container-highest cursor-not-allowed opacity-70 text-on-surface-variant/50"
                   : "bg-primary text-on-primary hover:bg-primary-dim shadow-sm"
@@ -766,7 +835,7 @@ export function PosCartPanel({
             <div className="relative group">
               <button
                 onClick={onOpenRecentSalesModal}
-                className="w-[52px] flex-shrink-0 flex items-center justify-center rounded-xl bg-surface-container border border-outline-variant/10 text-on-surface hover:bg-surface-container-high transition-colors py-3"
+                className="w-[52px] h-full min-h-14 flex-shrink-0 flex items-center justify-center rounded-xl bg-surface-container border border-outline-variant/10 text-on-surface hover:bg-surface-container-high transition-colors"
                 aria-label="Últimas ventas"
               >
                 <IconReceipt className="w-6 h-6" />

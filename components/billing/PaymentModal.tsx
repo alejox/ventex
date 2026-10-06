@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { useSubscriptionBillingStore } from "@/stores/subscription-billing.store";
 import { openEpaycoCheckout } from "@/services/epayco-checkout.service";
 import { formatMoney } from "@/config/plans";
+import { Modal } from "@/components/ui/Modal";
 import { formatLongDate } from "@/lib/planValidity";
 import type { PlanPeriod } from "@/services/subscription.service";
 
@@ -89,7 +90,6 @@ export function PaymentModal({
 
   const pollsRef = useRef(0);
 
-  const recurring = period?.months === 1;
   const total = period ? formatMoney(period.price) : "";
   const needEmailStep = guest && phase === "form" && !guestEmail.trim();
   /**
@@ -213,50 +213,42 @@ export function PaymentModal({
       ? "Tu pago quedó registrado"
       : "Confirmando tu pago";
 
-  return (
-    <div
-      className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
-      onClick={onClose}
-    >
-      <div
-        className="w-full max-w-md bg-surface-container-lowest border border-outline-variant/10 rounded-3xl shadow-2xl p-6 sm:p-8 max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-start justify-between gap-4 mb-6">
-          <div>
-            <h2 className="text-lg font-bold text-on-surface">{title}</h2>
-            <p className="text-sm text-on-surface-variant mt-1">
-              {period ? (
-                <>
-                  {period.name} · {total}
-                  {recurring
-                    ? " · se renueva automáticamente cada mes"
-                    : ` · acceso por ${period.months} meses`}
-                </>
-              ) : missingGuestEmail ? (
-                "Falta un paso para activarlo."
-              ) : (
-                "Estás volviendo del checkout. Espera un momento…"
-              )}
-            </p>
-          </div>
-          <button
-            onClick={onClose}
-            className="shrink-0 text-on-surface-variant hover:text-on-surface transition-colors p-1 -m-1"
-            aria-label="Cerrar"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
+  /**
+   * B16: diálogo de verdad (`<dialog>` de `components/ui/Modal`: foco atrapado,
+   * Escape, foco devuelto al cerrar). Lo que NO se permite es cerrarlo por
+   * accidente mientras pasa algo: durante el salto al checkout no se cierra de
+   * ninguna forma (cerrar no lo frena y deja al usuario sin saber qué pasó), y
+   * esperando la confirmación un clic en el fondo no lo cierra — para eso está
+   * "Cerrar y revisar más tarde" (o Escape, que es deliberado).
+   */
+  const busy = phase === "redirecting" || phase === "waiting";
 
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={title}
+      description={
+        period ? (
+          <>
+            {period.name} · {total} · acceso por {period.months}{" "}
+            {period.months === 1 ? "mes" : "meses"}, sin renovación automática
+          </>
+        ) : missingGuestEmail ? (
+          "Falta un paso para activarlo."
+        ) : (
+          "Estás volviendo del checkout. Espera un momento…"
+        )
+      }
+      dismissible={!busy}
+      closeOnEscape={phase !== "redirecting"}
+      showCloseButton={phase !== "redirecting"}
+    >
         {phase === "done" ? (
           <SuccessState
             guest={guest}
             guestEmail={guestEmail}
             planName={planName}
-            recurring={Boolean(recurring)}
             validUntil={billingLoading ? null : periodEnd}
             onClose={onClose}
           />
@@ -280,7 +272,7 @@ export function PaymentModal({
             </p>
             <button
               onClick={onClose}
-              className="w-full py-3 rounded-xl bg-primary text-white font-bold hover:bg-primary-dim transition-colors"
+              className="w-full py-3 rounded-xl bg-primary text-on-primary font-bold hover:bg-primary-dim transition-colors"
             >
               Cerrar
             </button>
@@ -288,7 +280,7 @@ export function PaymentModal({
         ) : (
           <>
             {error && (
-              <div className="rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim mb-5">
+              <div role="alert" className="rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim mb-5">
                 {error}
               </div>
             )}
@@ -323,7 +315,7 @@ export function PaymentModal({
                     setError(null);
                     storeGuestEmail(guestEmailInput.trim());
                   }}
-                  className="w-full mt-6 py-3 rounded-xl bg-primary text-white font-bold transition-colors hover:bg-primary-dim"
+                  className="w-full mt-6 py-3 rounded-xl bg-primary text-on-primary font-bold transition-colors hover:bg-primary-dim"
                 >
                   Continuar al pago
                 </button>
@@ -375,7 +367,7 @@ export function PaymentModal({
                 <button
                   onClick={handleSubmit}
                   disabled={submitting}
-                  className="w-full mt-5 py-3 rounded-xl bg-primary text-white font-bold transition-colors hover:bg-primary-dim disabled:bg-primary/50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className="w-full mt-5 py-3 rounded-xl bg-primary text-on-primary font-bold transition-colors hover:bg-primary-dim disabled:bg-primary/50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {submitting ? (
                     <>
@@ -386,12 +378,12 @@ export function PaymentModal({
                   )}
                 </button>
 
-                {recurring && (
-                  <p className="text-[11px] text-on-surface-variant mt-3 text-center leading-relaxed">
-                    Se renueva cada mes por {total}. Puedes dar de baja la renovación
-                    cuando quieras desde tu panel.
-                  </p>
-                )}
+                {/* Sin promesas de renovación: no existe el cobro recurrente
+                    (AGENTS.md → Subscription billing). */}
+                <p className="text-[11px] text-on-surface-variant mt-3 text-center leading-relaxed">
+                  Es un pago único por el periodo elegido. Te avisamos antes del
+                  vencimiento para que renueves.
+                </p>
 
                 <p className="text-[11px] text-on-surface-variant mt-3 text-center leading-relaxed">
                   Pagos procesados de forma segura por ePayco. Los datos de tu
@@ -409,8 +401,7 @@ export function PaymentModal({
             )}
           </>
         )}
-      </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -418,22 +409,20 @@ function SuccessState({
   guest,
   guestEmail,
   planName,
-  recurring,
   validUntil,
   onClose,
 }: {
   guest: boolean;
   guestEmail: string;
   planName?: string;
-  recurring: boolean;
   /** Fin del periodo ya recargado. Null mientras no se pueda afirmar. */
   validUntil: string | null;
   onClose: () => void;
 }) {
   return (
     <div className="text-center py-8">
-      <div className="mx-auto w-14 h-14 rounded-full bg-[#10b981]/15 flex items-center justify-center mb-4">
-        <svg viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2.5" className="w-7 h-7">
+      <div className="mx-auto w-14 h-14 rounded-full bg-accent-fin/15 text-accent-fin flex items-center justify-center mb-4">
+        <svg aria-hidden viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-7 h-7">
           <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
         </svg>
       </div>
@@ -448,14 +437,13 @@ function SuccessState({
       ) : (
         <>
           <p className={`text-sm text-on-surface-variant ${validUntil ? "mb-4" : "mb-6"}`}>
-            Tu plan {planName ?? "de Ventex"} ya está activo
-            {recurring ? " con renovación automática" : ""}.
+            Tu plan {planName ?? "de Ventex"} ya está activo.
           </p>
           {/* Lo primero que se quiere ver después de pagar: hasta cuándo. */}
           {validUntil && (
             <div className="rounded-2xl bg-surface-container-low border border-outline-variant/20 px-4 py-3 mb-6 text-left">
               <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">
-                {recurring ? "Próximo cobro" : "Vigente hasta"}
+                Vigente hasta
               </p>
               <p className="text-base font-bold text-on-surface mt-0.5">
                 {formatLongDate(validUntil)}
@@ -466,7 +454,7 @@ function SuccessState({
       )}
       <button
         onClick={onClose}
-        className="w-full py-3 rounded-xl bg-primary text-white font-bold hover:bg-primary-dim transition-colors"
+        className="w-full py-3 rounded-xl bg-primary text-on-primary font-bold hover:bg-primary-dim transition-colors"
       >
         {guest ? "Crear mi cuenta" : "Listo"}
       </button>
@@ -508,7 +496,7 @@ function GuestOtherDeviceState() {
       </p>
       <Link
         href="/register?paid=1"
-        className="block w-full py-3 rounded-xl bg-primary text-white font-bold hover:bg-primary-dim transition-colors"
+        className="block w-full py-3 rounded-xl bg-primary text-on-primary font-bold hover:bg-primary-dim transition-colors"
       >
         Crear mi cuenta
       </Link>

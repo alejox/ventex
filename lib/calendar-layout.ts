@@ -92,3 +92,51 @@ export function minutesToTime(total: number): string {
   const clamped = Math.min(Math.max(total, 0), 23 * 60 + 59);
   return `${String(Math.floor(clamped / 60)).padStart(2, "0")}:${String(clamped % 60).padStart(2, "0")}`;
 }
+
+// ---- Vista y encabezado del calendario ----
+
+export type CalendarView = "month" | "week" | "day";
+
+/** Por debajo de esto la semana no entra (7 columnas ≈ 792px) y se abre en Día. */
+export const NARROW_CALENDAR_QUERY = "(max-width: 767px)";
+
+/**
+ * Vista con la que abre el calendario. La que eligió la persona manda siempre;
+ * si no eligió ninguna (`null`), decide la pantalla: Día en el teléfono,
+ * Semana en el resto.
+ */
+export function initialCalendarView(chosen: CalendarView | null, narrow: boolean): CalendarView {
+  if (chosen) return chosen;
+  return narrow ? "day" : "week";
+}
+
+/**
+ * Filtro de persona con el que abre el calendario. Un trabajador con ficha
+ * (`staff_id`) abre en "Mis citas": lo primero que necesita es su propia agenda,
+ * no la de todo el equipo. Puede pasar a "Todas las personas" cuando quiera.
+ */
+export function initialStaffFilter(isWorker: boolean, staffId: string | null | undefined): string {
+  return isWorker && staffId ? staffId : "all";
+}
+
+/** Lee lo guardado en `localStorage` sin confiar en lo que haya ahí. */
+export function parseCalendarView(raw: string | null | undefined): CalendarView | null {
+  return raw === "month" || raw === "week" || raw === "day" ? raw : null;
+}
+
+const MONTHS_SHORT_ES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+
+/**
+ * Rango de la semana como lo diría una persona: "6 – 12 oct" dentro del mismo
+ * mes, "29 sep – 5 oct" cuando cruza, y con año solo si cruza de año. Antes se
+ * armaba con el mes de la fecha actual y la semana del 29 al 5 decía
+ * "29 - 5 Octubre", como si el 29 fuera de octubre.
+ */
+export function formatWeekRange(start: Date, end: Date): string {
+  const sameYear = start.getFullYear() === end.getFullYear();
+  const sameMonth = sameYear && start.getMonth() === end.getMonth();
+  const tail = `${end.getDate()} ${MONTHS_SHORT_ES[end.getMonth()]}${sameYear ? "" : ` ${end.getFullYear()}`}`;
+  if (sameMonth) return `${start.getDate()} – ${tail}`;
+  const head = `${start.getDate()} ${MONTHS_SHORT_ES[start.getMonth()]}${sameYear ? "" : ` ${start.getFullYear()}`}`;
+  return `${head} – ${tail}`;
+}

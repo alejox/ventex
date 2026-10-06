@@ -4,14 +4,35 @@ import React, { useState } from "react";
 import { useShiftsStore } from "@/stores/shifts.store";
 import { usePosStore } from "@/stores/pos.store";
 import type { CurrentShift, ShiftSummary } from "@/services/shifts.service";
-import { notifySuccess } from "@/lib/notifications";
-import { useFormatMoney } from "@/lib/useMoney";
+import { notifyError, notifySuccess } from "@/lib/notifications";
+import { useCurrency, useFormatMoney } from "@/lib/useMoney";
+import { useSettingsStore } from "@/stores/settings.store";
+import { useProfile } from "@/components/ProfileProvider";
+import {
+  COP_DENOMINATIONS,
+  parseDenominationCount,
+  sumDenominationCounts,
+} from "@/lib/pos-cash";
+import { shiftCloseReport, shiftCloseReportHtml, shiftMethodLabel } from "@/lib/pos-shift-close";
 
-const METHOD_LABEL: Record<string, string> = {
-  efectivo: "Efectivo",
-  tarjeta: "Datáfono",
-  transferencia: "Transferencia",
-};
+/**
+ * Imprime el cierre en una ventana aparte (80 mm). Aparte y no con
+ * `window.print()` sobre la página: el POS ya tiene su propio CSS de
+ * impresión para el recibo, y los dos se pisarían.
+ */
+function printHtml(html: string): boolean {
+  const win = window.open("", "_blank", "width=420,height=640");
+  if (!win) return false;
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  // Un respiro para que el navegador maquete antes de abrir el diálogo.
+  setTimeout(() => {
+    win.print();
+  }, 250);
+  return true;
+}
 
 /** Desglose completo del turno. Solo se muestra DESPUÉS de contar el efectivo. */
 function SummaryRows({
@@ -40,7 +61,7 @@ function SummaryRows({
       </div>
       {Object.entries(byMethod).map(([method, total]) => (
         <div key={method} className="flex justify-between px-4 py-2.5">
-          <span className="text-on-surface-variant">{METHOD_LABEL[method] ?? method}</span>
+          <span className="text-on-surface-variant">{shiftMethodLabel(method)}</span>
           <span className="font-semibold text-on-surface tabular-nums">{fmtMoney(total)}</span>
         </div>
       ))}
@@ -80,6 +101,9 @@ export function CloseShiftModal({
   onClose: () => void;
 }) {
   const fmtMoney = useFormatMoney();
+  const isCop = useCurrency() === "COP";
+  const profile = useProfile();
+  const businessName = useSettingsStore((s) => s.settings?.business_profile?.businessName ?? null);
   const closeShift = useShiftsStore((s) => s.closeShift);
   const submitting = useShiftsStore((s) => s.submitting);
   const error = useShiftsStore((s) => s.error);
@@ -101,6 +125,56 @@ export function CloseShiftModal({
   const [closingCash, setClosingCash] = useState("");
   const [notes, setNotes] = useState("");
   const [summary, setSummary] = useState<ShiftSummary | null>(null);
+  /**
+   * Contador por denominación (C21), opcional. Suma solo y escribe el total
+   * en "Efectivo contado"; no muestra nada del turno, así que el conteo sigue
+   * siendo ciego.
+   */
+  const [showCounter, setShowCounter] = useState(false);
+  const [counts, setCounts] = useState<Record<string, string>>({});
+  const counterTotal = sumDenominationCounts(counts);
+
+  const setCount = (id: string, raw: string) => {
+    const next = { ...counts, [id]: raw };
+    setCounts(next);
+    setClosingCash(String(sumDenominationCounts(next)));
+  };
+
+  const printClose = (result: ShiftSummary) => {
+    const report = shiftCloseReport(
+      {
+        businessName,
+        // El dueño cerrando el turno de otro no es "el cajero".
+        cashier: shiftId ? null : profile?.fullName ?? null,
+        openedAt: result.opened_at,
+        closedAt: result.closed_at,
+        openingCash: result.opening_cash,
+        closingCash: result.closing_cash,
+        expectedCash: result.expected_cash,
+        difference: result.difference,
+        salesCount: result.sales_count,
+        salesTotal: result.sales_total,
+        withdrawals: result.withdrawals_total ?? 0,
+        byMethod: result.totals_by_method ?? {},
+        notes: notes.trim() || null,
+        denominations: COP_DENOMINATIONS.map((d) => {
+          const count = parseDenominationCount(counts[d.id] ?? "");
+          return {
+            label: `${d.kind === "billete" ? "Billete" : "Moneda"} ${fmtMoney(d.value)}`,
+            count,
+            subtotal: count * d.value,
+          };
+        }),
+      },
+      fmtMoney,
+    );
+    if (!printHtml(shiftCloseReportHtml(report))) {
+      notifyError(
+        "No se pudo abrir la impresión",
+        "Permite las ventanas emergentes de este sitio y vuelve a intentarlo.",
+      );
+    }
+  };
 
   const counted = parseFloat(closingCash);
   const countedValid = !Number.isNaN(counted) && counted >= 0;
@@ -180,12 +254,27 @@ export function CloseShiftModal({
                 Sobran {fmtMoney(summary.difference)} respecto a lo esperado. Se notificó al dueño.
               </p>
             )}
-            <button
-              onClick={onClose}
-              className="w-full py-3 rounded-xl bg-primary text-white font-semibold hover:bg-primary-dim transition-colors"
-            >
-              Finalizar
-            </button>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button
+                type="button"
+                onClick={() => printClose(summary)}
+                className="sm:flex-1 min-h-12 py-3 rounded-xl border border-outline-variant/30 text-on-surface font-semibold hover:bg-surface-container-low transition-colors inline-flex items-center justify-center gap-2"
+              >
+                <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-4 h-4" aria-hidden="true">
+                  <polyline points="6 9 6 2 18 2 18 9" />
+                  <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+                  <rect x="6" y="14" width="12" height="8" />
+                </svg>
+                Imprimir cierre
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                className="sm:flex-1 min-h-12 py-3 rounded-xl bg-primary text-white font-semibold hover:bg-primary-dim transition-colors"
+              >
+                Finalizar
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -312,17 +401,17 @@ export function CloseShiftModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
       <div
-        className="bg-surface-container rounded-3xl w-full max-w-md border border-outline-variant/10 shadow-2xl animate-in zoom-in-95 duration-200"
+        className="bg-surface-container rounded-3xl w-full max-w-md border border-outline-variant/10 shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="p-6 border-b border-outline-variant/10">
+        <div className="p-6 border-b border-outline-variant/10 shrink-0">
           <h2 className="text-lg font-bold text-on-surface">Cerrar turno</h2>
           <p className="text-sm text-on-surface-variant mt-1">
             Cuenta todo el efectivo que hay físicamente en la caja e ingrésalo.
           </p>
         </div>
 
-        <form onSubmit={handleCount} className="p-6 space-y-4">
+        <form onSubmit={handleCount} className="p-6 space-y-4 overflow-y-auto">
           {error && (
             <div className="rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim">
               {error}
@@ -356,6 +445,74 @@ export function CloseShiftModal({
               Incluye la base con la que abriste. Al confirmar verás si la caja cuadra.
             </p>
           </div>
+
+          {isCop && (
+            <div className="rounded-2xl border border-outline-variant/15 bg-surface-container-low">
+              <button
+                type="button"
+                onClick={() => setShowCounter((v) => !v)}
+                aria-expanded={showCounter}
+                aria-controls="close-shift-counter"
+                className="w-full min-h-11 flex items-center justify-between gap-3 px-4 text-sm font-semibold text-on-surface"
+              >
+                <span>Contar por billetes y monedas</span>
+                <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className={`w-4 h-4 transition-transform ${showCounter ? "rotate-180" : ""}`} aria-hidden="true">
+                  <path d="M6 9l6 6 6-6" />
+                </svg>
+              </button>
+              {showCounter && (
+                <div id="close-shift-counter" className="px-4 pb-4 space-y-3">
+                  <p className="text-xs text-on-surface-variant">
+                    Escribe cuántos tienes de cada uno. El total se suma solo en &quot;Efectivo contado&quot;.
+                  </p>
+                  {(["billete", "moneda"] as const).map((kind) => (
+                    <fieldset key={kind} className="space-y-1.5">
+                      <legend className="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant mb-1">
+                        {kind === "billete" ? "Billetes" : "Monedas"}
+                      </legend>
+                      <div className="grid grid-cols-2 gap-2">
+                        {COP_DENOMINATIONS.filter((d) => d.kind === kind).map((d) => {
+                          const qty = parseDenominationCount(counts[d.id] ?? "");
+                          return (
+                            <label
+                              key={d.id}
+                              className="flex items-center gap-2 rounded-xl bg-surface-container px-2.5 py-1.5"
+                            >
+                              <span className="min-w-0 flex-1 text-sm font-semibold text-on-surface tabular-nums">
+                                {fmtMoney(d.value)}
+                                {qty > 0 && (
+                                  <span className="block text-[11px] font-normal text-on-surface-variant">
+                                    = {fmtMoney(qty * d.value)}
+                                  </span>
+                                )}
+                              </span>
+                              <span className="sr-only">
+                                Cantidad de {kind === "billete" ? "billetes" : "monedas"} de {fmtMoney(d.value)}
+                              </span>
+                              <input
+                                type="number"
+                                min={0}
+                                step={1}
+                                inputMode="numeric"
+                                value={counts[d.id] ?? ""}
+                                onChange={(e) => setCount(d.id, e.target.value)}
+                                placeholder="0"
+                                className="w-16 h-10 rounded-lg border border-outline-variant/20 bg-surface-container-lowest text-center text-sm font-semibold text-on-surface tabular-nums focus:outline-none focus:ring-2 focus:ring-primary/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              />
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </fieldset>
+                  ))}
+                  <div className="flex items-center justify-between border-t border-outline-variant/15 pt-2.5 text-sm">
+                    <span className="font-semibold text-on-surface">Suma del conteo</span>
+                    <span className="font-bold text-on-surface tabular-nums">{fmtMoney(counterTotal)}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="flex justify-end gap-3 pt-2">
             <button

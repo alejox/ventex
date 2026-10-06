@@ -505,3 +505,90 @@ export async function createCustomer(params: {
   if (error) throw error;
   return data as CustomerOption;
 }
+
+// ---- Ventas en espera persistidas (C16) ----
+//
+// Las pestañas del POS se guardan en el dispositivo para sobrevivir a una
+// recarga. Base PROPIA (no la de la cola offline): son datos de otra vida útil
+// —se pisan en cada cambio del carrito y se borran al cobrar— y subir la
+// versión de `ventex-offline` para agregarle un store obligaría a migrar la
+// cola, que no puede perder una sola venta. La clave (usuario + negocio) y la
+// lógica de qué se guarda viven en `lib/pos-held-tabs.ts`.
+//
+// Si IndexedDB no está (modo privado de algunos navegadores, tests) cae a
+// localStorage; si tampoco, no guarda nada: perder las pestañas al recargar
+// es lo que pasaba antes, nunca un error que frene la venta.
+
+const HELD_DB = "ventex-pos-held";
+const HELD_STORE = "tabs";
+const HELD_LS_PREFIX = "ventex:pos-held:";
+
+function openHeldDb(): Promise<IDBDatabase | null> {
+  if (typeof indexedDB === "undefined") return Promise.resolve(null);
+  return new Promise((resolve) => {
+    try {
+      const req = indexedDB.open(HELD_DB, 1);
+      req.onupgradeneeded = () => {
+        if (!req.result.objectStoreNames.contains(HELD_STORE)) req.result.createObjectStore(HELD_STORE);
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => resolve(null);
+      req.onblocked = () => resolve(null);
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
+function heldRequest<T>(db: IDBDatabase, mode: IDBTransactionMode, run: (s: IDBObjectStore) => IDBRequest): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(HELD_STORE, mode);
+    const req = run(tx.objectStore(HELD_STORE));
+    tx.oncomplete = () => resolve(req.result as T);
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error);
+  });
+}
+
+/** La foto guardada para esa clave, o null. Nunca lanza. */
+export async function loadHeldTabs<T>(key: string): Promise<T | null> {
+  const db = await openHeldDb();
+  if (db) {
+    try {
+      const value = await heldRequest<T | undefined>(db, "readonly", (s) => s.get(key));
+      return value ?? null;
+    } catch {
+      return null;
+    } finally {
+      db.close();
+    }
+  }
+  try {
+    const raw = typeof localStorage !== "undefined" ? localStorage.getItem(HELD_LS_PREFIX + key) : null;
+    return raw ? (JSON.parse(raw) as T) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Guarda la foto; `null` la borra. Nunca lanza. */
+export async function saveHeldTabs(key: string, snapshot: unknown | null): Promise<void> {
+  const db = await openHeldDb();
+  if (db) {
+    try {
+      await heldRequest(db, "readwrite", (s) => (snapshot == null ? s.delete(key) : s.put(snapshot, key)));
+      return;
+    } catch {
+      // Cae a localStorage.
+    } finally {
+      db.close();
+    }
+  }
+  try {
+    if (typeof localStorage === "undefined") return;
+    if (snapshot == null) localStorage.removeItem(HELD_LS_PREFIX + key);
+    else localStorage.setItem(HELD_LS_PREFIX + key, JSON.stringify(snapshot));
+  } catch {
+    // Sin almacenamiento: las pestañas quedan solo en memoria, como antes.
+  }
+}

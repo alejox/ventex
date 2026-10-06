@@ -16,6 +16,8 @@ import {
   type WorkerPermission,
 } from "@/config/business";
 import { PermissionToggles, togglePermission, useApplicablePermissions } from "./PermissionToggles";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
+import { samePermissions } from "./permission-diff";
 
 /** "" = desde cero; "custom" = el dueño tocó los toggles después de elegir. */
 type TemplateChoice = string;
@@ -63,6 +65,8 @@ export function GrantAccessModal({
   const [perms, setPermsState] = useState<WorkerPermissions>(() =>
     initialTemplate ? templatePermissions(initialTemplate) : {},
   );
+  // Cómo nació el formulario: contra esto se decide si hay cambios sin guardar.
+  const [initialValues] = useState(() => ({ email, role, isAdmin, perms }));
   // Aviso de "sin permisos": el primer envío lo muestra, el segundo confirma.
   const [confirmEmpty, setConfirmEmpty] = useState(false);
   const [done, setDone] = useState(false);
@@ -87,6 +91,30 @@ export function GrantAccessModal({
   };
 
   const sinPermisos = !isAdmin && !hasAnyPermission(perms, applicable);
+
+  const dirty =
+    !done &&
+    (email !== initialValues.email ||
+      role !== initialValues.role ||
+      isAdmin !== initialValues.isAdmin ||
+      !samePermissions(perms, initialValues.perms));
+  const { confirm, dialog } = useConfirm();
+
+  /** Escape, la X, el fondo o "Cancelar": con cambios sin guardar, se pregunta. */
+  const requestClose = async () => {
+    if (submitting) return;
+    if (dirty) {
+      const discard = await confirm({
+        title: "¿Descartar los cambios?",
+        description: "Todavía no enviaste la invitación. Si cierras ahora, se pierde lo que configuraste.",
+        confirmLabel: "Descartar",
+        cancelLabel: "Seguir editando",
+        tone: "danger",
+      });
+      if (!discard) return;
+    }
+    onClose();
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -130,14 +158,24 @@ export function GrantAccessModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-surface-container rounded-3xl w-full max-w-md border border-outline-variant/10 shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+    <>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+      onMouseDown={(event) => { if (event.target === event.currentTarget) void requestClose(); }}
+      onKeyDown={(event) => {
+        if (event.key === "Escape" && !event.defaultPrevented) {
+          event.preventDefault();
+          void requestClose();
+        }
+      }}
+    >
+      <div role="dialog" aria-modal="true" aria-label={`Permisos y acceso de ${member.full_name}`} className="bg-surface-container rounded-3xl w-full max-w-md border border-outline-variant/10 shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
         <div className="flex items-center justify-between p-6 border-b border-outline-variant/10 shrink-0">
           <div className="min-w-0">
             <h2 className="text-lg font-bold text-on-surface">Permisos y acceso</h2>
             <p className="text-sm text-on-surface-variant mt-0.5 truncate">{member.full_name}</p>
           </div>
-          <button onClick={onClose} className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors">
+          <button onClick={() => void requestClose()} aria-label="Cerrar" className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors">
             <IconX className="w-5 h-5" />
           </button>
         </div>
@@ -190,6 +228,8 @@ export function GrantAccessModal({
 
           <button
             type="button"
+            role="switch"
+            aria-checked={isAdmin}
             onClick={() => setIsAdmin((v) => !v)}
             className={`w-full flex items-center justify-between gap-4 p-3 rounded-2xl border text-left transition-colors ${
               isAdmin ? "bg-primary/5 border-primary/40" : "bg-surface-container-low border-outline-variant/10 hover:bg-surface-container"
@@ -255,7 +295,7 @@ export function GrantAccessModal({
           <div className="flex justify-end gap-3 pt-4">
             <button
               type="button"
-              onClick={onClose}
+              onClick={() => void requestClose()}
               className="px-5 py-2.5 rounded-xl border border-outline-variant/20 text-on-surface font-semibold hover:bg-surface-container-low transition-colors"
             >
               Cancelar
@@ -271,5 +311,7 @@ export function GrantAccessModal({
         </form>
       </div>
     </div>
+    {dialog}
+    </>
   );
 }

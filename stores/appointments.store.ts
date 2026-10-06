@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { toMessage } from "@/lib/errors";
 import type { BusyAppointment } from "@/lib/appointment-availability";
+import type { OpeningHour } from "@/lib/appointment-hours";
 import * as appointmentsService from "@/services/appointments.service";
 import type {
   Appointment,
@@ -42,13 +43,24 @@ interface AppointmentsState {
   linkSale: (appointmentId: string, saleId: string) => Promise<boolean>;
   deleteAppointment: (id: string) => Promise<boolean>;
   setSelectedDate: (date: Date) => void;
+
+  /**
+   * Mueve la cita (arrastre en la grilla o "Mover a…"). Optimista: la grilla
+   * la dibuja ya en su lugar nuevo y, si la base la rechaza, vuelve atrás.
+   */
+  rescheduleAppointment: (id: string, next: { date: string; start: string; end: string }) => Promise<boolean>;
+
+  /** Horario de atención; `null` = sin cargar o el negocio nunca lo configuró. */
+  businessHours: OpeningHour[] | null;
+  businessHoursLoaded: boolean;
+  fetchBusinessHours: () => Promise<void>;
 }
 
 
 let linkRequest = 0;
 let calendarRequest = 0;
 
-export const useAppointmentsStore = create<AppointmentsState>((set) => ({
+export const useAppointmentsStore = create<AppointmentsState>((set, get) => ({
   appointments: [],
   selectedDate: new Date(),
   loading: false,
@@ -211,4 +223,38 @@ export const useAppointmentsStore = create<AppointmentsState>((set) => ({
   },
 
   setSelectedDate: (date) => set({ selectedDate: date }),
+
+  rescheduleAppointment: async (id, next) => {
+    const previous = get().appointments.find((a) => a.id === id) ?? null;
+    const moved = (a: Appointment): Appointment => ({ ...a, appointment_date: next.date, start_time: next.start, end_time: next.end });
+    set((s) => ({ error: null, appointments: s.appointments.map((a) => (a.id === id ? moved(a) : a)) }));
+    try {
+      const updated = await appointmentsService.rescheduleAppointment(id, next.date, next.start, next.end);
+      set((s) => ({
+        appointments: s.appointments.map((a) => (a.id === id ? updated : a)),
+        linkedAppointment: s.linkedAppointment?.id === id ? updated : s.linkedAppointment,
+      }));
+      return true;
+    } catch (e) {
+      set((s) => ({
+        error: toMessage(e),
+        appointments: previous ? s.appointments.map((a) => (a.id === id ? previous : a)) : s.appointments,
+      }));
+      return false;
+    }
+  },
+
+  businessHours: null,
+  businessHoursLoaded: false,
+  // Se pide una vez: el horario no cambia mientras se mira el calendario. Un
+  // error deja la grilla como siempre (7–21, sin sombrear), no la rompe.
+  fetchBusinessHours: async () => {
+    if (get().businessHoursLoaded) return;
+    try {
+      const businessHours = await appointmentsService.fetchBusinessHours();
+      set({ businessHours, businessHoursLoaded: true });
+    } catch {
+      set({ businessHours: null, businessHoursLoaded: true });
+    }
+  },
 }));

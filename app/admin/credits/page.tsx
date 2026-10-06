@@ -55,7 +55,7 @@ export default function AdminCreditsPage() {
         </div>
         <button
           onClick={() => setCreating(true)}
-          className="py-2.5 px-5 rounded-full bg-[#6063ee] text-white hover:bg-[#c0c1ff] hover:text-[#0b0664] text-sm font-bold shadow-lg shadow-[#6063ee]/20 transition-colors whitespace-nowrap"
+          className="py-2.5 px-5 rounded-full bg-primary text-on-primary hover:bg-primary-dim text-sm font-bold shadow-lg shadow-primary/20 transition-colors whitespace-nowrap"
         >
           + Nueva promoción
         </button>
@@ -105,7 +105,7 @@ export default function AdminCreditsPage() {
                 <p className="text-2xl font-bold text-on-surface mt-3 tabular-nums">
                   {pack.credits}
                   {pack.bonus_credits > 0 && (
-                    <span className="text-primary"> +{pack.bonus_credits}</span>
+                    <span className="text-primary-ink"> +{pack.bonus_credits}</span>
                   )}
                   <span className="text-sm font-medium text-on-surface-variant ml-1.5">
                     crédito{pack.credits + pack.bonus_credits === 1 ? "" : "s"}
@@ -117,7 +117,7 @@ export default function AdminCreditsPage() {
                 <div className="flex gap-4 mt-4">
                   <button
                     onClick={() => setEditing(pack)}
-                    className="text-sm font-semibold text-primary hover:underline"
+                    className="text-sm font-semibold text-primary-ink hover:underline"
                   >
                     Editar
                   </button>
@@ -162,7 +162,7 @@ export default function AdminCreditsPage() {
                 </div>
                 <span
                   className={`shrink-0 text-base font-bold tabular-nums ${
-                    m.delta > 0 ? "text-primary" : "text-on-surface-variant"
+                    m.delta > 0 ? "text-primary-ink" : "text-on-surface-variant"
                   }`}
                 >
                   {m.delta > 0 ? `+${m.delta}` : m.delta}
@@ -253,7 +253,7 @@ export default function AdminCreditsPage() {
                     </td>
                     <td
                       className={`px-5 py-3.5 text-right font-bold tabular-nums ${
-                        m.delta > 0 ? "text-primary" : "text-on-surface-variant"
+                        m.delta > 0 ? "text-primary-ink" : "text-on-surface-variant"
                       }`}
                     >
                       {m.delta > 0 ? `+${m.delta}` : m.delta}
@@ -355,7 +355,7 @@ function PackModal({ pack, onClose }: { pack: CreditPack | null; onClose: () => 
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Ej: Pack 10+2 Oro"
-                className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 text-on-surface transition-shadow placeholder:text-on-surface-variant/50"
+                className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 text-on-surface transition-shadow placeholder:text-on-surface-variant/80"
               />
             </div>
 
@@ -418,7 +418,7 @@ function PackModal({ pack, onClose }: { pack: CreditPack | null; onClose: () => 
                 type="checkbox"
                 checked={isActive}
                 onChange={(e) => setIsActive(e.target.checked)}
-                className="w-4 h-4 accent-[#6063ee]"
+                className="w-4 h-4 accent-primary"
               />
               <span className="text-sm font-medium text-on-surface">Promoción activa</span>
             </label>
@@ -435,7 +435,7 @@ function PackModal({ pack, onClose }: { pack: CreditPack | null; onClose: () => 
             <button
               type="submit"
               disabled={submitting}
-              className="py-2.5 px-5 rounded-xl bg-[#6063ee] text-white hover:bg-[#c0c1ff] hover:text-[#0b0664] text-sm font-bold shadow-lg shadow-[#6063ee]/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="py-2.5 px-5 rounded-xl bg-primary text-on-primary hover:bg-primary-dim text-sm font-bold shadow-lg shadow-primary/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {submitting ? "Guardando…" : "Guardar"}
             </button>

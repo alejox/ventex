@@ -15,6 +15,13 @@ interface PurchasesState {
   updateInvoice: (id: string, params: PurchaseInvoiceParams) => Promise<boolean>;
   /** El servicio lee sus propias líneas para devolver el stock exacto. */
   cancelInvoice: (id: string) => Promise<boolean>;
+  /**
+   * Líneas de la última compra (no anulada) a ese proveedor. `null` si nunca se
+   * le compró. Lanza si falla la lectura: el formulario muestra el error.
+   */
+  fetchLastPurchase: (
+    distributorId: string,
+  ) => ReturnType<typeof purchasesService.fetchLastPurchaseFromDistributor>;
 }
 
 
@@ -99,4 +106,6 @@ export const usePurchasesStore = create<PurchasesState>((set) => ({
       return false;
     }
   },
+
+  fetchLastPurchase: (distributorId) => purchasesService.fetchLastPurchaseFromDistributor(distributorId),
 }));

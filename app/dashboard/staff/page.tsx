@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
-import { IconUserBadge, IconPlus, IconLogOut, IconMusic } from "@/app/assets/icons/DashboardIcons";
+import { useRouter } from "next/navigation";
+import { IconUserBadge, IconPlus } from "@/app/assets/icons/DashboardIcons";
 import { useStaffStore } from "@/stores/staff.store";
 import { useSubscriptionStore } from "@/stores/subscription.store";
 import { useSchoolPeopleStore } from "@/stores/school-people.store";
@@ -23,6 +24,8 @@ import { GrantAccessModal } from "./components/GrantAccessModal";
 import { EditAccessModal } from "./components/EditAccessModal";
 import { PermissionsPanel } from "./components/PermissionsPanel";
 import { ShiftHistorySection } from "./components/ShiftHistorySection";
+import { StaffCardMenu, type StaffMenuAction } from "./components/StaffCardMenu";
+import { Switch } from "@/components/ui/Switch";
 import { CollectionEmpty, CollectionError, CollectionLoading } from "@/components/CollectionState";
 import { StaffPhotoField } from "@/components/StaffPhotoField";
 import Image from "next/image";
@@ -45,8 +48,14 @@ const EMPTY_STAFF: NewStaffInput = {
   show_on_website: true,
 };
 
+/** Lo que se compara para saber si la ficha tiene cambios sin guardar. */
+function formSnapshot(form: NewStaffInput, teacherEnabled: boolean, specialties: string[], teacherBio: string): string {
+  return JSON.stringify({ form, teacherEnabled, specialties: [...specialties].sort(), teacherBio: teacherBio.trim() });
+}
+
 export default function StaffPage() {
   const fmtMoney = useFormatMoney();
+  const router = useRouter();
   const { confirm, dialog } = useConfirm();
   const staff = useStaffStore((s) => s.staff);
   const loading = useStaffStore((s) => s.loading);
@@ -84,6 +93,8 @@ export default function StaffPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<NewStaffInput>(EMPTY_STAFF);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  /** Foto del formulario al abrirlo: contra ella se decide si hay cambios sin guardar. */
+  const [openedSnapshot, setOpenedSnapshot] = useState("");
 
   const [teacherEnabled, setTeacherEnabled] = useState(false);
   const [specialties, setSpecialties] = useState<string[]>([]);
@@ -217,6 +228,7 @@ export default function StaffPage() {
     setTeacherBio("");
     setSpecialtiesRequired(false);
     clearTeacherError();
+    setOpenedSnapshot(formSnapshot(EMPTY_STAFF, schoolModuleActive, [], ""));
     setModalOpen(true);
   };
 
@@ -237,6 +249,20 @@ export default function StaffPage() {
     setTeacherBio(existingTeacher?.bio ?? "");
     setSpecialtiesRequired(false);
     clearTeacherError();
+    setOpenedSnapshot(formSnapshot(
+      {
+        full_name: m.full_name,
+        role: m.role ?? "",
+        phone: m.phone ?? "",
+        email: m.email ?? "",
+        status: m.status,
+        photo_url: m.photo_url,
+        show_on_website: m.show_on_website ?? false,
+      },
+      Boolean(existingTeacher),
+      existingTeacher?.instruments ?? [],
+      existingTeacher?.bio ?? "",
+    ));
     setModalOpen(true);
   };
 
@@ -249,6 +275,24 @@ export default function StaffPage() {
     setTeacherBio("");
     setSpecialtiesRequired(false);
     clearTeacherError();
+  };
+
+  const staffFormDirty = modalOpen && formSnapshot(form, teacherEnabled, specialties, teacherBio) !== openedSnapshot;
+
+  /** Escape, la X, el fondo o "Cancelar": con cambios sin guardar, se pregunta. */
+  const requestCloseStaff = async () => {
+    if (submitting) return;
+    if (staffFormDirty) {
+      const discard = await confirm({
+        title: "¿Descartar los cambios?",
+        description: "Tienes cambios sin guardar en esta ficha. Si cierras ahora, se pierden.",
+        confirmLabel: "Descartar",
+        cancelLabel: "Seguir editando",
+        tone: "danger",
+      });
+      if (!discard) return;
+    }
+    handleClose();
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -371,7 +415,6 @@ export default function StaffPage() {
              */
             const c = commissionByStaff.get(m.id);
             const pending = c?.pending ?? 0;
-            const settled = c?.settled ?? 0;
             const acceso = m.account?.access_status ?? null;
             const puntoAcceso =
               acceso === "active"
@@ -381,256 +424,144 @@ export default function StaffPage() {
                   : acceso === "suspended"
                     ? "bg-error"
                     : "bg-outline-variant";
+            const editable = hasStaffRecord(m);
+            const teacher = teacherByStaffId.get(m.id) ?? null;
+            const summaryId = `staff-card-${m.id}-summary`;
+
+            // Qué VE esta persona, no solo si entra: "Activo" no dice si es la
+            // cajera o la que lleva el inventario.
+            const ve = m.account && !m.account.is_admin
+              ? permissionSummary(m.account.worker_permissions ?? {}, applicablePerms)
+              : null;
+            const sinPermisos = Boolean(m.account && !m.account.is_admin && (!ve || ve.length === 0));
+            const permisos = !m.account
+              ? "Sin acceso al sistema"
+              : m.account.is_admin
+                ? "Ve: todo (administrador)"
+                : ve && ve.length > 0
+                  ? `Ve: ${ve.join(" · ")}`
+                  : "Sin permisos: no ve ninguna sección";
+            const acceso_texto =
+              acceso === "pending" ? "Invitación pendiente" : acceso === "suspended" ? "Acceso suspendido" : null;
+
+            // Lo secundario va al menú "⋯": antes eran hasta seis botones
+            // apilados por tarjeta y la foto, el nombre y lo que se le debe
+            // quedaban perdidos entre ellos.
+            const actions: StaffMenuAction[] = [];
+            if (editable) actions.push({ label: "Editar ficha", onSelect: () => openEdit(m) });
+            actions.push({ label: "Ver ventas", onSelect: () => void openSales(m) });
+            if (canSettle && editable && pending > 0) {
+              actions.push({ label: "Ver comisiones", onSelect: () => router.push("/dashboard/staff/comisiones") });
+            }
+            if (teacher) actions.push({ label: "Disponibilidad", onSelect: () => setAvailabilityFor(teacher) });
+            if (canManageAccess) {
+              const account = m.account;
+              if (!account) {
+                actions.push({ label: "Dar acceso al sistema", tone: "primary", onSelect: () => setGrantFor(m.id) });
+              } else {
+                actions.push({ label: "Permisos", onSelect: () => setPermsFor(account.id) });
+                actions.push({ label: "Cuenta de acceso", onSelect: () => setEditAccessFor(account.id) });
+                if (account.access_status === "suspended") {
+                  actions.push({ label: "Reactivar acceso", onSelect: () => void reactivateAccess(account.id) });
+                } else if (account.access_status === "active") {
+                  actions.push({ label: "Suspender acceso", tone: "danger", onSelect: () => void handleRevoke(account.id, m.full_name) });
+                } else if (account.access_status === "pending") {
+                  actions.push({
+                    label: "Reenviar invitación",
+                    disabled: submitting,
+                    onSelect: async () => {
+                      if (await resendInvitation(account.id)) {
+                        notifySuccess("Invitación reenviada", `Le enviamos un correo nuevo a ${account.email ?? "la persona"}.`);
+                      }
+                    },
+                  });
+                }
+              }
+            }
 
             return (
               <div
                 key={m.id}
-                onClick={() => hasStaffRecord(m) && openEdit(m)}
-                className="group relative flex cursor-pointer flex-col overflow-hidden rounded-2xl border border-outline-variant/10 bg-surface-container shadow-sm transition-all hover:border-primary/30 hover:shadow-md"
+                className="group relative flex flex-col rounded-2xl border border-outline-variant/10 bg-surface-container shadow-sm transition-all hover:border-primary/30 hover:shadow-md focus-within:border-primary/40"
               >
                 {/*
-                 * El retrato manda en la tarjeta: es lo que hace reconocible a
-                 * la persona de un vistazo cuando el equipo crece. Sin foto
-                 * queda el bloque de iniciales, que ocupa el MISMO lugar — si
-                 * encogiera, las tarjetas con y sin foto tendrían alturas
-                 * distintas y la grilla quedaría escalonada.
+                 * La tarjeta ES el botón de abrir la ficha (antes era un <div>
+                 * con onClick: con teclado no se llegaba). El menú "⋯" va
+                 * afuera del botón, encima: un botón dentro de otro no es válido.
                  */}
-                <div className="relative aspect-[4/5] w-full overflow-hidden bg-primary/10">
-                  {m.photo_url ? (
-                    <Image
-                      src={m.photo_url}
-                      alt=""
-                      fill
-                      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 320px"
-                      unoptimized
-                      className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
-                    />
-                  ) : (
-                    <span className="flex h-full items-center justify-center text-3xl font-bold text-primary/70">
-                      {initials(m.full_name)}
-                    </span>
-                  )}
-
-                  {/* Punto de estado sobre el retrato, como el check de una
-                      ficha de perfil: dice de un vistazo si esa persona entra
-                      al sistema, sin ocupar una línea de texto. */}
-                  <span
-                    title={
-                      acceso === "active"
-                        ? "Entra al sistema"
-                        : acceso === "pending"
-                          ? "Invitación pendiente"
-                          : acceso === "suspended"
-                            ? "Acceso suspendido"
-                            : "No entra al sistema"
-                    }
-                    className={`absolute bottom-2 right-2 h-3.5 w-3.5 rounded-full border-2 border-surface-container ${puntoAcceso}`}
-                  />
-
-                  {m.status !== "active" && (
-                    <span className="absolute left-2 top-2 rounded-md bg-scrim/70 px-1.5 py-0.5 text-[9px] font-bold text-white">
-                      Inactivo
-                    </span>
-                  )}
-
-                  {hasBooking && m.status === "active" && hasStaffRecord(m) && (
-                    <span
-                      className={`absolute left-2 bottom-2 rounded-md px-1.5 py-0.5 text-[9px] font-bold ${
-                        m.show_on_website ? "bg-primary text-on-primary" : "bg-scrim/70 text-white"
-                      }`}
-                      title={m.show_on_website ? "Aparece en tu página y recibe reservas" : "No aparece en tu página web"}
-                    >
-                      {m.show_on_website ? "En la web" : "Oculto en la web"}
-                    </span>
-                  )}
-
-                  <span className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full border border-outline-variant/20 bg-surface-container-lowest/85 opacity-0 transition-opacity group-hover:opacity-100">
-                    <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="h-3.5 w-3.5 text-on-surface-variant">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                    </svg>
-                  </span>
-                </div>
-
-                <div className="flex flex-1 flex-col p-3">
-                  <h3 className="truncate text-sm font-bold text-on-surface transition-colors group-hover:text-primary">
-                    {m.full_name}
-                  </h3>
-                  <p className="truncate text-[11px] text-on-surface-variant">{m.role ?? "—"}</p>
-
-                  {/* Perfil docente (Académico): un badge, no una columna aparte
-                      — la ficha sigue siendo UNA sola pantalla por persona. */}
-                  {teacherByStaffId.has(m.id) && (
-                    <p className="mt-0.5 flex items-center gap-1 truncate text-[10px] font-bold text-violet-500">
-                      <IconMusic className="h-3 w-3 shrink-0" />
-                      <span className="truncate">
-                        {teacherByStaffId.get(m.id)!.instruments.join(" · ") || "Profesor"}
-                      </span>
-                    </p>
-                  )}
-
-                  {(m.phone || m.email) && (
-                    <p className="mt-1.5 truncate text-[11px] text-on-surface-variant">
-                      {[m.phone, m.email].filter(Boolean).join(" · ")}
-                    </p>
-                  )}
-
-                  {/* Dos datos, no una lista: cuánto se le debe y si entra al
-                      sistema. Es lo que el dueño mira antes de decidir algo. */}
-                  <div className="mt-3 grid grid-cols-2 gap-2 rounded-lg bg-surface-container-lowest/60 p-2.5">
-                    <div className="min-w-0">
-                      <span className="block text-[10px] font-medium uppercase tracking-wide text-on-surface-variant">
-                        Por pagar
-                      </span>
-                      <span className={`block truncate text-xs font-bold tabular-nums ${pending > 0 ? "text-on-surface" : "text-on-surface-variant"}`}>
-                        {fmtMoney(pending)}
-                      </span>
-                      {settled > 0 && (
-                        <span className="block text-[10px] font-semibold tabular-nums text-emerald-600">
-                          {fmtMoney(settled)} liquidado
-                        </span>
-                      )}
-                    </div>
-                    <div className="min-w-0">
-                      <span className="block text-[10px] font-medium uppercase tracking-wide text-on-surface-variant">
-                        Acceso
-                      </span>
-                      {/* `text-xs` y no `text-sm`: a este ancho de tarjeta
-                          "Suspendido" y "Sin cuenta" se cortaban a la mitad, y
-                          un estado a medias no informa nada. */}
-                      <span className="block truncate text-xs font-semibold text-on-surface">
-                        {acceso === "active"
-                          ? "Activo"
-                          : acceso === "pending"
-                            ? "Pendiente"
-                            : acceso === "suspended"
-                              ? "Suspendido"
-                              : "Sin cuenta"}
-                      </span>
-                      {m.account?.email && (
-                        <span className="block truncate text-[10px] text-on-surface-variant">
-                          {m.account.email}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Qué VE esta persona, no solo si entra: "Activo" no dice si
-                      es la cajera o la que lleva el inventario. */}
-                  {m.account && (() => {
-                    const ve = m.account.is_admin
-                      ? null
-                      : permissionSummary(m.account.worker_permissions ?? {}, applicablePerms);
-                    const texto = m.account.is_admin
-                      ? "Ve: todo (administrador)"
-                      : ve && ve.length > 0
-                        ? `Ve: ${ve.join(" · ")}`
-                        : "Sin permisos: no ve ninguna sección";
-                    return (
-                      <p
-                        title={texto}
-                        className={`mt-2 truncate text-[11px] ${
-                          !m.account.is_admin && (!ve || ve.length === 0)
-                            ? "font-semibold text-amber-600"
-                            : "text-on-surface-variant"
-                        }`}
-                      >
-                        {texto}
-                      </p>
-                    );
-                  })()}
-
-                  {canSettle && hasStaffRecord(m) && pending > 0 && (
-                    <Link
-                      href="/dashboard/staff/comisiones"
-                      onClick={(e) => e.stopPropagation()}
-                      className="mt-3 block w-full rounded-lg bg-primary/10 py-2 text-center text-[11px] font-bold text-primary transition-colors hover:bg-primary hover:text-on-primary"
-                    >
-                      Ver comisiones
-                    </Link>
-                  )}
-
-                  {/* Acceso al sistema: la mitad que antes vivía en Ajustes. */}
-                  {canManageAccess && (
-                  <div className="mt-3 flex gap-1.5">
-                    {m.account ? (
-                      <>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setEditAccessFor(m.account!.id); }}
-                          className="flex-1 rounded-lg border border-outline-variant/20 py-1.5 text-[11px] font-semibold text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface"
-                        >
-                          Cuenta
-                        </button>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setPermsFor(m.account!.id); }}
-                          className="flex-1 rounded-lg border border-outline-variant/20 py-1.5 text-[11px] font-semibold text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface"
-                        >
-                          Permisos
-                        </button>
-                        {m.account.access_status === "suspended" ? (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); reactivateAccess(m.account!.id); }}
-                            className="flex-1 rounded-lg border border-emerald-500/30 py-1.5 text-[11px] font-semibold text-emerald-600 hover:bg-emerald-500/10"
-                          >
-                            Reactivar
-                          </button>
-                        ) : m.account.access_status === "active" ? (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); handleRevoke(m.account!.id, m.full_name); }}
-                            className="shrink-0 rounded-lg px-2 py-1.5 text-on-surface-variant transition-colors hover:bg-error/10 hover:text-error"
-                            title="Suspender acceso"
-                          >
-                            <IconLogOut className="h-3.5 w-3.5" />
-                          </button>
-                        ) : m.account.access_status === "pending" ? (
-                          <button
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              if (await resendInvitation(m.account!.id)) {
-                                notifySuccess("Invitación reenviada", `Le enviamos un correo nuevo a ${m.account!.email ?? "la persona"}.`);
-                              }
-                            }}
-                            disabled={submitting}
-                            className="flex-1 rounded-lg border border-primary/30 py-1.5 text-[11px] font-semibold text-primary hover:bg-primary/10 disabled:opacity-50"
-                          >
-                            Reenviar invitación
-                          </button>
-                        ) : null}
-                      </>
+                <button
+                  type="button"
+                  onClick={() => editable && openEdit(m)}
+                  aria-disabled={!editable}
+                  aria-label={editable ? `Abrir la ficha de ${m.full_name}` : m.full_name}
+                  aria-describedby={summaryId}
+                  className="flex flex-1 flex-col rounded-2xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary aria-disabled:cursor-default"
+                >
+                  {/*
+                   * El retrato manda en la tarjeta: es lo que hace reconocible a
+                   * la persona de un vistazo. Sin foto quedan las iniciales en
+                   * el MISMO lugar, para que la grilla no quede escalonada.
+                   */}
+                  <span className="relative block aspect-[4/5] w-full overflow-hidden rounded-t-2xl bg-primary/10">
+                    {m.photo_url ? (
+                      <Image
+                        src={m.photo_url}
+                        alt=""
+                        fill
+                        sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 240px"
+                        unoptimized
+                        className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+                      />
                     ) : (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setGrantFor(m.id); }}
-                        className="w-full rounded-lg border border-primary/30 py-1.5 text-[11px] font-semibold text-primary transition-colors hover:bg-primary/10"
-                      >
-                        Dar acceso
-                      </button>
+                      <span aria-hidden="true" className="flex h-full items-center justify-center text-3xl font-bold text-primary/70">
+                        {initials(m.full_name)}
+                      </span>
                     )}
-                  </div>
-                  )}
 
-                  {/* `mt-auto` en el envoltorio y no en el botón: empuja este
-                      bloque al fondo para que la última acción quede a la misma
-                      altura en todas las tarjetas, tengan o no comisión
-                      pendiente. */}
-                  <div className="mt-auto pt-3 space-y-1.5">
-                    {teacherByStaffId.has(m.id) && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setAvailabilityFor(teacherByStaffId.get(m.id)!);
-                        }}
-                        className="w-full rounded-lg border border-outline-variant/20 py-1.5 text-[11px] font-semibold text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface"
-                      >
-                        Disponibilidad
-                      </button>
+                    {/* Punto de estado sobre el retrato: si entra al sistema. */}
+                    <span aria-hidden="true" className={`absolute bottom-2 right-2 h-3.5 w-3.5 rounded-full border-2 border-surface-container ${puntoAcceso}`} />
+
+                    {m.status !== "active" && (
+                      <span className="absolute left-2 top-2 rounded-md bg-scrim/70 px-1.5 py-0.5 text-[9px] font-bold text-white">
+                        Inactivo
+                      </span>
                     )}
-                    <button
-                      onClick={(e) => { e.stopPropagation(); openSales(m); }}
-                      className="w-full rounded-lg border border-outline-variant/20 py-1.5 text-[11px] font-semibold text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface"
-                    >
-                      Ver Ventas
-                    </button>
-                  </div>
+
+                    {hasBooking && m.status === "active" && editable && !m.show_on_website && (
+                      <span className="absolute left-2 bottom-2 rounded-md bg-scrim/70 px-1.5 py-0.5 text-[9px] font-bold text-white">
+                        Oculto en la web
+                      </span>
+                    )}
+                  </span>
+
+                  <span className="flex flex-1 flex-col p-3">
+                    <span className="block truncate text-sm font-bold text-on-surface transition-colors group-hover:text-primary">
+                      {m.full_name}
+                    </span>
+                    <span className="block truncate text-[11px] text-on-surface-variant">
+                      {[m.role, teacher ? teacher.instruments.join(" · ") || "Profesor" : null].filter(Boolean).join(" · ") || "—"}
+                    </span>
+
+                    <span id={summaryId} className="mt-3 block space-y-1.5">
+                      {/* Lo pendiente es la pregunta real ("¿cuánto le debo?"). */}
+                      <span className="flex items-baseline justify-between gap-2 rounded-lg bg-surface-container-lowest/60 px-2.5 py-2">
+                        <span className="text-[10px] font-medium uppercase tracking-wide text-on-surface-variant">Por pagar</span>
+                        <span className={`truncate text-sm font-bold tabular-nums ${pending > 0 ? "text-on-surface" : "text-on-surface-variant"}`}>
+                          {fmtMoney(pending)}
+                        </span>
+                      </span>
+                      <span
+                        title={permisos}
+                        className={`block truncate text-[11px] ${sinPermisos || acceso === "suspended" ? "font-semibold text-warning" : "text-on-surface-variant"}`}
+                      >
+                        {acceso_texto ? `${acceso_texto} · ` : ""}{permisos}
+                      </span>
+                    </span>
+                  </span>
+                </button>
+
+                <div className="absolute right-2 top-2 z-10">
+                  <StaffCardMenu label={`Más acciones para ${m.full_name}`} actions={actions} />
                 </div>
               </div>
             );
@@ -766,14 +697,23 @@ export default function StaffPage() {
       )}
 
       {modalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-surface-container rounded-t-3xl sm:rounded-3xl w-full sm:max-w-lg max-h-[90vh] border border-outline-variant/10 shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200 flex flex-col">
+        <div
+          className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
+          onMouseDown={(event) => { if (event.target === event.currentTarget) void requestCloseStaff(); }}
+          onKeyDown={(event) => {
+            if (event.key === "Escape" && !event.defaultPrevented) {
+              event.preventDefault();
+              void requestCloseStaff();
+            }
+          }}
+        >
+          <div role="dialog" aria-modal="true" aria-labelledby="staff-form-title" className="bg-surface-container rounded-t-3xl sm:rounded-3xl w-full sm:max-w-lg max-h-[90vh] border border-outline-variant/10 shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200 flex flex-col">
             <div className="p-4 sm:p-6 border-b border-outline-variant/10 flex justify-between items-center bg-surface-container-low shrink-0">
-              <h2 className="text-lg sm:text-xl font-bold text-on-surface">
+              <h2 id="staff-form-title" className="text-lg sm:text-xl font-bold text-on-surface">
                 {editingId ? "Editar Personal" : "Nuevo Personal"}
               </h2>
               <button
-                onClick={handleClose}
+                onClick={() => void requestCloseStaff()}
                 className="w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors"
                 aria-label="Cerrar"
               >
@@ -842,30 +782,16 @@ export default function StaffPage() {
                 </div>
               </div>
 
-              <div className="flex items-center justify-between p-3 sm:p-4 bg-surface-container-low rounded-xl border border-outline-variant/10">
-                <div>
-                  <p className="text-sm font-bold text-on-surface">Activo</p>
-                  {/* Hablar de citas acá era falso para tienda, que no las tiene.
-                      El cupo del plan sí es cierto en los cuatro rubros: el
-                      trigger enforce_staff_limit solo cuenta los activos. */}
-                  <p className="text-xs text-on-surface-variant mt-1">
-                    Trabaja hoy. Los inactivos no ocupan cupo de tu plan.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setForm({ ...form, status: form.status === "active" ? "inactive" : "active" })}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none shrink-0 ml-4 ${
-                    form.status === "active" ? "bg-[#6063ee]" : "bg-outline-variant/30"
-                  }`}
-                >
-                  <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      form.status === "active" ? "translate-x-6" : "translate-x-1"
-                    }`}
-                  />
-                </button>
-              </div>
+              {/* Hablar de citas acá era falso para tienda, que no las tiene.
+                  El cupo del plan sí es cierto en los cuatro rubros: el
+                  trigger enforce_staff_limit solo cuenta los activos. */}
+              <Switch
+                label="Activo"
+                description="Trabaja hoy. Los inactivos no ocupan cupo de tu plan."
+                checked={form.status === "active"}
+                onCheckedChange={(checked) => setForm({ ...form, status: checked ? "active" : "inactive" })}
+                className="p-3 sm:p-4 bg-surface-container-low rounded-xl border border-outline-variant/10"
+              />
 
               {/* Perfil docente: opcional y solo si el negocio tiene Académico
                   activo. Es la misma persona, no otra pantalla — ver la baja de
@@ -957,31 +883,13 @@ export default function StaffPage() {
               )}
 
               {hasBooking && (
-                <div className="flex items-center justify-between p-3 sm:p-4 bg-surface-container-low rounded-xl border border-outline-variant/10">
-                  <div>
-                    <p className="text-sm font-bold text-on-surface">Mostrar en la página web</p>
-                    <p className="text-xs text-on-surface-variant mt-1">
-                      Los clientes lo ven en tu sitio y pueden reservar con esta persona.
-                      Apágalo para cajeros, recepción o quien no atiende.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={form.show_on_website}
-                    aria-label="Mostrar en la página web"
-                    onClick={() => setForm({ ...form, show_on_website: !form.show_on_website })}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none shrink-0 ml-4 ${
-                      form.show_on_website ? "bg-[#6063ee]" : "bg-outline-variant/30"
-                    }`}
-                  >
-                    <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                        form.show_on_website ? "translate-x-6" : "translate-x-1"
-                      }`}
-                    />
-                  </button>
-                </div>
+                <Switch
+                  label="Mostrar en la página web"
+                  description="Los clientes lo ven en tu sitio y pueden reservar con esta persona. Apágalo para cajeros, recepción o quien no atiende."
+                  checked={form.show_on_website}
+                  onCheckedChange={(checked) => setForm({ ...form, show_on_website: checked })}
+                  className="p-3 sm:p-4 bg-surface-container-low rounded-xl border border-outline-variant/10"
+                />
               )}
 
               <div className="pt-4 flex flex-col sm:flex-row gap-3 border-t border-outline-variant/10">
@@ -1000,7 +908,7 @@ export default function StaffPage() {
                 <div className="flex-1 flex gap-3">
                   <button
                     type="button"
-                    onClick={handleClose}
+                    onClick={() => void requestCloseStaff()}
                     className="flex-1 px-5 py-2.5 rounded-xl text-sm font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-colors"
                   >
                     Cancelar

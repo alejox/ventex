@@ -43,12 +43,13 @@ export function showsSupportFab(pathname: string): boolean {
  * se puede ir agregando rutas a una lista cada vez que aparece uno nuevo. Con el
  * espacio reservado el flotante queda sobre el fondo y nunca sobre un control.
  *
- * El `lg:` va explícito porque el `<main>` tiene `lg:p-10`: una variante de
- * media query gana sobre una clase sin variante por orden en la hoja de
- * estilos, así que sin este par el ajuste se perdería justo en escritorio.
+ * El `sm:` y el `lg:` van explícitos porque el `<main>` tiene
+ * `p-4 sm:p-6 lg:p-10`: una variante de media query gana sobre una clase sin
+ * variante por orden en la hoja de estilos, así que sin cada par el ajuste se
+ * perdería en tablet o en escritorio.
  */
 export const SUPPORT_FAB_CLEARANCE =
-  "pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-[calc(6rem+env(safe-area-inset-bottom))]";
+  "pb-[calc(5.5rem+env(safe-area-inset-bottom))] sm:pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-[calc(6rem+env(safe-area-inset-bottom))]";
 
 export function SupportFab() {
   const pathname = usePathname();

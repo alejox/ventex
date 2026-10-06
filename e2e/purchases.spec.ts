@@ -81,10 +81,14 @@ test.describe("Compras", () => {
     await expect(page.getByLabel("Producto de la línea 2")).toBeVisible();
   });
 
-  test("Guardar está deshabilitado sin proveedor ni productos", async ({ page }) => {
+  test("Guardar sin proveedor ni productos explica qué falta (D5)", async ({ page }) => {
     await page.goto("/dashboard/purchases/new");
     await page.waitForLoadState("networkidle");
-    await expect(page.getByRole("button", { name: "Guardar", exact: true })).toBeDisabled({ timeout: 15000 });
+    const save = page.getByRole("button", { name: "Guardar", exact: true });
+    await expect(save).toBeEnabled({ timeout: 15000 });
+    await save.click();
+    await expect(page.getByRole("alert").filter({ hasText: "antes de guardar" })).toBeVisible();
+    await expect(page).toHaveURL(/\/dashboard\/purchases\/new/);
   });
 
   test("Nuevo proveedor abre el panel lateral", async ({ page }) => {

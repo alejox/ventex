@@ -29,7 +29,7 @@ test.describe("Clientes", () => {
     await page.waitForTimeout(500);
 
     await page.getByPlaceholder("Ej. María González").fill("Cliente Test");
-    await page.getByPlaceholder("+52 55 1234 5678").fill("+525512345678");
+    await page.getByPlaceholder("+57 300 123 4567").fill("+573001234567");
     await page.getByPlaceholder("maria@ejemplo.com").fill("testcliente@ejemplo.com");
     await page.getByPlaceholder("Número de documento").fill("1234567890");
 

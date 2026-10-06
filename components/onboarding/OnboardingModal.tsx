@@ -1,51 +1,78 @@
 "use client";
 
 import { useState } from "react";
-import { BUSINESS_ICONS, MODULE_ICONS, RocketIcon } from "@/app/assets/icons/BusinessIcons";
+import { RocketIcon } from "@/app/assets/icons/BusinessIcons";
 import {
   defaultModulesForType,
-  MODULES_BY_TYPE,
   REGISTER_BUSINESS_OPTIONS,
   type BusinessType,
+  type Modules,
 } from "@/config/business";
 import { signout } from "@/utils/supabase/actions";
+import { useSearchParam } from "@/lib/useUrlState";
+import { sanitizeBusinessType, sanitizeMonths, sanitizeModules, sanitizePlanId } from "@/lib/signup-intent";
+import { businessNamePlaceholder } from "@/components/LandingBusinessCopy";
+import { BusinessTypeCards, ModulePicker } from "./BusinessTypeCards";
 import { completeOnboarding } from "./actions";
 
 /**
- * Modal bloqueante para los dueños que entraron por OAuth (Google): el proveedor
- * no entrega tipo ni nombre de negocio, así que el perfil queda incompleto y el
- * gating de navegación no tiene de dónde agarrarse.
+ * Modal bloqueante del primer ingreso de un dueño: lo ven TODOS los dueños
+ * nuevos, entren por Google o por correo (el registro por correo ya no pide
+ * nombre del negocio, nombre ni teléfono — B8).
+ *
+ * Lo ya elegido en el registro (rubro, módulos y plan) llega en la query de la
+ * URL (`?rubro=&modulos=&plan=&meses=`, ver `lib/signup-intent.ts`) y se
+ * precarga: con rubro conocido el modal arranca directo en el paso del nombre
+ * (B5). Si la URL no trae nada —entró con Google desde el login, o abrió un
+ * enlace viejo— pregunta el rubro como siempre.
  *
  * No se puede cerrar (sin backdrop clickeable, sin Escape): sin tipo de negocio
  * el dashboard no sabe qué mostrar. La única salida es completarlo o cerrar
- * sesión. Los pasos y las opciones son los mismos del registro por correo
- * (REGISTER_BUSINESS_OPTIONS + MODULES_BY_TYPE), de una sola fuente.
+ * sesión.
  */
 export function OnboardingModal({ defaultName }: { defaultName: string }) {
-  const [step, setStep] = useState(1);
-  // Sin preselección silenciosa: aunque solo haya un rubro registrable, el
-  // usuario debe tocar su tarjeta antes de continuar. El tipo de negocio es
-  // obligatorio y nadie entra al sistema sin haberlo elegido.
-  const [businessType, setBusinessType] = useState("");
-  const [modules, setModules] = useState<Record<string, boolean>>(
-    defaultModulesForType(null),
-  );
+  // Lo que trae la URL. `null` durante el render del servidor; el valor real
+  // entra al hidratar (useSyncExternalStore), sin efectos ni renders extra.
+  const intentType = sanitizeBusinessType(useSearchParam("rubro"));
+  const intentModulesRaw = useSearchParam("modulos");
+  const plan = sanitizePlanId(useSearchParam("plan"));
+  const months = sanitizeMonths(useSearchParam("meses"));
+
+  /**
+   * Elecciones del usuario EN el modal. `null` = no tocó nada todavía y manda lo
+   * que vino en la URL. Derivar en vez de copiar la URL a estado evita el
+   * `setState` en un efecto y que la hidratación pise lo que el usuario cambió.
+   */
+  const [stepChoice, setStepChoice] = useState<1 | 2 | null>(null);
+  const [typeChoice, setTypeChoice] = useState<BusinessType | null>(null);
+  const [modulesChoice, setModulesChoice] = useState<Modules | null>(null);
+
+  const businessType: BusinessType | "" = typeChoice ?? intentType ?? "";
+  const step = stepChoice ?? (intentType ? 2 : 1);
+  const modules: Modules =
+    modulesChoice ??
+    (typeChoice === null && intentType && intentModulesRaw !== null
+      ? sanitizeModules(intentType, intentModulesRaw.split(",").filter(Boolean))
+      : defaultModulesForType(businessType || null));
+
   const [businessName, setBusinessName] = useState("");
+  // Precargado: a quien entró con Google se lo trajo el proveedor; a quien se
+  // registró por correo, el perfil le pone la parte local del correo como
+  // nombre provisorio — por eso se muestra editable en vez de darlo por bueno.
+  const [fullName, setFullName] = useState(defaultName);
   const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const moduleOptions = MODULES_BY_TYPE[businessType as BusinessType] ?? [];
-  // El rubro puede no ofrecer extras (la tienda hoy no los tiene): el paso 2
-  // queda siendo solo el nombre, y el copy no puede prometer "herramientas".
-  const hasModules = moduleOptions.length > 0;
+
   const selectBusinessType = (type: BusinessType) => {
-    setBusinessType(type);
-    setModules(defaultModulesForType(type));
+    setTypeChoice(type);
+    setModulesChoice(defaultModulesForType(type));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!businessType) return;
     setLoading(true);
     setError("");
 
@@ -53,9 +80,13 @@ export function OnboardingModal({ defaultName }: { defaultName: string }) {
     fd.set("business_type", businessType);
     fd.set("business_name", businessName);
     fd.set("phone", phone);
-    fd.set("modules", JSON.stringify(Object.keys(modules).filter((id) => modules[id])));
+    fd.set("full_name", fullName);
+    fd.set("modules", JSON.stringify(Object.keys(modules).filter((id) => modules[id as keyof Modules])));
+    if (plan) fd.set("plan", plan);
+    if (months) fd.set("months", String(months));
 
-    // La action redirige a /dashboard/pos en el éxito; solo vuelve con un error.
+    // La action redirige en el éxito (POS, o el checkout del plan elegido);
+    // solo vuelve con un error.
     const res = await completeOnboarding(fd);
     if (res?.error) {
       setError(res.error);
@@ -70,11 +101,7 @@ export function OnboardingModal({ defaultName }: { defaultName: string }) {
       aria-labelledby="onboarding-title"
       className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center overflow-y-auto bg-black/60 backdrop-blur-sm p-4 sm:p-6"
     >
-      <div
-        className={`my-auto w-full rounded-[28px] border border-outline-variant/20 bg-surface-container-low p-6 shadow-2xl sm:p-8 ${
-          step === 2 && hasModules ? "max-w-[480px] md:max-w-4xl" : "max-w-[480px]"
-        }`}
-      >
+      <div className="my-auto w-full max-w-[480px] rounded-[28px] border border-outline-variant/20 bg-surface-container-low p-6 shadow-2xl sm:p-8">
         <div className="text-center mb-7 flex flex-col items-center">
           <div className="w-12 h-12 rounded-2xl bg-surface-container-high border border-outline-variant/10 flex items-center justify-center text-primary mb-5 shadow-sm">
             <RocketIcon />
@@ -83,64 +110,37 @@ export function OnboardingModal({ defaultName }: { defaultName: string }) {
             id="onboarding-title"
             className="text-[24px] sm:text-[26px] font-bold text-on-surface mb-2 tracking-tight"
           >
-            {step === 1
-              ? "Personaliza tu experiencia"
-              : hasModules
-                ? "Termina de configurar tu negocio"
-                : "Nombra tu negocio"}
+            {step === 1 ? "¿Qué negocio tienes?" : "Ponle nombre a tu negocio"}
           </h2>
           <p className="text-on-surface-variant text-[14px]">
             {step === 1
-              ? "Selecciona el tipo de negocio que mejor te describe para configurar tu panel."
-              : hasModules
-                ? "Primero dale un nombre. Después elige las herramientas que vas a usar."
-                : "Dale un nombre a tu negocio para terminar de configurarlo."}
+              ? "Así preparamos tu panel con las herramientas que necesitas."
+              : "Es lo último que falta para entrar a tu panel."}
           </p>
         </div>
 
         {error && (
-          <div className="bg-error-container/20 text-error-dim text-[13px] px-4 py-3 rounded-lg border border-error-container/30 mb-5">
+          <div
+            role="alert"
+            className="bg-error-container/20 text-error-dim text-[13px] px-4 py-3 rounded-lg border border-error-container/30 mb-5"
+          >
             {error}
           </div>
         )}
 
         {step === 1 && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="space-y-3 mb-7">
-              {REGISTER_BUSINESS_OPTIONS.map((option) => (
-                <button
-                  key={option.id}
-                  type="button"
-                  onClick={() => selectBusinessType(option.id)}
-                  className={`w-full py-4 px-6 rounded-[20px] border flex flex-col items-center justify-center gap-3 transition-all duration-300 ${
-                    businessType === option.id
-                      ? "bg-primary/5 border-primary ring-1 ring-primary/50 shadow-[0_0_20px_rgba(96,99,238,0.1)]"
-                      : "bg-surface-container-lowest border-outline-variant/10 hover:bg-surface-container hover:border-outline-variant/20"
-                  }`}
-                >
-                  <div
-                    className={`w-11 h-11 rounded-full flex items-center justify-center border transition-all duration-300 ${
-                      businessType === option.id
-                        ? "bg-primary border-primary text-on-primary shadow-md"
-                        : "bg-surface-container-highest border-outline-variant/20 text-on-surface-variant"
-                    }`}
-                  >
-                    {BUSINESS_ICONS[option.id]}
-                  </div>
-                  <span
-                    className={`text-[15px] font-semibold transition-colors ${
-                      businessType === option.id ? "text-primary" : "text-on-surface"
-                    }`}
-                  >
-                    {option.label}
-                  </span>
-                </button>
-              ))}
+            <div className="mb-7">
+              <BusinessTypeCards
+                value={businessType}
+                onChange={selectBusinessType}
+                surface="lowest"
+              />
             </div>
 
             <button
               type="button"
-              onClick={() => setStep(2)}
+              onClick={() => setStepChoice(2)}
               disabled={!businessType}
               className="w-full bg-primary hover:bg-primary-dim disabled:bg-surface-container-high disabled:text-on-surface-variant/50 disabled:cursor-not-allowed text-on-primary font-semibold py-3.5 rounded-xl transition-all text-[15px] shadow-[0_0_15px_rgba(96,99,238,0.15)]"
             >
@@ -148,161 +148,79 @@ export function OnboardingModal({ defaultName }: { defaultName: string }) {
             </button>
 
             <p className="text-center text-[13px] text-on-surface-variant font-medium mt-5">
-              Paso 1 de 2: Perfil de Negocio
+              Paso 1 de 2: Tu negocio
             </p>
           </div>
         )}
 
         {step === 2 && (
           <form
-            className="animate-in fade-in slide-in-from-bottom-4 duration-500"
+            className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-5"
             onSubmit={handleSubmit}
           >
-            <div className={hasModules ? "grid gap-6 md:grid-cols-[minmax(0,.72fr)_minmax(0,1.28fr)]" : ""}>
-              <div className="rounded-[20px] border border-outline-variant/15 bg-surface-container-lowest p-4 sm:p-5">
-                <p className="mb-4 text-[11px] font-bold tracking-wide text-primary uppercase">
-                  Datos del negocio
-                </p>
+            <Field
+              id="onboarding-business-name"
+              label="Nombre del negocio"
+              hint="Así aparecerá tu negocio dentro de Ventex."
+            >
+              <input
+                id="onboarding-business-name"
+                type="text"
+                autoComplete="organization"
+                placeholder={businessNamePlaceholder(businessType)}
+                value={businessName}
+                onChange={(e) => setBusinessName(e.target.value)}
+                aria-describedby="onboarding-business-name-hint"
+                className={inputClass}
+                required
+                autoFocus
+              />
+            </Field>
 
-                <div className="mb-5 space-y-1.5">
-                  <label
-                    htmlFor="onboarding-business-name"
-                    className="block text-[13px] font-semibold text-on-surface"
-                  >
-                    Nombre del negocio
-                  </label>
-                  <div className="relative">
-                    <input
-                      id="onboarding-business-name"
-                      type="text"
-                      placeholder={businessType === "salon" ? "Mi Barbería" : businessType === "escuela" ? "Mi Academia" : "Mi Tienda"}
-                      value={businessName}
-                      onChange={(e) => setBusinessName(e.target.value)}
-                      className="min-h-12 w-full rounded-xl border border-outline-variant/30 bg-surface-container-low px-10 text-sm text-on-surface transition-all placeholder:text-on-surface-variant/50 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
-                      required
-                      autoFocus
-                    />
-                    <svg
-                      className="absolute top-1/2 left-3.5 h-[18px] w-[18px] -translate-y-1/2 text-on-surface-variant/70"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      viewBox="0 0 24 24"
-                    >
-                      <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-                      <polyline points="9 22 9 12 15 12 15 22" />
-                    </svg>
-                  </div>
-                  <p className="text-[12px] leading-relaxed text-on-surface-variant">
-                    Así aparecerá tu negocio dentro de Ventex.
-                  </p>
-                </div>
+            <Field id="onboarding-full-name" label="Tu nombre">
+              <input
+                id="onboarding-full-name"
+                type="text"
+                autoComplete="name"
+                placeholder="Ej: Juan Pérez"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                className={inputClass}
+                required
+              />
+            </Field>
 
-                <div className="space-y-1.5">
-                  <label
-                    htmlFor="onboarding-phone"
-                    className="block text-[13px] font-semibold text-on-surface"
-                  >
-                    Teléfono{" "}
-                    <span className="font-normal text-on-surface-variant/70">(opcional)</span>
-                  </label>
-                  <div className="relative">
-                    <input
-                      id="onboarding-phone"
-                      type="tel"
-                      placeholder="+57 300 123 4567"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      className="min-h-12 w-full rounded-xl border border-outline-variant/30 bg-surface-container-low px-10 text-sm text-on-surface transition-all placeholder:text-on-surface-variant/50 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
-                    />
-                    <svg
-                      className="absolute top-1/2 left-3.5 h-[18px] w-[18px] -translate-y-1/2 text-on-surface-variant/70"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      viewBox="0 0 24 24"
-                    >
-                      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" />
-                    </svg>
-                  </div>
-                </div>
-              </div>
+            <Field id="onboarding-phone" label="Teléfono" optional>
+              <input
+                id="onboarding-phone"
+                type="tel"
+                autoComplete="tel"
+                placeholder="300 123 4567"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                className={inputClass}
+              />
+            </Field>
 
-            {hasModules && (
-              <div>
-                <p className="mb-4 text-[11px] font-bold tracking-wide text-primary uppercase">
-                  Herramientas incluidas
-                </p>
-                <div className="grid gap-3 sm:grid-cols-2">
-                {moduleOptions.map((mod) => {
-                  const isOn = !mod.comingSoon && !!modules[mod.id];
-                  return (
-                    <div
-                      key={mod.id}
-                       className={`rounded-[20px] border p-4 transition-all duration-300 ${
-                        mod.comingSoon
-                          ? "bg-surface-container-lowest/50 border-outline-variant/10 opacity-70"
-                          : isOn
-                            ? "bg-primary/5 border-primary/40"
-                            : "bg-surface-container-lowest border-outline-variant/10"
-                      }`}
-                    >
-                      <div className="flex justify-between items-start mb-3">
-                        <div
-                          className={`w-10 h-10 rounded-xl flex items-center justify-center border transition-colors ${
-                            isOn
-                              ? "bg-primary text-on-primary border-primary"
-                              : "bg-surface-container-highest border-outline-variant/20 text-on-surface-variant"
-                          }`}
-                        >
-                          {MODULE_ICONS[mod.id]}
-                        </div>
-                        {mod.comingSoon ? (
-                          <span className="text-[11px] font-bold uppercase tracking-wide text-on-surface-variant bg-surface-container-highest border border-outline-variant/20 px-2.5 py-1 rounded-full">
-                            Próximamente
-                          </span>
-                        ) : (
-                          <button
-                            type="button"
-                            aria-label={`Activar ${mod.label}`}
-                            aria-pressed={isOn}
-                            onClick={() => setModules({ ...modules, [mod.id]: !modules[mod.id] })}
-                            className={`w-11 h-6 rounded-full relative transition-colors duration-300 focus:outline-none ${
-                              isOn
-                                ? "bg-primary"
-                                : "bg-surface-container-highest border border-outline-variant/20"
-                            }`}
-                          >
-                            <span
-                              className={`absolute top-[2px] w-5 h-5 bg-white rounded-full shadow-sm transition-all duration-300 ${
-                                isOn ? "left-[22px]" : "left-[2px]"
-                              }`}
-                            />
-                          </button>
-                        )}
-                      </div>
-                      <h3 className="text-[16px] font-bold text-on-surface mb-1.5">{mod.label}</h3>
-                      <p className="text-[13px] text-on-surface-variant leading-relaxed">
-                        {mod.description}
-                      </p>
-                    </div>
-                  );
-                })}
-                </div>
-              </div>
-            )}
-            </div>
+            <ModulePicker
+              businessType={businessType}
+              modules={modules}
+              onChange={setModulesChoice}
+              idPrefix="onboarding"
+            />
 
             <button
               type="submit"
-              disabled={loading || !businessType || !businessName.trim()}
-              className="mt-6 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-[15px] font-semibold text-on-primary shadow-[0_0_15px_rgba(96,99,238,0.15)] transition-all hover:bg-primary-dim disabled:cursor-not-allowed disabled:bg-primary/50"
+              disabled={loading || !businessType || !businessName.trim() || !fullName.trim()}
+              className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-[15px] font-semibold text-on-primary shadow-[0_0_15px_rgba(96,99,238,0.15)] transition-all hover:bg-primary-dim disabled:cursor-not-allowed disabled:bg-primary/50"
             >
               {loading ? (
-                <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                <svg aria-hidden className="animate-spin h-5 w-5" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                 </svg>
+              ) : plan ? (
+                "Continuar al pago"
               ) : (
                 "Entrar a mi negocio"
               )}
@@ -311,15 +229,15 @@ export function OnboardingModal({ defaultName }: { defaultName: string }) {
             {REGISTER_BUSINESS_OPTIONS.length > 1 && (
               <button
                 type="button"
-                onClick={() => setStep(1)}
-                className="w-full text-[13px] font-semibold text-on-surface-variant hover:text-on-surface transition-colors mt-3 py-2"
+                onClick={() => setStepChoice(1)}
+                className="w-full text-[13px] font-semibold text-on-surface-variant hover:text-on-surface transition-colors py-2"
               >
-                Atrás
+                Cambiar tipo de negocio
               </button>
             )}
 
-            <p className="text-center text-[13px] text-on-surface-variant font-medium mt-5">
-              Paso 2 de 2: {hasModules ? "Nombre y módulos" : "Nombre del negocio"}
+            <p className="text-center text-[13px] text-on-surface-variant font-medium">
+              Paso 2 de 2: Datos del negocio
             </p>
           </form>
         )}
@@ -341,6 +259,38 @@ export function OnboardingModal({ defaultName }: { defaultName: string }) {
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+const inputClass =
+  "min-h-12 w-full rounded-xl border border-outline-variant/30 bg-surface-container-lowest px-4 text-sm text-on-surface transition-all placeholder:text-on-surface-variant/50 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none";
+
+function Field({
+  id,
+  label,
+  hint,
+  optional = false,
+  children,
+}: {
+  id: string;
+  label: string;
+  hint?: string;
+  optional?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <label htmlFor={id} className="block text-[13px] font-semibold text-on-surface">
+        {label}
+        {optional && <span className="font-normal text-on-surface-variant/70"> (opcional)</span>}
+      </label>
+      {children}
+      {hint && (
+        <p id={`${id}-hint`} className="text-[12px] leading-relaxed text-on-surface-variant">
+          {hint}
+        </p>
+      )}
     </div>
   );
 }

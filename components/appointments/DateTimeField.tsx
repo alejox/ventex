@@ -8,6 +8,7 @@ import { formatDateOnly } from "@/lib/date";
 import { isTaken, type BusyAppointment } from "@/lib/appointment-availability";
 import { formatDuration } from "@/lib/duration";
 import { formatAppointmentTime, type TimeFormat } from "@/lib/time";
+import { isWithinOpenHours, openStartSlots, quarterHourSlots, weekdayOf, type OpeningHour } from "@/lib/appointment-hours";
 
 export interface DateTimeValue {
   date: string;
@@ -27,8 +28,14 @@ const toTime = (total: number) => {
 /** Solo la primera letra: `capitalize` de CSS también sube "de" ("7 De Octubre"). */
 const upperFirst = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
-/** Inicios sugeridos: cada 30 min, de 6:00 a 22:00. */
-const START_SLOTS = Array.from({ length: 33 }, (_, i) => toTime(6 * 60 + i * 30));
+/**
+ * Inicios sugeridos: los del horario de atención de ese día (cada 30 min), o
+ * de 6:00 a 22:00 si el negocio no cargó horarios. "Otra hora…" abre el día
+ * entero cada 15 min para lo que cae fuera.
+ */
+const ALL_QUARTERS = quarterHourSlots();
+const slotsFor = (hours: OpeningHour[] | null | undefined, date: string) =>
+  openStartSlots(hours ?? null, date ? weekdayOf(date) : new Date().getDay());
 
 const QUICK_DURATIONS = [30, 45, 60, 90, 120];
 
@@ -55,7 +62,16 @@ export interface Availability {
   loadBusy: (date: string) => Promise<BusyAppointment[]>;
 }
 
-export function DateTimeField({ value, format, onChange, availability }: { value: DateTimeValue; format: TimeFormat; onChange: (next: DateTimeValue) => void; availability?: Availability }) {
+export interface DateTimeFieldProps {
+  value: DateTimeValue;
+  format: TimeFormat;
+  onChange: (next: DateTimeValue) => void;
+  availability?: Availability;
+  /** Horario de atención (`business_hours`): qué horas se ofrecen. */
+  hours?: OpeningHour[] | null;
+}
+
+export function DateTimeField({ value, format, onChange, availability, hours }: DateTimeFieldProps) {
   const [open, setOpen] = useState(false);
   const duration = Math.max(toMinutes(value.end) - toMinutes(value.start), 0);
 
@@ -79,12 +95,16 @@ export function DateTimeField({ value, format, onChange, availability }: { value
         </span>
         <span className="flex items-center gap-1 text-xs font-bold text-primary">Cambiar<ChevronRight size={14} aria-hidden="true" className="transition-transform group-hover:translate-x-0.5" /></span>
       </button>
-      {open ? <DateTimeDialog initial={value} format={format} availability={availability} onClose={() => setOpen(false)} onApply={(next) => { onChange(next); setOpen(false); }} /> : null}
+      {open ? <DateTimeDialog initial={value} format={format} availability={availability} hours={hours} onClose={() => setOpen(false)} onApply={(next) => { onChange(next); setOpen(false); }} /> : null}
     </div>
   );
 }
 
-function DateTimeDialog({ initial, format, availability, onClose, onApply }: { initial: DateTimeValue; format: TimeFormat; availability?: Availability; onClose: () => void; onApply: (next: DateTimeValue) => void }) {
+/**
+ * El diálogo "¿Cuándo?" solo, sin el campo que lo abre: lo usa "Mover a…" de la
+ * cita, que lo abre desde un menú y guarda al pulsar «Listo».
+ */
+export function DateTimeDialog({ initial, format, availability, hours, title = "¿Cuándo?", onClose, onApply }: { initial: DateTimeValue; format: TimeFormat; availability?: Availability; hours?: OpeningHour[] | null; title?: string; onClose: () => void; onApply: (next: DateTimeValue) => void }) {
   const [draft, setDraft] = useState(initial);
   const [timeOpen, setTimeOpen] = useState(false);
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -112,6 +132,9 @@ function DateTimeDialog({ initial, format, availability, onClose, onApply }: { i
       : "No hay nadie disponible a esa hora."
     : null;
   const invalid = !draft.date || duration <= 0 || conflict !== null;
+  const startSlots = slotsFor(hours, draft.date);
+  // Fuera del horario no se bloquea (a veces se atiende a deshoras), se avisa.
+  const outsideHours = Boolean(draft.date) && duration > 0 && !isWithinOpenHours(hours ?? null, weekdayOf(draft.date), toMinutes(draft.start), toMinutes(draft.end));
 
   // Cambiar la hora de inicio conserva la duración: mover una cita de las 3 a
   // las 4 no debería dejar la hora de fin atrás y romper el rango.
@@ -131,7 +154,7 @@ function DateTimeDialog({ initial, format, availability, onClose, onApply }: { i
       <div role="dialog" aria-modal="true" aria-label="Elegir fecha y hora" className="flex max-h-[92svh] w-full flex-col overflow-hidden rounded-t-3xl bg-surface-container shadow-2xl sm:max-w-md sm:rounded-3xl">
         <div className="flex items-start justify-between gap-4 border-b border-outline-variant/10 px-6 py-4">
           <div>
-            <h3 className="text-lg font-bold text-on-surface">¿Cuándo?</h3>
+            <h3 className="text-lg font-bold text-on-surface">{title}</h3>
             <p className="mt-0.5 text-xs text-on-surface-variant">
               {draft.date ? upperFirst(formatDateOnly(draft.date, { weekday: "long", day: "numeric", month: "long" })) : "Elige un día"} · {formatAppointmentTime(draft.start, format)} – {formatAppointmentTime(draft.end, format)}
             </p>
@@ -160,6 +183,7 @@ function DateTimeDialog({ initial, format, availability, onClose, onApply }: { i
               ))}
             </div>
             {conflict ? <p role="alert" className="mt-3 rounded-xl bg-error/10 px-3 py-2 text-sm font-semibold text-error">{conflict} Elige otra hora{availability?.staffId ? " u otra persona" : ""}.</p> : null}
+            {!conflict && outsideHours ? <p className="mt-3 rounded-xl bg-warning/10 px-3 py-2 text-sm text-on-surface">Ese horario queda fuera del horario de atención del negocio.</p> : null}
             {duration > 0 ? (
               <p className="mt-3 flex items-center gap-2 rounded-xl bg-primary/5 px-3 py-2 text-sm text-on-surface">
                 <Clock size={15} aria-hidden="true" className="text-primary" />
@@ -172,7 +196,7 @@ function DateTimeDialog({ initial, format, availability, onClose, onApply }: { i
           </div>
 
           {/* Para horas que no caen en la cuadrícula (9:10) o un fin a medida. */}
-          <details className="rounded-xl border border-outline-variant/20 p-3" open={!START_SLOTS.includes(draft.start) || duration <= 0}>
+          <details className="rounded-xl border border-outline-variant/20 p-3" open={!ALL_QUARTERS.includes(draft.start) || duration <= 0}>
             <summary className="cursor-pointer text-xs font-semibold text-on-surface-variant">Ajustar horas exactas</summary>
             <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
               <AppointmentTimeInput label="Hora de inicio" value={draft.start} format={format} onChange={setStart} />
@@ -181,7 +205,7 @@ function DateTimeDialog({ initial, format, availability, onClose, onApply }: { i
           </details>
         </div>
 
-        {timeOpen ? <TimeDialog date={draft.date} start={draft.start} format={format} isTaken={availability ? slotTaken : undefined} onClose={() => setTimeOpen(false)} onPick={(slot) => { setStart(slot); setTimeOpen(false); }} /> : null}
+        {timeOpen ? <TimeDialog date={draft.date} start={draft.start} slots={startSlots} format={format} isTaken={availability ? slotTaken : undefined} onClose={() => setTimeOpen(false)} onPick={(slot) => { setStart(slot); setTimeOpen(false); }} /> : null}
 
         <div className="flex justify-end gap-3 border-t border-outline-variant/10 px-6 py-4">
           <button type="button" onClick={onClose} className="rounded-xl border border-outline-variant/30 px-5 py-2.5 text-sm font-semibold text-on-surface hover:bg-surface-container-low">Cancelar</button>
@@ -203,10 +227,13 @@ const PERIODS = [
  * el mismo gesto del selector de la reserva en el sitio web: se elige el día en
  * el calendario y las horas aparecen aparte, sin una lista con scroll adentro.
  */
-function TimeDialog({ date, start, format, isTaken: taken, onClose, onPick }: { date: string; start: string; format: TimeFormat; isTaken?: (slot: string) => boolean; onClose: () => void; onPick: (slot: string) => void }) {
+function TimeDialog({ date, start, slots, format, isTaken: taken, onClose, onPick }: { date: string; start: string; slots: string[]; format: TimeFormat; isTaken?: (slot: string) => boolean; onClose: () => void; onPick: (slot: string) => void }) {
   const selected = useRef<HTMLButtonElement>(null);
   useEffect(() => { selected.current?.focus(); }, []);
-  const offGrid = !START_SLOTS.includes(start);
+  const offGrid = !slots.includes(start);
+  // "Otra hora…" arranca abierto si la cita ya está fuera de las sugeridas
+  // (sobre una hora a medida o fuera del horario) o si el día está cerrado.
+  const [showAll, setShowAll] = useState(() => slots.length === 0 || (offGrid && ALL_QUARTERS.includes(start)));
 
   return (
     <div
@@ -224,34 +251,63 @@ function TimeDialog({ date, start, format, isTaken: taken, onClose, onPick }: { 
           <button type="button" onClick={onClose} aria-label="Cerrar horarios" className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-outline-variant/30 text-on-surface hover:bg-surface-container-high"><X size={16} aria-hidden="true" /></button>
         </div>
 
-        <div className="space-y-5">
-          {PERIODS.map((period) => {
-            const slots = START_SLOTS.filter((slot) => toMinutes(slot) >= period.from && toMinutes(slot) < period.to);
-            if (slots.length === 0) return null;
-            return (
-              <section key={period.id} aria-label={period.label}>
-                <div className="mb-2 flex items-baseline justify-between">
-                  <h4 className="text-[11px] font-bold uppercase tracking-wide text-on-surface">{period.label}</h4>
-                  <span className="text-[11px] text-on-surface-variant">{taken ? `${slots.filter((slot) => !taken(slot)).length} disponibles` : `${slots.length} horarios`}</span>
-                </div>
-                <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-                  {slots.map((slot) => {
-                    const active = slot === start;
-                    const reserved = !active && taken?.(slot) === true;
-                    return (
-                      <button key={slot} ref={active ? selected : undefined} type="button" aria-pressed={active} disabled={reserved} onClick={() => onPick(slot)} className={`rounded-full border px-2 py-2 text-sm font-semibold tabular-nums transition-colors ${active ? "border-primary bg-primary text-on-primary" : reserved ? "cursor-not-allowed border-outline-variant/20 text-on-surface-variant/50" : "border-outline-variant/40 text-on-surface hover:border-primary hover:text-primary"}`}>
-                        <span className={reserved ? "line-through" : ""}>{formatAppointmentTime(slot, format)}</span>
-                        {reserved ? <span className="block text-[10px] font-medium leading-tight no-underline">Reservado</span> : null}
-                      </button>
-                    );
-                  })}
-                </div>
-              </section>
-            );
-          })}
+        {slots.length === 0 ? (
+          <p className="mb-4 rounded-xl bg-surface-container px-3 py-2 text-sm text-on-surface-variant">Ese día el negocio está cerrado. Si igual vas a atender, elige en «Otra hora…».</p>
+        ) : (
+          <SlotGroups slots={slots} start={start} format={format} taken={taken} selectedRef={showAll ? undefined : selected} onPick={onPick} />
+        )}
+
+        <div className="mt-5 border-t border-outline-variant/15 pt-4">
+          <button
+            type="button"
+            aria-expanded={showAll}
+            aria-controls="time-dialog-all"
+            onClick={() => setShowAll((value) => !value)}
+            className="text-sm font-semibold text-primary underline-offset-4 hover:underline"
+          >
+            {showAll ? "Ocultar otras horas" : "Otra hora…"}
+          </button>
+          {showAll ? (
+            <div id="time-dialog-all" className="mt-4">
+              <p className="mb-3 text-xs text-on-surface-variant">Todo el día, cada 15 minutos (incluye horas fuera del horario de atención).</p>
+              <SlotGroups slots={ALL_QUARTERS} start={start} format={format} taken={taken} selectedRef={selected} onPick={onPick} />
+            </div>
+          ) : null}
         </div>
-        {offGrid ? <p className="mt-4 text-xs text-on-surface-variant">La cita empieza a las {formatAppointmentTime(start, format)}. Elige otra hora, o usa «Ajustar horas exactas» para una hora a medida.</p> : null}
+        {offGrid && !ALL_QUARTERS.includes(start) ? <p className="mt-4 text-xs text-on-surface-variant">La cita empieza a las {formatAppointmentTime(start, format)}. Elige otra hora, o usa «Ajustar horas exactas» para una hora a medida.</p> : null}
       </div>
+    </div>
+  );
+}
+
+/** Píldoras de horas agrupadas por mañana, tarde y noche. */
+function SlotGroups({ slots, start, format, taken, selectedRef, onPick }: { slots: string[]; start: string; format: TimeFormat; taken?: (slot: string) => boolean; selectedRef?: React.RefObject<HTMLButtonElement | null>; onPick: (slot: string) => void }) {
+  return (
+    <div className="space-y-5">
+      {PERIODS.map((period) => {
+        const inPeriod = slots.filter((slot) => toMinutes(slot) >= period.from && toMinutes(slot) < period.to);
+        if (inPeriod.length === 0) return null;
+        return (
+          <section key={period.id} aria-label={period.label}>
+            <div className="mb-2 flex items-baseline justify-between">
+              <h4 className="text-[11px] font-bold uppercase tracking-wide text-on-surface">{period.label}</h4>
+              <span className="text-[11px] text-on-surface-variant">{taken ? `${inPeriod.filter((slot) => !taken(slot)).length} disponibles` : `${inPeriod.length} horarios`}</span>
+            </div>
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+              {inPeriod.map((slot) => {
+                const active = slot === start;
+                const reserved = !active && taken?.(slot) === true;
+                return (
+                  <button key={slot} ref={active ? selectedRef : undefined} type="button" aria-pressed={active} disabled={reserved} onClick={() => onPick(slot)} className={`rounded-full border px-2 py-2 text-sm font-semibold tabular-nums transition-colors ${active ? "border-primary bg-primary text-on-primary" : reserved ? "cursor-not-allowed border-outline-variant/20 text-on-surface-variant/50" : "border-outline-variant/40 text-on-surface hover:border-primary hover:text-primary"}`}>
+                    <span className={reserved ? "line-through" : ""}>{formatAppointmentTime(slot, format)}</span>
+                    {reserved ? <span className="block text-[10px] font-medium leading-tight no-underline">Reservado</span> : null}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        );
+      })}
     </div>
   );
 }

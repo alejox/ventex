@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { authMessage } from "@/lib/errors";
+import { fetchWorkspaceContext } from "@/services/workspace.service";
 
 type SessionStatus = "checking" | "ready" | "invalid";
 
@@ -15,7 +16,10 @@ function UpdatePasswordForm() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const [status, setStatus] = useState<SessionStatus>("checking");
+  /** Negocio que invita (B11). Null mientras no se sepa o si no se pudo leer. */
+  const [inviterName, setInviterName] = useState<string | null>(null);
   const started = useRef(false);
+  const invitationId = searchParams.get("invitation");
 
   useEffect(() => {
     // El canje del código es de un solo uso: si se dispara dos veces (React
@@ -50,6 +54,20 @@ function UpdatePasswordForm() {
       // Mejor detectarlo ahora y ofrecerle pedir otro enlace.
       const { data } = await supabase.auth.getSession();
       if (data.session) {
+        // Invitación de trabajador: el título nombra el negocio al que entra.
+        // Es cosmético, así que un fallo acá no frena nada.
+        const membershipId = searchParams.get("invitation");
+        if (membershipId) {
+          try {
+            const context = await fetchWorkspaceContext();
+            const invite = [...context.invitations, ...context.available].find(
+              (m) => m.id === membershipId,
+            );
+            setInviterName(invite?.business_name?.trim() || null);
+          } catch {
+            // Sin nombre: el copy cae a "tu equipo".
+          }
+        }
         setStatus("ready");
         return;
       }
@@ -79,7 +97,6 @@ function UpdatePasswordForm() {
       setLoading(false);
       setError(authMessage(error));
     } else {
-      const invitationId = searchParams.get("invitation");
       if (invitationId) {
         const response = await fetch("/api/worker/activate", {
           method: "POST",
@@ -92,6 +109,12 @@ function UpdatePasswordForm() {
           setError(result?.error ?? "No se pudo activar tu acceso.");
           return;
         }
+        // Invitación (B11): la sesión es la del propio trabajador, que acaba de
+        // elegir su contraseña y aceptar la membresía. Cerrarla y mandarlo al
+        // login era pedirle que escriba lo mismo dos veces. Navegación completa
+        // para que el layout del panel lea la membresía recién activada.
+        window.location.assign("/dashboard");
+        return;
       }
       // La sesión de recuperación no es una sesión normal: dejarla abierta
       // significa que cualquiera con el enlace queda logueado. Se cierra y el
@@ -167,10 +190,16 @@ function UpdatePasswordForm() {
     <div className="w-full max-w-[420px] mx-auto">
       <div className="text-center lg:text-left mb-8">
         <h2 className="text-[28px] font-bold text-on-surface mb-2">
-          Nueva contraseña
+          {invitationId
+            ? inviterName
+              ? `Crea tu contraseña para entrar a ${inviterName}`
+              : "Crea tu contraseña para entrar a tu equipo"
+            : "Nueva contraseña"}
         </h2>
         <p className="text-on-surface-variant text-sm">
-          Ingresa tu nueva contraseña para restablecer el acceso.
+          {invitationId
+            ? "Con esta contraseña vas a entrar a Ventex de ahora en adelante."
+            : "Ingresa tu nueva contraseña para restablecer el acceso."}
         </p>
       </div>
 
@@ -185,7 +214,7 @@ function UpdatePasswordForm() {
         )}
         <div className="space-y-1.5">
           <label htmlFor="new-password" className="text-[13px] font-semibold text-on-surface block">
-            Nueva contraseña
+            {invitationId ? "Contraseña" : "Nueva contraseña"}
           </label>
           <div className="relative">
             <input
@@ -193,7 +222,8 @@ function UpdatePasswordForm() {
               type={showPassword ? "text" : "password"}
               name="new-password"
               autoComplete="new-password"
-              placeholder="Mínimo 6 caracteres"
+              placeholder="••••••••"
+              aria-describedby="new-password-hint"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-10 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50"
@@ -229,6 +259,10 @@ function UpdatePasswordForm() {
               )}
             </button>
           </div>
+          {/* B19: el requisito visible, no solo como placeholder que se borra. */}
+          <p id="new-password-hint" className="text-[12px] pl-1 text-on-surface-variant">
+            Mínimo 6 caracteres.
+          </p>
         </div>
 
         <button
@@ -241,6 +275,8 @@ function UpdatePasswordForm() {
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
             </svg>
+          ) : invitationId ? (
+            "Crear contraseña y entrar"
           ) : (
             "Restablecer contraseña"
           )}

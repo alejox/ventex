@@ -78,7 +78,7 @@ export function Pagination({
 
         {onPageSizeChange && (
           <div className="flex items-center gap-2 ml-2">
-            <span className="text-on-surface-variant/70 text-[11px] font-medium">Por página:</span>
+            <span className="text-on-surface-variant text-[11px] font-medium">Por página:</span>
             <Select
               size="sm"
               value={String(pageSize)}

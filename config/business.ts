@@ -376,6 +376,10 @@ export const NAV_ITEMS: NavItem[] = [
   // (`listExpenses` junta `expenses` con las `invoices` de tipo compra), así
   // que es LA vista financiera: no hace falta ir a otro lado a sumar.
   { id: "expenses", name: "Gastos", href: "/dashboard/expenses", modules: [] },
+  // Estado de resultados (F10): ingresos, egresos y flujo mes a mes, medios de
+  // pago y exportación. Universal como Gastos, y como no tiene permiso de
+  // trabajador propio, `workerNavItems` nunca lo lista: es del dueño.
+  { id: "reports", name: "Reportes", href: "/dashboard/reports", modules: [] },
   // Fiados. Es la otra mitad de la pregunta que contesta Gastos: cuánto sale y
   // cuánto FALTA entrar. Vender a crédito ya se podía desde el POS ("Crédito /
   // Fiado"), pero la deuda que eso genera solo se veía como una columna suelta
@@ -484,7 +488,7 @@ export const QUICK_ACTIONS: QuickAction[] = [
 // `landing` NO es universal: es el editor del sitio público de reservas, y una
 // tienda general no agenda citas ni tiene nada que reservar. Vive en
 // `BASE_NAV_BY_TYPE` para salón, lavaautos, servicios y escuela.
-const UNIVERSAL_NAV_IDS = ["panel", "pos", "sales", "expenses", "credits", "customers", "staff", "commissions", "subscription"];
+const UNIVERSAL_NAV_IDS = ["panel", "pos", "sales", "expenses", "reports", "credits", "customers", "staff", "commissions", "subscription"];
 
 /** Menú base por tipo de negocio (además de las universales). */
 // `purchases` acompaña a `distributors`: son el mismo dominio (a quién le
@@ -622,7 +626,7 @@ const NAV_GROUP_ORDER: { id: string; label: string | null; itemIds: string[] }[]
   // El ciclo completo del inventario, en el orden en que se vive: qué vendo →
   // qué me falta → a quién se lo pido → qué me llegó.
   { id: "inventario", label: "Inventario", itemIds: ["inventory", "pedidos", "distributors", "purchases"] },
-  { id: "finanzas", label: "Finanzas", itemIds: ["expenses"] },
+  { id: "finanzas", label: "Finanzas", itemIds: ["expenses", "reports"] },
   { id: "equipo", label: "Equipo", itemIds: ["staff", "commissions", "haircuts"] },
   // Académico es OPT-IN: el grupo entero desaparece cuando el módulo está apagado
   // (visibleNavItems lo filtra por módulo y workerNavItems por permiso + módulo).

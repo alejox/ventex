@@ -5,9 +5,8 @@ import { Select } from "@/components/ui/Select";
 import { COLOMBIA_TRANSFER_METHODS } from "@/config/transferMethods";
 import { COLOMBIA_CARD_METHODS } from "@/config/cardMethods";
 import type { PaymentMethod, PaymentSplit, SaleTotals, CartLine } from "@/services/pos.service";
-import { useFormatMoney } from "@/lib/useMoney";
-
-const QUICK_AMOUNTS = [2000, 5000, 10000, 20000, 50000, 100000];
+import { useCurrency, useFormatMoney } from "@/lib/useMoney";
+import { COP_ADD_AMOUNTS, effectiveTendered, suggestedCashAmounts } from "@/lib/pos-cash";
 
 /** Chips de canal (Nequi, Bold…) para una línea del pago dividido. */
 function SplitChannelChips({
@@ -114,6 +113,9 @@ export function CheckoutModal({
   onClose,
 }: CheckoutModalProps) {
   const fmtMoney = useFormatMoney();
+  // Billetes y "+$X" son denominaciones COP: con otra moneda serían montos
+  // arbitrarios, así que solo queda "Valor exacto".
+  const isCop = useCurrency() === "COP";
   const cartUnits = cart.reduce((sum, l) => sum + l.quantity, 0);
 
   const hasSplits = splits.length > 0;
@@ -126,8 +128,12 @@ export function CheckoutModal({
     cardMethodsEnabled ? cardMethodsEnabled.includes(m.id) : true,
   );
 
-  const tendered = parseFloat(amountTendered) || 0;
+  // Vacío = pago exacto (C8): Enter con el campo en blanco cobra el total
+  // justo. La pantalla aplica la misma regla al armar recibido y cambio.
+  const tenderedEmpty = amountTendered.trim() === "";
+  const tendered = parseFloat(effectiveTendered(amountTendered, totals.total)) || 0;
   const change = tendered - totals.total;
+  const suggestions = isCop ? suggestedCashAmounts(totals.total) : [];
 
   const splitsSum = splits.reduce((s, sp) => s + sp.amount, 0);
   const splitsMatch = Math.abs(splitsSum - totals.total) <= 0.01;
@@ -198,7 +204,7 @@ export function CheckoutModal({
             </div>
             <div className="flex justify-between items-baseline gap-3 border-t border-outline-variant/10 pt-2.5 mt-2">
               <span className="text-sm font-semibold text-on-surface shrink-0">Total</span>
-              <span className="text-lg sm:text-xl font-bold text-on-surface tabular-nums tracking-tight truncate">
+              <span className="text-[32px] sm:text-4xl leading-none font-bold text-on-surface tabular-nums tracking-tight truncate">
                 {fmtMoney(totals.total)}
               </span>
             </div>
@@ -383,38 +389,74 @@ export function CheckoutModal({
               </h3>
 
               <div className="space-y-1.5">
-                <label className="text-[13px] font-semibold text-on-surface block">
-                  Monto recibido ($)
+                <label htmlFor="pos-amount-tendered" className="text-[13px] font-semibold text-on-surface block">
+                  Monto recibido
                 </label>
                 <input
+                  id="pos-amount-tendered"
                   autoFocus
                   type="number"
+                  inputMode="decimal"
                   step="100"
                   min="0"
                   value={amountTendered}
                   onChange={(e) => setAmountTendered(e.target.value)}
-                  placeholder="0.00"
+                  placeholder={`Exacto: ${fmtMoney(totals.total)}`}
+                  aria-describedby="pos-amount-tendered-hint"
                   className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-xl px-4 py-3 text-lg text-on-surface font-bold text-center focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 />
+                <p id="pos-amount-tendered-hint" className="text-[11px] text-on-surface-variant">
+                  Déjalo vacío y presiona Enter si te pagan exacto.
+                </p>
               </div>
 
-              <div className="grid grid-cols-3 gap-2">
-                {QUICK_AMOUNTS.map((amount) => (
-                  <button
-                    key={amount}
-                    type="button"
-                    onClick={() => quickAdd(amount)}
-                    className="py-2 rounded-xl text-xs font-bold border border-outline-variant/20 text-on-surface-variant hover:border-primary/30 hover:text-on-surface transition-colors"
-                  >
-                    {fmtMoney(amount)}
-                  </button>
-                ))}
-              </div>
+              {/* Billetes con los que se suele pagar ESTE total (C9): fijan el
+                  monto recibido. Los de abajo, con "+", suman a lo escrito. */}
+              {suggestions.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-[11px] font-semibold text-on-surface-variant uppercase tracking-wider">
+                    Paga con
+                  </p>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {suggestions.map((amount) => (
+                      <button
+                        key={amount}
+                        type="button"
+                        onClick={() => setAmountTendered(String(amount))}
+                        aria-pressed={!tenderedEmpty && tendered === amount}
+                        className={`min-h-11 rounded-xl text-sm font-bold border tabular-nums transition-colors ${
+                          !tenderedEmpty && tendered === amount
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-outline-variant/20 text-on-surface hover:border-primary/30"
+                        }`}
+                      >
+                        {fmtMoney(amount)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {isCop && (
+                <div className="grid grid-cols-3 gap-2">
+                  {COP_ADD_AMOUNTS.map((amount) => (
+                    <button
+                      key={amount}
+                      type="button"
+                      onClick={() => quickAdd(amount)}
+                      aria-label={`Sumar ${fmtMoney(amount)} a lo recibido`}
+                      className="min-h-10 rounded-xl text-xs font-bold border border-dashed border-outline-variant/30 text-on-surface-variant hover:border-primary/30 hover:text-on-surface transition-colors tabular-nums"
+                    >
+                      +{fmtMoney(amount)}
+                    </button>
+                  ))}
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={() => setAmountTendered(String(totals.total))}
-                  className="py-2 rounded-xl text-xs font-bold border border-outline-variant/20 text-on-surface-variant hover:border-primary/30 hover:text-on-surface transition-colors"
+                  className="min-h-10 rounded-xl text-xs font-bold border border-outline-variant/20 text-on-surface-variant hover:border-primary/30 hover:text-on-surface transition-colors"
                 >
                   Valor exacto
                 </button>
@@ -422,7 +464,7 @@ export function CheckoutModal({
                   type="button"
                   onClick={() => setAmountTendered("")}
                   disabled={!amountTendered}
-                  className="py-2 rounded-xl text-xs font-bold border border-outline-variant/20 text-on-surface-variant hover:border-error/30 hover:text-error transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="min-h-10 rounded-xl text-xs font-bold border border-outline-variant/20 text-on-surface-variant hover:border-error/30 hover:text-error transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   Limpiar
                 </button>
@@ -437,7 +479,7 @@ export function CheckoutModal({
                   }`}
                 >
                   <span className="font-semibold text-sm text-on-surface-variant shrink-0">
-                    Cambio
+                    {tenderedEmpty ? "Pago exacto · cambio" : "Cambio"}
                   </span>
                   <span
                     className={`text-base sm:text-lg font-bold tabular-nums tracking-tight truncate ${

@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useState, useMemo } from "react";
+import { toast } from "sonner";
 import Link from "next/link";
 import { useProfile } from "@/components/ProfileProvider";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -17,7 +18,13 @@ import { toISODate } from "@/lib/date";
 import { useStaffStore } from "@/stores/staff.store";
 import { formatDuration } from "@/lib/duration";
 import { Select } from "@/components/ui/Select";
-import { TimeGrid } from "@/components/calendar/TimeGrid";
+import { TimeGrid, type RescheduleTarget } from "@/components/calendar/TimeGrid";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
+import { formatWeekRange, initialStaffFilter, toMinutes, type CalendarView } from "@/lib/calendar-layout";
+import { isWithinOpenHours, weekdayOf } from "@/lib/appointment-hours";
+import { checkReschedule } from "@/lib/appointment-drag";
+import { formatDateOnly } from "@/lib/date";
+import { useCalendarView } from "./useCalendarView";
 
 import { useSettingsStore } from "@/stores/settings.store";
 import { formatAppointmentTime } from "@/lib/time";
@@ -110,6 +117,11 @@ function getStatusColor(status: string) {
   }
 }
 
+/** Se arrastra lo que todavía es agenda: ni lo cancelado ni lo ya cobrado. */
+function canReschedule(appointment: Appointment): boolean {
+  return (appointment.status === "pending" || appointment.status === "confirmed") && !appointment.sale_id;
+}
+
 function getStatusLabel(status: string) {
   switch (status) {
     case "pending": return "Pendiente";
@@ -143,30 +155,41 @@ function CalendarContent() {
   const appointmentId = searchParams.get("appointment");
 
   const [displayMode, setDisplayMode] = useState<"calendar" | "list" | "pending">("calendar");
-  // La semana es la vista de trabajo: es donde se ve qué cita ocupa qué hora.
-  const [view, setView] = useState<"month" | "week" | "day">("week");
+  // La semana es la vista de trabajo en escritorio; en el teléfono no entra y
+  // se abre en Día. Lo que la persona elige a mano se respeta (y se recuerda).
+  const { view, chooseView, showView } = useCalendarView();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedAppointment, setSelectedAppointment] =
     useState<Appointment | null>(null);
   const [selectedStatus, setSelectedStatus] = useState("all");
-  const [selectedStaffId, setSelectedStaffId] = useState<string>("all");
+  // Un trabajador abre en "Mis citas"; puede pasar a ver a todo el equipo.
+  const myStaffId = profile?.isWorker ? profile.staffId ?? null : null;
+  const defaultStaffFilter = initialStaffFilter(Boolean(profile?.isWorker), profile?.staffId);
+  const [selectedStaffId, setSelectedStaffId] = useState<string>(defaultStaffFilter);
+  const { confirm, dialog: confirmDialog } = useConfirm();
+  const fetchDayBusy = useAppointmentsStore((s) => s.fetchDayBusy);
+  const rescheduleAppointment = useAppointmentsStore((s) => s.rescheduleAppointment);
+  const businessHours = useAppointmentsStore((s) => s.businessHours);
+  const fetchBusinessHours = useAppointmentsStore((s) => s.fetchBusinessHours);
+  useEffect(() => { void fetchBusinessHours(); }, [fetchBusinessHours]);
   const staff = useStaffStore((s) => s.staff);
   const fetchStaff = useStaffStore((s) => s.fetchStaff);
   const staffList = useMemo(() => staff.filter((member) => member.status === "active"), [staff]);
+  const otherStaff = useMemo(() => staffList.filter((member) => member.id !== myStaffId), [staffList, myStaffId]);
   const [defaultStartTime, setDefaultStartTime] = useState<string>("09:00");
 
   const openLinkedAppointment = useCallback((appointment: Appointment) => {
     const date = new Date(`${appointment.appointment_date}T12:00:00`);
     setCurrentDate(date);
     setSelectedDate(date);
-    setView("day");
+    showView("day");
     setDisplayMode("calendar");
     setSelectedStaffId("all");
     setSelectedStatus("all");
     setSelectedAppointment(appointment);
     setModalOpen(true);
-  }, [setSelectedDate]);
+  }, [setSelectedDate, showView]);
 
   useEffect(() => {
     if (!appointmentId) return;
@@ -262,6 +285,65 @@ function CalendarContent() {
     setModalOpen(true);
   };
 
+  /** Tocar un día en la vista Mes abre ESE día, no una cita nueva. */
+  const openDay = (date: string) => {
+    const target = new Date(`${date}T12:00:00`);
+    setCurrentDate(target);
+    setSelectedDate(target);
+    showView("day");
+  };
+
+  /**
+   * Soltar una cita arrastrada. Mismo control de choques que el formulario
+   * (`conflictsFor` sobre las citas del día de destino); fuera del horario se
+   * pregunta; y al moverla queda un "Deshacer" a mano.
+   */
+  const handleReschedule = async (appointment: Appointment, next: RescheduleTarget) => {
+    const busy = await fetchDayBusy(next.date);
+    const check = checkReschedule(busy, appointment, next.start, next.end);
+    if (!check.ok) {
+      toast.error(
+        `${appointment.staff?.full_name ?? "Esa persona"} ya tiene una cita de ${formatAppointmentTime(check.conflict.start_time, timeFormat)} a ${formatAppointmentTime(check.conflict.end_time, timeFormat)}. La cita quedó donde estaba.`,
+      );
+      return;
+    }
+    const when = `${formatDateOnly(next.date, { weekday: "long", day: "numeric", month: "long" })}, ${formatAppointmentTime(next.start, timeFormat)} – ${formatAppointmentTime(next.end, timeFormat)}`;
+    if (!isWithinOpenHours(businessHours, weekdayOf(next.date), toMinutes(next.start), toMinutes(next.end))) {
+      const ok = await confirm({
+        title: "¿Mover la cita fuera del horario de atención?",
+        description: `Quedaría el ${when}, cuando el negocio está cerrado.`,
+        confirmLabel: "Mover igual",
+      });
+      if (!ok) return;
+    }
+    const previous = {
+      date: appointment.appointment_date,
+      start: appointment.start_time.slice(0, 5),
+      end: appointment.end_time.slice(0, 5),
+    };
+    if (!(await rescheduleAppointment(appointment.id, next))) {
+      toast.error(useAppointmentsStore.getState().error ?? "No se pudo mover la cita. Quedó donde estaba.");
+      return;
+    }
+    toast.success(`Cita movida: ${when}.`, {
+      duration: 8000,
+      action: {
+        label: "Deshacer",
+        onClick: () => {
+          void rescheduleAppointment(appointment.id, previous).then((undone) => {
+            if (!undone) toast.error(useAppointmentsStore.getState().error ?? "No se pudo deshacer el cambio.");
+          });
+        },
+      },
+    });
+  };
+
+  const filtersActive = selectedStaffId !== defaultStaffFilter || selectedStatus !== "all";
+  const clearFilters = () => {
+    setSelectedStaffId(defaultStaffFilter);
+    setSelectedStatus("all");
+  };
+
   // Get month grid
   const monthGrid = useMemo(
     () => getMonthGrid(currentYear, currentMonth),
@@ -330,7 +412,7 @@ function CalendarContent() {
             ))}
           </div>
 
-          {staffList.length > 0 && (
+          {(staffList.length > 0 || myStaffId) && (
             <div className="w-48 shrink-0">
               <Select
                 size="sm"
@@ -338,9 +420,10 @@ function CalendarContent() {
                 value={selectedStaffId}
                 onChange={(e) => setSelectedStaffId(e.target.value)}
               >
+                {myStaffId ? <option value={myStaffId}>Mis citas</option> : null}
                 <option value="all">Todas las personas</option>
                 <option value="unassigned">Sin asignar</option>
-                {staffList.map((s) => (
+                {otherStaff.map((s) => (
                   <option key={s.id} value={s.id}>{s.full_name}</option>
                 ))}
               </Select>
@@ -352,7 +435,8 @@ function CalendarContent() {
             {(["month", "week", "day"] as const).map((v) => (
               <button
                 key={v}
-                onClick={() => setView(v)}
+                onClick={() => chooseView(v as CalendarView)}
+                aria-pressed={view === v}
                 className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${
                   view === v
                     ? "bg-surface-container-lowest text-on-surface shadow-sm"
@@ -396,24 +480,25 @@ function CalendarContent() {
       {/* Navigation */}
       <div className="flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
+          {/* En el teléfono los botones son grandes (44px): se cambia de día con el pulgar. */}
           <button
             onClick={navigatePrev}
-            aria-label="Período anterior"
-            className="p-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded-xl transition-colors"
+            aria-label={view === "day" ? "Día anterior" : "Período anterior"}
+            className="grid h-11 w-11 place-items-center rounded-xl border border-outline-variant/20 text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface sm:h-auto sm:w-auto sm:border-0 sm:p-2"
           >
             <IconChevronLeft className="w-5 h-5" />
           </button>
-          <h2 className="text-lg font-bold text-on-surface min-w-0 text-center">
+          <h2 aria-live="polite" className="text-lg font-bold text-on-surface min-w-0 text-center">
             {view === "month"
               ? `${MONTHS_ES[currentMonth]} ${currentYear}`
               : view === "week"
-                ? `${weekDays[0].dayName} ${weekDays[0].day} - ${weekDays[6].dayName} ${weekDays[6].day} ${MONTHS_ES[currentMonth]}`
+                ? formatWeekRange(new Date(`${weekDays[0].date}T12:00:00`), new Date(`${weekDays[6].date}T12:00:00`))
                 : `${DAYS_SHORT[currentDate.getDay()]} ${currentDate.getDate()} ${MONTHS_ES[currentMonth]}`}
           </h2>
           <button
             onClick={navigateNext}
-            aria-label="Período siguiente"
-            className="p-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded-xl transition-colors"
+            aria-label={view === "day" ? "Día siguiente" : "Período siguiente"}
+            className="grid h-11 w-11 place-items-center rounded-xl border border-outline-variant/20 text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface sm:h-auto sm:w-auto sm:border-0 sm:p-2"
           >
             <IconChevronRight className="w-5 h-5" />
           </button>
@@ -421,7 +506,17 @@ function CalendarContent() {
       </div>
 
       <p className="text-sm text-on-surface-variant">{displayMode === "pending" ? "Reservas pendientes del período mostrado. Abre una reserva para revisar sus datos y confirmarla." : "Selecciona una cita para ver sus datos. Puedes filtrar por persona y estado en cualquiera de las vistas."}</p>
-      {!loading && !error && visibleAppointments.length === 0 && displayMode === "calendar" ? <CollectionFilteredEmpty title="No hay citas para esta vista" description="Prueba otro período, quita los filtros o crea una nueva cita." action={selectedStaffId !== "all" || selectedStatus !== "all" ? { label: "Quitar filtros", onClick: () => { setSelectedStaffId("all"); setSelectedStatus("all"); } } : { label: "Crear cita", onClick: () => handleNewAppointment() }} /> : null}
+      {/*
+        Sin un segundo "estado vacío" encima de la grilla: la grilla vacía ya
+        dice que no hay citas. Solo se avisa cuando lo que esconde las citas es
+        un filtro, que desde la grilla no se ve.
+      */}
+      {!loading && !error && visibleAppointments.length === 0 && displayMode === "calendar" && filtersActive ? (
+        <p role="status" className="-mt-3 text-sm text-on-surface-variant">
+          No hay citas con estos filtros en este período.{" "}
+          <button type="button" onClick={clearFilters} className="font-semibold text-primary underline underline-offset-2">Quitar filtros</button>
+        </p>
+      ) : null}
 
       {/* Error */}
       {error && <CollectionError message={error} />}
@@ -461,26 +556,24 @@ function CalendarContent() {
               return (
                 <div
                   key={cell.date}
-                  className={`min-h-[72px] sm:min-h-[100px] p-1.5 sm:p-2 border-b border-r border-outline-variant/5 hover:bg-surface-container/20 transition-colors ${
+                  className={`min-h-[72px] sm:min-h-[100px] p-1.5 sm:p-2 border-b border-r border-outline-variant/5 cursor-pointer hover:bg-surface-container/20 transition-colors ${
                     !cell.isCurrentMonth ? "opacity-40" : ""
                   }`}
-                  onClick={() => {
-                    if (cell.isCurrentMonth) {
-                      setSelectedDate(new Date(cell.date + "T12:00:00"));
-                      handleNewAppointment(cell.date);
-                    }
-                  }}
+                  onClick={() => openDay(cell.date)}
                 >
                   <div className="flex justify-between items-start mb-1">
-                    <span
-                      className={`w-7 h-7 flex items-center justify-center rounded-full text-xs font-semibold ${
+                    <button
+                      type="button"
+                      onClick={(event) => { event.stopPropagation(); openDay(cell.date); }}
+                      aria-label={`Ver el ${formatDateOnly(cell.date, { weekday: "long", day: "numeric", month: "long" })}${dayAppts.length ? ` (${dayAppts.length} ${dayAppts.length === 1 ? "cita" : "citas"})` : ""}`}
+                      className={`w-7 h-7 flex items-center justify-center rounded-full text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
                         isToday
                           ? "bg-[#6063ee] text-white shadow-md shadow-[#6063ee]/30"
-                          : "text-on-surface-variant"
+                          : "text-on-surface-variant hover:bg-surface-container-high"
                       }`}
                     >
                       {cell.day}
-                    </span>
+                    </button>
                   </div>
 
                   <div className="space-y-1">
@@ -508,7 +601,7 @@ function CalendarContent() {
                         </span>
                       </button>
                     ))}
-                    {dayAppts.length > 3 && <button type="button" onClick={(event) => { event.stopPropagation(); setCurrentDate(new Date(`${cell.date}T12:00:00`)); setView("day"); }} className="px-2 text-[10px] font-semibold text-primary">Ver {dayAppts.length - 3} más</button>}
+                    {dayAppts.length > 3 && <button type="button" onClick={(event) => { event.stopPropagation(); openDay(cell.date); }} className="px-2 text-[10px] font-semibold text-primary">Ver {dayAppts.length - 3} más</button>}
                   </div>
                 </div>
               );
@@ -527,6 +620,10 @@ function CalendarContent() {
           statusClass={getStatusColor}
           onCreate={handleNewAppointment}
           onEdit={handleEditAppointment}
+          hours={businessHours}
+          onReschedule={(appointment, next) => void handleReschedule(appointment, next)}
+          canReschedule={canReschedule}
+          onSwipe={view === "day" ? (direction) => (direction === "next" ? navigateNext() : navigatePrev()) : undefined}
         />
       )}
 
@@ -608,6 +705,7 @@ function CalendarContent() {
         appointment={selectedAppointment}
         defaultStartTime={defaultStartTime}
       />
+      {confirmDialog}
     </div>
   );
 }

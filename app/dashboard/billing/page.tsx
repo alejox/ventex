@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { IconFileText, IconPlus, IconXCircle } from "@/app/assets/icons/DashboardIcons";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { IconFileText, IconPlus, IconSearch, IconXCircle } from "@/app/assets/icons/DashboardIcons";
 import { useBillingStore } from "@/stores/billing.store";
 import { useCustomersStore } from "@/stores/customers.store";
 import { useServicesStore } from "@/stores/services.store";
@@ -10,7 +10,21 @@ import { useProfile } from "@/components/ProfileProvider";
 import type { Invoice, InvoiceItem, InvoiceLineInput, NewInvoiceInput } from "@/services/billing.service";
 import { DataTable, type DataColumn } from "@/components/DataTable";
 import { Select } from "@/components/ui/Select";
-import { CollectionEmpty, CollectionError, CollectionLoading } from "@/components/CollectionState";
+import { CollectionEmpty, CollectionError, CollectionFilteredEmpty, CollectionLoading } from "@/components/CollectionState";
+import { MoneyInput } from "@/components/ui/MoneyInput";
+import { downloadCsv, downloadXlsx, exportFilename, sheet } from "@/lib/export";
+import { ExportButtons } from "@/app/dashboard/reports/ExportButtons";
+import { OpenOnNewParam } from "@/app/dashboard/reports/OpenOnNewParam";
+import {
+  INVOICE_FILTERS,
+  filterCounts,
+  filterFromParam,
+  filterInvoices,
+  invoiceDue,
+  invoiceExportColumns,
+  receivableSummary,
+  type InvoiceFilter,
+} from "./invoice-view";
 import { formatDateOnly, todayISO } from "@/lib/date";
 import type { MoneyFormatter } from "@/lib/money";
 import { useFormatMoney } from "@/lib/useMoney";
@@ -47,7 +61,7 @@ const STATUS: Record<string, { label: string; cls: string }> = {
 };
 
 /** Columnas de la tabla; el formateador trae la moneda del negocio. */
-const invoiceColumns = (formatMoney: MoneyFormatter): DataColumn<Invoice>[] => [
+const invoiceColumns = (formatMoney: MoneyFormatter, todayDay: string): DataColumn<Invoice>[] => [
   {
     header: "Documento",
     mobile: "title",
@@ -87,15 +101,48 @@ const invoiceColumns = (formatMoney: MoneyFormatter): DataColumn<Invoice>[] => [
     },
   },
   {
-    header: "Fecha",
-    className: "text-on-surface-variant",
+    header: "Emisión",
+    sortKey: "emision",
+    sortValue: (inv) => inv.issue_date,
+    className: "text-on-surface-variant whitespace-nowrap",
     cell: (inv) => formatDate(inv.issue_date),
+  },
+  {
+    // F12: la cartera se gestiona por vencimiento. "Vencida hace N días" en
+    // rojo dice a quién llamar primero; una pagada o cotización no vence.
+    header: "Vencimiento",
+    mobile: "field",
+    sortKey: "vencimiento",
+    sortValue: (inv) => inv.due_date ?? "9999-12-31",
+    cell: (inv) => {
+      if (!inv.due_date) return <span className="text-on-surface-variant">—</span>;
+      const due = invoiceDue(inv, todayDay);
+      return (
+        <span className="block whitespace-nowrap">
+          <span className={`block tabular-nums ${due.overdue ? "text-error font-semibold" : "text-on-surface-variant"}`}>
+            {formatDate(inv.due_date)}
+          </span>
+          {due.label && (
+            <span
+              className={`block text-[11px] mt-0.5 ${
+                due.overdue ? "text-error font-semibold" : due.days === 0 ? "text-warning font-semibold" : "text-on-surface-variant"
+              }`}
+            >
+              {due.label}
+            </span>
+          )}
+        </span>
+      );
+    },
   },
 ];
 
 export default function BillingPage() {
   const fmtMoney = useFormatMoney();
-  const invoiceColumnsForCurrency = useMemo(() => invoiceColumns(fmtMoney), [fmtMoney]);
+  // Hoy, según el reloj del negocio. Fijo durante la visita: el vencimiento no
+  // tiene que recalcularse a cada render.
+  const [todayDay] = useState(todayISO);
+  const invoiceColumnsForCurrency = useMemo(() => invoiceColumns(fmtMoney, todayDay), [fmtMoney, todayDay]);
   const invoices = useBillingStore((s) => s.invoices);
   const loading = useBillingStore((s) => s.loading);
   const error = useBillingStore((s) => s.error);
@@ -116,6 +163,9 @@ export default function BillingPage() {
   const profile = useProfile();
 
   const [formOpen, setFormOpen] = useState(false);
+  const [filter, setFilter] = useState<InvoiceFilter>("all");
+  const [query, setQuery] = useState("");
+  const [exporting, setExporting] = useState(false);
   const [form, setForm] = useState<NewInvoiceInput>(newEmptyInvoice());
   const [detailId, setDetailId] = useState<string | null>(null);
   /** "Cancelada" pide confirmación: saca el documento de cartera y de ingresos. */
@@ -155,10 +205,35 @@ export default function BillingPage() {
     return { subtotal, discount, tax, total: taxable + tax };
   }, [form.items, form.discount_amount, form.tax_rate]);
 
-  const openCreate = () => {
+  const openCreate = useCallback(() => {
     setForm(newEmptyInvoice());
     setConvertedFrom(null);
     setFormOpen(true);
+  }, []);
+
+  const applyFilterParam = useCallback((value: string) => {
+    const f = filterFromParam(value);
+    if (f) setFilter(f);
+  }, []);
+
+  const visible = useMemo(() => filterInvoices(invoices, filter, query, todayDay), [invoices, filter, query, todayDay]);
+  const summary = useMemo(() => receivableSummary(invoices, todayDay), [invoices, todayDay]);
+  const counts = useMemo(() => filterCounts(invoices, todayDay), [invoices, todayDay]);
+
+  /** Exporta lo que la tabla muestra: mismo chip y misma búsqueda. */
+  const exportAs = async (kind: "csv" | "xlsx") => {
+    const cols = invoiceExportColumns(todayDay);
+    const name = exportFilename(filter === "all" ? "facturacion" : `facturacion ${filter}`, kind, {}, todayDay);
+    if (kind === "csv") {
+      downloadCsv(name, cols, visible);
+      return;
+    }
+    setExporting(true);
+    try {
+      await downloadXlsx(name, [sheet({ name: "Facturación", columns: cols, rows: visible })]);
+    } finally {
+      setExporting(false);
+    }
   };
 
   /**
@@ -293,14 +368,21 @@ export default function BillingPage() {
           <h1 className="text-2xl font-bold text-on-surface">Facturación</h1>
           <p className="text-sm text-on-surface-variant mt-1">Genera facturas y cotizaciones para tus clientes.</p>
         </div>
-        <button
-          onClick={openCreate}
-          className="bg-[#6063ee] hover:bg-[#c0c1ff] text-white hover:text-[#0b0664] text-sm font-semibold py-2.5 px-4 rounded-xl shadow-lg shadow-[#6063ee]/20 transition-colors flex items-center justify-center gap-2"
-        >
-          <IconPlus className="w-4 h-4" />
-          <span>Nueva Factura</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <ExportButtons disabled={loading || visible.length === 0} busy={exporting} onExport={exportAs} />
+          <button
+            onClick={openCreate}
+            className="bg-primary hover:bg-primary-dim text-on-primary text-sm font-semibold py-2.5 px-4 rounded-xl shadow-lg shadow-primary/20 transition-colors flex items-center justify-center gap-2"
+          >
+            <IconPlus className="w-4 h-4" />
+            <span>Nueva factura</span>
+          </button>
+        </div>
       </div>
+
+      <Suspense fallback={null}>
+        <OpenOnNewParam onOpen={openCreate} onFilter={applyFilterParam} />
+      </Suspense>
 
       {error && <CollectionError message={error} onRetry={fetchInvoices} />}
 
@@ -309,16 +391,78 @@ export default function BillingPage() {
       ) : invoices.length === 0 ? (
         <CollectionEmpty icon={<IconFileText className="w-8 h-8" />} title="Aún no hay documentos" description="Crea tu primera factura o cotización para tus clientes." action={{ label: "Crear tu primer documento", onClick: openCreate }} />
       ) : (
+        <>
+          {/* Resumen de cartera: lo que falta cobrar y cuánto ya se pasó de fecha. */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-2xl border border-outline-variant/10 bg-surface-container px-4 py-3 text-sm">
+            <span className="text-on-surface-variant">
+              Por cobrar{" "}
+              <strong className="text-on-surface tabular-nums">{fmtMoney(summary.receivable)}</strong>
+              <span className="text-on-surface-variant"> ({summary.pendingCount} {summary.pendingCount === 1 ? "factura" : "facturas"})</span>
+            </span>
+            <span aria-hidden="true" className="text-outline-variant">·</span>
+            {summary.overdueCount > 0 ? (
+              <button
+                type="button"
+                onClick={() => setFilter("overdue")}
+                className="text-error font-semibold hover:underline"
+              >
+                Vencidas {summary.overdueCount} ({fmtMoney(summary.overdueAmount)})
+              </button>
+            ) : (
+              <span className="text-on-surface-variant">Vencidas 0</span>
+            )}
+          </div>
+
+          <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+            <div className="relative lg:w-72">
+              <IconSearch className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none" />
+              <input
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Buscar por número, cliente o nota…"
+                aria-label="Buscar documentos"
+                className="w-full pl-10 pr-4 py-2.5 bg-surface-container border border-outline-variant/20 rounded-xl text-sm text-on-surface placeholder:text-on-surface-variant focus:outline-none focus:ring-2 focus:ring-primary/50"
+              />
+            </div>
+            <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrar por estado">
+              {INVOICE_FILTERS.map((f) => (
+                <button
+                  key={f.id}
+                  type="button"
+                  aria-pressed={filter === f.id}
+                  onClick={() => setFilter(f.id)}
+                  className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-colors ${
+                    filter === f.id
+                      ? f.id === "overdue"
+                        ? "bg-error/10 border-error/40 text-error"
+                        : "bg-primary/10 border-primary/40 text-primary"
+                      : "bg-surface-container border-outline-variant/10 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high"
+                  }`}
+                >
+                  {f.label} <span className="tabular-nums opacity-70">{counts[f.id]}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
         <div className="bg-surface-container rounded-3xl border border-outline-variant/10 shadow-sm overflow-hidden">
+          {visible.length === 0 ? (
+            <CollectionFilteredEmpty
+              action={{ label: "Limpiar filtros", onClick: () => { setFilter("all"); setQuery(""); } }}
+            />
+          ) : (
           <DataTable
-            rows={invoices}
+            rows={visible}
             rowKey={(inv) => inv.id}
             minWidth={720}
             caption="Facturas y cotizaciones"
             onRowClick={openDetail}
             columns={invoiceColumnsForCurrency}
           />
+          )}
         </div>
+        </>
       )}
 
       {/* Modal crear */}
@@ -446,16 +590,14 @@ export default function BillingPage() {
                         placeholder="Cant."
                         title="Cantidad"
                       />
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={line.unit_price}
-                        onChange={(e) => setLine(idx, { unit_price: e.target.value })}
-                        className="w-24 bg-surface-container border border-outline-variant/20 rounded-lg py-2 px-2 text-sm text-on-surface text-right focus:outline-none focus:border-primary transition-all"
-                        placeholder="Precio"
-                        title="Precio unitario"
-                      />
+                      <div className="w-32">
+                        <MoneyInput
+                          value={line.unit_price}
+                          onChange={(raw) => setLine(idx, { unit_price: raw })}
+                          placeholder="Precio"
+                          aria-label="Precio unitario"
+                        />
+                      </div>
                       <button
                         type="button"
                         onClick={() => removeLine(idx)}
@@ -480,15 +622,11 @@ export default function BillingPage() {
               {/* Descuento + impuesto */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-on-surface block">Descuento</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={form.discount_amount}
-                    onChange={(e) => setForm({ ...form, discount_amount: e.target.value })}
-                    className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
-                    placeholder="0.00"
+                  <label htmlFor="invoice-discount" className="text-[13px] font-semibold text-on-surface block">Descuento</label>
+                  <MoneyInput
+                    id="invoice-discount"
+                    value={form.discount_amount === "0" ? "" : form.discount_amount}
+                    onChange={(raw) => setForm({ ...form, discount_amount: raw || "0" })}
                   />
                 </div>
                 <div className="space-y-1.5">

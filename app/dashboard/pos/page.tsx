@@ -45,6 +45,8 @@ import {
   loyaltyRedemptionMatches,
 } from "@/services/loyalty.service";
 import { useOnlineStatus } from "@/lib/useOnlineStatus";
+import { effectiveTendered } from "@/lib/pos-cash";
+import { discountBreakdown } from "@/lib/pos-discount-breakdown";
 import { useCashDrawerStore } from "@/stores/cash-drawer.store";
 import { canKickWith } from "@/lib/cash-drawer";
 import {
@@ -62,7 +64,7 @@ import { TabRenameModal } from "./components/TabRenameModal";
 import { AlertTriangle } from "lucide-react";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { PlanLimitModal } from "./components/PlanLimitModal";
-import { OfflineQueueBadge } from "./components/OfflineQueueBadge";
+import { OfflineChip, OfflineQueueBadge } from "./components/OfflineQueueBadge";
 import { RejectedSalesModal } from "./components/RejectedSalesModal";
 import { useFormatMoney } from "@/lib/useMoney";
 import { buildReceiptFromCart, buildReceiptFromSale, type ReceiptData } from "@/lib/receipt";
@@ -590,6 +592,16 @@ export default function POSPage() {
   );
 
   const loyaltyApplied = activeTab.loyaltyApplied;
+
+  /**
+   * De dónde sale el descuento (C12): ofertas, manual, premio y puntos. El
+   * premio y los puntos los conoce esta pantalla (lo aplicado); el resto sale
+   * de cada línea del carrito.
+   */
+  const discountParts = discountBreakdown(cart, {
+    rewardAmount: promoAplicado?.amount ?? null,
+    pointsAmount: loyaltyApplied?.amount ?? null,
+  });
   const loyaltyValid = !loyaltyApplied ||
     loyaltyRedemptionMatches(cart, customerId, loyaltyApplied);
 
@@ -683,7 +695,13 @@ export default function POSPage() {
     setCheckoutError(null);
     // Mismo criterio que el modal de cobro: solo hay vuelto en efectivo sin
     // pago dividido. Se calcula acá porque después del cobro el total es cero.
-    const summary = saleChangeSummary(totals.total, paymentMethod, splits.length, amountTendered);
+    // Campo vacío = pago exacto (C8): recibido = total, sin cambio.
+    const summary = saleChangeSummary(
+      totals.total,
+      paymentMethod,
+      splits.length,
+      effectiveTendered(amountTendered, totals.total),
+    );
     // La foto del carrito para el comprobante. El recibo se ARMA después de
     // `sold` (C13), con el id real de la venta, pero lo que se cobró hay que
     // capturarlo ahora: al volver, el store ya vació la pestaña.
@@ -691,6 +709,10 @@ export default function POSPage() {
     const soldTotals = totals;
     const soldPayment = { paymentMethod, transferMethod, cardMethod, splits };
     const soldSeller = staff.find((m) => m.id === staffId)?.full_name ?? null;
+    const soldDiscounts = discountParts.map((p) => ({
+      label: p.names?.length ? `${p.label}: ${p.names.join(", ")}` : p.label,
+      amount: p.amount,
+    }));
 
     // Lo recibido viaja con la venta: sin esto, reimprimirla no puede
     // mostrar recibido ni cambio.
@@ -739,6 +761,7 @@ export default function POSPage() {
         saleNumber: null,
         queued: outcome === "queued",
         priceOf: linePrice,
+        discountBreakdown: soldDiscounts,
       }),
     );
     setLastSaleQueued(outcome === "queued");
@@ -1097,6 +1120,7 @@ export default function POSPage() {
   return (
     <>
       <div className="-m-6 lg:-m-10 bg-background print:hidden flex flex-col lg:h-[calc(100vh-5rem)]">
+        <OfflineChip />
         <div className="flex flex-col lg:flex-row flex-1 lg:overflow-hidden pb-[calc(7rem+env(safe-area-inset-bottom))] lg:pb-0">
 
           <PosCatalog
@@ -1138,7 +1162,7 @@ export default function POSPage() {
             }
           />
 
-          <div className={`lg:hidden fixed bottom-[calc(2.75rem+env(safe-area-inset-bottom))] inset-x-0 z-40 px-3 pt-3 pb-2 bg-gradient-to-t from-background via-background to-transparent transition-opacity duration-200 ${
+          <div className={`lg:hidden fixed bottom-[calc(3rem+env(safe-area-inset-bottom))] inset-x-0 z-40 px-3 pt-3 pb-2 bg-gradient-to-t from-background via-background to-transparent transition-opacity duration-200 ${
             isCartOpen ? "opacity-0 pointer-events-none" : "opacity-100"
           }`}>
             <button
@@ -1161,7 +1185,7 @@ export default function POSPage() {
                 </span>
                 <span className="text-[13px] font-semibold truncate">
                   {cart.length === 0
-                    ? "Agreg\u00e1 \u00edtems para cobrar"
+                    ? "Agrega \u00edtems para cobrar"
                     : `${cart.length} \u00edtem${cart.length !== 1 ? "s" : ""} \u00b7 cobrar`}
                 </span>
               </span>
@@ -1295,6 +1319,7 @@ export default function POSPage() {
             }
             cart={cart}
             totals={totals}
+            discountParts={discountParts}
             paymentMethod={paymentMethod}
             setPaymentMethod={setPaymentMethod}
             customerId={customerId}

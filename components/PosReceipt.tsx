@@ -187,6 +187,15 @@ export function PosReceipt({ data }: Props) {
                   <span>-{fmtMoney(data.totals.discount)}</span>
                 </div>
               )}
+              {/* De dónde salió el descuento (C12): ofertas (con su nombre),
+                  manual, premio, puntos. Una reimpresión no lo trae. */}
+              {data.totals.discount > 0 &&
+                data.discountBreakdown?.map((d, i) => (
+                  <div key={i} className="flex justify-between gap-2 pl-2 text-xs">
+                    <span className="min-w-0 break-words">{d.label}</span>
+                    <span className="shrink-0">-{fmtMoney(d.amount)}</span>
+                  </div>
+                ))}
               <div className="flex justify-between text-base border-t border-black pt-1 mt-1">
                 <span className="font-bold">Total:</span>
                 <span className="font-bold">{fmtMoney(data.totals.total)}</span>

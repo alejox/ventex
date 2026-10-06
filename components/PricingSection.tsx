@@ -8,16 +8,21 @@ import { whatsappUrl } from "@/config/contact";
 import { useSubscriptionBillingStore } from "@/stores/subscription-billing.store";
 import { PaymentModal, GUEST_EMAIL_KEY } from "@/components/billing/PaymentModal";
 import { useSearchParam, useStoredValue, stripSearchParams } from "@/lib/useUrlState";
+import { sanitizeMonths, sanitizePlanId } from "@/lib/signup-intent";
 
 /**
  * Precios de la landing. Los planes y sus tiempos vienen de la base, así que lo
  * que el super admin publica en /admin/plans es lo que ve el visitante.
  *
  * Es Client Component porque el visitante ELIGE la duración antes de comprar:
- * esa elección cambia los precios de todas las tarjetas. Con la pasarela activa
- * el botón abre el checkout de la pasarela; sin sesión se paga como INVITADO (se
- * pide el correo y al volver se crea la cuenta, que reclama el pago). Sin
- * pasarela configurada, la venta se cierra por WhatsApp como antes.
+ * esa elección cambia los precios de todas las tarjetas.
+ *
+ * B14: sin sesión, el CTA principal de un plan pago es "Empezar con {plan}" →
+ * `/register?plan=…`: se crea la cuenta primero y, al terminar el onboarding,
+ * vuelve acá con `?plan=&meses=` y el checkout de ESE plan se abre solo. Pagar
+ * como invitado queda como opción secundaria: si después se registra con otro
+ * correo, el pago no se reclama solo. Con sesión, el botón abre el checkout
+ * directo. La compra se cierra SIEMPRE en el checkout, nunca por WhatsApp.
  *
  * El `?pay=` con el que se vuelve del checkout se lee ACÁ, en el cliente, y no como
  * `searchParams` de la página: leerlo en el server convertía la landing en
@@ -65,6 +70,29 @@ export function PricingSection({
   // equivocada da un 403 seguro y le muestra el texto del invitado a un dueño.
   const payOrderId = dismissedReturn || checkoutAuthed === null ? null : returningOrderId;
 
+  /**
+   * Vuelta del registro (`?plan=oro&meses=3`): con sesión, se abre el checkout
+   * de ese plan sin que tenga que buscarlo otra vez. Derivado, no sembrado en
+   * un efecto; deja de contar cuando se cierra el modal (`dismissedReturn`).
+   */
+  const intentPlanId = sanitizePlanId(useSearchParam("plan"));
+  const intentMonths = sanitizeMonths(useSearchParam("meses")) ?? 1;
+  const intentPlan =
+    !dismissedReturn && checkoutAuthed === true && intentPlanId
+      ? plans.find((p) => p.id === intentPlanId && Number(p.price) > 0) ?? null
+      : null;
+  const intentPeriod = intentPlan
+    ? periods.find((p) => p.plan_id === intentPlan.id && p.months === intentMonths) ??
+      periods.find((p) => p.plan_id === intentPlan.id && p.months === 1) ??
+      null
+    : null;
+
+  // Lo que se muestra en el modal: un pago iniciado acá, la vuelta del checkout
+  // o la vuelta del registro con un plan elegido, en ese orden.
+  const modalPeriod = payPeriod ?? (payOrderId ? null : intentPeriod);
+  const modalPlanName = payPeriod ? payPlanName : (intentPlan?.name ?? "");
+  const modalGuest = payPeriod ? payGuest : payOrderId ? returningAsGuest : false;
+
   if (plans.length === 0) return null;
 
   /** Si la duración elegida ya no existe, se cae al mes (siempre presente). */
@@ -75,7 +103,7 @@ export function PricingSection({
     setPayPlanName("");
     setPayGuest(false);
     setDismissedReturn(true);
-    stripSearchParams("pay");
+    stripSearchParams("pay", "plan", "meses");
   };
 
   /**
@@ -86,7 +114,7 @@ export function PricingSection({
   const handlePaid = () => {
     // `payGuest` sólo está seteado si el pago arrancó en esta pantalla; al
     // volver del checkout el modo lo dice la sesión (`returningAsGuest`).
-    const asGuest = payPeriod ? payGuest : returningAsGuest;
+    const asGuest = modalGuest;
     if (!asGuest) {
       window.location.href = "/dashboard/subscription";
       return;
@@ -112,8 +140,18 @@ export function PricingSection({
     setPayGuest(authed !== true);
     // Un pago nuevo tiene prioridad sobre un `?pay=` viejo que siguiera en la URL.
     setDismissedReturn(true);
-    stripSearchParams("pay");
+    stripSearchParams("pay", "plan", "meses");
   };
+
+  /** "Pagar sin cuenta": checkout de invitado, la opción secundaria (B14). */
+  const startGuestPayment = (planName: string, selectedPeriod: PlanPeriod) => {
+    setPayPlanName(planName);
+    setPayPeriod(selectedPeriod);
+    setPayGuest(true);
+    setDismissedReturn(true);
+    stripSearchParams("pay", "plan", "meses");
+  };
+
 
   return (
     <section id="precios" className="max-w-6xl mx-auto px-6 py-24">
@@ -139,14 +177,16 @@ export function PricingSection({
             periods={periods.filter((p) => p.plan_id === plan.id)}
             months={selected?.months ?? 1}
             featured={plan.id === featuredId}
+            authed={checkoutAuthed === true}
             onPay={(p) => void startPayment(plan.name, p)}
+            onPayAsGuest={(p) => startGuestPayment(plan.name, p)}
           />
         ))}
       </div>
 
       <p className="mt-8 text-center text-sm text-on-surface-variant">
-        Paga con Nequi, PSE, tarjeta o efectivo. ¿Todavía no tienes cuenta? Paga
-        primero y la creas enseguida con el mismo correo.{" "}
+        Paga con Nequi, PSE, tarjeta o efectivo, por el periodo que elijas y sin
+        renovación automática: te avisamos antes del vencimiento.{" "}
         <a
           href={whatsappUrl(
             "Hola, tengo una duda sobre los planes de Ventex antes de contratar.",
@@ -160,14 +200,14 @@ export function PricingSection({
         .
       </p>
 
-      {(payPeriod || payOrderId) && (
+      {(modalPeriod || payOrderId) && (
         <PaymentModal
-          key={payPeriod?.id ?? payOrderId ?? "pay"}
+          key={modalPeriod?.id ?? payOrderId ?? "pay"}
           open
-          period={payPeriod}
-          planName={payPlanName}
-          initialOrderId={payPeriod ? null : payOrderId}
-          guest={payPeriod ? payGuest : returningAsGuest}
+          period={modalPeriod}
+          planName={modalPlanName}
+          initialOrderId={modalPeriod ? null : payOrderId}
+          guest={modalGuest}
           onClose={closeModal}
           onPaid={handlePaid}
         />
@@ -234,13 +274,18 @@ function PlanCard({
   periods,
   months,
   featured,
+  authed,
   onPay,
+  onPayAsGuest,
 }: {
   plan: Plan;
   periods: PlanPeriod[];
   months: number;
   featured: boolean;
+  /** Con sesión el checkout se abre directo; sin ella, primero el registro. */
+  authed: boolean;
   onPay: (period: PlanPeriod) => void;
+  onPayAsGuest: (period: PlanPeriod) => void;
 }) {
   const monthlyPrice = Number(plan.price);
   const free = monthlyPrice <= 0;
@@ -301,12 +346,28 @@ function PlanCard({
       </div>
 
       <ul className="mt-6 space-y-3 text-sm text-on-surface-variant flex-1">
+        <Feature>{collaboratorsLabel(plan.max_collaborators)}</Feature>
         <Feature>
-          {collaboratorsLabel(plan.max_collaborators)}
+          {plan.max_monthly_sales === null ? (
+            <strong className="font-semibold text-on-surface">Ventas ilimitadas</strong>
+          ) : (
+            <>
+              Hasta{" "}
+              <strong className="font-semibold text-on-surface">
+                {formatSalesLimit(plan.max_monthly_sales)}
+              </strong>{" "}
+              en ventas por mes
+              {/* B15: decir qué pasa en el tope, no solo el número. */}
+              <span className="mt-1 block text-xs leading-relaxed text-on-surface-variant">
+                Al llegar al tope, el punto de venta deja de registrar ventas nuevas
+                hasta el mes siguiente o hasta que subas de plan. Tus datos no se
+                pierden.
+              </span>
+            </>
+          )}
         </Feature>
-        <Feature>Ventas al mes: {formatSalesLimit(plan.max_monthly_sales)}</Feature>
-        <Feature>POS, inventario, finanzas y clientes</Feature>
-        {plan.max_monthly_sales !== null && <Feature excluded>Ventas ilimitadas</Feature>}
+        <Feature>Punto de venta, inventario, finanzas y clientes</Feature>
+        <Feature>Citas, reservas online y comisiones, según tu negocio</Feature>
       </ul>
 
       {free ? (
@@ -316,24 +377,52 @@ function PlanCard({
         >
           Empieza gratis
         </Link>
-      ) : (
-        /* La compra se cierra SIEMPRE en el checkout, nunca por WhatsApp (que
-           quedó solo para soporte). Sin sesión también se puede pagar: el modal
-           pide el correo y la cuenta se crea después. */
+      ) : authed ? (
+        /* Con sesión: checkout directo. La compra se cierra SIEMPRE en el
+           checkout, nunca por WhatsApp (que quedó solo para soporte). */
         <button
+          type="button"
           onClick={() => period && onPay(period)}
           disabled={!period}
-          className={`mt-8 flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-bold transition-colors w-full disabled:opacity-50 ${
-            featured
-              ? "bg-primary text-on-primary shadow-lg shadow-primary/25 hover:bg-primary-dim"
-              : "bg-surface-container-high border border-outline-variant/20 text-on-surface hover:bg-surface-container-highest"
-          }`}
+          className={`mt-8 flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-bold transition-colors w-full disabled:opacity-50 ${ctaClass(featured)}`}
         >
           {period && span > 1 ? `Pagar ${formatMoney(total)}` : "Pagar ahora"}
         </button>
+      ) : (
+        /* B14: sin sesión, primero la cuenta y después el pago de ESTE plan
+           (`/register?plan=` → onboarding → checkout). Pagar como invitado
+           sigue disponible, pero como opción secundaria. */
+        <div className="mt-8">
+          <Link
+            href={`/register?${new URLSearchParams({
+              plan: plan.id,
+              meses: String(span),
+              nombre: plan.name,
+            }).toString()}`}
+            className={`flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-bold transition-colors w-full ${ctaClass(featured)}`}
+          >
+            Empezar con {plan.name}
+          </Link>
+          <button
+            type="button"
+            onClick={() => period && onPayAsGuest(period)}
+            disabled={!period}
+            className="mt-2 w-full py-1.5 text-center text-xs font-semibold text-on-surface-variant underline-offset-2 transition-colors hover:text-on-surface hover:underline disabled:opacity-50"
+          >
+            {period && span > 1
+              ? `O paga ${formatMoney(total)} sin cuenta y regístrate después`
+              : "O paga sin cuenta y regístrate después"}
+          </button>
+        </div>
       )}
     </div>
   );
+}
+
+function ctaClass(featured: boolean): string {
+  return featured
+    ? "bg-primary text-on-primary shadow-lg shadow-primary/25 hover:bg-primary-dim"
+    : "bg-surface-container-high border border-outline-variant/20 text-on-surface hover:bg-surface-container-highest";
 }
 
 /**
@@ -388,10 +477,10 @@ function buildPeriodOptions(plans: Plan[], periods: PlanPeriod[]): PeriodOption[
 /**
  * Fila de característica. Con `excluded` muestra lo que el plan NO tiene.
  *
- * Decir el techo en voz alta ahorra la decepción de descubrirlo cobrando, y es
- * lo único que separa de verdad a un plan del siguiente: todos traen POS,
- * inventario, finanzas y clientes. La X va en gris, no en rojo — es un límite
- * del plan, no un error del visitante.
+ * Decir el techo en voz alta ahorra la decepción de descubrirlo cobrando: todos
+ * los planes traen los mismos módulos, y lo que separa a uno del siguiente son
+ * los colaboradores y el tope de ventas. La X va en gris, no en rojo — es un
+ * límite del plan, no un error del visitante.
  */
 function Feature({ children, excluded = false }: { children: React.ReactNode; excluded?: boolean }) {
   return (

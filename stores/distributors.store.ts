@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { toMessage } from "@/lib/errors";
+import type { ImportResult } from "@/lib/import/core";
 import * as distributorsService from "@/services/distributors.service";
 import type { Distributor, NewDistributorInput } from "@/services/distributors.service";
 
@@ -20,10 +21,19 @@ interface DistributorsState {
   addDistributor: (input: NewDistributorInput) => Promise<Distributor | null>;
   updateDistributor: (id: string, input: NewDistributorInput) => Promise<boolean>;
   deleteDistributor: (id: string) => Promise<boolean>;
+  /** Borra y devuelve el mensaje de error (o `null`), para mostrarlo DENTRO del diálogo. */
+  deleteDistributorOrError: (id: string) => Promise<string | null>;
+  /** Archivar (`inactive`) o reactivar. Devuelve el error o `null`. */
+  setDistributorStatus: (id: string, status: "active" | "inactive") => Promise<string | null>;
+  fetchImpact: (id: string) => Promise<{ purchases: number; products: number }>;
+  importDistributors: (
+    items: distributorsService.DistributorImportItem[],
+    onProgress?: (done: number, total: number) => void,
+  ) => Promise<ImportResult>;
 }
 
 
-export const useDistributorsStore = create<DistributorsState>((set) => ({
+export const useDistributorsStore = create<DistributorsState>((set, get) => ({
   distributors: [],
   // Arranca en `true`: el primer render es anterior al fetch del efecto, y con
   // `false` mostraba el estado vacío sobre datos que sí existen.
@@ -81,5 +91,40 @@ export const useDistributorsStore = create<DistributorsState>((set) => ({
       set({ error: toMessage(e), submitting: false });
       return false;
     }
+  },
+
+  deleteDistributorOrError: async (id) => {
+    set({ submitting: true });
+    try {
+      await distributorsService.deleteDistributor(id);
+      set((s) => ({ distributors: s.distributors.filter((d) => d.id !== id), submitting: false }));
+      return null;
+    } catch (e) {
+      set({ submitting: false });
+      return toMessage(e);
+    }
+  },
+
+  setDistributorStatus: async (id, status) => {
+    set({ submitting: true });
+    try {
+      const distributor = await distributorsService.setDistributorStatus(id, status);
+      set((s) => ({
+        distributors: s.distributors.map((d) => (d.id === id ? distributor : d)),
+        submitting: false,
+      }));
+      return null;
+    } catch (e) {
+      set({ submitting: false });
+      return toMessage(e);
+    }
+  },
+
+  fetchImpact: (id) => distributorsService.fetchDistributorImpact(id),
+
+  importDistributors: async (items, onProgress) => {
+    const result = await distributorsService.importDistributors(items, onProgress);
+    await get().fetchDistributors();
+    return result;
   },
 }));

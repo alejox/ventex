@@ -1,4 +1,5 @@
 import { createClient } from "@/utils/supabase/client";
+import { MONEY_NUM_FMT, type ExportColumn } from "@/lib/export";
 
 // ---- Tipos del dominio de ventas (lectura / historial) ----
 export interface SaleListItem {
@@ -679,4 +680,76 @@ export async function fetchSaleForReceipt(
     fetchSaleReceiptAmounts(saleId),
   ]);
   return { sale, extras: { ...extras, ...amounts } };
+}
+
+// ---- Exportación (F11) ----
+
+/** Tamaño de página al exportar: el tope de filas por respuesta de PostgREST. */
+const EXPORT_PAGE_SIZE = 1000;
+
+/**
+ * TODAS las ventas que cumplen los filtros activos, no solo la página visible:
+ * se recorre `sales_page` de a 1.000 hasta cubrir el `total` que informa. Usa
+ * el mismo RPC que la tabla, así que exporta exactamente lo que se ve filtrado.
+ */
+export async function fetchSalesForExport(
+  range: DateRange,
+  customerQuery = "",
+  paymentMethod = "",
+  transferMethod = "",
+  item: ItemFilter = NO_ITEM_FILTER,
+): Promise<SaleListItem[]> {
+  const rows: SaleListItem[] = [];
+  for (let page = 0; ; page++) {
+    const result = await fetchSales(range, page, EXPORT_PAGE_SIZE, customerQuery, paymentMethod, transferMethod, item);
+    rows.push(...result.items);
+    if (result.items.length < EXPORT_PAGE_SIZE || rows.length >= result.total) return rows;
+  }
+}
+
+const SALE_STATUS_LABELS: Record<string, string> = {
+  completed: "Completada",
+  refunded: "Reembolsada",
+  void: "Anulada",
+};
+
+/**
+ * Columnas de la exportación del historial. `paymentLabel` llega de la página
+ * (es la misma etiqueta de la tabla, "Transferencia (Nequi)"); con un ítem
+ * filtrado se suman las dos columnas de "cuánto fue de ese ítem", igual que en
+ * pantalla, para que nadie sume el total de la venta como si fuera del ítem.
+ */
+export function salesExportColumns(
+  paymentLabel: (sale: SaleListItem) => string,
+  itemName?: string,
+): ExportColumn<SaleListItem>[] {
+  const cols: ExportColumn<SaleListItem>[] = [
+    { header: "N.º", value: (s) => s.sale_number, width: 8 },
+    // Fecha y hora LOCALES, como se ven en pantalla: el ISO en UTC corre la
+    // venta de la noche al día siguiente.
+    { header: "Fecha", value: (s) => localDateTime(s.created_at), width: 18 },
+    { header: "Cliente", value: (s) => s.customer_name ?? "De paso", width: 28 },
+    { header: "Estado", value: (s) => SALE_STATUS_LABELS[s.status] ?? s.status, width: 13 },
+    { header: "Medio de pago", value: paymentLabel, width: 24 },
+    { header: "Artículos", value: (s) => s.item_count, width: 10 },
+    { header: "Subtotal", value: (s) => s.subtotal, width: 14, numFmt: MONEY_NUM_FMT },
+    { header: "Descuento", value: (s) => s.discount_amount, width: 13, numFmt: MONEY_NUM_FMT },
+    { header: "Impuesto", value: (s) => s.tax_amount, width: 13, numFmt: MONEY_NUM_FMT },
+    { header: "Total", value: (s) => s.total, width: 14, numFmt: MONEY_NUM_FMT },
+  ];
+  if (itemName) {
+    cols.push(
+      { header: `Unidades de ${itemName}`, value: (s) => s.item_units, width: 14 },
+      { header: `Vendido de ${itemName}`, value: (s) => s.item_total, width: 16, numFmt: MONEY_NUM_FMT },
+    );
+  }
+  return cols;
+}
+
+/** "2026-10-06 19:45" en hora local: ordena bien como texto y Excel lo entiende. */
+export function localDateTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }

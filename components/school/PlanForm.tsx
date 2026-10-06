@@ -78,6 +78,10 @@ export function PlanForm({ plan, onClose, onSaved }: PlanFormProps) {
   };
 
   const selectedService = services.find((s) => s.id === serviceId);
+  // Lo que se cobra es el plan entero (es lo que se congela en la matrícula);
+  // el valor por clase es solo para que quien lo carga sepa a cuánto le sale.
+  const perLessonHint = (total: number) =>
+    lessonCount > 1 && Number.isFinite(total) && total > 0 ? ` · equivale a ${money(total / lessonCount)} por clase` : "";
   // El servicio vinculado en edición puede estar archivado: `fetchSellableServices`
   // solo trae activos, así que no aparecería acá. Se avisa en vez de inventar un precio.
   const linkedService = plan ? services.find((s) => s.id === plan.service_id) : undefined;
@@ -178,6 +182,11 @@ export function PlanForm({ plan, onClose, onSaved }: PlanFormProps) {
                 {plan.service_name}
                 {linkedService ? ` — ${money(linkedService.price)}` : " — servicio archivado"}
               </div>
+              {linkedService ? (
+                <p className="text-xs text-on-surface-variant">
+                  Precio del plan completo ({lessonCount} {lessonCount === 1 ? "clase" : "clases"}){perLessonHint(linkedService.price)}.
+                </p>
+              ) : null}
               <a
                 href={`/dashboard/inventory/product?serviceId=${plan.service_id}&type=servicio`}
                 className="text-xs font-semibold text-primary hover:underline"
@@ -193,7 +202,7 @@ export function PlanForm({ plan, onClose, onSaved }: PlanFormProps) {
                 onChange={(e) => setServiceId(e.target.value)}
                 searchable
                 searchPlaceholder="Buscar servicio…"
-                hint={selectedService ? `Precio de la clase: ${money(selectedService.price)}` : undefined}
+                hint={selectedService ? `Precio del plan completo (${lessonCount} ${lessonCount === 1 ? "clase" : "clases"}): ${money(selectedService.price)}${perLessonHint(selectedService.price)}` : undefined}
               >
                 <option value="">Seleccionar…</option>
                 {services.map((s) => (
@@ -217,9 +226,12 @@ export function PlanForm({ plan, onClose, onSaved }: PlanFormProps) {
           ) : (
             <div className="space-y-1.5">
               <label className="flex items-center gap-1 text-sm font-semibold text-on-surface">
-                Precio <span className="text-primary">*</span>
+                Precio del plan completo ({lessonCount} {lessonCount === 1 ? "clase" : "clases"}) <span className="text-primary">*</span>
               </label>
               <MoneyInput value={price} onChange={setPrice} required />
+              {price !== "" && parseFloat(price) > 0 && lessonCount > 1 ? (
+                <p className="text-xs font-semibold text-on-surface">Equivale a {money(parseFloat(price) / lessonCount)} por clase.</p>
+              ) : null}
               <p className="text-xs text-on-surface-variant">
                 Se crea un servicio nuevo con este nombre y precio.{" "}
                 <button

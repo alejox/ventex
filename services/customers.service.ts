@@ -1,4 +1,7 @@
 import { createClient } from "@/utils/supabase/client";
+import type { TablesUpdate } from "@/utils/supabase/database.types";
+import { runInBatches, errorMessage as importErrorMessage, type ImportResult } from "@/lib/import/core";
+import type { CustomerImportRecord } from "@/lib/import/customers";
 
 // ---- Tipos del dominio de clientes ----
 export interface Customer {
@@ -202,3 +205,98 @@ export async function fetchCustomerPayments(customerId: string): Promise<Custome
   return (data ?? []) as CustomerPayment[];
 }
 
+
+/* -------------------------------------------------------------------------- */
+/* Importación masiva                                                         */
+/* -------------------------------------------------------------------------- */
+
+export interface CustomerImportItem {
+  line: number;
+  record: CustomerImportRecord;
+  existingId?: string;
+}
+
+/**
+ * Crea por lotes y actualiza de a uno. Una actualización manda SOLO lo que el
+ * archivo trajo: la celda vacía no borra el teléfono que ya estaba.
+ * Sin `user_id`: lo resuelve el DEFAULT con `get_effective_user_id()`.
+ */
+export async function importCustomers(
+  items: CustomerImportItem[],
+  onProgress?: (done: number, total: number) => void,
+): Promise<ImportResult> {
+  const supabase = createClient();
+  const total = items.length;
+  let done = 0;
+  const insertRowOf = ({ record: r }: CustomerImportItem) => ({
+    full_name: r.full_name,
+    doc_type: r.doc_type,
+    identification: r.identification,
+    phone: r.phone,
+    email: r.email,
+    credit_limit: r.credit_limit,
+    tax_exempt: r.tax_exempt ?? false,
+  });
+  const creates = items.filter((i) => !i.existingId);
+  const inserted = await runInBatches(
+    creates,
+    200,
+    async (batch) => {
+      const { error } = await supabase.from("customers").insert(batch.map(insertRowOf));
+      if (error) throw error;
+    },
+    async (item) => {
+      const { error } = await supabase.from("customers").insert(insertRowOf(item));
+      if (error) throw error;
+    },
+    (n) => onProgress?.((done = n), total),
+  );
+  const failed = [...inserted.failed];
+  let updated = 0;
+  for (const item of items.filter((i) => i.existingId)) {
+    const r = item.record;
+    const patch: TablesUpdate<"customers"> = { full_name: r.full_name };
+    if (r.doc_type) patch.doc_type = r.doc_type;
+    if (r.identification) patch.identification = r.identification;
+    if (r.phone) patch.phone = r.phone;
+    if (r.email) patch.email = r.email;
+    if (r.credit_limit !== null) patch.credit_limit = r.credit_limit;
+    if (r.tax_exempt !== null) patch.tax_exempt = r.tax_exempt;
+    const { error } = await supabase.from("customers").update(patch).eq("id", item.existingId!);
+    if (error) failed.push({ line: item.line, message: importErrorMessage(error) });
+    else updated++;
+    onProgress?.(++done, total);
+  }
+  return { created: inserted.ok, updated, skipped: 0, failed: failed.sort((a, b) => a.line - b.line) };
+}
+
+/**
+ * Qué arrastra borrar un cliente (verificado contra las FK en vivo): sus ventas,
+ * citas y vehículos quedan SIN cliente (`ON DELETE SET NULL`) y sus abonos se
+ * BORRAN (`CASCADE`). Se muestra antes de confirmar.
+ */
+export interface CustomerImpact {
+  sales: number;
+  payments: number;
+  appointments: number;
+  vehicles: number;
+}
+
+export async function fetchCustomerImpact(id: string): Promise<CustomerImpact> {
+  const supabase = createClient();
+  const count = async (table: "sales" | "customer_payments" | "appointments" | "vehicles") => {
+    const { count: n, error } = await supabase
+      .from(table)
+      .select("id", { count: "exact", head: true })
+      .eq("customer_id", id);
+    if (error) throw error;
+    return n ?? 0;
+  };
+  const [sales, payments, appointments, vehicles] = await Promise.all([
+    count("sales"),
+    count("customer_payments"),
+    count("appointments"),
+    count("vehicles"),
+  ]);
+  return { sales, payments, appointments, vehicles };
+}

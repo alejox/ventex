@@ -18,6 +18,7 @@ import { formatCOP, whatsappHref } from "./templates/theme";
 import { formatDuration } from "@/lib/duration";
 import { formatAppointmentTime } from "@/lib/time";
 import { BOOK_SERVICE_EVENT } from "./BookServiceLink";
+import { normalizeColombianMobile } from "@/lib/co-mobile";
 
 /**
  * Booking flow for a public visitor: service -> professional -> day -> time ->
@@ -153,6 +154,8 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
   const [pickedTime, setPickedTime] = useState<string>("");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  /** El error del celular se muestra recién al salir del campo, no al tipear. */
+  const [phoneTouched, setPhoneTouched] = useState(false);
   const [notes, setNotes] = useState("");
   const [confirmed, setConfirmed] = useState<{
     date: string;
@@ -242,9 +245,18 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
   // derived, so nothing has to clean it up.
   const time = freeTimes.includes(pickedTime) ? pickedTime : "";
 
+  // B24: celular colombiano de 10 dígitos (con o sin +57). Con un número mal
+  // escrito el negocio no tiene cómo confirmarle la cita por WhatsApp.
+  const mobile = normalizeColombianMobile(phone);
+  const phoneError = phoneTouched && phone.trim() !== "" && !mobile;
+
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     if (!service || !time) return;
+    if (!mobile) {
+      setPhoneTouched(true);
+      return;
+    }
 
     const result = await book({
       slug: site.slug,
@@ -252,7 +264,7 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
       date,
       time,
       customerName: name,
-      customerPhone: phone,
+      customerPhone: mobile,
       staffId,
       notes: notes || null,
     });
@@ -537,35 +549,64 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
 
         <div className="min-w-0 space-y-7">
       <Step n={3} title="¿Cómo te contactamos?">
-        <div className="grid gap-2 sm:grid-cols-2">
+        {/* B24: labels visibles. El placeholder desaparece al escribir y
+            dejaba el campo sin nombre a la vista. */}
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1">
+            <label htmlFor="booking-name" className="block text-xs font-semibold text-[var(--site-on-surface)]">
+              Tu nombre
+            </label>
+            <input
+              id="booking-name"
+              className={fieldClass}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+              minLength={3}
+              autoComplete="name"
+              placeholder="Ej: Laura Gómez"
+            />
+          </div>
+          <div className="space-y-1">
+            <label htmlFor="booking-phone" className="block text-xs font-semibold text-[var(--site-on-surface)]">
+              Tu celular
+            </label>
+            <input
+              id="booking-phone"
+              type="tel"
+              className={`${fieldClass} ${phoneError ? "border-2 border-[var(--site-on-surface)]" : ""}`}
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              onBlur={() => setPhoneTouched(true)}
+              required
+              inputMode="tel"
+              autoComplete="tel"
+              placeholder="300 123 4567"
+              aria-invalid={phoneError || undefined}
+              aria-describedby="booking-phone-hint"
+            />
+            <p
+              id="booking-phone-hint"
+              className={`text-xs ${phoneError ? "font-semibold text-[var(--site-on-surface)]" : "text-[var(--site-on-surface-muted)]"}`}
+            >
+              {phoneError
+                ? "⚠ Escribe un celular de 10 dígitos que empiece por 3."
+                : "10 dígitos. Por aquí te confirman la cita."}
+            </p>
+          </div>
+        </div>
+        <div className="mt-3 space-y-1">
+          <label htmlFor="booking-notes" className="block text-xs font-semibold text-[var(--site-on-surface)]">
+            Comentario <span className="font-normal text-[var(--site-on-surface-muted)]">(opcional)</span>
+          </label>
           <input
-            aria-label="Tu nombre"
+            id="booking-notes"
             className={fieldClass}
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-            minLength={3}
-            autoComplete="name"
-            placeholder="Tu nombre"
-          />
-          <input
-            aria-label="Tu celular"
-            className={fieldClass}
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            required
-            inputMode="tel"
-            autoComplete="tel"
-            placeholder="Tu celular"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="¿Algo que debamos saber?"
           />
         </div>
-        <input
-          aria-label="Comentario opcional"
-          className={`${fieldClass} mt-2`}
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          placeholder="¿Algo que debamos saber? (opcional)"
-        />
       </Step>
 
       {/* ---- Resumen + CTA ---- */}
@@ -585,7 +626,7 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
 
         <button
           type="submit"
-          disabled={submitting || !time || !name || !phone}
+          disabled={submitting || !time || !name || !mobile}
           className="min-h-12 w-full rounded-[var(--site-radius)] bg-[var(--site-accent)] px-4 py-3.5 text-sm font-semibold text-[var(--site-on-accent)] transition-opacity focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--site-accent)] disabled:opacity-60"
         >
           {submitting ? "Enviando…" : time ? `Reservar a las ${formatAppointmentTime(time, site.timeFormat)}` : "Reservar turno"}
@@ -597,6 +638,8 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
             ? "Elige un horario para continuar."
             : !name || !phone
               ? "Completa tu nombre y celular."
+              : !mobile
+                ? "Revisa tu celular: deben ser 10 dígitos."
               : "Tu reserva queda pendiente hasta que el negocio la confirme."}
         </p>
       </div>

@@ -10,12 +10,16 @@ interface ExpensesState {
   saving: boolean;
   error: string | null;
   period: ExpensePeriod;
+  /** Días "YYYY-MM-DD" del período personalizado (el `to` es el último incluido). */
+  customFrom: string;
+  customTo: string;
   search: string;
   categoryId: string;
   origin: ExpenseOrigin;
   fetch: () => Promise<void>;
   fetchCategories: () => Promise<void>;
   setPeriod: (period: ExpensePeriod) => Promise<void>;
+  setCustomRange: (from: string, to: string) => Promise<void>;
   setSearch: (search: string) => Promise<void>;
   setCategoryId: (id: string) => Promise<void>;
   setOrigin: (origin: ExpenseOrigin) => Promise<void>;
@@ -29,17 +33,28 @@ interface ExpensesState {
 
 export const useExpensesStore = create<ExpensesState>((set, get) => ({
   expenses: [], categories: [], loading: true, saving: false, error: null,
-  period: "month", search: "", categoryId: "", origin: "",
+  period: "month", customFrom: "", customTo: "", search: "", categoryId: "", origin: "",
   fetch: async () => {
     set({ loading: true, error: null });
-    try { set({ expenses: await service.listExpenses(get().period, get().search, get().categoryId, get().origin), loading: false }); }
+    const { period, search, categoryId, origin, customFrom, customTo } = get();
+    try { set({ expenses: await service.listExpenses(period, search, categoryId, origin, customFrom, customTo), loading: false }); }
     catch (e) { set({ error: toMessage(e), loading: false }); }
   },
   fetchCategories: async () => {
     try { set({ categories: await service.listExpenseCategories() }); }
     catch (e) { set({ error: toMessage(e) }); }
   },
-  setPeriod: async (period) => { set({ period }); await get().fetch(); },
+  setPeriod: async (period) => {
+    set({ period });
+    // "Personalizado" espera a que haya al menos una fecha cargada.
+    if (period === "custom" && !get().customFrom && !get().customTo) return;
+    await get().fetch();
+  },
+  setCustomRange: async (customFrom, customTo) => {
+    set({ customFrom, customTo, period: "custom" });
+    if (!customFrom && !customTo) return;
+    await get().fetch();
+  },
   setSearch: async (search) => { set({ search }); await get().fetch(); },
   setCategoryId: async (categoryId) => { set({ categoryId }); await get().fetch(); },
   setOrigin: async (origin) => { set({ origin }); await get().fetch(); },

@@ -11,8 +11,18 @@ import { authMessage } from "@/lib/errors";
  * reset y la confirmación de correo). Un usuario nuevo de Google llega sin
  * `business_type`, así que el layout del dashboard le muestra el modal de
  * onboarding para completar el tipo, los módulos y el nombre del negocio.
+ *
+ * `next` es a dónde volver. Desde el registro lleva el rubro, los módulos y el
+ * plan ya elegidos (`onboardingPath`), para que el modal los precargue en vez
+ * de preguntarlos otra vez (B5).
  */
-export function GoogleButton({ label = "Continuar con Google" }: { label?: string }) {
+export function GoogleButton({
+  label = "Continuar con Google",
+  next = "/dashboard",
+}: {
+  label?: string;
+  next?: string;
+}) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -25,7 +35,7 @@ export function GoogleButton({ label = "Continuar con Google" }: { label?: strin
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/auth/confirm?next=/dashboard`,
+        redirectTo: `${window.location.origin}/auth/confirm?next=${encodeURIComponent(next)}`,
       },
     });
 

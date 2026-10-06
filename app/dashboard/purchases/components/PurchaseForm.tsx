@@ -19,12 +19,22 @@ import type { Product } from "@/services/inventory.service";
 import { getUnitCost, isServiceItem, tracksStock } from "@/services/inventory.service";
 import { needsRestock } from "@/lib/stock";
 import type { PurchaseInvoice } from "@/services/purchases.service";
-import {
-  fetchLastPurchaseFromDistributor,
-  totalUnitsOf,
-  lineTotalOf,
-} from "@/services/purchases.service";
+import { totalUnitsOf, lineTotalOf } from "@/services/purchases.service";
 import { useFormatMoney } from "@/lib/useMoney";
+import { toMessage } from "@/lib/errors";
+import { useSearchParam } from "@/lib/useUrlState";
+import { isSafeNext } from "@/lib/safe-next";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
+import { Modal } from "@/components/ui/Modal";
+import { Button } from "@/components/ui/Button";
+import {
+  validatePurchaseForm,
+  hasErrors,
+  lineFieldId,
+  FIELD_IDS,
+  applyLastPurchase,
+  hasFilledLines,
+} from "../purchase-form-validation";
 
 /** Fecha de hoy en horario local. `toISOString()` da UTC y adelanta un día por la tarde. */
 const todayISO = () => {
@@ -121,6 +131,15 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
   const error = usePurchasesStore((s) => s.error);
   const createInvoice = usePurchasesStore((s) => s.createInvoice);
   const updateInvoice = usePurchasesStore((s) => s.updateInvoice);
+  const fetchLastPurchase = usePurchasesStore((s) => s.fetchLastPurchase);
+  const { confirm, dialog: confirmDialog } = useConfirm();
+  // Vuelve al listado TAL COMO ESTABA (filtros, búsqueda, página). Solo rutas
+  // del propio listado: el parámetro viene de la URL y no se sigue a ciegas.
+  const backParam = useSearchParam("back");
+  const backTo =
+    backParam && isSafeNext(backParam) && backParam.startsWith("/dashboard/purchases")
+      ? backParam
+      : "/dashboard/purchases";
 
   const profile = useProfile();
   const canSeeCosts = can(profile, "inventory_costs");
@@ -165,8 +184,54 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
   const [categoryModalOpen, setCategoryModalOpen] = useState(false);
   const [productModalLineIdx, setProductModalLineIdx] = useState<number | null>(null);
   const productModalLineIdxRef = useRef<number | null>(null);
+  /** Después del primer intento de guardar, los errores se recalculan en vivo. */
+  const [showErrors, setShowErrors] = useState(false);
+  /** Última compra traída, esperando que elijan Reemplazar o Agregar. */
+  const [pendingLastLines, setPendingLastLines] = useState<PurchaseLineForm[] | null>(null);
+  const [lastPurchaseMessage, setLastPurchaseMessage] = useState<{ tone: "error" | "info"; text: string } | null>(null);
+  /** Se levanta al guardar con éxito, para que el aviso de salida no salte. */
+  const savedRef = useRef(false);
 
   const selectedDistributor = distributors.find((d) => d.id === distributorId) ?? null;
+
+  /**
+   * D18: ¿hay cambios sin guardar? Se compara contra una foto del estado con
+   * el que abrió el formulario (tomada una sola vez, en el primer render).
+   */
+  const snapshot = JSON.stringify({
+    distributorId, issueDate, dueDate, supplierInvoiceNumber, status, taxOption, discountAmount, notes, lines,
+  });
+  const [initialSnapshot] = useState(snapshot);
+  const dirty = snapshot !== initialSnapshot;
+
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (e: BeforeUnloadEvent) => {
+      if (savedRef.current) return;
+      e.preventDefault();
+      // Algunos navegadores lo exigen para mostrar el aviso nativo.
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
+
+  /** Volver al listado, preguntando antes si hay algo sin guardar. */
+  const leave = async () => {
+    if (
+      dirty &&
+      !(await confirm({
+        title: "¿Salir sin guardar?",
+        description: "Los cambios de esta compra se van a perder.",
+        confirmLabel: "Salir sin guardar",
+        cancelLabel: "Seguir editando",
+        tone: "danger",
+      }))
+    ) {
+      return;
+    }
+    router.push(backTo);
+  };
 
   // Identificación y teléfono son un espejo del proveedor elegido, no campos de
   // la compra: se muestran para confirmar que se eligió al proveedor correcto.
@@ -286,33 +351,44 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
   const discount = parseFloat(discountAmount || "0") || 0;
   const total = subtotal + taxAmount - discount;
 
+  /**
+   * D14: "Última compra" ya no pisa en silencio lo que estaba cargado. Si hay
+   * líneas con producto, pregunta Reemplazar o Agregar; y si la lectura falla
+   * lo dice (antes un `catch {}` vacío dejaba el botón sin hacer nada).
+   */
   const handleLoadLastPurchase = async () => {
     if (!distributorId) return;
     setLoadingLastPurchase(true);
+    setLastPurchaseMessage(null);
     try {
-      const last = await fetchLastPurchaseFromDistributor(distributorId);
-      if (last && last.items.length > 0) {
-        setLines(
-          last.items.map((i) => ({
-            product_id: i.product_id,
-            product_name: i.product_name,
-            description: `Compra: ${i.product_name}`,
-            package_quantity: i.package_quantity,
-            loose_quantity: i.loose_quantity,
-            unit_price: i.unit_price,
-            package_price: i.package_price,
-            units_per_package: i.units_per_package,
-          }))
-        );
+      const last = await fetchLastPurchase(distributorId);
+      if (!last || last.items.length === 0) {
+        setLastPurchaseMessage({ tone: "info", text: "Todavía no hay compras anteriores a este proveedor." });
+        return;
       }
-    } catch {
-      /* el store ya reporta los errores de red; acá no hay nada que agregar */
+      const incoming: PurchaseLineForm[] = last.items.map((i) => ({
+        product_id: i.product_id,
+        product_name: i.product_name,
+        description: `Compra: ${i.product_name}`,
+        package_quantity: i.package_quantity,
+        loose_quantity: i.loose_quantity,
+        unit_price: i.unit_price,
+        package_price: i.package_price,
+        units_per_package: i.units_per_package,
+      }));
+      if (hasFilledLines(lines)) setPendingLastLines(incoming);
+      else setLines(applyLastPurchase(lines, incoming, "replace"));
+    } catch (e) {
+      setLastPurchaseMessage({ tone: "error", text: `No se pudo cargar la última compra: ${toMessage(e)}` });
+    } finally {
+      setLoadingLastPurchase(false);
     }
-    setLoadingLastPurchase(false);
   };
 
-  // Una línea sin cajas NI sueltas no compró nada: no puede mover stock.
-  const validLines = lines.filter((l) => l.product_id && totalUnitsOf(l) > 0);
+  const resolveLastPurchase = (mode: "replace" | "append") => {
+    if (pendingLastLines) setLines((prev) => applyLastPurchase(prev, pendingLastLines, mode));
+    setPendingLastLines(null);
+  };
 
   /**
    * El N° de factura del proveedor es OBLIGATORIO.
@@ -323,21 +399,45 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
    * El `invoice_number` interno no sirve para eso — lo genera Ventex.
    */
   const supplierNumber = supplierInvoiceNumber.trim();
-  const canSubmit =
-    Boolean(distributorId) && Boolean(supplierNumber) && validLines.length > 0 && !submitting;
+
+  // D5: Guardar está SIEMPRE activo (salvo mientras guarda). Validar es decir
+  // qué falta y dónde, no apagar el botón sin explicación. Y ninguna línea se
+  // descarta en silencio: una incompleta es un error que se muestra.
+  const validation = validatePurchaseForm({
+    supplierNumber,
+    distributorId,
+    issueDate,
+    dueDate,
+    discount: discountAmount,
+    grossTotal: subtotal + taxAmount,
+    lines,
+  });
+  const errors = showErrors ? validation : null;
+  const lineErrors = (idx: number) => errors?.lines[idx];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canSubmit) return;
+    if (submitting) return;
+    if (hasErrors(validation)) {
+      setShowErrors(true);
+      const id = validation.firstFieldId;
+      // Después del render que pinta los errores.
+      requestAnimationFrame(() => {
+        const el = id ? document.getElementById(id) : null;
+        el?.focus();
+        el?.scrollIntoView({ block: "center", behavior: "smooth" });
+      });
+      return;
+    }
 
     const payload = {
       distributor_id: distributorId,
       issue_date: issueDate,
       supplier_invoice_number: supplierNumber,
       status,
-      // `description` es NOT NULL: si el usuario no escribió observación, cae al
+      // `description` es NOT NULL: si no escribieron observación, cae al
       // nombre del producto en vez de romper el insert.
-      items: validLines.map((l) => ({
+      items: lines.map((l) => ({
         ...l,
         description: l.description || l.product_name,
       })),
@@ -351,8 +451,13 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
       ? await updateInvoice(editingInvoice.id, payload)
       : await createInvoice(payload);
 
-    if (ok) router.push("/dashboard/purchases");
+    if (ok) {
+      savedRef.current = true;
+      router.push(backTo);
+    }
   };
+
+  const errClass = (bad: unknown) => (bad ? " border-error focus:border-error focus:ring-error" : "");
 
   return (
     <>
@@ -361,7 +466,12 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
       <form onSubmit={handleSubmit} className="flex flex-col gap-5 w-full pb-24 animate-in fade-in duration-500">
         <div>
           <Link
-            href="/dashboard/purchases"
+            href={backTo}
+            onClick={(e) => {
+              if (!dirty) return;
+              e.preventDefault();
+              leave();
+            }}
             className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:text-primary-dim transition-colors"
           >
             <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-4 h-4">
@@ -375,8 +485,21 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
         </div>
 
         {error && (
-          <div className="rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim">
+          <div role="alert" className="rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim">
             {error}
+          </div>
+        )}
+
+        {errors && hasErrors(errors) && (
+          <div role="alert" className="rounded-xl bg-error/10 border border-error/30 px-4 py-3 text-sm text-error">
+            <p className="font-semibold">
+              Revisa {errors.messages.length === 1 ? "este dato" : `estos ${errors.messages.length} datos`} antes de guardar:
+            </p>
+            <ul className="mt-1 list-disc pl-5 space-y-0.5">
+              {errors.messages.map((m) => (
+                <li key={m}>{m}</li>
+              ))}
+            </ul>
           </div>
         )}
 
@@ -393,15 +516,19 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
               <input
                 id="supplier-number"
                 type="text"
-                required
                 aria-required="true"
+                aria-invalid={errors?.supplierNumber ? true : undefined}
+                aria-describedby={errors?.supplierNumber ? "supplier-number-error" : undefined}
                 value={supplierInvoiceNumber}
                 // Se pasa a mayúsculas mientras se escribe. `toUpperCase()` no
                 // cambia el largo del texto, así que el cursor no salta.
                 onChange={(e) => setSupplierInvoiceNumber(e.target.value.toUpperCase())}
-                className={`${inputClass} sm:w-48`}
+                className={`${inputClass} sm:w-48${errClass(errors?.supplierNumber)}`}
                 placeholder="N° del proveedor"
               />
+              {errors?.supplierNumber && (
+                <p id="supplier-number-error" className="text-xs text-error">{errors.supplierNumber}</p>
+              )}
             </div>
             <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3 min-w-0">
               <label htmlFor="issue-date" className="text-sm font-medium text-on-surface-variant sm:shrink-0">
@@ -410,11 +537,13 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
               <input
                 id="issue-date"
                 type="date"
-                required
+                aria-required="true"
+                aria-invalid={errors?.issueDate ? true : undefined}
                 value={issueDate}
                 onChange={(e) => setIssueDate(e.target.value)}
-                className={`${inputClass} sm:w-44`}
+                className={`${inputClass} sm:w-44${errClass(errors?.issueDate)}`}
               />
+              {errors?.issueDate && <p className="text-xs text-error">{errors.issueDate}</p>}
             </div>
           </div>
 
@@ -425,9 +554,16 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               <div className="lg:col-span-1">
                 <Select
+                  id={FIELD_IDS.distributor}
                   label="Proveedor *"
                   value={distributorId}
-                  onChange={(e) => setDistributorId(e.target.value)}
+                  onChange={(e) => {
+                    setDistributorId(e.target.value);
+                    setLastPurchaseMessage(null);
+                  }}
+                  error={errors?.distributor}
+                  searchable
+                  searchPlaceholder="Buscar proveedor"
                 >
                   <option value="">Seleccionar</option>
                   {distributors
@@ -452,7 +588,7 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
                     onClick={handleLoadLastPurchase}
                     disabled={!distributorId || loadingLastPurchase}
                     className="inline-flex items-center gap-1.5 text-xs font-semibold text-on-surface-variant hover:text-on-surface transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                    title="Cargar los productos de la última compra a este proveedor"
+                    title={distributorId ? "Cargar los productos de la última compra a este proveedor" : "Elige primero un proveedor"}
                   >
                     <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-3.5 h-3.5">
                       <polyline points="23 4 23 10 17 10" />
@@ -461,6 +597,14 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
                     {loadingLastPurchase ? "Cargando…" : "Última compra"}
                   </button>
                 </div>
+                {lastPurchaseMessage && (
+                  <p
+                    role={lastPurchaseMessage.tone === "error" ? "alert" : "status"}
+                    className={`mt-1.5 text-xs ${lastPurchaseMessage.tone === "error" ? "text-error" : "text-on-surface-variant"}`}
+                  >
+                    {lastPurchaseMessage.text}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -502,9 +646,12 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
                   id="due-date"
                   type="date"
                   value={dueDate}
+                  min={issueDate || undefined}
+                  aria-invalid={errors?.dueDate ? true : undefined}
                   onChange={(e) => setDueDate(e.target.value)}
-                  className={inputClass}
+                  className={`${inputClass}${errClass(errors?.dueDate)}`}
                 />
+                {errors?.dueDate && <p className="mt-1 text-xs text-error">{errors.dueDate}</p>}
               </div>
 
               <Select label="Impuesto" value={taxOption} onChange={(e) => setTaxOption(e.target.value)}>
@@ -580,9 +727,11 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
                           ref={(el) => {
                             productInputRefs.current[idx] = el;
                           }}
+                          id={lineFieldId(idx, "product")}
                           type="text"
                           placeholder="Buscar o seleccionar…"
                           aria-label={`Producto de la línea ${idx + 1}`}
+                          aria-invalid={lineErrors(idx)?.product ? true : undefined}
                           value={showDropdown === idx ? productSearch : line.product_name}
                           onFocus={() => openProductDropdown(idx)}
                           onChange={(e) => {
@@ -590,7 +739,7 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
                             if (showDropdown !== idx) openProductDropdown(idx);
                           }}
                           onBlur={() => setTimeout(closeProductDropdown, 200)}
-                          className={`${cellClass} pr-8`}
+                          className={`${cellClass} pr-8${errClass(lineErrors(idx)?.product)}`}
                         />
                         <svg
                           aria-hidden="true"
@@ -702,6 +851,12 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
                         document.body,
                       )}
 
+                      {(() => {
+                        const le = lineErrors(idx);
+                        const msgs = [le?.product, le?.quantity, le?.cost].filter(Boolean);
+                        return msgs.length > 0 ? <p className="text-xs text-error mt-1">{msgs.join(" ")}</p> : null;
+                      })()}
+
                       {/* Lo que de verdad entra al inventario. Cajas y sueltas
                           se tipean por separado, pero el stock se mueve en
                           unidades: esa cuenta tiene que estar a la vista ANTES
@@ -727,6 +882,7 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
                           step={1}
                           placeholder="0"
                           aria-label={`Cajas de la línea ${idx + 1}`}
+                          aria-invalid={lineErrors(idx)?.quantity ? true : undefined}
                           title={`1 caja = ${line.units_per_package} ${unitLabel(line.product_id)}`}
                           value={line.package_quantity || ""}
                           onChange={(e) =>
@@ -755,7 +911,9 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
                           min={0}
                           step={0.01}
                           placeholder="0"
+                          id={lineFieldId(idx, "boxcost")}
                           aria-label={`Costo por caja de la línea ${idx + 1}`}
+                          aria-invalid={lineErrors(idx)?.cost ? true : undefined}
                           value={line.package_price || ""}
                           onChange={(e) =>
                             handleLineChange(idx, "package_price", Number(e.target.value))
@@ -779,12 +937,14 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
                         min={0}
                         step={1}
                         placeholder="0"
+                        id={lineFieldId(idx, "qty")}
                         aria-label={`Unidades sueltas de la línea ${idx + 1}`}
+                        aria-invalid={lineErrors(idx)?.quantity ? true : undefined}
                         value={line.loose_quantity || ""}
                         onChange={(e) =>
                           handleLineChange(idx, "loose_quantity", Math.max(0, Number(e.target.value)))
                         }
-                        className={`${cellClass} text-center`}
+                        className={`${cellClass} text-center${errClass(lineErrors(idx)?.quantity)}`}
                       />
                     </div>
 
@@ -798,7 +958,9 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
                         min={0}
                         step={0.01}
                         placeholder="0"
+                        id={lineFieldId(idx, "cost")}
                         aria-label={`Costo por unidad de la línea ${idx + 1}`}
+                        aria-invalid={lineErrors(idx)?.cost ? true : undefined}
                         value={line.unit_price || ""}
                         onChange={(e) => handleLineChange(idx, "unit_price", Number(e.target.value))}
                         className={`${cellClass} text-right font-mono`}
@@ -902,11 +1064,13 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
                     min={0}
                     step={0.01}
                     value={discountAmount}
+                    aria-invalid={errors?.discount ? true : undefined}
                     onChange={(e) => setDiscountAmount(e.target.value)}
-                    className="w-28 bg-surface-container-lowest border border-outline-variant/30 rounded-lg py-1.5 px-2 text-base lg:text-sm text-on-surface text-right font-mono tabular-nums focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
+                    className={`${errors?.discount ? "border-error " : ""}w-28 bg-surface-container-lowest border border-outline-variant/30 rounded-lg py-1.5 px-2 text-base lg:text-sm text-on-surface text-right font-mono tabular-nums focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all`}
                   />
                 </dd>
               </div>
+              {errors?.discount && <p className="text-xs text-error text-right">{errors.discount}</p>}
 
               {taxMultiplier > 0 && (
                 <div className="flex items-center justify-between gap-4 text-sm">
@@ -923,18 +1087,26 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
           </div>
         </div>
 
-        <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
+        {/* D18: en móvil la barra de acciones queda fija abajo: el formulario es
+            largo y "Guardar" no puede quedar a tres pantallas de distancia. */}
+        <div className="sticky bottom-0 z-20 -mx-4 sm:mx-0 px-4 py-3 sm:px-0 bg-surface/95 backdrop-blur border-t border-outline-variant/20 lg:static lg:bg-transparent lg:backdrop-blur-none lg:border-0 lg:p-0 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-3">
+          {dirty && (
+            <p className="text-xs text-on-surface-variant sm:mr-auto" aria-live="polite">
+              Tienes cambios sin guardar.
+            </p>
+          )}
           <button
             type="button"
-            onClick={() => router.push("/dashboard/purchases")}
+            onClick={leave}
             className="px-6 py-2.5 rounded-xl text-sm font-semibold border border-outline-variant/30 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors"
           >
             Cancelar
           </button>
           <button
             type="submit"
-            disabled={!canSubmit}
-            className="px-8 py-2.5 rounded-xl text-sm font-semibold bg-primary hover:bg-primary-dim text-on-primary shadow-[0_0_15px_rgba(96,99,238,0.2)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={submitting}
+            aria-busy={submitting || undefined}
+            className="px-8 py-2.5 rounded-xl text-sm font-semibold bg-primary hover:bg-primary-dim text-on-primary transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {submitting ? "Guardando…" : "Guardar"}
           </button>
@@ -953,6 +1125,28 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
       )}
 
       {categoryModalOpen && <CategoryQuickModal onClose={() => setCategoryModalOpen(false)} />}
+
+      {confirmDialog}
+
+      <Modal
+        open={pendingLastLines !== null}
+        onClose={() => setPendingLastLines(null)}
+        title="¿Reemplazar o agregar?"
+        description={`Ya tienes productos cargados. La última compra a este proveedor trae ${pendingLastLines?.length ?? 0} ${pendingLastLines?.length === 1 ? "línea" : "líneas"}.`}
+        size="sm"
+        footer={
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
+            <Button variant="ghost" onClick={() => setPendingLastLines(null)}>Cancelar</Button>
+            <Button variant="secondary" onClick={() => resolveLastPurchase("append")}>Agregar a las actuales</Button>
+            <Button onClick={() => resolveLastPurchase("replace")}>Reemplazar</Button>
+          </div>
+        }
+      >
+        <p className="text-sm text-on-surface-variant">
+          <strong className="text-on-surface">Reemplazar</strong> quita las líneas actuales.{" "}
+          <strong className="text-on-surface">Agregar</strong> suma las de la última compra debajo de las que ya cargaste.
+        </p>
+      </Modal>
 
       {productModalLineIdx !== null && (
         <ProductModal

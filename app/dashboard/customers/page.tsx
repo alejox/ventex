@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import Link from "next/link";
 import { IconUsers, IconPlus, IconShoppingCart } from "@/app/assets/icons/DashboardIcons";
 import { useCustomersStore } from "@/stores/customers.store";
@@ -18,8 +18,19 @@ import type { LoyaltyLedgerEntry } from "@/services/loyalty.service";
 import { useProfile } from "@/components/ProfileProvider";
 import { useSettingsStore } from "@/stores/settings.store";
 import { useFormatMoney } from "@/lib/useMoney";
-
-const DOC_TYPES = ["CC", "NIT", "RUT", "RFC"];
+import { Button } from "@/components/ui/Button";
+import { Modal } from "@/components/ui/Modal";
+import { MoneyInput } from "@/components/ui/MoneyInput";
+import { Switch } from "@/components/ui/Switch";
+import { useTableUrlState, useUrlParams } from "@/lib/useUrlState";
+import { ImportWizard } from "@/lib/import/ImportWizard";
+import { CUSTOMER_IMPORT, existingCustomerKeys } from "@/lib/import/customers";
+import { customersExportRows, exportFileName } from "@/lib/import/export";
+import { downloadCsv } from "@/lib/import/spreadsheet";
+import { docTypeOptionsFor, PHONE_PLACEHOLDER } from "@/lib/import/doc-types";
+import { parsePhone } from "@/lib/import/values";
+import type { CustomerImpact } from "@/services/customers.service";
+import { customerImpactLines, filterCustomersByDebt } from "./customer-list";
 
 const EMPTY_CUSTOMER: NewCustomerInput = {
   full_name: "",
@@ -46,12 +57,28 @@ export default function CustomersPage() {
   const fetchCustomers = useCustomersStore((s) => s.fetchCustomers);
   const addCustomer = useCustomersStore((s) => s.addCustomer);
   const updateCustomer = useCustomersStore((s) => s.updateCustomer);
-  const deleteCustomer = useCustomersStore((s) => s.deleteCustomer);
+  const deleteCustomerOrError = useCustomersStore((s) => s.deleteCustomerOrError);
+  const fetchImpact = useCustomersStore((s) => s.fetchImpact);
+  const importCustomers = useCustomersStore((s) => s.importCustomers);
+
+  // Búsqueda, orden, página y "Con deuda" viven en la URL: volver de la ficha
+  // o refrescar deja la lista donde estaba.
+  const table = useTableUrlState();
+  const [filters, setFilters] = useUrlParams({ deuda: "" });
+  const onlyWithDebt = filters.deuda === "1";
+  const [importOpen, setImportOpen] = useState(false);
+  const existingKeys = useMemo(() => existingCustomerKeys(customers), [customers]);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<NewCustomerInput>(EMPTY_CUSTOMER);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  // Cupo como texto crudo (lo maneja MoneyInput); vacío = sin cupo.
+  const [creditLimitRaw, setCreditLimitRaw] = useState("");
+  const [phoneError, setPhoneError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<Customer | null>(null);
+  const [impact, setImpact] = useState<CustomerImpact | null>(null);
+  const [impactError, setImpactError] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const [detailCustomer, setDetailCustomer] = useState<Customer | null>(null);
 
@@ -87,6 +114,8 @@ export default function CustomersPage() {
   const openCreate = () => {
     setEditingId(null);
     setForm(EMPTY_CUSTOMER);
+    setCreditLimitRaw("");
+    setPhoneError(null);
     setModalOpen(true);
   };
 
@@ -101,6 +130,8 @@ export default function CustomersPage() {
       tax_exempt: c.tax_exempt,
       credit_limit: c.credit_limit,
     });
+    setCreditLimitRaw(c.credit_limit != null ? String(c.credit_limit) : "");
+    setPhoneError(null);
     setModalOpen(true);
   };
 
@@ -144,9 +175,23 @@ export default function CustomersPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // El teléfono se usa para WhatsApp: si no parece uno, se avisa acá y no
+    // después, cuando el enlace no abre nada.
+    const phone = parsePhone(form.phone);
+    if (!phone.ok) {
+      setPhoneError(phone.error);
+      document.getElementById("customer-phone")?.focus();
+      return;
+    }
+    const limit = parseFloat(creditLimitRaw);
+    const input: NewCustomerInput = {
+      ...form,
+      full_name: form.full_name.trim(),
+      credit_limit: creditLimitRaw.trim() !== "" && Number.isFinite(limit) ? limit : null,
+    };
     const ok = editingId
-      ? await updateCustomer(editingId, form)
-      : await addCustomer(form);
+      ? await updateCustomer(editingId, input)
+      : await addCustomer(input);
     if (ok) {
       setModalOpen(false);
       setEditingId(null);
@@ -160,10 +205,36 @@ export default function CustomersPage() {
     setForm(EMPTY_CUSTOMER);
   };
 
+  /** Abre el diálogo y pide qué arrastra el borrado ANTES de confirmar. */
+  const askDelete = async (c: Customer) => {
+    setDeleting(c);
+    setImpact(null);
+    setImpactError(false);
+    setDeleteError(null);
+    try {
+      setImpact(await fetchImpact(c.id));
+    } catch {
+      setImpactError(true);
+    }
+  };
+
+  const closeDelete = () => {
+    if (submitting) return;
+    setDeleting(null);
+  };
+
   const handleDelete = async () => {
-    if (!deletingId) return;
-    const ok = await deleteCustomer(deletingId);
-    if (ok) setDeletingId(null);
+    if (!deleting) return;
+    // El error se queda DENTRO del diálogo: antes quedaba detrás del modal.
+    const err = await deleteCustomerOrError(deleting.id);
+    if (err) setDeleteError(err);
+    else setDeleting(null);
+  };
+
+  const visibleCustomers = filterCustomersByDebt(customers, onlyWithDebt);
+
+  const exportCsv = () => {
+    downloadCsv(exportFileName("clientes"), customersExportRows(visibleCustomers));
   };
 
   const handleDetailEdit = (c: Customer) => {
@@ -218,7 +289,7 @@ export default function CustomersPage() {
         c.credit_balance > 0 ? (
           <span className="text-[#f59e0b]">{fmtMoney(c.credit_balance)}</span>
         ) : (
-          <span className="text-on-surface-variant/50">$0.00</span>
+          <span className="text-on-surface-variant">{fmtMoney(0)}</span>
         ),
     },
     {
@@ -252,6 +323,7 @@ export default function CustomersPage() {
                 : "text-on-surface-variant hover:text-primary hover:bg-primary/10"
             }`}
             title={c.credit_balance > 0 ? `Registrar abono (debe ${fmtMoney(c.credit_balance)})` : "Registrar abono"}
+            aria-label={`Registrar abono de ${c.full_name}`}
           >
             <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-4 h-4">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" />
@@ -262,6 +334,7 @@ export default function CustomersPage() {
             onClick={() => openDetail(c)}
             className="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
             title="Ver historial"
+            aria-label={`Ver historial de ${c.full_name}`}
           >
             <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-4 h-4">
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
@@ -273,6 +346,7 @@ export default function CustomersPage() {
             onClick={() => openEdit(c)}
             className="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors"
             title="Editar"
+            aria-label={`Editar ${c.full_name}`}
           >
             <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-4 h-4">
               <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -280,9 +354,10 @@ export default function CustomersPage() {
           </button>
           <button
             type="button"
-            onClick={() => setDeletingId(c.id)}
+            onClick={() => askDelete(c)}
             className="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-error hover:bg-error/10 transition-colors"
             title="Eliminar"
+            aria-label={`Eliminar ${c.full_name}`}
           >
             <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-4 h-4">
               <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -300,13 +375,17 @@ export default function CustomersPage() {
           <h1 className="text-2xl font-bold text-on-surface">Clientes</h1>
           <p className="text-sm text-on-surface-variant mt-1">Gestiona el directorio de tus clientes y su historial.</p>
         </div>
-        <button
-          onClick={openCreate}
-          className="bg-[#6063ee] hover:bg-[#c0c1ff] text-white hover:text-[#0b0664] text-sm font-semibold py-2.5 px-4 rounded-xl shadow-lg shadow-[#6063ee]/20 transition-colors flex items-center justify-center gap-2"
-        >
-          <IconPlus className="w-4 h-4" />
-          <span>Añadir Cliente</span>
-        </button>
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
+          <Button variant="secondary" onClick={() => setImportOpen(true)}>
+            Importar
+          </Button>
+          <Button variant="secondary" onClick={exportCsv} disabled={visibleCustomers.length === 0}>
+            Exportar CSV
+          </Button>
+          <Button onClick={openCreate} icon={<IconPlus className="w-4 h-4" />} className="col-span-2">
+            Añadir cliente
+          </Button>
+        </div>
       </div>
 
       {error && <CollectionError message={error} onRetry={fetchCustomers} />}
@@ -318,8 +397,28 @@ export default function CustomersPage() {
       ) : (
         <div className="bg-surface-container rounded-3xl border border-outline-variant/10 shadow-sm overflow-hidden">
           <DataTable
-            rows={customers}
+            rows={visibleCustomers}
             rowKey={(c) => c.id}
+            state={table.state}
+            onStateChange={table.setState}
+            onRowClick={openDetail}
+            toolbar={
+              <button
+                type="button"
+                aria-pressed={onlyWithDebt}
+                onClick={() => {
+                  setFilters({ deuda: onlyWithDebt ? null : "1" });
+                  table.setState({ page: 1 });
+                }}
+                className={`h-9 px-3.5 rounded-full border text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                  onlyWithDebt
+                    ? "bg-primary text-on-primary border-primary"
+                    : "bg-surface-container-lowest text-on-surface-variant border-outline-variant/30 hover:text-on-surface"
+                }`}
+              >
+                Con deuda
+              </button>
+            }
             minWidth={800}
             caption="Directorio de clientes"
             columns={columns}
@@ -359,8 +458,9 @@ export default function CustomersPage() {
               )}
 
               <div className="space-y-1.5">
-                <label className="text-[13px] font-semibold text-on-surface block">Nombre Completo</label>
+                <label htmlFor="customer-name" className="text-[13px] font-semibold text-on-surface block">Nombre completo</label>
                 <input
+                  id="customer-name"
                   type="text"
                   required
                   value={form.full_name}
@@ -372,18 +472,32 @@ export default function CustomersPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-on-surface block">Teléfono</label>
+                  <label htmlFor="customer-phone" className="text-[13px] font-semibold text-on-surface block">Teléfono</label>
                   <input
+                    id="customer-phone"
                     type="tel"
                     value={form.phone}
-                    onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                    className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50"
-                    placeholder="+52 55 1234 5678"
+                    onChange={(e) => {
+                      setForm({ ...form, phone: e.target.value });
+                      if (phoneError) setPhoneError(null);
+                    }}
+                    onBlur={() => {
+                      const r = parsePhone(form.phone);
+                      setPhoneError(r.ok ? null : r.error);
+                    }}
+                    aria-invalid={phoneError ? true : undefined}
+                    aria-describedby={phoneError ? "customer-phone-error" : undefined}
+                    className={`w-full bg-surface-container-lowest border rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/80 ${phoneError ? "border-error" : "border-outline-variant/30"}`}
+                    placeholder={PHONE_PLACEHOLDER}
                   />
+                  {phoneError && (
+                    <p id="customer-phone-error" className="text-xs text-error">{phoneError}. Lo usamos para WhatsApp.</p>
+                  )}
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-on-surface block">Correo Electrónico</label>
+                  <label htmlFor="customer-email" className="text-[13px] font-semibold text-on-surface block">Correo electrónico</label>
                   <input
+                    id="customer-email"
                     type="email"
                     value={form.email}
                     onChange={(e) => setForm({ ...form, email: e.target.value })}
@@ -402,12 +516,13 @@ export default function CustomersPage() {
                     value={form.doc_type}
                     onChange={(e) => setForm({ ...form, doc_type: e.target.value })}
                   >
-                    {DOC_TYPES.map((t) => (
-                      <option key={t} value={t}>{t}</option>
+                    {docTypeOptionsFor(form.doc_type).map((t) => (
+                      <option key={t.value} value={t.value}>{t.value}</option>
                     ))}
                   </Select>
                   <input
                     type="text"
+                    aria-label="Número de documento"
                     value={form.identification}
                     onChange={(e) => setForm({ ...form, identification: e.target.value })}
                     className="flex-1 bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all font-mono placeholder:text-on-surface-variant/50"
@@ -417,24 +532,29 @@ export default function CustomersPage() {
                 <p className="text-xs text-on-surface-variant">Requerido para facturación.</p>
               </div>
 
-              <div className="flex items-center justify-between p-3 sm:p-4 bg-surface-container-low rounded-xl border border-outline-variant/10">
-                <div>
-                  <p className="text-sm font-bold text-on-surface">Cliente Exento de Impuestos</p>
-                  <p className="text-xs text-on-surface-variant mt-1">No aplicar IVA a las compras de este cliente.</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setForm({ ...form, tax_exempt: !form.tax_exempt })}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none shrink-0 ml-4 ${
-                    form.tax_exempt ? "bg-[#6063ee]" : "bg-outline-variant/30"
-                  }`}
-                >
-                  <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      form.tax_exempt ? "translate-x-6" : "translate-x-1"
-                    }`}
-                  />
-                </button>
+              <div className="space-y-1.5">
+                <label htmlFor="customer-credit-limit" className="text-[13px] font-semibold text-on-surface block">
+                  Cupo de crédito
+                </label>
+                <MoneyInput
+                  id="customer-credit-limit"
+                  value={creditLimitRaw}
+                  onChange={setCreditLimitRaw}
+                  placeholder="Sin cupo"
+                  aria-describedby="customer-credit-limit-hint"
+                />
+                <p id="customer-credit-limit-hint" className="text-xs text-on-surface-variant">
+                  Hasta cuánto le puedes fiar. Déjalo vacío si no tiene cupo definido.
+                </p>
+              </div>
+
+              <div className="p-3 sm:p-4 bg-surface-container-low rounded-xl border border-outline-variant/10">
+                <Switch
+                  checked={form.tax_exempt}
+                  onCheckedChange={(v) => setForm({ ...form, tax_exempt: v })}
+                  label="Cliente exento de impuestos"
+                  description="No aplicar IVA a las compras de este cliente."
+                />
               </div>
 
               <div className="pt-4 flex flex-col sm:flex-row gap-3 border-t border-outline-variant/10">
@@ -458,41 +578,73 @@ export default function CustomersPage() {
         </div>
       )}
 
-      {/* Confirmación eliminar */}
-      {deletingId && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-surface-container rounded-2xl w-full max-w-sm border border-outline-variant/10 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="p-6 text-center">
-              <div className="w-12 h-12 rounded-full bg-error-container/20 flex items-center justify-center mx-auto mb-4">
-                <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-6 h-6 text-error-dim">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                </svg>
-              </div>
-              <h3 className="text-lg font-bold text-on-surface mb-2">¿Eliminar cliente?</h3>
-              <p className="text-sm text-on-surface-variant">
-                Esta acción no se puede deshacer. Si el cliente tiene ventas asociadas, no podrá eliminarse.
-              </p>
-            </div>
-            <div className="px-6 pb-6 flex gap-3">
-              <button
-                type="button"
-                onClick={() => setDeletingId(null)}
-                className="flex-1 px-5 py-2.5 rounded-xl text-sm font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                disabled={submitting}
-                onClick={handleDelete}
-                className="flex-1 px-5 py-2.5 rounded-xl text-sm font-semibold bg-error hover:bg-error/80 text-on-error transition-all disabled:opacity-50"
-              >
-                {submitting ? "Eliminando…" : "Eliminar"}
-              </button>
-            </div>
+      {/* Confirmación eliminar: con el impacto a la vista y el error adentro. */}
+      <Modal
+        open={deleting !== null}
+        onClose={closeDelete}
+        role="alertdialog"
+        size="sm"
+        title="¿Eliminar cliente?"
+        description={deleting ? `Vas a eliminar a ${deleting.full_name}. Esta acción no se puede deshacer.` : undefined}
+        dismissible={!submitting}
+        closeOnEscape={!submitting}
+        footer={
+          <div className="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end">
+            <Button variant="ghost" onClick={closeDelete} disabled={submitting}>
+              Cancelar
+            </Button>
+            <Button
+              variant="danger"
+              onClick={handleDelete}
+              loading={submitting}
+              loadingLabel="Eliminando…"
+              disabled={impact === null && !impactError}
+            >
+              Eliminar
+            </Button>
           </div>
+        }
+      >
+        <div className="space-y-3 text-sm">
+          {impact === null && !impactError ? (
+            <p className="text-on-surface-variant" role="status">Revisando qué tiene asociado…</p>
+          ) : impact === null ? (
+            <p className="text-on-surface-variant">
+              No pudimos revisar lo que tiene asociado. Sus ventas quedarían sin cliente y sus abonos se borrarían.
+            </p>
+          ) : customerImpactLines(impact).length === 0 ? (
+            <p className="text-on-surface-variant">No tiene ventas, abonos, citas ni vehículos asociados.</p>
+          ) : (
+            <ul className="list-disc pl-5 space-y-1 text-on-surface">
+              {customerImpactLines(impact).map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+          )}
+          {deleting && deleting.credit_balance > 0 && (
+            <p className="text-on-surface">
+              Te debe <strong>{fmtMoney(deleting.credit_balance)}</strong>: al borrarlo pierdes el registro de esa deuda.
+            </p>
+          )}
+          {deleteError && (
+            <p role="alert" className="rounded-xl border border-error/30 bg-error/10 px-3 py-2 text-error">
+              No se pudo eliminar: {deleteError}
+            </p>
+          )}
         </div>
-      )}
+      </Modal>
+
+      <ImportWizard
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        title="clientes"
+        entity={CUSTOMER_IMPORT}
+        existing={existingKeys}
+        templateFileName="plantilla-clientes.xlsx"
+        previewKeys={["full_name", "identification", "phone"]}
+        onImport={importCustomers}
+        note="Un cliente que ya existe se reconoce por su documento."
+      />
 
       {/* Modal Detalle del Cliente */}
       {detailCustomer && (

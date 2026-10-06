@@ -11,6 +11,7 @@ import { useShiftsStore } from "@/stores/shifts.store";
 import { useProfile } from "@/components/ProfileProvider";
 import { OpenShiftModal } from "@/components/shift/OpenShiftModal";
 import { Select } from "@/components/ui/Select";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { whatsappUrl, toWhatsappNumber } from "@/config/contact";
 import type {
   Appointment,
@@ -19,7 +20,7 @@ import type {
 } from "@/services/appointments.service";
 import { toISODate, formatDateOnly } from "@/lib/date";
 import { formatAppointmentTime, type TimeFormat } from "@/lib/time";
-import { DateTimeField } from "./DateTimeField";
+import { DateTimeDialog, DateTimeField } from "./DateTimeField";
 import { conflictsFor, pickStaff, type BusyAppointment } from "@/lib/appointment-availability";
 import { useFormatMoney } from "@/lib/useMoney";
 
@@ -174,6 +175,12 @@ function AppointmentModalBody({
   const [saving, setSaving] = useState(false);
   const busy = submitting || saving;
   const dirty = JSON.stringify(form) !== JSON.stringify(savedForm);
+  const { confirm, dialog: confirmDialog } = useConfirm();
+  const businessHours = useAppointmentsStore((s) => s.businessHours);
+  const fetchBusinessHours = useAppointmentsStore((s) => s.fetchBusinessHours);
+  useEffect(() => { void fetchBusinessHours(); }, [fetchBusinessHours]);
+  /** "Mover a…": abre el selector de fecha y hora y guarda al elegir. */
+  const [moveOpen, setMoveOpen] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const previousFocus = document.activeElement as HTMLElement | null;
@@ -251,18 +258,23 @@ function AppointmentModalBody({
   const autoStaff = !form.staff_id && teamIds.length > 0 ? pickStaff(dayBusy, teamIds, form.start_time, form.end_time, appointment?.id) : null;
   const nobodyFree = !form.staff_id && teamIds.length > 0 && autoStaff === null;
 
-  const saveForm = async (): Promise<boolean> => {
-    const input = { ...form, title: customTitle ? form.title : generatedTitle || form.title };
+  const saveForm = async (source: NewAppointmentInput = form): Promise<boolean> => {
+    const input = { ...source, title: customTitle ? source.title : generatedTitle || source.title };
     setError("");
-    if (staffConflicts.length > 0) {
-      setError(`${staffNameOf(form.staff_id)} ya tiene una cita en ese horario. Elige otra hora u otra persona.`);
+    // Con otro horario (p. ej. "Mover a…") los choques se recalculan sobre ese.
+    const sameSlot = source.appointment_date === form.appointment_date && source.start_time === form.start_time && source.end_time === form.end_time;
+    const busyNow = sameSlot ? dayBusy : await fetchDayBusy(source.appointment_date);
+    const conflictsNow = source.staff_id ? conflictsFor(busyNow, source.staff_id, source.start_time, source.end_time, appointment?.id) : [];
+    const autoNow = !source.staff_id && teamIds.length > 0 ? pickStaff(busyNow, teamIds, source.start_time, source.end_time, appointment?.id) : null;
+    if (conflictsNow.length > 0) {
+      setError(`${staffNameOf(source.staff_id)} ya tiene una cita en ese horario. Elige otra hora u otra persona.`);
       return false;
     }
-    if (nobodyFree) {
+    if (!source.staff_id && teamIds.length > 0 && autoNow === null) {
       setError("No hay nadie disponible a esa hora. Elige otra hora.");
       return false;
     }
-    if (autoStaff) input.staff_id = autoStaff;
+    if (autoNow) input.staff_id = autoNow;
     if (!input.title.trim()) {
       setError("Elige un servicio o personaliza el título de la cita.");
       return false;
@@ -277,6 +289,41 @@ function AppointmentModalBody({
     if (!ok) setError(useAppointmentsStore.getState().error ?? "No se pudo guardar la cita.");
     if (ok) { setForm(input); setSavedForm(input); void refreshBusy(); }
     return ok;
+  };
+
+  /**
+   * Cerrar (Escape, X, fondo, "Volver") con cambios sin guardar pregunta antes:
+   * se perdía todo lo escrito por un toque fuera del panel.
+   */
+  const requestClose = async () => {
+    if (busy) return;
+    if (dirty) {
+      const discard = await confirm({
+        title: "¿Descartar los cambios?",
+        description: "Tienes cambios sin guardar en esta cita. Si cierras ahora, se pierden.",
+        confirmLabel: "Descartar",
+        cancelLabel: "Seguir editando",
+        tone: "danger",
+      });
+      if (!discard) return;
+    }
+    onClose();
+  };
+
+  /**
+   * "Mover a…" guarda al instante con el horario nuevo. Parte del formulario
+   * actual: si había otros cambios sin guardar, se guardan junto con el
+   * movimiento en vez de perderse.
+   */
+  const moveTo = async ({ date, start, end }: { date: string; start: string; end: string }) => {
+    if (busy) return;
+    const next = { ...form, appointment_date: date, start_time: start, end_time: end };
+    setSaving(true);
+    try {
+      if (await saveForm(next)) {
+        toast.success(`Cita movida al ${formatDateOnly(date, { weekday: "long", day: "numeric", month: "long" })}, ${formatAppointmentTime(start, timeFormat)}.`);
+      }
+    } finally { setSaving(false); }
   };
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -404,7 +451,7 @@ function AppointmentModalBody({
       if (showDeleteConfirm) setShowDeleteConfirm(false);
       else if (showCompleteConfirm) setShowCompleteConfirm(false);
       else if (showChargeConfirm) setShowChargeConfirm(false);
-      else if (!busy) onClose();
+      else void requestClose();
       return;
     }
     if (event.key !== "Tab") return;
@@ -416,7 +463,13 @@ function AppointmentModalBody({
   }
 
   return (
-    <div ref={dialogRef} onKeyDown={handleDialogKeyDown} className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+    <>
+    <div
+      ref={dialogRef}
+      onKeyDown={handleDialogKeyDown}
+      onMouseDown={(event) => { if (event.target === event.currentTarget) void requestClose(); }}
+      className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
+    >
       <div role="dialog" aria-modal="true" aria-labelledby="appointment-modal-title" className="bg-surface-container rounded-t-3xl sm:rounded-3xl w-full sm:max-w-lg max-h-[90vh] border border-outline-variant/10 shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200 flex flex-col">
         {/* Header */}
         <div className="p-4 sm:p-6 border-b border-outline-variant/10 flex justify-between items-center bg-surface-container-low shrink-0">
@@ -434,7 +487,7 @@ function AppointmentModalBody({
           </div>
           <button
             disabled={busy}
-            onClick={onClose}
+            onClick={() => void requestClose()}
             className="w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors"
             aria-label="Cerrar"
           >
@@ -575,6 +628,7 @@ function AppointmentModalBody({
             format={timeFormat}
             onChange={({ date, start, end }) => setForm({ ...form, appointment_date: date, start_time: start, end_time: end })}
             availability={{ staffId: form.staff_id, staffName: staffNameOf(form.staff_id), pool: teamIds, excludeId: appointment?.id ?? null, loadBusy: fetchDayBusy }}
+            hours={businessHours}
           />
           {staffConflicts.length > 0 ? (
             <p role="alert" className="-mt-2 rounded-xl bg-error/10 px-3 py-2 text-sm font-semibold text-error">
@@ -655,13 +709,18 @@ function AppointmentModalBody({
             {isEditing ? <details className="relative">
               <summary className="cursor-pointer text-sm text-on-surface-variant">Más acciones</summary>
               <div className="absolute bottom-full left-0 mb-3 w-52 rounded-xl border border-outline-variant/30 bg-surface-container-high p-2 shadow-xl flex flex-col">
+                {liveStatus !== "cancelled" && liveStatus !== "completed" && !liveSaleId ? (
+                  <button type="button" disabled={busy} onClick={() => setMoveOpen(true)} className="text-left rounded-lg p-2 text-sm text-on-surface hover:bg-surface-container-highest">
+                    Mover a…
+                  </button>
+                ) : null}
                 {STATUS_OPTIONS.filter(option => option.value !== liveStatus && option.value !== "confirmed").map(option =>
                   <button key={option.value} type="button" disabled={busy} onClick={() => void handleStatusChange(option.value)} className="text-left rounded-lg p-2 text-sm text-on-surface hover:bg-surface-container-highest">
                     {option.value === "cancelled" ? "Cancelar cita" : option.value === "completed" ? "Marcar completada" : "Volver a pendiente"}
                   </button>)}
                 <button type="button" disabled={busy} onClick={() => setShowDeleteConfirm(true)} className="text-left rounded-lg p-2 text-sm text-error-dim">Eliminar cita</button>
               </div>
-            </details> : <button type="button" onClick={onClose} className="text-sm text-on-surface-variant">Volver</button>}
+            </details> : <button type="button" onClick={() => void requestClose()} className="text-sm text-on-surface-variant">Volver</button>}
             <div className="flex flex-wrap justify-end gap-2">
               <button type="submit" form="appointment-edit-form" disabled={busy}
                 className={`rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-50 ${isEditing ? "border border-outline-variant/30 text-on-surface" : "bg-primary text-on-primary"}`}>
@@ -798,6 +857,22 @@ function AppointmentModalBody({
         </div>
       )}
 
+      {/*
+        "Mover a…": el mismo selector de fecha y hora, controlado desde acá.
+        Al pulsar «Listo» se guarda de una (ver `moveTo`).
+      */}
+      {moveOpen ? (
+        <DateTimeDialog
+          initial={{ date: form.appointment_date, start: form.start_time, end: form.end_time }}
+          format={timeFormat}
+          availability={{ staffId: form.staff_id, staffName: staffNameOf(form.staff_id), pool: teamIds, excludeId: appointment?.id ?? null, loadBusy: fetchDayBusy }}
+          hours={businessHours}
+          title="¿A dónde la mueves?"
+          onClose={() => setMoveOpen(false)}
+          onApply={(next) => { setMoveOpen(false); void moveTo(next); }}
+        />
+      ) : null}
+
       {showOpenShift && (
         // Contenedor propio: el modal de turno usa z-50 y esta pantalla z-100.
         <div className="relative z-[120]">
@@ -808,5 +883,7 @@ function AppointmentModalBody({
         </div>
       )}
     </div>
+    {confirmDialog}
+    </>
   );
 }

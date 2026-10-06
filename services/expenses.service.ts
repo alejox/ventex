@@ -1,6 +1,17 @@
 import { createClient } from "@/utils/supabase/client";
+import { MONEY_NUM_FMT, type ExportColumn } from "@/lib/export";
 
-export type ExpensePeriod = "today" | "yesterday" | "last7" | "month" | "lastMonth" | "all";
+export type ExpensePeriod = "today" | "yesterday" | "last7" | "month" | "lastMonth" | "all" | "custom";
+
+export const EXPENSE_PERIODS: { id: ExpensePeriod; label: string }[] = [
+  { id: "today", label: "Hoy" },
+  { id: "yesterday", label: "Ayer" },
+  { id: "last7", label: "Últimos 7 días" },
+  { id: "month", label: "Este mes" },
+  { id: "lastMonth", label: "Mes pasado" },
+  { id: "all", label: "Todo" },
+  { id: "custom", label: "Personalizado" },
+];
 
 export interface ExpenseCategory {
   id: string;
@@ -76,8 +87,29 @@ const dateOnly = (date: Date) => {
   return `${y}-${m}-${d}`;
 };
 
-function resolveExpenseRange(period: ExpensePeriod): { from: string | null; to: string | null } {
-  const today = startOfDay(new Date());
+/**
+ * Rango de días ("YYYY-MM-DD", `to` EXCLUSIVO) de un período de Gastos. Las
+ * columnas son `date`, así que se cortan días de calendario locales y no
+ * instantes.
+ *
+ * En "custom", `customTo` es el último día INCLUIDO: se corre al siguiente.
+ * Una punta vacía deja ese lado abierto; las fechas al revés se ordenan.
+ */
+export function resolveExpenseRange(
+  period: ExpensePeriod,
+  customFrom = "",
+  customTo = "",
+  now: Date = new Date(),
+): { from: string | null; to: string | null } {
+  const today = startOfDay(now);
+  if (period === "custom") {
+    const [a, b] = customFrom && customTo && customFrom > customTo ? [customTo, customFrom] : [customFrom, customTo];
+    const next = (day: string) => {
+      const [y, m, d] = day.split("-").map(Number);
+      return dateOnly(new Date(y, m - 1, d + 1));
+    };
+    return { from: a || null, to: b ? next(b) : null };
+  }
   const add = (days: number) => {
     const d = new Date(today);
     d.setDate(d.getDate() + days);
@@ -138,9 +170,16 @@ export async function deactivateExpenseCategory(id: string): Promise<void> {
  * tenerlas separadas obligaba a mirar dos pantallas y sacar la cuenta a mano.
  * Las compras vienen de solo lectura: se editan en su propia factura.
  */
-export async function listExpenses(period: ExpensePeriod, search = "", categoryId = "", origin: ExpenseOrigin = ""): Promise<ExpenseRecord[]> {
+export async function listExpenses(
+  period: ExpensePeriod,
+  search = "",
+  categoryId = "",
+  origin: ExpenseOrigin = "",
+  customFrom = "",
+  customTo = "",
+): Promise<ExpenseRecord[]> {
   const supabase = createClient();
-  const range = resolveExpenseRange(period);
+  const range = resolveExpenseRange(period, customFrom, customTo);
   const term = search.trim();
 
   // Filtrar por una categoría real deja fuera a las compras: no tienen una.
@@ -258,3 +297,23 @@ export async function deleteExpense(id: string): Promise<void> {
   const { error } = await supabase.from("expenses").delete().eq("id", id);
   if (error) throw error;
 }
+
+/** Cómo se nombra el origen de un gasto en pantalla y en la exportación. */
+export function expenseOriginLabel(origin: ExpenseRecord["origin"]): string {
+  if (origin === "compra") return "Compra";
+  if (origin === "caja") return "Retiro de caja";
+  if (origin === "comision") return "Liquidación de comisión";
+  return "A mano";
+}
+
+/**
+ * Columnas de la exportación de Gastos (F11). El monto va como número crudo y
+ * POSITIVO: en la planilla es una columna de gastos, el signo lo da el título.
+ */
+export const EXPENSE_EXPORT_COLUMNS: ExportColumn<ExpenseRecord>[] = [
+  { header: "Fecha", value: (e) => e.expense_date, width: 12 },
+  { header: "Descripción", value: (e) => e.description, width: 36 },
+  { header: "Categoría", value: (e) => e.category?.name ?? "Otros", width: 20 },
+  { header: "Origen", value: (e) => expenseOriginLabel(e.origin), width: 22 },
+  { header: "Monto", value: (e) => e.amount, width: 14, numFmt: MONEY_NUM_FMT },
+];

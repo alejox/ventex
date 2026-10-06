@@ -139,3 +139,25 @@ export async function fetchVehicleHistory(vehicleId: string): Promise<VehicleVis
     staff: one<{ full_name: string }>(a.staff),
   })) as VehicleVisit[];
 }
+
+/** Placa comparable: sin espacios, guiones ni puntos y en mayúsculas ("abc-123" = "ABC123"). */
+export const plateKey = (plate: string): string => plate.replace(/[\s.\-_]/g, "").toUpperCase();
+
+const fold = (text: string): string =>
+  text.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+
+/**
+ * ¿El vehículo coincide con lo buscado? Por placa (sin importar guiones,
+ * espacios ni mayúsculas), dueño, marca/modelo o color. Pura y testeada.
+ */
+export function vehicleMatches(
+  v: Pick<Vehicle, "plate" | "make_model" | "color" | "customers">,
+  query: string,
+): boolean {
+  const q = query.trim();
+  if (!q) return true;
+  const key = plateKey(q);
+  if (key && plateKey(v.plate).includes(key)) return true;
+  const fq = fold(q);
+  return [v.customers?.full_name, v.make_model, v.color].some((f) => f != null && fold(f).includes(fq));
+}

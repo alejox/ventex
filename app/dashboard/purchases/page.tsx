@@ -9,7 +9,19 @@ import { useDistributorsStore } from "@/stores/distributors.store";
 import { Select } from "@/components/ui/Select";
 import { PurchaseInvoiceDetailModal } from "@/components/PurchaseInvoiceDetailModal";
 import { DataTable, type DataColumn } from "@/components/DataTable";
-import { formatDateOnly } from "@/lib/date";
+import { formatDateOnly, todayISO } from "@/lib/date";
+import { useCurrentPathWithSearch, useTableUrlState, useUrlParams, withBackParam } from "@/lib/useUrlState";
+import { Button } from "@/components/ui/Button";
+import {
+  PURCHASE_FILTERS,
+  amountDue,
+  isOverdue,
+  matchesPurchaseFilter,
+  parsePurchaseFilter,
+  purchaseFilterCounts,
+  purchaseTotals,
+  type PurchaseFilter,
+} from "./purchase-filters";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { StatusChangeModal } from "./components/StatusChangeModal";
 import { CollectionEmpty, CollectionError, CollectionFilteredEmpty, CollectionLoading } from "@/components/CollectionState";
@@ -37,10 +49,26 @@ export default function PurchasesPage() {
   const fetchDistributors = useDistributorsStore((s) => s.fetchDistributors);
 
   const [detailInvoice, setDetailInvoice] = useState<PurchaseInvoice | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
   const [cancelConfirmId, setCancelConfirmId] = useState<string | null>(null);
   const [statusChangeId, setStatusChangeId] = useState<string | null>(null);
-  const [filterDistributorId, setFilterDistributorId] = useState("");
+
+  // Búsqueda, orden, página y filtros viven en la URL: volver de editar una
+  // compra deja el listado donde estaba (A14/D8). Orden por defecto: lo más
+  // reciente primero.
+  const table = useTableUrlState("", { sort: "fecha", dir: "desc" });
+  const [filters, setFilters] = useUrlParams({ estado: "all", prov: "" });
+  const statusFilter: PurchaseFilter = parsePurchaseFilter(filters.estado);
+  const filterDistributorId = filters.prov;
+  const setStatusFilter = (value: PurchaseFilter) => {
+    setFilters({ estado: value });
+    table.setState({ page: 1 });
+  };
+  // A dónde vuelve el formulario al guardar o cancelar: esta misma vista, con
+  // sus filtros y página.
+  const here = useCurrentPathWithSearch("/dashboard/purchases");
+  const formHref = (href: string) => withBackParam(href, here, "/dashboard/purchases");
+  // "Hoy" del reloj local, una vez por pantalla: decide qué está vencido.
+  const [today] = useState(todayISO);
 
   useEffect(() => {
     fetchInvoices();
@@ -57,33 +85,39 @@ export default function PurchasesPage() {
     if (ok) setStatusChangeId(null);
   };
 
-  const filteredInvoices = useMemo(() => {
-    let result = invoices;
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(
-        (inv) =>
-          inv.supplier_invoice_number?.toLowerCase().includes(q) ||
-          String(inv.invoice_number).includes(q) ||
-          inv.distributors?.business_name.toLowerCase().includes(q)
-      );
-    }
-    if (filterDistributorId) {
-      result = result.filter((inv) => inv.distributor_id === filterDistributorId);
-    }
-    return result;
-  }, [invoices, searchQuery, filterDistributorId]);
+  /** Lo que filtran el proveedor y los chips; el texto lo busca la tabla. */
+  const byDistributor = useMemo(
+    () => (filterDistributorId ? invoices.filter((inv) => inv.distributor_id === filterDistributorId) : invoices),
+    [invoices, filterDistributorId],
+  );
+  const filteredInvoices = useMemo(
+    () => byDistributor.filter((inv) => matchesPurchaseFilter(inv, statusFilter, today)),
+    [byDistributor, statusFilter, today],
+  );
+  const counts = useMemo(() => purchaseFilterCounts(byDistributor, today), [byDistributor, today]);
+  const totals = useMemo(() => purchaseTotals(byDistributor, today), [byDistributor, today]);
+
+  const clearFilters = () => {
+    setFilters({ estado: "all", prov: "" });
+    table.setState({ q: "", page: 1 });
+  };
 
   const purchaseColumns: DataColumn<PurchaseInvoice>[] = [
     {
       header: "Proveedor",
       mobile: "title",
+      sortKey: "proveedor",
+      sortValue: (inv) => inv.distributors?.business_name ?? "",
       className: "font-medium text-on-surface",
-      cell: (inv) => inv.distributors?.business_name ?? "—",
+      // El nombre es el botón que abre el detalle (lo arma DataTable con
+      // `onRowClick`): la fila ya no es un botón con botones adentro.
+      cell: (inv) => inv.distributors?.business_name ?? "Sin proveedor",
     },
     {
       header: "#",
       mobile: "subtitle",
+      sortKey: "numero",
+      sortValue: (inv) => inv.invoice_number,
       className: "pl-6 font-mono text-xs text-on-surface-variant",
       headerClassName: "pl-6",
       cell: (inv) => <span className="font-mono text-xs">#{inv.invoice_number}</span>,
@@ -92,6 +126,8 @@ export default function PurchasesPage() {
       header: "Total",
       align: "right",
       mobile: "trailing",
+      sortKey: "total",
+      sortValue: (inv) => Number(inv.total),
       className: "font-semibold text-on-surface font-mono",
       cell: (inv) => fmtMoney(Number(inv.total)),
     },
@@ -115,10 +151,12 @@ export default function PurchasesPage() {
             aria-hidden="true"
             className={`w-2 h-2 rounded-full shrink-0 ${
               inv.status === "paid"
-                ? "bg-[#10b981]"
-                : inv.status === "pending"
-                  ? "bg-amber-500"
-                  : "bg-on-surface-variant/40"
+                ? "bg-primary"
+                : isOverdue(inv, today)
+                  ? "bg-error"
+                  : inv.status === "pending"
+                    ? "bg-amber-500"
+                    : "bg-on-surface-variant/40"
             }`}
           />
           <span
@@ -126,7 +164,7 @@ export default function PurchasesPage() {
               inv.status === "cancelled" ? "text-on-surface-variant" : "text-on-surface"
             }`}
           >
-            {STATUS_LABEL[inv.status] ?? inv.status}
+            {isOverdue(inv, today) ? "Vencida" : STATUS_LABEL[inv.status] ?? inv.status}
           </span>
         </div>
       ),
@@ -138,16 +176,49 @@ export default function PurchasesPage() {
     },
     {
       header: "Fecha",
+      sortKey: "fecha",
+      // ISO: ordena bien; "13 ago" contra "02 sep" como texto, no.
+      sortValue: (inv) => `${inv.issue_date}|${inv.created_at}`,
       className: "text-on-surface-variant",
       cell: (inv) => formatDateOnly(inv.issue_date, {}, "es-CO"),
     },
     {
       header: "Vencimiento",
+      sortKey: "vence",
+      // Sin vencimiento va al final en orden ascendente.
+      sortValue: (inv) => inv.due_date ?? "9999-12-31",
       className: "text-on-surface-variant",
-      cell: (inv) => (inv.due_date ? formatDateOnly(inv.due_date, {}, "es-CO") : "—"),
+      cell: (inv) =>
+        inv.due_date ? (
+          isOverdue(inv, today) ? (
+            <span className="font-semibold text-error">
+              {formatDateOnly(inv.due_date, {}, "es-CO")}
+              <span className="sr-only"> (vencida)</span>
+            </span>
+          ) : (
+            formatDateOnly(inv.due_date, {}, "es-CO")
+          )
+        ) : (
+          "—"
+        ),
     },
     {
-      header: "Acción",
+      header: "Por pagar",
+      align: "right",
+      sortKey: "debe",
+      sortValue: (inv) => amountDue(inv),
+      className: "font-mono text-on-surface",
+      cell: (inv) => {
+        const due = amountDue(inv);
+        return due > 0 ? (
+          <span className={isOverdue(inv, today) ? "text-error font-semibold" : ""}>{fmtMoney(due)}</span>
+        ) : (
+          <span className="text-on-surface-variant">—</span>
+        );
+      },
+    },
+    {
+      header: "Acciones",
       align: "center",
       mobile: "actions",
       headerClassName: "w-16",
@@ -170,7 +241,7 @@ export default function PurchasesPage() {
           {inv.status !== "cancelled" && (
             <button
               type="button"
-              onClick={() => router.push(`/dashboard/purchases/${inv.id}/edit`)}
+              onClick={() => router.push(formHref(`/dashboard/purchases/${inv.id}/edit`))}
               className="w-11 h-11 lg:w-8 lg:h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
               title="Editar factura"
               aria-label={`Editar factura #${inv.invoice_number}`}
@@ -181,18 +252,6 @@ export default function PurchasesPage() {
               </svg>
             </button>
           )}
-          <button
-            type="button"
-            onClick={() => setDetailInvoice(inv)}
-            className="w-11 h-11 lg:w-8 lg:h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
-            title="Ver detalles"
-            aria-label={`Ver detalles de la factura #${inv.invoice_number}`}
-          >
-            <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-4 h-4">
-              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-              <circle cx="12" cy="12" r="3" />
-            </svg>
-          </button>
           {inv.status !== "cancelled" && (
             <button
               type="button"
@@ -227,72 +286,122 @@ export default function PurchasesPage() {
             Registra tus compras de productos y mantén actualizadas las cantidades en tu inventario.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => router.push("/dashboard/purchases/new")}
-          className="bg-[#6063ee] hover:bg-[#c0c1ff] text-white hover:text-[#0b0664] text-sm font-semibold py-2.5 px-4 rounded-xl shadow-lg shadow-[#6063ee]/20 transition-colors flex items-center justify-center gap-2"
-        >
-          <IconPlus className="w-4 h-4" />
-          <span>Nueva compra</span>
-        </button>
+        <Button onClick={() => router.push(formHref("/dashboard/purchases/new"))} icon={<IconPlus className="w-4 h-4" />}>
+          Nueva compra
+        </Button>
       </div>
 
       {error && <CollectionError message={error} onRetry={fetchInvoices} />}
 
-      <div className="bg-surface-container rounded-3xl border border-outline-variant/10 shadow-sm overflow-hidden">
-        {/* El buscador queda a la vista incluso sin compras: es lo que muestra el
-            ejemplo, y evita que la barra aparezca de golpe tras la primera alta. */}
-        <div className="p-4 border-b border-outline-variant/10 flex flex-col sm:flex-row gap-3">
-          <div className="relative w-full sm:max-w-xs">
-            <input
-              type="search"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Buscar No. de factura"
-              aria-label="Buscar compras"
-              className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-xl py-2.5 pl-9 pr-3 text-base lg:text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/40"
-            />
-            <svg
-              aria-hidden="true"
-              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant/60"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              viewBox="0 0 24 24"
-            >
-              <circle cx="11" cy="11" r="8" />
-              <path d="m21 21-4.35-4.35" />
-            </svg>
-          </div>
-          {hasInvoices && (
-            <Select
-              aria-label="Filtrar por proveedor"
-              containerClassName="w-full sm:w-56"
-              value={filterDistributorId}
-              onChange={(e) => setFilterDistributorId(e.target.value)}
-            >
-              <option value="">Todos los proveedores</option>
-              {distributors.map((d) => (
-                <option key={d.id} value={d.id}>{d.business_name}</option>
-              ))}
-            </Select>
-          )}
+      {/* D15: cuánto se le debe a proveedores, y cuánto de eso ya venció. Cada
+          tarjeta es además un atajo al filtro que la explica. */}
+      {invoices.length > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <button
+            type="button"
+            onClick={() => setStatusFilter("pending")}
+            aria-pressed={statusFilter === "pending"}
+            className="text-left bg-surface-container rounded-2xl p-5 border border-outline-variant/20 hover:border-primary/40 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          >
+            <p className="text-sm font-medium text-on-surface-variant">Por pagar</p>
+            <p className="text-2xl sm:text-3xl font-bold text-on-surface tabular-nums mt-1">{fmtMoney(totals.due)}</p>
+            <p className="text-xs text-on-surface-variant mt-1">
+              {totals.pendingCount} {totals.pendingCount === 1 ? "compra pendiente" : "compras pendientes"}
+              {filterDistributorId ? " de este proveedor" : ""}
+            </p>
+          </button>
+          <button
+            type="button"
+            onClick={() => setStatusFilter("overdue")}
+            aria-pressed={statusFilter === "overdue"}
+            className="text-left bg-surface-container rounded-2xl p-5 border border-outline-variant/20 hover:border-error/40 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          >
+            <p className="text-sm font-medium text-on-surface-variant">Vencido</p>
+            <p className={`text-2xl sm:text-3xl font-bold tabular-nums mt-1 ${totals.overdue > 0 ? "text-error" : "text-on-surface"}`}>
+              {fmtMoney(totals.overdue)}
+            </p>
+            <p className="text-xs text-on-surface-variant mt-1">
+              {totals.overdueCount === 0
+                ? "Nada vencido"
+                : `${totals.overdueCount} ${totals.overdueCount === 1 ? "compra vencida" : "compras vencidas"}`}
+            </p>
+          </button>
         </div>
+      )}
 
+      <div className="bg-surface-container rounded-3xl border border-outline-variant/10 shadow-sm overflow-hidden">
         {loading ? (
           <CollectionLoading label="Cargando compras…" />
         ) : !hasInvoices ? (
           <CollectionEmpty icon={<IconShoppingCart className="h-8 w-8" />} title="Aún no has creado tu primera factura de compra" description="Registra tus compras y mantén tu inventario actualizado." action={{ label: "Nueva compra", onClick: () => router.push("/dashboard/purchases/new") }} />
-        ) : filteredInvoices.length === 0 ? (
-          <CollectionFilteredEmpty title="Ninguna compra coincide con la búsqueda" action={{ label: "Limpiar filtros", onClick: () => { setSearchQuery(""); setFilterDistributorId(""); } }} />
         ) : (
-          <DataTable
-            rows={filteredInvoices}
-            rowKey={(inv) => inv.id}
-            minWidth={800}
-            caption="Facturas de compra"
-            columns={purchaseColumns}
-          />
+          <>
+            <DataTable
+              rows={filteredInvoices}
+              rowKey={(inv) => inv.id}
+              minWidth={900}
+              caption="Facturas de compra"
+              columns={purchaseColumns}
+              onRowClick={(inv) => setDetailInvoice(inv)}
+              searchable
+              searchPlaceholder="Buscar por N° de factura o proveedor"
+              getSearchText={(inv) =>
+                [inv.supplier_invoice_number ?? "", `#${inv.invoice_number}`, String(inv.invoice_number), inv.distributors?.business_name ?? ""].join(" ")
+              }
+              state={table.state}
+              onStateChange={table.setState}
+              toolbar={
+                <>
+                  <div role="group" aria-label="Filtrar por estado" className="flex flex-wrap gap-1.5">
+                    {PURCHASE_FILTERS.map((f) => {
+                      const active = statusFilter === f.value;
+                      return (
+                        <button
+                          key={f.value}
+                          type="button"
+                          aria-pressed={active}
+                          onClick={() => setStatusFilter(f.value)}
+                          className={`h-9 px-3 rounded-full text-xs font-semibold border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                            active
+                              ? f.value === "overdue"
+                                ? "bg-error text-on-error border-error"
+                                : "bg-primary text-on-primary border-primary"
+                              : "bg-surface-container-lowest text-on-surface-variant border-outline-variant/30 hover:text-on-surface"
+                          }`}
+                        >
+                          {f.label}
+                          <span className="ml-1.5 tabular-nums opacity-80">{counts[f.value]}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <Select
+                    aria-label="Filtrar por proveedor"
+                    containerClassName="w-full sm:w-56"
+                    size="sm"
+                    searchable
+                    searchPlaceholder="Buscar proveedor"
+                    value={filterDistributorId}
+                    onChange={(e) => {
+                      setFilters({ prov: e.target.value });
+                      table.setState({ page: 1 });
+                    }}
+                  >
+                    <option value="">Todos los proveedores</option>
+                    {distributors.map((d) => (
+                      <option key={d.id} value={d.id}>{d.business_name}</option>
+                    ))}
+                  </Select>
+                </>
+              }
+            />
+            {filteredInvoices.length === 0 && (
+              <CollectionFilteredEmpty
+                title="Ninguna compra coincide con los filtros"
+                action={{ label: "Limpiar filtros", onClick: clearFilters }}
+              />
+            )}
+          </>
         )}
       </div>
 

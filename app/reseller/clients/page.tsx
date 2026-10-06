@@ -10,6 +10,7 @@ import { IconUsers } from "@/app/assets/icons/DashboardIcons";
 import { CollectionEmpty, CollectionError, CollectionFilteredEmpty, CollectionLoading } from "@/components/CollectionState";
 import { Pagination } from "@/components/Pagination";
 import { Select } from "@/components/ui/Select";
+import { ExpiryCell } from "@/components/ui/ExpiryCell";
 
 export default function ResellerClientsPage() {
   const clients = useResellerStore((s) => s.clients);
@@ -77,11 +78,11 @@ export default function ResellerClientsPage() {
               setCurrentPage(1);
             }}
             placeholder="Buscar por nombre o correo…"
-            className="bg-surface-container border border-outline-variant/20 rounded-full py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50 w-full sm:w-64"
+            className="bg-surface-container border border-outline-variant/20 rounded-full py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary-ink focus:ring-1 focus:ring-primary-ink transition-all placeholder:text-on-surface-variant/80 w-full sm:w-64"
           />
           <button
             onClick={() => setCreating(true)}
-            className="py-2.5 px-5 rounded-full bg-[#6063ee] text-white hover:bg-[#c0c1ff] hover:text-[#0b0664] text-sm font-bold shadow-lg shadow-[#6063ee]/20 transition-colors whitespace-nowrap"
+            className="py-2.5 px-5 rounded-full bg-primary text-on-primary hover:bg-primary-dim text-sm font-bold shadow-lg shadow-primary/20 transition-colors whitespace-nowrap"
           >
             + Nuevo cliente
           </button>
@@ -134,23 +135,16 @@ export default function ResellerClientsPage() {
                   </span>
                 </div>
 
-                <p className="text-xs text-on-surface-variant mt-3">
-                  Plan <strong className="text-on-surface">{c.plan_name ?? c.plan_id}</strong> ·
-                  Vence{" "}
-                  <strong className="text-on-surface tabular-nums">
-                    {c.period_end
-                      ? new Date(c.period_end).toLocaleDateString("es-CO", {
-                          day: "numeric",
-                          month: "short",
-                          year: "numeric",
-                        })
-                      : "—"}
-                  </strong>
-                </p>
+                <div className="mt-3 flex items-start justify-between gap-3 text-xs">
+                  <p className="text-on-surface-variant">
+                    Plan <strong className="text-on-surface">{c.plan_name ?? c.plan_id}</strong>
+                  </p>
+                  <ExpiryCell periodEnd={c.period_end} className="text-right" />
+                </div>
 
                 <button
                   onClick={() => setManaging(c)}
-                  className="mt-4 w-full h-10 rounded-xl bg-[#6063ee] text-white text-sm font-bold hover:bg-[#c0c1ff] hover:text-[#0b0664] transition-colors"
+                  className="mt-4 w-full h-10 rounded-xl bg-primary text-on-primary text-sm font-bold hover:bg-primary-dim transition-colors"
                 >
                   Gestionar
                 </button>
@@ -223,19 +217,13 @@ export default function ResellerClientsPage() {
                           {LICENSE_STATUS_LABELS[c.license_status] ?? c.license_status}
                         </span>
                       </td>
-                      <td className="px-5 py-4 text-on-surface-variant tabular-nums">
-                        {c.period_end
-                          ? new Date(c.period_end).toLocaleDateString("es-CO", {
-                              day: "numeric",
-                              month: "short",
-                              year: "numeric",
-                            })
-                          : "—"}
+                      <td className="px-5 py-4 text-xs">
+                        <ExpiryCell periodEnd={c.period_end} />
                       </td>
                       <td className="px-5 py-4 text-right">
                         <button
                           onClick={() => setManaging(c)}
-                          className="text-sm font-semibold text-primary hover:underline"
+                          className="text-sm font-semibold text-primary-ink hover:underline"
                         >
                           Gestionar
                         </button>
@@ -332,7 +320,7 @@ function CreateClientModal({ onClose }: { onClose: () => void }) {
               </div>
             )}
             {noCredits && (
-              <div className="rounded-xl bg-amber-500/10 border border-amber-500/30 px-4 py-3 text-sm text-amber-600 dark:text-amber-400">
+              <div className="rounded-xl bg-warning/10 border border-warning/30 px-4 py-3 text-sm text-warning">
                 No tienes créditos del plan seleccionado: elige otro plan o solicita
                 una recarga al administrador.
               </div>
@@ -418,7 +406,7 @@ function CreateClientModal({ onClose }: { onClose: () => void }) {
             <button
               type="submit"
               disabled={submitting || noCredits}
-              className="py-2.5 px-5 rounded-xl bg-[#6063ee] text-white hover:bg-[#c0c1ff] hover:text-[#0b0664] text-sm font-bold shadow-lg shadow-[#6063ee]/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="py-2.5 px-5 rounded-xl bg-primary text-on-primary hover:bg-primary-dim text-sm font-bold shadow-lg shadow-primary/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {submitting ? "Creando…" : "Crear cliente"}
             </button>
@@ -497,7 +485,7 @@ function ManageClientModal({
           )}
 
           {recharged && (
-            <div className="rounded-xl bg-[#10b981]/10 border border-[#10b981]/30 px-4 py-3 text-sm text-[#10b981]">
+            <div className="rounded-xl bg-success/10 border border-success/30 px-4 py-3 text-sm text-success">
               Recarga aplicada. La licencia vence el{" "}
               <strong>
                 {new Date(recharged).toLocaleDateString("es-CO", {
@@ -526,7 +514,7 @@ function ManageClientModal({
               </label>
 
               {options.length === 0 ? (
-                <p className="text-xs text-amber-600 dark:text-amber-400 py-2">
+                <p className="text-xs text-warning py-2">
                   El plan {plan?.name} no tiene tiempos disponibles. Pídele al
                   administrador que le configure al menos uno.
                 </p>
@@ -551,7 +539,7 @@ function ManageClientModal({
                       type="button"
                       onClick={handleRecharge}
                       disabled={submitting || !affordable}
-                      className="py-3 px-5 rounded-xl bg-[#6063ee] text-white hover:bg-[#c0c1ff] hover:text-[#0b0664] text-sm font-bold shadow-lg shadow-[#6063ee]/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                      className="py-3 px-5 rounded-xl bg-primary text-on-primary hover:bg-primary-dim text-sm font-bold shadow-lg shadow-primary/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
                     >
                       {submitting
                         ? "Recargando…"
@@ -624,8 +612,8 @@ function ManageClientModal({
             disabled={submitting}
             className={`py-2.5 px-5 rounded-xl text-sm font-bold shadow-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
               suspended
-                ? "bg-[#6063ee] text-white hover:bg-[#c0c1ff] hover:text-[#0b0664] shadow-[#6063ee]/20"
-                : "bg-error text-white hover:bg-error-dim shadow-error/20"
+                ? "bg-primary text-on-primary hover:bg-primary-dim shadow-primary/20"
+                : "bg-error text-on-error hover:bg-error/90 shadow-error/20"
             }`}
           >
             {submitting ? "Guardando…" : suspended ? "Reactivar" : "Suspender"}

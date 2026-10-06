@@ -13,6 +13,7 @@ import type { ProductOffer } from "@/services/offers.service";
 import { useShiftsStore } from "@/stores/shifts.store";
 import { lineKey, cartLineKey as keyOf } from "@/services/pos.service";
 import { checkoutDiscounts, nextManualDiscount, tenderedForSale, type DiscountSource } from "@/lib/sale-discounts";
+import { heldTabsKey, restoreHeldTabs, snapshotHeldTabs, type HeldTabsSnapshot } from "@/lib/pos-held-tabs";
 import {
   getWorkspaceExecutionContext,
   type WorkspaceExecutionContext,
@@ -556,12 +557,34 @@ export const usePosStore = create<PosState>((set, get) => {
         // `setIncludeTax`); `allowOversell` solo se configura en Ajustes.
         const { taxRate, includeTax, allowOversell } = config;
         const state = get();
+        const heldKey = heldTabsKey(executionContext);
         if (state.activeTabId === "") {
-          const firstTab = createDefaultTab(0, get);
-          set({ catalog, customers, staff, offers, taxRate, includeTax, allowOversell, executionContext, loading: false, tabs: [firstTab], activeTabId: firstTab.id });
+          // Primera carga de la página: vuelven las ventas en espera que
+          // quedaron guardadas en este equipo (C16), reconciliadas contra el
+          // catálogo de hoy. Si no hay nada (o falla la lectura), una pestaña
+          // nueva como siempre.
+          const snapshot = await posService
+            .loadHeldTabs<HeldTabsSnapshot<SaleTab>>(heldKey)
+            .catch(() => null);
+          const restored = restoreHeldTabs(snapshot, {
+            catalog,
+            customerIds: new Set(customers.map((c) => c.id)),
+            staffIds: new Set(staff.map((m) => m.id)),
+            now: new Date(),
+          });
+          if (restored) {
+            set({ catalog, customers, staff, offers, taxRate, includeTax, allowOversell, executionContext, loading: false, tabs: restored.tabs, activeTabId: restored.activeTabId });
+          } else {
+            const firstTab = createDefaultTab(0, get);
+            set({ catalog, customers, staff, offers, taxRate, includeTax, allowOversell, executionContext, loading: false, tabs: [firstTab], activeTabId: firstTab.id });
+          }
         } else {
           set({ catalog, customers, staff, offers, taxRate, includeTax, allowOversell, executionContext, loading: false });
         }
+        // Desde acá cada cambio de pestañas se guarda bajo ESTA clave. Antes
+        // de restaurar no se guarda nada: la pestaña vacía por defecto pisaría
+        // la foto que todavía no se leyó.
+        heldTabsActiveKey = heldKey;
         await useShiftsStore.getState().fetchCurrentShift();
         get().syncShiftStaff();
         get().recomputeOffers();
@@ -1455,6 +1478,48 @@ export const usePosStore = create<PosState>((set, get) => {
     clearPlanLimit: () => set({ planLimitHit: false }),
   };
 });
+
+/**
+ * Ventas en espera persistidas (C16). Clave activa = usuario + negocio del
+ * último `init`; null hasta que se restauró la foto (ver `init`).
+ */
+let heldTabsActiveKey: string | null = null;
+let heldTabsTimer: ReturnType<typeof setTimeout> | null = null;
+const HELD_TABS_SAVE_DELAY_MS = 400;
+
+function flushHeldTabs() {
+  if (heldTabsTimer) clearTimeout(heldTabsTimer);
+  heldTabsTimer = null;
+  const key = heldTabsActiveKey;
+  if (!key) return;
+  const { tabs, activeTabId } = usePosStore.getState();
+  void posService.saveHeldTabs(key, snapshotHeldTabs(tabs, activeTabId, new Date()));
+}
+
+if (typeof window !== "undefined") {
+  usePosStore.subscribe((state, previous) => {
+    if (state.tabs === previous.tabs && state.activeTabId === previous.activeTabId) return;
+    if (!heldTabsActiveKey) return;
+    // Un carrito que se VACIÓ (venta cobrada, vaciada o pestaña cerrada) se
+    // guarda al instante: si la página se recargara dentro del respiro, la
+    // venta ya cobrada volvería a aparecer lista para cobrarse otra vez.
+    const emptied = previous.tabs.some(
+      (p) => p.cart.length > 0 && (state.tabs.find((t) => t.id === p.id)?.cart.length ?? 0) === 0,
+    );
+    if (emptied) {
+      flushHeldTabs();
+      return;
+    }
+    if (heldTabsTimer) clearTimeout(heldTabsTimer);
+    // Con un respiro: tipear una cantidad no tiene que escribir en disco por
+    // cada tecla. Se guarda lo ÚLTIMO, leído al momento de escribir.
+    heldTabsTimer = setTimeout(flushHeldTabs, HELD_TABS_SAVE_DELAY_MS);
+  });
+  // Cerrar o recargar con un guardado pendiente: se escribe ya.
+  window.addEventListener("pagehide", () => {
+    if (heldTabsTimer) flushHeldTabs();
+  });
+}
 
 // Store-to-store synchronization keeps async arrival order out of React effects.
 useShiftsStore.subscribe((state, previous) => {
