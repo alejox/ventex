@@ -143,7 +143,8 @@ function CalendarContent() {
   const appointmentId = searchParams.get("appointment");
 
   const [displayMode, setDisplayMode] = useState<"calendar" | "list" | "pending">("calendar");
-  const [view, setView] = useState<"month" | "week" | "day">("month");
+  // La semana es la vista de trabajo: es donde se ve qué cita ocupa qué hora.
+  const [view, setView] = useState<"month" | "week" | "day">("week");
   const [currentDate, setCurrentDate] = useState(new Date());
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedAppointment, setSelectedAppointment] =
