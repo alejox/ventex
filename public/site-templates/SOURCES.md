@@ -31,3 +31,11 @@ Attribution is not required, but source details are preserved here for traceabil
 - Photo: "Close-up of a Light Outside of a Barber Shop"
 - Photographer: Lukas Kosc
 - Source: https://www.pexels.com/photo/close-up-of-a-light-outside-of-a-barber-shop-16474397/
+
+## Luxia, Lezar y Zen (salones y spa)
+
+Son diseños propios inspirados en el lenguaje visual (paleta, tipografía y
+composición de la portada) de tres temas de ThemeForest: Luxia (PSD), Lezar
+(Jekyll) y Mediclick Spa. **No se copió ningún archivo de esos paquetes** — sus
+imágenes eran marcadores de posición — y las plantillas usan las fotos por
+defecto de Rasm y Fallspa (Pexels) hasta que el negocio sube las suyas.

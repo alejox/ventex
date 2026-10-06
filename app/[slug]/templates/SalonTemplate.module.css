@@ -1,0 +1,79 @@
+/* Salones y spa: tres variantes sobre la misma estructura. */
+.root { --content-width: 1240px; }
+
+.header { position: relative; }
+.nav { height: 104px; }
+.mark { color: var(--site-accent); font-size: 28px; }
+.links { gap: 30px; }
+.cta { border-radius: var(--site-radius); }
+
+.hero {
+  align-items: center;
+  display: grid;
+  gap: 56px;
+  grid-template-columns: 1.05fr 1fr;
+  margin: 0 auto;
+  max-width: var(--content-width);
+  padding: 24px 32px 96px;
+  position: relative;
+}
+
+.copy { position: relative; z-index: 3; }
+.eyebrow { color: var(--site-accent); display: block; font-size: 15px; font-weight: 600; margin-bottom: 16px; }
+.title { font-family: var(--site-heading-font); font-size: clamp(38px, 5.2vw, 66px); font-weight: 700; line-height: 1.08; }
+.description { color: var(--site-muted); font-size: 17px; line-height: 1.85; margin-top: 22px; max-width: 540px; }
+.actions { align-items: center; display: flex; flex-wrap: wrap; gap: 16px; margin-top: 34px; }
+.primary, .secondary { align-items: center; border-radius: var(--site-radius); display: inline-flex; font-size: 14px; font-weight: 700; justify-content: center; min-height: 52px; padding: 0 28px; }
+.primary { background: var(--site-accent); color: var(--site-on-accent); }
+.secondary { border: 1.5px solid var(--site-accent); color: var(--site-accent); }
+
+.frame { aspect-ratio: 4 / 5; position: relative; }
+.photo { object-fit: cover; }
+
+/* ---- Luxia: portada partida con arco y círculo rosado detrás ---- */
+.luxia .eyebrow { font-size: 16px; }
+.luxia .title { letter-spacing: -.02em; }
+.luxia .frame { border-radius: 220px 220px 24px 24px; box-shadow: var(--site-shadow); overflow: hidden; }
+.luxia .hero::before {
+  background: color-mix(in srgb, var(--site-accent) 18%, transparent);
+  border-radius: 50%;
+  content: "";
+  height: 640px;
+  position: absolute;
+  right: -140px;
+  top: -120px;
+  width: 640px;
+  z-index: 0;
+}
+.luxia .frame { z-index: 2; }
+.luxia .primary, .luxia .secondary { border-radius: 999px; }
+.luxia .cta { border-radius: 999px; }
+
+/* ---- Lezar: foto circular a la izquierda, letra manuscrita ---- */
+.lezar .hero { grid-template-columns: 1fr 1.05fr; }
+.lezar .frame { aspect-ratio: 1; border-radius: 50%; box-shadow: var(--site-shadow); order: -1; overflow: hidden; }
+.lezar .eyebrow { font-family: 'Dancing Script', 'Segoe Script', cursive; font-size: 30px; font-weight: 700; }
+.lezar .title { font-size: clamp(36px, 4.8vw, 60px); letter-spacing: -.01em; text-transform: uppercase; }
+.lezar .primary { background: var(--site-accent); }
+.lezar .secondary { border-color: #d6b981; color: #8a6f33; }
+
+/* ---- Zen: portada centrada, bordes muy redondeados ---- */
+.zen .header { background: linear-gradient(180deg, color-mix(in srgb, var(--site-accent) 14%, var(--site-bg)) 0%, var(--site-bg) 100%); }
+.zen .hero { grid-template-columns: 1fr; justify-items: center; padding-bottom: 80px; text-align: center; }
+.zen .copy { max-width: 760px; }
+.zen .description { margin-inline: auto; }
+.zen .actions { justify-content: center; }
+.zen .eyebrow { letter-spacing: .14em; text-transform: uppercase; }
+.zen .title { font-weight: 300; letter-spacing: .02em; }
+.zen .frame { aspect-ratio: 16 / 7; border-radius: 40px; box-shadow: var(--site-shadow); overflow: hidden; width: 100%; }
+.zen .primary, .zen .secondary, .zen .cta { border-radius: 999px; }
+
+@media (max-width: 900px) {
+  .hero { gap: 36px; grid-template-columns: 1fr; padding: 8px 20px 64px; }
+  .lezar .hero { grid-template-columns: 1fr; }
+  .lezar .frame { order: 0; margin-inline: auto; max-width: 420px; width: 100%; }
+  .luxia .frame { margin-inline: auto; max-width: 420px; width: 100%; }
+  .luxia .hero::before { height: 380px; right: -140px; top: 300px; width: 380px; }
+  .zen .frame { aspect-ratio: 4 / 3; border-radius: 28px; }
+  .nav { height: 82px; }
+}

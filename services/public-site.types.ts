@@ -14,14 +14,49 @@ export const SITE_TEMPLATES = [
   "barberia",
   "barberia-artesanal",
   "barberia-urbana",
+  "luxia",
+  "lezar",
+  "zen",
 ] as const;
 export type SiteTemplate = (typeof SITE_TEMPLATES)[number];
 
+/** Las barberías: portada a sangre con el texto encima (ver `heroHasOverlay`). */
 const BARBER_TEMPLATES: SiteTemplate[] = [
   "barberia",
   "barberia-artesanal",
   "barberia-urbana",
 ];
+
+/**
+ * Diseños solo para negocios de tipo salón/barbería (y para quien ya los tiene
+ * guardados): las barberías y los tres de salón y spa.
+ */
+const SALON_ONLY_TEMPLATES: SiteTemplate[] = [
+  ...BARBER_TEMPLATES,
+  "luxia",
+  "lezar",
+  "zen",
+];
+
+/** Pestañas del selector de diseño: barberías por un lado, salones y spa por otro. */
+export type TemplateGroup = "barberia" | "salon";
+
+export const TEMPLATE_GROUP_LABELS: Record<TemplateGroup, string> = {
+  barberia: "Barberías",
+  salon: "Salones",
+};
+
+export const TEMPLATE_GROUPS: Record<SiteTemplate, TemplateGroup> = {
+  rasm: "salon",
+  fallspa: "salon",
+  luxia: "salon",
+  lezar: "salon",
+  zen: "salon",
+  qutter: "barberia",
+  barberia: "barberia",
+  "barberia-artesanal": "barberia",
+  "barberia-urbana": "barberia",
+};
 
 export const TEMPLATE_LABELS: Record<SiteTemplate, string> = {
   rasm: "Rasm",
@@ -30,6 +65,9 @@ export const TEMPLATE_LABELS: Record<SiteTemplate, string> = {
   barberia: "Barbería moderna",
   "barberia-artesanal": "Barbería artesanal",
   "barberia-urbana": "Barbería urbana",
+  luxia: "Luxia",
+  lezar: "Lezar",
+  zen: "Zen",
 };
 
 export const TEMPLATE_DESCRIPTIONS: Record<SiteTemplate, string> = {
@@ -39,6 +77,9 @@ export const TEMPLATE_DESCRIPTIONS: Record<SiteTemplate, string> = {
   barberia: "Oscura, elegante y editorial para una barbería premium.",
   "barberia-artesanal": "Clara, cálida y con detalles de oficio tradicional.",
   "barberia-urbana": "Directa, condensada y práctica para una barbería de barrio.",
+  luxia: "Coral suave y femenino, con titulares clásicos, para salones de belleza y spa.",
+  lezar: "Arena y verde azulado con detalles dorados y letra manuscrita, para salones y estética.",
+  zen: "Lavanda serena y redondeada, para spa, masajes y bienestar.",
 };
 
 export function templatesFor(
@@ -47,7 +88,7 @@ export function templatesFor(
 ): SiteTemplate[] {
   return SITE_TEMPLATES.filter(
     (template) =>
-      !BARBER_TEMPLATES.includes(template) ||
+      !SALON_ONLY_TEMPLATES.includes(template) ||
       businessType === "salon" ||
       template === current,
   );
@@ -163,6 +204,9 @@ export const DEFAULT_SITE_IMAGES: Record<SiteTemplate, string> = {
   barberia: "/sites/moderno/barber-hero.webp",
   "barberia-artesanal": "/sites/moderno/barber-hero.webp",
   "barberia-urbana": "/sites/moderno/barber-hero.webp",
+  luxia: "/site-templates/fallspa-hero.webp",
+  lezar: "/site-templates/rasm-hero.webp",
+  zen: "/site-templates/fallspa-hero.webp",
 };
 
 export const DEFAULT_SITE_DETAIL_IMAGES = {

@@ -15,10 +15,12 @@ import {
   HERO_OVERLAY_TEMPLATE_LEVEL,
   templatesFor,
   TEMPLATE_DESCRIPTIONS,
+  TEMPLATE_GROUP_LABELS,
+  TEMPLATE_GROUPS,
   TEMPLATE_LABELS,
   WEEKDAY_LABELS,
 } from "@/services/public-site.types";
-import type { LandingConfig, SiteContactConfig, SiteImage, SiteSectionId } from "@/services/public-site.types";
+import type { LandingConfig, SiteContactConfig, SiteImage, SiteSectionId, TemplateGroup } from "@/services/public-site.types";
 import { SOCIAL_NETWORKS, SOCIAL_META } from "@/lib/socialLinks";
 import { BrandIcon } from "@/app/assets/icons/BrandIcons";
 import { LandingPreview } from "@/components/landing/LandingPreview";
@@ -33,7 +35,7 @@ const TABS: { id: EditorTab; label: string }[] = [
   { id: "business", label: "Negocio" },
   { id: "seo", label: "SEO" },
 ];
-const DEFAULT_COLORS = { rasm: "#a96550", fallspa: "#a87696", qutter: "#d5a928", barberia: "#c5a572", "barberia-artesanal": "#552d25", "barberia-urbana": "#538167" };
+const DEFAULT_COLORS = { rasm: "#a96550", fallspa: "#a87696", qutter: "#d5a928", barberia: "#c5a572", "barberia-artesanal": "#552d25", "barberia-urbana": "#538167", luxia: "#f08b78", lezar: "#5b7c84", zen: "#8e3fb8" };
 
 export function LandingEditor({ siteId: initialSiteId, onSaved, onBack, initial, initialHours, initialPublished, currentSlug, businessName, businessType, logoUrl }: {
   /** Sede que se edita; sin id es una sede nueva que todavía no se guardó. */
@@ -196,7 +198,33 @@ export function LandingEditor({ siteId: initialSiteId, onSaved, onBack, initial,
 }
 
 function DesignPanel({ config, businessType, onChange }: PanelProps & { businessType: string | null }) {
-  return <div className="space-y-6"><PanelTitle title="Elegí una identidad" text="El contenido se conserva al cambiar de diseño." /><div className="space-y-3">{templatesFor(businessType, config.template).map((template) => <button key={template} type="button" onClick={() => startTransition(() => onChange((current) => ({ ...current, template })))} className={`w-full rounded-xl border-2 p-4 text-left ${config.template === template ? "border-primary bg-primary/5" : "border-outline-variant/30"}`}><span className="font-bold text-on-surface">{TEMPLATE_LABELS[template]}</span><span className="mt-1 block text-xs text-on-surface-variant">{TEMPLATE_DESCRIPTIONS[template]}</span></button>)}</div><Field label="Color principal"><div className="flex gap-3"><input type="color" value={config.colors.primary ?? DEFAULT_COLORS[config.template]} onChange={(event) => onChange((current) => ({ ...current, colors: { primary: event.target.value } }))} className="h-11 w-14 rounded-lg border border-outline-variant/30 bg-surface-container p-1" /><button type="button" onClick={() => onChange((current) => ({ ...current, colors: { primary: null } }))} className="text-xs font-semibold text-primary">Usar original</button></div></Field></div>;
+  const available = templatesFor(businessType, config.template);
+  const groups = (Object.keys(TEMPLATE_GROUP_LABELS) as TemplateGroup[]).filter((group) => available.some((template) => TEMPLATE_GROUPS[template] === group));
+  // Se abre en la pestaña del diseño que ya está elegido: no obliga a buscarlo.
+  const [picked, setPicked] = useState<TemplateGroup | null>(null);
+  const group = picked ?? TEMPLATE_GROUPS[config.template];
+  const shown = available.filter((template) => TEMPLATE_GROUPS[template] === group);
+  return (
+    <div className="space-y-6">
+      <PanelTitle title="Elegí una identidad" text="El contenido se conserva al cambiar de diseño." />
+      {groups.length > 1 ? (
+        <div role="tablist" aria-label="Tipo de negocio" className="flex gap-2 rounded-xl bg-surface-container-high p-1">
+          {groups.map((item) => (
+            <button key={item} type="button" role="tab" aria-selected={group === item} onClick={() => setPicked(item)} className={`flex-1 rounded-lg px-3 py-2 text-sm font-bold transition-colors ${group === item ? "bg-surface text-primary shadow-sm" : "text-on-surface-variant hover:text-on-surface"}`}>{TEMPLATE_GROUP_LABELS[item]}</button>
+          ))}
+        </div>
+      ) : null}
+      <div className="space-y-3">
+        {shown.map((template) => (
+          <button key={template} type="button" onClick={() => startTransition(() => onChange((current) => ({ ...current, template })))} className={`w-full rounded-xl border-2 p-4 text-left ${config.template === template ? "border-primary bg-primary/5" : "border-outline-variant/30"}`}>
+            <span className="flex items-center gap-2 font-bold text-on-surface"><span aria-hidden="true" className="h-3 w-3 rounded-full border border-outline-variant/30" style={{ backgroundColor: DEFAULT_COLORS[template] }} />{TEMPLATE_LABELS[template]}</span>
+            <span className="mt-1 block text-xs text-on-surface-variant">{TEMPLATE_DESCRIPTIONS[template]}</span>
+          </button>
+        ))}
+      </div>
+      <Field label="Color principal"><div className="flex gap-3"><input type="color" value={config.colors.primary ?? DEFAULT_COLORS[config.template]} onChange={(event) => onChange((current) => ({ ...current, colors: { primary: event.target.value } }))} className="h-11 w-14 rounded-lg border border-outline-variant/30 bg-surface-container p-1" /><button type="button" onClick={() => onChange((current) => ({ ...current, colors: { primary: null } }))} className="text-xs font-semibold text-primary">Usar original</button></div></Field>
+    </div>
+  );
 }
 
 function SectionsPanel({ config, onChange }: PanelProps) {
