@@ -148,7 +148,7 @@ begin$q$);
                                 $q$'service', v_service.name, 'status', 'pending',
     'staff', (select s.full_name from public.staff s where s.id = v_assigned),$q$);
     if position('v_assigned uuid' in patched) = 0 or position('v_service.id, v_assigned,' in patched) = 0
-       or position(''staff'', (select' in patched) = 0 or position('v_assigned := p_staff_id' in patched) = 0 then
+       or position($q$'staff', (select$q$ in patched) = 0 or position('v_assigned := p_staff_id' in patched) = 0 then
       raise exception 'public_site_book: no se encontraron los fragmentos para parchear';
     end if;
     execute patched;
