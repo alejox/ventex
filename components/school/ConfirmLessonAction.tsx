@@ -35,7 +35,7 @@ export function ConfirmLessonAction({ token }: ConfirmLessonActionProps) {
       setState("done");
     } catch {
       setState("error");
-      setMessage("No pudimos conectar con el servidor. Revisá tu conexión.");
+      setMessage("No pudimos conectar con el servidor. Revisa tu conexión.");
     }
   };
 

@@ -24,7 +24,7 @@ import {
   totalUnitsOf,
   lineTotalOf,
 } from "@/services/purchases.service";
-import { formatMoney } from "@/lib/money";
+import { useFormatMoney } from "@/lib/useMoney";
 
 /** Fecha de hoy en horario local. `toISOString()` da UTC y adelanta un día por la tarde. */
 const todayISO = () => {
@@ -109,6 +109,7 @@ const cellClass =
  * las líneas, que es el momento en que hay que mirarlos.
  */
 export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps) {
+  const fmtMoney = useFormatMoney();
   const router = useRouter();
 
   const distributors = useDistributorsStore((s) => s.distributors);
@@ -664,11 +665,11 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
                                   </span>
                                   {canSeeCosts && (
                                     <span>
-                                      Compra: <strong className="text-on-surface">{formatMoney(Number(p.purchase_price ?? 0))}</strong>
+                                      Compra: <strong className="text-on-surface">{fmtMoney(Number(p.purchase_price ?? 0))}</strong>
                                     </span>
                                   )}
                                   <span>
-                                    Venta: <strong className="text-on-surface">{formatMoney(Number(p.price))}</strong>
+                                    Venta: <strong className="text-on-surface">{fmtMoney(Number(p.price))}</strong>
                                   </span>
                                 </span>
                               </button>
@@ -825,7 +826,7 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
                         Total
                       </span>
                       <span className="text-sm font-semibold text-on-surface font-mono tabular-nums">
-                        {formatMoney(lineTotalOf(line))}
+                        {fmtMoney(lineTotalOf(line))}
                       </span>
                     </div>
 
@@ -886,7 +887,7 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
             >
               <div className="flex items-center justify-between gap-4 text-sm">
                 <dt className="text-on-surface-variant">Subtotal</dt>
-                <dd className="font-mono tabular-nums text-on-surface">{formatMoney(subtotal)}</dd>
+                <dd className="font-mono tabular-nums text-on-surface">{fmtMoney(subtotal)}</dd>
               </div>
 
               <div className="flex items-center justify-between gap-4 text-sm">
@@ -910,13 +911,13 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
               {taxMultiplier > 0 && (
                 <div className="flex items-center justify-between gap-4 text-sm">
                   <dt className="text-on-surface-variant">IVA ({percentLabel})</dt>
-                  <dd className="font-mono tabular-nums text-on-surface">{formatMoney(taxAmount)}</dd>
+                  <dd className="font-mono tabular-nums text-on-surface">{fmtMoney(taxAmount)}</dd>
                 </div>
               )}
 
               <div className="flex items-center justify-between gap-4 pt-3 border-t border-outline-variant/20">
                 <dt className="text-sm font-semibold text-on-surface">Total</dt>
-                <dd className="text-xl font-bold text-on-surface font-mono tabular-nums">{formatMoney(total)}</dd>
+                <dd className="text-xl font-bold text-on-surface font-mono tabular-nums">{fmtMoney(total)}</dd>
               </div>
             </dl>
           </div>

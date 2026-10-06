@@ -39,7 +39,7 @@ export default async function TeacherConfirmPage({
   } catch (e) {
     const raw = e instanceof Error ? e.message : "";
     error = /VENCIDO/.test(raw)
-      ? "Este enlace de confirmación venció. Pedile a la escuela uno nuevo."
+      ? "Este enlace de confirmación venció. Pídele a la escuela uno nuevo."
       : /revocad|usó/i.test(raw)
         ? "Este enlace ya se usó o fue reemplazado por uno nuevo."
         : "Este enlace no es válido.";

@@ -113,11 +113,11 @@ export function InstallPrompt() {
       </div>
 
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-on-surface">Instalá Ventex como aplicación</p>
+        <p className="text-sm font-semibold text-on-surface">Instala Ventex como aplicación</p>
         <p className="text-sm text-on-surface-variant mt-0.5">
           {showIosHelp ? (
             <>
-              Tocá <span className="font-semibold text-on-surface">Compartir</span> y después{" "}
+              Toca <span className="font-semibold text-on-surface">Compartir</span> y después{" "}
               <span className="font-semibold text-on-surface">Añadir a pantalla de inicio</span>.
             </>
           ) : (

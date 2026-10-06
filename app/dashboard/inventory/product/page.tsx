@@ -27,7 +27,7 @@ import { uploadProductImage } from "@/services/inventory.service";
 import { toMessage } from "@/lib/errors";
 import { ProductPricingSection } from "./components/ProductPricingSection";
 import { ProductPresentationSection } from "./components/ProductPresentationSection";
-import { formatMoney } from "@/lib/money";
+import { useFormatMoney } from "@/lib/useMoney";
 
 interface FieldErrors {
   name?: string;
@@ -64,6 +64,7 @@ function parseQuantityUnit(raw: string): string | undefined {
  * en producción no había un solo par completo.
  */
 function ProductForm() {
+  const fmtMoney = useFormatMoney();
   const router = useRouter();
   const searchParams = useSearchParams();
   const editId = searchParams.get("id");
@@ -233,10 +234,10 @@ function ProductForm() {
     }
     if (units <= 1) return "Define primero cuántas unidades trae la caja.";
     const perUnit = boxPrice / units;
-    const label = `Sale a ${formatMoney(perUnit)} por unidad`;
+    const label = `Sale a ${fmtMoney(perUnit)} por unidad`;
     return perUnit > unitPrice
-      ? `${label}: MÁS CARA que vender suelto (${formatMoney(unitPrice)}).`
-      : `${label}, contra ${formatMoney(unitPrice)} suelto.`;
+      ? `${label}: MÁS CARA que vender suelto (${fmtMoney(unitPrice)}).`
+      : `${label}, contra ${fmtMoney(unitPrice)} suelto.`;
   })();
 
   const editingProduct = editId ? products.find((p) => p.id === editId) : undefined;
@@ -374,16 +375,16 @@ function ProductForm() {
     // corrige y lo lee un lector de pantalla.
     const errores: FieldErrors = {};
     if (!form.name.trim()) {
-      errores.name = `Escribí el nombre del ${isService ? "servicio" : "producto"}.`;
+      errores.name = `Escribe el nombre del ${isService ? "servicio" : "producto"}.`;
     }
     if (isService && !(parseFloat(serviceFinalPrice) > 0)) {
-      errores.price = "Indicá el precio del servicio.";
+      errores.price = "Indica el precio del servicio.";
     }
     if (!isService) {
       try {
         parseProductSalePrice(sellingPriceTotal, form.open_price);
       } catch (error) {
-        errores.price = error instanceof Error ? error.message : "Indicá un precio de venta válido.";
+        errores.price = error instanceof Error ? error.message : "Indica un precio de venta válido.";
       }
     }
     if (Object.keys(errores).length > 0) {
@@ -975,15 +976,15 @@ function ProductForm() {
                     <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-on-surface-variant">Desglose del precio</p>
                     <div className="flex items-center justify-between gap-4 text-on-surface-variant">
                       <span>Precio antes de IVA</span>
-                      <span>{formatMoney(serviceBaseValue)}</span>
+                      <span>{fmtMoney(serviceBaseValue)}</span>
                     </div>
                     <div className="mt-2 flex items-center justify-between gap-4 text-on-surface-variant">
                       <span>IVA{taxRate > 0 && sellingPriceTax !== "Ninguno" ? ` (${percentLabel})` : ""}</span>
-                      <span>{formatMoney(serviceTaxValue)}</span>
+                      <span>{fmtMoney(serviceTaxValue)}</span>
                     </div>
                     <div className="mt-3 flex items-center justify-between gap-4 border-t border-outline-variant/15 pt-3 font-bold text-on-surface">
                       <span>Total a cobrar</span>
-                      <span>{formatMoney(serviceFinalValue)}</span>
+                      <span>{fmtMoney(serviceFinalValue)}</span>
                     </div>
                 </div>
               </div>

@@ -144,7 +144,7 @@ function BookingSection({ site, section, preview }: SectionProps & { preview: bo
   return (
     <section id="reservar" className="site-booking-section site-reveal">
       <div className="site-booking-inner">
-        <div><SectionHeading section={section} /><p className="mt-5 leading-relaxed text-[var(--site-muted)]">Elegí el servicio, profesional y horario que mejor te quede.</p></div>
+        <div><SectionHeading section={section} /><p className="mt-5 leading-relaxed text-[var(--site-muted)]">Elige el servicio, profesional y horario que mejor te quede.</p></div>
         <div className="site-booking-panel min-w-0 shadow-[var(--site-shadow)]">
           {preview ? <div className="grid min-h-64 place-items-center border border-dashed border-[var(--site-on-surface-border)] p-8 text-center text-sm text-[var(--site-on-surface-muted)]">La agenda real aparecerá aquí cuando publiques.</div> : <BookingWidget site={site} />}
         </div>

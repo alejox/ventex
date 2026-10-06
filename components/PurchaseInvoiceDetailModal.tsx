@@ -5,7 +5,7 @@ import type { PurchaseInvoice, PurchaseInvoiceItem } from "@/services/purchases.
 import * as purchasesService from "@/services/purchases.service";
 import { looseUnitsOf } from "@/services/purchases.service";
 import { formatDateOnly } from "@/lib/date";
-import { formatMoney } from "@/lib/money";
+import { useFormatMoney } from "@/lib/useMoney";
 
 interface Props {
   invoice: PurchaseInvoice;
@@ -13,6 +13,7 @@ interface Props {
 }
 
 export function PurchaseInvoiceDetailModal({ invoice, onClose }: Props) {
+  const fmtMoney = useFormatMoney();
   const [items, setItems] = useState<PurchaseInvoiceItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -106,14 +107,14 @@ export function PurchaseInvoiceDetailModal({ invoice, onClose }: Props) {
                           <strong className="text-on-surface">{item.quantity} u.</strong>
                         )}
                         <span className="mx-1">·</span>
-                        {item.package_quantity > 0 && `${formatMoney(item.package_price)} la caja`}
+                        {item.package_quantity > 0 && `${fmtMoney(item.package_price)} la caja`}
                         {item.package_quantity > 0 && looseUnitsOf(item) > 0 && " + "}
                         {(item.package_quantity === 0 || looseUnitsOf(item) > 0) &&
-                          `${formatMoney(item.unit_price)} la unidad`}
+                          `${fmtMoney(item.unit_price)} la unidad`}
                       </p>
                     </div>
                     <span className="text-sm font-semibold text-on-surface font-mono shrink-0 ml-4">
-                      {formatMoney(item.line_total)}
+                      {fmtMoney(item.line_total)}
                     </span>
                   </div>
                 ))}
@@ -124,7 +125,7 @@ export function PurchaseInvoiceDetailModal({ invoice, onClose }: Props) {
           <div className="border-t border-outline-variant/10 pt-4 flex justify-between items-center">
             <span className="text-sm font-semibold text-on-surface">Total</span>
             <span className="text-xl font-bold text-on-surface font-mono">
-              {formatMoney(Number(invoice.total))}
+              {fmtMoney(Number(invoice.total))}
             </span>
           </div>
         </div>

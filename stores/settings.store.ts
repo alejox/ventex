@@ -10,6 +10,12 @@ interface SettingsState {
   submitting: boolean;
 
   fetchSettings: () => Promise<void>;
+  /**
+   * Carga los settings solo si todavía no están (ni en vuelo). La llama el shell
+   * del dashboard para que la moneda (`useFormatMoney`) llegue a toda la UI sin
+   * un fetch por pantalla.
+   */
+  ensureSettings: () => Promise<void>;
   /** Devuelve true si se guardó correctamente. */
   saveSettings: (input: SettingsInput) => Promise<boolean>;
   saveShiftRequirement: (enabled: boolean) => Promise<boolean>;
@@ -19,7 +25,7 @@ interface SettingsState {
 }
 
 
-export const useSettingsStore = create<SettingsState>((set) => ({
+export const useSettingsStore = create<SettingsState>((set, get) => ({
   settings: null,
   loading: false,
   error: null,
@@ -33,6 +39,12 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     } catch (e) {
       set({ error: toMessage(e), loading: false });
     }
+  },
+
+  ensureSettings: async () => {
+    const { settings, loading, fetchSettings } = get();
+    if (settings || loading) return;
+    await fetchSettings();
   },
 
   saveSettings: async (input) => {

@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
 
   if (!membership?.staff_id) {
     return NextResponse.json(
-      { error: "No tenés permiso para administrar esta membresía." },
+      { error: "No tienes permiso para administrar esta membresía." },
       { status: 403 },
     );
   }
@@ -271,7 +271,7 @@ export async function POST(request: NextRequest) {
 
     if (membership.status !== expectedStatus || expectedStatus === "revoked") {
       return NextResponse.json(
-        { error: "La membresía cambió de estado. Actualizá la página e intentá de nuevo." },
+        { error: "La membresía cambió de estado. Actualiza la página e intenta de nuevo." },
         { status: 409 },
       );
     }
@@ -299,7 +299,7 @@ export async function POST(request: NextRequest) {
     }
     if (!updated) {
       return NextResponse.json(
-        { error: "La membresía cambió de estado. Actualizá la página e intentá de nuevo." },
+        { error: "La membresía cambió de estado. Actualiza la página e intenta de nuevo." },
         { status: 409 },
       );
     }

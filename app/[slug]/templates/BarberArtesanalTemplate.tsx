@@ -27,7 +27,7 @@ export function BarberArtesanalTemplate({ site, preview = false }: { site: Publi
           <h1 className={`${styles.heroTitle} ${styles.manuscrita}`}>{hero.title ?? site.businessName}</h1>
           <p className={styles.heroKicker}>{hero.eyebrow}</p>
           {hero.description ? <p className="mx-auto mt-5 max-w-2xl text-sm leading-7 text-[#ecd9cd]">{hero.description}</p> : null}
-          <div className={styles.heroActions}>{site.bookingEnabled ? <a className={styles.primary} href="#reservar">Reservá tu turno <ArrowUpRight size={16} aria-hidden="true" /></a> : null}<a className={styles.secondary} href="#servicios">Ver servicios</a></div>
+          <div className={styles.heroActions}>{site.bookingEnabled ? <a className={styles.primary} href="#reservar">Reserva tu turno <ArrowUpRight size={16} aria-hidden="true" /></a> : null}<a className={styles.secondary} href="#servicios">Ver servicios</a></div>
           <div className={styles.heroStatus}><BusinessStatus site={site} /></div>
         </div>
         {!hero.imageUrl ? <span className={styles.sample}>Imagen de referencia</span> : null}

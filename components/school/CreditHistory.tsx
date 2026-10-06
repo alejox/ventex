@@ -4,7 +4,8 @@ import { useMemo, useState } from "react";
 import { SchoolModal } from "@/components/school/SchoolModal";
 import { useSchoolClassesStore } from "@/stores/school-classes.store";
 import { enrollmentBalanceOf } from "@/services/school-enrollments.service";
-import { formatMoney, formatShortDate } from "@/components/school/format";
+import { formatShortDate } from "@/components/school/format";
+import { useFormatMoney } from "@/lib/useMoney";
 import { notifySuccess } from "@/lib/notifications";
 import type { CreditMovement, SchoolEnrollment } from "@/services/school-enrollments.service";
 
@@ -46,6 +47,7 @@ const ENROLLMENT_STATUS_LABEL: Record<string, string> = {
  * `school_adjust_credit` — no hay ediciones silenciosas.
  */
 export function CreditHistory({ enrollments, movements, onChanged }: CreditHistoryProps) {
+  const money = useFormatMoney();
   const adjustCredit = useSchoolClassesStore((s) => s.adjustCredit);
   const saving = useSchoolClassesStore((s) => s.saving);
   const error = useSchoolClassesStore((s) => s.error);
@@ -104,7 +106,7 @@ export function CreditHistory({ enrollments, movements, onChanged }: CreditHisto
                       </span>
                     </p>
                     <p className="mt-0.5 text-sm text-on-surface-variant">
-                      {formatMoney(e.plan_price)} · {e.contracted_lessons}{" "}
+                      {money(e.plan_price)} · {e.contracted_lessons}{" "}
                       {e.contracted_lessons === 1 ? "clase" : "clases"} contratadas
                     </p>
                   </div>
@@ -173,7 +175,7 @@ export function CreditHistory({ enrollments, movements, onChanged }: CreditHisto
           <div className="space-y-4 p-6 pt-4">
             <p className="text-xs text-on-surface-variant">
               El saldo es la SUMA de sus movimientos: cada ajuste queda registrado
-              en el historial con su motivo. Usá un número negativo para descontar
+              en el historial con su motivo. Usa un número negativo para descontar
               (ej.: −2) y positivo para sumar (ej.: +3). Cero no está permitido.
             </p>
             <div>

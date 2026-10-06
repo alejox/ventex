@@ -508,7 +508,7 @@ test.describe.serial("Académico — ciclo completo (cuenta E2E real)", () => {
       remainingMs > 0,
       `La clase ${target.id} (matrícula ${enrollment.id}, alumno ${student.id}) todavía no ` +
         `termina: start_at=${target.start_at} end_at=${target.end_at} (faltan ${Math.round(remainingMs / 1000)}s). ` +
-        `Para confirmar, mové start_at/end_at de esa fila en school_lessons al pasado y volvé a correr ` +
+        `Para confirmar, mueve start_at/end_at de esa fila en school_lessons al pasado y vuelve a correr ` +
         `"07 confirmar y cerrar" sola.`
     );
 

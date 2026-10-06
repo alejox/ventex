@@ -218,7 +218,7 @@ export function linkConfirmGate(
     return { ok: false, reason: "el enlace venció" };
   }
   if (link.version !== lesson.version) {
-    return { ok: false, reason: "la clase cambió; pedí un enlace nuevo" };
+    return { ok: false, reason: "la clase cambió; pide un enlace nuevo" };
   }
   if (lesson.status !== "scheduled") {
     return { ok: false, reason: "la clase no está programada" };

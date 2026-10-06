@@ -11,7 +11,7 @@ export async function POST(request: Request) {
   }
   if (!user.email_confirmed_at) {
     return NextResponse.json(
-      { error: "Primero debés verificar tu correo." },
+      { error: "Primero debes verificar tu correo." },
       { status: 403 },
     );
   }
@@ -20,7 +20,7 @@ export async function POST(request: Request) {
   const membershipId = String(body?.membershipId ?? "");
   if (!membershipId) {
     return NextResponse.json(
-      { error: "Falta la invitación que querés aceptar." },
+      { error: "Falta la invitación que quieres aceptar." },
       { status: 400 },
     );
   }

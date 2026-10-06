@@ -13,7 +13,8 @@ import { CreditHistory } from "@/components/school/CreditHistory";
 import { MaterialForm } from "@/components/school/MaterialForm";
 import { FamilyLinkDialog } from "@/components/school/FamilyLinkDialog";
 import { ShareWhatsAppButton } from "@/components/school/ShareWhatsAppButton";
-import { formatMoney, formatShortDate } from "@/components/school/format";
+import { formatShortDate } from "@/components/school/format";
+import { useFormatMoney } from "@/lib/useMoney";
 import { renderSchoolMessage, noticeShareGate } from "@/services/school-materials.service";
 import { CollectionLoading, CollectionError } from "@/components/CollectionState";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
@@ -21,6 +22,7 @@ import type { StudentGuardian } from "@/services/school-people.service";
 
 /** Ficha de un alumno: datos + adultos responsables + matrículas y su detalle. */
 export default function EstudianteDetailPage() {
+  const money = useFormatMoney();
   const params = useParams<{ id: string }>();
   const detail = useSchoolPeopleStore((s) => s.detail);
   const loading = useSchoolPeopleStore((s) => s.loading);
@@ -147,7 +149,7 @@ export default function EstudianteDetailPage() {
         </div>
         {guardians.length === 0 ? (
           <p className="mt-3 text-sm text-on-surface-variant">
-            Sin adultos registrados. Si el alumno es menor, agregá al menos uno.
+            Sin adultos registrados. Si el alumno es menor, agrega al menos uno.
           </p>
         ) : (
           <ul className="mt-4 space-y-3">
@@ -214,7 +216,7 @@ export default function EstudianteDetailPage() {
                     acudiente: noticeReceiver.full_name,
                     alumno: student?.full_name ?? "",
                     titulo: m.title,
-                    enlace: "pedí tu enlace de la escuela si no lo tenés a mano",
+                    enlace: "pide tu enlace de la escuela si no lo tienes a mano",
                   })
                 : "";
               return (
@@ -291,7 +293,7 @@ export default function EstudianteDetailPage() {
                       </span>
                     </p>
                     <p className="mt-0.5 text-sm text-on-surface-variant">
-                      {formatMoney(e.plan_price)} · vence {formatShortDate(e.expiry_date)}
+                      {money(e.plan_price)} · vence {formatShortDate(e.expiry_date)}
                       {e.sale_id ? " · pagada en el POS" : " · sin venta vinculada"}
                     </p>
                   </div>

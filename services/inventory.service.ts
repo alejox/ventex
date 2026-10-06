@@ -467,12 +467,12 @@ function flagsPatch(input: NewProductInput): { tracks_stock: boolean; open_price
 export function parseProductSalePrice(raw: string, openPrice = false): number {
   const value = raw.trim();
   if (!/^\d+(?:\.\d+)?$/.test(value)) {
-    throw new Error("Indicá un precio de venta válido.");
+    throw new Error("Indica un precio de venta válido.");
   }
   const price = Number(value);
   if (!Number.isFinite(price) || price < 0 || (!openPrice && price === 0)) {
     throw new Error(openPrice
-      ? "Indicá un precio sugerido válido (cero o mayor)."
+      ? "Indica un precio sugerido válido (cero o mayor)."
       : "El precio de venta debe ser mayor que cero.");
   }
   return price;

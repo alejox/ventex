@@ -35,12 +35,12 @@ export function authMessage(e: unknown): string {
   const cooldown = /after (\d+) seconds?/i.exec(raw);
   if (code === "over_email_send_rate_limit" || cooldown) {
     return cooldown
-      ? `Por seguridad, esperá ${cooldown[1]} segundos antes de pedir otro enlace.`
-      : "Se alcanzó el límite de correos. Esperá unos minutos e intentá de nuevo.";
+      ? `Por seguridad, espera ${cooldown[1]} segundos antes de pedir otro enlace.`
+      : "Se alcanzó el límite de correos. Espera unos minutos e intenta de nuevo.";
   }
 
   if (code === "otp_expired" || /expired|invalid.*(token|link)|token not found/i.test(raw)) {
-    return "El enlace ya se usó o venció. Pedí uno nuevo.";
+    return "El enlace ya se usó o venció. Pide uno nuevo.";
   }
 
   if (code === "same_password" || /should be different from the old/i.test(raw)) {
@@ -48,15 +48,15 @@ export function authMessage(e: unknown): string {
   }
 
   if (code === "weak_password" || /password should be at least/i.test(raw)) {
-    return "La contraseña es muy corta. Usá al menos 6 caracteres.";
+    return "La contraseña es muy corta. Usa al menos 6 caracteres.";
   }
 
   if (/auth session missing|session_not_found/i.test(raw)) {
-    return "La sesión de recuperación no es válida. Pedí un enlace nuevo.";
+    return "La sesión de recuperación no es válida. Pide un enlace nuevo.";
   }
 
   if (/failed to fetch|network/i.test(raw)) {
-    return "No pudimos conectar con el servidor. Revisá tu conexión.";
+    return "No pudimos conectar con el servidor. Revisa tu conexión.";
   }
 
   return toMessage(e);
@@ -139,7 +139,7 @@ export function toMessage(e: unknown): string {
 
       // La RLS rechaza sin explicar; el mensaje crudo no le dice nada a nadie.
       if (/row-level security|permission denied/i.test(clean)) {
-        return "No tenés permiso para hacer esto.";
+        return "No tienes permiso para hacer esto.";
       }
       return clean;
     }

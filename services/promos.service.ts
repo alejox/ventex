@@ -100,7 +100,7 @@ export function promoDiscountFor(
  * Configuración, pero desde el minuto cero hay algo que mandar.
  */
 export const DEFAULT_PROMO_MESSAGE =
-  "¡Hola {cliente}! Gracias por tu visita 💈 Ya llevás {cortes} cortes en {negocio}. {premio}";
+  "¡Hola {cliente}! Gracias por tu visita 💈 Ya llevas {cortes} cortes en {negocio}. {premio}";
 
 /** Las variables que el negocio puede usar, con qué significan. */
 export const PROMO_VARIABLES: { token: string; help: string }[] = [

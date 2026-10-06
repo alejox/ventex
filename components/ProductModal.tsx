@@ -13,7 +13,7 @@ import { usePricePair } from "@/lib/usePricePair";
 import { MoneyInput } from "@/components/ui/MoneyInput";
 import { Select } from "@/components/ui/Select";
 import { notifySuccess } from "@/lib/notifications";
-import { formatMoney } from "@/lib/money";
+import { useFormatMoney } from "@/lib/useMoney";
 
 /**
  * Alta RÁPIDA de un producto. Solo producto.
@@ -70,6 +70,7 @@ function parseQuantityUnit(raw: string): string | undefined {
 }
 
 export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModalProps) {
+  const fmtMoney = useFormatMoney();
   const router = useRouter();
   const categories = useInventoryStore((s) => s.categories);
   const fetchInventory = useInventoryStore((s) => s.fetchInventory);
@@ -502,7 +503,7 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
                     <div className="pt-3 text-xs text-on-surface-variant">
                       {tax === "Ninguno"
                         ? "Sin IVA"
-                        : `${percentLabel} → ${formatMoney(
+                        : `${percentLabel} → ${fmtMoney(
                             parseFloat(unitPrice.total || "0") - parseFloat(unitPrice.base || "0"),
                           )}`}
                     </div>

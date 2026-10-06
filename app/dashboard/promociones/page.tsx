@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePromosStore } from "@/stores/promos.store";
 import { useProfile } from "@/components/ProfileProvider";
+import { promoTemplateFor } from "@/config/promo-nouns";
 import { useSettingsStore } from "@/stores/settings.store";
 import { fetchPromoCustomers, toPromoRows } from "@/services/promo-customers.service";
 import type { PromoCustomer, PromoCustomerRow } from "@/services/promo-customers.service";
@@ -78,7 +79,7 @@ export default function PromocionesClientesPage() {
 
   const linkFor = (c: PromoCustomer): string | null => {
     const hito = availableReward(c.progress, milestones);
-    const texto = renderPromoMessage(config.message, {
+    const texto = renderPromoMessage(promoTemplateFor(config.message, profile?.businessType), {
       cliente: c.full_name.split(" ")[0],
       cortes: c.progress,
       total: c.haircut_count,
@@ -191,7 +192,7 @@ export default function PromocionesClientesPage() {
         <CollectionEmpty
           icon={<IconUsers className="w-8 h-8" />}
           title="El contador de cortes está apagado"
-          description="Encendelo y elegí qué servicios cuentan para empezar a acumular. Los cortes ya vendidos se pueden recuperar con el botón de recalcular."
+          description="Enciéndelo y elige qué servicios cuentan para empezar a acumular. Los cortes ya vendidos se pueden recuperar con el botón de recalcular."
           action={{ label: "Ir a Configuración → Promociones", href: "/dashboard/settings/promociones" }}
         />
       </div>
@@ -252,8 +253,8 @@ export default function PromocionesClientesPage() {
             title={query ? "Ningún cliente coincide" : "Todavía nadie acumuló cortes"}
             description={
               query
-                ? "Probá con otro nombre."
-                : "Los clientes aparecen acá en cuanto les cobres un servicio de los que cuentan, con el cliente elegido en la venta."
+                ? "Prueba con otro nombre."
+                : "Los clientes aparecen aquí en cuanto les cobres un servicio de los que cuentan, con el cliente elegido en la venta."
             }
           />
         ) : (
@@ -306,7 +307,7 @@ export default function PromocionesClientesPage() {
                     } catch (e) {
                       notifyError(
                         "No se pudo canjear",
-                        e instanceof Error ? e.message : "Intentá de nuevo.",
+                        e instanceof Error ? e.message : "Intenta de nuevo.",
                       );
                     } finally {
                       setCanjeando(false);

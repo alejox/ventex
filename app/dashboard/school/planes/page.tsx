@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { PlanForm } from "@/components/school/PlanForm";
-import { formatMoney } from "@/components/school/format";
+import { useFormatMoney } from "@/lib/useMoney";
 import { CollectionLoading, CollectionEmpty, CollectionError, CollectionFilteredEmpty } from "@/components/CollectionState";
 import { IconCalendar, IconSearch } from "@/app/assets/icons/DashboardIcons";
 import { fetchLessonPlans, fetchSellableServices, setLessonPlanStatus, ageRangeLabel } from "@/services/school-enrollments.service";
@@ -12,6 +12,7 @@ import { useConfirm } from "@/components/ui/ConfirmDialog";
 
 /** Planes de clase: la oferta que después se congela en cada matrícula. */
 export default function PlanesPage() {
+  const money = useFormatMoney();
   const { confirm, dialog } = useConfirm();
   const [plans, setPlans] = useState<LessonPlan[]>([]);
   const [services, setServices] = useState<SellableService[]>([]);
@@ -168,7 +169,7 @@ export default function PlanesPage() {
                   <dt className="text-on-surface-variant">Vigencia</dt>
                   <dd className="text-right font-semibold text-on-surface">{p.validity_days} días</dd>
                   <dt className="text-on-surface-variant">Precio total</dt>
-                  <dd className="text-right font-bold text-primary">{price > 0 ? formatMoney(price) : "—"}</dd>
+                  <dd className="text-right font-bold text-primary">{price > 0 ? money(price) : "—"}</dd>
                   <dt className="text-on-surface-variant">Grupo</dt>
                   <dd className="text-right font-semibold text-on-surface">{p.max_group_size} {p.max_group_size === 1 ? "alumno" : "alumnos"}</dd>
                   {ageRangeLabel(p.min_age, p.max_age) && (

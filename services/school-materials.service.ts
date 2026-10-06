@@ -45,7 +45,7 @@ const DEFAULT_SCHOOL_TEMPLATES: Record<
   reschedule:
     "Hola {acudiente}, la clase de {instrumento} de {alumno} se reprogramó: pasa del {fecha_anterior} al {fecha_nueva}.",
   material:
-    'Hola {acudiente}, subimos material nuevo para {alumno}: "{titulo}". Podés verlo en tu enlace de la escuela: {enlace}',
+    'Hola {acudiente}, subimos material nuevo para {alumno}: "{titulo}". Puedes verlo en tu enlace de la escuela: {enlace}',
   reminder:
     "Hola {acudiente}, te recordamos la clase de {instrumento} de {alumno} el {fecha} a las {hora}. Saldo del plan: {clases} clases.",
 };
@@ -148,10 +148,10 @@ export function materialInputGate(input: {
   if (input.kind === "file") {
     return input.hasFile
       ? { ok: true }
-      : { ok: false, reason: "seleccioná un archivo para subir" };
+      : { ok: false, reason: "selecciona un archivo para subir" };
   }
   const url = input.externalUrl.trim();
-  if (!url) return { ok: false, reason: "escribí el enlace externo" };
+  if (!url) return { ok: false, reason: "escribe el enlace externo" };
   if (!/^https?:\/\//i.test(url)) {
     return { ok: false, reason: "el enlace debe empezar con http:// o https://" };
   }
@@ -188,7 +188,7 @@ export function schoolLinkErrorOf(e: unknown): string {
         ? (e as { message: string }).message
         : "";
   if (/revocad[oa]|usó/i.test(raw)) return "El enlace fue revocado o ya se usó.";
-  if (/^LINK_VENCIDO/.test(raw)) return "El enlace venció. Pedí uno nuevo.";
+  if (/^LINK_VENCIDO/.test(raw)) return "El enlace venció. Pide uno nuevo.";
   if (/^LINK_INVALIDO/.test(raw)) return "El enlace no es válido.";
   return toMessage(e);
 }

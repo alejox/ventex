@@ -224,7 +224,7 @@ export function StudentForm({ student, onClose, onSaved }: StudentFormProps) {
             </Select>
             {!schoolSettingsLoading && instrumentOptions.length === 0 && (
               <p className="text-xs text-on-surface-variant">
-                Agregá especialidades en{" "}
+                Agrega especialidades en{" "}
                 <Link href="/dashboard/school/config" className="font-semibold text-primary hover:underline">
                   Configuración de Académico
                 </Link>
@@ -248,7 +248,7 @@ export function StudentForm({ student, onClose, onSaved }: StudentFormProps) {
             </Select>
             {!schoolSettingsLoading && levelOptions.length === 0 && (
               <p className="text-xs text-on-surface-variant">
-                Agregá niveles en{" "}
+                Agrega niveles en{" "}
                 <Link href="/dashboard/school/config" className="font-semibold text-primary hover:underline">
                   Configuración de Académico
                 </Link>

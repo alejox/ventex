@@ -27,8 +27,8 @@ export function LandingQr({ slug, label, published, changed, saving, onGenerate 
         <p className="break-all text-center text-xs text-on-surface-variant">{qr.url}</p>
         {!changed && !saving ? <a href={qr.dataUrl} download={`qr-${slug}.svg`} className="block rounded-lg border border-outline-variant/30 px-3 py-2 text-center text-sm font-bold text-on-surface">Descargar QR</a> : null}
         {!published ? <p className="text-xs text-on-surface-variant">Publica tu página web para que el enlace del QR esté disponible.</p> : null}
-        {changed ? <p role="status" className="text-xs text-on-surface-variant">Cambiaste la dirección. Tocá «Actualizar QR» para generar el código con el nuevo enlace.</p> : null}
-      </> : <p className="text-xs text-on-surface-variant">Tocá «Generar QR» para crear el código con la dirección de tu web.</p>}
+        {changed ? <p role="status" className="text-xs text-on-surface-variant">Cambiaste la dirección. Toca «Actualizar QR» para generar el código con el nuevo enlace.</p> : null}
+      </> : <p className="text-xs text-on-surface-variant">Toca «Generar QR» para crear el código con la dirección de tu web.</p>}
     </section>
   );
 }

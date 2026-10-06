@@ -12,11 +12,12 @@ import { fetchCustomerSales, isVoidSale, summarizeCustomerSales } from "@/servic
 import type { Customer, NewCustomerInput, CustomerSale } from "@/services/customers.service";
 import { usePromosStore } from "@/stores/promos.store";
 import { availableReward, renderPromoMessage, whatsappLink, businessDisplayName } from "@/services/promos.service";
+import { promoTemplateFor } from "@/config/promo-nouns";
 import { useLoyaltyStore } from "@/stores/loyalty.store";
 import type { LoyaltyLedgerEntry } from "@/services/loyalty.service";
 import { useProfile } from "@/components/ProfileProvider";
 import { useSettingsStore } from "@/stores/settings.store";
-import { formatMoney } from "@/lib/money";
+import { useFormatMoney } from "@/lib/useMoney";
 
 const DOC_TYPES = ["CC", "NIT", "RUT", "RFC"];
 
@@ -37,6 +38,7 @@ const PAYMENT_LABELS: Record<string, string> = {
 };
 
 export default function CustomersPage() {
+  const fmtMoney = useFormatMoney();
   const customers = useCustomersStore((s) => s.customers);
   const loading = useCustomersStore((s) => s.loading);
   const error = useCustomersStore((s) => s.error);
@@ -214,7 +216,7 @@ export default function CustomersPage() {
       className: "font-bold",
       cell: (c) =>
         c.credit_balance > 0 ? (
-          <span className="text-[#f59e0b]">{formatMoney(c.credit_balance)}</span>
+          <span className="text-[#f59e0b]">{fmtMoney(c.credit_balance)}</span>
         ) : (
           <span className="text-on-surface-variant/50">$0.00</span>
         ),
@@ -249,7 +251,7 @@ export default function CustomersPage() {
                 ? "text-[#f59e0b] hover:text-white hover:bg-[#f59e0b]"
                 : "text-on-surface-variant hover:text-primary hover:bg-primary/10"
             }`}
-            title={c.credit_balance > 0 ? `Registrar abono (debe ${formatMoney(c.credit_balance)})` : "Registrar abono"}
+            title={c.credit_balance > 0 ? `Registrar abono (debe ${fmtMoney(c.credit_balance)})` : "Registrar abono"}
           >
             <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-4 h-4">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" />
@@ -561,7 +563,7 @@ export default function CustomersPage() {
                 <div className="bg-surface-container-low rounded-xl p-3 sm:p-4 text-center min-w-0">
                   {/* Cifra larga en una columna angosta: baja de tamaño antes de recortar. */}
                   <p className="text-base sm:text-xl lg:text-2xl font-bold text-on-surface tabular-nums tracking-tight truncate">
-                    {salesLoading ? <span className="inline-block w-20 h-6 rounded bg-surface-container-high animate-pulse" /> : formatMoney(totalSpent)}
+                    {salesLoading ? <span className="inline-block w-20 h-6 rounded bg-surface-container-high animate-pulse" /> : fmtMoney(totalSpent)}
                   </p>
                   <p className="text-[11px] text-on-surface-variant mt-1 font-medium uppercase tracking-wider truncate">Total Gastado</p>
                 </div>
@@ -594,14 +596,14 @@ export default function CustomersPage() {
                         </p>
                       ) : (
                         <p className="text-xs text-on-surface-variant mt-1">
-                          {detailCustomer.haircut_count} en total con vos. Se actualiza solo en cada venta.
+                          {detailCustomer.haircut_count} en total contigo. Se actualiza solo en cada venta.
                         </p>
                       );
                     })()}
                   </div>
                   {(() => {
                     const hito = availableReward(detailCustomer.haircuts_since_reward, milestones);
-                    const texto = renderPromoMessage(promoConfig.message, {
+                    const texto = renderPromoMessage(promoTemplateFor(promoConfig.message, profile?.businessType), {
                       cliente: detailCustomer.full_name.split(" ")[0],
                       cortes: detailCustomer.haircuts_since_reward,
                       total: detailCustomer.haircut_count,
@@ -626,7 +628,7 @@ export default function CustomersPage() {
                       </a>
                     ) : (
                       <span className="shrink-0 text-xs text-on-surface-variant">
-                        Sin teléfono: agregalo para poder escribirle.
+                        Sin teléfono: agrégalo para poder escribirle.
                       </span>
                     );
                   })()}
@@ -757,7 +759,7 @@ export default function CustomersPage() {
                             <td
                               className={`py-3 text-right text-xs font-bold tabular-nums ${voided ? "line-through text-on-surface-variant" : "text-on-surface"}`}
                             >
-                              {formatMoney(s.total)}
+                              {fmtMoney(s.total)}
                             </td>
                           </tr>
                           );

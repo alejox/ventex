@@ -58,8 +58,8 @@ function UpdatePasswordForm() {
         hashError
           ? authMessage(hashError)
           : searchParams.has("invitation")
-            ? "La invitación ya se usó o venció. Pedile al dueño del negocio que te la reenvíe desde Personal: te llegará un enlace nuevo."
-            : "El enlace ya se usó o venció. Pedí uno nuevo.",
+            ? "La invitación ya se usó o venció. Pídele al dueño del negocio que te la reenvíe desde Personal: te llegará un enlace nuevo."
+            : "El enlace ya se usó o venció. Pide uno nuevo.",
       );
       setStatus("invalid");
     })();

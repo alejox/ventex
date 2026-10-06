@@ -151,7 +151,7 @@ function MovementsContent() {
           <h1 className="text-lg font-bold text-on-surface">Sin acceso a movimientos</h1>
           <p className="text-sm text-on-surface-variant mt-1 max-w-sm">
             Tu cuenta no tiene el permiso para ver el historial de stock. Pedíselo al dueño del
-            negocio si lo necesitás para tu trabajo.
+            negocio si lo necesitas para tu trabajo.
           </p>
         </div>
         <Link

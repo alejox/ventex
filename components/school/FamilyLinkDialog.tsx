@@ -43,7 +43,7 @@ export function FamilyLinkDialog({ studentId, studentName, guardians, onClose }:
   const url = link ? buildFamilyLinkUrl(origin, link.token) : null;
   const gate = guardian ? noticeShareGate(guardian) : { ok: false };
   const message = url
-    ? `Hola ${guardian?.full_name ?? ""}, acá tenés el enlace de la escuela de ${studentName} para ver su próxima clase y su material: ${url} (válido por 7 días).`
+    ? `Hola ${guardian?.full_name ?? ""}, aquí tienes el enlace de la escuela de ${studentName} para ver su próxima clase y su material: ${url} (válido por 7 días).`
     : "";
 
   return (
@@ -51,7 +51,7 @@ export function FamilyLinkDialog({ studentId, studentName, guardians, onClose }:
       <div className="space-y-4 p-6 pt-4">
         {guardians.length === 0 ? (
           <p className="rounded-2xl border border-outline-variant/10 bg-surface-container-lowest p-4 text-sm text-on-surface-variant">
-            Este alumno no tiene adultos responsables registrados. Agregá uno primero.
+            Este alumno no tiene adultos responsables registrados. Agrega uno primero.
           </p>
         ) : (
           <>

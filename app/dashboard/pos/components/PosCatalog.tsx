@@ -5,7 +5,7 @@ import { IconSearch, IconImagePlaceholder } from "@/app/assets/icons/DashboardIc
 import type { CatalogItem } from "@/services/pos.service";
 import { shouldSubmitIdleCode } from "./catalog-code";
 import { useProfile } from "@/components/ProfileProvider";
-import { formatMoney } from "@/lib/money";
+import { useFormatMoney } from "@/lib/useMoney";
 
 const BARCODE_IDLE_MS = 250;
 const SCANNER_KEY_GAP_MS = 80;
@@ -125,6 +125,7 @@ export function PosCatalog({
   openCloseShift,
   topSlot,
 }: PosCatalogProps) {
+  const fmtMoney = useFormatMoney();
   const salesBlocked = isWorker && requireActiveShift && !currentShift;
   const router = useRouter();
   const profile = useProfile();
@@ -423,7 +424,7 @@ export function PosCatalog({
                           {item.name}
                         </p>
                         <p className="text-[15px] font-bold text-on-surface tabular-nums">
-                          {formatMoney(item.price)}
+                          {fmtMoney(item.price)}
                         </p>
                         <p className="text-[10px] font-semibold text-on-surface-variant uppercase tracking-wider">
                           {stock == null ? (
@@ -540,7 +541,7 @@ export function PosCatalog({
                             peor que el precio completo, pero mucho mejor que
                             pisar el producto de al lado. */}
                         <span className="text-sm sm:text-base text-on-surface font-bold tabular-nums min-w-0 truncate">
-                          {formatMoney(item.price)}
+                          {fmtMoney(item.price)}
                         </span>
                         {stock == null ? (
                           <span className="text-[10px] font-bold text-on-surface-variant shrink-0">
@@ -602,7 +603,7 @@ export function PosCatalog({
                         <h3 className="text-xs font-medium text-on-surface truncate">{item.name}</h3>
                       </div>
                       <div className="text-right shrink-0">
-                        <p className="text-xs font-bold text-on-surface">{formatMoney(item.price)}</p>
+                        <p className="text-xs font-bold text-on-surface">{fmtMoney(item.price)}</p>
                         {stock != null && (
                           <span
                             className={`text-[9px] font-bold ${

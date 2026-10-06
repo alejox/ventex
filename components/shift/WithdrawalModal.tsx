@@ -161,7 +161,7 @@ export function WithdrawalModal({ onClose }: { onClose: () => void }) {
                   en la cabeza de alguien: una compra a proveedor ya suma a
                   Gastos por su factura. */}
               <p className="text-[11px] text-on-surface-variant mt-1.5">
-                Si estás pagando una factura de proveedor, elegí Traslado y registrala en Compras:
+                Si estás pagando una factura de proveedor, elige Traslado y regístrala en Compras:
                 si no, ese dinero se cuenta dos veces.
               </p>
             </div>

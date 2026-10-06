@@ -10,7 +10,8 @@ import { notifySuccess, notifyError } from "@/lib/notifications";
 import { Select } from "@/components/ui/Select";
 import { MoneyInput } from "@/components/ui/MoneyInput";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { formatMoney } from "@/lib/money";
+import type { MoneyFormatter } from "@/lib/money";
+import { useFormatMoney } from "@/lib/useMoney";
 
 type TargetType = "product" | "category";
 
@@ -43,7 +44,7 @@ const EMPTY_FORM: FormState = {
 };
 
 /** El texto que resume qué hace la oferta, para la lista. */
-function describeOffer(offer: ProductOffer): string {
+function describeOffer(offer: ProductOffer, formatMoney: MoneyFormatter): string {
   if (offer.kind === "percent") return `${offer.value ?? 0}% de descuento`;
   if (offer.kind === "amount") return `${formatMoney(offer.value ?? 0)} de descuento por unidad`;
   return `Lleva ${offer.buyQty ?? 0}, paga ${offer.payQty ?? 0}`;
@@ -58,6 +59,7 @@ function describeOffer(offer: ProductOffer): string {
  * salón para que Ajustes se sienta como una sola pantalla, no dos.
  */
 export function OffersManager() {
+  const money = useFormatMoney();
   const offers = useOffersStore((s) => s.offers);
   const loading = useOffersStore((s) => s.loading);
   const submitting = useOffersStore((s) => s.submitting);
@@ -129,11 +131,11 @@ export function OffersManager() {
   const buildInput = (): OfferInput | null => {
     const name = form.name.trim();
     if (!name) {
-      notifyError("Falta el nombre", "Ponele un nombre a la oferta (es lo que ve el cajero).");
+      notifyError("Falta el nombre", "Ponle un nombre a la oferta (es lo que ve el cajero).");
       return null;
     }
     if (!form.targetId) {
-      notifyError("Falta el objetivo", "Elegí a qué producto o categoría aplica.");
+      notifyError("Falta el objetivo", "Elige a qué producto o categoría aplica.");
       return null;
     }
     if (form.startsOn && form.endsOn && form.endsOn < form.startsOn) {
@@ -194,14 +196,14 @@ export function OffersManager() {
       notifySuccess(editingId ? "Oferta actualizada" : "Oferta creada", input.name);
       resetForm();
     } else {
-      notifyError("No se pudo guardar", useOffersStore.getState().error ?? "Intentá de nuevo.");
+      notifyError("No se pudo guardar", useOffersStore.getState().error ?? "Intenta de nuevo.");
     }
   };
 
   const handleToggleActive = async (offer: ProductOffer) => {
     const ok = await setOfferActive(offer.id, !offer.active);
     if (!ok) {
-      notifyError("No se pudo actualizar", useOffersStore.getState().error ?? "Intentá de nuevo.");
+      notifyError("No se pudo actualizar", useOffersStore.getState().error ?? "Intenta de nuevo.");
     }
   };
 
@@ -210,7 +212,7 @@ export function OffersManager() {
     const ok = await deleteOffer(deletingId);
     setDeletingId(null);
     if (ok) notifySuccess("Oferta eliminada");
-    else notifyError("No se pudo eliminar", useOffersStore.getState().error ?? "Intentá de nuevo.");
+    else notifyError("No se pudo eliminar", useOffersStore.getState().error ?? "Intenta de nuevo.");
   };
 
   if (loading) return <CollectionLoading label="Cargando ofertas…" />;
@@ -243,7 +245,7 @@ export function OffersManager() {
                     )}
                   </div>
                   <p className="text-xs text-on-surface-variant truncate">
-                    {describeOffer(offer)} · {targetLabel(offer)}
+                    {describeOffer(offer, money)} · {targetLabel(offer)}
                     {(offer.startsOn || offer.endsOn) && (
                       <> · {offer.startsOn ?? "…"} → {offer.endsOn ?? "…"}</>
                     )}
@@ -401,7 +403,7 @@ export function OffersManager() {
                 aria-label={form.targetType === "product" ? "Producto" : "Categoría"}
               >
                 <option value="" disabled>
-                  {form.targetType === "product" ? "Elegí un producto…" : "Elegí una categoría…"}
+                  {form.targetType === "product" ? "Elige un producto…" : "Elige una categoría…"}
                 </option>
                 {(form.targetType === "product" ? productOptions : categoryOptions).map((o) => (
                   <option key={o.id} value={o.id}>

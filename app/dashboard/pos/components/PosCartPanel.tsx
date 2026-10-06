@@ -18,7 +18,7 @@ import {
 import { useProfile } from "@/components/ProfileProvider";
 import { formatQty, parseQuantityDraft } from "@/lib/stock";
 import { creditAlertText } from "@/lib/credits";
-import { formatMoney } from "@/lib/money";
+import { useFormatMoney } from "@/lib/useMoney";
 
 /**
  * El campo de cantidad de una línea del carrito.
@@ -196,6 +196,7 @@ export function PosCartPanel({
   isDelivery,
   setDelivery,
 }: PosCartPanelProps) {
+  const fmtMoney = useFormatMoney();
   const profile = useProfile();
   // El aviso del dueño sobre este cliente, si lo tiene marcado.
   const avisoDelCliente = (() => {
@@ -426,7 +427,7 @@ export function PosCartPanel({
               staff.length === 1 &&
               !staffId && (
                 <p className="text-[10px] text-amber-600 dark:text-amber-400">
-                  Hay ítems que comisionan: elegí &quot;Atendido por&quot; para que la comisión se devengue.
+                  Hay ítems que comisionan: elige &quot;Atendido por&quot; para que la comisión se devengue.
                 </p>
               )}
           </div>
@@ -510,7 +511,7 @@ export function PosCartPanel({
                           // con un descuento que puso alguien a mano.
                           <span className="inline-flex items-center gap-1 text-[9px] font-medium">
                             <span className="text-accent-fin">
-                              {line.offerName} −{formatMoney(line.discountAmount!)}
+                              {line.offerName} −{fmtMoney(line.discountAmount!)}
                             </span>
                             <button
                               type="button"
@@ -522,7 +523,7 @@ export function PosCartPanel({
                           </span>
                         ) : (
                           (line.discountAmount ?? 0) > 0 && (
-                            <span className="text-[9px] text-error font-medium">-{formatMoney(line.discountAmount!)}</span>
+                            <span className="text-[9px] text-error font-medium">-{fmtMoney(line.discountAmount!)}</span>
                           )
                         )}
                         {line.item.kind === "product" &&
@@ -559,11 +560,11 @@ export function PosCartPanel({
                           }`}
                         />
                         <span className="text-xs font-bold text-on-surface tabular-nums w-14 text-right">
-                          {formatMoney(linePrice(line) * line.quantity)}
+                          {fmtMoney(linePrice(line) * line.quantity)}
                         </span>
                       </div>
                     ) : (
-                      <span className="text-xs font-bold text-on-surface tabular-nums shrink-0">{formatMoney(linePrice(line) * line.quantity)}</span>
+                      <span className="text-xs font-bold text-on-surface tabular-nums shrink-0">{fmtMoney(linePrice(line) * line.quantity)}</span>
                     )}
 
                     <button
@@ -603,7 +604,7 @@ export function PosCartPanel({
                                   : "text-on-surface-variant hover:bg-surface-container"
                               }`}
                             >
-                              {opt.label} &middot; {formatMoney(opt.price ?? 0)}
+                              {opt.label} &middot; {fmtMoney(opt.price ?? 0)}
                             </button>
                           );
                         })}
@@ -685,15 +686,15 @@ export function PosCartPanel({
                 <>
                   <div className="flex justify-between text-sm text-on-surface-variant">
                     <span>Precio original</span>
-                    <span className="font-semibold text-on-surface">{formatMoney(totals.gross)}</span>
+                    <span className="font-semibold text-on-surface">{fmtMoney(totals.gross)}</span>
                   </div>
                   <div className="flex justify-between text-sm text-accent-fin">
                     <span>Descuento por exención de IVA</span>
-                    <span className="font-semibold">-{formatMoney(totals.exemptionDiscount)}</span>
+                    <span className="font-semibold">-{fmtMoney(totals.exemptionDiscount)}</span>
                   </div>
                   <div className="flex justify-between text-sm text-on-surface-variant">
                     <span>Subtotal (base)</span>
-                    <span className="font-semibold text-on-surface">{formatMoney(totals.subtotal)}</span>
+                    <span className="font-semibold text-on-surface">{fmtMoney(totals.subtotal)}</span>
                   </div>
                   <div className="flex justify-between text-sm text-on-surface-variant">
                     <span>IVA (exento)</span>
@@ -704,28 +705,28 @@ export function PosCartPanel({
                 <>
                   <div className="flex justify-between text-sm text-on-surface-variant">
                     <span>Subtotal (base)</span>
-                    <span className="font-semibold text-on-surface">{formatMoney(totals.subtotal)}</span>
+                    <span className="font-semibold text-on-surface">{fmtMoney(totals.subtotal)}</span>
                   </div>
                   <div className="flex justify-between text-sm text-on-surface-variant">
                     <span>IVA ({(taxRate * 100).toFixed(0)}%)</span>
-                    <span className="font-semibold text-on-surface">{formatMoney(totals.taxAmount)}</span>
+                    <span className="font-semibold text-on-surface">{fmtMoney(totals.taxAmount)}</span>
                   </div>
                 </>
               ) : (
                 <div className="flex justify-between text-sm text-on-surface-variant">
                   <span>Subtotal</span>
-                  <span className="font-semibold text-on-surface">{formatMoney(totals.subtotal)}</span>
+                  <span className="font-semibold text-on-surface">{fmtMoney(totals.subtotal)}</span>
                 </div>
               )}
               {totals.discount > 0 && (
                 <div className="flex justify-between text-sm text-on-surface-variant">
                   <span>Descuento</span>
-                  <span className="font-semibold">-{formatMoney(totals.discount)}</span>
+                  <span className="font-semibold">-{fmtMoney(totals.discount)}</span>
                 </div>
               )}
               <div className="flex justify-between items-baseline border-t border-outline-variant/20 pt-2.5 mt-1">
                 <span className="text-sm font-semibold text-on-surface">Total a pagar</span>
-                <span className="text-lg font-bold text-on-surface tabular-nums">{formatMoney(totals.total)}</span>
+                <span className="text-lg font-bold text-on-surface tabular-nums">{fmtMoney(totals.total)}</span>
               </div>
             </div>
           )}
@@ -758,7 +759,7 @@ export function PosCartPanel({
               ) : (
                 <>
                   <span>Vender</span>
-                  <span>{formatMoney(totals.total)}</span>
+                  <span>{fmtMoney(totals.total)}</span>
                 </>
               )}
             </button>

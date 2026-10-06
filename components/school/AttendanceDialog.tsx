@@ -89,7 +89,7 @@ export function AttendanceDialog({ lesson, onContinue, onClose }: AttendanceDial
           <CollectionLoading label="Cargando participantes…" />
         ) : rows.length === 0 ? (
           <p className="rounded-2xl border border-outline-variant/10 bg-surface-container-lowest p-4 text-sm text-on-surface-variant">
-            La clase no tiene participantes. Podés cerrarla igual; no se descuenta
+            La clase no tiene participantes. Puedes cerrarla igual; no se descuenta
             ninguna clase de los saldos.
           </p>
         ) : (

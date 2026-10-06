@@ -130,15 +130,15 @@ export function PaymentModal({
         if (result.status === "failed" || result.status === "cancelled") {
           setError(
             result.status === "cancelled"
-              ? "El pago fue cancelado. Podés intentarlo de nuevo."
-              : (result.error ?? "El pago no pudo completarse. Intentá de nuevo."),
+              ? "El pago fue cancelado. Puedes intentarlo de nuevo."
+              : (result.error ?? "El pago no pudo completarse. Intenta de nuevo."),
           );
           setPhase("form");
           return true;
         }
         if (pollsRef.current >= MAX_POLLS) {
           setError(
-            "El pago sigue pendiente de confirmación. Si ya lo aprobaste, esperá unos minutos y volvé a abrir esta pantalla.",
+            "El pago sigue pendiente de confirmación. Si ya lo aprobaste, espera unos minutos y vuelve a abrir esta pantalla.",
           );
           setPhase("form");
           return true;
@@ -167,9 +167,9 @@ export function PaymentModal({
   if (!open) return null;
 
   const validate = (): string | null => {
-    if (!name.trim()) return "Ingresá el nombre del titular.";
+    if (!name.trim()) return "Ingresa el nombre del titular.";
     if (!/^\d{6,11}$/.test(docNumber.trim())) {
-      return "Ingresá el documento del titular (CC o NIT, 6 a 11 dígitos).";
+      return "Ingresa el documento del titular (CC o NIT, 6 a 11 dígitos).";
     }
     return null;
   };
@@ -236,7 +236,7 @@ export function PaymentModal({
               ) : missingGuestEmail ? (
                 "Falta un paso para activarlo."
               ) : (
-                "Estás volviendo del checkout. Esperá un momento…"
+                "Estás volviendo del checkout. Espera un momento…"
               )}
             </p>
           </div>
@@ -299,7 +299,7 @@ export function PaymentModal({
                   ¿A qué correo enviamos tu acceso?
                 </h3>
                 <p className="text-sm text-on-surface-variant mb-5 leading-relaxed">
-                  Pagás ahora y enseguida creás tu cuenta con ese correo. Tu plan
+                  Pagas ahora y enseguida creas tu cuenta con ese correo. Tu plan
                   {planName ? ` ${planName}` : ""} queda activo al registrarte.
                 </p>
                 <Field label="Correo electrónico" htmlFor="pay-guest-email">
@@ -317,7 +317,7 @@ export function PaymentModal({
                 <button
                   onClick={() => {
                     if (!EMAIL_PATTERN.test(guestEmailInput.trim())) {
-                      setError("Ingresá un correo válido.");
+                      setError("Ingresa un correo válido.");
                       return;
                     }
                     setError(null);
@@ -367,7 +367,7 @@ export function PaymentModal({
 
                 <div className="mt-5 rounded-xl bg-surface-container-low border border-outline-variant/20 px-4 py-3">
                   <p className="text-[13px] text-on-surface-variant leading-relaxed">
-                    En el siguiente paso elegís cómo pagar:{" "}
+                    En el siguiente paso eliges cómo pagar:{" "}
                     <strong className="text-on-surface">PSE, Nequi, tarjeta o efectivo</strong>.
                   </p>
                 </div>
@@ -388,7 +388,7 @@ export function PaymentModal({
 
                 {recurring && (
                   <p className="text-[11px] text-on-surface-variant mt-3 text-center leading-relaxed">
-                    Se renueva cada mes por {total}. Podés dar de baja la renovación
+                    Se renueva cada mes por {total}. Puedes dar de baja la renovación
                     cuando quieras desde tu panel.
                   </p>
                 )}
@@ -440,7 +440,7 @@ function SuccessState({
       <h3 className="text-lg font-bold text-on-surface mb-1">¡Pago confirmado!</h3>
       {guest ? (
         <p className="text-sm text-on-surface-variant mb-6 leading-relaxed">
-          Ahora creá tu cuenta con{" "}
+          Ahora crea tu cuenta con{" "}
           <strong className="text-on-surface">{guestEmail}</strong> y tu plan
           {planName ? ` ${planName}` : ""} queda activo al instante. También te
           enviamos el enlace a ese correo.
@@ -503,7 +503,7 @@ function GuestOtherDeviceState() {
     <div className="text-center py-8">
       <p className="text-sm text-on-surface-variant mb-6 leading-relaxed">
         Este pago empezó en otro navegador, así que no podemos mostrar su estado
-        acá. Creá tu cuenta con el mismo correo con el que pagaste y tu plan queda
+        aquí. Crea tu cuenta con el mismo correo con el que pagaste y tu plan queda
         activo al instante. También te enviamos el enlace a ese correo.
       </p>
       <Link

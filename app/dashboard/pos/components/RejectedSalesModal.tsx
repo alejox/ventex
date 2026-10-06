@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { usePosStore } from "@/stores/pos.store";
-import { formatMoney } from "@/lib/money";
+import { useFormatMoney } from "@/lib/useMoney";
 
 const cuando = (iso: string) =>
   new Date(iso).toLocaleString("es-CO", {
@@ -21,6 +21,7 @@ const cuando = (iso: string) =>
  * borrar la fila borra la única constancia de que esa venta existió.
  */
 export function RejectedSalesModal({ onClose }: { onClose: () => void }) {
+  const fmtMoney = useFormatMoney();
   const rejectedList = usePosStore((s) => s.rejectedList);
   const loadRejectedSales = usePosStore((s) => s.loadRejectedSales);
   const retryRejectedSale = usePosStore((s) => s.retryRejectedSale);
@@ -60,7 +61,7 @@ export function RejectedSalesModal({ onClose }: { onClose: () => void }) {
             Ventas cobradas que no se registraron
           </h2>
           <p className="text-[13px] text-on-surface-variant mt-1.5">
-            Este dinero entró a la caja pero el servidor no aceptó la venta. Revisá cada una
+            Este dinero entró a la caja pero el servidor no aceptó la venta. Revisa cada una
             antes de cerrar el turno.
           </p>
         </div>
@@ -81,7 +82,7 @@ export function RejectedSalesModal({ onClose }: { onClose: () => void }) {
               >
                 <div className="flex items-baseline justify-between gap-3">
                   <span className="text-base font-bold text-on-surface tabular-nums">
-                    {formatMoney(venta.total)}
+                    {fmtMoney(venta.total)}
                   </span>
                   <span className="text-[12px] text-on-surface-variant">
                     {cuando(venta.queuedAt)}

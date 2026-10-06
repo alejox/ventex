@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Select } from "@/components/ui/Select";
 import { MoneyInput } from "@/components/ui/MoneyInput";
 import { SchoolModal } from "@/components/school/SchoolModal";
-import { formatMoney } from "@/components/school/format";
+import { useFormatMoney } from "@/lib/useMoney";
 import { normalizeName } from "@/services/school-people.service";
 import { createLessonPlan, updateLessonPlan, fetchSellableServices } from "@/services/school-enrollments.service";
 import type { LessonPlan, SellableService } from "@/services/school-enrollments.service";
@@ -36,6 +36,7 @@ interface PlanFormProps {
  * comisión/categoría/imagen reales del servicio).
  */
 export function PlanForm({ plan, onClose, onSaved }: PlanFormProps) {
+  const money = useFormatMoney();
   const [services, setServices] = useState<SellableService[]>([]);
   const addService = useServicesStore((s) => s.addService);
 
@@ -175,7 +176,7 @@ export function PlanForm({ plan, onClose, onSaved }: PlanFormProps) {
               <label className="text-sm font-semibold text-on-surface">Servicio vinculado</label>
               <div className="w-full rounded-xl border border-outline-variant/30 bg-surface-container-lowest py-2.5 px-3 text-sm text-on-surface">
                 {plan.service_name}
-                {linkedService ? ` — ${formatMoney(linkedService.price)}` : " — servicio archivado"}
+                {linkedService ? ` — ${money(linkedService.price)}` : " — servicio archivado"}
               </div>
               <a
                 href={`/dashboard/inventory/product?serviceId=${plan.service_id}&type=servicio`}
@@ -192,12 +193,12 @@ export function PlanForm({ plan, onClose, onSaved }: PlanFormProps) {
                 onChange={(e) => setServiceId(e.target.value)}
                 searchable
                 searchPlaceholder="Buscar servicio…"
-                hint={selectedService ? `Precio de la clase: ${formatMoney(selectedService.price)}` : undefined}
+                hint={selectedService ? `Precio de la clase: ${money(selectedService.price)}` : undefined}
               >
                 <option value="">Seleccionar…</option>
                 {services.map((s) => (
                   <option key={s.id} value={s.id}>
-                    {s.name} — {formatMoney(s.price)}
+                    {s.name} — {money(s.price)}
                   </option>
                 ))}
               </Select>

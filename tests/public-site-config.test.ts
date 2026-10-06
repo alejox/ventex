@@ -25,7 +25,7 @@ test("normalizeLandingConfig rejects unknown templates and completes missing sec
   const config = normalizeLandingConfig({
     version: 1,
     template: "desconocido",
-    sections: [{ id: "gallery", visible: false, title: "Fotos", subtitle: "Mirá" }],
+    sections: [{ id: "gallery", visible: false, title: "Fotos", subtitle: "Mira" }],
   });
 
   assert.equal(config.template, "rasm");

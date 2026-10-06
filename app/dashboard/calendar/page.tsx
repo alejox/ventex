@@ -300,7 +300,7 @@ function CalendarContent() {
         <div>
           <h1 className="text-2xl font-bold text-on-surface">Calendario</h1>
           <p className="text-sm text-on-surface-variant mt-1">
-            Revisá las reservas pendientes, confirmá las citas y organizá la atención de tu equipo.
+            Revisa las reservas pendientes, confirma las citas y organiza la atención de tu equipo.
           </p>
           {!profile?.isWorker ? <Link href="/dashboard/landing?tab=business" className="mt-2 inline-block text-sm font-semibold text-primary underline underline-offset-2">Configurar reservas y horarios</Link> : null}
         </div>
@@ -420,8 +420,8 @@ function CalendarContent() {
         </div>
       </div>
 
-      <p className="text-sm text-on-surface-variant">{displayMode === "pending" ? "Reservas pendientes del período mostrado. Abrí una reserva para revisar sus datos y confirmarla." : "Seleccioná una cita para ver sus datos. Podés filtrar por persona y estado en cualquiera de las vistas."}</p>
-      {!loading && !error && visibleAppointments.length === 0 && displayMode === "calendar" ? <CollectionFilteredEmpty title="No hay citas para esta vista" description="Probá otro período, quitá los filtros o creá una nueva cita." action={selectedStaffId !== "all" || selectedStatus !== "all" ? { label: "Quitar filtros", onClick: () => { setSelectedStaffId("all"); setSelectedStatus("all"); } } : { label: "Crear cita", onClick: () => handleNewAppointment() }} /> : null}
+      <p className="text-sm text-on-surface-variant">{displayMode === "pending" ? "Reservas pendientes del período mostrado. Abre una reserva para revisar sus datos y confirmarla." : "Selecciona una cita para ver sus datos. Puedes filtrar por persona y estado en cualquiera de las vistas."}</p>
+      {!loading && !error && visibleAppointments.length === 0 && displayMode === "calendar" ? <CollectionFilteredEmpty title="No hay citas para esta vista" description="Prueba otro período, quita los filtros o crea una nueva cita." action={selectedStaffId !== "all" || selectedStatus !== "all" ? { label: "Quitar filtros", onClick: () => { setSelectedStaffId("all"); setSelectedStatus("all"); } } : { label: "Crear cita", onClick: () => handleNewAppointment() }} /> : null}
 
       {/* Error */}
       {error && <CollectionError message={error} />}
@@ -585,7 +585,7 @@ function CalendarContent() {
                 </button>
               ))}
             </div>
-          ) : <CollectionFilteredEmpty title={displayMode === "pending" ? "No hay reservas pendientes en este período" : "No hay citas para estos filtros"} description={displayMode === "pending" ? "Las reservas recibidas desde tu web aparecerán aquí hasta que las confirmes o canceles. Revisá otros períodos para ver más reservas." : "Probá otro período o quitá los filtros de persona y estado."} action={{ label: "Ver calendario", onClick: () => { setDisplayMode("calendar"); setSelectedStatus("all"); } }} />}
+          ) : <CollectionFilteredEmpty title={displayMode === "pending" ? "No hay reservas pendientes en este período" : "No hay citas para estos filtros"} description={displayMode === "pending" ? "Las reservas recibidas desde tu web aparecerán aquí hasta que las confirmes o canceles. Revisa otros períodos para ver más reservas." : "Prueba otro período o quita los filtros de persona y estado."} action={{ label: "Ver calendario", onClick: () => { setDisplayMode("calendar"); setSelectedStatus("all"); } }} />}
         </div>
       )}
 

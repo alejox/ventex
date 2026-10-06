@@ -28,7 +28,7 @@ export async function completeOnboarding(formData: FormData): Promise<{ error: s
 
   // El tipo tiene que ser uno de los habilitados hoy; nada de valores forjados.
   if (!REGISTRABLE_BUSINESS_TYPES.includes(businessType as BusinessType)) {
-    return { error: "Elegí un tipo de negocio válido." };
+    return { error: "Elige un tipo de negocio válido." };
   }
   if (!businessName) {
     return { error: "El nombre del negocio es obligatorio." };

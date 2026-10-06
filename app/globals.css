@@ -62,6 +62,7 @@
   --accent-pos: #6d21ef;
   --accent-inv: #0e7490; /* 5.10:1 */
   --accent-fin: #047857; /* 5.22:1 */
+  --warning: #b45309; /* aviso ámbar (texto/ícono): 5.02:1 sobre blanco */
   /* Savings badges use solid fills with text-background for contrast. */
 }
 
@@ -122,6 +123,7 @@
     --accent-pos: #bd91ff;
     --accent-inv: #5ee9f5;
     --accent-fin: #34d399;
+    --warning: #fbbf24;
 }
 
 .ventex-logo { position: relative; line-height: 0; }
@@ -139,6 +141,7 @@
   --color-accent-pos: var(--accent-pos);
   --color-accent-inv: var(--accent-inv);
   --color-accent-fin: var(--accent-fin);
+  --color-warning: var(--warning);
   --color-surface: var(--surface);
   --color-surface-dim: var(--surface-dim);
   --color-surface-bright: var(--surface-bright);

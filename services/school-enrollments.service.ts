@@ -465,31 +465,31 @@ export function onboardingSteps(input: OnboardingStepInput): OnboardingStep[] {
   return [
     {
       id: "instruments",
-      label: "Configurá las especialidades en Configuración",
+      label: "Configura las especialidades en Configuración",
       href: "/dashboard/school/config",
       done: input.instrumentsCount > 0,
     },
     {
       id: "teacher",
-      label: "Activá el perfil docente de un profesor en Personal",
+      label: "Activa el perfil docente de un profesor en Personal",
       href: "/dashboard/staff",
       done: input.teachersCount > 0,
     },
     {
       id: "plan",
-      label: "Armá un plan de clase",
+      label: "Arma un plan de clase",
       href: "/dashboard/school/planes",
       done: input.plansCount > 0,
     },
     {
       id: "student",
-      label: "Registrá un alumno y matriculalo en un plan",
+      label: "Registra un alumno y matricúlalo en un plan",
       href: "/dashboard/school/estudiantes",
       done: input.activeEnrollments > 0,
     },
     {
       id: "agenda",
-      label: "Agendá la primera clase en la Agenda",
+      label: "Agenda la primera clase en la Agenda",
       href: "/dashboard/school/agenda",
       done: input.lessonsCount > 0,
     },

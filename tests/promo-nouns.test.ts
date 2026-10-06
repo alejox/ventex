@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { defaultPromoMessageFor, promoNounFor, howMany, articleSingular } from "../config/promo-nouns";
+import { defaultPromoMessageFor, promoNounFor, howMany, articleSingular, promoTemplateFor } from "../config/promo-nouns";
 import { DEFAULT_PROMO_MESSAGE, renderPromoMessage } from "../services/promos.service";
 import { isPromoDraftDirty } from "../app/dashboard/settings/promociones/promo-draft";
 
@@ -39,4 +39,17 @@ test("Cambios sin guardar: servicios en otro orden no cuentan", () => {
     true,
     "mismo tamaño, distinto contenido",
   );
+});
+
+test("POS y Clientes: sin mensaje guardado se usa el default DEL RUBRO", () => {
+  assert.equal(promoTemplateFor(null, "lavaautos"), defaultPromoMessageFor(promoNounFor("lavaautos")));
+  assert.ok(promoTemplateFor("   ", "escuela").includes("{cortes} clases"));
+  assert.equal(promoTemplateFor(null, "salon"), DEFAULT_PROMO_MESSAGE);
+  // Lo que guardó el negocio manda, aunque diga "cortes" en un lavaautos.
+  assert.equal(promoTemplateFor("Hola {cliente}", "lavaautos"), "Hola {cliente}");
+});
+
+test("El default habla de tú, no de vos", () => {
+  assert.ok(DEFAULT_PROMO_MESSAGE.includes("Ya llevas {cortes}"), DEFAULT_PROMO_MESSAGE);
+  assert.ok(!/llevás/.test(DEFAULT_PROMO_MESSAGE));
 });

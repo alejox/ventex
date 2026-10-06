@@ -103,7 +103,7 @@ export function AvailabilityEditor({ teacher, onClose }: AvailabilityEditorProps
     const complete = draft.filter((r) => (r.start_time || r.end_time) && r.key);
     for (const row of complete) {
       if (!row.start_time || !row.end_time) {
-        setValidationError("Completá la franja o quitala");
+        setValidationError("Completa la franja o quítala");
         return;
       }
       if (hoursToMinutes(row.end_time) <= hoursToMinutes(row.start_time)) {

@@ -1,7 +1,7 @@
 import { MoneyInput } from "@/components/ui/MoneyInput";
 import { Select } from "@/components/ui/Select";
 import type { Ref } from "react";
-import { formatMoney } from "@/lib/money";
+import { useFormatMoney } from "@/lib/useMoney";
 
 interface PricePair {
   base: string;
@@ -43,6 +43,7 @@ export function ProductPricingSection({
   sellingPriceError,
   sellingPriceRef,
 }: ProductPricingSectionProps) {
+  const fmtMoney = useFormatMoney();
   const isPackage = presentation === "package";
   const unitsCount = Math.max(parseInt(unitsPerPackage || "1") || 1, 1);
   const purchaseTotal = parseFloat(purchase.total || "0");
@@ -96,10 +97,10 @@ export function ProductPricingSection({
         {purchaseTotal > 0 && (
           <p className="text-xs font-medium text-on-surface-variant/90 pt-0.5">
             💡 Costo unitario derivado:{" "}
-            <strong className="font-mono text-on-surface">{formatMoney(derivedUnitCost)}</strong> por unidad
+            <strong className="font-mono text-on-surface">{fmtMoney(derivedUnitCost)}</strong> por unidad
             {isPackage && unitsCount > 1 && (
               <span className="text-on-surface-variant/70 font-normal">
-                {" "}({formatMoney(purchaseTotal)} ÷ {unitsCount} u.)
+                {" "}({fmtMoney(purchaseTotal)} ÷ {unitsCount} u.)
               </span>
             )}
           </p>
@@ -158,7 +159,7 @@ export function ProductPricingSection({
         {margin && (
           <p className={`text-xs font-medium ${margin.pct < 0 ? "text-error" : "text-on-surface-variant"}`}>
             Margen: <strong className="font-mono">{margin.pct.toFixed(1)}%</strong> sobre un costo de{" "}
-            <span className="font-mono">{formatMoney(margin.costPerUnit)}</span> por unidad
+            <span className="font-mono">{fmtMoney(margin.costPerUnit)}</span> por unidad
             {margin.pct < 0 ? " — estás vendiendo a pérdida." : ""}
           </p>
         )}

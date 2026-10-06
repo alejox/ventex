@@ -185,7 +185,7 @@ export function SeriesDialog({ onClose }: SeriesDialogProps) {
               No hay matrículas activas con clases disponibles para agendar.{" "}
               {(summary?.plans ?? 0) === 0 ? (
                 <>
-                  Primero armá un{" "}
+                  Primero arma un{" "}
                   <Link className="font-semibold text-primary hover:underline" href="/dashboard/school/planes">
                     plan de clase
                   </Link>
@@ -193,7 +193,7 @@ export function SeriesDialog({ onClose }: SeriesDialogProps) {
                 </>
               ) : (
                 <>
-                  Matriculá un alumno desde{" "}
+                  Matricula un alumno desde{" "}
                   <Link className="font-semibold text-primary hover:underline" href="/dashboard/school/estudiantes">
                     Estudiantes
                   </Link>
@@ -223,7 +223,7 @@ export function SeriesDialog({ onClose }: SeriesDialogProps) {
           </Select>
           {instrument && compatibleTeachers.length === 0 && (
             <p className="text-xs text-on-surface-variant">
-              Ningún profesor dicta {instrument}. Agregalo en su perfil.
+              Ningún profesor dicta {instrument}. Agrégalo en su perfil.
             </p>
           )}
 

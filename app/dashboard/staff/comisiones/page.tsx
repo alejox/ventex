@@ -20,7 +20,7 @@ import { CommissionReceiptModal } from "@/components/CommissionReceiptModal";
 import { CollectionEmpty, CollectionError, CollectionLoading } from "@/components/CollectionState";
 import { IconDollar } from "@/app/assets/icons/DashboardIcons";
 import { notifySuccess, notifyError } from "@/lib/notifications";
-import { formatMoney } from "@/lib/money";
+import { useFormatMoney } from "@/lib/useMoney";
 
 const PAYMENT_LABELS: Record<string, string> = {
   efectivo: "Efectivo",
@@ -66,6 +66,7 @@ function scopeOf(chip: ScopeChip): CommissionScope {
  * ruta por ser hija suya; los RPC lo revalidan igual en la base.
  */
 export default function CommissionsPage() {
+  const fmtMoney = useFormatMoney();
   const staff = useStaffStore((s) => s.staff);
   const fetchStaff = useStaffStore((s) => s.fetchStaff);
   const commissions = useStaffStore((s) => s.commissions);
@@ -133,7 +134,7 @@ export default function CommissionsPage() {
       className: "font-bold tabular-nums",
       cell: (c) => (
         <span className={c.pending > 0 ? "text-on-surface" : "text-on-surface-variant"}>
-          {formatMoney(c.pending)}
+          {fmtMoney(c.pending)}
         </span>
       ),
     },
@@ -153,13 +154,13 @@ export default function CommissionsPage() {
             header: "Liquidado",
             align: "right",
             className: "text-on-surface-variant tabular-nums",
-            cell: (c) => formatMoney(c.settled),
+            cell: (c) => fmtMoney(c.settled),
           } satisfies DataColumn<CommissionRow>,
           {
             header: "Devengado",
             align: "right",
             className: "text-on-surface-variant tabular-nums",
-            cell: (c) => formatMoney(c.commission),
+            cell: (c) => fmtMoney(c.commission),
           } satisfies DataColumn<CommissionRow>,
         ]),
     {
@@ -195,7 +196,7 @@ export default function CommissionsPage() {
       <div>
         <h1 className="text-2xl font-bold text-on-surface">Comisiones</h1>
         <p className="text-sm text-on-surface-variant mt-1">
-          Cuánto le debés a cada quien, y el comprobante de lo que ya pagaste.
+          Cuánto le debes a cada quien, y el comprobante de lo que ya pagaste.
         </p>
       </div>
 
@@ -225,7 +226,7 @@ export default function CommissionsPage() {
             {isPendingView ? "Por pagar (todo lo pendiente)" : chip === "previous" ? "Por pagar del mes anterior" : "Por pagar este mes"}
           </p>
           <h3 className="text-3xl font-bold text-on-surface tracking-tight tabular-nums">
-            {formatMoney(totalPendiente)}
+            {fmtMoney(totalPendiente)}
           </h3>
         </div>
         {isPendingView ? (
@@ -241,7 +242,7 @@ export default function CommissionsPage() {
               {chip === "previous" ? "Ya liquidado del mes anterior" : "Ya liquidado este mes"}
             </p>
             <h3 className="text-3xl font-bold text-emerald-600 tracking-tight tabular-nums">
-              {formatMoney(totalLiquidado)}
+              {fmtMoney(totalLiquidado)}
             </h3>
           </div>
         )}
@@ -266,8 +267,8 @@ export default function CommissionsPage() {
             title={isPendingView ? "No hay comisiones pendientes" : "No hay comisiones en este período"}
             description={
               isPendingView
-                ? "Todo lo vendido con comisión ya está liquidado. Lo nuevo aparece acá cuando vendas productos o servicios con comisión atribuidos a alguien del equipo."
-                : "Aparecen acá cuando vendas productos o servicios que generen comisión y la venta quede atribuida a alguien del equipo."
+                ? "Todo lo vendido con comisión ya está liquidado. Lo nuevo aparece aquí cuando vendas productos o servicios con comisión atribuidos a alguien del equipo."
+                : "Aparecen aquí cuando vendas productos o servicios que generen comisión y la venta quede atribuida a alguien del equipo."
             }
           />
         ) : (
@@ -282,7 +283,7 @@ export default function CommissionsPage() {
           <div className="px-6 py-4 border-b border-outline-variant/10 bg-surface-container-low">
             <h2 className="text-sm font-bold text-on-surface">Liquidaciones</h2>
             <p className="text-xs text-on-surface-variant mt-0.5">
-              Cada una generó su gasto en la categoría Comisiones. Tocá una para ver el comprobante.
+              Cada una generó su gasto en la categoría Comisiones. Toca una para ver el comprobante.
             </p>
           </div>
           {settlementsLoading ? (
@@ -317,7 +318,7 @@ export default function CommissionsPage() {
                     </p>
                   </button>
                   <span className={`shrink-0 text-sm font-bold tabular-nums ${s.status === "void" ? "text-on-surface-variant/50 line-through" : "text-on-surface"}`}>
-                    {formatMoney(s.total_amount)}
+                    {fmtMoney(s.total_amount)}
                   </span>
                   {s.status !== "void" && (
                     <button
@@ -362,7 +363,7 @@ export default function CommissionsPage() {
             <div className="p-6 text-center">
               <h3 className="text-lg font-bold text-on-surface mb-2">Anular liquidación</h3>
               <p className="text-sm text-on-surface-variant mb-4">
-                Las comisiones de {confirmVoid.staff_name} ({formatMoney(confirmVoid.total_amount)}) vuelven a
+                Las comisiones de {confirmVoid.staff_name} ({fmtMoney(confirmVoid.total_amount)}) vuelven a
                 quedar pendientes y el gasto asociado se elimina.
               </p>
               {confirmVoid.cash_movement_id && (
@@ -388,7 +389,7 @@ export default function CommissionsPage() {
                       // No es un fallo: es una consecuencia que hay que conocer.
                       notifyError(
                         "Anulada, pero el efectivo ya se contó",
-                        "Salió de un turno que ya se cerró: ese arqueo no se reescribe. Ajustalo a mano.",
+                        "Salió de un turno que ya se cerró: ese arqueo no se reescribe. Ajústalo a mano.",
                       );
                     } else if (result) {
                       notifySuccess("Liquidación anulada", "Las comisiones vuelven a quedar pendientes.");

@@ -1,4 +1,4 @@
-import { formatMoney } from "@/lib/money";
+import { useFormatMoney } from "@/lib/useMoney";
 
 interface SuccessModalProps {
   onPrint: () => void;
@@ -61,6 +61,7 @@ export function SuccessModal({
   change = 0,
   preparingMessage = false,
 }: SuccessModalProps) {
+  const fmtMoney = useFormatMoney();
   const hasChange = change > 0;
   return (
     <div
@@ -101,12 +102,12 @@ export function SuccessModal({
             <dl className="space-y-1.5 text-sm">
               <div className="flex items-baseline justify-between gap-3">
                 <dt className="text-on-surface-variant">Total</dt>
-                <dd className="font-bold text-on-surface tabular-nums">{formatMoney(total)}</dd>
+                <dd className="font-bold text-on-surface tabular-nums">{fmtMoney(total)}</dd>
               </div>
               {tendered != null && (
                 <div className="flex items-baseline justify-between gap-3">
                   <dt className="text-on-surface-variant">Recibido</dt>
-                  <dd className="font-semibold text-on-surface tabular-nums">{formatMoney(tendered)}</dd>
+                  <dd className="font-semibold text-on-surface tabular-nums">{fmtMoney(tendered)}</dd>
                 </div>
               )}
             </dl>
@@ -119,7 +120,7 @@ export function SuccessModal({
                   Entregar cambio
                 </p>
                 <p className="text-4xl font-extrabold text-primary tabular-nums tracking-tight break-all">
-                  {formatMoney(change)}
+                  {fmtMoney(change)}
                 </p>
               </div>
             )}

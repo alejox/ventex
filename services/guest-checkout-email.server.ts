@@ -124,8 +124,8 @@ export async function sendGuestCheckoutEmail(input: {
       subject: plan ? `Tu plan ${plan} de Ventex ya está pago` : "Tu pago en Ventex ya está confirmado",
       text: `${input.fullName ?? "Hola"}, recibimos tu pago${plan ? ` del plan ${plan}` : ""}. ${
         isNewUser
-          ? "Entrá a este enlace para poner tu contraseña y activar tu cuenta"
-          : "Entrá a este enlace para ver tu plan ya activo"
+          ? "Entra a este enlace para poner tu contraseña y activar tu cuenta"
+          : "Entra a este enlace para ver tu plan ya activo"
       }: ${url}`,
       html: `<div style="font-family:Arial,sans-serif;line-height:1.6;color:#25292d;max-width:560px;margin:auto"><h1>¡Pago confirmado!</h1><p>${greeting}, recibimos tu pago${
         plan ? ` del plan <strong>${plan}</strong>` : ""
@@ -133,7 +133,7 @@ export async function sendGuestCheckoutEmail(input: {
         isNewUser
           ? "Solo falta que pongas una contraseña y el nombre de tu negocio para empezar a usar Ventex."
           : "Tu plan ya quedó activo en tu cuenta."
-      }</p><p><a href="${safeUrl}" style="display:inline-block;background:#6d21ef;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none">${action}</a></p><p style="font-size:13px;color:#59626a">El enlace es de un solo uso. Si venció, podés iniciar sesión con ${escapeHtml(
+      }</p><p><a href="${safeUrl}" style="display:inline-block;background:#6d21ef;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none">${action}</a></p><p style="font-size:13px;color:#59626a">El enlace es de un solo uso. Si venció, puedes iniciar sesión con ${escapeHtml(
         input.email,
       )} y tu plan va a estar igual: el pago ya quedó registrado.</p></div>`,
     }),

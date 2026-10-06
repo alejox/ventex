@@ -6,8 +6,8 @@ import { useSearchParams } from "next/navigation";
 import { authMessage } from "@/lib/errors";
 
 const LINK_ERRORS: Record<string, string> = {
-  enlace_vencido: "El enlace ya se usó o venció. Pedí uno nuevo acá abajo.",
-  enlace_invalido: "El enlace no es válido. Pedí uno nuevo acá abajo.",
+  enlace_vencido: "El enlace ya se usó o venció. Pide uno nuevo aquí abajo.",
+  enlace_invalido: "El enlace no es válido. Pide uno nuevo aquí abajo.",
 };
 
 function ResetPasswordForm() {
@@ -66,7 +66,7 @@ function ResetPasswordForm() {
           eso avisamos de la carpeta de spam.
         */}
         <p className="text-on-surface-variant/70 text-[13px] mb-8 leading-relaxed">
-          Puede tardar un par de minutos. Revisá también la carpeta de spam.
+          Puede tardar un par de minutos. Revisa también la carpeta de spam.
         </p>
         <Link
           href="/login"

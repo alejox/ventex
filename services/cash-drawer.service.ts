@@ -286,7 +286,7 @@ export async function openCashDrawer(config: DrawerConfig): Promise<DrawerTransp
     throw new Error(
       config.transport === "auto"
         ? caps.secure
-          ? "Este navegador no puede abrir el cajón solo. Probá Chrome o Edge de escritorio, o elegí la apertura por impresión en Ajustes."
+          ? "Este navegador no puede abrir el cajón solo. Prueba Chrome o Edge de escritorio, o elige la apertura por impresión en Ajustes."
           : "El cajón necesita una conexión segura (https)."
         : "La vía elegida para el cajón no está disponible en este navegador.",
     );

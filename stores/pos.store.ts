@@ -1080,12 +1080,12 @@ export const usePosStore = create<PosState>((set, get) => {
       const activeTab = state.tabs.find((t) => t.id === state.activeTabId);
       if (!activeTab || activeTab.cart.length === 0) return "failed";
       if (activeTab.loyaltyApplied && !loyaltyRedemptionMatches(activeTab.cart, activeTab.customerId, activeTab.loyaltyApplied)) {
-        set({ error: "El carrito o cliente cambió después de aplicar puntos. Quitá los puntos y volvé a aplicarlos antes de cobrar." });
+        set({ error: "El carrito o cliente cambió después de aplicar puntos. Quita los puntos y vuelve a aplicarlos antes de cobrar." });
         return "failed";
       }
       if (!state.executionContext) {
         set({
-          error: "No hay un negocio activo. Volvé a elegir el negocio antes de cobrar.",
+          error: "No hay un negocio activo. Vuelve a elegir el negocio antes de cobrar.",
         });
         return "failed";
       }
@@ -1165,7 +1165,7 @@ export const usePosStore = create<PosState>((set, get) => {
         // salió del mostrador. Ver `isNetworkError`.
         if (isNetworkError(e)) {
           if (activeTab.loyaltyApplied) {
-            set({ error: "No se pudo confirmar la venta en línea. No se encoló porque tenía puntos canjeados; comprobá la venta antes de reintentar.", submitting: false });
+            set({ error: "No se pudo confirmar la venta en línea. No se encoló porque tenía puntos canjeados; comprueba la venta antes de reintentar.", submitting: false });
             return "failed";
           }
           // El total tal cual se lo dijo al cliente, con la misma cuenta que
@@ -1217,7 +1217,7 @@ export const usePosStore = create<PosState>((set, get) => {
           // tener cola: decirle al cajero que la venta quedó cuando no quedó en
           // ningún lado. Se reporta como fallo y el carrito NO se limpia.
           set({
-            error: "No hay conexión y tampoco pudimos guardar la venta en este dispositivo. No cierres el POS y volvé a intentar.",
+            error: "No hay conexión y tampoco pudimos guardar la venta en este dispositivo. No cierres el POS y vuelve a intentar.",
             submitting: false,
           });
           return "failed";

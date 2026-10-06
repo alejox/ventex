@@ -190,11 +190,11 @@ export async function isSlugAvailable(slug: string, currentSlug?: string): Promi
 }
 
 export async function uploadSiteImage(file: File): Promise<string> {
-  if (!file.type.startsWith("image/")) throw new Error("Elegí un archivo de imagen.");
+  if (!file.type.startsWith("image/")) throw new Error("Elige un archivo de imagen.");
   if (file.size > 8 * 1024 * 1024) throw new Error("La imagen no puede superar 8 MB.");
 
   const allowed = new Set(["image/jpeg", "image/png", "image/webp", "image/avif"]);
-  if (!allowed.has(file.type)) throw new Error("Usá una imagen JPG, PNG, WebP o AVIF.");
+  if (!allowed.has(file.type)) throw new Error("Usa una imagen JPG, PNG, WebP o AVIF.");
 
   const supabase = createClient();
   const workspaceId = await getSelectedWorkspaceId();

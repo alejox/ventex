@@ -54,3 +54,16 @@ export function defaultPromoMessageFor(noun: PromoNoun): string {
   if (noun.plural === "cortes") return DEFAULT_PROMO_MESSAGE;
   return DEFAULT_PROMO_MESSAGE.replace("{cortes} cortes", `{cortes} ${noun.plural}`).replace(" 💈", "");
 }
+
+/**
+ * La plantilla con la que se arma el mensaje de WhatsApp en POS, Clientes y
+ * Promociones: la que guardó el negocio o, si nunca guardó una, la del rubro
+ * (la misma que precarga Ajustes → Promociones). Sin esto, un lavaautos que
+ * nunca abrió el editor le mandaba "Ya llevas 3 cortes" a sus clientes.
+ */
+export function promoTemplateFor(
+  saved: string | null | undefined,
+  businessType: BusinessType | null | undefined,
+): string {
+  return saved?.trim() || defaultPromoMessageFor(promoNounFor(businessType));
+}

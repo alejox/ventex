@@ -12,7 +12,7 @@ import { ExpensesByCategory } from "@/components/ExpensesByCategory";
 import { IconTrendingUp, IconTrendingDown, IconDollar, IconWallet, IconPlus } from "@/app/assets/icons/DashboardIcons";
 import { GettingStarted } from "@/components/onboarding/GettingStarted";
 import { formatDateOnly } from "@/lib/date";
-import { formatMoney } from "@/lib/money";
+import { useFormatMoney } from "@/lib/useMoney";
 
 /**
  * Presentación de cada acción rápida (icono, subtítulo y color), por id. La
@@ -95,6 +95,7 @@ const DEFAULT_QUICK_STYLE = {
  * trabajador con permiso `panel` los ve pero no los crea.
  */
 export function DashboardHome({ canAddExpense = false }: { canAddExpense?: boolean }) {
+  const fmtMoney = useFormatMoney();
   const profile = useProfile();
   const overview = useFinanceStore((s) => s.overview);
   const loading = useFinanceStore((s) => s.loading);
@@ -186,7 +187,7 @@ export function DashboardHome({ canAddExpense = false }: { canAddExpense?: boole
         <KpiCard
           icon={<IconDollar className="w-5 h-5" />}
           label="Ventas hoy"
-          value={todaySales ? formatMoney(todaySales.revenue) : "—"}
+          value={todaySales ? fmtMoney(todaySales.revenue) : "—"}
           sub={todaySales ? `${todaySales.count} ${todaySales.count === 1 ? "venta" : "ventas"}` : ""}
           loading={!todaySales}
           accent="bg-primary/10 text-primary"
@@ -194,7 +195,7 @@ export function DashboardHome({ canAddExpense = false }: { canAddExpense?: boole
         <KpiCard
           icon={<IconTrendingUp className="w-5 h-5" />}
           label="Ingresos totales"
-          value={overviewBusy ? "—" : formatMoney(overview.revenue)}
+          value={overviewBusy ? "—" : fmtMoney(overview.revenue)}
           sub={`${overviewBusy ? "—" : overview.salesCount} ventas`}
           loading={overviewBusy}
           accent="bg-[#10b981]/10 text-[#10b981]"
@@ -202,7 +203,7 @@ export function DashboardHome({ canAddExpense = false }: { canAddExpense?: boole
         <KpiCard
           icon={<IconTrendingDown className="w-5 h-5" />}
           label="Gastos totales"
-          value={overviewBusy ? "—" : formatMoney(overview.expenses)}
+          value={overviewBusy ? "—" : fmtMoney(overview.expenses)}
           // Sin esta línea, este número y el "Gasto total" de la pantalla de
           // Gastos son dos cifras muy distintas con etiquetas casi iguales: acá
           // se suman las compras a proveedor, allá no.
@@ -217,7 +218,7 @@ export function DashboardHome({ canAddExpense = false }: { canAddExpense?: boole
         <KpiCard
           icon={<IconWallet className="w-5 h-5" />}
           label="Flujo de caja"
-          value={overviewBusy ? "—" : `${overview.net < 0 ? "-" : ""}${formatMoney(Math.abs(overview.net))}`}
+          value={overviewBusy ? "—" : `${overview.net < 0 ? "-" : ""}${fmtMoney(Math.abs(overview.net))}`}
           sub="Ingresos − egresos (incluye compras)"
           loading={overviewBusy}
           accent={overviewBusy || overview.net >= 0 ? "bg-[#10b981]/10 text-[#10b981]" : "bg-error/10 text-error"}
@@ -244,12 +245,12 @@ export function DashboardHome({ canAddExpense = false }: { canAddExpense?: boole
                       <div
                         className="w-full max-w-[40px] rounded-t-md bg-[#10b981] transition-all"
                         style={{ height: `${Math.max(incomeH, 1)}%` }}
-                        title={`Ingresos: ${formatMoney(m.income)}`}
+                        title={`Ingresos: ${fmtMoney(m.income)}`}
                       />
                       <div
                         className="w-full max-w-[40px] rounded-t-md bg-error/70 transition-all"
                         style={{ height: `${Math.max(expenseH, 1)}%` }}
-                        title={`Gastos: ${formatMoney(m.expense)}`}
+                        title={`Gastos: ${fmtMoney(m.expense)}`}
                       />
                     </div>
                     <span className="text-xs text-on-surface-variant font-medium mt-1">{m.label}</span>
@@ -307,7 +308,7 @@ export function DashboardHome({ canAddExpense = false }: { canAddExpense?: boole
                   <span className={`text-xs font-bold shrink-0 ${
                     t.amount >= 0 ? "text-[#10b981]" : "text-error"
                   }`}>
-                    {t.amount >= 0 ? "+" : "-"}{formatMoney(Math.abs(t.amount))}
+                    {t.amount >= 0 ? "+" : "-"}{fmtMoney(Math.abs(t.amount))}
                   </span>
                 </div>
               ))}

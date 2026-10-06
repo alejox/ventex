@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePosStore } from "@/stores/pos.store";
 import { backdropProps } from "@/components/modal";
-import { formatMoney } from "@/lib/money";
+import { useFormatMoney } from "@/lib/useMoney";
 
 function IconReceipt(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -31,6 +31,7 @@ interface RecentSalesModalProps {
 }
 
 export function RecentSalesModal({ onClose, onReprint }: RecentSalesModalProps) {
+  const fmtMoney = useFormatMoney();
   const sales = usePosStore((s) => s.recentSales);
   const loading = usePosStore((s) => s.recentSalesLoading);
   const fetchRecentSales = usePosStore((s) => s.fetchRecentSales);
@@ -88,12 +89,24 @@ export function RecentSalesModal({ onClose, onReprint }: RecentSalesModalProps) 
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-outline-variant/10">
-                  {sales.map((sale) => (
+                  {sales.map((sale) => {
+                    const voided = sale.status === "void";
+                    return (
                     <tr key={sale.id} className="hover:bg-surface-container-lowest transition-colors">
                       <td className="p-3">Venta #{sale.sale_number}</td>
-                      <td className="p-3 font-medium">{formatMoney(sale.total)}</td>
-                      <td className="p-3 text-on-surface-variant text-xs">
-                        {sale.status === "completed" ? "Completada" : sale.status === "void" ? "Anulada" : "Pendiente"}
+                      <td className={`p-3 font-medium tabular-nums ${voided ? "line-through text-on-surface-variant" : ""}`}>
+                        {fmtMoney(sale.total)}
+                      </td>
+                      <td className="p-3 text-xs">
+                        {voided ? (
+                          <span className="inline-flex items-center rounded-full bg-error/10 px-2 py-0.5 font-semibold text-error">
+                            Anulada
+                          </span>
+                        ) : (
+                          <span className="text-on-surface-variant">
+                            {sale.status === "completed" ? "Completada" : "Pendiente"}
+                          </span>
+                        )}
                       </td>
                       <td className="p-3 text-right">
                         <button
@@ -112,7 +125,8 @@ export function RecentSalesModal({ onClose, onReprint }: RecentSalesModalProps) 
                         </button>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

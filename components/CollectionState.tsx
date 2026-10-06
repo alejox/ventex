@@ -65,7 +65,7 @@ interface CollectionFilteredEmptyProps {
 
 export function CollectionFilteredEmpty({
   title = "No encontramos resultados",
-  description = "Probá cambiando o limpiando los filtros.",
+  description = "Prueba cambiando o limpiando los filtros.",
   action,
 }: CollectionFilteredEmptyProps) {
   return (

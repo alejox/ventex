@@ -25,7 +25,7 @@ import { useProfile } from "@/components/ProfileProvider";
 import { useSettingsStore } from "@/stores/settings.store";
 import { CreditAlertEditor } from "./components/CreditAlertEditor";
 import type { CreditRow } from "@/services/credits.service";
-import { formatMoney } from "@/lib/money";
+import { useCurrency, useFormatMoney } from "@/lib/useMoney";
 
 const fecha = (iso: string) =>
   new Date(iso).toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "numeric" });
@@ -55,6 +55,8 @@ const TABS: { id: Tab; label: string }[] = [
  * saldo que puede dejar de coincidir con las ventas que lo formaron.
  */
 export default function CreditsPage() {
+  const fmtMoney = useFormatMoney();
+  const currency = useCurrency();
   const rows = useCreditsStore((s) => s.rows);
   const loading = useCreditsStore((s) => s.loading);
   const error = useCreditsStore((s) => s.error);
@@ -149,7 +151,7 @@ export default function CreditsPage() {
       sortKey: "deuda",
       sortValue: (c) => c.credit_balance,
       className: "font-bold text-[#f59e0b]",
-      cell: (c) => formatMoney(c.credit_balance),
+      cell: (c) => fmtMoney(c.credit_balance),
     },
     {
       header: "Estado",
@@ -161,7 +163,7 @@ export default function CreditsPage() {
           <span
             className={`inline-flex px-2.5 py-1 rounded-md text-[11px] font-bold border ${CREDIT_CHIP[status]}`}
           >
-            {creditLabelOf(c.credit_balance, c.credit_limit)}
+            {creditLabelOf(c.credit_balance, c.credit_limit, currency)}
           </span>
         );
       },
@@ -180,7 +182,7 @@ export default function CreditsPage() {
         return disponible == null ? (
           <span className="text-on-surface-variant/50">Sin cupo</span>
         ) : (
-          formatMoney(disponible)
+          fmtMoney(disponible)
         );
       },
     },
@@ -213,7 +215,7 @@ export default function CreditsPage() {
       sortKey: "pagado",
       sortValue: (c) => c.total_paid,
       className: "font-bold text-[#10b981]",
-      cell: (c) => formatMoney(c.total_paid),
+      cell: (c) => fmtMoney(c.total_paid),
     },
     {
       header: "Último abono",
@@ -257,6 +259,7 @@ export default function CreditsPage() {
       balance: c.credit_balance,
       sales: cuenta.sales,
       payments: cuenta.payments,
+      currency,
     });
     const link = whatsappLink(c.phone, texto);
 
@@ -290,7 +293,7 @@ export default function CreditsPage() {
             </a>
           ) : (
             <span className="shrink-0 text-xs text-on-surface-variant self-center">
-              Sin teléfono: agregalo para poder escribirle.
+              Sin teléfono: agrégalo para poder escribirle.
             </span>
           )}
         </div>
@@ -310,12 +313,12 @@ export default function CreditsPage() {
                         haría que la suma no cierre con la deuda. */}
                     {s.payment_method === "split" && (
                       <span className="ml-1 text-on-surface-variant/60">
-                        (parcial de {formatMoney(s.total)})
+                        (parcial de {fmtMoney(s.total)})
                       </span>
                     )}
                   </span>
                   <span className="font-semibold text-[#f59e0b] tabular-nums shrink-0">
-                    {formatMoney(s.credit_amount)}
+                    {fmtMoney(s.credit_amount)}
                   </span>
                 </li>
               ))}
@@ -335,7 +338,7 @@ export default function CreditsPage() {
                     {p.notes && <span className="ml-1 text-on-surface-variant/60">· {p.notes}</span>}
                   </span>
                   <span className="font-semibold text-[#10b981] tabular-nums shrink-0">
-                    −{formatMoney(p.amount)}
+                    −{fmtMoney(p.amount)}
                   </span>
                 </li>
               ))}
@@ -355,7 +358,7 @@ export default function CreditsPage() {
         <div>
           <h1 className="text-2xl font-bold text-on-surface">Créditos</h1>
           <p className="text-sm text-on-surface-variant mt-1">
-            Quién te debe, cuánto, y desde cuándo. Cobrá un abono y la cuenta se actualiza sola.
+            Quién te debe, cuánto, y desde cuándo. Cobra un abono y la cuenta se actualiza sola.
           </p>
         </div>
       </div>
@@ -368,7 +371,7 @@ export default function CreditsPage() {
             <div className="rounded-2xl border border-outline-variant/10 bg-surface-container-lowest p-4">
               <p className="text-xs font-semibold text-on-surface-variant">Total por cobrar</p>
               <p className="mt-1 text-2xl font-bold text-[#f59e0b] tabular-nums">
-                {formatMoney(summary.totalPorCobrar)}
+                {fmtMoney(summary.totalPorCobrar)}
               </p>
             </div>
             <div className="rounded-2xl border border-outline-variant/10 bg-surface-container-lowest p-4">
@@ -445,7 +448,7 @@ export default function CreditsPage() {
         <CollectionEmpty
           icon={<IconClock className="w-7 h-7" />}
           title="Nadie te debe nada"
-          description="Cuando cobres una venta con el método “Crédito / Fiado” en el Punto de Venta, la deuda del cliente aparece acá."
+          description="Cuando cobres una venta con el método “Crédito / Fiado” en el Punto de Venta, la deuda del cliente aparece aquí."
         />
       ) : delTab.length === 0 ? (
         <CollectionFilteredEmpty
@@ -453,7 +456,7 @@ export default function CreditsPage() {
           description={
             tab === "deuda"
               ? "Toda la cartera está al día. Los que ya pagaron quedan en la otra pestaña."
-              : "Acá van quedando los clientes que fiaron y terminaron de pagar."
+              : "Aquí van quedando los clientes que fiaron y terminaron de pagar."
           }
         />
       ) : filtrados.length === 0 ? (

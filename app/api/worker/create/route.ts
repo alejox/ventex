@@ -42,9 +42,9 @@ function invitationRedirect(
 function invitationError(message: string): string {
   const normalized = message.toLowerCase();
   if (normalized.includes("rate") || normalized.includes("limit")) {
-    return "Se alcanzó el límite temporal de invitaciones. Esperá unos minutos e intentá de nuevo.";
+    return "Se alcanzó el límite temporal de invitaciones. Espera unos minutos e intenta de nuevo.";
   }
-  return "No se pudo enviar la invitación. Verificá el correo e intentá de nuevo.";
+  return "No se pudo enviar la invitación. Verifica el correo e intenta de nuevo.";
 }
 
 async function deleteUnusedProvisionalIdentity(userId: string): Promise<void> {
@@ -122,7 +122,7 @@ export async function POST(request: NextRequest) {
   }
   if (existingMembership?.status === "suspended") {
     return NextResponse.json(
-      { code: MEMBERSHIP_SUSPENDED, error: "Ese acceso está suspendido. Reactivalo en lugar de crear otra invitación." },
+      { code: MEMBERSHIP_SUSPENDED, error: "Ese acceso está suspendido. Reactívalo en lugar de crear otra invitación." },
       { status: 409 },
     );
   }
@@ -278,7 +278,7 @@ export async function POST(request: NextRequest) {
     });
     await deleteUnusedProvisionalIdentity(provisionalUserId);
     return NextResponse.json(
-      { error: "La invitación no pudo vincularse con el personal. Intentá de nuevo." },
+      { error: "La invitación no pudo vincularse con el personal. Intenta de nuevo." },
       { status: 500 },
     );
   }

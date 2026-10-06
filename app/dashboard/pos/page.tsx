@@ -57,13 +57,14 @@ import {
   redeemPromo,
   renderRedeemMessage,
 } from "@/services/promos.service";
+import { promoTemplateFor } from "@/config/promo-nouns";
 import { TabRenameModal } from "./components/TabRenameModal";
 import { AlertTriangle } from "lucide-react";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { PlanLimitModal } from "./components/PlanLimitModal";
 import { OfflineQueueBadge } from "./components/OfflineQueueBadge";
 import { RejectedSalesModal } from "./components/RejectedSalesModal";
-import { formatMoney } from "@/lib/money";
+import { useFormatMoney } from "@/lib/useMoney";
 import { buildReceiptFromCart, buildReceiptFromSale, type ReceiptData } from "@/lib/receipt";
 
 const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
@@ -79,6 +80,7 @@ const SCAN_FLASH_MS = 1200;
 const UNDO_CLEAR_MS = 5000;
 
 export default function POSPage() {
+  const fmtMoney = useFormatMoney();
   const catalog = usePosStore((s) => s.catalog);
   const customers = usePosStore((s) => s.customers);
   const staff = usePosStore((s) => s.staff);
@@ -610,7 +612,7 @@ export default function POSPage() {
     if (!customerId) return;
     const points = parseInt(redeemPointsInput, 10);
     if (!Number.isFinite(points) || points <= 0) {
-      notifyError("Cantidad inválida", "Ingresá cuántos puntos querés canjear.");
+      notifyError("Cantidad inválida", "Ingresa cuántos puntos quieres canjear.");
       return;
     }
     if (loyaltyConfig.minRedeem > 0 && points < loyaltyConfig.minRedeem) {
@@ -629,7 +631,7 @@ export default function POSPage() {
     }
 
     if (!applyLoyaltyPoints(points, loyaltyConfig.pointsValue ?? 0)) {
-      notifyError("No se aplicaron los puntos", "Revisá el carrito y volvé a intentarlo.");
+      notifyError("No se aplicaron los puntos", "Revisa el carrito y vuelve a intentarlo.");
       return;
     }
     setRedeemPointsInput("");
@@ -647,7 +649,7 @@ export default function POSPage() {
     const item = catalog.find((c) => c.kind === "service" && c.id === cita.service_id);
     if (!item) {
       notifyError(
-        "No se puede cobrar desde acá",
+        "No se puede cobrar desde aquí",
         `El servicio de esta cita ya no está activo. Cóbralo eligiendo otro servicio del catálogo.`,
       );
       return;
@@ -673,9 +675,9 @@ export default function POSPage() {
     // activa puede cambiar.
     const citaCobrada = citaActiva;
     if (!loyaltyValid || (loyaltyApplied && !isOnline)) {
-      const msg = "Quitá los puntos y volvé a aplicarlos antes de cobrar en línea.";
+      const msg = "Quita los puntos y vuelve a aplicarlos antes de cobrar en línea.";
       setCheckoutError(msg);
-      notifyError("Revisá el canje", msg);
+      notifyError("Revisa el canje", msg);
       return false;
     }
     setCheckoutError(null);
@@ -827,7 +829,7 @@ export default function POSPage() {
           } catch (e) {
             notifyError(
               "La venta quedó, pero el premio NO se canjeó",
-              e instanceof Error ? e.message : "Canjealo a mano desde Promociones.",
+              e instanceof Error ? e.message : "Canjéalo a mano desde Promociones.",
             );
           }
         }
@@ -849,7 +851,7 @@ export default function POSPage() {
             // de reintentar solo, mismo trato que el premio de cortes.
             notifyError(
               "La venta quedó, pero los puntos NO se descontaron del saldo",
-              e instanceof Error ? e.message : "Reportalo si vuelve a pasar.",
+              e instanceof Error ? e.message : "Repórtalo si vuelve a pasar.",
             );
           }
         }
@@ -874,7 +876,7 @@ export default function POSPage() {
                   premio: premioEntregado,
                   total: count,
                 })
-              : renderPromoMessage(promoConfig.message, {
+              : renderPromoMessage(promoTemplateFor(promoConfig.message, profile?.businessType), {
                   cliente: nombre,
                   // El premio sale del PROGRESO; el histórico va como `{total}`.
                   cortes: progress,
@@ -1001,7 +1003,7 @@ export default function POSPage() {
         if (!ok) {
           notifyError(
             "El cajón no se abrió",
-            useCashDrawerStore.getState().error ?? "Revisá la conexión de la impresora.",
+            useCashDrawerStore.getState().error ?? "Revisa la conexión de la impresora.",
           );
         }
       });
@@ -1016,14 +1018,14 @@ export default function POSPage() {
       // cajero necesita saber que tiene que abrirlo con la llave.
       notifyWarning(
         "El cajón no se abrió",
-        useCashDrawerStore.getState().error ?? "Revisá la conexión de la impresora.",
+        useCashDrawerStore.getState().error ?? "Revisa la conexión de la impresora.",
       );
     });
   }, []);
 
   const handleCheckoutClick = (): boolean => {
     if (!loyaltyValid || (loyaltyApplied && !isOnline)) {
-      notifyError("Revisá el canje", "Quitá los puntos y volvé a aplicarlos antes de cobrar en línea.");
+      notifyError("Revisa el canje", "Quita los puntos y vuelve a aplicarlos antes de cobrar en línea.");
       return false;
     }
     requireShift(() => {
@@ -1141,7 +1143,7 @@ export default function POSPage() {
               type="button"
               onClick={() => setIsCartOpen(true)}
               disabled={cart.length === 0}
-              aria-label={cart.length === 0 ? "Agregá ítems para cobrar" : `Ver venta actual: ${cart.length} ítems, total ${formatMoney(totals.total)}`}
+              aria-label={cart.length === 0 ? "Agrega ítems para cobrar" : `Ver venta actual: ${cart.length} ítems, total ${fmtMoney(totals.total)}`}
               className="w-full min-h-12 flex items-center justify-between gap-3 rounded-xl bg-primary text-on-primary px-3.5 shadow-lg shadow-primary/25 active:bg-primary-dim focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary transition-colors disabled:opacity-40"
             >
               <span className="flex items-center gap-2.5 min-w-0">
@@ -1162,7 +1164,7 @@ export default function POSPage() {
                 </span>
               </span>
               <span className="flex items-center gap-1.5 shrink-0">
-                <span className="text-sm font-bold tabular-nums">{formatMoney(totals.total)}</span>
+                <span className="text-sm font-bold tabular-nums">{fmtMoney(totals.total)}</span>
                 <svg fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-3.5 h-3.5">
                   <path d="M5 12h14M13 6l6 6-6 6" />
                 </svg>
@@ -1183,7 +1185,7 @@ export default function POSPage() {
                         </p>}
                         {loyaltyApplied && (
                           <p className="text-xs text-on-surface-variant">
-                            Canjeados: {loyaltyApplied.points} (−{formatMoney(loyaltyApplied.amount)}). Se descuentan del saldo al cobrar.
+                            Canjeados: {loyaltyApplied.points} (−{fmtMoney(loyaltyApplied.amount)}). Se descuentan del saldo al cobrar.
                           </p>
                         )}
                       </div>
@@ -1199,12 +1201,12 @@ export default function POSPage() {
                     </div>
                     {loyaltyApplied && !loyaltyValid && (
                       <p role="alert" className="text-xs font-semibold text-error">
-                        El cliente o carrito cambió. Quitá los puntos y volvé a aplicarlos antes de cobrar.
+                        El cliente o carrito cambió. Quita los puntos y vuelve a aplicarlos antes de cobrar.
                       </p>
                     )}
                     {loyaltyApplied && !isOnline && loyaltyValid && (
                       <p role="alert" className="text-xs font-semibold text-error">
-                        Sin conexión no se pueden canjear puntos. Quitalos antes de cobrar.
+                        Sin conexión no se pueden canjear puntos. Quítalos antes de cobrar.
                       </p>
                     )}
 
@@ -1215,7 +1217,7 @@ export default function POSPage() {
                         </p>
                       ) : loyaltyConfig.pointsValue == null ? (
                         <p className="text-xs text-on-surface-variant">
-                          Configurá cuánto vale un punto en Ajustes → Promociones para poder canjear.
+                          Configura cuánto vale un punto en Ajustes → Promociones para poder canjear.
                         </p>
                       ) : maxLoyaltyPoints <= 0 ? (
                         <p className="text-xs text-on-surface-variant">
@@ -1254,7 +1256,7 @@ export default function POSPage() {
                 <p className="text-sm font-bold text-on-surface truncate">{hitoGanado.reward}</p>
                 <p className="text-xs text-on-surface-variant">
                   {promoAplicado
-                    ? `Aplicado: −${formatMoney(promoAplicado.amount)}. Se canjea al cobrar.`
+                    ? `Aplicado: −${fmtMoney(promoAplicado.amount)}. Se canjea al cobrar.`
                     : `Ganado con ${promoGanado?.progress} cortes`}
                 </p>
               </div>
@@ -1281,7 +1283,7 @@ export default function POSPage() {
                   }}
                   className="shrink-0 px-3 py-1.5 rounded-lg bg-accent-fin text-background text-[11px] font-bold hover:opacity-90 transition-opacity"
                 >
-                  Aplicar −{formatMoney(promoSugerido!.discountAmount)}
+                  Aplicar −{fmtMoney(promoSugerido!.discountAmount)}
                 </button>
               )}
             </div>

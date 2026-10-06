@@ -28,7 +28,7 @@ export function BarberUrbanaTemplate({ site, preview = false }: { site: PublicSi
           <h1 className={styles.heroTitle}>{hero.title ?? site.businessName}</h1>
           <p className={styles.heroKicker}>{hero.eyebrow}</p>
           {hero.description ? <p className="mt-5 max-w-2xl text-sm leading-7 text-[#cfd8d2]">{hero.description}</p> : null}
-          <div className={styles.heroActions}>{site.bookingEnabled ? <a className={styles.primary} href="#reservar">Reservá ahora <ArrowUpRight size={16} aria-hidden="true" /></a> : null}<a className={styles.secondary} href="#servicios">Ver servicios</a></div>
+          <div className={styles.heroActions}>{site.bookingEnabled ? <a className={styles.primary} href="#reservar">Reserva ahora <ArrowUpRight size={16} aria-hidden="true" /></a> : null}<a className={styles.secondary} href="#servicios">Ver servicios</a></div>
           <div className={styles.heroStatus}><BusinessStatus site={site} /></div>
         </div>
         {!hero.imageUrl ? <span className={styles.sample}>Imagen de referencia</span> : null}

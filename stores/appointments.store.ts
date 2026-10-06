@@ -65,7 +65,7 @@ export const useAppointmentsStore = create<AppointmentsState>((set) => ({
       const appointment = await appointmentsService.fetchAppointmentById(id);
       if (request !== linkRequest) return null;
       set({ linkedAppointment: appointment, linkLoading: false,
-        linkError: appointment ? null : "Esta reserva ya no está disponible o no tenés acceso a ella." });
+        linkError: appointment ? null : "Esta reserva ya no está disponible o no tienes acceso a ella." });
       return appointment;
     } catch (e) {
       if (request !== linkRequest) return null;

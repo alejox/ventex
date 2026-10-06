@@ -8,7 +8,7 @@ import { CollectionLoading } from "@/components/CollectionState";
 import { DataTable, type DataColumn } from "@/components/DataTable";
 import { backdropProps } from "@/components/modal";
 import { IconTrash } from "@/app/assets/icons/DashboardIcons";
-import { formatMoney } from "@/lib/money";
+import { useFormatMoney } from "@/lib/useMoney";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 
 const STATUS_LABEL: Record<PurchaseOrderStatus, string> = {
@@ -85,6 +85,7 @@ export function SavedOrders({
   onComplete: (id: string) => void;
   onCancel: (id: string) => void;
 }) {
+  const fmtMoney = useFormatMoney();
   const [detail, setDetail] = useState<PurchaseOrder | null>(null);
   const { confirm, dialog } = useConfirm();
 
@@ -99,7 +100,7 @@ export function SavedOrders({
         <>
           <p>
             Se registra la compra a {o.distributor_name ?? "el proveedor"} por{" "}
-            <strong className="text-on-surface">{formatMoney(totalOf(o))}</strong> y se suman{" "}
+            <strong className="text-on-surface">{fmtMoney(totalOf(o))}</strong> y se suman{" "}
             {unitsOf(o)} unidades al stock de {o.items.length} producto
             {o.items.length !== 1 ? "s" : ""}.
           </p>
@@ -201,7 +202,7 @@ export function SavedOrders({
       sortValue: (o) => totalOf(o),
       cell: (o) => (
         <span className="font-semibold text-on-surface tabular-nums whitespace-nowrap">
-          {formatMoney(totalOf(o))}
+          {fmtMoney(totalOf(o))}
         </span>
       ),
     },
@@ -339,6 +340,7 @@ function OrderDetail({
   onReceive: (order: PurchaseOrder) => void;
   onClose: () => void;
 }) {
+  const fmtMoney = useFormatMoney();
   return (
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
@@ -385,10 +387,10 @@ function OrderDetail({
                   )}
                 </div>
                 <span className="text-sm text-on-surface-variant tabular-nums shrink-0">
-                  {item.quantity} × {formatMoney(item.unit_price)}
+                  {item.quantity} × {fmtMoney(item.unit_price)}
                 </span>
                 <span className="text-sm font-bold text-on-surface tabular-nums shrink-0 w-28 text-right">
-                  {formatMoney(item.quantity * item.unit_price)}
+                  {fmtMoney(item.quantity * item.unit_price)}
                 </span>
               </li>
             ))}
@@ -399,7 +401,7 @@ function OrderDetail({
               Total · {unitsOf(order)} unidades
             </span>
             <span className="text-lg font-bold text-on-surface tabular-nums">
-              {formatMoney(totalOf(order))}
+              {fmtMoney(totalOf(order))}
             </span>
           </div>
 

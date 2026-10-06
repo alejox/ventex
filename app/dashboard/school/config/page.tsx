@@ -59,7 +59,7 @@ export default function SchoolConfigPage() {
     // Con chips no hay `required` nativo que lo frene: se valida acá.
     if (instruments.length === 0) {
       setInstrumentsMissing(true);
-      notifyError("Falta una especialidad", "Agregá al menos una especialidad antes de guardar.");
+      notifyError("Falta una especialidad", "Agrega al menos una especialidad antes de guardar.");
       return;
     }
     const ok = await saveSettings({
@@ -108,8 +108,8 @@ export default function SchoolConfigPage() {
               setInstruments(next);
               if (next.length > 0) setInstrumentsMissing(false);
             }}
-            placeholder="Ej. Piano — escribí y presioná Enter"
-            emptyHint="Agregá al menos una especialidad."
+            placeholder="Ej. Piano — escribe y presiona Enter"
+            emptyHint="Agrega al menos una especialidad."
             invalid={instrumentsMissing}
           />
         </div>
@@ -120,7 +120,7 @@ export default function SchoolConfigPage() {
             id="school-levels"
             values={levels}
             onChange={setLevels}
-            placeholder="Ej. Principiante — escribí y presioná Enter"
+            placeholder="Ej. Principiante — escribe y presiona Enter"
           />
         </div>
         <div className="space-y-1.5">
@@ -130,7 +130,7 @@ export default function SchoolConfigPage() {
             id="school-rooms"
             values={rooms}
             onChange={setRooms}
-            placeholder="Ej. Sala 1 — escribí y presioná Enter"
+            placeholder="Ej. Sala 1 — escribe y presiona Enter"
           />
         </div>
       </section>

@@ -32,7 +32,7 @@ export function WorkspaceChooser() {
     <div className="w-full max-w-[520px] mx-auto space-y-8">
       <div className="text-center">
         <h1 className="text-3xl font-bold text-on-surface">
-          Elegí un negocio
+          Elige un negocio
         </h1>
         <p className="mt-2 text-sm text-on-surface-variant">
           Tu acceso y tus permisos cambian de forma independiente en cada
@@ -106,8 +106,8 @@ export function WorkspaceChooser() {
             (context?.invitations.length ?? 0) === 0 && (
               <div className="rounded-2xl bg-surface-container p-5 text-center">
                 <p className="text-sm text-on-surface-variant">
-                  No tenés negocios disponibles. Si esperabas una invitación,
-                  verificá que hayas iniciado sesión con el correo invitado.
+                  No tienes negocios disponibles. Si esperabas una invitación,
+                  verifica que hayas iniciado sesión con el correo invitado.
                 </p>
                 <button
                   type="button"

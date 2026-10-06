@@ -8,9 +8,9 @@ import { useSettingsStore } from "@/stores/settings.store";
 import { useEffect } from "react";
 
 const SAMPLE_SERVICES = [
-  { id: "preview-1", name: "Servicio insignia", description: "Una experiencia creada alrededor de vos.", price: 45000, durationMinutes: 45, icon: null, imageUrl: null },
+  { id: "preview-1", name: "Servicio insignia", description: "Una experiencia creada alrededor de ti.", price: 45000, durationMinutes: 45, icon: null, imageUrl: null },
   { id: "preview-2", name: "Cuidado completo", description: "Atención profesional y resultados visibles.", price: 70000, durationMinutes: 60, icon: null, imageUrl: null },
-  { id: "preview-3", name: "Ritual express", description: "El toque justo cuando tenés poco tiempo.", price: 30000, durationMinutes: 30, icon: null, imageUrl: null },
+  { id: "preview-3", name: "Ritual express", description: "El toque justo cuando tienes poco tiempo.", price: 30000, durationMinutes: 30, icon: null, imageUrl: null },
 ];
 
 export function LandingPreview({

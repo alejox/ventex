@@ -21,7 +21,7 @@ export async function generateMetadata(props: PageProps<"/[slug]">): Promise<Met
   if (!site) return { title: "Sitio no encontrado" };
 
   const description = site.config.seo.description ??
-    site.headline ?? site.about ?? `Conocé los servicios de ${site.businessName} y reservá tu turno.`;
+    site.headline ?? site.about ?? `Conoce los servicios de ${site.businessName} y reserva tu turno.`;
   const title = site.config.seo.title ?? site.businessName;
 
   return {

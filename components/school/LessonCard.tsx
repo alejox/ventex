@@ -96,7 +96,7 @@ export function LessonCard({ lesson }: LessonCardProps) {
   const handleConfirm = async () => {
     const ok = await confirmLesson(lesson.id);
     if (ok) {
-      notifySuccess("Clase confirmada", "Ya podés cerrarla con la asistencia.");
+      notifySuccess("Clase confirmada", "Ya puedes cerrarla con la asistencia.");
     }
   };
 
@@ -297,7 +297,7 @@ export function LessonCard({ lesson }: LessonCardProps) {
         <SchoolModal title="Enlace de confirmación" onClose={() => setConfirmLinkUrl(null)}>
           <div className="space-y-3 p-6 pt-4">
             <p className="text-xs text-on-surface-variant">
-              Válido por 24 h y de un solo uso. Compartilo con el profesor para que confirme
+              Válido por 24 h y de un solo uso. Compártelo con el profesor para que confirme
               la clase sin entrar al sistema; un GET (como el preview de WhatsApp) nunca la
               confirma — solo confirma si el profesor toca el botón de la página.
             </p>
@@ -305,7 +305,7 @@ export function LessonCard({ lesson }: LessonCardProps) {
               {confirmLinkUrl}
             </p>
             <ShareWhatsAppButton
-              message={`Confirmá la clase de ${lesson.instrument} del ${formatSlotTime(lesson.start_at)}: ${confirmLinkUrl}`}
+              message={`Confirma la clase de ${lesson.instrument} del ${formatSlotTime(lesson.start_at)}: ${confirmLinkUrl}`}
             />
           </div>
         </SchoolModal>

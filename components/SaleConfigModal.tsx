@@ -115,7 +115,7 @@ export function SaleConfigModal({ onClose }: SaleConfigModalProps) {
                     } else {
                       notifyError(
                         "No se pudo guardar",
-                        "No tenés permiso para cambiar la configuración del negocio.",
+                        "No tienes permiso para cambiar la configuración del negocio.",
                       );
                     }
                   }}

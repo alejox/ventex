@@ -13,7 +13,7 @@ import { formatDateOnly } from "@/lib/date";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { StatusChangeModal } from "./components/StatusChangeModal";
 import { CollectionEmpty, CollectionError, CollectionFilteredEmpty, CollectionLoading } from "@/components/CollectionState";
-import { formatMoney } from "@/lib/money";
+import { useFormatMoney } from "@/lib/useMoney";
 
 const STATUS_LABEL: Record<string, string> = {
   paid: "Pagada",
@@ -22,6 +22,7 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export default function PurchasesPage() {
+  const fmtMoney = useFormatMoney();
   const router = useRouter();
 
   const invoices = usePurchasesStore((s) => s.invoices);
@@ -92,7 +93,7 @@ export default function PurchasesPage() {
       align: "right",
       mobile: "trailing",
       className: "font-semibold text-on-surface font-mono",
-      cell: (inv) => formatMoney(Number(inv.total)),
+      cell: (inv) => fmtMoney(Number(inv.total)),
     },
     /**
      * Estado es solo lectura: cambiarlo se hace desde Acciones, con confirmación.

@@ -45,8 +45,8 @@ export async function sendExistingUserInvitationEmail(
       from,
       to: [input.recipient],
       subject: `Invitación para unirte a ${businessName} en Ventex`,
-      text: `${employeeName}, te invitaron a trabajar en ${input.businessName || "Ventex"} como ${input.role || "miembro del equipo"}. Iniciá sesión con ${input.recipient} y aceptá la invitación: ${input.invitationUrl}`,
-      html: `<div style="font-family:Arial,sans-serif;line-height:1.6;color:#25292d;max-width:560px;margin:auto"><h1>Invitación a ${businessName}</h1><p>${employeeName}, te invitaron a trabajar en <strong>${businessName}</strong> como <strong>${role}</strong>.</p><p>Iniciá sesión con tu cuenta de Google y aceptá la invitación desde Ventex.</p><p><a href="${url}" style="display:inline-block;background:#6d21ef;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none">Ver invitación</a></p><p style="font-size:13px;color:#59626a">Si no esperabas este correo, podés ignorarlo.</p></div>`,
+      text: `${employeeName}, te invitaron a trabajar en ${input.businessName || "Ventex"} como ${input.role || "miembro del equipo"}. Inicia sesión con ${input.recipient} y acepta la invitación: ${input.invitationUrl}`,
+      html: `<div style="font-family:Arial,sans-serif;line-height:1.6;color:#25292d;max-width:560px;margin:auto"><h1>Invitación a ${businessName}</h1><p>${employeeName}, te invitaron a trabajar en <strong>${businessName}</strong> como <strong>${role}</strong>.</p><p>Inicia sesión con tu cuenta de Google y acepta la invitación desde Ventex.</p><p><a href="${url}" style="display:inline-block;background:#6d21ef;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none">Ver invitación</a></p><p style="font-size:13px;color:#59626a">Si no esperabas este correo, puedes ignorarlo.</p></div>`,
     }),
     cache: "no-store",
   });

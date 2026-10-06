@@ -253,9 +253,9 @@ export type Database = {
           published: boolean
           published_config: Json | null
           site_copy: Json
+          site_name: string | null
           slot_interval_minutes: number
           slug: string
-          site_name: string | null
           telegram: string | null
           template: string
           theme_colors: Json
@@ -287,9 +287,9 @@ export type Database = {
           published?: boolean
           published_config?: Json | null
           site_copy?: Json
+          site_name?: string | null
           slot_interval_minutes?: number
           slug: string
-          site_name?: string | null
           telegram?: string | null
           template?: string
           theme_colors?: Json
@@ -321,9 +321,9 @@ export type Database = {
           published?: boolean
           published_config?: Json | null
           site_copy?: Json
+          site_name?: string | null
           slot_interval_minutes?: number
           slug?: string
-          site_name?: string | null
           telegram?: string | null
           template?: string
           theme_colors?: Json
@@ -2016,6 +2016,9 @@ export type Database = {
           total: number
           transfer_method: string | null
           user_id: string
+          void_reason: string | null
+          voided_at: string | null
+          voided_by: string | null
         }
         Insert: {
           card_method?: string | null
@@ -2036,6 +2039,9 @@ export type Database = {
           total?: number
           transfer_method?: string | null
           user_id?: string
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
         }
         Update: {
           card_method?: string | null
@@ -2056,6 +2062,9 @@ export type Database = {
           total?: number
           transfer_method?: string | null
           user_id?: string
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
         }
         Relationships: [
           {
@@ -3468,6 +3477,7 @@ export type Database = {
           id: string
           invited_at: string
           invited_email: string
+          is_admin: boolean
           member_kind: string
           permissions: Json
           provisional_auth_user: boolean
@@ -3487,6 +3497,7 @@ export type Database = {
           id?: string
           invited_at?: string
           invited_email: string
+          is_admin?: boolean
           member_kind?: string
           permissions?: Json
           provisional_auth_user?: boolean
@@ -3506,6 +3517,7 @@ export type Database = {
           id?: string
           invited_at?: string
           invited_email?: string
+          is_admin?: boolean
           member_kind?: string
           permissions?: Json
           provisional_auth_user?: boolean
@@ -3808,6 +3820,15 @@ export type Database = {
       current_user_profile: { Args: never; Returns: Json }
       deactivate_worker: { Args: { p_worker_id: string }; Returns: undefined }
       ensure_license_current: { Args: never; Returns: Json }
+      finance_overview: {
+        Args: {
+          p_from?: string
+          p_months?: number
+          p_to?: string
+          p_tz?: string
+        }
+        Returns: Json
+      }
       find_auth_user_by_email: { Args: { p_email: string }; Returns: string }
       get_active_membership_id: { Args: never; Returns: string }
       get_effective_user_id: { Args: never; Returns: string }
@@ -3821,6 +3842,7 @@ export type Database = {
       is_reseller: { Args: never; Returns: boolean }
       is_super_admin: { Args: never; Returns: boolean }
       is_tenant_owner: { Args: never; Returns: boolean }
+      is_workspace_owner: { Args: never; Returns: boolean }
       my_subscription: { Args: never; Returns: Json }
       open_shift: { Args: { p_opening_cash: number }; Returns: Json }
       open_shift_for_commission: {
@@ -4113,6 +4135,10 @@ export type Database = {
         }
         Returns: string
       }
+      site_catalog_ids: {
+        Args: { p_config: Json; p_key: string }
+        Returns: string[]
+      }
       site_public_projection: { Args: { p_user_id: string }; Returns: Json }
       staff_can: { Args: { section: string }; Returns: boolean }
       staff_can_action: {
@@ -4127,7 +4153,10 @@ export type Database = {
         Args: { p_settlement_id: string }
         Returns: Json
       }
-      void_sale: { Args: { p_sale_id: string }; Returns: undefined }
+      void_sale: {
+        Args: { p_reason?: string; p_sale_id: string }
+        Returns: undefined
+      }
       worker_can: { Args: { perm: string }; Returns: boolean }
       workspace_context: { Args: never; Returns: Json }
     }

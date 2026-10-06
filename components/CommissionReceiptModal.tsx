@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { fetchStaffSales, commissionPeriodOf } from "@/services/staff.service";
 import type { CommissionSettlement, StaffSaleItem } from "@/services/staff.service";
 import { useProfile } from "@/components/ProfileProvider";
-import { formatMoney } from "@/lib/money";
+import { useFormatMoney } from "@/lib/useMoney";
 
 const PAYMENT_LABELS: Record<string, string> = {
   efectivo: "Efectivo",
@@ -35,6 +35,7 @@ interface Props {
  * desincronizarse.
  */
 export function CommissionReceiptModal({ settlement, onClose }: Props) {
+  const fmtMoney = useFormatMoney();
   const profile = useProfile();
   const [items, setItems] = useState<StaffSaleItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -215,9 +216,9 @@ export function CommissionReceiptModal({ settlement, onClose }: Props) {
                         </td>
                         <td className="py-2 pr-3 text-center tabular-nums">{item.quantity}</td>
                         <td className="py-2 pr-3 text-right tabular-nums text-on-surface-variant print:text-black">
-                          {formatMoney(item.line_total)}
+                          {fmtMoney(item.line_total)}
                         </td>
-                        <td className="py-2 text-right tabular-nums font-semibold">{formatMoney(item.commissionAmount)}</td>
+                        <td className="py-2 text-right tabular-nums font-semibold">{fmtMoney(item.commissionAmount)}</td>
                       </tr>
                     ))
                   )}
@@ -229,7 +230,7 @@ export function CommissionReceiptModal({ settlement, onClose }: Props) {
                         Ventas anuladas después del pago
                       </td>
                       <td className="pt-3 text-right tabular-nums text-on-surface-variant print:text-black">
-                        {formatMoney(missing)}
+                        {fmtMoney(missing)}
                       </td>
                     </tr>
                   )}
@@ -238,7 +239,7 @@ export function CommissionReceiptModal({ settlement, onClose }: Props) {
                       Total pagado
                     </td>
                     <td className="pt-3 text-right text-lg font-bold tabular-nums text-on-surface print:text-black">
-                      {formatMoney(settlement.total_amount)}
+                      {fmtMoney(settlement.total_amount)}
                     </td>
                   </tr>
                 </tfoot>
@@ -250,7 +251,7 @@ export function CommissionReceiptModal({ settlement, onClose }: Props) {
             <div role="alert" className="rounded-xl border border-[#f59e0b]/30 bg-[#f59e0b]/10 px-4 py-3 text-sm text-on-surface print:text-black">
               <strong className="font-bold">Atención:</strong> {settlement.voidedSalesCount} venta
               {settlement.voidedSalesCount !== 1 ? "s" : ""} de esta liquidación se anuló después de
-              haberse pagado. La comisión ya salió de la caja: revisá si corresponde descontarla en la
+              haberse pagado. La comisión ya salió de la caja: revisa si corresponde descontarla en la
               próxima liquidación.
             </div>
           )}

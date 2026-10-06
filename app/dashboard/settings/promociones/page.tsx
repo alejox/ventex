@@ -18,7 +18,8 @@ import { notifySuccess, notifyError } from "@/lib/notifications";
 import { Select } from "@/components/ui/Select";
 import { OffersManager } from "./OffersManager";
 import { LoyaltyManager } from "./LoyaltyManager";
-import { formatMoney } from "@/lib/money";
+import type { MoneyFormatter } from "@/lib/money";
+import { useFormatMoney } from "@/lib/useMoney";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import {
   articlePlural,
@@ -69,7 +70,10 @@ function variableHelp(token: string, help: string, noun: PromoNoun): string {
 }
 
 /** Cómo se lee en la lista de hitos lo que la caja va a hacer con el premio. */
-function rewardKindLabel(m: { reward_kind: RewardKind; reward_value: number | null }): string {
+function rewardKindLabel(
+  m: { reward_kind: RewardKind; reward_value: number | null },
+  formatMoney: MoneyFormatter,
+): string {
   if (m.reward_kind === "gratis") return "Servicio gratis";
   if (m.reward_kind === "porcentaje") return `${m.reward_value ?? 0}% de descuento`;
   if (m.reward_kind === "monto") {
@@ -105,6 +109,7 @@ export default function PromocionesPage() {
 }
 
 function HaircutPromosSection() {
+  const money = useFormatMoney();
   const config = usePromosStore((s) => s.config);
   const milestones = usePromosStore((s) => s.milestones);
   const loading = usePromosStore((s) => s.loading);
@@ -313,7 +318,7 @@ function HaircutPromosSection() {
 
         {services.length === 0 ? (
           <p className="text-sm text-on-surface-variant">
-            Todavía no tenés servicios en tu catálogo. Creá uno en Productos y servicios y volvé acá.
+            Todavía no tienes servicios en tu catálogo. Crea uno en Productos y servicios y vuelve aquí.
           </p>
         ) : (
           <div className="flex flex-wrap gap-2">
@@ -414,7 +419,7 @@ function HaircutPromosSection() {
                   <p className="text-sm text-on-surface truncate">
                     {m.reward}
                     <span className="ml-2 inline-block rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary align-middle">
-                      {rewardKindLabel(m)}
+                      {rewardKindLabel(m, money)}
                     </span>
                   </p>
                   <p className="text-xs text-on-surface-variant">

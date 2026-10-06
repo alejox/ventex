@@ -34,7 +34,7 @@ import { ProductModal } from "@/components/ProductModal";
 import { notifyError } from "@/lib/notifications";
 import { CollectionEmpty, CollectionError, CollectionFilteredEmpty, CollectionLoading } from "@/components/CollectionState";
 import { Pagination } from "@/components/Pagination";
-import { formatMoney } from "@/lib/money";
+import { useFormatMoney } from "@/lib/useMoney";
 
 
 function IconScanLine(props: React.SVGProps<SVGSVGElement>) {
@@ -84,6 +84,7 @@ function ArchivedChip() {
 export default function CatalogPage() {
   // Espejo de la RLS: acá se esconde lo que la persona no puede usar, pero
   // quien corta de verdad es la base (policies, trigger y RPC).
+  const fmtMoney = useFormatMoney();
   const profile = useProfile();
   const canSeeCosts = can(profile, "inventory_costs");
   const canEdit = can(profile, "inventory_edit");
@@ -319,7 +320,7 @@ export default function CatalogPage() {
             <p className="text-on-surface-variant text-sm font-medium mb-1.5">Valor del Inventario</p>
             {/* Cifra larga: en móvil baja de tamaño en vez de comerse el ícono. */}
             <h3 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-on-surface tracking-tight truncate">
-              {formatMoney(calculateInventoryValue(products))}
+              {fmtMoney(calculateInventoryValue(products))}
             </h3>
             {/* Un servicio no es capital parado: no hay mercadería que valorizar. */}
             <p className="text-xs text-on-surface-variant mt-1">Solo mercader&iacute;a</p>
@@ -477,7 +478,7 @@ export default function CatalogPage() {
                           la línea del stock. Así lo primario no compite con lo
                           secundario y el nombre gana el ancho que necesita. */}
                       <p className="shrink-0 text-base font-bold text-on-surface tabular-nums leading-snug">
-                        {formatMoney(row.price)}
+                        {fmtMoney(row.price)}
                       </p>
                     </div>
 
@@ -496,7 +497,7 @@ export default function CatalogPage() {
                       )}
                       {canSeeCosts && row.kind === "product" && (
                         <span className="text-[11px] text-on-surface-variant/70 tabular-nums shrink-0">
-                          costo {formatMoney(getUnitCost(row.product))}{(row.product.units_per_package ?? 1) > 1 ? " / u." : ""}
+                          costo {fmtMoney(getUnitCost(row.product))}{(row.product.units_per_package ?? 1) > 1 ? " / u." : ""}
                         </span>
                       )}
                     </div>
@@ -621,10 +622,10 @@ export default function CatalogPage() {
                           <td className="px-4 py-3.5 text-on-surface-variant font-mono text-sm">
                             {row.kind === "product" ? (
                               <>
-                                {formatMoney(getUnitCost(row.product))}
+                                {fmtMoney(getUnitCost(row.product))}
                                 {(row.product.units_per_package ?? 1) > 1 && (
                                   <span className="text-[11px] text-on-surface-variant/60 block font-sans">
-                                    caja x{row.product.units_per_package} ({formatMoney(row.product.purchase_price ?? 0)})
+                                    caja x{row.product.units_per_package} ({fmtMoney(row.product.purchase_price ?? 0)})
                                   </span>
                                 )}
                               </>
@@ -637,7 +638,7 @@ export default function CatalogPage() {
                           </td>
                         )}
                         <td className="px-4 py-3.5 text-on-surface font-semibold text-sm">
-                          {formatMoney(row.price)}
+                          {fmtMoney(row.price)}
                         </td>
                         <td className="px-4 py-3.5">
                           {stockStatus === null || row.kind !== "product" ? (

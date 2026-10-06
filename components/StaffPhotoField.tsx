@@ -113,7 +113,7 @@ export function StaffPhotoField({
         />
       </div>
       <p className="text-xs text-on-surface-variant">
-        Se publica en tu sitio web. Si no subís ninguna, se muestran las iniciales.
+        Se publica en tu sitio web. Si no subes ninguna, se muestran las iniciales.
       </p>
       {error && <p className="text-xs text-error">{error}</p>}
     </div>

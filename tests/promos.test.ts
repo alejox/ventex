@@ -61,13 +61,13 @@ test("3b. Lo que falta para el próximo es el escalón más bajo por encima", ()
 });
 
 test("4. El mensaje reemplaza las variables y no deja huecos visibles", () => {
-  const texto = renderPromoMessage("Hola {cliente}, llevás {cortes} en {negocio}. {premio}", {
+  const texto = renderPromoMessage("Hola {cliente}, llevas {cortes} en {negocio}. {premio}", {
     cliente: "Juan",
     cortes: 7,
     negocio: "La Barbe",
     premio: null,
   });
-  assert.equal(texto, "Hola Juan, llevás 7 en La Barbe.");
+  assert.equal(texto, "Hola Juan, llevas 7 en La Barbe.");
   assert.ok(!texto.includes("{"), "ninguna variable puede llegarle al cliente sin reemplazar");
 
   // Una plantilla vacía cae en el default en vez de mandar un mensaje en blanco.
@@ -105,7 +105,7 @@ test("6. Sin teléfono no hay enlace, y el texto viaja escapado", () => {
   assert.equal(whatsappLink(null, "hola"), null);
   assert.equal(whatsappLink("", "hola"), null);
 
-  const link = whatsappLink("3112329185", "Hola Juan, llevás 10 cortes 💈")!;
+  const link = whatsappLink("3112329185", "Hola Juan, llevas 10 cortes 💈")!;
   assert.ok(link.startsWith("https://api.whatsapp.com/send?phone=573112329185"));
   assert.ok(link.includes("text="));
   assert.ok(!link.includes(" "), "un espacio sin escapar corta la URL");
@@ -298,7 +298,7 @@ test("Sin premio ganado no se anuncia nada", () => {
 
 test("El anuncio alcanza a la plantilla YA GUARDADA", () => {
   // El texto exacto que el negocio tiene guardado hoy en `settings`.
-  const guardada = "¡Hola {cliente}! Gracias por tu visita 💈 Ya llevás {cortes} cortes en {negocio}. {premio}";
+  const guardada = "¡Hola {cliente}! Gracias por tu visita 💈 Ya llevas {cortes} cortes en {negocio}. {premio}";
   const texto = renderPromoMessage(guardada, {
     cliente: "Juan",
     cortes: 10,
@@ -425,7 +425,7 @@ test("El cliente que nunca vino no canjeo nada: hace falta HABER hecho cortes", 
 });
 
 test("El aviso de canje tambien alcanza a la plantilla ya guardada", () => {
-  const guardada = "¡Hola {cliente}! Gracias por tu visita 💈 Ya llevás {cortes} cortes en {negocio}. {premio}";
+  const guardada = "¡Hola {cliente}! Gracias por tu visita 💈 Ya llevas {cortes} cortes en {negocio}. {premio}";
   const texto = renderPromoMessage(guardada, {
     cliente: "Luis", cortes: 0, total: 44, negocio: "labarbe", premio: null,
   });
@@ -481,7 +481,7 @@ test("En el hito + 1 el mensaje dice que CANJEO, y ahi el contador reinicia", ()
 // ---------------------------------------------------------------------------
 
 test("Un solo corte va en singular", () => {
-  const g = "¡Hola {cliente}! Ya llevás {cortes} cortes en {negocio}.";
+  const g = "¡Hola {cliente}! Ya llevas {cortes} cortes en {negocio}.";
   assert.ok(
     renderPromoMessage(g, { cliente:"Luis", cortes:1, total:1, negocio:"labarbe", premio:null })
       .includes("1 corte en"),

@@ -71,7 +71,7 @@ export function LoyaltyManager() {
 
     const ok = await saveConfig({ enabled, pesoPerPoint: peso, pointsValue: value, minRedeem: min });
     if (ok) notifySuccess("Puntos guardados", "Los cambios ya están activos.");
-    else notifyError("No se pudo guardar", useLoyaltyStore.getState().error ?? "Intentá de nuevo.");
+    else notifyError("No se pudo guardar", useLoyaltyStore.getState().error ?? "Intenta de nuevo.");
   };
 
   if (loading) return <CollectionLoading label="Cargando puntos…" />;

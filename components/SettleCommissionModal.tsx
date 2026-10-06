@@ -12,7 +12,7 @@ import {
 import type { StaffMember, StaffSaleItem, CommissionPeriod } from "@/services/staff.service";
 import { Select } from "@/components/ui/Select";
 import { notifySuccess } from "@/lib/notifications";
-import { formatMoney } from "@/lib/money";
+import { useFormatMoney } from "@/lib/useMoney";
 
 const PAYMENT_LABELS: Record<string, string> = {
   efectivo: "Efectivo",
@@ -43,6 +43,7 @@ interface Props {
  * más que las dos muestren el mismo total.
  */
 export function SettleCommissionModal({ member, onClose, onSettled, initialPeriod }: Props) {
+  const fmtMoney = useFormatMoney();
   const settleCommissions = useStaffStore((s) => s.settleCommissions);
   const submitting = useStaffStore((s) => s.submitting);
   const storeError = useStaffStore((s) => s.error);
@@ -158,7 +159,7 @@ export function SettleCommissionModal({ member, onClose, onSettled, initialPerio
     if (id) {
       notifySuccess(
         "Comisión liquidada",
-        `${formatMoney(total)} para ${member.full_name}. Ya quedó registrado en Gastos.`,
+        `${fmtMoney(total)} para ${member.full_name}. Ya quedó registrado en Gastos.`,
       );
       onSettled(id);
     }
@@ -273,7 +274,7 @@ export function SettleCommissionModal({ member, onClose, onSettled, initialPerio
                           </p>
                         </div>
                         <span className={`shrink-0 text-sm font-bold tabular-nums ${isIncluded ? "text-on-surface" : "text-on-surface-variant/50"}`}>
-                          {formatMoney(item.commissionAmount)}
+                          {fmtMoney(item.commissionAmount)}
                         </span>
                       </label>
                     </li>
@@ -310,7 +311,7 @@ export function SettleCommissionModal({ member, onClose, onSettled, initialPerio
           <div className="rounded-2xl bg-surface-container-lowest border border-outline-variant/15 px-5 py-4">
             <div className="flex items-center justify-between gap-4">
               <span className="text-sm font-semibold text-on-surface">Total a pagar</span>
-              <span className="text-2xl font-bold text-on-surface tabular-nums">{formatMoney(total)}</span>
+              <span className="text-2xl font-bold text-on-surface tabular-nums">{fmtMoney(total)}</span>
             </div>
             <p className="text-xs text-on-surface-variant mt-2">
               Se registra como gasto en la categoría <strong>Comisiones</strong>, con la fecha de pago.
@@ -361,7 +362,7 @@ export function SettleCommissionModal({ member, onClose, onSettled, initialPerio
             disabled={!canSettle}
             className="flex-1 px-5 py-3 rounded-xl text-sm font-semibold bg-primary hover:bg-primary-dim text-on-primary shadow-[0_0_15px_rgba(96,99,238,0.2)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {submitting ? "Liquidando…" : `Liquidar ${formatMoney(total)}`}
+            {submitting ? "Liquidando…" : `Liquidar ${fmtMoney(total)}`}
           </button>
         </div>
       </div>

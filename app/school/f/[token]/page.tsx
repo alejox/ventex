@@ -34,7 +34,7 @@ export default async function FamilyMaterialPage({
   } catch (e) {
     const raw = e instanceof Error ? e.message : "";
     error = /VENCIDO/.test(raw)
-      ? "Este enlace venció. Pedile a la escuela uno nuevo."
+      ? "Este enlace venció. Pídele a la escuela uno nuevo."
       : /revocad/i.test(raw)
         ? "Este enlace fue revocado."
         : "Este enlace no es válido.";

@@ -12,7 +12,8 @@ import { DataTable, type DataColumn } from "@/components/DataTable";
 import { Select } from "@/components/ui/Select";
 import { CollectionEmpty, CollectionError, CollectionLoading } from "@/components/CollectionState";
 import { formatDateOnly, todayISO } from "@/lib/date";
-import { formatMoney } from "@/lib/money";
+import type { MoneyFormatter } from "@/lib/money";
+import { useFormatMoney } from "@/lib/useMoney";
 
 const escapeHtml = (s: string) =>
   s.replace(/[&<>"']/g, (c) =>
@@ -45,7 +46,8 @@ const STATUS: Record<string, { label: string; cls: string }> = {
   cancelled: { label: "Cancelada", cls: "bg-error-container/20 text-error-dim border-error-container/30" },
 };
 
-const INVOICE_COLUMNS: DataColumn<Invoice>[] = [
+/** Columnas de la tabla; el formateador trae la moneda del negocio. */
+const invoiceColumns = (formatMoney: MoneyFormatter): DataColumn<Invoice>[] => [
   {
     header: "Documento",
     mobile: "title",
@@ -92,6 +94,8 @@ const INVOICE_COLUMNS: DataColumn<Invoice>[] = [
 ];
 
 export default function BillingPage() {
+  const fmtMoney = useFormatMoney();
+  const invoiceColumnsForCurrency = useMemo(() => invoiceColumns(fmtMoney), [fmtMoney]);
   const invoices = useBillingStore((s) => s.invoices);
   const loading = useBillingStore((s) => s.loading);
   const error = useBillingStore((s) => s.error);
@@ -202,18 +206,18 @@ export default function BillingPage() {
     const rows = lines
       .map(
         (it) =>
-          `<tr><td>${escapeHtml(it.description)}</td><td class="c">${it.quantity}</td><td class="r">${formatMoney(it.unit_price)}</td><td class="r">${formatMoney(it.line_total)}</td></tr>`,
+          `<tr><td>${escapeHtml(it.description)}</td><td class="c">${it.quantity}</td><td class="r">${fmtMoney(it.unit_price)}</td><td class="r">${fmtMoney(it.line_total)}</td></tr>`,
       )
       .join("");
     const totalsRows = [
-      `<tr><td colspan="3" class="r">Subtotal</td><td class="r">${formatMoney(inv.subtotal)}</td></tr>`,
+      `<tr><td colspan="3" class="r">Subtotal</td><td class="r">${fmtMoney(inv.subtotal)}</td></tr>`,
       inv.discount_amount > 0
-        ? `<tr><td colspan="3" class="r">Descuento</td><td class="r">-${formatMoney(inv.discount_amount)}</td></tr>`
+        ? `<tr><td colspan="3" class="r">Descuento</td><td class="r">-${fmtMoney(inv.discount_amount)}</td></tr>`
         : "",
       inv.tax_amount > 0
-        ? `<tr><td colspan="3" class="r">Impuesto (${(inv.tax_rate * 100).toFixed(0)}%)</td><td class="r">${formatMoney(inv.tax_amount)}</td></tr>`
+        ? `<tr><td colspan="3" class="r">Impuesto (${(inv.tax_rate * 100).toFixed(0)}%)</td><td class="r">${fmtMoney(inv.tax_amount)}</td></tr>`
         : "",
-      `<tr class="tot"><td colspan="3" class="r">Total</td><td class="r">${formatMoney(inv.total)}</td></tr>`,
+      `<tr class="tot"><td colspan="3" class="r">Total</td><td class="r">${fmtMoney(inv.total)}</td></tr>`,
     ].join("");
     const html = `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>${TYPE_LABEL[inv.type] ?? inv.type} #${inv.invoice_number}</title>
 <style>
@@ -312,7 +316,7 @@ export default function BillingPage() {
             minWidth={720}
             caption="Facturas y cotizaciones"
             onRowClick={openDetail}
-            columns={INVOICE_COLUMNS}
+            columns={invoiceColumnsForCurrency}
           />
         </div>
       )}
@@ -504,20 +508,20 @@ export default function BillingPage() {
               {/* Totales */}
               <div className="bg-surface-container-lowest rounded-xl p-4 border border-outline-variant/10 space-y-1.5 text-sm">
                 <div className="flex justify-between text-on-surface-variant">
-                  <span>Subtotal</span><span className="tabular-nums">{formatMoney(totals.subtotal)}</span>
+                  <span>Subtotal</span><span className="tabular-nums">{fmtMoney(totals.subtotal)}</span>
                 </div>
                 {totals.discount > 0 && (
                   <div className="flex justify-between text-on-surface-variant">
-                    <span>Descuento</span><span className="tabular-nums">−{formatMoney(totals.discount)}</span>
+                    <span>Descuento</span><span className="tabular-nums">−{fmtMoney(totals.discount)}</span>
                   </div>
                 )}
                 {totals.tax > 0 && (
                   <div className="flex justify-between text-on-surface-variant">
-                    <span>Impuesto</span><span className="tabular-nums">{formatMoney(totals.tax)}</span>
+                    <span>Impuesto</span><span className="tabular-nums">{fmtMoney(totals.tax)}</span>
                   </div>
                 )}
                 <div className="flex justify-between font-bold text-on-surface pt-1.5 border-t border-outline-variant/10">
-                  <span>Total</span><span className="tabular-nums">{formatMoney(totals.total)}</span>
+                  <span>Total</span><span className="tabular-nums">{fmtMoney(totals.total)}</span>
                 </div>
               </div>
 
@@ -641,7 +645,7 @@ export default function BillingPage() {
                     {detail.type === "cotizacion"
                       ? "Queda como no vigente."
                       : detail.status === "paid"
-                        ? `Deja de contar como ingreso (${formatMoney(detail.total)}) en el panel.`
+                        ? `Deja de contar como ingreso (${fmtMoney(detail.total)}) en el panel.`
                         : "Sale de lo pendiente por cobrar."}{" "}
                     Puedes volver a cambiar el estado después.
                   </p>
@@ -686,7 +690,7 @@ export default function BillingPage() {
                         {it.description}
                         <span className="text-on-surface-variant"> × {it.quantity}</span>
                       </span>
-                      <span className="tabular-nums text-on-surface-variant shrink-0">{formatMoney(it.line_total)}</span>
+                      <span className="tabular-nums text-on-surface-variant shrink-0">{fmtMoney(it.line_total)}</span>
                     </div>
                   ))}
                 </div>
@@ -695,21 +699,21 @@ export default function BillingPage() {
               {/* Totales */}
               <div className="bg-surface-container-lowest rounded-xl p-4 border border-outline-variant/10 space-y-1.5 text-sm">
                 <div className="flex justify-between text-on-surface-variant">
-                  <span>Subtotal</span><span className="tabular-nums">{formatMoney(detail.subtotal)}</span>
+                  <span>Subtotal</span><span className="tabular-nums">{fmtMoney(detail.subtotal)}</span>
                 </div>
                 {detail.discount_amount > 0 && (
                   <div className="flex justify-between text-on-surface-variant">
-                    <span>Descuento</span><span className="tabular-nums">−{formatMoney(detail.discount_amount)}</span>
+                    <span>Descuento</span><span className="tabular-nums">−{fmtMoney(detail.discount_amount)}</span>
                   </div>
                 )}
                 {detail.tax_amount > 0 && (
                   <div className="flex justify-between text-on-surface-variant">
                     <span>Impuesto ({(detail.tax_rate * 100).toFixed(0)}%)</span>
-                    <span className="tabular-nums">{formatMoney(detail.tax_amount)}</span>
+                    <span className="tabular-nums">{fmtMoney(detail.tax_amount)}</span>
                   </div>
                 )}
                 <div className="flex justify-between font-bold text-on-surface pt-1.5 border-t border-outline-variant/10">
-                  <span>Total</span><span className="tabular-nums">{formatMoney(detail.total)}</span>
+                  <span>Total</span><span className="tabular-nums">{fmtMoney(detail.total)}</span>
                 </div>
               </div>
 

@@ -5,7 +5,7 @@ import { useDeliveryStore } from "@/stores/delivery.store";
 import { STATUS_LABELS, STATUS_COLORS, type DeliveryStatus } from "@/services/delivery.service";
 import { IconTruck } from "@/app/assets/icons/DashboardIcons";
 import { CollectionEmpty, CollectionError, CollectionFilteredEmpty, CollectionLoading } from "@/components/CollectionState";
-import { formatMoney } from "@/lib/money";
+import { useFormatMoney } from "@/lib/useMoney";
 
 const formatDate = (iso: string) =>
   new Date(iso).toLocaleString("es-CO", {
@@ -19,6 +19,7 @@ const formatDate = (iso: string) =>
 const STATUS_OPTIONS: DeliveryStatus[] = ["pending", "in_transit", "delivered"];
 
 export default function DeliveriesPage() {
+  const fmtMoney = useFormatMoney();
   const deliveries = useDeliveryStore((s) => s.deliveries);
   const loading = useDeliveryStore((s) => s.loading);
   const error = useDeliveryStore((s) => s.error);
@@ -89,7 +90,7 @@ export default function DeliveriesPage() {
                     </span>
                     {d.fee > 0 && (
                       <span className="text-xs text-on-surface-variant">
-                        Envío: {formatMoney(d.fee)}
+                        Envío: {fmtMoney(d.fee)}
                       </span>
                     )}
                   </div>

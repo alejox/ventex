@@ -114,10 +114,10 @@ export default function RegisterPage() {
             ¡Tu pago ya está confirmado!
           </p>
           <p className="text-[12px] text-on-surface-variant leading-relaxed">
-            Completá tu registro con{" "}
+            Completa tu registro con{" "}
             <strong className="text-on-surface">{email || "el mismo correo del pago"}</strong>{" "}
-            y tu plan queda activo al confirmar la cuenta. Si usás otro correo,
-            escribinos y lo movemos.
+            y tu plan queda activo al confirmar la cuenta. Si usas otro correo,
+            escríbenos y lo movemos.
           </p>
         </div>
       )}

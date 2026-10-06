@@ -16,8 +16,8 @@ export default function OfflinePage() {
       <div className="space-y-2">
         <h1 className="text-2xl font-bold text-on-surface">Sin conexión</h1>
         <p className="text-sm text-on-surface-variant max-w-sm">
-          Ventex necesita internet para mostrar tus ventas y tu inventario al día. Revisá la
-          conexión y volvé a intentar.
+          Ventex necesita internet para mostrar tus ventas y tu inventario al día. Revisa la
+          conexión y vuelve a intentar.
         </p>
       </div>
       <Link

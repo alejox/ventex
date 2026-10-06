@@ -178,9 +178,9 @@ const SECTION_DEFAULTS: Record<SiteSectionId, Omit<SiteSectionConfig, "id">> = {
   about: { visible: true, title: "Nuestra esencia", subtitle: "Sobre nosotros" },
   products: { visible: true, title: "Productos", subtitle: "Para llevar" },
   team: { visible: true, title: "El equipo", subtitle: "Quienes te reciben" },
-  gallery: { visible: true, title: "Nuestro espacio", subtitle: "Conocenos" },
-  booking: { visible: true, title: "Reservá tu turno", subtitle: "Agenda online" },
-  hours: { visible: true, title: "Horarios", subtitle: "Planificá tu visita" },
+  gallery: { visible: true, title: "Nuestro espacio", subtitle: "Conócenos" },
+  booking: { visible: true, title: "Reserva tu turno", subtitle: "Agenda online" },
+  hours: { visible: true, title: "Horarios", subtitle: "Planifica tu visita" },
   contact: { visible: true, title: "Dónde estamos", subtitle: "Hablemos" },
 };
 

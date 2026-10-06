@@ -46,6 +46,7 @@ import { WorkspaceSwitcher } from "@/components/WorkspaceSwitcher";
 import { SupportFab, showsSupportFab, SUPPORT_FAB_CLEARANCE } from "@/components/SupportFab";
 
 import { useBusinessSiteStore } from "@/stores/business-site.store";
+import { useSettingsStore } from "@/stores/settings.store";
 
 type IconType = typeof IconHome;
 
@@ -184,6 +185,15 @@ export function DashboardShell({
   useEffect(() => {
     void fetchSiteConfig();
   }, [fetchSiteConfig]);
+
+  // Settings una sola vez para todo el dashboard: de acá sale la moneda que
+  // usa `useFormatMoney()` en cada pantalla. Sin negocio todavía (onboarding)
+  // no hay settings que leer.
+  const ensureSettings = useSettingsStore((state) => state.ensureSettings);
+  const hasBusiness = Boolean(profile?.businessType || profile?.isWorker);
+  useEffect(() => {
+    if (hasBusiness) void ensureSettings();
+  }, [hasBusiness, ensureSettings]);
 
   useEffect(() => {
     document.cookie = `${SIDEBAR_COOKIE}=${sidebarCollapsed}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}; samesite=lax`;

@@ -10,7 +10,7 @@ import {
   MAX_DISCOUNT_PERCENT,
 } from "@/services/pos.service";
 import { backdropProps } from "@/components/modal";
-import { formatMoney } from "@/lib/money";
+import { useFormatMoney } from "@/lib/useMoney";
 import { useProfile } from "@/components/ProfileProvider";
 import { can } from "@/lib/permissions";
 import { distributeFixedDiscount, parseDiscountAmount } from "@/lib/pos-discount";
@@ -89,6 +89,7 @@ function DiscountLocked({ onClose }: { onClose: () => void }) {
 }
 
 function DiscountForm({ onClose }: { onClose: () => void }) {
+  const fmtMoney = useFormatMoney();
   const tabs = usePosStore((s) => s.tabs);
   const activeTabId = usePosStore((s) => s.activeTabId);
   const setLineDiscounts = usePosStore((s) => s.setLineDiscounts);
@@ -235,7 +236,7 @@ function DiscountForm({ onClose }: { onClose: () => void }) {
             />
             {invalid ? (
               <p id="discount-error" className="text-xs font-medium text-error">
-                Ingresa un monto entre {formatMoney(0)} y {formatMoney(selectedGross)} (lo que suman los ítems marcados).
+                Ingresa un monto entre {fmtMoney(0)} y {fmtMoney(selectedGross)} (lo que suman los ítems marcados).
               </p>
             ) : (
               <p id="discount-amount-help" className="text-xs text-on-surface-variant">
@@ -283,7 +284,7 @@ function DiscountForm({ onClose }: { onClose: () => void }) {
                   />
                   <div>
                     <p className="text-sm font-medium text-on-surface">{line.item.name}</p>
-                    <p className="text-xs text-on-surface-variant">{formatMoney(gross)}</p>
+                    <p className="text-xs text-on-surface-variant">{fmtMoney(gross)}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 text-right">
@@ -291,12 +292,12 @@ function DiscountForm({ onClose }: { onClose: () => void }) {
                     <span title="Este ítem ya tiene descuento">⚠️</span>
                   )}
                   <div>
-                    <p className="text-sm font-bold text-on-surface">{formatMoney(gross)}</p>
+                    <p className="text-sm font-bold text-on-surface">{fmtMoney(gross)}</p>
                     {isSelected && newDiscountAmount > 0 && (
-                      <p className="text-xs font-medium text-error">-{formatMoney(newDiscountAmount)}</p>
+                      <p className="text-xs font-medium text-error">-{fmtMoney(newDiscountAmount)}</p>
                     )}
                     {!isSelected && hasExistingDiscount && (
-                      <p className="text-xs font-medium text-error">-{formatMoney(line.discountAmount!)}</p>
+                      <p className="text-xs font-medium text-error">-{fmtMoney(line.discountAmount!)}</p>
                     )}
                   </div>
                 </div>

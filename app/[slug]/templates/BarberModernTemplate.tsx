@@ -27,9 +27,9 @@ export function BarberModernTemplate({ site, preview = false }: { site: PublicSi
             <p className={styles.eyebrow}><span />{hero.eyebrow}</p>
             <h1>{hero.title ?? site.businessName}</h1>
             {hero.description ? <p className={styles.heroIntro}>{hero.description}</p> : null}
-            <div className={styles.actions}>{site.bookingEnabled ? <a href="#reservar" className={styles.primary}>Reservá tu cita <ArrowUpRight size={18} aria-hidden="true" /></a> : null}<a href="#servicios" className={styles.secondary}>Nuestros servicios</a></div>
+            <div className={styles.actions}>{site.bookingEnabled ? <a href="#reservar" className={styles.primary}>Reserva tu cita <ArrowUpRight size={18} aria-hidden="true" /></a> : null}<a href="#servicios" className={styles.secondary}>Nuestros servicios</a></div>
           </div>
-          <div className={styles.heroFoot}><span>Estilo propio. Atención a tu medida.</span>{!hero.imageUrl ? <span className={styles.sample}>Imagen de referencia</span> : null}<a href="#servicios">Descubrí más <span aria-hidden="true">↓</span></a></div>
+          <div className={styles.heroFoot}><span>Estilo propio. Atención a tu medida.</span>{!hero.imageUrl ? <span className={styles.sample}>Imagen de referencia</span> : null}<a href="#servicios">Descubre más <span aria-hidden="true">↓</span></a></div>
         </div>
       </header>
       <ConfigurableSections site={site} preview={preview} />

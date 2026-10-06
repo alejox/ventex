@@ -6,7 +6,7 @@ import type { WorkerMember } from "@/services/worker.service";
 import { CloseShiftModal } from "@/components/shift/CloseShiftModal";
 import { DataTable, type DataColumn } from "@/components/DataTable";
 import type { Shift } from "@/services/shifts.service";
-import { formatMoney } from "@/lib/money";
+import { useFormatMoney } from "@/lib/useMoney";
 
 const shiftDate = (iso: string) =>
   new Date(iso).toLocaleString("es-CO", {
@@ -17,6 +17,7 @@ const shiftDate = (iso: string) =>
   });
 
 function ShiftStatusBadge({ difference, notes }: { difference: number | null; notes: string | null }) {
+  const fmtMoney = useFormatMoney();
   if (difference == null) {
     return (
       <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-surface-container-high text-on-surface-variant">
@@ -41,12 +42,13 @@ function ShiftStatusBadge({ difference, notes }: { difference: number | null; no
         faltante ? "bg-error/10 text-error" : "bg-amber-500/10 text-amber-500"
       }`}
     >
-      {faltante ? "Faltante" : "Sobrante"} {formatMoney(Math.abs(difference))}
+      {faltante ? "Faltante" : "Sobrante"} {fmtMoney(Math.abs(difference))}
     </span>
   );
 }
 
 export function ShiftHistorySection({ workers }: { workers: WorkerMember[] }) {
+  const fmtMoney = useFormatMoney();
   const shifts = useShiftsStore((s) => s.shifts);
   const loading = useShiftsStore((s) => s.loading);
   const fetchShifts = useShiftsStore((s) => s.fetchShifts);
@@ -96,7 +98,7 @@ export function ShiftHistorySection({ workers }: { workers: WorkerMember[] }) {
                   : "text-amber-500"
           }`}
         >
-          {s.difference != null ? `${s.difference > 0 ? "+" : ""}${formatMoney(s.difference)}` : "—"}
+          {s.difference != null ? `${s.difference > 0 ? "+" : ""}${fmtMoney(s.difference)}` : "—"}
         </span>
       ),
     },
@@ -136,31 +138,31 @@ export function ShiftHistorySection({ workers }: { workers: WorkerMember[] }) {
       align: "right",
       className: "text-on-surface tabular-nums",
       cell: (s) =>
-        s.status === "open" ? "—" : `${s.sales_count ?? 0} · ${formatMoney(s.sales_total ?? 0)}`,
+        s.status === "open" ? "—" : `${s.sales_count ?? 0} · ${fmtMoney(s.sales_total ?? 0)}`,
     },
     {
       header: "Base",
       align: "right",
       className: "text-on-surface tabular-nums",
-      cell: (s) => formatMoney(s.opening_cash),
+      cell: (s) => fmtMoney(s.opening_cash),
     },
     {
       header: "Retiros",
       align: "right",
       className: "text-on-surface-variant tabular-nums",
-      cell: (s) => (s.withdrawals_total ? `-${formatMoney(s.withdrawals_total)}` : "—"),
+      cell: (s) => (s.withdrawals_total ? `-${fmtMoney(s.withdrawals_total)}` : "—"),
     },
     {
       header: "Esperado",
       align: "right",
       className: "text-on-surface tabular-nums",
-      cell: (s) => (s.expected_cash != null ? formatMoney(s.expected_cash) : "—"),
+      cell: (s) => (s.expected_cash != null ? fmtMoney(s.expected_cash) : "—"),
     },
     {
       header: "Contado",
       align: "right",
       className: "text-on-surface tabular-nums",
-      cell: (s) => (s.closing_cash != null ? formatMoney(s.closing_cash) : "—"),
+      cell: (s) => (s.closing_cash != null ? fmtMoney(s.closing_cash) : "—"),
     },
   ];
 

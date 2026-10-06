@@ -108,7 +108,7 @@ export default function EstudiantesPage() {
         <CollectionEmpty
           icon={<IconUsers className="h-7 w-7" />}
           title="Todavía no hay alumnos"
-          description="Registrá el primer alumno escribiendo su nombre — se crea el cliente al vuelo."
+          description="Registra el primer alumno escribiendo su nombre — se crea el cliente al vuelo."
           action={{ label: "Nuevo alumno", onClick: () => setShowForm(true) }}
         />
       ) : filtered.length === 0 ? (
@@ -117,7 +117,7 @@ export default function EstudiantesPage() {
           description={
             query
               ? `Ningún alumno coincide con “${query}”.`
-              : "Sin alumnos activos. Activá “Mostrar inactivos” para verlos."
+              : "Sin alumnos activos. Activa “Mostrar inactivos” para verlos."
           }
         />
       ) : (

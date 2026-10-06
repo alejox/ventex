@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
     const access = await schoolApiAccess();
     if (!access) {
       return NextResponse.json(
-        { error: "No tenés acceso al módulo de la escuela." },
+        { error: "No tienes acceso al módulo de la escuela." },
         { status: 403 }
       );
     }

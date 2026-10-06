@@ -5,7 +5,7 @@ import { Select } from "@/components/ui/Select";
 import { COLOMBIA_TRANSFER_METHODS } from "@/config/transferMethods";
 import { COLOMBIA_CARD_METHODS } from "@/config/cardMethods";
 import type { PaymentMethod, PaymentSplit, SaleTotals, CartLine } from "@/services/pos.service";
-import { formatMoney } from "@/lib/money";
+import { useFormatMoney } from "@/lib/useMoney";
 
 const QUICK_AMOUNTS = [2000, 5000, 10000, 20000, 50000, 100000];
 
@@ -113,6 +113,7 @@ export function CheckoutModal({
   onConfirm,
   onClose,
 }: CheckoutModalProps) {
+  const fmtMoney = useFormatMoney();
   const cartUnits = cart.reduce((sum, l) => sum + l.quantity, 0);
 
   const hasSplits = splits.length > 0;
@@ -198,7 +199,7 @@ export function CheckoutModal({
             <div className="flex justify-between items-baseline gap-3 border-t border-outline-variant/10 pt-2.5 mt-2">
               <span className="text-sm font-semibold text-on-surface shrink-0">Total</span>
               <span className="text-lg sm:text-xl font-bold text-on-surface tabular-nums tracking-tight truncate">
-                {formatMoney(totals.total)}
+                {fmtMoney(totals.total)}
               </span>
             </div>
           </div>
@@ -295,15 +296,15 @@ export function CheckoutModal({
 
                 <div className="flex justify-between items-center pt-2 border-t border-outline-variant/10">
                   <span className="text-[11px] text-on-surface-variant">
-                    Pagado: {formatMoney(splitsSum)} / {formatMoney(totals.total)}
+                    Pagado: {fmtMoney(splitsSum)} / {fmtMoney(totals.total)}
                   </span>
                   {!splitsMatch && splitsSum < totals.total ? (
                     <span className="text-[11px] font-semibold text-error">
-                      Restan {formatMoney(totals.total - splitsSum)}
+                      Restan {fmtMoney(totals.total - splitsSum)}
                     </span>
                   ) : !splitsMatch ? (
                     <span className="text-[11px] font-semibold text-error">
-                      Sobran {formatMoney(splitsSum - totals.total)}
+                      Sobran {fmtMoney(splitsSum - totals.total)}
                     </span>
                   ) : (
                     <span className="text-[11px] font-semibold text-success">Completo &check;</span>
@@ -405,7 +406,7 @@ export function CheckoutModal({
                     onClick={() => quickAdd(amount)}
                     className="py-2 rounded-xl text-xs font-bold border border-outline-variant/20 text-on-surface-variant hover:border-primary/30 hover:text-on-surface transition-colors"
                   >
-                    {formatMoney(amount)}
+                    {fmtMoney(amount)}
                   </button>
                 ))}
               </div>
@@ -444,8 +445,8 @@ export function CheckoutModal({
                     }`}
                   >
                     {change >= 0
-                      ? formatMoney(change)
-                      : `Faltan ${formatMoney(Math.abs(change))}`}
+                      ? fmtMoney(change)
+                      : `Faltan ${fmtMoney(Math.abs(change))}`}
                   </span>
                 </div>
               )}
@@ -509,7 +510,7 @@ export function CheckoutModal({
               <>
                 <span className="whitespace-nowrap">Confirmar venta</span>
                 <span className="tabular-nums whitespace-nowrap">
-                  {formatMoney(totals.total)}
+                  {fmtMoney(totals.total)}
                 </span>
               </>
             )}

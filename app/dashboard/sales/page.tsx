@@ -21,7 +21,8 @@ import { COLOMBIA_TRANSFER_METHODS, getTransferMethodName } from "@/config/trans
 import { getCardMethodName } from "@/config/cardMethods";
 import { DataTable, type DataColumn } from "@/components/DataTable";
 import { CollectionEmpty, CollectionError, CollectionFilteredEmpty, CollectionLoading } from "@/components/CollectionState";
-import { formatMoney } from "@/lib/money";
+import type { MoneyFormatter } from "@/lib/money";
+import { useFormatMoney } from "@/lib/useMoney";
 import { notifySuccess } from "@/lib/notifications";
 import { PosReceipt } from "@/components/PosReceipt";
 import { buildReceiptFromSale } from "@/lib/receipt";
@@ -90,7 +91,7 @@ const STATUS_LABELS: Record<string, string> = {
  * legítimas y distintas. Ponerlas juntas es lo que deja ver, de un vistazo, que
  * la venta #8 fue de $1.060.726 y que de la gaseosa filtrada solo hubo $3.000.
  */
-const itemColumn = (etiqueta: string): DataColumn<SaleListItem> => ({
+const itemColumn = (etiqueta: string, formatMoney: MoneyFormatter): DataColumn<SaleListItem> => ({
   header: etiqueta,
   align: "right",
   mobile: "field",
@@ -109,7 +110,8 @@ const itemColumn = (etiqueta: string): DataColumn<SaleListItem> => ({
   ),
 });
 
-const SALE_COLUMNS: DataColumn<SaleListItem>[] = [
+/** Columnas fijas; el formateador trae la moneda del negocio. */
+const saleColumns = (formatMoney: MoneyFormatter): DataColumn<SaleListItem>[] => [
   {
     header: "Cliente",
     mobile: "title",
@@ -163,7 +165,7 @@ const SALE_COLUMNS: DataColumn<SaleListItem>[] = [
 ];
 
 /** Las consecuencias de anular, en frases. Vacío = solo el stock. */
-function voidImpactLines(impact: SaleVoidImpact | null): string[] {
+function voidImpactLines(impact: SaleVoidImpact | null, formatMoney: MoneyFormatter): string[] {
   if (!impact) return [];
   const lines: string[] = [];
   if (impact.cashRefund > 0) {
@@ -192,6 +194,7 @@ function voidImpactLines(impact: SaleVoidImpact | null): string[] {
 }
 
 export default function SalesPage() {
+  const fmtMoney = useFormatMoney();
   const sales = useSalesStore((s) => s.sales);
   const loading = useSalesStore((s) => s.loading);
   const error = useSalesStore((s) => s.error);
@@ -264,12 +267,12 @@ export default function SalesPage() {
   // La columna del ítem se inserta junto a "Total": el punto de esta pantalla es
   // poder comparar las dos cifras sin mover los ojos por toda la fila.
   const columnas = useMemo(() => {
-    if (!filtrandoItem) return SALE_COLUMNS;
-    const cols = [...SALE_COLUMNS];
+    const cols = saleColumns(fmtMoney);
+    if (!filtrandoItem) return cols;
     const iTotal = cols.findIndex((c) => c.header === "Total");
-    cols.splice(iTotal + 1, 0, itemColumn(nombreDelItem ? `De ${nombreDelItem}` : "Del ítem"));
+    cols.splice(iTotal + 1, 0, itemColumn(nombreDelItem ? `De ${nombreDelItem}` : "Del ítem", fmtMoney));
     return cols;
-  }, [filtrandoItem, nombreDelItem]);
+  }, [filtrandoItem, nombreDelItem, fmtMoney]);
 
   // Lo que se está tecleando, que va por delante de la búsqueda aplicada.
   const [searchInput, setSearchInput] = useState(customerQuery);
@@ -345,7 +348,7 @@ export default function SalesPage() {
     notifySuccess(
       `Venta #${detail.sale_number} anulada`,
       cash > 0
-        ? `Entrégale ${formatMoney(cash)} en efectivo al cliente. El stock volvió al inventario.`
+        ? `Entrégale ${fmtMoney(cash)} en efectivo al cliente. El stock volvió al inventario.`
         : "El stock volvió al inventario.",
     );
   };
@@ -562,15 +565,15 @@ export default function SalesPage() {
         {(filtrandoItem
           ? [
               { label: "Unidades vendidas", value: summary ? formatQty(summary.item_units) : "—", tint: "bg-[#6063ee]/10 text-[#6063ee]", Icon: IconShoppingCart },
-              { label: `Vendido de ${nombreDelItem}`, value: summary ? formatMoney(summary.item_revenue) : "—", tint: "bg-[#3b82f6]/10 text-[#3b82f6]", Icon: IconWallet },
+              { label: `Vendido de ${nombreDelItem}`, value: summary ? fmtMoney(summary.item_revenue) : "—", tint: "bg-[#3b82f6]/10 text-[#3b82f6]", Icon: IconWallet },
               { label: "Ventas que lo incluyen", value: summary ? summary.completed_count : "—", tint: "bg-[#10b981]/10 text-[#10b981]", Icon: IconWallet },
-              { label: "Precio promedio", value: summary ? formatMoney(summary.item_avg_price) : "—", tint: "bg-[#f59e0b]/10 text-[#f59e0b]", Icon: IconTrendingUp },
+              { label: "Precio promedio", value: summary ? fmtMoney(summary.item_avg_price) : "—", tint: "bg-[#f59e0b]/10 text-[#f59e0b]", Icon: IconTrendingUp },
             ]
           : [
               { label: "Ventas totales", value: summary ? summary.sales_count : "—", tint: "bg-[#6063ee]/10 text-[#6063ee]", Icon: IconShoppingCart },
               { label: "Completadas", value: summary ? summary.completed_count : "—", tint: "bg-[#10b981]/10 text-[#10b981]", Icon: IconWallet },
-              { label: "Ingresos (completadas)", value: summary ? formatMoney(summary.revenue) : "—", tint: "bg-[#3b82f6]/10 text-[#3b82f6]", Icon: IconWallet },
-              { label: "Ticket promedio", value: summary ? formatMoney(summary.avg_ticket) : "—", tint: "bg-[#f59e0b]/10 text-[#f59e0b]", Icon: IconTrendingUp },
+              { label: "Ingresos (completadas)", value: summary ? fmtMoney(summary.revenue) : "—", tint: "bg-[#3b82f6]/10 text-[#3b82f6]", Icon: IconWallet },
+              { label: "Ticket promedio", value: summary ? fmtMoney(summary.avg_ticket) : "—", tint: "bg-[#f59e0b]/10 text-[#f59e0b]", Icon: IconTrendingUp },
             ]
         ).map(({ label, value, tint, Icon }) => (
           <div
@@ -704,7 +707,7 @@ export default function SalesPage() {
                       <div>
                         <p className="text-sm font-medium text-on-surface">{item.product_name}</p>
                         <p className="text-[11px] text-on-surface-variant mt-0.5">
-                          {item.quantity} × {formatMoney(item.unit_price)}
+                          {item.quantity} × {fmtMoney(item.unit_price)}
                           {item.unit_kind === "package"
                             ? ` · Caja x${item.units_per_item} u. (${item.quantity * item.units_per_item} uds.)`
                             : item.sku
@@ -724,7 +727,7 @@ export default function SalesPage() {
                             {item.commission_amount > 0 && (
                               <>
                                 <span className="text-[#10b981] font-medium">
-                                  Comisión {formatMoney(item.commission_amount)}
+                                  Comisión {fmtMoney(item.commission_amount)}
                                 </span>
                                 {/* Si la comisión ya se liquidó, anular esta
                                     venta implica plata que ya salió: decirlo acá
@@ -737,7 +740,7 @@ export default function SalesPage() {
                           </p>
                         ) : null}
                       </div>
-                      <span className="text-sm font-bold text-on-surface shrink-0">{formatMoney(item.line_total)}</span>
+                      <span className="text-sm font-bold text-on-surface shrink-0">{fmtMoney(item.line_total)}</span>
                     </div>
                   ))}
                 </div>
@@ -745,21 +748,21 @@ export default function SalesPage() {
                 <div className="pt-4 border-t border-outline-variant/10 space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-on-surface-variant">Subtotal</span>
-                    <span className="text-on-surface font-medium">{formatMoney(detail.subtotal)}</span>
+                    <span className="text-on-surface font-medium">{fmtMoney(detail.subtotal)}</span>
                   </div>
                   {detail.discount_amount > 0 && (
                     <div className="flex justify-between text-sm">
                       <span className="text-on-surface-variant">Descuento</span>
-                      <span className="text-[#10b981] font-medium">-{formatMoney(detail.discount_amount)}</span>
+                      <span className="text-[#10b981] font-medium">-{fmtMoney(detail.discount_amount)}</span>
                     </div>
                   )}
                   <div className="flex justify-between text-sm">
                     <span className="text-on-surface-variant">Impuesto ({Math.round(detail.tax_rate * 100)}%)</span>
-                    <span className="text-on-surface font-medium">{formatMoney(detail.tax_amount)}</span>
+                    <span className="text-on-surface font-medium">{fmtMoney(detail.tax_amount)}</span>
                   </div>
                   <div className="flex justify-between items-center pt-3 border-t border-outline-variant/10">
                     <span className="text-base font-bold text-on-surface">Total</span>
-                    <span className="text-2xl font-black text-[#6063ee]">{formatMoney(detail.total)}</span>
+                    <span className="text-2xl font-black text-[#6063ee]">{fmtMoney(detail.total)}</span>
                   </div>
                 </div>
 
@@ -771,7 +774,7 @@ export default function SalesPage() {
                     {detail.payment_method === "split" && (receiptExtras?.payments.length ?? 0) > 0 && (
                       <span className="block mt-0.5">
                         {receiptExtras!.payments
-                          .map((p) => `${paymentLabelOf(p.payment_method, p.transfer_method, p.card_method)} ${formatMoney(p.amount)}`)
+                          .map((p) => `${paymentLabelOf(p.payment_method, p.transfer_method, p.card_method)} ${fmtMoney(p.amount)}`)
                           .join(" · ")}
                       </span>
                     )}
@@ -788,7 +791,7 @@ export default function SalesPage() {
                         </p>
                         <ul className="text-xs text-on-surface-variant space-y-1 list-disc pl-4">
                           <li>Se devuelve el stock al inventario. Esta acción no se puede deshacer.</li>
-                          {voidImpactLines(voidImpact).map((line) => (
+                          {voidImpactLines(voidImpact, fmtMoney).map((line) => (
                             <li key={line}>{line}</li>
                           ))}
                         </ul>
@@ -798,7 +801,7 @@ export default function SalesPage() {
                             tiene que saber que queda un saldo a favor suyo. */}
                         {voidImpact && voidImpact.paidCommission > 0 && (
                           <p role="alert" className="text-xs rounded-lg border border-[#f59e0b]/30 bg-[#f59e0b]/10 px-3 py-2 text-on-surface">
-                            <strong className="font-bold">Ojo:</strong> {formatMoney(voidImpact.paidCommission)} de comisión de
+                            <strong className="font-bold">Ojo:</strong> {fmtMoney(voidImpact.paidCommission)} de comisión de
                             esta venta ya se liquidaron y se pagaron. Anularla no devuelve ese dinero:
                             descuéntalo en la próxima liquidación.
                           </p>

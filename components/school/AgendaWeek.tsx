@@ -141,7 +141,7 @@ export function AgendaWeek() {
                 <p className="mt-1 text-sm text-on-surface-variant">
                   {hasPlans ? (
                     <>
-                      No hay matrículas con clases disponibles. Matriculá un alumno desde{" "}
+                      No hay matrículas con clases disponibles. Matricula un alumno desde{" "}
                       <Link className="font-semibold text-primary hover:underline" href="/dashboard/school/estudiantes">
                         Estudiantes
                       </Link>
@@ -153,7 +153,7 @@ export function AgendaWeek() {
                       <Link className="font-semibold text-primary hover:underline" href="/dashboard/school/planes">
                         plan de clase
                       </Link>
-                      : armalo primero, después matriculá un alumno en{" "}
+                      : ármalo primero, después matricula un alumno en{" "}
                       <Link className="font-semibold text-primary hover:underline" href="/dashboard/school/estudiantes">
                         Estudiantes
                       </Link>
@@ -163,7 +163,7 @@ export function AgendaWeek() {
                 </p>
               ) : (
                 <p className="mt-1 text-sm text-on-surface-variant">
-                  Usá &quot;Agendar clase&quot; o &quot;Programar serie&quot; para la primera.
+                  Usa &quot;Agendar clase&quot; o &quot;Programar serie&quot; para la primera.
                 </p>
               )}
             </div>

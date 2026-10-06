@@ -40,7 +40,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         error:
-          "No tenemos un medio de pago guardado. Pagá una vez en línea y la renovación automática queda activa.",
+          "No tenemos un medio de pago guardado. Paga una vez en línea y la renovación automática queda activa.",
       },
       { status: 400 },
     );

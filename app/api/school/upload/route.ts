@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
   const access = await schoolApiAccess();
   if (!access) {
     return NextResponse.json(
-      { error: "No tenés acceso al módulo de la escuela." },
+      { error: "No tienes acceso al módulo de la escuela." },
       { status: 403 }
     );
   }
@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
     .upload(path, file, { contentType: file.type, upsert: false });
   if (uploadError) {
     return NextResponse.json(
-      { error: "No se pudo guardar el archivo. Intentá de nuevo." },
+      { error: "No se pudo guardar el archivo. Intenta de nuevo." },
       { status: 500 }
     );
   }

@@ -21,7 +21,7 @@ import { toISODate, formatDateOnly } from "@/lib/date";
 import { formatAppointmentTime, type TimeFormat } from "@/lib/time";
 import { DateTimeField } from "./DateTimeField";
 import { conflictsFor, pickStaff, type BusyAppointment } from "@/lib/appointment-availability";
-import { formatMoney } from "@/lib/money";
+import { useFormatMoney } from "@/lib/useMoney";
 
 /**
  * Mensaje de confirmación ya redactado para el cliente.
@@ -142,6 +142,7 @@ function AppointmentModalBody({
   appointment,
   defaultStartTime,
 }: AppointmentModalProps) {
+  const fmtMoney = useFormatMoney();
   const submitting = useAppointmentsStore((s) => s.submitting);
   const addAppointment = useAppointmentsStore((s) => s.addAppointment);
   const updateAppointment = useAppointmentsStore((s) => s.updateAppointment);
@@ -263,11 +264,11 @@ function AppointmentModalBody({
     }
     if (autoStaff) input.staff_id = autoStaff;
     if (!input.title.trim()) {
-      setError("Elegí un servicio o personalizá el título de la cita.");
+      setError("Elige un servicio o personaliza el título de la cita.");
       return false;
     }
     if (!input.appointment_date || !input.start_time || !input.end_time || input.start_time >= input.end_time) {
-      setError("Revisá la fecha y el horario: el fin debe ser posterior al inicio.");
+      setError("Revisa la fecha y el horario: el fin debe ser posterior al inicio.");
       return false;
     }
     const ok = appointment
@@ -667,8 +668,8 @@ function AppointmentModalBody({
                 {busy ? "Guardando…" : isEditing ? "Guardar cambios" : "Crear cita"}
               </button>
               {liveStatus === "pending" ? <button type="button" disabled={busy} onClick={() => void confirmPending()} className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary disabled:opacity-50">Confirmar reserva</button>
-                : canCharge && <button type="button" disabled={busy || dirty} onClick={startCharge} title={dirty ? "Guardá los cambios antes de cobrar" : undefined} className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary disabled:opacity-50">
-                  {chargedService ? `Cobrar ${formatMoney(chargedService.price)}` : "Cobrar"}
+                : canCharge && <button type="button" disabled={busy || dirty} onClick={startCharge} title={dirty ? "Guarda los cambios antes de cobrar" : undefined} className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary disabled:opacity-50">
+                  {chargedService ? `Cobrar ${fmtMoney(chargedService.price)}` : "Cobrar"}
                 </button>}
             </div>
           </div>
@@ -741,7 +742,7 @@ function AppointmentModalBody({
             </p>
             {chargedService && (
               <p className="text-3xl font-bold text-on-surface tabular-nums mb-4">
-                {formatMoney(chargedService.price)}
+                {fmtMoney(chargedService.price)}
               </p>
             )}
 

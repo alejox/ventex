@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useDeliveryStore } from "@/stores/delivery.store";
 import type { DeliveryData } from "@/stores/pos.store";
-import { formatMoney } from "@/lib/money";
+import { useFormatMoney } from "@/lib/useMoney";
 
 interface DeliveryModalProps {
   totals: { total: number };
@@ -20,6 +20,7 @@ export function DeliveryModal({
   onConfirm,
   onClose,
 }: DeliveryModalProps) {
+  const fmtMoney = useFormatMoney();
   const persons = useDeliveryStore((s) => s.persons);
   const fetchPersons = useDeliveryStore((s) => s.fetchPersons);
   const addPerson = useDeliveryStore((s) => s.addPerson);
@@ -135,7 +136,7 @@ export function DeliveryModal({
           <div className="pt-2 flex justify-between text-sm">
             <span className="text-on-surface-variant">Total venta</span>
             <span className="text-on-surface font-bold">
-              {formatMoney(totals.total)}
+              {fmtMoney(totals.total)}
             </span>
           </div>
         </div>

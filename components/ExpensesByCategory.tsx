@@ -1,7 +1,7 @@
 "use client";
 
 import type { ExpenseSlice } from "@/services/finance.service";
-import { formatMoney } from "@/lib/money";
+import { useFormatMoney } from "@/lib/useMoney";
 
 /**
  * Tope de filas. Pasado esto deja de ser un vistazo y es una tabla; el resto se
@@ -30,6 +30,7 @@ const REST_COLOR = "#94a3b8";
  * cada fila está nombrada y numerada.
  */
 export function ExpensesByCategory({ slices, total }: { slices: ExpenseSlice[]; total: number }) {
+  const fmtMoney = useFormatMoney();
   if (slices.length === 0 || total <= 0) {
     return (
       <p className="py-8 text-center text-sm text-on-surface-variant">
@@ -85,7 +86,7 @@ export function ExpensesByCategory({ slices, total }: { slices: ExpenseSlice[]; 
                 {share >= 0.01 ? `${Math.round(share * 100)}%` : "<1%"}
               </span>
               <span className="text-xs font-semibold text-on-surface w-28 text-right">
-                {formatMoney(row.amount)}
+                {fmtMoney(row.amount)}
               </span>
             </div>
           </div>

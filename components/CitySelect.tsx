@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { usePortalContainer } from "@/components/ui/portal-container";
 import { fetchColombiaCities, type ColombiaCity } from "@/services/geo.service";
 
 interface DropdownRect {
@@ -45,9 +46,11 @@ interface CitySelectProps {
  * nombres se repiten entre departamentos (ej. "Armenia" en Antioquia y
  * Quindío), y sin el departamento el dato queda ambiguo al leerlo después.
  *
- * Va por PORTAL a `<body>` con `position: fixed`, mismo patrón que el
- * buscador de producto de `PurchaseForm.tsx`: así ningún `overflow` de un
- * ancestro (el drawer de proveedor, un modal) lo recorta.
+ * Va por PORTAL con `position: fixed`, mismo patrón que el buscador de
+ * producto de `PurchaseForm.tsx`: así ningún `overflow` de un ancestro (el
+ * drawer de proveedor, un modal) lo recorta. El destino sale de
+ * `usePortalContainer()`, igual que en `ui/Select`: dentro de un `<Modal>`
+ * (top layer, resto de la página `inert`) es su `<dialog>`; fuera, `<body>`.
  */
 export function CitySelect({
   id,
@@ -62,6 +65,7 @@ export function CitySelect({
   const [open, setOpen] = useState(false);
   const [rect, setRect] = useState<DropdownRect | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const portalContainer = usePortalContainer();
 
   useEffect(() => {
     fetchColombiaCities()
@@ -136,6 +140,7 @@ export function CitySelect({
 
       {open &&
         rect &&
+        portalContainer &&
         createPortal(
           <div
             style={{ top: rect.top, left: rect.left, width: rect.width, maxHeight: PANEL_MAX_HEIGHT }}
@@ -157,7 +162,7 @@ export function CitySelect({
               ))
             )}
           </div>,
-          document.body
+          portalContainer
         )}
     </div>
   );

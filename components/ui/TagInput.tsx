@@ -27,7 +27,7 @@ export function TagInput({
   id,
   values,
   onChange,
-  placeholder = "Escribí y presioná Enter",
+  placeholder = "Escribe y presiona Enter",
   addLabel = "Agregar",
   emptyHint,
   invalid = false,

@@ -27,7 +27,7 @@ import { CollectionEmpty, CollectionError, CollectionLoading } from "@/component
 import { StaffPhotoField } from "@/components/StaffPhotoField";
 import Image from "next/image";
 import { isUnlimitedCollaborators } from "@/config/plans";
-import { formatMoney } from "@/lib/money";
+import { useFormatMoney } from "@/lib/useMoney";
 
 // Los cargos NO se escriben acá: salen de STAFF_ROLES_BY_TYPE según el rubro
 // (config/business.ts). Una barbería ofrece Barbero y Estilista; una tienda,
@@ -46,6 +46,7 @@ const EMPTY_STAFF: NewStaffInput = {
 };
 
 export default function StaffPage() {
+  const fmtMoney = useFormatMoney();
   const { confirm, dialog } = useConfirm();
   const staff = useStaffStore((s) => s.staff);
   const loading = useStaffStore((s) => s.loading);
@@ -482,11 +483,11 @@ export default function StaffPage() {
                         Por pagar
                       </span>
                       <span className={`block truncate text-xs font-bold tabular-nums ${pending > 0 ? "text-on-surface" : "text-on-surface-variant"}`}>
-                        {formatMoney(pending)}
+                        {fmtMoney(pending)}
                       </span>
                       {settled > 0 && (
                         <span className="block text-[10px] font-semibold tabular-nums text-emerald-600">
-                          {formatMoney(settled)} liquidado
+                          {fmtMoney(settled)} liquidado
                         </span>
                       )}
                     </div>
@@ -715,10 +716,10 @@ export default function StaffPage() {
                           <td className="p-3 text-xs text-on-surface max-w-[160px] truncate">{s.product_name}</td>
                           <td className="p-3 text-center text-xs text-on-surface-variant">{s.quantity}</td>
                           <td className="p-3 text-right text-xs font-bold text-on-surface tabular-nums">
-                            {formatMoney(s.line_total)}
+                            {fmtMoney(s.line_total)}
                           </td>
                           <td className="p-3 text-right text-xs font-semibold text-emerald-600 tabular-nums">
-                            {formatMoney(s.commissionAmount)}
+                            {fmtMoney(s.commissionAmount)}
                           </td>
                           <td className="p-3 pr-0 text-right">
                             {s.commissionAmount <= 0 ? (
@@ -742,7 +743,7 @@ export default function StaffPage() {
                           Pendiente por liquidar
                         </td>
                         <td className="p-3 text-right text-sm font-bold text-[#b45309] tabular-nums">
-                          {formatMoney(sales.filter((i) => !i.settlementId).reduce((s, i) => s + i.commissionAmount, 0))}
+                          {fmtMoney(sales.filter((i) => !i.settlementId).reduce((s, i) => s + i.commissionAmount, 0))}
                         </td>
                         <td className="p-3 pr-0" />
                       </tr>
@@ -751,7 +752,7 @@ export default function StaffPage() {
                           Devengado en el mes
                         </td>
                         <td className="p-3 text-right text-xs font-semibold text-on-surface-variant tabular-nums">
-                          {formatMoney(sales.reduce((s, i) => s + i.commissionAmount, 0))}
+                          {fmtMoney(sales.reduce((s, i) => s + i.commissionAmount, 0))}
                         </td>
                         <td className="p-3 pr-0" />
                       </tr>
@@ -888,7 +889,7 @@ export default function StaffPage() {
                     <div className="space-y-3">
                       {specialtiesRequired && (
                         <p className="text-xs font-semibold text-error">
-                          Elegí al menos una especialidad
+                          Elige al menos una especialidad
                         </p>
                       )}
                       <div className="space-y-1.5">
@@ -915,7 +916,7 @@ export default function StaffPage() {
                           </div>
                         ) : (
                           <p className="text-xs text-on-surface-variant">
-                            Agregá especialidades en{" "}
+                            Agrega especialidades en{" "}
                             <Link href="/dashboard/school/config" className="font-semibold text-primary hover:underline">
                               Configuración de Académico
                             </Link>

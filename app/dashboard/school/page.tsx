@@ -108,7 +108,7 @@ export default function SchoolResumenPage() {
             {summary!.staff_without_teacher_profile === 1 ? "persona" : "personas"} de Personal sin
             perfil docente
           </Link>{" "}
-          — activalo en Personal.
+          — actívalo en Personal.
         </p>
       )}
 
@@ -123,7 +123,7 @@ export default function SchoolResumenPage() {
                   : "clases terminaron sin confirmar"}
               </h2>
               <p className="mt-0.5 text-sm text-on-surface-variant">
-                Registrá la asistencia para descontar las clases. Nada se cierra solo.
+                Registra la asistencia para descontar las clases. Nada se cierra solo.
               </p>
             </div>
             <Link

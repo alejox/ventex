@@ -23,10 +23,10 @@ function AccessDisabledContent() {
       </h2>
       <p className="text-on-surface-variant text-sm mb-8 leading-relaxed">
         {expired
-          ? "Pedile al dueño del negocio que contacte a soporte para emitir un nuevo enlace sin reemplazar tu cuenta."
+          ? "Pídele al dueño del negocio que contacte a soporte para emitir un nuevo enlace sin reemplazar tu cuenta."
           : suspended
-          ? "El dueño del negocio suspendió tu acceso. Comunicate con él para reactivarlo."
-          : "Tu invitación todavía no está activa. Abrí el enlace del correo y definí tu contraseña."}
+          ? "El dueño del negocio suspendió tu acceso. Comunícate con él para reactivarlo."
+          : "Tu invitación todavía no está activa. Abre el enlace del correo y define tu contraseña."}
       </p>
       <button
         type="button"

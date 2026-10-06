@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Select } from "@/components/ui/Select";
 import { SchoolModal } from "@/components/school/SchoolModal";
 import Link from "next/link";
-import { formatMoney, formatShortDate } from "@/components/school/format";
+import { formatShortDate } from "@/components/school/format";
+import { useFormatMoney } from "@/lib/useMoney";
 import { useSchoolStore } from "@/stores/school.store";
 import { fetchCustomers, fetchCustomerSales } from "@/services/customers.service";
 import type { Customer, CustomerSale } from "@/services/customers.service";
@@ -31,6 +32,7 @@ interface EnrollmentFormProps {
  * diseño, no un atajo para evadir el cobro.
  */
 export function EnrollmentForm({ studentId, onClose, onSaved }: EnrollmentFormProps) {
+  const money = useFormatMoney();
   const schoolSettings = useSchoolStore((s) => s.settings);
   const schoolSettingsLoading = useSchoolStore((s) => s.loading);
   const fetchSchoolSettings = useSchoolStore((s) => s.fetchSettings);
@@ -189,7 +191,7 @@ export function EnrollmentForm({ studentId, onClose, onSaved }: EnrollmentFormPr
             </Select>
             {plans.length === 0 && (
               <p className="text-xs text-on-surface-variant">
-                No hay planes de clase. Creá uno en{" "}
+                No hay planes de clase. Crea uno en{" "}
                 <Link href="/dashboard/school/planes" className="font-semibold text-primary hover:underline">
                   Planes de clase
                 </Link>
@@ -216,7 +218,7 @@ export function EnrollmentForm({ studentId, onClose, onSaved }: EnrollmentFormPr
             </Select>
             {!schoolSettingsLoading && instrumentOptions.length === 0 && (
               <p className="text-xs text-on-surface-variant">
-                Agregá especialidades en{" "}
+                Agrega especialidades en{" "}
                 <Link href="/dashboard/school/config" className="font-semibold text-primary hover:underline">
                   Configuración de Académico
                 </Link>
@@ -245,7 +247,7 @@ export function EnrollmentForm({ studentId, onClose, onSaved }: EnrollmentFormPr
             value={payerId}
             onChange={(e) => handlePayerChange(e.target.value)}
             size="sm"
-            hint="Si la venta se hizo a nombre de otra persona (padre, empresa), se la marcás acá."
+            hint="Si la venta se hizo a nombre de otra persona (padre, empresa), se la marcas aquí."
           >
             <option value="">El alumno / su cliente</option>
             {customers.map((c) => (
@@ -270,7 +272,7 @@ export function EnrollmentForm({ studentId, onClose, onSaved }: EnrollmentFormPr
                   <option value="">Sin vincular venta</option>
                   {sales.map((s) => (
                     <option key={s.id} value={s.id}>
-                      #{s.sale_number} · {formatMoney(s.total)} · {formatShortDate(s.created_at)}
+                      #{s.sale_number} · {money(s.total)} · {formatShortDate(s.created_at)}
                     </option>
                   ))}
                 </select>
@@ -300,9 +302,9 @@ export function EnrollmentForm({ studentId, onClose, onSaved }: EnrollmentFormPr
               <dt className="text-on-surface-variant">Clases</dt>
               <dd className="text-right font-semibold text-on-surface">{selectedPlan.lesson_count} × {selectedPlan.duration_minutes} min</dd>
               <dt className="text-on-surface-variant">Precio de la clase</dt>
-              <dd className="text-right font-semibold text-on-surface">{formatMoney(planService.price)}</dd>
+              <dd className="text-right font-semibold text-on-surface">{money(planService.price)}</dd>
               <dt className="text-on-surface-variant">Total a congelar</dt>
-              <dd className="text-right font-bold text-primary">{formatMoney(previewPrice ?? 0)}</dd>
+              <dd className="text-right font-bold text-primary">{money(previewPrice ?? 0)}</dd>
               <dt className="text-on-surface-variant">Vigencia</dt>
               <dd className="text-right font-semibold text-on-surface">{selectedPlan.validity_days} días desde la matrícula</dd>
             </dl>

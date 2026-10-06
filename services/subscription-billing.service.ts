@@ -79,7 +79,7 @@ export async function subscribeToPlan(params: {
   });
   const data = await readJson<SubscribeResult>(response);
   if (!response.ok || !data.sessionId) {
-    throw new Error(data.error ?? "No se pudo iniciar el pago. Intentá de nuevo.");
+    throw new Error(data.error ?? "No se pudo iniciar el pago. Intenta de nuevo.");
   }
   return data as SubscribeResult;
 }

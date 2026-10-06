@@ -246,7 +246,7 @@ export async function createExpenseRecord(input: ExpenseInput): Promise<void> {
 }
 
 export async function updateExpense(id: string, input: ExpenseInput): Promise<void> {
-  if (!input.description.trim() || input.amount <= 0) throw new Error("Completá una descripción y un monto mayor que cero.");
+  if (!input.description.trim() || input.amount <= 0) throw new Error("Completa una descripción y un monto mayor que cero.");
   const supabase = createClient();
   const categoryId = await resolveCategoryId(input.category_id);
   const { error } = await supabase.from("expenses").update({ description: input.description.trim(), amount: input.amount, expense_date: input.expense_date, category_id: categoryId }).eq("id", id);

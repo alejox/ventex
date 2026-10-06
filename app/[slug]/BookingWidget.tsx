@@ -375,7 +375,7 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
         */}
       <div className="grid gap-7 @3xl:grid-cols-[minmax(0,1.35fr)_minmax(18rem,1fr)] @3xl:items-start @3xl:gap-10">
         <div className="min-w-0 space-y-7">
-      <Step n={1} title="¿Qué te hacés?">
+      <Step n={1} title="¿Qué te haces?">
         <select
           aria-label="Servicio"
           className={fieldClass}
@@ -594,9 +594,9 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
         {/* Dice qué falta, en vez de dejar un botón apagado sin explicación. */}
         <p className="text-center text-xs text-[var(--site-on-surface-muted)]">
           {!time
-            ? "Elegí un horario para continuar."
+            ? "Elige un horario para continuar."
             : !name || !phone
-              ? "Completá tu nombre y celular."
+              ? "Completa tu nombre y celular."
               : "Tu reserva queda pendiente hasta que el negocio la confirme."}
         </p>
       </div>
@@ -644,7 +644,7 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
             <p className="rounded-[var(--site-radius)] bg-[var(--site-surface-alt)] px-4 py-6 text-center text-sm text-[var(--site-on-surface-muted)]">
               El negocio no atiende ese día.
               <br />
-              Cerrá y elegí otra fecha en el calendario.
+              Cierra y elige otra fecha en el calendario.
             </p>
           ) : (
             <div className="space-y-4">

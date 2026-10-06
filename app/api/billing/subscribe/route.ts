@@ -51,7 +51,7 @@ function publicBase(request: NextRequest): string {
 export async function POST(request: NextRequest) {
   if (!EPAYCO_CONFIGURED) {
     return NextResponse.json(
-      { error: "Los pagos en línea no están disponibles por ahora. Escribinos por WhatsApp." },
+      { error: "Los pagos en línea no están disponibles por ahora. Escríbenos por WhatsApp." },
       { status: 503 },
     );
   }
@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
   const isGuest = !owner;
   if (isGuest && !EMAIL_PATTERN.test(rawGuestEmail)) {
     return NextResponse.json(
-      { error: "Ingresá un correo válido: es donde vas a recibir el acceso a tu cuenta." },
+      { error: "Ingresa un correo válido: es donde vas a recibir el acceso a tu cuenta." },
       { status: 400 },
     );
   }
@@ -81,17 +81,17 @@ export async function POST(request: NextRequest) {
   const payerEmail = owner ? (owner.user.email ?? "") : rawGuestEmail;
 
   if (!payerName) {
-    return NextResponse.json({ error: "Ingresá el nombre del titular." }, { status: 400 });
+    return NextResponse.json({ error: "Ingresa el nombre del titular." }, { status: 400 });
   }
   if (!payerEmail) {
     return NextResponse.json(
-      { error: "Tu cuenta no tiene un correo asociado. Escribinos por WhatsApp." },
+      { error: "Tu cuenta no tiene un correo asociado. Escríbenos por WhatsApp." },
       { status: 400 },
     );
   }
   if (!/^\d{6,11}$/.test(payerDocument)) {
     return NextResponse.json(
-      { error: "Ingresá el documento del titular (CC o NIT, 6 a 11 dígitos)." },
+      { error: "Ingresa el documento del titular (CC o NIT, 6 a 11 dígitos)." },
       { status: 400 },
     );
   }

@@ -40,7 +40,7 @@ export function CashDrawerCard() {
   const handlePair = async (transport: "serial" | "usb") => {
     const ok = await pair(transport);
     if (ok) {
-      notifySuccess("Impresora conectada", "Probá el cajón para confirmar que abre.");
+      notifySuccess("Impresora conectada", "Prueba el cajón para confirmar que abre.");
     } else {
       const error = useCashDrawerStore.getState().error;
       if (error) notifyError("No se pudo conectar", error);
@@ -61,7 +61,7 @@ export function CashDrawerCard() {
     } else if (worked) {
       notifySuccess(
         `Pulso enviado por ${TRANSPORT_NAME[worked]}`,
-        "Si el cajón no abrió, probá cambiando el pin.",
+        "Si el cajón no abrió, prueba cambiando el pin.",
       );
     } else {
       notifyError("El cajón no respondió", useCashDrawerStore.getState().error ?? "");
@@ -76,10 +76,10 @@ export function CashDrawerCard() {
     <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-3xl p-6 md:p-8 shadow-sm mb-6">
       <h2 className="text-lg font-bold text-on-surface mb-1">Cajón monedero</h2>
       <p className="text-sm text-on-surface-variant mb-6">
-        El cajón cuelga de la impresora por el cable RJ11. Configurado acá, Ventex le manda el
+        El cajón cuelga de la impresora por el cable RJ11. Configurado aquí, Ventex le manda el
         pulso de apertura al cobrar, sin necesidad de imprimir el recibo.{" "}
         <strong className="text-on-surface">Esta configuración es de este dispositivo</strong>, no
-        de tu negocio: si vendés desde otra terminal, configurala también ahí.
+        de tu negocio: si vendes desde otra terminal, configúrala también ahí.
       </p>
 
       {!hydrated || !caps ? (
@@ -92,8 +92,8 @@ export function CashDrawerCard() {
                 Hace falta una conexión segura
               </p>
               <p className="text-xs text-on-surface-variant leading-relaxed">
-                Hablarle directo a la impresora solo funciona por https. Entrá al panel con la
-                dirección segura y volvé a esta pantalla. Mientras tanto, la apertura por impresión
+                Hablarle directo a la impresora solo funciona por https. Entra al panel con la
+                dirección segura y vuelve a esta pantalla. Mientras tanto, la apertura por impresión
                 sigue disponible.
               </p>
             </div>
@@ -118,7 +118,7 @@ export function CashDrawerCard() {
           {config.transport === "print" ? (
             <div className="rounded-2xl border border-outline-variant/20 bg-surface-container-low p-4">
               <p className="text-sm font-semibold text-on-surface mb-1">
-                Dos cosas que tenés que saber
+                Dos cosas que tienes que saber
               </p>
               <ul className="text-xs text-on-surface-variant leading-relaxed list-disc pl-4 space-y-1">
                 <li>
@@ -164,7 +164,7 @@ export function CashDrawerCard() {
                   Abrir el cajón al terminar la venta
                 </h3>
                 <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">
-                  Se abre apenas se cobra, imprimas el recibo o no. Apagalo si preferís abrirlo a
+                  Se abre apenas se cobra, imprimas el recibo o no. Apágalo si prefieres abrirlo a
                   mano desde el botón del punto de venta.
                 </p>
               </div>
@@ -186,7 +186,7 @@ export function CashDrawerCard() {
                 label="Pin del cajón"
                 value={String(config.pin)}
                 onChange={(e) => setConfig({ pin: e.target.value === "5" ? 5 : 2 })}
-                hint="Si el cajón no abre, probá con el otro."
+                hint="Si el cajón no abre, prueba con el otro."
               >
                 <option value="2">Pin 2 (el habitual)</option>
                 <option value="5">Pin 5</option>
@@ -256,7 +256,7 @@ function PairRow({
         disabled={!available || pairing}
         className="px-4 py-2 rounded-xl bg-primary text-on-primary text-sm font-bold hover:opacity-90 transition-opacity disabled:opacity-50 self-start"
       >
-        {pairing ? "Elegí el dispositivo…" : ready ? "Cambiar" : "Conectar"}
+        {pairing ? "Elige el dispositivo…" : ready ? "Cambiar" : "Conectar"}
       </button>
     </div>
   );

@@ -94,6 +94,6 @@ export function verificarPeso(file: File, maxBytes: number): void {
   const mb = (n: number) => `${(n / 1_048_576).toFixed(1)} MB`;
   throw new Error(
     `La imagen pesa ${mb(file.size)} y el máximo es ${mb(maxBytes)}. ` +
-      `Probá con una foto más chica o recortala antes de subirla.`,
+      `Prueba con una foto más chica o recórtala antes de subirla.`,
   );
 }

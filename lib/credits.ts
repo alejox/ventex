@@ -8,7 +8,7 @@
  * puedan contarlo de tres maneras distintas.
  */
 
-import { formatMoney } from "./money";
+import { formatMoney as formatMoneyIn } from "./money";
 
 /** A cuánto del cupo hay que empezar a avisar. */
 const CUPO_WARN = 0.8;
@@ -49,7 +49,8 @@ export function creditAvailable(balance: number, limit: number | null): number |
 }
 
 /** Lo que se le muestra a quien cobra: el estado CON el número. */
-export function creditLabelOf(balance: number, limit: number | null): string {
+export function creditLabelOf(balance: number, limit: number | null, currency?: string): string {
+  const formatMoney = (n: number) => formatMoneyIn(n, currency);
   switch (creditStatusOf(balance, limit)) {
     case "al_dia":
       return "Al día";
@@ -161,6 +162,8 @@ export interface StatementInput {
    * El default es el que ve el cliente.
    */
   formatDate?: (iso: string) => string;
+  /** Moneda del negocio (`settings.currency`); COP si no viene. */
+  currency?: string;
 }
 
 const fechaCorta = (iso: string) =>
@@ -200,6 +203,7 @@ function seccion(titulo: string, lineas: string[], sobrantes: number): string[] 
  */
 export function renderStatementMessage(input: StatementInput): string {
   const fecha = input.formatDate ?? fechaCorta;
+  const formatMoney = (n: number) => formatMoneyIn(n, input.currency);
   const debe = Number.isFinite(input.balance) && input.balance > 0;
 
   const ventas = input.sales.slice(0, STATEMENT_MAX_LINES).map(

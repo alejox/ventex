@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { formatMoney } from "@/lib/money";
+import { useFormatMoney } from "@/lib/useMoney";
 import type { ReceiptData } from "@/lib/receipt";
 
 // Los datos se arman con `buildReceiptFromCart` / `buildReceiptFromSale`
@@ -14,6 +14,7 @@ interface Props {
 
 export function PosReceipt({ data }: Props) {
   // Solo el cliente exento tiene rebaja por exención.
+  const fmtMoney = useFormatMoney();
   const isExempt = (data?.totals.exemptionDiscount ?? 0) > 0;
 
   return (
@@ -128,12 +129,12 @@ export function PosReceipt({ data }: Props) {
                       )}
                       {item.discount > 0 && (
                         <span className="text-gray-500 block">
-                          {formatMoney(item.gross)} &minus; {item.discountLabel ?? "Desc."} {formatMoney(item.discount)}
+                          {fmtMoney(item.gross)} &minus; {item.discountLabel ?? "Desc."} {fmtMoney(item.discount)}
                         </span>
                       )}
                     </td>
                     <td className="py-1 text-center">{item.quantity}</td>
-                    <td className="py-1 text-right">{formatMoney(item.total)}</td>
+                    <td className="py-1 text-right">{fmtMoney(item.total)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -148,47 +149,47 @@ export function PosReceipt({ data }: Props) {
                 <>
                   <div className="flex justify-between">
                     <span className="font-bold">Precio original:</span>
-                    <span>{formatMoney(data.totals.gross)}</span>
+                    <span>{fmtMoney(data.totals.gross)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="font-bold">Desc. exenci&oacute;n IVA:</span>
-                    <span>-{formatMoney(data.totals.exemptionDiscount)}</span>
+                    <span>-{fmtMoney(data.totals.exemptionDiscount)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="font-bold">Subtotal:</span>
-                    <span>{formatMoney(data.totals.subtotal)}</span>
+                    <span>{fmtMoney(data.totals.subtotal)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="font-bold">IVA:</span>
-                    <span>{formatMoney(0)}</span>
+                    <span>{fmtMoney(0)}</span>
                   </div>
                 </>
               ) : data.includeTax ? (
                 <>
                   <div className="flex justify-between">
                     <span className="font-bold">Subtotal:</span>
-                    <span>{formatMoney(data.totals.subtotal)}</span>
+                    <span>{fmtMoney(data.totals.subtotal)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="font-bold">IVA:</span>
-                    <span>{formatMoney(data.totals.taxAmount)}</span>
+                    <span>{fmtMoney(data.totals.taxAmount)}</span>
                   </div>
                 </>
               ) : (
                 <div className="flex justify-between">
                   <span className="font-bold">Subtotal:</span>
-                  <span>{formatMoney(data.totals.subtotal)}</span>
+                  <span>{fmtMoney(data.totals.subtotal)}</span>
                 </div>
               )}
               {data.totals.discount > 0 && (
                 <div className="flex justify-between">
                   <span className="font-bold">Descuentos aplicados:</span>
-                  <span>-{formatMoney(data.totals.discount)}</span>
+                  <span>-{fmtMoney(data.totals.discount)}</span>
                 </div>
               )}
               <div className="flex justify-between text-base border-t border-black pt-1 mt-1">
                 <span className="font-bold">Total:</span>
-                <span className="font-bold">{formatMoney(data.totals.total)}</span>
+                <span className="font-bold">{fmtMoney(data.totals.total)}</span>
               </div>
             </div>
 
@@ -202,19 +203,19 @@ export function PosReceipt({ data }: Props) {
               {data.payments.map((p, i) => (
                 <div key={i} className="flex justify-between pl-2">
                   <span>{p.label}</span>
-                  <span>{formatMoney(p.amount)}</span>
+                  <span>{fmtMoney(p.amount)}</span>
                 </div>
               ))}
               {data.tendered != null && (
                 <div className="flex justify-between">
                   <span className="font-bold">Recibido:</span>
-                  <span>{formatMoney(data.tendered)}</span>
+                  <span>{fmtMoney(data.tendered)}</span>
                 </div>
               )}
               {data.tendered != null && (
                 <div className="flex justify-between">
                   <span className="font-bold">Cambio:</span>
-                  <span>{formatMoney(data.change)}</span>
+                  <span>{fmtMoney(data.change)}</span>
                 </div>
               )}
             </div>

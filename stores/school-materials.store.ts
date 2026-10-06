@@ -96,7 +96,7 @@ export const useSchoolMaterialsStore = create<SchoolMaterialsState>((set, get) =
     try {
       let file: NewMaterialFileInput | null = null;
       if (input.kind === "file") {
-        if (!input.file) throw new Error("Seleccioná un archivo para subir.");
+        if (!input.file) throw new Error("Selecciona un archivo para subir.");
         file = await schoolMaterialsService.uploadMaterialFile(input.file);
       }
       await schoolMaterialsService.createMaterial({
