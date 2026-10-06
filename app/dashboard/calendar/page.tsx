@@ -28,6 +28,11 @@ const MONTHS_ES = [
   "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
 ];
 const DAYS_SHORT = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+/** Encabezados de la grilla: la semana arranca en lunes. */
+const WEEK_HEADERS = [1, 2, 3, 4, 5, 6, 0].map((day) => DAYS_SHORT[day]);
+
+/** Posición de un día dentro de la semana, con el lunes en 0 (`getDay()` da domingo = 0). */
+const mondayIndex = (date: Date) => (date.getDay() + 6) % 7;
 
 /**
  * La clave de un día en la grilla. Va por el reloj local: la grilla se arma con
@@ -37,7 +42,7 @@ const DAYS_SHORT = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 const formatDate = toISODate;
 
 function getMonthGrid(year: number, month: number) {
-  const firstDay = new Date(year, month, 1).getDay();
+  const firstDay = mondayIndex(new Date(year, month, 1));
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const daysInPrev = new Date(year, month, 0).getDate();
   const cells: { day: number; date: string; isCurrentMonth: boolean }[] = [];
@@ -69,7 +74,7 @@ function getMonthGrid(year: number, month: number) {
 
 function getWeekDays(date: Date) {
   const start = new Date(date);
-  start.setDate(start.getDate() - start.getDay());
+  start.setDate(start.getDate() - mondayIndex(start));
   const days: { day: number; date: string; dayName: string }[] = [];
   for (let i = 0; i < 7; i++) {
     const d = new Date(start);
@@ -432,11 +437,11 @@ function CalendarContent() {
         <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-3xl shadow-sm overflow-hidden">
           {/* Day headers */}
           <div className="grid grid-cols-7 border-b border-outline-variant/10 bg-surface-container/50">
-            {DAYS_SHORT.map((day, i) => (
+            {WEEK_HEADERS.map((day, i) => (
               <div
                 key={day}
                 className={`p-3 text-center text-xs font-bold tracking-wider uppercase ${
-                  i === 0 || i === 6
+                  i >= 5
                     ? "text-on-surface-variant/50"
                     : "text-on-surface-variant"
                 }`}
