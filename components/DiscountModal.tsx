@@ -30,7 +30,7 @@ type DiscountMode = "percent" | "amount";
  * deja al cajero buscándolo. El dueño y el administrador del negocio
  * (`isWorker === false`) siempre pueden. Es UX: el gate real está en
  * `create_sale`, que recibe esta parte como `p_manual_discount` y rechaza con
- * SIN_PERMISO_DESCUENTO (migración 20261006230000).
+ * SIN_PERMISO_DESCUENTO (migración 20261006224422).
  */
 export function DiscountModal({ onClose }: DiscountModalProps) {
   const profile = useProfile();

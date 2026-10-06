@@ -209,7 +209,7 @@ export interface SaleReceiptInput {
  * Lo que la base NO guarda no se inventa:
  * - el descuento por línea sale de `sale_items.discount_amount` solo si cuadra
  *   con `sales.discount_amount` (`savedLineDiscounts`). Las ventas anteriores a
- *   la migración 20261006230000 —o la base sin aplicarla— no lo tienen: sus
+ *   la migración 20261006224422 —o la base sin aplicarla— no lo tienen: sus
  *   líneas salen a precio lleno y el descuento va en los totales. El motivo
  *   (nombre de la oferta) no se guarda, así que no se imprime;
  * - el efectivo recibido sale de `sales.amount_tendered` y el cambio se

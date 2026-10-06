@@ -603,7 +603,7 @@ function isMissingColumn(error: { code?: string } | null): boolean {
 /**
  * Efectivo recibido y descuento por línea de una venta guardada.
  *
- * Tolerante a que la migración 20261006230000 todavía no esté aplicada: sin
+ * Tolerante a que la migración 20261006224422 todavía no esté aplicada: sin
  * las columnas devuelve nulls y el recibo se imprime como siempre. Cualquier
  * otro error también degrada a null — el comprobante no se puede caer por un
  * dato accesorio.

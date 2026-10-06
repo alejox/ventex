@@ -461,7 +461,7 @@ export async function createSale(input: CheckoutInput): Promise<string> {
   ) => PromiseLike<{ data: unknown; error: { code?: string; message: string } | null }>;
 
   // Si la base todavía no tiene `p_manual_discount`/`p_amount_tendered`
-  // (migración 20261006230000 sin aplicar), repite con la firma vieja — mismo
+  // (migración 20261006224422 sin aplicar), repite con la firma vieja — mismo
   // patrón que `voidSale`. La cola offline pasa por acá también, así que una
   // venta encolada se reenvía bien contra cualquiera de las dos bases.
   const { saleId, legacy } = await createSaleWithFallback(

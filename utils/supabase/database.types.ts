@@ -1867,6 +1867,7 @@ export type Database = {
           commission_amount: number
           commission_settlement_id: string | null
           created_at: string
+          discount_amount: number
           id: string
           line_total: number
           product_id: string | null
@@ -1885,6 +1886,7 @@ export type Database = {
           commission_amount?: number
           commission_settlement_id?: string | null
           created_at?: string
+          discount_amount?: number
           id?: string
           line_total: number
           product_id?: string | null
@@ -1903,6 +1905,7 @@ export type Database = {
           commission_amount?: number
           commission_settlement_id?: string | null
           created_at?: string
+          discount_amount?: number
           id?: string
           line_total?: number
           product_id?: string | null
@@ -1998,6 +2001,7 @@ export type Database = {
       }
       sales: {
         Row: {
+          amount_tendered: number | null
           card_method: string | null
           client_sale_id: string | null
           created_at: string
@@ -2021,6 +2025,7 @@ export type Database = {
           voided_by: string | null
         }
         Insert: {
+          amount_tendered?: number | null
           card_method?: string | null
           client_sale_id?: string | null
           created_at?: string
@@ -2044,6 +2049,7 @@ export type Database = {
           voided_by?: string | null
         }
         Update: {
+          amount_tendered?: number | null
           card_method?: string | null
           client_sale_id?: string | null
           created_at?: string
@@ -3799,6 +3805,7 @@ export type Database = {
       }
       create_sale: {
         Args: {
+          p_amount_tendered?: number
           p_card_method?: string
           p_client_sale_id?: string
           p_customer_id: string
@@ -3807,6 +3814,7 @@ export type Database = {
           p_expected_shift_id?: string
           p_expected_workspace_id?: string
           p_items: Json
+          p_manual_discount?: number
           p_payment_method: string
           p_payments?: Json
           p_staff_id?: string

@@ -9,7 +9,7 @@
  * Por qué existe: `p_discount_amount` es la SUMA de cuatro canales —descuento
  * manual (DiscountModal), ofertas automáticas, premio de cortes y puntos— y la
  * base no podía distinguirlos. Desde la migración
- * `20261006230000_create_sale_manual_discount_and_tendered.sql` el POS declara
+ * `20261006224422_create_sale_manual_discount_and_tendered.sql` el POS declara
  * qué parte es MANUAL (`p_manual_discount`, que a un trabajador le exige el
  * permiso `pos_discount`), manda el descuento de cada línea (`discount_amount`
  * dentro de cada item, para reimprimir el recibo tal cual) y el efectivo

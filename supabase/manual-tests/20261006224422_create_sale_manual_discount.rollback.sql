@@ -1,4 +1,4 @@
--- PRUEBA SIN PERSISTIR de 20261006230000_create_sale_manual_discount_and_tendered.sql
+-- PRUEBA SIN PERSISTIR de 20261006224422_create_sale_manual_discount_and_tendered.sql
 --
 -- Todo corre dentro de UN bloque DO que termina SIEMPRE en `raise exception`:
 -- la excepción aborta la transacción entera (DDL de la migración, usuario y
@@ -149,7 +149,7 @@ alter table public.sale_items
   check (discount_amount >= 0 and discount_amount <= line_total);
 
 comment on column public.sale_items.discount_amount is
-  'Descuento de ESTA línea (oferta, premio, puntos o manual), ya incluido en sales.discount_amount. 0 en ventas anteriores a 20261006230000: el descuento de esas ventas solo existe a nivel venta.';
+  'Descuento de ESTA línea (oferta, premio, puntos o manual), ya incluido en sales.discount_amount. 0 en ventas anteriores a 20261006224422: el descuento de esas ventas solo existe a nivel venta.';
 
 alter table public.sales
   add column if not exists amount_tendered numeric(12,2);
