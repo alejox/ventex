@@ -5,9 +5,7 @@ import { Select } from "@/components/ui/Select";
 import { COLOMBIA_TRANSFER_METHODS } from "@/config/transferMethods";
 import { COLOMBIA_CARD_METHODS } from "@/config/cardMethods";
 import type { PaymentMethod, PaymentSplit, SaleTotals, CartLine } from "@/services/pos.service";
-
-const money = (n: number) =>
-  n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+import { formatMoney } from "@/lib/money";
 
 const QUICK_AMOUNTS = [2000, 5000, 10000, 20000, 50000, 100000];
 
@@ -80,6 +78,11 @@ interface CheckoutModalProps {
   submitting: boolean;
   amountTendered: string;
   setAmountTendered: (v: string | ((prev: string) => string)) => void;
+  /**
+   * Por qué NO se cobró el último intento. Se muestra acá y no solo arriba del
+   * catálogo: en el celular esa caja queda tapada por el carrito.
+   */
+  error?: string | null;
   onConfirm: () => void;
   onClose: () => void;
 }
@@ -106,6 +109,7 @@ export function CheckoutModal({
   submitting,
   amountTendered,
   setAmountTendered,
+  error = null,
   onConfirm,
   onClose,
 }: CheckoutModalProps) {
@@ -184,7 +188,7 @@ export function CheckoutModal({
             <div className="flex justify-between items-baseline gap-3 border-t border-outline-variant/10 pt-2.5 mt-2">
               <span className="text-sm font-semibold text-on-surface shrink-0">Total</span>
               <span className="text-lg sm:text-xl font-bold text-on-surface tabular-nums tracking-tight truncate">
-                ${money(totals.total)}
+                {formatMoney(totals.total)}
               </span>
             </div>
           </div>
@@ -281,15 +285,15 @@ export function CheckoutModal({
 
                 <div className="flex justify-between items-center pt-2 border-t border-outline-variant/10">
                   <span className="text-[11px] text-on-surface-variant">
-                    Pagado: ${money(splitsSum)} / ${money(totals.total)}
+                    Pagado: {formatMoney(splitsSum)} / {formatMoney(totals.total)}
                   </span>
                   {!splitsMatch && splitsSum < totals.total ? (
                     <span className="text-[11px] font-semibold text-error">
-                      Restan ${money(totals.total - splitsSum)}
+                      Restan {formatMoney(totals.total - splitsSum)}
                     </span>
                   ) : !splitsMatch ? (
                     <span className="text-[11px] font-semibold text-error">
-                      Sobran ${money(splitsSum - totals.total)}
+                      Sobran {formatMoney(splitsSum - totals.total)}
                     </span>
                   ) : (
                     <span className="text-[11px] font-semibold text-success">Completo &check;</span>
@@ -391,7 +395,7 @@ export function CheckoutModal({
                     onClick={() => quickAdd(amount)}
                     className="py-2 rounded-xl text-xs font-bold border border-outline-variant/20 text-on-surface-variant hover:border-primary/30 hover:text-on-surface transition-colors"
                   >
-                    ${money(amount)}
+                    {formatMoney(amount)}
                   </button>
                 ))}
               </div>
@@ -430,14 +434,31 @@ export function CheckoutModal({
                     }`}
                   >
                     {change >= 0
-                      ? `$${money(change)}`
-                      : `Faltan $${money(Math.abs(change))}`}
+                      ? formatMoney(change)
+                      : `Faltan ${formatMoney(Math.abs(change))}`}
                   </span>
                 </div>
               )}
             </div>
           )}
         </div>
+
+        {error && (
+          <div
+            role="alert"
+            className="shrink-0 mx-5 mb-2 flex items-start gap-2 rounded-xl border border-error/30 bg-error/10 px-3.5 py-2.5 text-sm text-error"
+          >
+            <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true">
+              <circle cx="12" cy="12" r="9" />
+              <path d="M12 8v5" />
+              <path d="M12 16.5h.01" />
+            </svg>
+            <div className="min-w-0">
+              <p className="font-semibold">No se pudo cobrar</p>
+              <p className="break-words">{error}</p>
+            </div>
+          </div>
+        )}
 
         <div className="shrink-0 px-5 pb-5 pt-2 flex gap-3 border-t border-outline-variant/10">
           <button
@@ -477,7 +498,7 @@ export function CheckoutModal({
               <>
                 <span className="whitespace-nowrap">Confirmar venta</span>
                 <span className="tabular-nums whitespace-nowrap">
-                  ${money(totals.total)}
+                  {formatMoney(totals.total)}
                 </span>
               </>
             )}

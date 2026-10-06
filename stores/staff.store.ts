@@ -7,6 +7,7 @@ import type {
   NewStaffInput,
   CommissionRow,
   CommissionPeriod,
+  CommissionScope,
   CommissionSettlement,
   ServicesByStaff,
   SettleCommissionsInput,
@@ -39,6 +40,12 @@ interface StaffState {
 
   commissions: CommissionRow[];
   commissionsLoading: boolean;
+  /**
+   * Qué alcance tienen las `commissions` cargadas. Liquidar o anular relee con
+   * ESTE alcance: releer con otro dejaba la tabla mostrando un rango distinto
+   * del chip que el dueño tiene elegido.
+   */
+  commissionsScope: CommissionScope;
 
   /** Historial de liquidaciones del negocio. */
   settlements: CommissionSettlement[];
@@ -55,7 +62,8 @@ interface StaffState {
   fetchAccounts: () => Promise<void>;
   /** Nombra o quita al administrador del negocio (solo el dueño). */
   setAdmin: (accountId: string, isAdmin: boolean) => Promise<boolean>;
-  fetchCommissions: (period?: CommissionPeriod) => Promise<void>;
+  /** Sin argumento carga TODO lo pendiente (lo que se debe, sin límite de fecha). */
+  fetchCommissions: (scope?: CommissionScope) => Promise<void>;
   fetchSettlements: () => Promise<void>;
   fetchServicesReport: (period: CommissionPeriod) => Promise<void>;
 
@@ -88,8 +96,9 @@ interface StaffState {
 }
 
 let servicesReportRequest = 0;
+let commissionsRequest = 0;
 
-export const useStaffStore = create<StaffState>((set) => ({
+export const useStaffStore = create<StaffState>((set, get) => ({
   staff: [],
   // Arranca en `true`: el primer render es anterior al fetch del efecto, y con
   // `false` mostraba el estado vacío sobre datos que sí existen.
@@ -100,6 +109,7 @@ export const useStaffStore = create<StaffState>((set) => ({
   accountsLoading: false,
   commissions: [],
   commissionsLoading: false,
+  commissionsScope: { kind: "pending" },
   settlements: [],
   settlementsLoading: false,
   servicesReport: [],
@@ -128,12 +138,16 @@ export const useStaffStore = create<StaffState>((set) => ({
     }
   },
 
-  fetchCommissions: async (period) => {
-    set({ commissionsLoading: true });
+  fetchCommissions: async (scope = { kind: "pending" }) => {
+    const request = ++commissionsRequest;
+    set({ commissionsLoading: true, commissionsScope: scope });
     try {
-      const commissions = await staffService.fetchCommissions(period);
+      const commissions = await staffService.fetchCommissions(scope);
+      // Cambiar de chip rápido dispara dos consultas: gana la última pedida.
+      if (request !== commissionsRequest) return;
       set({ commissions, commissionsLoading: false });
     } catch (e) {
+      if (request !== commissionsRequest) return;
       set({ error: toMessage(e), commissionsLoading: false });
     }
   },
@@ -167,7 +181,7 @@ export const useStaffStore = create<StaffState>((set) => ({
     try {
       const id = await staffService.settleCommissions(input);
       const [commissions, settlements] = await Promise.all([
-        staffService.fetchCommissions(input.period),
+        staffService.fetchCommissions(get().commissionsScope),
         staffService.fetchSettlements(),
       ]);
       set({ commissions, settlements, submitting: false });
@@ -183,7 +197,7 @@ export const useStaffStore = create<StaffState>((set) => ({
     try {
       const result = await staffService.voidCommissionSettlement(settlementId);
       const [commissions, settlements] = await Promise.all([
-        staffService.fetchCommissions(),
+        staffService.fetchCommissions(get().commissionsScope),
         staffService.fetchSettlements(),
       ]);
       set({ commissions, settlements, submitting: false });

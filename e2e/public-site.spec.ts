@@ -67,8 +67,13 @@ test.describe("Configuración del sitio en el panel", () => {
 
   test("muestra las tres opciones de diseño", async ({ page }) => {
     await expect(page.getByRole("heading", { name: "Elegí una identidad" })).toBeVisible({ timeout: 15000 });
+    // Los diseños se agrupan por tipo de negocio en pestañas: Rasm y Fallspa
+    // son de "Salones" y Qutter de "Barberías". Solo se ve una pestaña a la vez.
+    const tipos = page.getByRole("tablist", { name: "Tipo de negocio" });
+    await tipos.getByRole("tab", { name: "Salones" }).click();
     await expect(page.getByRole("button", { name: /Rasm/ })).toBeVisible();
     await expect(page.getByRole("button", { name: /Fallspa/ })).toBeVisible();
+    await tipos.getByRole("tab", { name: "Barberías" }).click();
     await expect(page.getByRole("button", { name: /Qutter/ })).toBeVisible();
   });
 

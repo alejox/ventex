@@ -8,10 +8,9 @@ import { commissionPeriodOf, currentMonthPeriod } from "@/services/staff.service
 import { DataTable, type DataColumn } from "@/components/DataTable";
 import { CollectionEmpty, CollectionError, CollectionLoading } from "@/components/CollectionState";
 import { IconUsers } from "@/app/assets/icons/DashboardIcons";
+import { formatMoney } from "@/lib/money";
 
 const CATALOG_URL = "/dashboard/inventory";
-const money = (value: number) => value.toLocaleString("es-CO", { maximumFractionDigits: 2 });
-
 /** Counts completed service quantities separately from commission payments. */
 export default function ServicesActivityPage() {
   const servicesReport = useStaffStore((s) => s.servicesReport);
@@ -57,7 +56,7 @@ export default function ServicesActivityPage() {
   if (showDetails) columns.push(
     { header: "Ventas", align: "center", mobile: "detail", cell: (row) => row.ventas },
     { header: "Clientes estimados", align: "center", mobile: "detail", cell: (row) => row.clientes },
-    { header: "Valor antes de descuentos", align: "right", mobile: "detail", className: "pr-6 tabular-nums", headerClassName: "pr-6", cell: (row) => `$${money(row.vendido)}` },
+    { header: "Valor antes de descuentos", align: "right", mobile: "detail", className: "pr-6 tabular-nums", headerClassName: "pr-6", cell: (row) => formatMoney(row.vendido) },
   );
 
   return (

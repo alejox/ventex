@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { tryLogin } from "./helpers/auth";
+import { pickCombo } from "./helpers/select";
 
 /**
  * Los servicios dejaron de tener pantalla propia: viven en el catálogo, junto a
@@ -25,8 +26,9 @@ test.describe("Servicios (dentro del catálogo)", () => {
   test("el catálogo se puede filtrar solo por servicios", async ({ page }) => {
     await page.goto("/dashboard/inventory");
     await page.waitForLoadState("networkidle");
-    await page.getByLabel("Filtrar por tipo").selectOption("service");
-    await expect(page.getByLabel("Filtrar por tipo")).toHaveValue("service");
+    // Filtro = <Select> custom (combobox), no <select> nativo.
+    await pickCombo(page, "Filtrar por tipo", "Servicios");
+    await expect(page.getByRole("combobox", { name: "Filtrar por tipo" })).toHaveText(/Servicios/);
   });
 
   test("el alta de servicio abre en la pestaña Servicio", async ({ page }) => {
@@ -43,7 +45,9 @@ test.describe("Servicios (dentro del catálogo)", () => {
     await page.waitForLoadState("networkidle");
     await expect(page.getByRole("heading", { name: "Nuevo Servicio" })).toBeVisible({ timeout: 15000 });
     // Un servicio no se inventaría: ni stock, ni SKU, ni código de barras.
-    await expect(page.getByText("Imagen del Producto")).toHaveCount(0);
+    // (La FOTO sí se pide a propósito: un servicio también se muestra en el
+    // catálogo/POS con imagen — ver el comentario sobre <ProductImageUpload>
+    // en app/dashboard/inventory/product/page.tsx.)
     await expect(page.getByLabel(/^SKU/)).toHaveCount(0);
     await expect(page.getByText("Presentación y stock inicial")).toHaveCount(0);
   });
@@ -59,7 +63,15 @@ test.describe("Servicios (dentro del catálogo)", () => {
   test("el toggle de servicio activo funciona", async ({ page }) => {
     await page.goto("/dashboard/inventory/product?type=servicio");
     await page.waitForLoadState("networkidle");
-    const activeToggle = page.getByText("Servicio Activo").locator("..").getByRole("button");
+    // El interruptor es un <button> sin nombre accesible, hermano del bloque
+    // de texto "Servicio Activo": se ubica por la fila que contiene ese texto.
+    const activeToggle = page
+      .locator("div")
+      .filter({ has: page.getByText("Servicio Activo", { exact: true }) })
+      .filter({ has: page.getByText("Disponible para agendar y cobrar.") })
+      .filter({ has: page.locator(":scope > button") })
+      .last()
+      .locator(":scope > button");
     await expect(activeToggle).toBeVisible({ timeout: 15000 });
     await activeToggle.click();
   });
@@ -67,7 +79,7 @@ test.describe("Servicios (dentro del catálogo)", () => {
   test("un servicio del catálogo se edita por ?serviceId=", async ({ page }) => {
     await page.goto("/dashboard/inventory");
     await page.waitForLoadState("networkidle");
-    await page.getByLabel("Filtrar por tipo").selectOption("service");
+    await pickCombo(page, "Filtrar por tipo", "Servicios");
     const editLink = page.getByTitle("Editar servicio").first();
     if (await editLink.isVisible()) {
       await editLink.click();

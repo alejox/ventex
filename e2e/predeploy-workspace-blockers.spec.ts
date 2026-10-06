@@ -2,30 +2,19 @@ import { expect, test } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-const migration = readFileSync(
-  resolve(
-    process.cwd(),
-    "supabase/migrations/20260730233000_multi_workspace_memberships.sql",
-  ),
-  "utf8",
-);
-const workspaceChooser = readFileSync(
-  resolve(process.cwd(), "components/WorkspaceChooser.tsx"),
-  "utf8",
-);
-const workspaceStore = readFileSync(
-  resolve(process.cwd(), "stores/workspace.store.ts"),
-  "utf8",
-);
-const workspaceService = readFileSync(
-  resolve(process.cwd(), "services/workspace.service.ts"),
-  "utf8",
-);
-const proxy = readFileSync(resolve(process.cwd(), "proxy.ts"), "utf8");
-const dashboardLayout = readFileSync(
-  resolve(process.cwd(), "app/dashboard/layout.tsx"),
-  "utf8",
-);
+// Con `core.autocrlf=true` (el default de Git en Windows) los archivos se
+// materializan con CRLF aunque el repo los guarde con LF. Las aserciones de
+// abajo buscan fragmentos de varias líneas escritos con "\n": sin normalizar,
+// fallan en Windows y pasan en Linux/CI por un motivo ajeno a lo que prueban.
+const readSource = (path: string) =>
+  readFileSync(resolve(process.cwd(), path), "utf8").replace(/\r\n/g, "\n");
+
+const migration = readSource("supabase/migrations/20260730233000_multi_workspace_memberships.sql");
+const workspaceChooser = readSource("components/WorkspaceChooser.tsx");
+const workspaceStore = readSource("stores/workspace.store.ts");
+const workspaceService = readSource("services/workspace.service.ts");
+const proxy = readSource("proxy.ts");
+const dashboardLayout = readSource("app/dashboard/layout.tsx");
 
 test.describe("Workspace pre-deployment blockers", () => {
   test("counts the cash component of split sales exactly once in shift totals", () => {
@@ -101,10 +90,7 @@ test.describe("Workspace pre-deployment blockers", () => {
   });
 
   test("scopes notification reads and acknowledgements to the selected owner workspace", () => {
-    const service = readFileSync(
-      resolve(process.cwd(), "services/notifications.service.ts"),
-      "utf8",
-    );
+    const service = readSource("services/notifications.service.ts");
 
     expect(migration).toContain("workspace_notifications_read");
     expect(migration).toContain("workspace_notifications_acknowledge");

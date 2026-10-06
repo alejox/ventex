@@ -21,6 +21,7 @@ import { toISODate, formatDateOnly } from "@/lib/date";
 import { formatAppointmentTime, type TimeFormat } from "@/lib/time";
 import { DateTimeField } from "./DateTimeField";
 import { conflictsFor, pickStaff, type BusyAppointment } from "@/lib/appointment-availability";
+import { formatMoney } from "@/lib/money";
 
 /**
  * Mensaje de confirmación ya redactado para el cliente.
@@ -88,9 +89,6 @@ const PAYMENT_OPTIONS: { value: AppointmentPaymentMethod; label: string }[] = [
   { value: "tarjeta", label: "Tarjeta" },
   { value: "transferencia", label: "Transferencia" },
 ];
-
-const money = (n: number) =>
-  n.toLocaleString("es-CO", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 
 /** Estado inicial del formulario: la cita que se edita, o una nueva sembrada. */
 function buildInitialForm(
@@ -289,12 +287,20 @@ function AppointmentModalBody({
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showChargeConfirm, setShowChargeConfirm] = useState(false);
+  const [showCompleteConfirm, setShowCompleteConfirm] = useState(false);
   const [showOpenShift, setShowOpenShift] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<AppointmentPaymentMethod>("efectivo");
   const [chargeError, setChargeError] = useState("");
 
   const handleStatusChange = async (status: string) => {
     if (!appointment || status === liveStatus) return;
+    // Completar una cita con servicio y sin venta la cierra sin plata ni
+    // comisión: se pregunta antes, porque casi siempre lo que se quería era cobrar.
+    if (status === "completed" && appointment.service_id && !liveSaleId && !showCompleteConfirm) {
+      setShowCompleteConfirm(true);
+      return;
+    }
+    setShowCompleteConfirm(false);
     const ok = await updateStatus(appointment.id, status);
     if (ok) {
       const label = STATUS_OPTIONS.find((o) => o.value === status)?.label ?? status;
@@ -314,7 +320,8 @@ function AppointmentModalBody({
     !!appointment &&
     !!appointment.service_id &&
     !liveSaleId &&
-    liveStatus !== "completed" &&
+    // Una cita completada SIN venta (alguien tocó "Marcar completada") sigue
+    // cobrable: si no, el servicio quedaba hecho y nunca se registraba la plata.
     liveStatus !== "cancelled";
 
   const chargedService = appointment?.service_id
@@ -394,6 +401,7 @@ function AppointmentModalBody({
     if (event.key === "Escape") {
       event.preventDefault();
       if (showDeleteConfirm) setShowDeleteConfirm(false);
+      else if (showCompleteConfirm) setShowCompleteConfirm(false);
       else if (showChargeConfirm) setShowChargeConfirm(false);
       else if (!busy) onClose();
       return;
@@ -453,6 +461,8 @@ function AppointmentModalBody({
           {/* Customer */}
           <Select
             label="Cliente"
+            searchable
+            searchPlaceholder="Buscar cliente…"
             value={form.customer_id || ""}
             onChange={(e) =>
               setForm({
@@ -515,7 +525,7 @@ function AppointmentModalBody({
                 setForm({ ...form, staff_id: e.target.value || null })
               }
             >
-                <option value="">Sin asignar</option>
+                <option value="">Asignar automáticamente (quien esté libre)</option>
                 {activeStaff.map((m) => (
                   <option key={m.id} value={m.id}>
                     {m.full_name}
@@ -658,7 +668,7 @@ function AppointmentModalBody({
               </button>
               {liveStatus === "pending" ? <button type="button" disabled={busy} onClick={() => void confirmPending()} className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary disabled:opacity-50">Confirmar reserva</button>
                 : canCharge && <button type="button" disabled={busy || dirty} onClick={startCharge} title={dirty ? "Guardá los cambios antes de cobrar" : undefined} className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary disabled:opacity-50">
-                  {chargedService ? `Cobrar $${money(chargedService.price)}` : "Cobrar"}
+                  {chargedService ? `Cobrar ${formatMoney(chargedService.price)}` : "Cobrar"}
                 </button>}
             </div>
           </div>
@@ -693,6 +703,34 @@ function AppointmentModalBody({
         </div>
       )}
 
+      {showCompleteConfirm && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div role="alertdialog" aria-modal="true" aria-labelledby="complete-confirm-title" className="bg-surface-container rounded-3xl w-full max-w-sm border border-outline-variant/10 shadow-2xl p-6 text-center animate-in zoom-in-95 duration-200">
+            <h3 id="complete-confirm-title" className="text-lg font-bold text-on-surface mb-2">¿Completar sin cobrar?</h3>
+            <p className="text-sm text-on-surface-variant mb-6">
+              No se generará venta ni comisión. Si el cliente ya pagó, usa «Cobrar» en su lugar.
+            </p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowCompleteConfirm(false)}
+                className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold text-on-surface-variant hover:bg-surface-container-highest transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleStatusChange("completed")}
+                disabled={busy}
+                className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold bg-surface-container-high text-on-surface hover:bg-surface-container-highest transition-colors disabled:opacity-50"
+              >
+                Completar sin cobrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showChargeConfirm && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-surface-container rounded-3xl w-full max-w-sm border border-outline-variant/10 shadow-2xl p-6 text-center animate-in zoom-in-95 duration-200">
@@ -703,7 +741,7 @@ function AppointmentModalBody({
             </p>
             {chargedService && (
               <p className="text-3xl font-bold text-on-surface tabular-nums mb-4">
-                ${money(chargedService.price)}
+                {formatMoney(chargedService.price)}
               </p>
             )}
 

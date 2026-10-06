@@ -13,9 +13,7 @@ import { formatDateOnly } from "@/lib/date";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { StatusChangeModal } from "./components/StatusChangeModal";
 import { CollectionEmpty, CollectionError, CollectionFilteredEmpty, CollectionLoading } from "@/components/CollectionState";
-
-const money = (n: number) =>
-  "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+import { formatMoney } from "@/lib/money";
 
 const STATUS_LABEL: Record<string, string> = {
   paid: "Pagada",
@@ -94,16 +92,17 @@ export default function PurchasesPage() {
       align: "right",
       mobile: "trailing",
       className: "font-semibold text-on-surface font-mono",
-      cell: (inv) => money(Number(inv.total)),
+      cell: (inv) => formatMoney(Number(inv.total)),
     },
     /**
      * Estado es solo lectura: cambiarlo se hace desde Acciones, con confirmación.
      *
      * Antes era un `<select>` acá mismo, y eso mezclaba dos cosas de peso muy
      * distinto en el mismo control: Pagada/Pendiente es una etiqueta, pero
-     * "Anulada" devuelve el stock al inventario. Peor todavía, por el `<select>`
-     * la anulación pasaba como un `update` de la columna nada más, sin devolver
-     * nada — y el camino inverso dejaba el stock restado para siempre.
+     * "Anulada" descuenta del inventario lo que entró con la compra. Peor
+     * todavía, por el `<select>` la anulación pasaba como un `update` de la
+     * columna nada más, sin descontar nada — y el camino inverso dejaba el
+     * stock restado para siempre.
      */
     {
       header: "Estado",
@@ -139,12 +138,12 @@ export default function PurchasesPage() {
     {
       header: "Fecha",
       className: "text-on-surface-variant",
-      cell: (inv) => formatDateOnly(inv.issue_date, {}, "es-ES"),
+      cell: (inv) => formatDateOnly(inv.issue_date, {}, "es-CO"),
     },
     {
       header: "Vencimiento",
       className: "text-on-surface-variant",
-      cell: (inv) => (inv.due_date ? formatDateOnly(inv.due_date, {}, "es-ES") : "—"),
+      cell: (inv) => (inv.due_date ? formatDateOnly(inv.due_date, {}, "es-CO") : "—"),
     },
     {
       header: "Acción",
@@ -198,7 +197,7 @@ export default function PurchasesPage() {
               type="button"
               onClick={() => setCancelConfirmId(inv.id)}
               className="w-11 h-11 lg:w-8 lg:h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:text-error hover:bg-error/10 transition-colors"
-              title="Anular y devolver stock"
+              title="Anular y descontar del inventario"
               aria-label={`Anular la factura #${inv.invoice_number}`}
             >
               <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-4 h-4">
@@ -320,7 +319,7 @@ export default function PurchasesPage() {
             title={`Anular compra #${inv?.invoice_number ?? ""}`}
             description={
               <>
-                <p>Se devolverá el stock de todos los productos al inventario.</p>
+                <p>Se descontarán del inventario las unidades que entraron con esta compra.</p>
                 <p className="font-semibold text-error">
                   Esta acción no se puede deshacer. Una compra anulada no vuelve a Pagada ni a Pendiente: si
                   fue un error, registra una compra nueva.

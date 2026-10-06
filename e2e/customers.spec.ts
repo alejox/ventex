@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { tryLogin } from "./helpers/auth";
+import { pickCombo } from "./helpers/select";
 
 test.describe("Clientes", () => {
   test.beforeEach(async ({ page }) => {
@@ -38,13 +39,14 @@ test.describe("Clientes", () => {
 
   test("cambia el tipo de documento", async ({ page }) => {
     await page.getByRole("button", { name: "Añadir Cliente" }).click();
-    await page.waitForTimeout(500);
 
-    const docTypeSelect = page.getByRole("combobox").first();
-    if (await docTypeSelect.isVisible()) {
-      await docTypeSelect.selectOption("NIT");
-      await expect(docTypeSelect).toHaveValue("NIT");
-    }
+    // El tipo de documento es el <Select> custom de la plataforma
+    // (components/ui/Select.tsx): un combobox con lista portada, no un
+    // <select> nativo, así que `selectOption` no aplica.
+    const docType = page.getByRole("combobox", { name: "Tipo de documento" });
+    await expect(docType).toBeVisible({ timeout: 5000 });
+    await pickCombo(page, "Tipo de documento", "NIT");
+    await expect(docType).toHaveText(/NIT/);
   });
 
   test("toggle de exento de impuestos funciona", async ({ page }) => {

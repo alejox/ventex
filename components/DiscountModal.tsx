@@ -9,6 +9,7 @@ import {
   MAX_DISCOUNT_PERCENT,
 } from "@/services/pos.service";
 import { backdropProps } from "@/components/modal";
+import { formatMoney } from "@/lib/money";
 
 interface DiscountModalProps {
   onClose: () => void;
@@ -154,7 +155,7 @@ export function DiscountModal({ onClose }: DiscountModalProps) {
                     />
                     <div>
                       <p className="text-sm font-medium text-on-surface">{line.item.name}</p>
-                      <p className="text-xs text-on-surface-variant">${(line.item.price * line.quantity).toLocaleString('es-CO')}</p>
+                      <p className="text-xs text-on-surface-variant">{formatMoney(line.item.price * line.quantity)}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3 text-right">
@@ -162,12 +163,12 @@ export function DiscountModal({ onClose }: DiscountModalProps) {
                       <span title="Este ítem ya tiene descuento">⚠️</span>
                     )}
                     <div>
-                      <p className="text-sm font-bold text-on-surface">${(line.item.price * line.quantity).toLocaleString('es-CO')}</p>
+                      <p className="text-sm font-bold text-on-surface">{formatMoney(line.item.price * line.quantity)}</p>
                       {isSelected && newDiscountAmount > 0 && (
-                        <p className="text-xs font-medium text-error">-${newDiscountAmount.toLocaleString('es-CO')}</p>
+                        <p className="text-xs font-medium text-error">-{formatMoney(newDiscountAmount)}</p>
                       )}
                       {!isSelected && hasExistingDiscount && (
-                        <p className="text-xs font-medium text-error">-${(line.discountAmount!).toLocaleString('es-CO')}</p>
+                        <p className="text-xs font-medium text-error">-{formatMoney(line.discountAmount!)}</p>
                       )}
                     </div>
                   </div>

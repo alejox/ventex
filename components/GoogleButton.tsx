@@ -60,7 +60,11 @@ export function GoogleButton({ label = "Continuar con Google" }: { label?: strin
         )}
         <span>{label}</span>
       </button>
-      {error && <p className="text-[12px] text-error text-center">{error}</p>}
+      {error && (
+        <p role="alert" className="text-[12px] text-error text-center">
+          {error}
+        </p>
+      )}
     </div>
   );
 }

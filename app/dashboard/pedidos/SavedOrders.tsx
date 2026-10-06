@@ -8,6 +8,7 @@ import { CollectionLoading } from "@/components/CollectionState";
 import { DataTable, type DataColumn } from "@/components/DataTable";
 import { backdropProps } from "@/components/modal";
 import { IconTrash } from "@/app/assets/icons/DashboardIcons";
+import { formatMoney } from "@/lib/money";
 
 const STATUS_LABEL: Record<PurchaseOrderStatus, string> = {
   draft: "Borrador",
@@ -24,9 +25,6 @@ const STATUS_STYLE: Record<PurchaseOrderStatus, string> = {
   completed: "bg-primary/10 text-primary",
   cancelled: "bg-error-container/20 text-error-dim",
 };
-
-const money = (n: number) =>
-  n.toLocaleString("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 });
 
 function fecha(iso: string): string {
   return new Date(iso).toLocaleDateString("es-CO", {
@@ -147,7 +145,7 @@ export function SavedOrders({
       sortValue: (o) => totalOf(o),
       cell: (o) => (
         <span className="font-semibold text-on-surface tabular-nums whitespace-nowrap">
-          {money(totalOf(o))}
+          {formatMoney(totalOf(o))}
         </span>
       ),
     },
@@ -317,10 +315,10 @@ function OrderDetail({
                   )}
                 </div>
                 <span className="text-sm text-on-surface-variant tabular-nums shrink-0">
-                  {item.quantity} × {money(item.unit_price)}
+                  {item.quantity} × {formatMoney(item.unit_price)}
                 </span>
                 <span className="text-sm font-bold text-on-surface tabular-nums shrink-0 w-28 text-right">
-                  {money(item.quantity * item.unit_price)}
+                  {formatMoney(item.quantity * item.unit_price)}
                 </span>
               </li>
             ))}
@@ -331,7 +329,7 @@ function OrderDetail({
               Total · {unitsOf(order)} unidades
             </span>
             <span className="text-lg font-bold text-on-surface tabular-nums">
-              {money(totalOf(order))}
+              {formatMoney(totalOf(order))}
             </span>
           </div>
 

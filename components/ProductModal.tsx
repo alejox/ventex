@@ -13,6 +13,7 @@ import { usePricePair } from "@/lib/usePricePair";
 import { MoneyInput } from "@/components/ui/MoneyInput";
 import { Select } from "@/components/ui/Select";
 import { notifySuccess } from "@/lib/notifications";
+import { formatMoney } from "@/lib/money";
 
 /**
  * Alta RÁPIDA de un producto. Solo producto.
@@ -501,9 +502,9 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
                     <div className="pt-3 text-xs text-on-surface-variant">
                       {tax === "Ninguno"
                         ? "Sin IVA"
-                        : `${percentLabel} → $${(
-                            parseFloat(unitPrice.total || "0") - parseFloat(unitPrice.base || "0")
-                          ).toLocaleString("en-US", { maximumFractionDigits: 0 })}`}
+                        : `${percentLabel} → ${formatMoney(
+                            parseFloat(unitPrice.total || "0") - parseFloat(unitPrice.base || "0"),
+                          )}`}
                     </div>
                   </div>
                   <div className="pb-3 text-primary font-bold text-lg hidden sm:block">=</div>

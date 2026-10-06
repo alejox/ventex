@@ -1,5 +1,6 @@
 import { test, expect, Page } from "@playwright/test";
 import { login } from "./helpers/auth";
+import { ensureProduct } from "./helpers/catalog";
 
 /**
  * Cobro sin conexión en el POS.
@@ -15,11 +16,13 @@ import { login } from "./helpers/auth";
  * Ninguno de los dos escribe en la base: el primero porque no hay red, el
  * segundo porque el servidor rechaza.
  *
- * Requisito: el negocio de prueba tiene que tener un producto llamado como
- * PRODUCTO, con stock. Si no está, las specs se saltean.
+ * Requisito: el negocio de prueba necesita un producto llamado como PRODUCTO
+ * a $ 10.000. Si no está, `ensureProduct` lo crea por la UI (sin control de
+ * inventario, para que las ventas reales que hace el drenaje no lo agoten).
  */
 
 const PRODUCTO = "Producto E2E Offline";
+const PRECIO = 10000;
 
 const visible = (page: Page, texto: string | RegExp) =>
   page.getByText(texto).filter({ visible: true }).first();
@@ -56,6 +59,7 @@ async function leerCola(page: Page): Promise<Record<string, unknown>[]> {
 
 async function irAlPos(page: Page) {
   expect(await login(page)).toBe(true);
+  await ensureProduct(page, PRODUCTO, PRECIO);
   await page.goto("/dashboard/pos");
   await page.waitForLoadState("networkidle");
 
@@ -105,13 +109,14 @@ test("sin conexión la venta se encola y el carrito se limpia", async ({ page, c
     authUserId: string;
     workspaceId: string;
     membershipId: string;
+    shiftId: string | null;
     clientSaleId: string;
     attempts: number;
     input: {
       clientSaleId: string;
       workspaceId: string;
       membershipId: string;
-      shiftId: string;
+      shiftId: string | null;
       items: unknown[];
     };
   };
@@ -122,7 +127,10 @@ test("sin conexión la venta se encola y el carrito se limpia", async ({ page, c
   expect(pendiente.membershipId).toMatch(/^[0-9a-f-]{36}$/);
   expect(pendiente.input.workspaceId).toBe(pendiente.workspaceId);
   expect(pendiente.input.membershipId).toBe(pendiente.membershipId);
-  expect(pendiente.input.shiftId).toMatch(/^[0-9a-f-]{36}$/);
+  // El turno viaja congelado igual que el resto. Puede ser null: el dueño
+  // vende sin turno abierto (está exento), y la cuenta E2E es dueña.
+  expect(pendiente.input.shiftId).toBe(pendiente.shiftId);
+  if (pendiente.shiftId !== null) expect(pendiente.shiftId).toMatch(/^[0-9a-f-]{36}$/);
   // La misma clave adentro y afuera: es la que hace idempotente el reenvío.
   expect(pendiente.input.clientSaleId).toBe(pendiente.clientSaleId);
   expect(pendiente.input.items).toHaveLength(1);
@@ -292,7 +300,8 @@ test("la bandeja muestra la rechazada y 'intentar de nuevo' la recupera", async 
   await visible(page, /1 venta sin registrar/i).click();
   await expect(visible(page, /Ventas cobradas que no se registraron/i)).toBeVisible();
   // El monto congelado al cobrar, no recalculado: es contra esto que se cuadra.
-  await expect(visible(page, /\$10,000\.00/)).toBeVisible();
+  // Formato es-CO sin decimales, con espacio (no separable) tras el "$".
+  await expect(visible(page, /\$\s?10\.000(?![\d.,])/)).toBeVisible();
   await expect(visible(page, /STOCK_INSUFICIENTE/i)).toBeVisible();
 
   // Se repuso el stock: el reintento ahora sí entra.

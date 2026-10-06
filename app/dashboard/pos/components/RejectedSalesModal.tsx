@@ -2,9 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { usePosStore } from "@/stores/pos.store";
-
-const money = (n: number) =>
-  `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+import { formatMoney } from "@/lib/money";
 
 const cuando = (iso: string) =>
   new Date(iso).toLocaleString("es-CO", {
@@ -83,7 +81,7 @@ export function RejectedSalesModal({ onClose }: { onClose: () => void }) {
               >
                 <div className="flex items-baseline justify-between gap-3">
                   <span className="text-base font-bold text-on-surface tabular-nums">
-                    {money(venta.total)}
+                    {formatMoney(venta.total)}
                   </span>
                   <span className="text-[12px] text-on-surface-variant">
                     {cuando(venta.queuedAt)}

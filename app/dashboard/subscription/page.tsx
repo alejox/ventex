@@ -36,8 +36,6 @@ export default function SubscriptionPage() {
   const loadBilling = useSubscriptionBillingStore((s) => s.loadBilling);
   const claim = useSubscriptionBillingStore((s) => s.claim);
   const reconcile = useSubscriptionBillingStore((s) => s.reconcile);
-  const setRecurring = useSubscriptionBillingStore((s) => s.setRecurring);
-  const billingBusy = useSubscriptionBillingStore((s) => s.submitting);
   const billingError = useSubscriptionBillingStore((s) => s.error);
 
   const currency = settings?.currency ?? "COP";
@@ -116,7 +114,10 @@ export default function SubscriptionPage() {
       </div>
 
       {(error || billingError) && (
-        <div className="rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim mb-6">
+        <div
+          role="alert"
+          className="rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim mb-6"
+        >
           {error ?? billingError}
         </div>
       )}
@@ -134,13 +135,8 @@ export default function SubscriptionPage() {
             onPay={(p) => openPayment(subscription.plan_name, p)}
           />
 
-          {billing && (
-            <BillingCard
-              billing={billing}
-              currency={currency}
-              busy={billingBusy}
-              onToggleRecurring={(enabled) => void setRecurring(enabled).catch(() => {})}
-            />
+          {billing && (billing.lastPayment || billing.error) && (
+            <LastPaymentCard billing={billing} currency={currency} />
           )}
 
           <h2 className="text-lg font-bold text-on-surface mt-10 mb-4">Planes disponibles</h2>
@@ -159,7 +155,7 @@ export default function SubscriptionPage() {
               ))}
           </div>
           <p className="text-xs text-on-surface-variant mt-6 text-center">
-            Cambiá o renová tu plan pagando acá con Nequi, PSE, tarjeta o
+            Cambia o renueva tu plan pagando aquí con Nequi, PSE, tarjeta o
             efectivo. El cambio queda activo en el momento.
           </p>
         </>
@@ -239,12 +235,7 @@ function CurrentPlanCard({
         </span>
       </div>
 
-      {validity && (
-        <ValidityStrip
-          validity={validity}
-          recurring={Boolean(billing?.recurring)}
-        />
-      )}
+      {validity && <ValidityStrip validity={validity} />}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
         <UsageBar
@@ -264,12 +255,12 @@ function CurrentPlanCard({
       <div className="mt-8 pt-6 border-t border-outline-variant/10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <p className="text-sm text-on-surface-variant">
           {!canPayOnline
-            ? "¿Necesitás ayuda con tu cuenta? Escribinos y te atendemos."
+            ? "¿Necesitas ayuda con tu cuenta? Escríbenos y te atendemos."
             : validity?.tone === "expired"
-              ? "Renovalo ahora y recuperás el acceso completo en el momento."
+              ? "Renuévalo ahora y recuperas el acceso completo en el momento."
               : expiringSoon
-                ? "Renovalo ahora y los días que te quedan se suman al nuevo periodo."
-                : "Renová tu plan en línea con Nequi, PSE, tarjeta o efectivo."}
+                ? "Renuévalo ahora y los días que te quedan se suman al nuevo periodo."
+                : "Renueva tu plan en línea con Nequi, PSE, tarjeta o efectivo."}
         </p>
         {/* WhatsApp quedó SOLO para soporte: la renovación se paga acá. */}
         <div className="flex flex-wrap gap-3 shrink-0">
@@ -330,17 +321,15 @@ const VALIDITY_TONES = {
 } as const;
 
 /**
- * Vigencia del plan en el encabezado: hasta cuándo está pago, cuánto falta y
- * si se renueva solo. Es la respuesta a "pagué, ¿hasta cuándo tengo?", así que
- * va antes que el consumo del mes.
+ * Vigencia del plan en el encabezado: hasta cuándo está pago y cuánto falta.
+ * Es la respuesta a "pagué, ¿hasta cuándo tengo?", así que va antes que el
+ * consumo del mes.
+ *
+ * No hay rama "se renueva solo": el cobro recurrente no existe (ver
+ * `/api/billing/recurring`, un NO-OP documentado en AGENTS.md), así que todo
+ * plan pago vence en su fecha y se renueva a mano.
  */
-function ValidityStrip({
-  validity,
-  recurring,
-}: {
-  validity: PlanValidity;
-  recurring: boolean;
-}) {
+function ValidityStrip({ validity }: { validity: PlanValidity }) {
   const tone = VALIDITY_TONES[validity.tone];
 
   return (
@@ -377,12 +366,10 @@ function ValidityStrip({
 
       <p className="text-[13px] text-on-surface-variant leading-relaxed mt-3">
         {validity.tone === "expired"
-          ? "Tu plan venció. Renovalo para volver a usar todas las funciones."
-          : recurring
-            ? "Se renueva solo ese día con tu medio de pago guardado. No tenés que hacer nada."
-            : validity.daysLeft === 0
-              ? "Vence hoy: renovalo para no quedarte sin acceso mañana."
-              : "Después de esa fecha se corta el acceso. Si renovás antes, los días que te quedan se suman al nuevo periodo."}
+          ? "Tu plan venció. Renuévalo para volver a usar todas las funciones."
+          : validity.daysLeft === 0
+            ? "Vence hoy: renuévalo para no quedarte sin acceso mañana."
+            : "No se renueva solo: después de esa fecha se corta el acceso. Si renuevas antes, los días que te quedan se suman al nuevo periodo."}
       </p>
     </div>
   );
@@ -408,107 +395,52 @@ function CalendarIcon({ className }: { className?: string }) {
 }
 
 /**
- * Estado del cobro automático: cuándo se cobra, con qué se pagó la última vez y
- * el botón de baja.
- *
- * El cobro recurrente lo inicia el comercio, así que "dar de baja"
- * es dejar de cobrar: el plan sigue vivo hasta el fin del periodo ya pagado, y
- * eso es justo lo que dice el texto para que nadie crea que pierde los días que
- * pagó.
+ * Último pago registrado: monto, fecha y medio. Es lo único útil que queda de la
+ * vieja tarjeta de "Cobro automático", que mostraba "Desactivado" siempre y
+ * prometía una renovación automática que no existe (ePayco no ofrece cobro
+ * recurrente sin tokenizar la tarjeta; ver AGENTS.md → Subscription billing).
+ * La fecha de vencimiento ya está arriba, en el plan actual.
  */
-function BillingCard({
+function LastPaymentCard({
   billing,
   currency,
-  busy,
-  onToggleRecurring,
 }: {
   billing: BillingStatus;
   currency: string;
-  busy: boolean;
-  onToggleRecurring: (enabled: boolean) => void;
 }) {
-  const methodLabel = paymentMethodLabel(billing.lastPayment?.methodType);
+  const payment = billing.lastPayment;
 
   return (
     <div className="mt-6 bg-surface-container-lowest border border-outline-variant/10 rounded-3xl p-6 md:p-8 shadow-sm">
-      <div className="flex items-start justify-between gap-4 mb-6">
-        <div>
-          <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1">
-            Cobro automático
-          </p>
-          <p className="text-lg font-bold text-on-surface">
-            {billing.recurring ? "Activo" : "Desactivado"}
-          </p>
-        </div>
-        <span
-          className={`shrink-0 text-[11px] font-semibold px-2.5 py-1 rounded-full ${
-            billing.recurring
-              ? "bg-[#10b981]/15 text-[#10b981]"
-              : "bg-surface-container-high text-on-surface-variant"
-          }`}
-        >
-          {billing.recurring ? "Se renueva solo" : "Renovación manual"}
-        </span>
-      </div>
+      <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-4">
+        Último pago
+      </p>
 
       {billing.error && (
-        <div className="rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim mb-5">
+        <div
+          role="alert"
+          className="rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim mb-5"
+        >
           {billing.error}
         </div>
       )}
 
-      {/* La fecha de vencimiento ya se muestra arriba, en el plan actual: acá
-          sólo va el próximo COBRO, que es otra cosa y sólo existe con la
-          renovación activa. */}
-      <dl className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
-        {billing.recurring && (
+      {payment && (
+        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
           <div>
-            <dt className="text-on-surface-variant mb-0.5">Próximo cobro</dt>
+            <dt className="text-on-surface-variant mb-0.5">Monto y fecha</dt>
             <dd className="font-semibold text-on-surface">
-              {formatLongDate(billing.nextChargeAt)}
+              {`${formatMoney(payment.amount, currency)} · ${formatLongDate(payment.paidAt)}`}
             </dd>
           </div>
-        )}
-        <div>
-          <dt className="text-on-surface-variant mb-0.5">Último pago</dt>
-          <dd className="font-semibold text-on-surface">
-            {billing.lastPayment
-              ? `${formatMoney(billing.lastPayment.amount, currency)} · ${formatLongDate(billing.lastPayment.paidAt)}`
-              : "—"}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-on-surface-variant mb-0.5">Medio de pago</dt>
-          <dd className="font-semibold text-on-surface">{methodLabel}</dd>
-        </div>
-      </dl>
-
-      <div className="mt-6 pt-5 border-t border-outline-variant/10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <p className="text-[13px] text-on-surface-variant leading-relaxed">
-          {billing.recurring
-            ? "Si das de baja, tu plan sigue activo hasta la fecha de vencimiento y después no se renueva."
-            : billing.hasSavedMethod
-              ? "Podés volver a activar la renovación automática con el mismo medio de pago."
-              : "Pagá una vez en línea y la renovación automática queda disponible."}
-        </p>
-        {(billing.recurring || billing.hasSavedMethod) && (
-          <button
-            onClick={() => onToggleRecurring(!billing.recurring)}
-            disabled={busy}
-            className={`shrink-0 inline-flex items-center justify-center py-2.5 px-5 rounded-xl text-sm font-bold transition-colors whitespace-nowrap disabled:opacity-50 ${
-              billing.recurring
-                ? "border border-outline-variant/20 text-on-surface hover:bg-surface-container-high"
-                : "bg-primary text-white hover:bg-primary-dim"
-            }`}
-          >
-            {busy
-              ? "Guardando…"
-              : billing.recurring
-                ? "Dar de baja la renovación"
-                : "Activar renovación"}
-          </button>
-        )}
-      </div>
+          <div>
+            <dt className="text-on-surface-variant mb-0.5">Medio de pago</dt>
+            <dd className="font-semibold text-on-surface">
+              {paymentMethodLabel(payment.methodType)}
+            </dd>
+          </div>
+        </dl>
+      )}
     </div>
   );
 }

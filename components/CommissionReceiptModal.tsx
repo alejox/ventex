@@ -5,9 +5,7 @@ import { createPortal } from "react-dom";
 import { fetchStaffSales, commissionPeriodOf } from "@/services/staff.service";
 import type { CommissionSettlement, StaffSaleItem } from "@/services/staff.service";
 import { useProfile } from "@/components/ProfileProvider";
-
-const money = (n: number) =>
-  n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+import { formatMoney } from "@/lib/money";
 
 const PAYMENT_LABELS: Record<string, string> = {
   efectivo: "Efectivo",
@@ -217,9 +215,9 @@ export function CommissionReceiptModal({ settlement, onClose }: Props) {
                         </td>
                         <td className="py-2 pr-3 text-center tabular-nums">{item.quantity}</td>
                         <td className="py-2 pr-3 text-right tabular-nums text-on-surface-variant print:text-black">
-                          ${money(item.line_total)}
+                          {formatMoney(item.line_total)}
                         </td>
-                        <td className="py-2 text-right tabular-nums font-semibold">${money(item.commissionAmount)}</td>
+                        <td className="py-2 text-right tabular-nums font-semibold">{formatMoney(item.commissionAmount)}</td>
                       </tr>
                     ))
                   )}
@@ -231,7 +229,7 @@ export function CommissionReceiptModal({ settlement, onClose }: Props) {
                         Ventas anuladas después del pago
                       </td>
                       <td className="pt-3 text-right tabular-nums text-on-surface-variant print:text-black">
-                        ${money(missing)}
+                        {formatMoney(missing)}
                       </td>
                     </tr>
                   )}
@@ -240,7 +238,7 @@ export function CommissionReceiptModal({ settlement, onClose }: Props) {
                       Total pagado
                     </td>
                     <td className="pt-3 text-right text-lg font-bold tabular-nums text-on-surface print:text-black">
-                      ${money(settlement.total_amount)}
+                      {formatMoney(settlement.total_amount)}
                     </td>
                   </tr>
                 </tfoot>

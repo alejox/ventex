@@ -28,9 +28,12 @@ test.describe("Suscripción", () => {
   });
 
   test("sección de uso está visible", async ({ page }) => {
-    const usageSection = page.getByText(/uso|utilizado|límite|limit/i);
-    if (await usageSection.isVisible()) {
-      await expect(usageSection).toBeVisible();
-    }
+    // El consumo del plan son dos barras dentro de la tarjeta del plan actual:
+    // colaboradores y ventas del mes. Antes se buscaba cualquier texto con
+    // "uso|límite", que ahora también matchea "Ilimitado" en las tarjetas de
+    // planes y además, con el `if`, no verificaba nada si no aparecía.
+    await expect(page.getByText("Plan actual", { exact: true })).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText("Colaboradores", { exact: true })).toBeVisible();
+    await expect(page.getByText("Ventas del mes", { exact: true })).toBeVisible();
   });
 });

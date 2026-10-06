@@ -28,7 +28,9 @@ import {
   IconClock,
   IconGlobe,
   IconMusic,
+  IconThunder,
 } from "@/app/assets/icons/DashboardIcons";
+import { whatsappUrl } from "@/config/contact";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ShellUserMenu } from "@/components/ShellUserMenu";
 import { NotificationsBell } from "@/components/NotificationsBell";
@@ -101,11 +103,14 @@ const NAV_ICONS: Record<string, IconType> = {
   distributors: IconTruck,
   purchases: IconReceipt,
   calendar: IconCalendar,
-  subscription: IconCreditCard,
+  // Rayo y no tarjeta: la tarjeta ya es el POS, y repetirla en el riel
+  // colapsado deja dos botones idénticos.
+  subscription: IconThunder,
   landing: IconGlobe,
-  // Académico (opt-in): las pantallas del módulo con ícono propio (la agenda
-  // comparte el ícono del grupo).
+  // Académico (opt-in): cada pantalla del módulo con ícono propio. La agenda
+  // también necesita el suyo: sin entrada, el riel colapsado pinta un botón vacío.
   school: IconMusic,
+  "school-agenda": IconCalendar,
   "school-estudiantes": IconUsers,
   "school-planes": IconFileText,
   "school-config": IconSettings,
@@ -167,12 +172,9 @@ export function DashboardShell({
   const handleHelpClick = () => {
     const businessName = profile?.businessName?.trim();
     const msg = businessName ? `Hola, soy "${businessName}". Necesito ayuda con la plataforma.` : "Hola, necesito ayuda con Ventex App.";
-    // api.whatsapp.com y no wa.me: el acortador rompe los emojis (ver
-    // whatsappUrl en config/contact.ts).
-    window.open(
-      `https://api.whatsapp.com/send?phone=573000000000&text=${encodeURIComponent(msg)}`,
-      "_blank",
-    );
+    // whatsappUrl lleva el número de soporte real y usa api.whatsapp.com
+    // (wa.me rompe los emojis — ver config/contact.ts).
+    window.open(whatsappUrl(msg), "_blank");
   };
 
   const site = useBusinessSiteStore((state) => state.site);

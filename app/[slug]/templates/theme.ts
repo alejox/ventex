@@ -242,13 +242,8 @@ export function paletteFor(config: LandingConfig): SitePalette {
   return palette;
 }
 
-export function formatCOP(value: number): string {
-  return new Intl.NumberFormat("es-CO", {
-    style: "currency",
-    currency: "COP",
-    maximumFractionDigits: 0,
-  }).format(value);
-}
+/** El formato de dinero vive en `lib/money.ts`. */
+export { formatCOP } from "@/lib/money";
 
 /**
  * `api.whatsapp.com/send` y no el acortador `wa.me`: wa.me reemplaza todo

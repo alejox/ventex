@@ -57,6 +57,32 @@ export interface CustomerSale {
   payment_method: string;
   total: number;
   item_count: number;
+  /** `completed` | `refunded` | `void`. Una anulada se lista, pero no suma. */
+  status: string;
+}
+
+/** Una venta anulada existió, pero el cliente no gastó esa plata. */
+export const isVoidSale = (s: Pick<CustomerSale, "status">) => s.status === "void";
+
+export interface CustomerSalesSummary {
+  count: number;
+  totalSpent: number;
+  lastSale: CustomerSale | null;
+}
+
+/**
+ * Los números de la ficha del cliente ("Ventas", "Total gastado", "Última
+ * visita"). Las anuladas quedan FUERA: sumarlas inflaba lo gastado con plata
+ * que se devolvió, y una venta anulada no es una visita que el cliente pagó.
+ * Asume el orden de `fetchCustomerSales` (más reciente primero).
+ */
+export function summarizeCustomerSales(sales: CustomerSale[]): CustomerSalesSummary {
+  const valid = sales.filter((s) => !isVoidSale(s));
+  return {
+    count: valid.length,
+    totalSpent: valid.reduce((sum, s) => sum + Number(s.total ?? 0), 0),
+    lastSale: valid[0] ?? null,
+  };
 }
 
 const SELECT = "id, full_name, email, phone, identification, doc_type, tax_exempt, credit_balance, credit_limit, credit_alert, credit_alert_note, haircut_count, haircuts_since_reward, loyalty_points, created_at";
@@ -72,7 +98,7 @@ export async function fetchCustomerSales(customerId: string): Promise<CustomerSa
   const supabase = createClient();
   const { data, error } = await supabase
     .from("sales")
-    .select("id, sale_number, created_at, payment_method, total, sale_items(count)")
+    .select("id, sale_number, created_at, payment_method, total, status, sale_items(count)")
     .eq("customer_id", customerId)
     .order("created_at", { ascending: false });
   if (error) throw error;
@@ -86,6 +112,7 @@ export async function fetchCustomerSales(customerId: string): Promise<CustomerSa
       payment_method: row.payment_method as string,
       total: row.total as number,
       item_count: (items?.count as number) ?? 0,
+      status: (row.status as string) ?? "completed",
     };
   });
 }

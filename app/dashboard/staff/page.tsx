@@ -26,6 +26,7 @@ import { CollectionEmpty, CollectionError, CollectionLoading } from "@/component
 import { StaffPhotoField } from "@/components/StaffPhotoField";
 import Image from "next/image";
 import { isUnlimitedCollaborators } from "@/config/plans";
+import { formatMoney } from "@/lib/money";
 
 // Los cargos NO se escriben acá: salen de STAFF_ROLES_BY_TYPE según el rubro
 // (config/business.ts). Una barbería ofrece Barbero y Estilista; una tienda,
@@ -42,9 +43,6 @@ const EMPTY_STAFF: NewStaffInput = {
   // atiende. Al cajero se lo apaga a mano, y el selector lo dice.
   show_on_website: true,
 };
-
-const money = (n: number) =>
-  n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export default function StaffPage() {
   const { confirm, dialog } = useConfirm();
@@ -480,11 +478,11 @@ export default function StaffPage() {
                         Por pagar
                       </span>
                       <span className={`block truncate text-xs font-bold tabular-nums ${pending > 0 ? "text-on-surface" : "text-on-surface-variant"}`}>
-                        ${money(pending)}
+                        {formatMoney(pending)}
                       </span>
                       {settled > 0 && (
                         <span className="block text-[10px] font-semibold tabular-nums text-emerald-600">
-                          ${money(settled)} liquidado
+                          {formatMoney(settled)} liquidado
                         </span>
                       )}
                     </div>
@@ -688,10 +686,10 @@ export default function StaffPage() {
                           <td className="p-3 text-xs text-on-surface max-w-[160px] truncate">{s.product_name}</td>
                           <td className="p-3 text-center text-xs text-on-surface-variant">{s.quantity}</td>
                           <td className="p-3 text-right text-xs font-bold text-on-surface tabular-nums">
-                            ${money(s.line_total)}
+                            {formatMoney(s.line_total)}
                           </td>
                           <td className="p-3 text-right text-xs font-semibold text-emerald-600 tabular-nums">
-                            ${money(s.commissionAmount)}
+                            {formatMoney(s.commissionAmount)}
                           </td>
                           <td className="p-3 pr-0 text-right">
                             {s.commissionAmount <= 0 ? (
@@ -715,7 +713,7 @@ export default function StaffPage() {
                           Pendiente por liquidar
                         </td>
                         <td className="p-3 text-right text-sm font-bold text-[#b45309] tabular-nums">
-                          ${money(sales.filter((i) => !i.settlementId).reduce((s, i) => s + i.commissionAmount, 0))}
+                          {formatMoney(sales.filter((i) => !i.settlementId).reduce((s, i) => s + i.commissionAmount, 0))}
                         </td>
                         <td className="p-3 pr-0" />
                       </tr>
@@ -724,7 +722,7 @@ export default function StaffPage() {
                           Devengado en el mes
                         </td>
                         <td className="p-3 text-right text-xs font-semibold text-on-surface-variant tabular-nums">
-                          ${money(sales.reduce((s, i) => s + i.commissionAmount, 0))}
+                          {formatMoney(sales.reduce((s, i) => s + i.commissionAmount, 0))}
                         </td>
                         <td className="p-3 pr-0" />
                       </tr>

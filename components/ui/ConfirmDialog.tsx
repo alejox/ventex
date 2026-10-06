@@ -30,7 +30,7 @@ interface ConfirmDialogProps extends ConfirmOptions {
 
 const CONFIRM_TONE: Record<ConfirmTone, string> = {
   primary: "bg-primary text-on-primary hover:bg-primary-dim",
-  danger: "bg-error text-white hover:bg-error/90",
+  danger: "bg-error text-on-error hover:bg-error/90",
 };
 
 const ICON_TONE: Record<ConfirmTone, string> = {

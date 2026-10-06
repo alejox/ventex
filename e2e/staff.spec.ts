@@ -11,7 +11,7 @@ test.describe("Personal / Staff", () => {
 
   test("carga la página de personal con título y descripción", async ({ page }) => {
     await expect(page.getByRole("heading", { name: "Personal", exact: true })).toBeVisible({ timeout: 15000 });
-    await expect(page.getByText(/Administra tu equipo/)).toBeVisible();
+    await expect(page.getByText(/Tu equipo en un solo lugar/)).toBeVisible();
   });
 
   test("abre el modal de nuevo personal", async ({ page }) => {

@@ -26,6 +26,7 @@ import { ProductModal } from "@/components/ProductModal";
 import { notifyError } from "@/lib/notifications";
 import { CollectionEmpty, CollectionError, CollectionFilteredEmpty, CollectionLoading } from "@/components/CollectionState";
 import { Pagination } from "@/components/Pagination";
+import { formatMoney } from "@/lib/money";
 
 
 function IconScanLine(props: React.SVGProps<SVGSVGElement>) {
@@ -293,7 +294,7 @@ export default function CatalogPage() {
             <p className="text-on-surface-variant text-sm font-medium mb-1.5">Valor del Inventario</p>
             {/* Cifra larga: en móvil baja de tamaño en vez de comerse el ícono. */}
             <h3 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-on-surface tracking-tight truncate">
-              ${calculateInventoryValue(products).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              {formatMoney(calculateInventoryValue(products))}
             </h3>
             {/* Un servicio no es capital parado: no hay mercadería que valorizar. */}
             <p className="text-xs text-on-surface-variant mt-1">Solo mercader&iacute;a</p>
@@ -439,7 +440,7 @@ export default function CatalogPage() {
                           la línea del stock. Así lo primario no compite con lo
                           secundario y el nombre gana el ancho que necesita. */}
                       <p className="shrink-0 text-base font-bold text-on-surface tabular-nums leading-snug">
-                        ${row.price.toFixed(2)}
+                        {formatMoney(row.price)}
                       </p>
                     </div>
 
@@ -458,7 +459,7 @@ export default function CatalogPage() {
                       )}
                       {canSeeCosts && row.kind === "product" && (
                         <span className="text-[11px] text-on-surface-variant/70 tabular-nums shrink-0">
-                          costo ${getUnitCost(row.product).toFixed(2)}{(row.product.units_per_package ?? 1) > 1 ? " / u." : ""}
+                          costo {formatMoney(getUnitCost(row.product))}{(row.product.units_per_package ?? 1) > 1 ? " / u." : ""}
                         </span>
                       )}
                     </div>
@@ -581,23 +582,23 @@ export default function CatalogPage() {
                           <td className="px-4 py-3.5 text-on-surface-variant font-mono text-sm">
                             {row.kind === "product" ? (
                               <>
-                                ${getUnitCost(row.product).toFixed(2)}
+                                {formatMoney(getUnitCost(row.product))}
                                 {(row.product.units_per_package ?? 1) > 1 && (
                                   <span className="text-[11px] text-on-surface-variant/60 block font-sans">
-                                    caja x{row.product.units_per_package} (${(row.product.purchase_price ?? 0).toFixed(2)})
+                                    caja x{row.product.units_per_package} ({formatMoney(row.product.purchase_price ?? 0)})
                                   </span>
                                 )}
                               </>
                             ) : (
                               /* Un servicio no se compra a un proveedor: no hay
-                                 costo unitario que mostrar, y un $0.00 sería una
+                                 costo unitario que mostrar, y un $ 0 sería una
                                  afirmación falsa sobre su margen. */
                               <span className="text-on-surface-variant/60">—</span>
                             )}
                           </td>
                         )}
                         <td className="px-4 py-3.5 text-on-surface font-semibold text-sm">
-                          ${row.price.toFixed(2)}
+                          {formatMoney(row.price)}
                         </td>
                         <td className="px-4 py-3.5">
                           {stockStatus === null || row.kind !== "product" ? (

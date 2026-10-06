@@ -7,7 +7,7 @@ test.describe("Autenticación", () => {
   test.describe("Landing Page", () => {
     test("muestra la página de inicio correctamente", async ({ page }) => {
       await page.goto("/");
-      await expect(page.locator("h1")).toContainText("El sistema operativo");
+      await expect(page.getByRole("heading", { level: 1 })).toContainText("Tu negocio, a tu manera");
       await expect(page.getByRole("navigation").getByRole("link", { name: "Empieza gratis" })).toBeVisible();
       await expect(page.getByRole("navigation").getByRole("link", { name: "Iniciar sesión" })).toBeVisible();
     });

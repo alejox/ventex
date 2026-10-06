@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { tryLogin } from "./helpers/auth";
+import { pickCombo } from "./helpers/select";
 
 test.describe("Catálogo (productos y servicios)", () => {
   test.beforeEach(async ({ page }) => {
@@ -23,10 +24,16 @@ test.describe("Catálogo (productos y servicios)", () => {
   });
 
   test("abre y cierra el modal de nueva categoría", async ({ page }) => {
-    await page.getByRole("button", { name: "Nueva Categoría" }).click();
-    await expect(page.getByRole("heading", { name: "Nueva Categoría" })).toBeVisible({ timeout: 5000 });
+    // Categorías ya no se crea con un modal del catálogo: el catálogo enlaza a
+    // /dashboard/categories, que reúne alta, edición y borrado.
+    await page.getByRole("link", { name: "Categorías", exact: true }).click();
+    // Primera visita en dev compila la ruta: margen amplio.
+    await expect(page).toHaveURL(/\/dashboard\/categories/, { timeout: 20000 });
+    await page.getByRole("button", { name: "Nueva categoría de producto" }).click();
+    const modalTitle = page.getByRole("heading", { name: "Nueva categoría de producto" });
+    await expect(modalTitle).toBeVisible({ timeout: 5000 });
     await page.getByRole("button", { name: "Cancelar" }).click();
-    await expect(page.getByRole("heading", { name: "Nueva Categoría" })).not.toBeVisible({ timeout: 5000 }).catch(() => {});
+    await expect(modalTitle).toBeHidden({ timeout: 5000 });
   });
 
   test("filtro de búsqueda funciona", async ({ page }) => {
@@ -35,22 +42,28 @@ test.describe("Catálogo (productos y servicios)", () => {
     await expect(searchInput).toHaveValue("Producto de prueba");
   });
 
+  // Los filtros son el <Select> custom (components/ui/Select.tsx): combobox
+  // con lista portada, no <select> nativo — se eligen con `pickCombo` y se
+  // verifica el texto que muestra el botón.
   test("filtro por tipo separa productos de servicios", async ({ page }) => {
-    const typeSelect = page.getByLabel("Filtrar por tipo");
-    await typeSelect.selectOption("product");
-    await expect(typeSelect).toHaveValue("product");
-    await typeSelect.selectOption("service");
-    await expect(typeSelect).toHaveValue("service");
+    const typeSelect = page.getByRole("combobox", { name: "Filtrar por tipo" });
+    await pickCombo(page, "Filtrar por tipo", "Productos");
+    await expect(typeSelect).toHaveText(/Productos/);
+    await pickCombo(page, "Filtrar por tipo", "Servicios");
+    await expect(typeSelect).toHaveText(/Servicios/);
   });
 
   test("filtro por categoría está presente", async ({ page }) => {
-    await page.getByLabel("Filtrar por categoría").selectOption("");
+    const categorySelect = page.getByRole("combobox", { name: "Filtrar por categoría" });
+    await expect(categorySelect).toBeVisible({ timeout: 10000 });
+    await pickCombo(page, "Filtrar por categoría", /^Categoría$/);
+    await expect(categorySelect).toHaveText(/Categoría/);
   });
 
   test("filtro por estado de stock está presente", async ({ page }) => {
-    const stockSelect = page.getByLabel("Filtrar por estado de stock");
-    await stockSelect.selectOption("Agotado");
-    await expect(stockSelect).toHaveValue("Agotado");
+    const stockSelect = page.getByRole("combobox", { name: "Filtrar por estado de stock" });
+    await pickCombo(page, "Filtrar por estado de stock", "Agotado");
+    await expect(stockSelect).toHaveText(/Agotado/);
   });
 
   test("navega a editar producto desde tabla (si hay productos)", async ({ page }) => {

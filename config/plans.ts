@@ -4,14 +4,10 @@
  * esto es solo formato y metadatos de UI (acentos de color por plan).
  */
 
-/** Formatea un monto en la moneda dada (sin decimales para montos grandes). */
-export function formatMoney(amount: number, currency = "COP"): string {
-  return new Intl.NumberFormat("es-CO", {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 0,
-  }).format(amount || 0);
-}
+import { formatMoney } from "@/lib/money";
+
+/** Reexportado: el formato de dinero vive en `lib/money.ts`. */
+export { formatMoney };
 
 /** Límite de ventas mensual legible; null = ilimitado. */
 export function formatSalesLimit(max: number | null, currency = "COP"): string {

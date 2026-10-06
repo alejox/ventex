@@ -283,7 +283,7 @@ function PlanCard({
           <>
             <p className="text-sm text-on-surface-variant">
               Pagas <strong className="text-on-surface font-semibold">{formatMoney(total)}</strong>{" "}
-              cada {span} meses
+              por {span} meses, en un solo pago
             </p>
             {savings > 0 && (
               <p className="mt-1 inline-block text-xs font-bold text-background bg-accent-fin rounded-md px-2 py-0.5">
@@ -293,7 +293,9 @@ function PlanCard({
           </>
         ) : (
           <p className="text-sm text-on-surface-variant">
-            Facturación mensual. Cancela cuando quieras.
+            {/* Sin "cancela cuando quieras": no hay nada que cancelar porque el
+                cobro recurrente no existe (AGENTS.md → Subscription billing). */}
+            Pago por periodo. Sin renovación automática: renuevas cuando quieras.
           </p>
         )}
       </div>

@@ -20,12 +20,10 @@ import { COLOMBIA_TRANSFER_METHODS, getTransferMethodName } from "@/config/trans
 import { getCardMethodName } from "@/config/cardMethods";
 import { DataTable, type DataColumn } from "@/components/DataTable";
 import { CollectionEmpty, CollectionError, CollectionFilteredEmpty, CollectionLoading } from "@/components/CollectionState";
-
-const money = (n: number) =>
-  n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+import { formatMoney } from "@/lib/money";
 
 const formatDate = (iso: string) =>
-  new Date(iso).toLocaleString("es-ES", {
+  new Date(iso).toLocaleString("es-CO", {
     day: "2-digit",
     month: "short",
     year: "numeric",
@@ -96,7 +94,7 @@ const itemColumn = (etiqueta: string): DataColumn<SaleListItem> => ({
   // como "cuatro a doce mil cada uno", que son $48.000 que nadie cobró.
   cell: (s) => (
     <>
-      <div className="tabular-nums">${money(s.item_total)}</div>
+      <div className="tabular-nums">{formatMoney(s.item_total)}</div>
       <div className="text-[11px] font-normal text-on-surface-variant/70">
         {formatQty(s.item_units)} u
       </div>
@@ -125,7 +123,7 @@ const SALE_COLUMNS: DataColumn<SaleListItem>[] = [
     mobile: "trailing",
     sortKey: "total",
     className: "font-bold text-on-surface",
-    cell: (s) => `$${money(s.total)}`,
+    cell: (s) => formatMoney(s.total),
   },
   {
     header: "Estado",
@@ -467,15 +465,15 @@ export default function SalesPage() {
         {(filtrandoItem
           ? [
               { label: "Unidades vendidas", value: summary ? formatQty(summary.item_units) : "—", tint: "bg-[#6063ee]/10 text-[#6063ee]", Icon: IconShoppingCart },
-              { label: `Vendido de ${nombreDelItem}`, value: summary ? `$${money(summary.item_revenue)}` : "—", tint: "bg-[#3b82f6]/10 text-[#3b82f6]", Icon: IconWallet },
+              { label: `Vendido de ${nombreDelItem}`, value: summary ? formatMoney(summary.item_revenue) : "—", tint: "bg-[#3b82f6]/10 text-[#3b82f6]", Icon: IconWallet },
               { label: "Ventas que lo incluyen", value: summary ? summary.completed_count : "—", tint: "bg-[#10b981]/10 text-[#10b981]", Icon: IconWallet },
-              { label: "Precio promedio", value: summary ? `$${money(summary.item_avg_price)}` : "—", tint: "bg-[#f59e0b]/10 text-[#f59e0b]", Icon: IconTrendingUp },
+              { label: "Precio promedio", value: summary ? formatMoney(summary.item_avg_price) : "—", tint: "bg-[#f59e0b]/10 text-[#f59e0b]", Icon: IconTrendingUp },
             ]
           : [
               { label: "Ventas totales", value: summary ? summary.sales_count : "—", tint: "bg-[#6063ee]/10 text-[#6063ee]", Icon: IconShoppingCart },
               { label: "Completadas", value: summary ? summary.completed_count : "—", tint: "bg-[#10b981]/10 text-[#10b981]", Icon: IconWallet },
-              { label: "Ingresos (completadas)", value: summary ? `$${money(summary.revenue)}` : "—", tint: "bg-[#3b82f6]/10 text-[#3b82f6]", Icon: IconWallet },
-              { label: "Ticket promedio", value: summary ? `$${money(summary.avg_ticket)}` : "—", tint: "bg-[#f59e0b]/10 text-[#f59e0b]", Icon: IconTrendingUp },
+              { label: "Ingresos (completadas)", value: summary ? formatMoney(summary.revenue) : "—", tint: "bg-[#3b82f6]/10 text-[#3b82f6]", Icon: IconWallet },
+              { label: "Ticket promedio", value: summary ? formatMoney(summary.avg_ticket) : "—", tint: "bg-[#f59e0b]/10 text-[#f59e0b]", Icon: IconTrendingUp },
             ]
         ).map(({ label, value, tint, Icon }) => (
           <div
@@ -584,7 +582,7 @@ export default function SalesPage() {
                       <div>
                         <p className="text-sm font-medium text-on-surface">{item.product_name}</p>
                         <p className="text-[11px] text-on-surface-variant mt-0.5">
-                          {item.quantity} × ${money(item.unit_price)}
+                          {item.quantity} × {formatMoney(item.unit_price)}
                           {item.unit_kind === "package"
                             ? ` · Caja x${item.units_per_item} u. (${item.quantity * item.units_per_item} uds.)`
                             : item.sku
@@ -604,7 +602,7 @@ export default function SalesPage() {
                             {item.commission_amount > 0 && (
                               <>
                                 <span className="text-[#10b981] font-medium">
-                                  Comisión ${money(item.commission_amount)}
+                                  Comisión {formatMoney(item.commission_amount)}
                                 </span>
                                 {/* Si la comisión ya se liquidó, anular esta
                                     venta implica plata que ya salió: decirlo acá
@@ -617,7 +615,7 @@ export default function SalesPage() {
                           </p>
                         ) : null}
                       </div>
-                      <span className="text-sm font-bold text-on-surface shrink-0">${money(item.line_total)}</span>
+                      <span className="text-sm font-bold text-on-surface shrink-0">{formatMoney(item.line_total)}</span>
                     </div>
                   ))}
                 </div>
@@ -625,21 +623,21 @@ export default function SalesPage() {
                 <div className="pt-4 border-t border-outline-variant/10 space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-on-surface-variant">Subtotal</span>
-                    <span className="text-on-surface font-medium">${money(detail.subtotal)}</span>
+                    <span className="text-on-surface font-medium">{formatMoney(detail.subtotal)}</span>
                   </div>
                   {detail.discount_amount > 0 && (
                     <div className="flex justify-between text-sm">
                       <span className="text-on-surface-variant">Descuento</span>
-                      <span className="text-[#10b981] font-medium">-${money(detail.discount_amount)}</span>
+                      <span className="text-[#10b981] font-medium">-{formatMoney(detail.discount_amount)}</span>
                     </div>
                   )}
                   <div className="flex justify-between text-sm">
                     <span className="text-on-surface-variant">Impuesto ({Math.round(detail.tax_rate * 100)}%)</span>
-                    <span className="text-on-surface font-medium">${money(detail.tax_amount)}</span>
+                    <span className="text-on-surface font-medium">{formatMoney(detail.tax_amount)}</span>
                   </div>
                   <div className="flex justify-between items-center pt-3 border-t border-outline-variant/10">
                     <span className="text-base font-bold text-on-surface">Total</span>
-                    <span className="text-2xl font-black text-[#6063ee]">${money(detail.total)}</span>
+                    <span className="text-2xl font-black text-[#6063ee]">{formatMoney(detail.total)}</span>
                   </div>
                 </div>
 
@@ -671,7 +669,7 @@ export default function SalesPage() {
                           if (paid <= 0) return null;
                           return (
                             <p role="alert" className="text-xs rounded-lg border border-[#f59e0b]/30 bg-[#f59e0b]/10 px-3 py-2 text-on-surface">
-                              <strong className="font-bold">Ojo:</strong> ${money(paid)} de comisión de
+                              <strong className="font-bold">Ojo:</strong> {formatMoney(paid)} de comisión de
                               esta venta ya se liquidaron y se pagaron. Anularla no devuelve ese dinero:
                               descontalo en la próxima liquidación.
                             </p>

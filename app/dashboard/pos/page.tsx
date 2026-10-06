@@ -14,6 +14,7 @@ import {
   linePrice,
   type PaymentMethod,
   type CartLine,
+  type CatalogItem,
   type CustomerOption,
   type SaleTotals,
 } from "@/services/pos.service";
@@ -36,6 +37,7 @@ import { CheckoutModal } from "./components/CheckoutModal";
 import { DeliveryModal } from "./components/DeliveryModal";
 import { PosTabsBar } from "./components/PosTabsBar";
 import { SuccessModal } from "./components/SuccessModal";
+import { saleChangeSummary } from "./components/sale-change";
 import { usePromosStore } from "@/stores/promos.store";
 import { useLoyaltyStore } from "@/stores/loyalty.store";
 import {
@@ -61,6 +63,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { PlanLimitModal } from "./components/PlanLimitModal";
 import { OfflineQueueBadge } from "./components/OfflineQueueBadge";
 import { RejectedSalesModal } from "./components/RejectedSalesModal";
+import { formatMoney } from "@/lib/money";
 
 const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
   { value: "efectivo", label: "Efectivo" },
@@ -227,9 +230,6 @@ export default function POSPage() {
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
   /** Mensaje listo para mandarle al cliente que se acaba de cortar. */
   const [promoSend, setPromoSend] = useState<{ link: string; name: string } | null>(null);
-  const money = (n: number) =>
-    n.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-
   /** Premio ganado por el cliente elegido, ya resuelto contra su progreso. */
   const [promoGanadoRaw, setPromoGanado] = useState<
     { progress: number; milestoneId: string; forCustomer: string } | null
@@ -269,6 +269,52 @@ export default function POSPage() {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [receiptData, setReceiptData] = useState<ReceiptData | null>(null);
   const [amountTendered, setAmountTendered] = useState("");
+  /**
+   * Por qué falló el último intento de cobro, mostrado DENTRO del modal de
+   * cobro. La caja de error del catálogo queda tapada por el carrito en el
+   * celular, y el cajero confirmaba sin enterarse de que no se cobró.
+   */
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  /**
+   * Lo que el cajero necesita ver DESPUÉS de cobrar: total, recibido y cambio.
+   * Se fija antes de que el store limpie el carrito, porque ahí el total ya
+   * vale cero.
+   */
+  const [lastSaleSummary, setLastSaleSummary] = useState<
+    { total: number; tendered: number | null; change: number } | null
+  >(null);
+  /** El buscador del catálogo: a donde vuelve el foco para el próximo escaneo. */
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  /**
+   * Devuelve el foco al buscador para que la próxima lectura del escáner caiga
+   * ahí y no en una tarjeta (donde el Enter final del lector la agregaría dos
+   * veces).
+   *
+   * No roba el foco si el cajero está escribiendo en otro campo (cliente,
+   * cantidad, puntos…), y solo actúa con puntero fino: en el celular enfocar el
+   * buscador abre el teclado en pantalla y tapa medio catálogo.
+   */
+  const focusSearch = useCallback(() => {
+    if (typeof window === "undefined") return;
+    if (!window.matchMedia?.("(pointer: fine)").matches) return;
+    requestAnimationFrame(() => {
+      const input = searchRef.current;
+      if (!input) return;
+      const active = document.activeElement as HTMLElement | null;
+      if (
+        active &&
+        active !== input &&
+        (active.tagName === "INPUT" ||
+          active.tagName === "TEXTAREA" ||
+          active.tagName === "SELECT" ||
+          active.isContentEditable)
+      ) {
+        return;
+      }
+      input.focus({ preventScroll: true });
+    });
+  }, []);
 
   useEffect(() => { init(); }, [init]);
   // Reenvía solo las ventas que quedaron cobradas sin conexión.
@@ -277,11 +323,13 @@ export default function POSPage() {
     // Con un mensaje para mandar, el modal NO se cierra solo: cinco segundos no
     // alcanzan para leer, decidir y tocar el botón, y que se evapore en la mano
     // es peor que no ofrecerlo.
-    if (isSuccessModalOpen && !promoSend) {
+    // Tampoco con cambio por entregar: el número tiene que seguir en pantalla
+    // hasta que el cajero lo cuente y cierre él.
+    if (isSuccessModalOpen && !promoSend && !(lastSaleSummary && lastSaleSummary.change > 0)) {
       const timer = setTimeout(() => setIsSuccessModalOpen(false), 5000);
       return () => clearTimeout(timer);
     }
-  }, [isSuccessModalOpen, promoSend]);
+  }, [isSuccessModalOpen, promoSend, lastSaleSummary]);
 
   useEffect(() => { fetchPromos(); }, [fetchPromos]);
   useEffect(() => { fetchLoyaltyConfig(); }, [fetchLoyaltyConfig]);
@@ -308,6 +356,11 @@ export default function POSPage() {
     anyModalOpen: boolean;
     requireShift: (action: () => void) => void;
     checkout: () => void;
+    /**
+     * Enter sin campo enfocado, o Enter con el buscador vacío.
+     * true = se abrió el cobro (o el turno que lo precede).
+     */
+    openCheckoutFromKeyboard: () => boolean;
   }
 
   const latest = useRef<KeyboardSnapshot>(null!);
@@ -327,6 +380,7 @@ export default function POSPage() {
         return;
       }
       if (e.key === "Escape") {
+        setCheckoutError(null);
         setIsCustomerModalOpen(false);
         setIsDiscountModalOpen(false);
         setIsRecentSalesModalOpen(false);
@@ -341,19 +395,12 @@ export default function POSPage() {
         setRenamingTabId(null);
         setClosingTabId(null);
       }
-      if (e.key === "Enter" && !e.ctrlKey && !e.metaKey) {
-        const snapshot = latest.current;
-        if (!snapshot) return;
-        if (!snapshot.anyModalOpen && snapshot.cart.length > 0 && !snapshot.submitting) {
-          snapshot.requireShift(() => {
-            setAmountTendered("");
-            if (snapshot.isDelivery) {
-              setIsDeliveryModalOpen(true);
-            } else {
-              setIsCheckoutModalOpen(true);
-            }
-          });
-        }
+      // Con foco en un botón (una tarjeta del catálogo, por ejemplo) el Enter
+      // es de ESE botón: el navegador ya lo "clickea". Abrir además el cobro
+      // hacía que el Enter final del lector agregara el producto y saltara a
+      // cobrar en el mismo golpe.
+      if (e.key === "Enter" && !e.ctrlKey && !e.metaKey && target?.tagName !== "BUTTON") {
+        latest.current?.openCheckoutFromKeyboard();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -588,14 +635,21 @@ export default function POSPage() {
     setIsCartOpen(true);
   };
 
-  const handleCheckout = async () => {
+  /** true = la venta quedó (cobrada o encolada); false = NO se cobró. */
+  const handleCheckout = async (): Promise<boolean> => {
     // Se fija ANTES de cobrar: al terminar, el carrito se limpia y la pestaña
     // activa puede cambiar.
     const citaCobrada = citaActiva;
     if (!loyaltyValid || (loyaltyApplied && !isOnline)) {
-      notifyError("Revisá el canje", "Quitá los puntos y volvé a aplicarlos antes de cobrar en línea.");
-      return;
+      const msg = "Quitá los puntos y volvé a aplicarlos antes de cobrar en línea.";
+      setCheckoutError(msg);
+      notifyError("Revisá el canje", msg);
+      return false;
     }
+    setCheckoutError(null);
+    // Mismo criterio que el modal de cobro: solo hay vuelto en efectivo sin
+    // pago dividido. Se calcula acá porque después del cobro el total es cero.
+    const summary = saleChangeSummary(totals.total, paymentMethod, splits.length, amountTendered);
     const data: ReceiptData = {
       items: cart.map((l) => ({
         name: l.item.name,
@@ -619,11 +673,27 @@ export default function POSPage() {
     };
     setReceiptData(data);
     const outcome = await checkout();
+    if (outcome === "failed") {
+      // El store deja el motivo en `error` (stock insuficiente, cupo de
+      // crédito, precio faltante…). Un tope de plan NO deja error: lo muestra
+      // su propio modal, y un toast encima sería ruido.
+      const { error: reason, planLimitHit: limit } = usePosStore.getState();
+      if (limit) {
+        setIsCheckoutModalOpen(false);
+      } else {
+        const msg = reason ?? "La venta no se registró. Revisa el carrito y vuelve a intentarlo.";
+        setCheckoutError(msg);
+        notifyError("No se pudo cobrar", msg);
+      }
+      return false;
+    }
     // "queued" es un cobro bueno: la venta est\u00e1 guardada en el dispositivo y se
     // env\u00eda sola cuando vuelva la red. Se limpia la pantalla igual que en una
     // venta normal, pero el aviso no puede prometer que ya qued\u00f3 registrada.
     if (outcome === "sold" || outcome === "queued") {
       setLastSaleQueued(outcome === "queued");
+      setLastSaleSummary(summary);
+      setIsCheckoutModalOpen(false);
 
       // El cajón, PRIMERO y sin await.
       //
@@ -789,6 +859,7 @@ export default function POSPage() {
 
       setIsSuccessModalOpen(true);
     }
+    return true;
   };
 
   // Se lee una vez al montar: la config del cajón vive en localStorage (es de
@@ -836,20 +907,39 @@ export default function POSPage() {
     });
   }, []);
 
-  const handleCheckoutClick = () => {
+  const handleCheckoutClick = (): boolean => {
     if (!loyaltyValid || (loyaltyApplied && !isOnline)) {
       notifyError("Revisá el canje", "Quitá los puntos y volvé a aplicarlos antes de cobrar en línea.");
-      return;
+      return false;
     }
     requireShift(() => {
       setAmountTendered("");
+      setCheckoutError(null);
       if (isDelivery) {
         setIsDeliveryModalOpen(true);
       } else {
         setIsCheckoutModalOpen(true);
       }
     });
+    return true;
   };
+
+  const anyModalOpen =
+    isCustomerModalOpen ||
+    isDiscountModalOpen ||
+    isRecentSalesModalOpen ||
+    isSaleConfigModalOpen ||
+    isSuccessModalOpen ||
+    isCheckoutModalOpen ||
+    isDeliveryModalOpen ||
+    isOpenShiftOpen ||
+    isCloseShiftOpen ||
+    isWithdrawalOpen ||
+    isRejectedModalOpen ||
+    isScannerOpen ||
+    planLimitHit ||
+    renamingTabId !== null ||
+    closingTabId !== null;
 
   useEffect(() => {
     latest.current = {
@@ -857,22 +947,32 @@ export default function POSPage() {
       submitting,
       paymentMethod,
       isDelivery,
-      anyModalOpen:
-        isCustomerModalOpen ||
-        isDiscountModalOpen ||
-        isRecentSalesModalOpen ||
-        isSaleConfigModalOpen ||
-        isSuccessModalOpen ||
-        isCheckoutModalOpen ||
-        isDeliveryModalOpen ||
-        isOpenShiftOpen ||
-        isScannerOpen ||
-        renamingTabId !== null ||
-        closingTabId !== null,
+      anyModalOpen,
       requireShift,
       checkout: handleCheckoutClick,
+      openCheckoutFromKeyboard: () => {
+        if (anyModalOpen || cart.length === 0 || submitting) return false;
+        return handleCheckoutClick();
+      },
     };
   });
+
+  // Al cerrarse el último modal (cobro, éxito, cliente, descuento…) el foco
+  // vuelve al buscador: el siguiente cliente suele empezar con el escáner.
+  const wasModalOpen = useRef(false);
+  useEffect(() => {
+    if (wasModalOpen.current && !anyModalOpen) focusSearch();
+    wasModalOpen.current = anyModalOpen;
+  }, [anyModalOpen, focusSearch]);
+
+  /** Agregar con clic deja el foco en la tarjeta; se devuelve al buscador. */
+  const addToCartFromClick = useCallback(
+    (item: CatalogItem) => {
+      addToCart(item);
+      focusSearch();
+    },
+    [addToCart, focusSearch],
+  );
 
   const closingTab = closingTabId ? tabs.find((t) => t.id === closingTabId) : null;
 
@@ -898,12 +998,14 @@ export default function POSPage() {
             isWorker={isWorker}
             currentShift={currentShift}
             requireActiveShift={requireActiveShift}
-            addToCart={addToCart}
+            addToCart={addToCartFromClick}
             increment={increment}
             decrement={decrement}
             lineKey={lineKey}
             onOpenScanner={() => setIsScannerOpen(true)}
             onSubmitCode={(code) => handleScannedCode(code, "input")}
+            onSubmitEmpty={() => latest.current?.openCheckoutFromKeyboard() ?? false}
+            searchRef={searchRef}
             onOpenShift={() => setIsOpenShiftOpen(true)}
             onOpenWithdrawal={() => setIsWithdrawalOpen(true)}
             openCloseShift={openCloseShift}
@@ -925,7 +1027,7 @@ export default function POSPage() {
               type="button"
               onClick={() => setIsCartOpen(true)}
               disabled={cart.length === 0}
-              aria-label={cart.length === 0 ? "Agregá ítems para cobrar" : `Ver venta actual: ${cart.length} ítems, total $${money(totals.total)}`}
+              aria-label={cart.length === 0 ? "Agregá ítems para cobrar" : `Ver venta actual: ${cart.length} ítems, total ${formatMoney(totals.total)}`}
               className="w-full min-h-12 flex items-center justify-between gap-3 rounded-xl bg-primary text-on-primary px-3.5 shadow-lg shadow-primary/25 active:bg-primary-dim focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary transition-colors disabled:opacity-40"
             >
               <span className="flex items-center gap-2.5 min-w-0">
@@ -946,7 +1048,7 @@ export default function POSPage() {
                 </span>
               </span>
               <span className="flex items-center gap-1.5 shrink-0">
-                <span className="text-sm font-bold tabular-nums">${(totals.total).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                <span className="text-sm font-bold tabular-nums">{formatMoney(totals.total)}</span>
                 <svg fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-3.5 h-3.5">
                   <path d="M5 12h14M13 6l6 6-6 6" />
                 </svg>
@@ -967,7 +1069,7 @@ export default function POSPage() {
                         </p>}
                         {loyaltyApplied && (
                           <p className="text-xs text-on-surface-variant">
-                            Canjeados: {loyaltyApplied.points} (−${money(loyaltyApplied.amount)}). Se descuentan del saldo al cobrar.
+                            Canjeados: {loyaltyApplied.points} (−{formatMoney(loyaltyApplied.amount)}). Se descuentan del saldo al cobrar.
                           </p>
                         )}
                       </div>
@@ -1038,7 +1140,7 @@ export default function POSPage() {
                 <p className="text-sm font-bold text-on-surface truncate">{hitoGanado.reward}</p>
                 <p className="text-xs text-on-surface-variant">
                   {promoAplicado
-                    ? `Aplicado: −$${money(promoAplicado.amount)}. Se canjea al cobrar.`
+                    ? `Aplicado: −${formatMoney(promoAplicado.amount)}. Se canjea al cobrar.`
                     : `Ganado con ${promoGanado?.progress} cortes`}
                 </p>
               </div>
@@ -1065,7 +1167,7 @@ export default function POSPage() {
                   }}
                   className="shrink-0 px-3 py-1.5 rounded-lg bg-[#10b981] text-white text-[11px] font-bold hover:bg-[#059669] transition-colors"
                 >
-                  Aplicar −${money(promoSugerido!.discountAmount)}
+                  Aplicar −{formatMoney(promoSugerido!.discountAmount)}
                 </button>
               )}
             </div>
@@ -1242,11 +1344,18 @@ export default function POSPage() {
           submitting={submitting}
           amountTendered={amountTendered}
           setAmountTendered={setAmountTendered}
+          error={checkoutError}
+          // El modal queda abierto MIENTRAS se cobra: si el cobro falla, el
+          // motivo aparece acá, donde el cajero está mirando, y puede corregir
+          // el pago sin volver a armar nada. Se cierra solo si la venta quedó.
           onConfirm={() => {
-            setIsCheckoutModalOpen(false);
-            handleCheckout();
+            if (submitting) return;
+            void handleCheckout();
           }}
-          onClose={() => setIsCheckoutModalOpen(false)}
+          onClose={() => {
+            setCheckoutError(null);
+            setIsCheckoutModalOpen(false);
+          }}
         />
       )}
 
@@ -1258,6 +1367,9 @@ export default function POSPage() {
           }}
           onClose={() => { setIsSuccessModalOpen(false); setPromoSend(null); }}
           offline={lastSaleQueued}
+          total={lastSaleSummary?.total ?? null}
+          tendered={lastSaleSummary?.tendered ?? null}
+          change={lastSaleSummary?.change ?? 0}
           whatsappLink={promoSend?.link ?? null}
           customerName={promoSend?.name ?? null}
           onOpenDrawer={drawerReady ? handleOpenDrawerManually : null}

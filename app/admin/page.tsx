@@ -38,8 +38,9 @@ export default function AdminOverviewPage() {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard label="Empresas" value={String(stats.companies)} />
             <StatCard label="Colaboradores" value={String(stats.staff_total)} />
-            <StatCard label="Ventas del mes" value={formatMoney(stats.monthly_sales)} />
-            <StatCard label="Ventas totales" value={formatMoney(stats.total_sales)} />
+            {/* GMV: lo que vendieron los negocios, no lo que cobra Ventex. */}
+            <StatCard label="Ventas de los negocios (mes)" value={formatMoney(stats.monthly_sales)} />
+            <StatCard label="Ventas de los negocios (total)" value={formatMoney(stats.total_sales)} />
           </div>
 
           <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-3xl p-6 md:p-8 shadow-sm mt-6">

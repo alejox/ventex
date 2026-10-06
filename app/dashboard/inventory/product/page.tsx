@@ -24,8 +24,10 @@ import { formatDuration } from "@/lib/duration";
 import type { OpenFactsProduct } from "@/services/openfacts.service";
 import { ProductImageUpload } from "./components/ProductImageUpload";
 import { uploadProductImage } from "@/services/inventory.service";
+import { toMessage } from "@/lib/errors";
 import { ProductPricingSection } from "./components/ProductPricingSection";
 import { ProductPresentationSection } from "./components/ProductPresentationSection";
+import { formatMoney } from "@/lib/money";
 
 interface FieldErrors {
   name?: string;
@@ -47,13 +49,6 @@ function parseQuantityUnit(raw: string): string | undefined {
     const match = UNIT_MAP[p];
     if (match) return match;
   }
-}
-
-function formatAmount(value: number): string {
-  return value.toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
 }
 
 /**
@@ -124,6 +119,9 @@ function ProductForm() {
   const [imagePreview, setImagePreview] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const [saving, setSaving] = useState(false);
+  // Fallo de la subida de la foto. Va junto a la foto, no al pie: es lo que hay
+  // que cambiar (otra imagen, o ninguna) para poder guardar.
+  const [imageError, setImageError] = useState<string | null>(null);
   /** Errores por campo, en reemplazo del globo de validación del navegador. */
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const nameRef = useRef<HTMLInputElement>(null);
@@ -235,10 +233,10 @@ function ProductForm() {
     }
     if (units <= 1) return "Define primero cuántas unidades trae la caja.";
     const perUnit = boxPrice / units;
-    const label = `Sale a $${perUnit.toLocaleString("en-US", { maximumFractionDigits: 0 })} por unidad`;
+    const label = `Sale a ${formatMoney(perUnit)} por unidad`;
     return perUnit > unitPrice
-      ? `${label}: MÁS CARA que vender suelto ($${unitPrice.toLocaleString("en-US", { maximumFractionDigits: 0 })}).`
-      : `${label}, contra $${unitPrice.toLocaleString("en-US", { maximumFractionDigits: 0 })} suelto.`;
+      ? `${label}: MÁS CARA que vender suelto (${formatMoney(unitPrice)}).`
+      : `${label}, contra ${formatMoney(unitPrice)} suelto.`;
   })();
 
   const editingProduct = editId ? products.find((p) => p.id === editId) : undefined;
@@ -328,6 +326,7 @@ function ProductForm() {
     if (imagePreview) URL.revokeObjectURL(imagePreview);
     setImageFile(file);
     setImagePreview(file ? URL.createObjectURL(file) : "");
+    setImageError(null);
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -348,6 +347,7 @@ function ProductForm() {
       if (imagePreview) URL.revokeObjectURL(imagePreview);
       setImageFile(file);
       setImagePreview(URL.createObjectURL(file));
+      setImageError(null);
     }
   };
 
@@ -357,6 +357,7 @@ function ProductForm() {
       return "";
     });
     setImageFile(null);
+    setImageError(null);
     setForm((prev) => ({ ...prev, image_url: "" }));
   };
 
@@ -393,96 +394,110 @@ function ProductForm() {
     }
 
     setFieldErrors({});
+    setImageError(null);
     setSaving(true);
+    try {
+      // Un servicio va a `services` y NADA MÁS. Antes esta misma función escribía
+      // también una fila en `products` con unidad "Servicio" para que apareciera
+      // en el inventario; hoy el catálogo lee las dos tablas y las muestra juntas,
+      // así que la copia dejó de tener para qué existir.
+      if (isService) {
+        // Duración: si no es un entero positivo, cae al default de 30.
+        const durationRaw = serviceDuration.trim();
+        const durationMinutes =
+          /^\d+$/.test(durationRaw) && parseInt(durationRaw, 10) > 0 ? durationRaw : "30";
 
-    // Un servicio va a `services` y NADA MÁS. Antes esta misma función escribía
-    // también una fila en `products` con unidad "Servicio" para que apareciera
-    // en el inventario; hoy el catálogo lee las dos tablas y las muestra juntas,
-    // así que la copia dejó de tener para qué existir.
-    if (isService) {
-      // Duración: si no es un entero positivo, cae al default de 30.
-      const durationRaw = serviceDuration.trim();
-      const durationMinutes =
-        /^\d+$/.test(durationRaw) && parseInt(durationRaw, 10) > 0 ? durationRaw : "30";
+        /*
+         * La foto se sube ANTES de guardar el servicio, y al mismo bucket que los
+         * productos: las dos son imágenes de catálogo. Si falla la subida se corta
+         * acá y el servicio no se guarda a medias — con la foto vieja puesta y el
+         * dueño creyendo que la cambió.
+         *
+         * Sin archivo nuevo vale lo que ya estaba en el formulario, que es "" si
+         * el dueño quitó la foto.
+         */
+        let imagenServicio: string | null = form.image_url || null;
+        if (imageFile) {
+          try {
+            imagenServicio = await uploadProductImage(imageFile);
+          } catch (e) {
+            // Sin esto la excepción se escapaba de `handleSubmit`: el botón se
+            // quedaba en "Guardando…" para siempre y nadie decía por qué.
+            setImageError(
+              `No se pudo subir la foto (${toMessage(e).replace(/\.$/, "")}). Prueba de nuevo, elige otra imagen o quítala para guardar sin foto.`,
+            );
+            return;
+          }
+        }
 
-      /*
-       * La foto se sube ANTES de guardar el servicio, y al mismo bucket que los
-       * productos: las dos son imágenes de catálogo. Si falla la subida se corta
-       * acá y el servicio no se guarda a medias — con la foto vieja puesta y el
-       * dueño creyendo que la cambió.
-       *
-       * Sin archivo nuevo vale lo que ya estaba en el formulario, que es "" si
-       * el dueño quitó la foto.
-       */
-      const imagenServicio = imageFile
-        ? await uploadProductImage(imageFile)
-        : form.image_url || null;
+        const serviceInput: NewServiceInput = {
+          name: form.name.trim().toUpperCase(),
+          description: serviceDescription,
+          price: serviceFinalPrice,
+          duration_minutes: durationMinutes,
+          status: serviceStatus,
+          has_commission: form.has_commission,
+          commission_type: form.commission_type,
+          commission_value: form.commission_value || "",
+          category_id: form.category_id,
+          image_url: imagenServicio,
+        };
 
-      const serviceInput: NewServiceInput = {
+        const savedService = editServiceId
+          ? await updateService(editServiceId, serviceInput)
+          : await addService(serviceInput);
+        if (savedService) router.push(backTo);
+        return;
+      }
+
+      const payload = {
+        ...form,
         name: form.name.trim().toUpperCase(),
-        description: serviceDescription,
-        price: serviceFinalPrice,
-        duration_minutes: durationMinutes,
-        status: serviceStatus,
-        has_commission: form.has_commission,
-        commission_type: form.commission_type,
-        commission_value: form.commission_value || "",
-        category_id: form.category_id,
-        image_url: imagenServicio,
+        purchase_price: purchasePriceTotal,
+        price: sellingPriceTotal,
+        // El stock solo se define en el alta: `updateProduct` ya no escribe la
+        // columna, y en edición la entrada va por el RPC de movimientos.
+        stock_level: String(initialStock),
+        units_per_package: presentation === "package" ? (form.units_per_package || "1") : "1",
+        package_price: presentation === "package" ? form.package_price : "",
       };
 
-      const savedService = editServiceId
-        ? await updateService(editServiceId, serviceInput)
-        : await addService(serviceInput);
+      const ok = editId
+        ? await updateProduct(editId, payload, imageFile)
+        : await addProduct(payload, imageFile);
+      const saved = typeof ok === "string" || ok === true;
+
+      // La entrada de stock va DESPUÉS de guardar el producto y por su propio RPC.
+      //
+      // Ese orden importa: si el movimiento fuera primero y el guardado fallara,
+      // la mercadería ya habría entrado y el comerciante reintentaría el guardado
+      // sumándola de nuevo. Al revés, lo peor que pasa es que el producto quede
+      // guardado y la entrada no: se ve el error y se vuelve a intentar solo eso.
+      if (saved && editId && entryUnits > 0) {
+        // Cajas y sueltas viajan sumadas, en unidades: partirlo en dos llamadas
+        // dejaría dos filas en el libro para un mismo ingreso, y la segunda podría
+        // fallar con la primera ya aplicada.
+        const moved = await addMovement({
+          product_id: editId,
+          type: "in",
+          quantity: entryUnits,
+          unit_mode: "unit",
+          notes: "Entrada desde la ficha del producto",
+        });
+        if (!moved) return;
+        setEntryPackages("");
+        setEntryLoose("");
+        router.push(backTo);
+        return;
+      }
+
+      if (saved) router.push(backTo);
+    } finally {
+      // Un solo lugar, para TODAS las salidas: cada `return` temprano y
+      // cualquier excepción que no atrape un store. Repartirlo por rama es lo
+      // que dejó el botón trabado en "Guardando…".
       setSaving(false);
-      if (savedService) router.push(backTo);
-      return;
     }
-
-    const payload = {
-      ...form,
-      name: form.name.trim().toUpperCase(),
-      purchase_price: purchasePriceTotal,
-      price: sellingPriceTotal,
-      // El stock solo se define en el alta: `updateProduct` ya no escribe la
-      // columna, y en edición la entrada va por el RPC de movimientos.
-      stock_level: String(initialStock),
-      units_per_package: presentation === "package" ? (form.units_per_package || "1") : "1",
-      package_price: presentation === "package" ? form.package_price : "",
-    };
-
-    const ok = editId
-      ? await updateProduct(editId, payload, imageFile)
-      : await addProduct(payload, imageFile);
-    const saved = typeof ok === "string" || ok === true;
-
-    // La entrada de stock va DESPUÉS de guardar el producto y por su propio RPC.
-    //
-    // Ese orden importa: si el movimiento fuera primero y el guardado fallara,
-    // la mercadería ya habría entrado y el comerciante reintentaría el guardado
-    // sumándola de nuevo. Al revés, lo peor que pasa es que el producto quede
-    // guardado y la entrada no: se ve el error y se vuelve a intentar solo eso.
-    if (saved && editId && entryUnits > 0) {
-      // Cajas y sueltas viajan sumadas, en unidades: partirlo en dos llamadas
-      // dejaría dos filas en el libro para un mismo ingreso, y la segunda podría
-      // fallar con la primera ya aplicada.
-      const moved = await addMovement({
-        product_id: editId,
-        type: "in",
-        quantity: entryUnits,
-        unit_mode: "unit",
-        notes: "Entrada desde la ficha del producto",
-      });
-      setSaving(false);
-      if (!moved) return;
-      setEntryPackages("");
-      setEntryLoose("");
-      router.push(backTo);
-      return;
-    }
-
-    setSaving(false);
-    if (saved) router.push(backTo);
   };
 
   /**
@@ -612,6 +627,14 @@ function ProductForm() {
             onDrop={handleDrop}
             onReset={resetImage}
           />
+        )}
+        {imageError && (
+          <p
+            role="alert"
+            className="-mt-3 text-sm text-error bg-error-container/10 rounded-xl px-4 py-3 border border-error-container/20"
+          >
+            {imageError}
+          </p>
         )}
 
         <div className="bg-surface-container rounded-2xl sm:rounded-3xl border border-outline-variant/10 shadow-sm p-4 sm:p-8 space-y-6">
@@ -951,15 +974,15 @@ function ProductForm() {
                     <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-on-surface-variant">Desglose del precio</p>
                     <div className="flex items-center justify-between gap-4 text-on-surface-variant">
                       <span>Precio antes de IVA</span>
-                      <span>${formatAmount(serviceBaseValue)}</span>
+                      <span>{formatMoney(serviceBaseValue)}</span>
                     </div>
                     <div className="mt-2 flex items-center justify-between gap-4 text-on-surface-variant">
                       <span>IVA{taxRate > 0 && sellingPriceTax !== "Ninguno" ? ` (${percentLabel})` : ""}</span>
-                      <span>${formatAmount(serviceTaxValue)}</span>
+                      <span>{formatMoney(serviceTaxValue)}</span>
                     </div>
                     <div className="mt-3 flex items-center justify-between gap-4 border-t border-outline-variant/15 pt-3 font-bold text-on-surface">
                       <span>Total a cobrar</span>
-                      <span>${formatAmount(serviceFinalValue)}</span>
+                      <span>{formatMoney(serviceFinalValue)}</span>
                     </div>
                 </div>
               </div>

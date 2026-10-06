@@ -10,6 +10,7 @@ import { notifySuccess, notifyError } from "@/lib/notifications";
 import { Select } from "@/components/ui/Select";
 import { MoneyInput } from "@/components/ui/MoneyInput";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { formatMoney } from "@/lib/money";
 
 type TargetType = "product" | "category";
 
@@ -44,7 +45,7 @@ const EMPTY_FORM: FormState = {
 /** El texto que resume qué hace la oferta, para la lista. */
 function describeOffer(offer: ProductOffer): string {
   if (offer.kind === "percent") return `${offer.value ?? 0}% de descuento`;
-  if (offer.kind === "amount") return `$${(offer.value ?? 0).toLocaleString("en-US")} de descuento por unidad`;
+  if (offer.kind === "amount") return `${formatMoney(offer.value ?? 0)} de descuento por unidad`;
   return `Lleva ${offer.buyQty ?? 0}, paga ${offer.payQty ?? 0}`;
 }
 

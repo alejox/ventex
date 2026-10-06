@@ -45,7 +45,7 @@ const MOVEMENT_COLUMNS: DataColumn<InventoryMovement>[] = [
     className: "pl-6 text-on-surface-variant whitespace-nowrap",
     headerClassName: "pl-6",
     cell: (mov) =>
-      new Date(mov.created_at).toLocaleDateString("es-ES", {
+      new Date(mov.created_at).toLocaleDateString("es-CO", {
         day: "2-digit",
         month: "2-digit",
         year: "numeric",

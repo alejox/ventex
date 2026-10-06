@@ -2,16 +2,25 @@
 
 import { useEffect, useState } from "react";
 import { useStaffStore } from "@/stores/staff.store";
-import type { CommissionRow, CommissionSettlement, StaffMember } from "@/services/staff.service";
+import type {
+  CommissionPeriod,
+  CommissionRow,
+  CommissionScope,
+  CommissionSettlement,
+  StaffMember,
+} from "@/services/staff.service";
+import {
+  currentMonthPeriod,
+  pendingSettlePeriod,
+  previousMonthPeriod,
+} from "@/services/staff.service";
 import { DataTable, type DataColumn } from "@/components/DataTable";
 import { SettleCommissionModal } from "@/components/SettleCommissionModal";
 import { CommissionReceiptModal } from "@/components/CommissionReceiptModal";
 import { CollectionEmpty, CollectionError, CollectionLoading } from "@/components/CollectionState";
 import { IconDollar } from "@/app/assets/icons/DashboardIcons";
 import { notifySuccess, notifyError } from "@/lib/notifications";
-
-const money = (n: number) =>
-  n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+import { formatMoney } from "@/lib/money";
 
 const PAYMENT_LABELS: Record<string, string> = {
   efectivo: "Efectivo",
@@ -21,6 +30,29 @@ const PAYMENT_LABELS: Record<string, string> = {
 
 const shortDate = (iso: string) =>
   new Date(`${iso}T00:00:00`).toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "numeric" });
+
+/** Fecha corta de un instante (`created_at`), en la zona del navegador. */
+const shortInstant = (iso: string) =>
+  new Date(iso).toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "numeric" });
+
+/**
+ * Qué mira la pantalla. Arranca en "Todo lo pendiente" porque la pregunta que
+ * trae a alguien acá es "¿cuánto le debo?", y esa respuesta no tiene mes: el
+ * día 1 lo que se debía del mes anterior se sigue debiendo.
+ */
+type ScopeChip = "pending" | "month" | "previous";
+
+const SCOPE_CHIPS: { value: ScopeChip; label: string }[] = [
+  { value: "pending", label: "Todo lo pendiente" },
+  { value: "month", label: "Este mes" },
+  { value: "previous", label: "Mes anterior" },
+];
+
+function scopeOf(chip: ScopeChip): CommissionScope {
+  if (chip === "month") return { kind: "period", period: currentMonthPeriod() };
+  if (chip === "previous") return { kind: "period", period: previousMonthPeriod() };
+  return { kind: "pending" };
+}
 
 /**
  * Comisiones: cuánto se le debe a cada quien y el acto de pagarle.
@@ -46,18 +78,41 @@ export default function CommissionsPage() {
   const submitting = useStaffStore((s) => s.submitting);
   const error = useStaffStore((s) => s.error);
 
-  const [settleFor, setSettleFor] = useState<StaffMember | null>(null);
+  const [chip, setChip] = useState<ScopeChip>("pending");
+  const [scope, setScope] = useState<CommissionScope>(() => scopeOf("pending"));
+  const isPendingView = scope.kind === "pending";
+  const [settleFor, setSettleFor] = useState<{ member: StaffMember; period: CommissionPeriod } | null>(null);
   const [receiptFor, setReceiptFor] = useState<CommissionSettlement | null>(null);
   const [confirmVoid, setConfirmVoid] = useState<CommissionSettlement | null>(null);
 
   useEffect(() => {
     fetchStaff();
-    fetchCommissions();
     fetchSettlements();
-  }, [fetchStaff, fetchCommissions, fetchSettlements]);
+  }, [fetchStaff, fetchSettlements]);
+
+  useEffect(() => {
+    fetchCommissions(scope);
+  }, [fetchCommissions, scope]);
+
+  const selectChip = (next: ScopeChip) => {
+    setChip(next);
+    setScope(scopeOf(next));
+  };
+
+  /**
+   * Con qué período abre "Liquidar": el elegido, o —viendo todo lo pendiente—
+   * desde la venta pendiente más vieja de esa persona hasta hoy, así no queda
+   * afuera nada de lo que la tabla dice que se le debe.
+   */
+  const settlePeriodFor = (c: CommissionRow): CommissionPeriod =>
+    scope.kind === "period" ? scope.period : pendingSettlePeriod(c.oldestPendingAt);
 
   const totalPendiente = commissions.reduce((sum, c) => sum + c.pending, 0);
   const totalLiquidado = commissions.reduce((sum, c) => sum + c.settled, 0);
+  const oldestPending = commissions
+    .map((c) => c.oldestPendingAt)
+    .filter((d): d is string => !!d)
+    .sort((a, b) => new Date(a).getTime() - new Date(b).getTime())[0] ?? null;
 
   /**
    * La columna que manda es POR PAGAR, no lo devengado: "¿cuánto le debo?" es
@@ -78,24 +133,37 @@ export default function CommissionsPage() {
       className: "font-bold tabular-nums",
       cell: (c) => (
         <span className={c.pending > 0 ? "text-on-surface" : "text-on-surface-variant"}>
-          ${money(c.pending)}
+          {formatMoney(c.pending)}
         </span>
       ),
     },
+    // Viendo todo lo pendiente, liquidado y devengado no tienen período al que
+    // referirse (serían el histórico entero): se muestra desde cuándo se debe.
+    ...(isPendingView
+      ? [
+          {
+            header: "Pendiente desde",
+            align: "right",
+            className: "text-on-surface-variant tabular-nums",
+            cell: (c) => (c.oldestPendingAt ? shortInstant(c.oldestPendingAt) : "—"),
+          } satisfies DataColumn<CommissionRow>,
+        ]
+      : [
+          {
+            header: "Liquidado",
+            align: "right",
+            className: "text-on-surface-variant tabular-nums",
+            cell: (c) => formatMoney(c.settled),
+          } satisfies DataColumn<CommissionRow>,
+          {
+            header: "Devengado",
+            align: "right",
+            className: "text-on-surface-variant tabular-nums",
+            cell: (c) => formatMoney(c.commission),
+          } satisfies DataColumn<CommissionRow>,
+        ]),
     {
-      header: "Liquidado",
-      align: "right",
-      className: "text-on-surface-variant tabular-nums",
-      cell: (c) => `$${money(c.settled)}`,
-    },
-    {
-      header: "Devengado",
-      align: "right",
-      className: "text-on-surface-variant tabular-nums",
-      cell: (c) => `$${money(c.commission)}`,
-    },
-    {
-      header: "Ventas",
+      header: isPendingView ? "Ventas pendientes" : "Ventas",
       align: "center",
       className: "text-on-surface-variant",
       cell: (c) => c.salesCount,
@@ -110,9 +178,9 @@ export default function CommissionsPage() {
         const member = staff.find((m) => m.id === c.staff_id);
         return (
           <button
-            onClick={() => member && setSettleFor(member)}
+            onClick={() => member && setSettleFor({ member, period: settlePeriodFor(c) })}
             disabled={c.pending <= 0 || !member}
-            title={c.pending > 0 ? undefined : "No hay comisión pendiente en el mes en curso"}
+            title={c.pending > 0 ? undefined : "No hay comisión pendiente en el período elegido"}
             className="px-3 py-1.5 rounded-lg bg-primary/10 text-primary text-[11px] font-bold hover:bg-primary hover:text-on-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-primary/10 disabled:hover:text-primary"
           >
             Liquidar
@@ -131,29 +199,63 @@ export default function CommissionsPage() {
         </p>
       </div>
 
-      {error && <CollectionError message={error} onRetry={fetchCommissions} />}
+      {error && <CollectionError message={error} onRetry={() => fetchCommissions(scope)} />}
+
+      <div role="group" aria-label="Período de las comisiones" className="flex flex-wrap gap-2">
+        {SCOPE_CHIPS.map((o) => (
+          <button
+            key={o.value}
+            type="button"
+            onClick={() => selectChip(o.value)}
+            aria-pressed={chip === o.value}
+            className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors ${
+              chip === o.value
+                ? "bg-primary/10 text-primary"
+                : "border border-outline-variant/20 text-on-surface hover:bg-surface-container-high"
+            }`}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="bg-surface-container rounded-2xl p-5 border border-outline-variant/10 shadow-sm">
-          <p className="text-on-surface-variant text-sm font-medium mb-1">Por pagar este mes</p>
+          <p className="text-on-surface-variant text-sm font-medium mb-1">
+            {isPendingView ? "Por pagar (todo lo pendiente)" : chip === "previous" ? "Por pagar del mes anterior" : "Por pagar este mes"}
+          </p>
           <h3 className="text-3xl font-bold text-on-surface tracking-tight tabular-nums">
-            ${money(totalPendiente)}
+            {formatMoney(totalPendiente)}
           </h3>
         </div>
-        <div className="bg-surface-container rounded-2xl p-5 border border-outline-variant/10 shadow-sm">
-          <p className="text-on-surface-variant text-sm font-medium mb-1">Ya liquidado este mes</p>
-          <h3 className="text-3xl font-bold text-emerald-600 tracking-tight tabular-nums">
-            ${money(totalLiquidado)}
-          </h3>
-        </div>
+        {isPendingView ? (
+          <div className="bg-surface-container rounded-2xl p-5 border border-outline-variant/10 shadow-sm">
+            <p className="text-on-surface-variant text-sm font-medium mb-1">Pendiente desde</p>
+            <h3 className="text-3xl font-bold text-on-surface tracking-tight tabular-nums">
+              {oldestPending ? shortInstant(oldestPending) : "—"}
+            </h3>
+          </div>
+        ) : (
+          <div className="bg-surface-container rounded-2xl p-5 border border-outline-variant/10 shadow-sm">
+            <p className="text-on-surface-variant text-sm font-medium mb-1">
+              {chip === "previous" ? "Ya liquidado del mes anterior" : "Ya liquidado este mes"}
+            </p>
+            <h3 className="text-3xl font-bold text-emerald-600 tracking-tight tabular-nums">
+              {formatMoney(totalLiquidado)}
+            </h3>
+          </div>
+        )}
       </div>
 
       <div className="bg-surface-container rounded-3xl border border-outline-variant/10 shadow-sm overflow-hidden">
         <div className="px-6 py-4 border-b border-outline-variant/10 bg-surface-container-low">
-          <h2 className="text-sm font-bold text-on-surface">Comisiones del mes</h2>
+          <h2 className="text-sm font-bold text-on-surface">
+            {isPendingView ? "Comisiones pendientes" : chip === "previous" ? "Comisiones del mes anterior" : "Comisiones del mes"}
+          </h2>
           <p className="text-xs text-on-surface-variant mt-0.5">
-            Suma de lo que dejó cada producto y servicio con comisión, al valor que tenía el día de
-            la venta.
+            {isPendingView
+              ? "Todo lo que todavía no se liquidó, sin importar el mes de la venta, al valor que tenía el día que se vendió."
+              : "Suma de lo que dejó cada producto y servicio con comisión, al valor que tenía el día de la venta."}
           </p>
         </div>
         {commissionsLoading ? (
@@ -161,8 +263,12 @@ export default function CommissionsPage() {
         ) : commissions.length === 0 ? (
           <CollectionEmpty
             icon={<IconDollar className="w-8 h-8" />}
-            title="Todavía no hay comisiones"
-            description="Aparecen acá cuando vendas productos o servicios que generen comisión y la venta quede atribuida a alguien del equipo."
+            title={isPendingView ? "No hay comisiones pendientes" : "No hay comisiones en este período"}
+            description={
+              isPendingView
+                ? "Todo lo vendido con comisión ya está liquidado. Lo nuevo aparece acá cuando vendas productos o servicios con comisión atribuidos a alguien del equipo."
+                : "Aparecen acá cuando vendas productos o servicios que generen comisión y la venta quede atribuida a alguien del equipo."
+            }
           />
         ) : (
           <DataTable rows={commissions} rowKey={(c) => c.staff_id} minWidth={640} caption="Comisiones por miembro" columns={columns} />
@@ -211,7 +317,7 @@ export default function CommissionsPage() {
                     </p>
                   </button>
                   <span className={`shrink-0 text-sm font-bold tabular-nums ${s.status === "void" ? "text-on-surface-variant/50 line-through" : "text-on-surface"}`}>
-                    ${money(s.total_amount)}
+                    {formatMoney(s.total_amount)}
                   </span>
                   {s.status !== "void" && (
                     <button
@@ -235,7 +341,8 @@ export default function CommissionsPage() {
 
       {settleFor && (
         <SettleCommissionModal
-          member={settleFor}
+          member={settleFor.member}
+          initialPeriod={settleFor.period}
           onClose={() => setSettleFor(null)}
           onSettled={(id) => {
             setSettleFor(null);
@@ -255,7 +362,7 @@ export default function CommissionsPage() {
             <div className="p-6 text-center">
               <h3 className="text-lg font-bold text-on-surface mb-2">Anular liquidación</h3>
               <p className="text-sm text-on-surface-variant mb-4">
-                Las comisiones de {confirmVoid.staff_name} (${money(confirmVoid.total_amount)}) vuelven a
+                Las comisiones de {confirmVoid.staff_name} ({formatMoney(confirmVoid.total_amount)}) vuelven a
                 quedar pendientes y el gasto asociado se elimina.
               </p>
               {confirmVoid.cash_movement_id && (

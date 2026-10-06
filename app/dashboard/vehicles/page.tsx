@@ -25,7 +25,7 @@ const STATUS_LABELS: Record<string, { label: string; cls: string }> = {
 };
 
 const formatDate = (iso: string) =>
-  formatDateOnly(iso, { day: "2-digit", month: "short", year: "numeric" }, "es-ES");
+  formatDateOnly(iso, { day: "2-digit", month: "short", year: "numeric" }, "es-CO");
 
 export default function VehiclesPage() {
   const vehicles = useVehiclesStore((s) => s.vehicles);

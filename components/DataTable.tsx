@@ -72,6 +72,40 @@ interface DataTableProps<T> {
   pageSize?: number;
   /** Opciones de tamaño de página. */
   pageSizeOptions?: number[];
+  /**
+   * Muestra un buscador sobre la tabla que filtra las filas EN MEMORIA. Sirve
+   * cuando la página ya cargó la lista entera; con paginación del servidor
+   * el filtro tendría que viajar a la consulta, no venir acá.
+   */
+  searchable?: boolean;
+  searchPlaceholder?: string;
+  /**
+   * Texto contra el que se busca en cada fila. Sin esto se usa el texto de las
+   * celdas, que deja afuera todo lo que una celda dibuja como JSX.
+   */
+  getSearchText?: (row: T) => string;
+}
+
+/** Minúsculas y sin tildes: "Gómez" tiene que aparecer buscando "gomez". */
+const normalizeSearch = (text: string): string =>
+  text.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().trim();
+
+/**
+ * ¿La fila coincide con lo buscado? Además del texto, compara solo los
+ * dígitos: un teléfono guardado como "300 123 4567" tiene que aparecer
+ * buscando "3001234567", y un documento "1.020.304" buscando "1020304".
+ */
+export function matchesSearch(text: string, query: string): boolean {
+  const q = normalizeSearch(query);
+  if (!q) return true;
+  if (normalizeSearch(text).includes(q)) return true;
+  const qDigits = q.replace(/\D/g, "");
+  // Solo si lo buscado ES un número (con separadores): "ana 3" no tiene que
+  // matchear cualquier fila con un 3 en el teléfono.
+  if (qDigits.length >= 3 && /^[\d\s().+-]+$/.test(q)) {
+    return text.replace(/\D/g, "").includes(qDigits);
+  }
+  return false;
 }
 
 const alignClass = {
@@ -108,6 +142,9 @@ export function DataTable<T>({
   pagination = true,
   pageSize = 10,
   pageSizeOptions = [10, 25, 50, 100],
+  searchable = false,
+  searchPlaceholder = "Buscar…",
+  getSearchText,
 }: DataTableProps<T>) {
   // Qué tarjetas tienen el detalle abierto. Se guarda por clave de fila para
   // que abrir una no reordene ni cierre las demás.
@@ -116,6 +153,7 @@ export function DataTable<T>({
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSizeState, setPageSizeState] = useState(pageSize);
+  const [query, setQuery] = useState("");
 
   const toggleSort = (key: string) => {
     if (sortKey === key) {
@@ -128,7 +166,16 @@ export function DataTable<T>({
     }
   };
 
-  const sortedRows = [...rows].sort((a, b) => {
+  const rowSearchText = (row: T): string =>
+    getSearchText
+      ? getSearchText(row)
+      : columns.map((c) => stringify(c.cell(row))).join(" ");
+  const filteredRows =
+    searchable && query.trim()
+      ? rows.filter((row) => matchesSearch(rowSearchText(row), query))
+      : rows;
+
+  const sortedRows = [...filteredRows].sort((a, b) => {
     if (!sortKey) return 0;
     const col = columns.find((c) => c.sortKey === sortKey);
     if (!col) return 0;
@@ -213,6 +260,42 @@ export function DataTable<T>({
 
   return (
     <>
+      {searchable && (
+        <div className="p-4 border-b border-outline-variant/10">
+          <div className="relative w-full sm:max-w-sm">
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                // Lo encontrado puede no llegar a la página en la que estabas.
+                setCurrentPage(1);
+              }}
+              placeholder={searchPlaceholder}
+              aria-label={searchPlaceholder}
+              className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-xl py-2.5 pl-9 pr-3 text-base lg:text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/40"
+            />
+            <svg
+              aria-hidden="true"
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant/60"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              viewBox="0 0 24 24"
+            >
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.35-4.35" />
+            </svg>
+          </div>
+        </div>
+      )}
+
+      {searchable && query.trim() && sortedRows.length === 0 && (
+        <p role="status" className="px-4 py-10 text-center text-sm text-on-surface-variant">
+          No hay resultados para «{query.trim()}». Revisa lo que escribiste o prueba con otro dato.
+        </p>
+      )}
+
       {/* Escritorio */}
       <div className="hidden lg:block overflow-x-auto">
         <table className="w-full text-left border-collapse" style={{ minWidth }}>
@@ -388,8 +471,6 @@ export function DataTable<T>({
                 ))}
               </div>
             )}
-
-            {renderExpanded?.(row)}
           </li>
           );
         })}

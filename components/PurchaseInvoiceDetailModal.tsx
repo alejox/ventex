@@ -5,9 +5,7 @@ import type { PurchaseInvoice, PurchaseInvoiceItem } from "@/services/purchases.
 import * as purchasesService from "@/services/purchases.service";
 import { looseUnitsOf } from "@/services/purchases.service";
 import { formatDateOnly } from "@/lib/date";
-
-const money = (n: number) =>
-  "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+import { formatMoney } from "@/lib/money";
 
 interface Props {
   invoice: PurchaseInvoice;
@@ -59,7 +57,7 @@ export function PurchaseInvoiceDetailModal({ invoice, onClose }: Props) {
             <div>
               <span className="text-on-surface-variant text-xs font-medium">Fecha</span>
               <p className="text-on-surface font-semibold mt-0.5">
-                {formatDateOnly(invoice.issue_date, {}, "es-ES")}
+                {formatDateOnly(invoice.issue_date, {}, "es-CO")}
               </p>
             </div>
             <div>
@@ -108,14 +106,14 @@ export function PurchaseInvoiceDetailModal({ invoice, onClose }: Props) {
                           <strong className="text-on-surface">{item.quantity} u.</strong>
                         )}
                         <span className="mx-1">·</span>
-                        {item.package_quantity > 0 && `${money(item.package_price)} la caja`}
+                        {item.package_quantity > 0 && `${formatMoney(item.package_price)} la caja`}
                         {item.package_quantity > 0 && looseUnitsOf(item) > 0 && " + "}
                         {(item.package_quantity === 0 || looseUnitsOf(item) > 0) &&
-                          `${money(item.unit_price)} la unidad`}
+                          `${formatMoney(item.unit_price)} la unidad`}
                       </p>
                     </div>
                     <span className="text-sm font-semibold text-on-surface font-mono shrink-0 ml-4">
-                      {money(item.line_total)}
+                      {formatMoney(item.line_total)}
                     </span>
                   </div>
                 ))}
@@ -126,7 +124,7 @@ export function PurchaseInvoiceDetailModal({ invoice, onClose }: Props) {
           <div className="border-t border-outline-variant/10 pt-4 flex justify-between items-center">
             <span className="text-sm font-semibold text-on-surface">Total</span>
             <span className="text-xl font-bold text-on-surface font-mono">
-              {money(Number(invoice.total))}
+              {formatMoney(Number(invoice.total))}
             </span>
           </div>
         </div>

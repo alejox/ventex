@@ -1,5 +1,24 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { tryLogin } from "./helpers/auth";
+import { ensureProduct } from "./helpers/catalog";
+
+// El mismo producto de prueba que usa pos-offline.spec.ts (sin control de
+// inventario, así que no hay tope de stock que interfiera con la cantidad).
+const PRODUCTO = "Producto E2E Offline";
+
+/**
+ * Agrega PRODUCTO al carrito. El POS pinta el catálogo dos veces (grilla de
+ * escritorio, donde la tarjeta entera es el botón, y lista móvil con un "+"
+ * etiquetado "Agregar X a la venta") y oculta una por CSS: se toma la visible.
+ */
+async function agregarProducto(page: Page) {
+  const tarjeta = page
+    .getByRole("button", { name: new RegExp(PRODUCTO, "i") })
+    .filter({ visible: true })
+    .first();
+  await expect(tarjeta).toBeVisible({ timeout: 15000 });
+  await tarjeta.click();
+}
 
 /**
  * El campo de cantidad del carrito arranca en 1, y editarlo es lo que hace
@@ -12,6 +31,7 @@ test.describe("POS · editar la cantidad de una línea", () => {
   test.beforeEach(async ({ page }) => {
     const loggedIn = await tryLogin(page);
     test.skip(!loggedIn, "No se pudo autenticar - saltando prueba");
+    await ensureProduct(page, PRODUCTO, 10000);
     await page.goto("/dashboard/pos");
     await page.waitForLoadState("networkidle");
   });
@@ -19,11 +39,9 @@ test.describe("POS · editar la cantidad de una línea", () => {
   test("escribir sobre la cantidad la REEMPLAZA, no la concatena", async ({ page }) => {
     await expect(page.getByText("Factura de venta")).toBeVisible({ timeout: 15000 });
 
-    const agregar = page.locator("button[aria-label='Agregar']").first();
-    await expect(agregar).toBeVisible({ timeout: 15000 });
-    await agregar.click();
+    await agregarProducto(page);
 
-    const cantidad = page.locator('input[aria-label^="Cantidad de"]').first();
+    const cantidad = page.getByLabel(new RegExp(`^Cantidad de ${PRODUCTO}`, "i")).filter({ visible: true }).first();
     await expect(cantidad).toBeVisible();
     await expect(cantidad).toHaveValue("1");
 
@@ -42,11 +60,9 @@ test.describe("POS · editar la cantidad de una línea", () => {
   test("se puede vaciar el campo para escribir otra cantidad", async ({ page }) => {
     await expect(page.getByText("Factura de venta")).toBeVisible({ timeout: 15000 });
 
-    const agregar = page.locator("button[aria-label='Agregar']").first();
-    await expect(agregar).toBeVisible({ timeout: 15000 });
-    await agregar.click();
+    await agregarProducto(page);
 
-    const cantidad = page.locator('input[aria-label^="Cantidad de"]').first();
+    const cantidad = page.getByLabel(new RegExp(`^Cantidad de ${PRODUCTO}`, "i")).filter({ visible: true }).first();
     await cantidad.click();
     await page.keyboard.press("Backspace");
     await expect(cantidad).toHaveValue("");

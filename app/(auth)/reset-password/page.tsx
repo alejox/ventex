@@ -91,17 +91,23 @@ function ResetPasswordForm() {
 
       <form className="space-y-5" onSubmit={handleReset}>
         {shownError && (
-          <div className="bg-error-container/20 text-error-dim text-[13px] px-4 py-3 rounded-lg border border-error-container/30">
+          <div
+            role="alert"
+            className="bg-error-container/20 text-error-dim text-[13px] px-4 py-3 rounded-lg border border-error-container/30"
+          >
             {shownError}
           </div>
         )}
         <div className="space-y-1.5">
-          <label className="text-[13px] font-semibold text-on-surface block">
+          <label htmlFor="reset-email" className="text-[13px] font-semibold text-on-surface block">
             Correo electrónico
           </label>
           <div className="relative">
             <input
+              id="reset-email"
               type="email"
+              name="email"
+              autoComplete="email"
               placeholder="nombre@ejemplo.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}

@@ -247,20 +247,24 @@ export default function ResellerClientsPage() {
             </tbody>
           </table>
         </div>
-        {filtered.length > 0 && (
-          <Pagination
-            currentPage={safeCurrentPage}
-            totalPages={totalPages}
-            totalItems={filtered.length}
-            pageSize={pageSize}
-            onPageChange={setCurrentPage}
-            onPageSizeChange={(newSize) => {
-              setPageSize(newSize);
-              setCurrentPage(1);
-            }}
-          />
-        )}
       </div>
+
+      {/* Fuera del bloque de escritorio: las tarjetas móviles muestran la misma
+          página, así que sin esto en móvil no había cómo pasar de la primera. */}
+      {filtered.length > 0 && (
+        <Pagination
+          currentPage={safeCurrentPage}
+          totalPages={totalPages}
+          totalItems={filtered.length}
+          pageSize={pageSize}
+          className="mt-3 rounded-t-2xl sm:rounded-t-3xl border border-outline-variant/10 shadow-sm"
+          onPageChange={setCurrentPage}
+          onPageSizeChange={(newSize) => {
+            setPageSize(newSize);
+            setCurrentPage(1);
+          }}
+        />
+      )}
 
       {creating && <CreateClientModal onClose={() => setCreating(false)} />}
       {managing && <ManageClientModal client={managing} onClose={() => setManaging(null)} />}

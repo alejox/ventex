@@ -4,7 +4,8 @@ import { login } from "./helpers/auth";
 const MOBILE = { width: 375, height: 812 };
 
 /** Cifra deliberadamente larga para forzar el peor caso de contenido. */
-const STRESS_MONEY = "$99,999,999.00";
+// Formato de la app: es-CO sin decimales, con espacio no separable tras "$".
+const STRESS_MONEY = "$\u00a099.999.999";
 
 type Offender = {
   tag: string;
@@ -163,7 +164,9 @@ test.describe("responsive movil 375px", () => {
     ["Clientes", "/dashboard/customers", /a[ñn]adir cliente|nuevo cliente/i],
     // Servicios ya no tiene modal propio: su alta es el formulario compartido
     // del catálogo, que no es un modal y se cubre en el barrido de rutas.
-    ["Catálogo", "/dashboard/inventory", /nueva categor[ií]a/i],
+    // El alta de categoría ya no es un modal del catálogo: el catálogo enlaza
+    // a /dashboard/categories, y el modal vive ahí.
+    ["Categorías", "/dashboard/categories", /nueva categor[ií]a/i],
     ["Proveedores", "/dashboard/distributors", /a[ñn]adir proveedor|nuevo proveedor/i],
   ];
 

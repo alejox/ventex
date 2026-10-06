@@ -1,13 +1,7 @@
 "use client";
 
-/** Formatea pesos (COP) para las pantallas de la escuela. */
-export function formatMoney(n: number): string {
-  return new Intl.NumberFormat("es-CO", {
-    style: "currency",
-    currency: "COP",
-    maximumFractionDigits: 0,
-  }).format(n);
-}
+/** Formatea pesos (COP) para las pantallas de la escuela — el formato vive en `lib/money.ts`. */
+export { formatMoney } from "@/lib/money";
 
 /** Fecha corta tipo "24 sep" para listas y tarjetas. */
 export function formatShortDate(iso: string | null): string {

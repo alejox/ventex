@@ -93,14 +93,51 @@ function lastMonths(n: number): { key: string; label: string }[] {
   for (let i = n - 1; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    const label = d.toLocaleDateString("es-ES", { month: "short" }).replace(".", "");
+    const label = d.toLocaleDateString("es-CO", { month: "short" }).replace(".", "");
     out.push({ key, label: label.charAt(0).toUpperCase() + label.slice(1) });
   }
   return out;
 }
 
-// created_at (ISO) y expense_date ("YYYY-MM-DD") comparten los primeros 7 chars.
-const monthKeyOf = (value: string) => value.slice(0, 7);
+/**
+ * Mes "YYYY-MM" de una columna `date` (`expense_date`, `issue_date`): es un
+ * día de calendario, así que basta con cortar el texto.
+ */
+const monthKeyOfDate = (value: string) => value.slice(0, 7);
+
+/**
+ * Mes "YYYY-MM" de un instante (`sales.created_at`) en hora LOCAL. Cortar el
+ * ISO daría el mes en UTC: la venta de las 20:00 del 31 en Colombia caía en el
+ * mes siguiente.
+ */
+export const monthKeyOfInstant = (iso: string) => toISODate(new Date(iso)).slice(0, 7);
+
+/** Tope de filas por respuesta de PostgREST (max-rows por defecto de Supabase). */
+export const PAGE_SIZE = 1000;
+
+type PageResult<T> = PromiseLike<{ data: T[] | null; error: unknown }>;
+
+/**
+ * Trae TODAS las filas de una consulta, de a `PAGE_SIZE`.
+ *
+ * PostgREST corta cada respuesta en 1.000 filas sin avisar: un negocio con más
+ * ventas que eso veía totales por debajo de lo real. `page(from, to)` tiene que
+ * armar la consulta con un orden ESTABLE (con desempate por id), o las páginas
+ * se pisan o se saltean filas. Se detiene en la primera página incompleta.
+ */
+export async function fetchAllRows<T>(
+  page: (from: number, to: number) => PageResult<T>,
+  pageSize: number = PAGE_SIZE,
+): Promise<T[]> {
+  const rows: T[] = [];
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await page(from, from + pageSize - 1);
+    if (error) throw error;
+    const chunk = data ?? [];
+    rows.push(...chunk);
+    if (chunk.length < pageSize) return rows;
+  }
+}
 
 /**
  * Ventas completadas desde la medianoche local. La medianoche se calcula en el
@@ -111,32 +148,48 @@ export async function fetchTodaySales(): Promise<TodaySales> {
   const midnight = new Date();
   midnight.setHours(0, 0, 0, 0);
 
-  const { data, count, error } = await supabase
-    .from("sales")
-    .select("total", { count: "exact" })
-    .gte("created_at", midnight.toISOString())
-    .eq("status", "completed");
-  if (error) throw error;
+  const rows = await fetchAllRows((from, to) =>
+    supabase
+      .from("sales")
+      .select("id, total")
+      .gte("created_at", midnight.toISOString())
+      .eq("status", "completed")
+      .order("id")
+      .range(from, to),
+  );
 
   return {
-    count: count ?? 0,
-    revenue: (data ?? []).reduce((s, r) => s + (r.total ?? 0), 0),
+    count: rows.length,
+    revenue: rows.reduce((s, r) => s + (r.total ?? 0), 0),
   };
 }
 
 export async function fetchOverview(): Promise<FinanceOverview> {
   const supabase = createClient();
-  const [salesRes, expRes, invRes] = await Promise.all([
-    supabase
-      .from("sales")
-      .select("id, sale_number, total, status, created_at")
-      .order("created_at", { ascending: false }),
-    supabase
-      .from("expenses")
-      // La categoría viene embebida para el desglose del panel: sin ella habría
-      // que pedir la tabla de gastos dos veces.
-      .select("id, description, category, amount, expense_date, expense_categories(id, name, color)")
-      .order("expense_date", { ascending: false }),
+  // Las tres consultas se paginan (fetchAllRows): sin eso PostgREST devolvía
+  // las primeras 1.000 filas y los KPIs del panel salían por debajo de lo real.
+  // El `id` desempata el orden para que ninguna fila caiga entre dos páginas.
+  const [sales, expenses, paidInvoices] = await Promise.all([
+    fetchAllRows((from, to) =>
+      supabase
+        .from("sales")
+        .select("id, sale_number, total, status, created_at")
+        // Solo se usan las completadas: filtrar acá ahorra páginas.
+        .eq("status", "completed")
+        .order("created_at", { ascending: false })
+        .order("id")
+        .range(from, to),
+    ),
+    fetchAllRows((from, to) =>
+      supabase
+        .from("expenses")
+        // La categoría viene embebida para el desglose del panel: sin ella habría
+        // que pedir la tabla de gastos dos veces.
+        .select("id, description, category, amount, expense_date, expense_categories(id, name, color)")
+        .order("expense_date", { ascending: false })
+        .order("id")
+        .range(from, to),
+    ),
     // `type` es OBLIGATORIO en este select: la tabla `invoices` guarda las dos
     // puntas del negocio. `type = 'compra'` es lo que se le compra a un
     // proveedor (un GASTO); 'factura' y 'cotizacion' son lo que se le cobra a
@@ -144,19 +197,16 @@ export async function fetchOverview(): Promise<FinanceOverview> {
     // discriminan —`purchases.service.ts` con .eq("type","compra") y
     // `billing.service.ts` con .neq("type","compra")—; este era el único que
     // no, y por eso sumaba las compras como ingreso.
-    supabase
-      .from("invoices")
-      .select("id, invoice_number, type, total, status, issue_date")
-      .eq("status", "paid")
-      .order("issue_date", { ascending: false }),
+    fetchAllRows((from, to) =>
+      supabase
+        .from("invoices")
+        .select("id, invoice_number, type, total, status, issue_date")
+        .eq("status", "paid")
+        .order("issue_date", { ascending: false })
+        .order("id")
+        .range(from, to),
+    ),
   ]);
-  if (salesRes.error) throw salesRes.error;
-  if (expRes.error) throw expRes.error;
-  if (invRes.error) throw invRes.error;
-
-  const sales = salesRes.data ?? [];
-  const expenses = expRes.data ?? [];
-  const paidInvoices = invRes.data ?? [];
 
   // Facturas de VENTA pagadas: ingreso. Las pendientes y las cotizaciones sin
   // pagar ya quedaron afuera por el filtro de status.
@@ -176,21 +226,21 @@ export async function fetchOverview(): Promise<FinanceOverview> {
   const months = lastMonths(MONTHS);
   const buckets = new Map(months.map((m) => [m.key, { ...m, income: 0, expense: 0 }]));
   for (const s of completed) {
-    const b = buckets.get(monthKeyOf(s.created_at));
+    const b = buckets.get(monthKeyOfInstant(s.created_at));
     if (b) b.income += s.total;
   }
   for (const i of salesInvoices) {
-    const b = buckets.get(monthKeyOf(i.issue_date));
+    const b = buckets.get(monthKeyOfDate(i.issue_date));
     if (b) b.income += i.total;
   }
   for (const e of expenses) {
-    const b = buckets.get(monthKeyOf(e.expense_date));
+    const b = buckets.get(monthKeyOfDate(e.expense_date));
     if (b) b.expense += e.amount;
   }
   // Las compras van a la barra de gastos del mes. Sin esto el gráfico mostraba
   // seis meses sin una sola barra roja aunque el negocio comprara mercadería.
   for (const i of purchases) {
-    const b = buckets.get(monthKeyOf(i.issue_date));
+    const b = buckets.get(monthKeyOfDate(i.issue_date));
     if (b) b.expense += i.total;
   }
 

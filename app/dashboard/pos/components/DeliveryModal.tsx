@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useDeliveryStore } from "@/stores/delivery.store";
 import type { DeliveryData } from "@/stores/pos.store";
+import { formatMoney } from "@/lib/money";
 
 interface DeliveryModalProps {
   totals: { total: number };
@@ -134,7 +135,7 @@ export function DeliveryModal({
           <div className="pt-2 flex justify-between text-sm">
             <span className="text-on-surface-variant">Total venta</span>
             <span className="text-on-surface font-bold">
-              ${totals.total.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+              {formatMoney(totals.total)}
             </span>
           </div>
         </div>

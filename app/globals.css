@@ -46,10 +46,10 @@
   --tertiary-fixed-dim: #d6bbff;
   --on-tertiary-fixed: #2b075f;
   --on-tertiary-fixed-variant: #4a149d;
-  --primary-dim: #d6bbff;
+  --primary-dim: #5817c8; /* white-on-hover fill: 8.86:1; was #d6bbff (1.69:1) */
   --secondary-dim: #cbd2d8;
   --tertiary-dim: #d6bbff;
-  --error-dim: #ffb4ab;
+  --error-dim: #93000a; /* mostly text: 8.96:1 on surface, 7.24:1 on error-container; was #ffb4ab (1.63:1) */
   --background: #fafafa;
   --on-background: #25292d;
   --surface-variant: #e5e0ed;

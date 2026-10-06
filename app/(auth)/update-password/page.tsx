@@ -176,17 +176,23 @@ function UpdatePasswordForm() {
 
       <form className="space-y-5" onSubmit={handleUpdate}>
         {error && (
-          <div className="bg-error-container/20 text-error-dim text-[13px] px-4 py-3 rounded-lg border border-error-container/30">
+          <div
+            role="alert"
+            className="bg-error-container/20 text-error-dim text-[13px] px-4 py-3 rounded-lg border border-error-container/30"
+          >
             {error}
           </div>
         )}
         <div className="space-y-1.5">
-          <label className="text-[13px] font-semibold text-on-surface block">
+          <label htmlFor="new-password" className="text-[13px] font-semibold text-on-surface block">
             Nueva contraseña
           </label>
           <div className="relative">
             <input
+              id="new-password"
               type={showPassword ? "text" : "password"}
+              name="new-password"
+              autoComplete="new-password"
               placeholder="Mínimo 6 caracteres"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -207,6 +213,8 @@ function UpdatePasswordForm() {
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
+              aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+              aria-pressed={showPassword}
               className="absolute right-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant/70 hover:text-on-surface transition-colors"
             >
               {showPassword ? (

@@ -4,9 +4,7 @@ import { useState } from "react";
 import { useCustomersStore } from "@/stores/customers.store";
 import { paymentAmountOf, creditAvailable } from "@/lib/credits";
 import type { Customer } from "@/services/customers.service";
-
-const money = (n: number) =>
-  n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+import { formatMoney } from "@/lib/money";
 
 interface CustomerPaymentModalProps {
   customer: Customer;
@@ -74,7 +72,7 @@ export function CustomerPaymentModal({
         <div className="p-6 pt-0 space-y-4">
           {debt > 0 && (
             <div className="p-3 rounded-xl bg-[#f59e0b]/10 border border-[#f59e0b]/20 flex items-center justify-between gap-3">
-              <p className="text-xs text-[#f59e0b] font-semibold">Debe: ${money(debt)}</p>
+              <p className="text-xs text-[#f59e0b] font-semibold">Debe: {formatMoney(debt)}</p>
               {/* Saldar toda la cuenta es el cobro más común y el más fácil de
                   tipear mal: acá el número lo pone el saldo, no los dedos. */}
               <button
@@ -112,17 +110,17 @@ export function CustomerPaymentModal({
             </div>
             {excede && (
               <p className="text-xs text-error">
-                El abono no puede superar la deuda de ${money(debt)}.
+                El abono no puede superar la deuda de {formatMoney(debt)}.
               </p>
             )}
             {!excede && parsed != null && parsed < debt && (
               <p className="text-xs text-on-surface-variant">
-                Le quedarían ${money(debt - parsed)} por pagar.
+                Le quedarían {formatMoney(debt - parsed)} por pagar.
               </p>
             )}
             {!excede && parsed != null && parsed >= debt && available != null && (
               <p className="text-xs text-[#10b981]">
-                Queda al día y recupera su cupo de ${money(customer.credit_limit ?? 0)}.
+                Queda al día y recupera su cupo de {formatMoney(customer.credit_limit ?? 0)}.
               </p>
             )}
           </div>

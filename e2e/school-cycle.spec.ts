@@ -40,6 +40,11 @@ import {
 
 const RUN = Date.now().toString().slice(-8);
 
+// Las rutas que usan `createAdminClient()` (utils/supabase/admin.ts) tiran sin
+// la service role key. El dev server y este runner leen el mismo .env.local
+// (ver playwright.config.ts), así que mirarla acá refleja lo que tiene el server.
+const HAS_SERVICE_ROLE = Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY);
+
 const BUSINESS_NAME = "Escuela E2E";
 // El formulario de servicio pasa el nombre por `.toUpperCase()` al guardar
 // (app/dashboard/inventory/product/page.tsx:414/436) — se define ya en
@@ -56,6 +61,8 @@ const SERVICE_DURATION_MIN = "45";
 const PLAN_NAME = `Piano x8 E2E ${RUN}`;
 const PLAN_LESSON_COUNT = 8;
 let teacherStaffName = "";
+/** Nombre del colaborador que crea el test 03 si la cuenta no tiene ninguno. */
+const TEACHER_FALLBACK_NAME = "Profesor Piano E2E";
 
 async function getTeacherStaffName(): Promise<string> {
   if (teacherStaffName) return teacherStaffName;
@@ -261,8 +268,29 @@ test.describe.serial("Académico — ciclo completo (cuenta E2E real)", () => {
   test("03 profesor: activa el perfil docente de un colaborador desde Personal", async ({ page }) => {
     // El plan gratis de la cuenta E2E admite un solo colaborador. Reutilizarlo
     // evita que el test dependa de ampliar el plan o acumule personal de prueba.
-    const staff = await findAnyStaff();
-    expect(staff, "La cuenta E2E necesita un colaborador existente para probar el módulo Académico").not.toBeNull();
+    // Si la cuenta todavía no tiene ninguno, se crea UNO por la UI de Personal
+    // (el mismo alta que usa el dueño) y queda para las corridas siguientes.
+    let staff = await findAnyStaff();
+    if (!staff) {
+      await page.goto("/dashboard/staff");
+      await page.waitForLoadState("networkidle");
+      await page.getByRole("button", { name: "Añadir Personal" }).first().click();
+      await expect(page.getByRole("heading", { name: "Nuevo Personal" })).toBeVisible({ timeout: 5000 });
+      await page.getByPlaceholder("Ej. Carlos Pérez").fill(TEACHER_FALLBACK_NAME);
+      // En una escuela "Es profesor" viene marcado y exige al menos una
+      // especialidad: se elige la del ciclo (agregada al catálogo en 02b).
+      const chip = page.getByRole("button", { name: INSTRUMENT, exact: true });
+      if ((await chip.count()) && (await chip.getAttribute("aria-pressed")) !== "true") {
+        await chip.click();
+      }
+      await page.getByRole("button", { name: "Añadir al Equipo" }).click();
+      await expect(page.getByRole("heading", { name: "Nuevo Personal" })).toBeHidden({ timeout: 10000 });
+      await expect
+        .poll(async () => (await findAnyStaff())?.full_name ?? null, { timeout: 10000 })
+        .toBe(TEACHER_FALLBACK_NAME);
+      staff = await findAnyStaff();
+    }
+    expect(staff, "La cuenta E2E necesita un colaborador para probar el módulo Académico").not.toBeNull();
     if (!staff) return;
     expect(staff.status).toBe("active");
     teacherStaffName = staff.full_name;
@@ -424,9 +452,13 @@ test.describe.serial("Académico — ciclo completo (cuenta E2E real)", () => {
     // en el pasado): el test 07 espera en tiempo real a que termine.
     const start = new Date(Date.now() + 90_000);
     const end = new Date(start.getTime() + 120_000);
+    // Ya no hay selector de "Día de la semana": el día sale de la fecha de la
+    // primera clase ("Todos los lunes."), así que se verifica ese texto.
     const weekday = isoWeekdayOfUtc(start);
-    await pickCombo(page, "Día de la semana", SCHOOL_DAYS[weekday - 1]);
     await page.locator('input[type="date"]').fill(utcDateStr(start));
+    await expect(
+      page.getByText(new RegExp(`^Todos los ${SCHOOL_DAYS[weekday - 1].toLowerCase()}s?\\.$`)),
+    ).toBeVisible();
     const timeInputs = page.locator('input[type="time"]');
     await timeInputs.nth(0).fill(utcTimeStr(start));
     await timeInputs.nth(1).fill(utcTimeStr(end));
@@ -588,6 +620,14 @@ test.describe.serial("Académico — ciclo completo (cuenta E2E real)", () => {
     expect(otherLog.some((l) => l.state === "shared")).toBe(true);
 
     // Página familiar en un contexto anónimo (sin sesión): solo este alumno.
+    // La resuelve `fetchFamilyPayload` (services/school-family.server.ts) con
+    // el cliente admin: sin SUPABASE_SERVICE_ROLE_KEY en el servidor responde
+    // "Este enlace no es válido." para cualquier token. Lo de arriba (enlace,
+    // WhatsApp, bitácora) ya quedó verificado; esta parte depende del entorno.
+    test.skip(
+      !HAS_SERVICE_ROLE,
+      "La página familiar (/school/f/[token]) necesita SUPABASE_SERVICE_ROLE_KEY en el servidor.",
+    );
     const familyContext = await browser.newContext();
     const familyPage = await familyContext.newPage();
     const response = await familyPage.goto(familyUrl);
@@ -603,6 +643,12 @@ test.describe.serial("Académico — ciclo completo (cuenta E2E real)", () => {
   });
 
   test("09 material: sube un PDF y se puede descargar desde la página familiar", async ({ page, browser }) => {
+    // Subir (/api/school/upload) y descargar (/api/school/material/download) y
+    // la página familiar usan el cliente admin del servidor.
+    test.skip(
+      !HAS_SERVICE_ROLE,
+      "Subir/descargar material y la página familiar necesitan SUPABASE_SERVICE_ROLE_KEY en el servidor.",
+    );
     const { student } = await loadSchoolState();
     await page.goto(`/dashboard/school/estudiantes/${student.id}`);
     await page.waitForLoadState("networkidle");

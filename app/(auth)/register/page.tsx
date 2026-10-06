@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useActionState, useState } from "react";
 import { useSearchParam } from "@/lib/useUrlState";
 import { GoogleButton } from "@/components/GoogleButton";
+import { whatsappUrl } from "@/config/contact";
 import { signup, type SignupState } from "@/utils/supabase/actions";
 import { BUSINESS_ICONS, MODULE_ICONS, RocketIcon } from "@/app/assets/icons/BusinessIcons";
 import {
@@ -39,6 +40,11 @@ export default function RegisterPage() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [businessName, setBusinessName] = useState("");
+  // Controlado por la misma razón que el resto del paso 3: React 19 resetea el
+  // `<form action>` al terminar la acción, y los inputs no controlados volvían
+  // vacíos tras un error del servidor (correo ya registrado, etc.). Los de
+  // texto controlados sobreviven porque React espeja `value` en `defaultValue`.
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [state, formAction, pending] = useActionState<SignupState, FormData>(
     signup,
     { success: false, error: null },
@@ -198,7 +204,14 @@ export default function RegisterPage() {
             <div className="flex gap-4 text-[12px] text-on-surface-variant/70">
               <Link href="/terminos" target="_blank" rel="noreferrer" className="hover:text-on-surface transition-colors">Términos y Condiciones</Link>
               <Link href="/privacidad" target="_blank" rel="noreferrer" className="hover:text-on-surface transition-colors">Privacidad</Link>
-              <Link href="#" className="hover:text-on-surface transition-colors">Ayuda</Link>
+              <a
+                href={whatsappUrl("Hola, necesito ayuda para registrarme en Ventex.")}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-on-surface transition-colors"
+              >
+                Ayuda
+              </a>
             </div>
           </div>
         </div>
@@ -294,19 +307,24 @@ export default function RegisterPage() {
             <input type="hidden" name="business_type" value={businessType} />
             <input type="hidden" name="modules" value={JSON.stringify(modules)} />
             {state.error && (
-              <div className="bg-error-container/20 text-error-dim text-[13px] px-4 py-3 rounded-lg border border-error-container/30">
+              <div
+                role="alert"
+                className="bg-error-container/20 text-error-dim text-[13px] px-4 py-3 rounded-lg border border-error-container/30"
+              >
                 {state.error}
               </div>
             )}
 
             <div className="space-y-1.5">
-              <label className="text-[13px] font-semibold text-on-surface block">
+              <label htmlFor="reg-business-name" className="text-[13px] font-semibold text-on-surface block">
                 Nombre del negocio
               </label>
               <div className="relative">
                 <input
+                  id="reg-business-name"
                   type="text"
                   name="business_name"
+                  autoComplete="organization"
                   placeholder="Mi Tienda"
                   value={businessName}
                   onChange={(e) => setBusinessName(e.target.value)}
@@ -321,13 +339,15 @@ export default function RegisterPage() {
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[13px] font-semibold text-on-surface block">
+              <label htmlFor="reg-full-name" className="text-[13px] font-semibold text-on-surface block">
                 Tu nombre
               </label>
               <div className="relative">
                 <input
+                  id="reg-full-name"
                   type="text"
                   name="full_name"
+                  autoComplete="name"
                   placeholder="Juan Pérez"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
@@ -342,13 +362,15 @@ export default function RegisterPage() {
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[13px] font-semibold text-on-surface block">
+              <label htmlFor="reg-phone" className="text-[13px] font-semibold text-on-surface block">
                 Teléfono <span className="font-normal text-on-surface-variant/70">(opcional)</span>
               </label>
               <div className="relative">
                 <input
+                  id="reg-phone"
                   type="tel"
                   name="phone"
+                  autoComplete="tel"
                   placeholder="+57 300 123 4567"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
@@ -361,13 +383,15 @@ export default function RegisterPage() {
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[13px] font-semibold text-on-surface block">
+              <label htmlFor="reg-email" className="text-[13px] font-semibold text-on-surface block">
                 Correo electrónico
               </label>
               <div className="relative">
                 <input
+                  id="reg-email"
                   type="email"
                   name="email"
+                  autoComplete="email"
                   placeholder="nombre@ejemplo.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -382,11 +406,12 @@ export default function RegisterPage() {
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[13px] font-semibold text-on-surface block">
+              <label htmlFor="reg-password" className="text-[13px] font-semibold text-on-surface block">
                 Contraseña
               </label>
               <div className="relative">
                 <input
+                  id="reg-password"
                   type={showPassword ? "text" : "password"}
                   name="password"
                   placeholder="••••••••"
@@ -404,6 +429,8 @@ export default function RegisterPage() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
+                  aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                  aria-pressed={showPassword}
                   className="absolute right-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant/70 hover:text-on-surface transition-colors"
                 >
                   {showPassword ? (
@@ -437,11 +464,12 @@ export default function RegisterPage() {
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[13px] font-semibold text-on-surface block">
+              <label htmlFor="reg-confirm-password" className="text-[13px] font-semibold text-on-surface block">
                 Confirmar contraseña
               </label>
               <div className="relative">
                 <input
+                  id="reg-confirm-password"
                   type={showPassword ? "text" : "password"}
                   name="confirm_password"
                   placeholder="••••••••"
@@ -470,6 +498,15 @@ export default function RegisterPage() {
                 <input
                   type="checkbox"
                   id="terms"
+                  checked={acceptedTerms}
+                  onChange={(e) => {
+                    // React sincroniza `defaultValue` de los inputs de texto
+                    // controlados, pero NO el `defaultChecked` de un checkbox: el
+                    // reset del form lo volvería a desmarcar aunque el estado diga
+                    // `true`. Se espeja a mano para que el reset lo conserve.
+                    e.currentTarget.defaultChecked = e.currentTarget.checked;
+                    setAcceptedTerms(e.currentTarget.checked);
+                  }}
                   required
                   className="peer appearance-none w-4 h-4 border border-outline-variant/40 rounded bg-surface-container-lowest checked:bg-primary checked:border-primary transition-colors cursor-pointer"
                 />

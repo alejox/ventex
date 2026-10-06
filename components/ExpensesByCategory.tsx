@@ -1,9 +1,7 @@
 "use client";
 
 import type { ExpenseSlice } from "@/services/finance.service";
-
-const money = (n: number) =>
-  n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+import { formatMoney } from "@/lib/money";
 
 /**
  * Tope de filas. Pasado esto deja de ser un vistazo y es una tabla; el resto se
@@ -87,7 +85,7 @@ export function ExpensesByCategory({ slices, total }: { slices: ExpenseSlice[]; 
                 {share >= 0.01 ? `${Math.round(share * 100)}%` : "<1%"}
               </span>
               <span className="text-xs font-semibold text-on-surface w-28 text-right">
-                ${money(row.amount)}
+                {formatMoney(row.amount)}
               </span>
             </div>
           </div>

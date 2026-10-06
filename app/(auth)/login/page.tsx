@@ -10,6 +10,13 @@ const initialState: LoginState = { error: null };
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
+  /**
+   * Controlado a propósito: React 19 resetea un `<form action>` al terminar la
+   * acción, y un input no controlado volvía vacío después de "credenciales
+   * inválidas". Con `value` React sincroniza el `defaultValue` y el reset no lo
+   * borra. La contraseña sí se vacía: es lo esperable tras un intento fallido.
+   */
+  const [email, setEmail] = useState("");
   const [state, formAction, pending] = useActionState(login, initialState);
   /**
    * A dónde volver después de entrar. Lo pone `proxy.ts` cuando manda acá a
@@ -54,19 +61,28 @@ export default function LoginPage() {
       <form action={formAction} className="space-y-5">
         {next && <input type="hidden" name="next" value={next} />}
         {state.error && (
-          <div className="bg-error-container/20 text-error-dim text-[13px] px-4 py-3 rounded-lg border border-error-container/30">
+          <div
+            role="alert"
+            className="bg-error-container/20 text-error-dim text-[13px] px-4 py-3 rounded-lg border border-error-container/30"
+          >
             {state.error}
           </div>
         )}
 
         <div className="space-y-1.5">
-          <label className="text-[13px] font-semibold text-on-surface block">
+          <label
+            htmlFor="login-email"
+            className="text-[13px] font-semibold text-on-surface block"
+          >
             Correo electrónico
           </label>
           <div className="relative">
             <input
+              id="login-email"
               type="email"
               name="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               placeholder="nombre@ejemplo.com"
               className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-10 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50"
               required
@@ -88,7 +104,10 @@ export default function LoginPage() {
 
         <div className="space-y-1.5">
           <div className="flex justify-between items-center">
-            <label className="text-[13px] font-semibold text-on-surface block">
+            <label
+              htmlFor="login-password"
+              className="text-[13px] font-semibold text-on-surface block"
+            >
               Contraseña
             </label>
             <Link
@@ -100,6 +119,7 @@ export default function LoginPage() {
           </div>
           <div className="relative">
             <input
+              id="login-password"
               type={showPassword ? "text" : "password"}
               name="password"
               placeholder="••••••••"
@@ -121,6 +141,8 @@ export default function LoginPage() {
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
+              aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+              aria-pressed={showPassword}
               className="absolute right-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant/70 hover:text-on-surface transition-colors"
             >
               {showPassword ? (
@@ -153,36 +175,10 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-3 pt-1 pb-4">
-          <div className="relative flex items-center">
-            <input
-              type="checkbox"
-              id="remember"
-              className="peer appearance-none w-4 h-4 border border-outline-variant/40 rounded bg-surface-container-lowest checked:bg-primary checked:border-primary transition-colors cursor-pointer"
-            />
-            <svg
-              className="absolute w-3 h-3 left-0.5 top-0.5 text-on-primary pointer-events-none opacity-0 peer-checked:opacity-100 transition-opacity"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="3"
-              viewBox="0 0 24 24"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <polyline points="20 6 9 17 4 12" />
-            </svg>
-          </div>
-          <label
-            htmlFor="remember"
-            className="text-sm text-on-surface-variant cursor-pointer select-none"
-          >
-            Recordarme en este dispositivo
-          </label>
-        </div>
-
         <button
           type="submit"
           disabled={pending}
-          className="w-full bg-primary hover:bg-primary-dim disabled:bg-primary/50 disabled:cursor-not-allowed text-on-primary font-semibold py-3.5 rounded-xl transition-all text-[15px] shadow-[0_0_15px_rgba(192,193,255,0.15)] flex justify-center items-center gap-2"
+          className="mt-2 w-full bg-primary hover:bg-primary-dim disabled:bg-primary/50 disabled:cursor-not-allowed text-on-primary font-semibold py-3.5 rounded-xl transition-all text-[15px] shadow-[0_0_15px_rgba(192,193,255,0.15)] flex justify-center items-center gap-2"
         >
           {pending ? (
             <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">

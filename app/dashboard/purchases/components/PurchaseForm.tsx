@@ -24,9 +24,7 @@ import {
   totalUnitsOf,
   lineTotalOf,
 } from "@/services/purchases.service";
-
-const money = (n: number) =>
-  "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+import { formatMoney } from "@/lib/money";
 
 /** Fecha de hoy en horario local. `toISOString()` da UTC y adelanta un día por la tarde. */
 const todayISO = () => {
@@ -666,11 +664,11 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
                                   </span>
                                   {canSeeCosts && (
                                     <span>
-                                      Compra: <strong className="text-on-surface">${Number(p.purchase_price ?? 0).toLocaleString("en-US")}</strong>
+                                      Compra: <strong className="text-on-surface">{formatMoney(Number(p.purchase_price ?? 0))}</strong>
                                     </span>
                                   )}
                                   <span>
-                                    Venta: <strong className="text-on-surface">${Number(p.price).toLocaleString("en-US")}</strong>
+                                    Venta: <strong className="text-on-surface">{formatMoney(Number(p.price))}</strong>
                                   </span>
                                 </span>
                               </button>
@@ -827,7 +825,7 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
                         Total
                       </span>
                       <span className="text-sm font-semibold text-on-surface font-mono tabular-nums">
-                        {money(lineTotalOf(line))}
+                        {formatMoney(lineTotalOf(line))}
                       </span>
                     </div>
 
@@ -888,7 +886,7 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
             >
               <div className="flex items-center justify-between gap-4 text-sm">
                 <dt className="text-on-surface-variant">Subtotal</dt>
-                <dd className="font-mono tabular-nums text-on-surface">{money(subtotal)}</dd>
+                <dd className="font-mono tabular-nums text-on-surface">{formatMoney(subtotal)}</dd>
               </div>
 
               <div className="flex items-center justify-between gap-4 text-sm">
@@ -912,13 +910,13 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
               {taxMultiplier > 0 && (
                 <div className="flex items-center justify-between gap-4 text-sm">
                   <dt className="text-on-surface-variant">IVA ({percentLabel})</dt>
-                  <dd className="font-mono tabular-nums text-on-surface">{money(taxAmount)}</dd>
+                  <dd className="font-mono tabular-nums text-on-surface">{formatMoney(taxAmount)}</dd>
                 </div>
               )}
 
               <div className="flex items-center justify-between gap-4 pt-3 border-t border-outline-variant/20">
                 <dt className="text-sm font-semibold text-on-surface">Total</dt>
-                <dd className="text-xl font-bold text-on-surface font-mono tabular-nums">{money(total)}</dd>
+                <dd className="text-xl font-bold text-on-surface font-mono tabular-nums">{formatMoney(total)}</dd>
               </div>
             </dl>
           </div>

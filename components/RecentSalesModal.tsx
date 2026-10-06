@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { fetchSales, SaleListItem } from "@/services/sales.service";
 import Link from "next/link";
 import { backdropProps } from "@/components/modal";
+import { formatMoney } from "@/lib/money";
 
 function IconReceipt(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -38,8 +39,6 @@ export function RecentSalesModal({ onClose }: RecentSalesModalProps) {
       setLoading(false);
     });
   }, []);
-
-  const money = (val: number) => val.toLocaleString("es-CO");
 
   return (
     <div className="fixed inset-0 z-[200] flex justify-end bg-black/20 backdrop-blur-sm animate-in fade-in duration-200" {...backdropProps(onClose)}>
@@ -85,7 +84,7 @@ export function RecentSalesModal({ onClose }: RecentSalesModalProps) {
                   {sales.map((sale) => (
                     <tr key={sale.id} className="hover:bg-surface-container-lowest transition-colors">
                       <td className="p-3">Factura {sale.sale_number}</td>
-                      <td className="p-3 font-medium">${money(sale.total)}</td>
+                      <td className="p-3 font-medium">{formatMoney(sale.total)}</td>
                       <td className="p-3 text-on-surface-variant text-xs italic">
                         {sale.status === "completed" ? "No electrónica" : "Pendiente"}
                       </td>

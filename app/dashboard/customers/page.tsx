@@ -8,7 +8,7 @@ import { CustomerPaymentModal } from "@/components/CustomerPaymentModal";
 import { DataTable, type DataColumn } from "@/components/DataTable";
 import { CollectionEmpty, CollectionError, CollectionLoading } from "@/components/CollectionState";
 import { Select } from "@/components/ui/Select";
-import { fetchCustomerSales } from "@/services/customers.service";
+import { fetchCustomerSales, isVoidSale, summarizeCustomerSales } from "@/services/customers.service";
 import type { Customer, NewCustomerInput, CustomerSale } from "@/services/customers.service";
 import { usePromosStore } from "@/stores/promos.store";
 import { availableReward, renderPromoMessage, whatsappLink, businessDisplayName } from "@/services/promos.service";
@@ -16,6 +16,7 @@ import { useLoyaltyStore } from "@/stores/loyalty.store";
 import type { LoyaltyLedgerEntry } from "@/services/loyalty.service";
 import { useProfile } from "@/components/ProfileProvider";
 import { useSettingsStore } from "@/stores/settings.store";
+import { formatMoney } from "@/lib/money";
 
 const DOC_TYPES = ["CC", "NIT", "RUT", "RFC"];
 
@@ -28,9 +29,6 @@ const EMPTY_CUSTOMER: NewCustomerInput = {
   tax_exempt: false,
   credit_limit: null,
 };
-
-const money = (n: number) =>
-  n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const PAYMENT_LABELS: Record<string, string> = {
   efectivo: "Efectivo",
@@ -171,8 +169,8 @@ export default function CustomersPage() {
     openEdit(c);
   };
 
-  const totalSpent = customerSales.reduce((sum, s) => sum + s.total, 0);
-  const lastSale = customerSales.length > 0 ? customerSales[0] : null;
+  // Las anuladas se listan en el historial, pero no cuentan en los totales.
+  const { count: salesCount, totalSpent, lastSale } = summarizeCustomerSales(customerSales);
 
   const columns: DataColumn<Customer>[] = [
     {
@@ -187,6 +185,7 @@ export default function CustomersPage() {
       header: "Contacto",
       mobile: "subtitle",
       sortKey: "email",
+      sortValue: (c) => c.email ?? c.phone ?? "",
       className: "text-on-surface-variant",
       cell: (c) => (
         <>
@@ -198,6 +197,7 @@ export default function CustomersPage() {
     {
       header: "Documento",
       sortKey: "doc",
+      sortValue: (c) => c.identification ?? "",
       className: "text-on-surface-variant font-mono text-xs",
       cell: (c) => (
         <span className="font-mono text-xs">
@@ -209,10 +209,12 @@ export default function CustomersPage() {
       header: "Debe",
       align: "right",
       sortKey: "deuda",
+      // El dato crudo: la celda es "$1,234.00" y ordenarla como texto mezcla montos.
+      sortValue: (c) => Number(c.credit_balance ?? 0),
       className: "font-bold",
       cell: (c) =>
         c.credit_balance > 0 ? (
-          <span className="text-[#f59e0b]">${money(c.credit_balance)}</span>
+          <span className="text-[#f59e0b]">{formatMoney(c.credit_balance)}</span>
         ) : (
           <span className="text-on-surface-variant/50">$0.00</span>
         ),
@@ -247,7 +249,7 @@ export default function CustomersPage() {
                 ? "text-[#f59e0b] hover:text-white hover:bg-[#f59e0b]"
                 : "text-on-surface-variant hover:text-primary hover:bg-primary/10"
             }`}
-            title={c.credit_balance > 0 ? `Registrar abono (debe $${money(c.credit_balance)})` : "Registrar abono"}
+            title={c.credit_balance > 0 ? `Registrar abono (debe ${formatMoney(c.credit_balance)})` : "Registrar abono"}
           >
             <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-4 h-4">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" />
@@ -319,6 +321,11 @@ export default function CustomersPage() {
             minWidth={800}
             caption="Directorio de clientes"
             columns={columns}
+            searchable
+            searchPlaceholder="Buscar por nombre, teléfono, documento o email"
+            getSearchText={(c) =>
+              [c.full_name, c.phone, c.identification, c.email].filter(Boolean).join(" ")
+            }
           />
         </div>
       )}
@@ -547,14 +554,14 @@ export default function CustomersPage() {
               <div className="grid grid-cols-3 gap-4">
                 <div className="bg-surface-container-low rounded-xl p-3 sm:p-4 text-center min-w-0">
                   <p className="text-base sm:text-xl lg:text-2xl font-bold text-on-surface tabular-nums tracking-tight truncate">
-                    {salesLoading ? <span className="inline-block w-12 h-6 rounded bg-surface-container-high animate-pulse" /> : customerSales.length}
+                    {salesLoading ? <span className="inline-block w-12 h-6 rounded bg-surface-container-high animate-pulse" /> : salesCount}
                   </p>
                   <p className="text-[11px] text-on-surface-variant mt-1 font-medium uppercase tracking-wider truncate">Ventas</p>
                 </div>
                 <div className="bg-surface-container-low rounded-xl p-3 sm:p-4 text-center min-w-0">
                   {/* Cifra larga en una columna angosta: baja de tamaño antes de recortar. */}
                   <p className="text-base sm:text-xl lg:text-2xl font-bold text-on-surface tabular-nums tracking-tight truncate">
-                    {salesLoading ? <span className="inline-block w-20 h-6 rounded bg-surface-container-high animate-pulse" /> : `$${money(totalSpent)}`}
+                    {salesLoading ? <span className="inline-block w-20 h-6 rounded bg-surface-container-high animate-pulse" /> : formatMoney(totalSpent)}
                   </p>
                   <p className="text-[11px] text-on-surface-variant mt-1 font-medium uppercase tracking-wider truncate">Total Gastado</p>
                 </div>
@@ -719,10 +726,20 @@ export default function CustomersPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-outline-variant/5">
-                        {customerSales.map((s) => (
-                          <tr key={s.id} className="hover:bg-surface-container-lowest transition-colors">
-                            <td className="py-3 pr-3 font-mono text-xs text-on-surface-variant">
-                              #{s.sale_number}
+                        {customerSales.map((s) => {
+                          const voided = isVoidSale(s);
+                          return (
+                          <tr
+                            key={s.id}
+                            className={`hover:bg-surface-container-lowest transition-colors ${voided ? "opacity-60" : ""}`}
+                          >
+                            <td className="py-3 pr-3 font-mono text-xs text-on-surface-variant whitespace-nowrap">
+                              <span className={voided ? "line-through" : ""}>#{s.sale_number}</span>
+                              {voided && (
+                                <span className="ml-2 inline-flex px-1.5 py-0.5 rounded-md font-sans text-[10px] font-bold bg-error/10 text-error border border-error/20 no-underline">
+                                  Anulada
+                                </span>
+                              )}
                             </td>
                             <td className="py-3 pr-3 text-xs text-on-surface-variant whitespace-nowrap">
                               {new Date(s.created_at).toLocaleDateString("es-CO", {
@@ -737,11 +754,14 @@ export default function CustomersPage() {
                             <td className="py-3 pr-3 text-center text-xs text-on-surface-variant tabular-nums">
                               {s.item_count}
                             </td>
-                            <td className="py-3 text-right text-xs font-bold text-on-surface tabular-nums">
-                              ${money(s.total)}
+                            <td
+                              className={`py-3 text-right text-xs font-bold tabular-nums ${voided ? "line-through text-on-surface-variant" : "text-on-surface"}`}
+                            >
+                              {formatMoney(s.total)}
                             </td>
                           </tr>
-                        ))}
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>

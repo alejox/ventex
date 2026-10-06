@@ -52,8 +52,8 @@ test("5. Cuánto más se le puede fiar", () => {
 
 test("6. La etiqueta dice el número, no solo el estado", () => {
   assert.equal(creditLabelOf(0, null), "Al día");
-  assert.equal(creditLabelOf(120000, null), "Debe $120.000");
-  assert.equal(creditLabelOf(240000, 200000), "Excedido $40.000 sobre el cupo");
+  assert.equal(creditLabelOf(120000, null), "Debe $\u00a0120.000");
+  assert.equal(creditLabelOf(240000, 200000), "Excedido $\u00a040.000 sobre el cupo");
 });
 
 test("7. El resumen de la cabecera sale de las mismas filas que la tabla", () => {
@@ -130,11 +130,11 @@ test("11. El estado de cuenta dice quién, cuánto y de dónde sale", () => {
   const msg = renderStatementMessage({ ...cuentaBase, balance: 130000 });
   assert.ok(msg.includes("Juan"), "saluda al cliente por su nombre");
   assert.ok(msg.includes("La Tienda"), "dice de qué negocio es la cuenta");
-  assert.ok(msg.includes("$130.000"), "el saldo es el número que manda");
+  assert.ok(msg.includes("$\u00a0130.000"), "el saldo es el número que manda");
   assert.ok(msg.includes("#12"), "lista la venta fiada");
-  assert.ok(msg.includes("$80.000"));
+  assert.ok(msg.includes("$\u00a080.000"));
   assert.ok(msg.includes("#15"));
-  assert.ok(msg.includes("$20.000"), "y también lo que abonó");
+  assert.ok(msg.includes("$\u00a020.000"), "y también lo que abonó");
 });
 
 test("12. El aviso interno NUNCA viaja en el mensaje al cliente", () => {
@@ -150,7 +150,7 @@ test("13. Sin deuda el mensaje es un comprobante, no un cobro", () => {
   const msg = renderStatementMessage({ ...cuentaBase, balance: 0 });
   assert.ok(msg.toLowerCase().includes("al día"));
   assert.ok(!msg.includes("Debe"));
-  assert.ok(!msg.includes("$0"), "no se le muestra un saldo en cero");
+  assert.ok(!msg.includes("$\u00a00"), "no se le muestra un saldo en cero");
 });
 
 test("14. El detalle se corta: un WhatsApp de 40 renglones no lo lee nadie", () => {
@@ -178,7 +178,7 @@ test("15. Un cliente sin movimientos no genera secciones vacías", () => {
     payments: [],
     formatDate: fechaFija,
   });
-  assert.ok(msg.includes("$50.000"));
+  assert.ok(msg.includes("$\u00a050.000"));
   assert.ok(!msg.includes("Abonos"), "sin abonos no se imprime el encabezado");
   assert.ok(!msg.includes("Se llevó fiado"));
 });

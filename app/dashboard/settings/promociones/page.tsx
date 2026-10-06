@@ -16,8 +16,10 @@ import {
 } from "@/services/promos.service";
 import { CollectionError, CollectionLoading } from "@/components/CollectionState";
 import { notifySuccess, notifyError } from "@/lib/notifications";
+import { Select } from "@/components/ui/Select";
 import { OffersManager } from "./OffersManager";
 import { LoyaltyManager } from "./LoyaltyManager";
+import { formatMoney } from "@/lib/money";
 
 /**
  * Configuración → Promociones.
@@ -33,6 +35,28 @@ import { LoyaltyManager } from "./LoyaltyManager";
  * canjeables por compra (`LoyaltyManager`, fase 2). El resto de los rubros ve
  * exactamente lo de siempre.
  */
+/**
+ * Cómo se entrega cada premio. `texto` va primero y es el default a propósito:
+ * "una cerveza" no se descuenta de la cuenta, y un hito guardado como `gratis`
+ * sin que nadie lo eligiera regala un corte entero en la caja.
+ */
+const REWARD_KIND_OPTIONS: { value: RewardKind; label: string }[] = [
+  { value: "texto", label: "Solo aviso" },
+  { value: "gratis", label: "Servicio gratis" },
+  { value: "porcentaje", label: "Porcentaje de descuento" },
+  { value: "monto", label: "Monto de descuento" },
+];
+
+/** Cómo se lee en la lista de hitos lo que la caja va a hacer con el premio. */
+function rewardKindLabel(m: { reward_kind: RewardKind; reward_value: number | null }): string {
+  if (m.reward_kind === "gratis") return "Servicio gratis";
+  if (m.reward_kind === "porcentaje") return `${m.reward_value ?? 0}% de descuento`;
+  if (m.reward_kind === "monto") {
+    return `${formatMoney(m.reward_value ?? 0)} de descuento`;
+  }
+  return "Solo aviso (se entrega a mano)";
+}
+
 export default function PromocionesPage() {
   const profile = useProfile();
 
@@ -84,7 +108,7 @@ function HaircutPromosSection() {
 
   const [threshold, setThreshold] = useState("10");
   const [reward, setReward] = useState("");
-  const rewardKind = "gratis" as RewardKind;
+  const [rewardKind, setRewardKind] = useState<RewardKind>("texto");
   const [rewardValue, setRewardValue] = useState("");
 
   useEffect(() => {
@@ -145,6 +169,10 @@ function HaircutPromosSection() {
     const valor = necesitaValor ? parseFloat(rewardValue) : null;
     if (necesitaValor && (!Number.isFinite(valor as number) || (valor as number) <= 0)) {
       notifyError("Falta el valor", "Un descuento por porcentaje o monto necesita un número mayor que cero.");
+      return;
+    }
+    if (rewardKind === "porcentaje" && (valor as number) > 100) {
+      notifyError("Porcentaje inválido", "El porcentaje tiene que estar entre 1 y 100.");
       return;
     }
     const ok = await addMilestone({ threshold: n, reward, reward_kind: rewardKind, reward_value: valor });
@@ -302,7 +330,12 @@ function HaircutPromosSection() {
                   {m.threshold}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm text-on-surface truncate">{m.reward}</p>
+                  <p className="text-sm text-on-surface truncate">
+                    {m.reward}
+                    <span className="ml-2 inline-block rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary align-middle">
+                      {rewardKindLabel(m)}
+                    </span>
+                  </p>
                   <p className="text-xs text-on-surface-variant">
                     Al canjearlo se descuentan {m.threshold} cortes. El corte que
                     paga el premio no cuenta; lo que el cliente haya pagado de
@@ -322,7 +355,7 @@ function HaircutPromosSection() {
           </ul>
         )}
 
-        <form onSubmit={handleAddMilestone} className="flex flex-col sm:flex-row gap-3">
+        <form onSubmit={handleAddMilestone} className="flex flex-col sm:flex-row sm:flex-wrap gap-3">
           <div className="sm:w-28">
             <label htmlFor="promo-threshold" className="text-[13px] font-semibold text-on-surface block mb-1.5">
               Cortes
@@ -349,6 +382,40 @@ function HaircutPromosSection() {
               className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-base sm:text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 placeholder:text-on-surface-variant/50"
             />
           </div>
+          <div className="sm:w-56">
+            <Select
+              label="¿Cómo se entrega el premio?"
+              value={rewardKind}
+              onChange={(e) => {
+                setRewardKind(e.target.value as RewardKind);
+                setRewardValue("");
+              }}
+            >
+              {REWARD_KIND_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </Select>
+          </div>
+          {(rewardKind === "porcentaje" || rewardKind === "monto") && (
+            <div className="sm:w-32">
+              <label htmlFor="promo-reward-value" className="text-[13px] font-semibold text-on-surface block mb-1.5">
+                {rewardKind === "porcentaje" ? "Porcentaje (%)" : "Monto ($)"}
+              </label>
+              <input
+                id="promo-reward-value"
+                type="number"
+                min="1"
+                max={rewardKind === "porcentaje" ? 100 : undefined}
+                step="any"
+                value={rewardValue}
+                onChange={(e) => setRewardValue(e.target.value)}
+                placeholder={rewardKind === "porcentaje" ? "Ej. 50" : "Ej. 10000"}
+                className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-base sm:text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 placeholder:text-on-surface-variant/50"
+              />
+            </div>
+          )}
           <div className="flex items-end gap-3">
             <button
               type="submit"

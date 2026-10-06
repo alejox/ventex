@@ -25,9 +25,7 @@ import { useProfile } from "@/components/ProfileProvider";
 import { useSettingsStore } from "@/stores/settings.store";
 import { CreditAlertEditor } from "./components/CreditAlertEditor";
 import type { CreditRow } from "@/services/credits.service";
-
-const money = (n: number) =>
-  n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+import { formatMoney } from "@/lib/money";
 
 const fecha = (iso: string) =>
   new Date(iso).toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "numeric" });
@@ -151,7 +149,7 @@ export default function CreditsPage() {
       sortKey: "deuda",
       sortValue: (c) => c.credit_balance,
       className: "font-bold text-[#f59e0b]",
-      cell: (c) => `$${money(c.credit_balance)}`,
+      cell: (c) => formatMoney(c.credit_balance),
     },
     {
       header: "Estado",
@@ -182,7 +180,7 @@ export default function CreditsPage() {
         return disponible == null ? (
           <span className="text-on-surface-variant/50">Sin cupo</span>
         ) : (
-          `$${money(disponible)}`
+          formatMoney(disponible)
         );
       },
     },
@@ -215,7 +213,7 @@ export default function CreditsPage() {
       sortKey: "pagado",
       sortValue: (c) => c.total_paid,
       className: "font-bold text-[#10b981]",
-      cell: (c) => `$${money(c.total_paid)}`,
+      cell: (c) => formatMoney(c.total_paid),
     },
     {
       header: "Último abono",
@@ -312,12 +310,12 @@ export default function CreditsPage() {
                         haría que la suma no cierre con la deuda. */}
                     {s.payment_method === "split" && (
                       <span className="ml-1 text-on-surface-variant/60">
-                        (parcial de ${money(s.total)})
+                        (parcial de {formatMoney(s.total)})
                       </span>
                     )}
                   </span>
                   <span className="font-semibold text-[#f59e0b] tabular-nums shrink-0">
-                    ${money(s.credit_amount)}
+                    {formatMoney(s.credit_amount)}
                   </span>
                 </li>
               ))}
@@ -337,7 +335,7 @@ export default function CreditsPage() {
                     {p.notes && <span className="ml-1 text-on-surface-variant/60">· {p.notes}</span>}
                   </span>
                   <span className="font-semibold text-[#10b981] tabular-nums shrink-0">
-                    −${money(p.amount)}
+                    −{formatMoney(p.amount)}
                   </span>
                 </li>
               ))}
@@ -370,7 +368,7 @@ export default function CreditsPage() {
             <div className="rounded-2xl border border-outline-variant/10 bg-surface-container-lowest p-4">
               <p className="text-xs font-semibold text-on-surface-variant">Total por cobrar</p>
               <p className="mt-1 text-2xl font-bold text-[#f59e0b] tabular-nums">
-                ${money(summary.totalPorCobrar)}
+                {formatMoney(summary.totalPorCobrar)}
               </p>
             </div>
             <div className="rounded-2xl border border-outline-variant/10 bg-surface-container-lowest p-4">

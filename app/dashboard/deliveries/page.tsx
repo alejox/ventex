@@ -5,12 +5,10 @@ import { useDeliveryStore } from "@/stores/delivery.store";
 import { STATUS_LABELS, STATUS_COLORS, type DeliveryStatus } from "@/services/delivery.service";
 import { IconTruck } from "@/app/assets/icons/DashboardIcons";
 import { CollectionEmpty, CollectionError, CollectionFilteredEmpty, CollectionLoading } from "@/components/CollectionState";
-
-const money = (n: number) =>
-  n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+import { formatMoney } from "@/lib/money";
 
 const formatDate = (iso: string) =>
-  new Date(iso).toLocaleString("es-ES", {
+  new Date(iso).toLocaleString("es-CO", {
     day: "2-digit",
     month: "short",
     year: "numeric",
@@ -91,7 +89,7 @@ export default function DeliveriesPage() {
                     </span>
                     {d.fee > 0 && (
                       <span className="text-xs text-on-surface-variant">
-                        Envío: ${money(d.fee)}
+                        Envío: {formatMoney(d.fee)}
                       </span>
                     )}
                   </div>

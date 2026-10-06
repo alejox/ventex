@@ -367,3 +367,20 @@ export async function getRescheduleRequestsForLesson(
   if (error) throw new Error(`getRescheduleRequestsForLesson(${lessonId}): ${error.message}`);
   return (data ?? []) as unknown as DbRescheduleRequest[];
 }
+
+/**
+ * Producto (no servicio) por nombre, sin distinguir mayúsculas: el formulario
+ * de alta puede normalizar el nombre. `null` si no existe.
+ */
+export async function findProductIdByName(name: string): Promise<string | null> {
+  const sb = await dbClient();
+  const { data, error } = await sb
+    .from("products")
+    .select("id")
+    .ilike("name", name)
+    .neq("unit", "Servicio")
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(`findProductIdByName(${name}): ${error.message}`);
+  return (data as { id: string } | null)?.id ?? null;
+}

@@ -4,9 +4,12 @@ import { useRouter } from "next/navigation";
 import { IconSearch, IconImagePlaceholder } from "@/app/assets/icons/DashboardIcons";
 import type { CatalogItem } from "@/services/pos.service";
 import { shouldSubmitIdleCode } from "./catalog-code";
+import { formatMoney } from "@/lib/money";
 
 const BARCODE_IDLE_MS = 250;
 const SCANNER_KEY_GAP_MS = 80;
+/** Ventana tras un envío automático en la que un Enter se toma como del lector. */
+const SCANNER_TRAILING_ENTER_MS = 1000;
 import { formatDuration } from "@/lib/duration";
 
 /**
@@ -18,9 +21,6 @@ import { formatDuration } from "@/lib/duration";
 function serviceTag(item: CatalogItem): string {
   return formatDuration(item.duration_minutes) || "Servicio";
 }
-
-const money = (n: number) =>
-  n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 /**
  * Columnas de la grilla de productos (vista escritorio).
@@ -80,6 +80,13 @@ interface PosCatalogProps {
   lineKey: (id: string) => string;
   onOpenScanner: () => void;
   onSubmitCode: (code: string) => boolean;
+  /**
+   * Enter con el buscador vacío: abre el cobro. Es lo que permite vender solo
+   * con teclado y escáner, sin soltar el lector para ir al mouse.
+   */
+  onSubmitEmpty?: () => boolean;
+  /** Ref del buscador, para que la página le devuelva el foco. */
+  searchRef?: React.RefObject<HTMLInputElement | null>;
   onOpenShift: () => void;
   onOpenWithdrawal: () => void;
   openCloseShift: () => void;
@@ -110,6 +117,8 @@ export function PosCatalog({
   lineKey,
   onOpenScanner,
   onSubmitCode,
+  onSubmitEmpty,
+  searchRef: externalSearchRef,
   onOpenShift,
   onOpenWithdrawal,
   openCloseShift,
@@ -117,9 +126,16 @@ export function PosCatalog({
 }: PosCatalogProps) {
   const salesBlocked = isWorker && requireActiveShift && !currentShift;
   const router = useRouter();
-  const searchRef = useRef<HTMLInputElement>(null);
+  const internalSearchRef = useRef<HTMLInputElement>(null);
+  const searchRef = externalSearchRef ?? internalSearchRef;
   const scanTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastAutoSubmittedRef = useRef<string | null>(null);
+  /**
+   * Cuándo se envió solo el último código (sin Enter, por inactividad). Un
+   * lector que manda el Enter tarde encuentra el buscador ya vacío: ese Enter
+   * es la cola de la lectura, no el cajero pidiendo cobrar.
+   */
+  const lastAutoSubmitAtRef = useRef(0);
   const lastInputRef = useRef({ value: "", at: 0, rapidKeys: 0 });
 
   useEffect(() => {
@@ -127,7 +143,7 @@ export function PosCatalog({
     return () => {
       if (scanTimerRef.current) clearTimeout(scanTimerRef.current);
     };
-  }, []);
+  }, [searchRef]);
 
   const cancelPendingScan = () => {
     if (scanTimerRef.current) clearTimeout(scanTimerRef.current);
@@ -165,6 +181,7 @@ export function PosCatalog({
                   if (searchRef.current?.value !== value) return;
                   if (onSubmitCode(value)) {
                     lastAutoSubmittedRef.current = value;
+                    lastAutoSubmitAtRef.current = performance.now();
                     lastInputRef.current = { value: "", at: 0, rapidKeys: 0 };
                     setSearch("");
                   }
@@ -176,8 +193,20 @@ export function PosCatalog({
                 e.preventDefault();
                 e.stopPropagation();
                 cancelPendingScan();
-                if (lastAutoSubmittedRef.current === e.currentTarget.value) return;
-                if (e.currentTarget.value.trim() && onSubmitCode(e.currentTarget.value)) {
+                const value = e.currentTarget.value;
+                if (lastAutoSubmittedRef.current === value) return;
+                if (!value.trim()) {
+                  // Buscador vacío: Enter cobra. Salvo que sea la cola de una
+                  // lectura que ya se envió sola (ver `lastAutoSubmitAtRef`).
+                  if (performance.now() - lastAutoSubmitAtRef.current < SCANNER_TRAILING_ENTER_MS) return;
+                  if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+                  // Se suelta el foco al abrir el cobro: si quedara acá, el
+                  // Enter siguiente (el que confirma) moriría en este campo.
+                  // Al cerrar el modal la página lo devuelve.
+                  if (onSubmitEmpty?.()) e.currentTarget.blur();
+                  return;
+                }
+                if (onSubmitCode(value)) {
                   setSearch("");
                 }
               }
@@ -352,7 +381,7 @@ export function PosCatalog({
                           {item.name}
                         </p>
                         <p className="text-[15px] font-bold text-on-surface tabular-nums">
-                          ${money(item.price)}
+                          {formatMoney(item.price)}
                         </p>
                         <p className="text-[10px] font-semibold text-on-surface-variant uppercase tracking-wider">
                           {stock == null ? (
@@ -469,7 +498,7 @@ export function PosCatalog({
                             peor que el precio completo, pero mucho mejor que
                             pisar el producto de al lado. */}
                         <span className="text-sm sm:text-base text-on-surface font-bold tabular-nums min-w-0 truncate">
-                          ${money(item.price)}
+                          {formatMoney(item.price)}
                         </span>
                         {stock == null ? (
                           <span className="text-[10px] font-bold text-on-surface-variant shrink-0">
@@ -531,7 +560,7 @@ export function PosCatalog({
                         <h3 className="text-xs font-medium text-on-surface truncate">{item.name}</h3>
                       </div>
                       <div className="text-right shrink-0">
-                        <p className="text-xs font-bold text-on-surface">${money(item.price)}</p>
+                        <p className="text-xs font-bold text-on-surface">{formatMoney(item.price)}</p>
                         {stock != null && (
                           <span
                             className={`text-[9px] font-bold ${

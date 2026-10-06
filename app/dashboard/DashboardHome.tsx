@@ -11,9 +11,7 @@ import { ExpenseModal } from "@/components/ExpenseModal";
 import { ExpensesByCategory } from "@/components/ExpensesByCategory";
 import { IconTrendingUp, IconTrendingDown, IconDollar, IconShoppingCart, IconPlus } from "@/app/assets/icons/DashboardIcons";
 import { formatDateOnly } from "@/lib/date";
-
-const money = (n: number) =>
-  n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+import { formatMoney } from "@/lib/money";
 
 /**
  * Presentación de cada acción rápida (icono, subtítulo y color), por id. La
@@ -184,15 +182,15 @@ export function DashboardHome({ canAddExpense = false }: { canAddExpense?: boole
         <KpiCard
           icon={<IconDollar className="w-5 h-5" />}
           label="Ventas hoy"
-          value={todaySales ? `${todaySales.count}` : "—"}
-          sub={todaySales ? `$${money(todaySales.revenue)}` : ""}
+          value={todaySales ? formatMoney(todaySales.revenue) : "—"}
+          sub={todaySales ? `${todaySales.count} ${todaySales.count === 1 ? "venta" : "ventas"}` : ""}
           loading={!todaySales}
           accent="bg-primary/10 text-primary"
         />
         <KpiCard
           icon={<IconTrendingUp className="w-5 h-5" />}
           label="Ingresos totales"
-          value={overviewBusy ? "—" : `$${money(overview.revenue)}`}
+          value={overviewBusy ? "—" : formatMoney(overview.revenue)}
           sub={`${overviewBusy ? "—" : overview.salesCount} ventas`}
           loading={overviewBusy}
           accent="bg-[#10b981]/10 text-[#10b981]"
@@ -200,7 +198,7 @@ export function DashboardHome({ canAddExpense = false }: { canAddExpense?: boole
         <KpiCard
           icon={<IconTrendingDown className="w-5 h-5" />}
           label="Gastos totales"
-          value={overviewBusy ? "—" : `$${money(overview.expenses)}`}
+          value={overviewBusy ? "—" : formatMoney(overview.expenses)}
           // Sin esta línea, este número y el "Gasto total" de la pantalla de
           // Gastos son dos cifras muy distintas con etiquetas casi iguales: acá
           // se suman las compras a proveedor, allá no.
@@ -211,7 +209,7 @@ export function DashboardHome({ canAddExpense = false }: { canAddExpense?: boole
         <KpiCard
           icon={<IconShoppingCart className="w-5 h-5" />}
           label="Beneficio neto"
-          value={overviewBusy ? "—" : `${overview.net < 0 ? "-" : ""}$${money(Math.abs(overview.net))}`}
+          value={overviewBusy ? "—" : `${overview.net < 0 ? "-" : ""}${formatMoney(Math.abs(overview.net))}`}
           loading={overviewBusy}
           accent={overviewBusy || overview.net >= 0 ? "bg-[#10b981]/10 text-[#10b981]" : "bg-error/10 text-error"}
         />
@@ -237,12 +235,12 @@ export function DashboardHome({ canAddExpense = false }: { canAddExpense?: boole
                       <div
                         className="w-full max-w-[40px] rounded-t-md bg-[#10b981] transition-all"
                         style={{ height: `${Math.max(incomeH, 1)}%` }}
-                        title={`Ingresos: $${money(m.income)}`}
+                        title={`Ingresos: ${formatMoney(m.income)}`}
                       />
                       <div
                         className="w-full max-w-[40px] rounded-t-md bg-error/70 transition-all"
                         style={{ height: `${Math.max(expenseH, 1)}%` }}
-                        title={`Gastos: $${money(m.expense)}`}
+                        title={`Gastos: ${formatMoney(m.expense)}`}
                       />
                     </div>
                     <span className="text-xs text-on-surface-variant font-medium mt-1">{m.label}</span>
@@ -300,7 +298,7 @@ export function DashboardHome({ canAddExpense = false }: { canAddExpense?: boole
                   <span className={`text-xs font-bold shrink-0 ${
                     t.amount >= 0 ? "text-[#10b981]" : "text-error"
                   }`}>
-                    {t.amount >= 0 ? "+" : "-"}${money(Math.abs(t.amount))}
+                    {t.amount >= 0 ? "+" : "-"}{formatMoney(Math.abs(t.amount))}
                   </span>
                 </div>
               ))}

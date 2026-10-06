@@ -68,7 +68,26 @@ export interface CommissionRow {
   pending: number;
   /** Lo ya pagado de ese mismo período. */
   settled: number;
+  /**
+   * Fecha de la venta pendiente MÁS VIEJA (`created_at`, ISO). Es el "desde"
+   * natural al liquidar todo lo que se debe. Null si no hay nada pendiente.
+   */
+  oldestPendingAt: string | null;
 }
+
+/**
+ * Qué comisiones mira la pantalla.
+ *
+ * `pending` es TODO lo que se debe, sin límite de fecha: las líneas con
+ * `commission_settlement_id IS NULL`. Existe porque el reporte solo miraba el
+ * mes en curso, y el día 1 lo que se le debía a alguien del mes anterior
+ * desaparecía de "Por pagar" —y con él, el botón para pagarlo—.
+ *
+ * `period` es un rango elegido: devengado, pendiente y liquidado de esas fechas.
+ */
+export type CommissionScope =
+  | { kind: "pending" }
+  | { kind: "period"; period: CommissionPeriod };
 
 export interface StaffSaleItem {
   id: string;
@@ -118,13 +137,37 @@ export function commissionPeriodOf(from: string, to: string): CommissionPeriod {
   };
 }
 
-/** El mes en curso, que es el período por defecto de la pantalla. */
-export function currentMonthPeriod(): CommissionPeriod {
-  const now = new Date();
-  const pad = (n: number) => String(n).padStart(2, "0");
-  const first = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-01`;
-  const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-  return commissionPeriodOf(first, today);
+const pad2 = (n: number) => String(n).padStart(2, "0");
+
+/** `YYYY-MM-DD` de un instante, en la zona LOCAL (el día del negocio, no el de UTC). */
+export function localDateOf(value: Date | string): string {
+  const d = typeof value === "string" ? new Date(value) : value;
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+/** El mes en curso, del día 1 a hoy inclusive. */
+export function currentMonthPeriod(now: Date = new Date()): CommissionPeriod {
+  const first = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-01`;
+  return commissionPeriodOf(first, localDateOf(now));
+}
+
+/** El mes calendario anterior completo, del 1 al último día inclusive. */
+export function previousMonthPeriod(now: Date = new Date()): CommissionPeriod {
+  const first = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const last = new Date(now.getFullYear(), now.getMonth(), 0);
+  return commissionPeriodOf(localDateOf(first), localDateOf(last));
+}
+
+/**
+ * Período para liquidar TODO lo pendiente de una persona: desde el día de su
+ * venta pendiente más vieja hasta hoy. Sale de los datos y no de una fecha fija
+ * para que el comprobante diga un rango con sentido ("del 12 de agosto al 3 de
+ * octubre"), no "desde el año 2000".
+ */
+export function pendingSettlePeriod(oldestPendingAt: string | null, now: Date = new Date()): CommissionPeriod {
+  const today = localDateOf(now);
+  const from = oldestPendingAt ? localDateOf(oldestPendingAt) : today;
+  return commissionPeriodOf(from <= today ? from : today, today);
 }
 
 /** Una liquidación ya hecha. */
@@ -224,60 +267,53 @@ export async function uploadStaffPhoto(file: File): Promise<string> {
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
+/** Una línea de venta con comisión, en lo mínimo que la agregación necesita. */
+export interface CommissionLine {
+  sale_id: string;
+  staff_id: string;
+  line_total: number;
+  commission_amount: number;
+  commission_settlement_id: string | null;
+  /** `sales.created_at` de la venta. */
+  created_at: string | null;
+}
+
 /**
- * Comisiones de un período por miembro del equipo, separando lo pendiente de
- * lo ya liquidado.
+ * Agrega líneas de venta por miembro: devengado, pendiente, liquidado y la
+ * venta pendiente más vieja. Pura, para testear la cuenta sin base.
  *
  * Suma lo ya congelado en cada línea al vender; no recalcula nada. Cambiar hoy
  * la comisión de un producto no puede mover lo que ya se devengó.
  */
-export async function fetchCommissions(period?: CommissionPeriod): Promise<CommissionRow[]> {
-  const supabase = createClient();
-  const range = period ?? currentMonthPeriod();
-
-  const [staffRes, itemsRes] = await Promise.all([
-    supabase.from("staff").select("id, full_name"),
-    supabase
-      .from("sale_items")
-      // Sin filtro por service_id: antes solo sumaba SERVICIOS, así que en una
-      // tienda —que no los tiene— el reporte salía vacío por definición. Los
-      // productos también comisionan.
-      .select("sale_id, staff_id, line_total, commission_amount, commission_settlement_id, sales!inner(status, created_at)")
-      .not("staff_id", "is", null)
-      .eq("sales.status", "completed")
-      .gte("sales.created_at", range.fromTs)
-      .lt("sales.created_at", range.toTs),
-  ]);
-  if (staffRes.error) throw staffRes.error;
-  if (itemsRes.error) throw itemsRes.error;
-
-  const staff = staffRes.data ?? [];
-  const items = (itemsRes.data ?? []) as unknown as {
-    sale_id: string;
-    staff_id: string;
-    line_total: number;
-    commission_amount: number;
-    commission_settlement_id: string | null;
-  }[];
-
+export function aggregateCommissions(
+  staff: { id: string; full_name: string }[],
+  lines: CommissionLine[],
+): CommissionRow[] {
   interface Acc {
     soldTotal: number;
     commission: number;
     pending: number;
     settled: number;
     sales: Set<string>;
+    oldestPendingAt: string | null;
   }
   const byStaff = new Map<string, Acc>();
-  for (const it of items) {
+  for (const it of lines) {
     const prev: Acc =
       byStaff.get(it.staff_id) ??
-      { soldTotal: 0, commission: 0, pending: 0, settled: 0, sales: new Set<string>() };
+      { soldTotal: 0, commission: 0, pending: 0, settled: 0, sales: new Set<string>(), oldestPendingAt: null };
     prev.soldTotal += it.line_total ?? 0;
     // La comisión NO se recalcula: se suma la que quedó congelada al vender.
     const amount = it.commission_amount ?? 0;
     prev.commission += amount;
     if (it.commission_settlement_id) prev.settled += amount;
-    else prev.pending += amount;
+    else {
+      prev.pending += amount;
+      const older =
+        !prev.oldestPendingAt ||
+        (it.created_at !== null && new Date(it.created_at).getTime() < new Date(prev.oldestPendingAt).getTime());
+      if (amount > 0 && it.created_at && older) prev.oldestPendingAt = it.created_at;
+    }
     prev.sales.add(it.sale_id);
     byStaff.set(it.staff_id, prev);
   }
@@ -294,10 +330,78 @@ export async function fetchCommissions(period?: CommissionPeriod): Promise<Commi
         commission: round2(a.commission),
         pending: round2(a.pending),
         settled: round2(a.settled),
+        oldestPendingAt: a.oldestPendingAt,
       };
     })
     .filter((r): r is CommissionRow => r !== null && r.soldTotal > 0)
     .sort((a, b) => b.pending - a.pending || b.commission - a.commission);
+}
+
+/** Tope de filas por respuesta de PostgREST: se pagina para no truncar en silencio. */
+const COMMISSION_PAGE_SIZE = 1000;
+
+/**
+ * Comisiones por miembro del equipo: de un período, o todo lo pendiente.
+ *
+ * Con `pending` no hay filtro de fecha —lo que se debe se debe aunque sea de
+ * hace tres meses— pero sí de estado: solo líneas sin liquidar y con comisión,
+ * así que `commission === pending` y `settled === 0` en ese modo.
+ *
+ * Pagina de a mil porque PostgREST corta ahí sin avisar, y sin límite de fecha
+ * un negocio con meses sin liquidar lo pasa: un "Por pagar" truncado le haría
+ * pagar de menos a alguien.
+ */
+export async function fetchCommissions(
+  scope: CommissionScope = { kind: "pending" },
+): Promise<CommissionRow[]> {
+  const supabase = createClient();
+
+  const fetchLines = async (): Promise<CommissionLine[]> => {
+    const out: CommissionLine[] = [];
+    for (let offset = 0; ; offset += COMMISSION_PAGE_SIZE) {
+      let query = supabase
+        .from("sale_items")
+        // Sin filtro por service_id: antes solo sumaba SERVICIOS, así que en una
+        // tienda —que no los tiene— el reporte salía vacío por definición. Los
+        // productos también comisionan.
+        .select("id, sale_id, staff_id, line_total, commission_amount, commission_settlement_id, sales!inner(status, created_at)")
+        .not("staff_id", "is", null)
+        .eq("sales.status", "completed");
+      if (scope.kind === "period") {
+        query = query
+          .gte("sales.created_at", scope.period.fromTs)
+          .lt("sales.created_at", scope.period.toTs);
+      } else {
+        query = query.is("commission_settlement_id", null).gt("commission_amount", 0);
+      }
+      const { data, error } = await query
+        .order("id")
+        .range(offset, offset + COMMISSION_PAGE_SIZE - 1);
+      if (error) throw error;
+      const rows = (data ?? []) as unknown as (Omit<CommissionLine, "created_at"> & {
+        sales: { created_at: string | null } | null;
+      })[];
+      for (const r of rows) {
+        out.push({
+          sale_id: r.sale_id,
+          staff_id: r.staff_id,
+          line_total: r.line_total,
+          commission_amount: r.commission_amount,
+          commission_settlement_id: r.commission_settlement_id,
+          created_at: r.sales?.created_at ?? null,
+        });
+      }
+      if (rows.length < COMMISSION_PAGE_SIZE) return out;
+    }
+  };
+
+  const [staffRes, lines] = await Promise.all([
+    supabase.from("staff").select("id, full_name"),
+    fetchLines(),
+  ]);
+  if (staffRes.error) throw staffRes.error;
+
+  return aggregateCommissions(staffRes.data ?? [], lines);
 }
 
 /**

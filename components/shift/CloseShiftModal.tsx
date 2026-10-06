@@ -5,9 +5,7 @@ import { useShiftsStore } from "@/stores/shifts.store";
 import { usePosStore } from "@/stores/pos.store";
 import type { CurrentShift, ShiftSummary } from "@/services/shifts.service";
 import { notifySuccess } from "@/lib/notifications";
-
-const money = (n: number) =>
-  "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+import { formatMoney } from "@/lib/money";
 
 const METHOD_LABEL: Record<string, string> = {
   efectivo: "Efectivo",
@@ -36,28 +34,28 @@ function SummaryRows({
       <div className="flex justify-between px-4 py-2.5">
         <span className="text-on-surface-variant">Ventas del turno</span>
         <span className="font-semibold text-on-surface tabular-nums">
-          {salesCount} · {money(salesTotal)}
+          {salesCount} · {formatMoney(salesTotal)}
         </span>
       </div>
       {Object.entries(byMethod).map(([method, total]) => (
         <div key={method} className="flex justify-between px-4 py-2.5">
           <span className="text-on-surface-variant">{METHOD_LABEL[method] ?? method}</span>
-          <span className="font-semibold text-on-surface tabular-nums">{money(total)}</span>
+          <span className="font-semibold text-on-surface tabular-nums">{formatMoney(total)}</span>
         </div>
       ))}
       <div className="flex justify-between px-4 py-2.5">
         <span className="text-on-surface-variant">Base de caja</span>
-        <span className="font-semibold text-on-surface tabular-nums">{money(openingCash)}</span>
+        <span className="font-semibold text-on-surface tabular-nums">{formatMoney(openingCash)}</span>
       </div>
       {withdrawals > 0 && (
         <div className="flex justify-between px-4 py-2.5">
           <span className="text-on-surface-variant">Retiros de caja</span>
-          <span className="font-semibold text-on-surface tabular-nums">-{money(withdrawals)}</span>
+          <span className="font-semibold text-on-surface tabular-nums">-{formatMoney(withdrawals)}</span>
         </div>
       )}
       <div className="flex justify-between px-4 py-2.5">
         <span className="font-semibold text-on-surface">Efectivo esperado en caja</span>
-        <span className="font-bold text-on-surface tabular-nums">{money(expectedCash)}</span>
+        <span className="font-bold text-on-surface tabular-nums">{formatMoney(expectedCash)}</span>
       </div>
     </div>
   );
@@ -159,13 +157,13 @@ export function CloseShiftModal({
             <div className="rounded-2xl bg-surface-container-low border border-outline-variant/10 divide-y divide-outline-variant/10 text-sm">
               <div className="flex justify-between px-4 py-2.5">
                 <span className="text-on-surface-variant">Efectivo contado</span>
-                <span className="font-semibold text-on-surface tabular-nums">{money(summary.closing_cash)}</span>
+                <span className="font-semibold text-on-surface tabular-nums">{formatMoney(summary.closing_cash)}</span>
               </div>
               <div className="flex justify-between px-4 py-3">
                 <span className="font-bold text-on-surface">Diferencia</span>
                 <span className={`font-bold tabular-nums ${ok ? "text-[#10b981]" : summary.difference < 0 ? "text-error" : "text-amber-500"}`}>
                   {summary.difference > 0 ? "+" : ""}
-                  {money(summary.difference)}
+                  {formatMoney(summary.difference)}
                 </span>
               </div>
             </div>
@@ -173,11 +171,11 @@ export function CloseShiftModal({
               <p className="text-xs text-[#10b981] font-semibold">La caja cuadró exactamente.</p>
             ) : summary.difference < 0 ? (
               <p className="text-xs text-error">
-                Faltan {money(Math.abs(summary.difference))} respecto a lo esperado. Se notificó al dueño.
+                Faltan {formatMoney(Math.abs(summary.difference))} respecto a lo esperado. Se notificó al dueño.
               </p>
             ) : (
               <p className="text-xs text-amber-500">
-                Sobran {money(summary.difference)} respecto a lo esperado. Se notificó al dueño.
+                Sobran {formatMoney(summary.difference)} respecto a lo esperado. Se notificó al dueño.
               </p>
             )}
             <button
@@ -245,11 +243,11 @@ export function CloseShiftModal({
               </p>
               {difference != null && !cuadrado && !serverDisagrees && (
                 <p className={`text-3xl font-bold mt-1 tabular-nums ${faltante ? "text-error" : "text-amber-500"}`}>
-                  {money(Math.abs(difference))}
+                  {formatMoney(Math.abs(difference))}
                 </p>
               )}
               <p className="text-xs text-on-surface-variant mt-2">
-                Contaste {money(counted)}.
+                Contaste {formatMoney(counted)}.
               </p>
             </div>
 

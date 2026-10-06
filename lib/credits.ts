@@ -8,10 +8,10 @@
  * puedan contarlo de tres maneras distintas.
  */
 
+import { formatMoney } from "./money";
+
 /** A cuánto del cupo hay que empezar a avisar. */
 const CUPO_WARN = 0.8;
-
-const money = (n: number) => n.toLocaleString("es-CO", { maximumFractionDigits: 0 });
 
 /**
  * En qué situación está la cuenta de un cliente.
@@ -54,11 +54,11 @@ export function creditLabelOf(balance: number, limit: number | null): string {
     case "al_dia":
       return "Al día";
     case "excedido":
-      return `Excedido $${money(balance - (limit ?? 0))} sobre el cupo`;
+      return `Excedido ${formatMoney(balance - (limit ?? 0))} sobre el cupo`;
     case "cerca_del_cupo":
-      return `Debe $${money(balance)} de $${money(limit ?? 0)}`;
+      return `Debe ${formatMoney(balance)} de ${formatMoney(limit ?? 0)}`;
     default:
-      return `Debe $${money(balance)}`;
+      return `Debe ${formatMoney(balance)}`;
   }
 }
 
@@ -203,10 +203,10 @@ export function renderStatementMessage(input: StatementInput): string {
   const debe = Number.isFinite(input.balance) && input.balance > 0;
 
   const ventas = input.sales.slice(0, STATEMENT_MAX_LINES).map(
-    (s) => `• #${s.sale_number} · ${fecha(s.created_at)} · $${money(s.credit_amount)}`,
+    (s) => `• #${s.sale_number} · ${fecha(s.created_at)} · ${formatMoney(s.credit_amount)}`,
   );
   const abonos = input.payments.slice(0, STATEMENT_MAX_LINES).map(
-    (p) => `• ${fecha(p.created_at)} · $${money(p.amount)}`,
+    (p) => `• ${fecha(p.created_at)} · ${formatMoney(p.amount)}`,
   );
 
   const encabezado = debe
@@ -214,7 +214,7 @@ export function renderStatementMessage(input: StatementInput): string {
         `Hola ${input.cliente} 👋`,
         `Te paso tu estado de cuenta en ${input.negocio}.`,
         "",
-        `Saldo pendiente: $${money(input.balance)}`,
+        `Saldo pendiente: ${formatMoney(input.balance)}`,
       ]
     : [
         `Hola ${input.cliente} 👋`,

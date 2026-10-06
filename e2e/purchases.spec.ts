@@ -39,7 +39,10 @@ test.describe("Compras", () => {
 
     await expect(page.getByRole("heading", { name: "Información general" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Productos comprados" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Agregar producto" })).toBeVisible();
+    // "Agregar producto" (que agregaba una FILA) pasó a ser "Crear producto"
+    // (alta en el catálogo); agregar filas es el "+" de cada línea.
+    await expect(page.getByRole("button", { name: "Crear producto" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Agregar una línea debajo de la 1" })).toBeVisible();
 
     await expect(page.getByLabel("Notas")).toBeVisible();
 
@@ -56,12 +59,17 @@ test.describe("Compras", () => {
 
     // Dos cantidades y un solo costo, siempre por unidad suelta: es lo que
     // evita que el mismo número signifique caja en una línea y unidad en otra.
-    await expect(page.getByLabel("Cajas de la línea 1")).toBeVisible({ timeout: 15000 });
-    await expect(page.getByLabel("Unidades sueltas de la línea 1")).toBeVisible();
+    // Las columnas de caja existen siempre, pero sus campos solo se habilitan
+    // cuando el producto elegido viene por caja (units_per_package > 1): sin
+    // producto, la celda muestra "—" en vez de un input.
+    await expect(page.getByLabel("Unidades sueltas de la línea 1")).toBeVisible({ timeout: 15000 });
     await expect(page.getByLabel("Costo por unidad de la línea 1")).toBeVisible();
+    await expect(page.getByText("Cajas", { exact: true }).first()).toBeAttached();
+    await expect(page.getByText("Costo caja", { exact: true }).first()).toBeAttached();
+    await expect(page.getByLabel("Cajas de la línea 1")).toHaveCount(0);
   });
 
-  test("Agregar producto suma una línea a la tabla", async ({ page }) => {
+  test("Agregar línea suma una fila a la tabla", async ({ page }) => {
     await page.goto("/dashboard/purchases/new");
     await page.waitForLoadState("networkidle");
 
@@ -69,7 +77,7 @@ test.describe("Compras", () => {
     await expect(firstLine).toBeVisible({ timeout: 15000 });
     await expect(page.getByLabel("Producto de la línea 2")).toHaveCount(0);
 
-    await page.getByRole("button", { name: "Agregar producto" }).click();
+    await page.getByRole("button", { name: "Agregar una línea debajo de la 1" }).click();
     await expect(page.getByLabel("Producto de la línea 2")).toBeVisible();
   });
 

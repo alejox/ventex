@@ -10,7 +10,7 @@ test.describe("Dashboard", () => {
   });
 
   test("carga el dashboard después de login", async ({ page }) => {
-    await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole("heading", { level: 1, name: "Panel de control" })).toBeVisible({ timeout: 15000 });
     await expect(page.getByText("Ventas hoy")).toBeVisible({ timeout: 10000 });
     await expect(page.getByText("Productos con stock bajo")).toBeVisible({ timeout: 10000 });
   });
@@ -26,10 +26,14 @@ test.describe("Dashboard", () => {
   });
 
   test("el dueño puede abrir el formulario de gasto", async ({ page }) => {
-    await page.getByRole("button", { name: /registrar gasto/i }).click();
+    // Hay dos disparadores: el atajo con ícono de la barra superior
+    // (aria-label "Registrar gasto") y el botón principal del Panel. Se usa el
+    // del Panel, que es el que muestra el texto.
+    await page.getByRole("main").getByRole("button", { name: "Registrar Gasto", exact: true }).click();
     const modal = page.getByRole("heading", { name: "Registrar Gasto" });
     await expect(modal).toBeVisible({ timeout: 10000 });
-    await expect(page.getByPlaceholder("Ej. Pago a proveedor")).toBeVisible();
+    await expect(page.getByLabel("Descripción")).toBeVisible();
+    await expect(page.getByLabel(/^Monto/)).toBeVisible();
     await page.getByRole("button", { name: "Cancelar" }).click();
     await expect(modal).toBeHidden();
   });

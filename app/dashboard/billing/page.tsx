@@ -12,17 +12,15 @@ import { DataTable, type DataColumn } from "@/components/DataTable";
 import { Select } from "@/components/ui/Select";
 import { CollectionEmpty, CollectionError, CollectionLoading } from "@/components/CollectionState";
 import { formatDateOnly, todayISO } from "@/lib/date";
+import { formatMoney } from "@/lib/money";
 
 const escapeHtml = (s: string) =>
   s.replace(/[&<>"']/g, (c) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string,
   );
 
-const money = (n: number) =>
-  n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
 const formatDate = (iso: string) =>
-  formatDateOnly(iso, { day: "2-digit", month: "short", year: "numeric" }, "es-ES");
+  formatDateOnly(iso, { day: "2-digit", month: "short", year: "numeric" }, "es-CO");
 
 const today = todayISO;
 
@@ -71,7 +69,7 @@ const INVOICE_COLUMNS: DataColumn<Invoice>[] = [
     align: "right",
     mobile: "trailing",
     className: "font-bold text-on-surface tabular-nums",
-    cell: (inv) => `$${money(inv.total)}`,
+    cell: (inv) => formatMoney(inv.total),
   },
   {
     header: "Estado",
@@ -157,18 +155,18 @@ export default function BillingPage() {
     const rows = lines
       .map(
         (it) =>
-          `<tr><td>${escapeHtml(it.description)}</td><td class="c">${it.quantity}</td><td class="r">$${money(it.unit_price)}</td><td class="r">$${money(it.line_total)}</td></tr>`,
+          `<tr><td>${escapeHtml(it.description)}</td><td class="c">${it.quantity}</td><td class="r">${formatMoney(it.unit_price)}</td><td class="r">${formatMoney(it.line_total)}</td></tr>`,
       )
       .join("");
     const totalsRows = [
-      `<tr><td colspan="3" class="r">Subtotal</td><td class="r">$${money(inv.subtotal)}</td></tr>`,
+      `<tr><td colspan="3" class="r">Subtotal</td><td class="r">${formatMoney(inv.subtotal)}</td></tr>`,
       inv.discount_amount > 0
-        ? `<tr><td colspan="3" class="r">Descuento</td><td class="r">-$${money(inv.discount_amount)}</td></tr>`
+        ? `<tr><td colspan="3" class="r">Descuento</td><td class="r">-${formatMoney(inv.discount_amount)}</td></tr>`
         : "",
       inv.tax_amount > 0
-        ? `<tr><td colspan="3" class="r">Impuesto (${(inv.tax_rate * 100).toFixed(0)}%)</td><td class="r">$${money(inv.tax_amount)}</td></tr>`
+        ? `<tr><td colspan="3" class="r">Impuesto (${(inv.tax_rate * 100).toFixed(0)}%)</td><td class="r">${formatMoney(inv.tax_amount)}</td></tr>`
         : "",
-      `<tr class="tot"><td colspan="3" class="r">Total</td><td class="r">$${money(inv.total)}</td></tr>`,
+      `<tr class="tot"><td colspan="3" class="r">Total</td><td class="r">${formatMoney(inv.total)}</td></tr>`,
     ].join("");
     const html = `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>${TYPE_LABEL[inv.type] ?? inv.type} #${inv.invoice_number}</title>
 <style>
@@ -452,20 +450,20 @@ export default function BillingPage() {
               {/* Totales */}
               <div className="bg-surface-container-lowest rounded-xl p-4 border border-outline-variant/10 space-y-1.5 text-sm">
                 <div className="flex justify-between text-on-surface-variant">
-                  <span>Subtotal</span><span className="tabular-nums">${money(totals.subtotal)}</span>
+                  <span>Subtotal</span><span className="tabular-nums">{formatMoney(totals.subtotal)}</span>
                 </div>
                 {totals.discount > 0 && (
                   <div className="flex justify-between text-on-surface-variant">
-                    <span>Descuento</span><span className="tabular-nums">−${money(totals.discount)}</span>
+                    <span>Descuento</span><span className="tabular-nums">−{formatMoney(totals.discount)}</span>
                   </div>
                 )}
                 {totals.tax > 0 && (
                   <div className="flex justify-between text-on-surface-variant">
-                    <span>Impuesto</span><span className="tabular-nums">${money(totals.tax)}</span>
+                    <span>Impuesto</span><span className="tabular-nums">{formatMoney(totals.tax)}</span>
                   </div>
                 )}
                 <div className="flex justify-between font-bold text-on-surface pt-1.5 border-t border-outline-variant/10">
-                  <span>Total</span><span className="tabular-nums">${money(totals.total)}</span>
+                  <span>Total</span><span className="tabular-nums">{formatMoney(totals.total)}</span>
                 </div>
               </div>
 
@@ -564,7 +562,7 @@ export default function BillingPage() {
                         {it.description}
                         <span className="text-on-surface-variant"> × {it.quantity}</span>
                       </span>
-                      <span className="tabular-nums text-on-surface-variant shrink-0">${money(it.line_total)}</span>
+                      <span className="tabular-nums text-on-surface-variant shrink-0">{formatMoney(it.line_total)}</span>
                     </div>
                   ))}
                 </div>
@@ -573,21 +571,21 @@ export default function BillingPage() {
               {/* Totales */}
               <div className="bg-surface-container-lowest rounded-xl p-4 border border-outline-variant/10 space-y-1.5 text-sm">
                 <div className="flex justify-between text-on-surface-variant">
-                  <span>Subtotal</span><span className="tabular-nums">${money(detail.subtotal)}</span>
+                  <span>Subtotal</span><span className="tabular-nums">{formatMoney(detail.subtotal)}</span>
                 </div>
                 {detail.discount_amount > 0 && (
                   <div className="flex justify-between text-on-surface-variant">
-                    <span>Descuento</span><span className="tabular-nums">−${money(detail.discount_amount)}</span>
+                    <span>Descuento</span><span className="tabular-nums">−{formatMoney(detail.discount_amount)}</span>
                   </div>
                 )}
                 {detail.tax_amount > 0 && (
                   <div className="flex justify-between text-on-surface-variant">
                     <span>Impuesto ({(detail.tax_rate * 100).toFixed(0)}%)</span>
-                    <span className="tabular-nums">${money(detail.tax_amount)}</span>
+                    <span className="tabular-nums">{formatMoney(detail.tax_amount)}</span>
                   </div>
                 )}
                 <div className="flex justify-between font-bold text-on-surface pt-1.5 border-t border-outline-variant/10">
-                  <span>Total</span><span className="tabular-nums">${money(detail.total)}</span>
+                  <span>Total</span><span className="tabular-nums">{formatMoney(detail.total)}</span>
                 </div>
               </div>
 

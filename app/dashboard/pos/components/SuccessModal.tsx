@@ -1,3 +1,5 @@
+import { formatMoney } from "@/config/plans";
+
 interface SuccessModalProps {
   onPrint: () => void;
   onClose: () => void;
@@ -30,9 +32,30 @@ interface SuccessModalProps {
    * que poder reintentar sin buscar la llave, y con el cliente enfrente.
    */
   onOpenDrawer?: (() => void) | null;
+  /** Total cobrado. null = no se conoce (no se dibuja el resumen). */
+  total?: number | null;
+  /** Efectivo recibido. null = no fue en efectivo o no se anotó. */
+  tendered?: number | null;
+  /**
+   * Cambio a entregar. Con cambio, el número va grande y el modal NO se cierra
+   * solo: antes solo se veía en el modal de cobro y desaparecía al confirmar,
+   * justo cuando el cajero tenía que contarlo.
+   */
+  change?: number;
 }
 
-export function SuccessModal({ onPrint, onClose, offline = false, whatsappLink = null, customerName = null, onOpenDrawer = null }: SuccessModalProps) {
+export function SuccessModal({
+  onPrint,
+  onClose,
+  offline = false,
+  whatsappLink = null,
+  customerName = null,
+  onOpenDrawer = null,
+  total = null,
+  tendered = null,
+  change = 0,
+}: SuccessModalProps) {
+  const hasChange = change > 0;
   return (
     <div
       className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200 print:hidden"
@@ -62,11 +85,40 @@ export function SuccessModal({ onPrint, onClose, offline = false, whatsappLink =
         <h2 className="text-2xl font-bold text-on-surface mb-2">
           {offline ? "Venta cobrada sin conexión" : "¡Venta exitosa!"}
         </h2>
-        <p className="text-sm text-on-surface-variant mb-8">
+        <p className={`text-sm text-on-surface-variant ${total != null ? "mb-5" : "mb-8"}`}>
           {offline
             ? "Quedó guardada en este dispositivo y se enviará sola cuando vuelva internet. No cierres sesión ni borres los datos del navegador."
-            : "El pago se ha procesado correctamente. ¿Deseas imprimir el recibo de esta venta?"}
+            : "El pago se procesó correctamente. ¿Quieres imprimir el recibo de esta venta?"}
         </p>
+        {total != null && (
+          <div className="mb-6 rounded-2xl border border-outline-variant/15 bg-surface-container p-4 text-left">
+            <dl className="space-y-1.5 text-sm">
+              <div className="flex items-baseline justify-between gap-3">
+                <dt className="text-on-surface-variant">Total</dt>
+                <dd className="font-bold text-on-surface tabular-nums">{formatMoney(total)}</dd>
+              </div>
+              {tendered != null && (
+                <div className="flex items-baseline justify-between gap-3">
+                  <dt className="text-on-surface-variant">Recibido</dt>
+                  <dd className="font-semibold text-on-surface tabular-nums">{formatMoney(tendered)}</dd>
+                </div>
+              )}
+            </dl>
+            {hasChange && (
+              <div
+                role="status"
+                className="mt-3 rounded-xl border border-primary/30 bg-primary/10 px-3 py-3 text-center"
+              >
+                <p className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">
+                  Entregar cambio
+                </p>
+                <p className="text-4xl font-extrabold text-primary tabular-nums tracking-tight break-all">
+                  {formatMoney(change)}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
         <div className="flex flex-col gap-3">
           {/* Va PRIMERO y en verde: es la acción nueva y la que el cajero
               tiene que ver mientras el cliente todavía está en la silla. */}
