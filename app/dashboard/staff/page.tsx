@@ -17,6 +17,7 @@ import { useProfile } from "@/components/ProfileProvider";
 import { staffRolesForType, effectiveModules } from "@/config/business";
 import { mergeTeam, hasStaffRecord } from "@/lib/team";
 import { AvailabilityEditor } from "@/components/school/AvailabilityEditor";
+import { notifySuccess } from "@/lib/notifications";
 import { GrantAccessModal } from "./components/GrantAccessModal";
 import { EditAccessModal } from "./components/EditAccessModal";
 import { PermissionsPanel } from "./components/PermissionsPanel";
@@ -66,6 +67,7 @@ export default function StaffPage() {
   const fetchAccounts = useStaffStore((s) => s.fetchAccounts);
   const revokeAccess = useStaffStore((s) => s.revokeAccess);
   const reactivateAccess = useStaffStore((s) => s.reactivateAccess);
+  const resendInvitation = useStaffStore((s) => s.resendInvitation);
 
   // Perfil docente (Académico): una sección opcional de esta misma ficha, no
   // una pantalla aparte — ver la baja de /dashboard/school/profesores.
@@ -549,6 +551,19 @@ export default function StaffPage() {
                             title="Suspender acceso"
                           >
                             <IconLogOut className="h-3.5 w-3.5" />
+                          </button>
+                        ) : m.account.access_status === "pending" ? (
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              if (await resendInvitation(m.account!.id)) {
+                                notifySuccess("Invitación reenviada", `Le enviamos un correo nuevo a ${m.account!.email ?? "la persona"}.`);
+                              }
+                            }}
+                            disabled={submitting}
+                            className="flex-1 rounded-lg border border-primary/30 py-1.5 text-[11px] font-semibold text-primary hover:bg-primary/10 disabled:opacity-50"
+                          >
+                            Reenviar invitación
                           </button>
                         ) : null}
                       </>

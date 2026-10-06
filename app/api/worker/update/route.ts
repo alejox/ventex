@@ -1,7 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { requireSelectedWorkspaceOwner } from "@/services/workspace.server";
-import { sendExistingUserInvitationEmail } from "@/services/invitation-email.server";
+import {
+  sendExistingUserInvitationEmail,
+  sendSetPasswordInvitationEmail,
+} from "@/services/invitation-email.server";
 import {
   findMembership,
   listWorkspaceMemberships,
@@ -209,13 +212,38 @@ export async function POST(request: NextRequest) {
       .eq("user_id", workspaceId)
       .maybeSingle();
     try {
-      await sendExistingUserInvitationEmail({
-        recipient: membership.invited_email,
-        employeeName: invitationStaff?.full_name ?? "Hola",
-        businessName: owner.businessName ?? "Ventex",
-        role: membership.role,
-        invitationUrl: new URL("/workspace", request.nextUrl.origin).toString(),
-      });
+      if (membership.provisional_auth_user) {
+        // Cuenta creada por la invitación y sin contraseña todavía: el enlace
+        // original es de un solo uso y puede haberse consumido (o vencido), así
+        // que se emite uno NUEVO. Reinvitar con `inviteUserByEmail` no sirve: el
+        // correo ya quedó confirmado y Supabase lo rechaza como ya registrado.
+        const { data: link, error: linkError } = await admin.auth.admin.generateLink({
+          type: "recovery",
+          email: membership.invited_email,
+        });
+        const tokenHash = link?.properties?.hashed_token;
+        if (linkError || !tokenHash) {
+          throw new Error("No se pudo generar un enlace nuevo. Intenta de nuevo en unos minutos.");
+        }
+        const url = new URL("/accept-invitation", request.nextUrl.origin);
+        url.searchParams.set("token_hash", tokenHash);
+        url.searchParams.set("invitation", membership.id);
+        await sendSetPasswordInvitationEmail({
+          recipient: membership.invited_email,
+          employeeName: invitationStaff?.full_name ?? "Hola",
+          businessName: owner.businessName ?? "Ventex",
+          role: membership.role,
+          invitationUrl: url.toString(),
+        });
+      } else {
+        await sendExistingUserInvitationEmail({
+          recipient: membership.invited_email,
+          employeeName: invitationStaff?.full_name ?? "Hola",
+          businessName: owner.businessName ?? "Ventex",
+          role: membership.role,
+          invitationUrl: new URL("/workspace", request.nextUrl.origin).toString(),
+        });
+      }
     } catch (error) {
       return NextResponse.json(
         { error: error instanceof Error ? error.message : "No se pudo reenviar la invitación." },

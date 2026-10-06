@@ -56,3 +56,46 @@ export async function sendExistingUserInvitationEmail(
     throw new Error(body?.message ?? "Resend rechazó el correo de invitación.");
   }
 }
+
+/**
+ * Correo para quien aún NO tiene contraseña: lleva a la pantalla que activa la
+ * invitación y le deja elegir una. A propósito apunta a una página con botón
+ * (`/accept-invitation`) y no directo al enlace de Supabase: los antivirus y
+ * los visores de correo abren los enlaces por su cuenta, y un enlace de un solo
+ * uso consumido así le llega vencido a la persona.
+ */
+export async function sendSetPasswordInvitationEmail(
+  input: InvitationEmailInput,
+): Promise<void> {
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = process.env.RESEND_FROM_EMAIL;
+  if (!apiKey || !from) {
+    throw new Error("Faltan RESEND_API_KEY o RESEND_FROM_EMAIL.");
+  }
+
+  const businessName = escapeHtml(input.businessName || "Ventex");
+  const employeeName = escapeHtml(input.employeeName || "Hola");
+  const role = input.role ? escapeHtml(input.role) : "miembro del equipo";
+  const url = escapeHtml(input.invitationUrl);
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from,
+      to: [input.recipient],
+      subject: `Activa tu acceso a ${businessName} en Ventex`,
+      text: `${input.employeeName || "Hola"}, te invitaron a trabajar en ${input.businessName || "Ventex"} como ${input.role || "miembro del equipo"}. Activa tu acceso y elige tu contraseña aquí: ${input.invitationUrl}`,
+      html: `<div style="font-family:Arial,sans-serif;line-height:1.6;color:#25292d;max-width:560px;margin:auto"><h1>Activa tu acceso a ${businessName}</h1><p>${employeeName}, te invitaron a trabajar en <strong>${businessName}</strong> como <strong>${role}</strong>.</p><p>Pulsa el botón, elige tu contraseña y ya podrás entrar a la plataforma.</p><p><a href="${url}" style="display:inline-block;background:#6d21ef;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none">Activar mi acceso</a></p><p style="font-size:13px;color:#59626a">Si el botón no abre, copia este enlace en el navegador: ${url}</p><p style="font-size:13px;color:#59626a">Si no esperabas este correo, puedes ignorarlo.</p></div>`,
+    }),
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    throw new Error(body?.message ?? "Resend rechazó el correo de invitación.");
+  }
+}
