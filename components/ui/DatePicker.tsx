@@ -47,7 +47,7 @@ export function DatePicker({
         >
           <IconChevronLeft className="h-4 w-4" />
         </button>
-        <span className="text-sm font-semibold capitalize text-on-surface">{title}</span>
+        <span className="text-sm font-semibold text-on-surface">{title.charAt(0).toUpperCase() + title.slice(1)}</span>
         <button
           type="button"
           onClick={() => shift(1)}
@@ -73,7 +73,7 @@ export function DatePicker({
               type="button"
               onClick={() => onChange(iso)}
               aria-pressed={selected}
-              className={`aspect-square rounded-lg text-sm transition-colors ${
+              className={`h-10 rounded-lg text-sm transition-colors ${
                 selected
                   ? "bg-primary font-bold text-on-primary"
                   : iso === today

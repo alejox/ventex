@@ -10,9 +10,7 @@ import { useSettingsStore } from "@/stores/settings.store";
 import { useShiftsStore } from "@/stores/shifts.store";
 import { useProfile } from "@/components/ProfileProvider";
 import { OpenShiftModal } from "@/components/shift/OpenShiftModal";
-import { formatDuration } from "@/lib/duration";
 import { Select } from "@/components/ui/Select";
-import { DatePicker } from "@/components/ui/DatePicker";
 import { whatsappUrl, toWhatsappNumber } from "@/config/contact";
 import type {
   Appointment,
@@ -21,7 +19,7 @@ import type {
 } from "@/services/appointments.service";
 import { toISODate, formatDateOnly } from "@/lib/date";
 import { formatAppointmentTime, type TimeFormat } from "@/lib/time";
-import { AppointmentTimeInput } from "./AppointmentTimeInput";
+import { DateTimeField } from "./DateTimeField";
 
 /**
  * Mensaje de confirmación ya redactado para el cliente.
@@ -82,13 +80,6 @@ const addMinutes = (time: string, mins: number) => {
   const [h, m] = time.split(":").map(Number);
   const total = Math.min(h * 60 + m + mins, 23 * 60 + 59);
   return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
-};
-
-/** Minutos entre dos "HH:MM". Negativo si el fin es anterior al inicio. */
-const minutesBetween = (start: string, end: string) => {
-  const [sh, sm] = start.split(":").map(Number);
-  const [eh, em] = end.split(":").map(Number);
-  return eh * 60 + em - (sh * 60 + sm);
 };
 
 const PAYMENT_OPTIONS: { value: AppointmentPaymentMethod; label: string }[] = [
@@ -310,7 +301,6 @@ function AppointmentModalBody({
   );
 
   /** Duración de lo que se está agendando, como la diría una persona. */
-  const durationLabel = formatDuration(minutesBetween(form.start_time, form.end_time));
 
   /**
    * Abre el cobro. Un empleado sin turno abierto no puede cobrar (`create_sale`
@@ -540,29 +530,12 @@ function AppointmentModalBody({
             </div>
           )}
 
-          {/* Date */}
-          <div className="space-y-1.5">
-            <label className="text-[13px] font-semibold text-on-surface block">
-              Fecha *
-            </label>
-            <DatePicker
-              value={form.appointment_date}
-              onChange={(iso) => setForm({ ...form, appointment_date: iso })}
-            />
-          </div>
-
-          {/* Time range: stored as 24-hour values regardless of display. */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <AppointmentTimeInput label="Hora de inicio" value={form.start_time} format={timeFormat}
-              onChange={(value) => setForm({ ...form, start_time: value })} />
-            <AppointmentTimeInput label="Hora de fin" value={form.end_time} format={timeFormat}
-              onChange={(value) => setForm({ ...form, end_time: value })} />
-          </div>
-          {durationLabel && (
-            <p className="-mt-2 text-xs text-on-surface-variant">
-              Duración: <strong className="text-on-surface">{durationLabel}</strong>
-            </p>
-          )}
+          {/* Fecha y hora: un solo campo que abre el selector (valores en 24 h). */}
+          <DateTimeField
+            value={{ date: form.appointment_date, start: form.start_time, end: form.end_time }}
+            format={timeFormat}
+            onChange={({ date, start, end }) => setForm({ ...form, appointment_date: date, start_time: start, end_time: end })}
+          />
 
           <details className="rounded-xl border border-outline-variant/20 p-3">
             <summary className="cursor-pointer text-sm font-semibold text-on-surface">Notas y detalles opcionales</summary>
