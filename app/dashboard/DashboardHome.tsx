@@ -9,7 +9,8 @@ import { visibleQuickActions, workerQuickActions } from "@/config/business";
 import { needsRestock } from "@/lib/stock";
 import { ExpenseModal } from "@/components/ExpenseModal";
 import { ExpensesByCategory } from "@/components/ExpensesByCategory";
-import { IconTrendingUp, IconTrendingDown, IconDollar, IconShoppingCart, IconPlus } from "@/app/assets/icons/DashboardIcons";
+import { IconTrendingUp, IconTrendingDown, IconDollar, IconWallet, IconPlus } from "@/app/assets/icons/DashboardIcons";
+import { GettingStarted } from "@/components/onboarding/GettingStarted";
 import { formatDateOnly } from "@/lib/date";
 import { formatMoney } from "@/lib/money";
 
@@ -151,6 +152,9 @@ export function DashboardHome({ canAddExpense = false }: { canAddExpense?: boole
         </div>
       )}
 
+      {/* Primeros pasos: solo mientras falten y no se haya ocultado. */}
+      <GettingStarted />
+
       {/* Acciones Rápidas: qué se muestra lo decide config/business.ts según el
           tipo de negocio (o los permisos, si es trabajador). Acá solo vive la
           presentación de cada id. */}
@@ -206,10 +210,15 @@ export function DashboardHome({ canAddExpense = false }: { canAddExpense?: boole
           loading={overviewBusy}
           accent="bg-error/10 text-error"
         />
+        {/* Antes decía "Beneficio neto", pero resta las compras de mercadería
+            sin descontar el costo de lo vendido: es flujo de caja, no utilidad.
+            Un margen real necesita el costo congelado por línea de venta, que
+            la base todavía no guarda. */}
         <KpiCard
-          icon={<IconShoppingCart className="w-5 h-5" />}
-          label="Beneficio neto"
+          icon={<IconWallet className="w-5 h-5" />}
+          label="Flujo de caja"
           value={overviewBusy ? "—" : `${overview.net < 0 ? "-" : ""}${formatMoney(Math.abs(overview.net))}`}
+          sub="Ingresos − egresos (incluye compras)"
           loading={overviewBusy}
           accent={overviewBusy || overview.net >= 0 ? "bg-[#10b981]/10 text-[#10b981]" : "bg-error/10 text-error"}
         />

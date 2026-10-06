@@ -443,8 +443,186 @@ export async function fetchSaleDetail(saleId: string): Promise<SaleDetail> {
   };
 }
 
-export async function voidSale(saleId: string): Promise<void> {
+// ---- Anulación ----
+
+/** Movimiento de puntos de una venta (`loyalty_points_ledger`). */
+export interface SaleLedgerEntry {
+  kind: string;
+  points: number;
+}
+
+/** Premio de cortes canjeado en una venta (`promo_redemptions`). */
+export interface SaleRedemption {
+  reward: string;
+}
+
+/**
+ * Lo que ANULAR una venta va a mover, calculado antes de confirmar.
+ *
+ * Es el espejo de lo que hacen `void_sale` y los triggers de anulación
+ * (crédito, puntos, premio de cortes): la pantalla lo avisa, la base lo hace.
+ * Si alguna de las dos cambia, este cálculo tiene que seguirla.
+ */
+export interface SaleVoidImpact {
+  /** Efectivo que sale de la caja del turno de quien anula. */
+  cashRefund: number;
+  /** Parte pagada con datáfono/transferencia: NO se devuelve sola. */
+  otherRefund: number;
+  /** Saldo fiado que se cancela (la deuda del cliente baja). */
+  creditReleased: number;
+  /** Puntos que la venta le dio al cliente y se le quitan. */
+  pointsEarned: number;
+  /** Puntos que el cliente canjeó en esta venta y se le devuelven. */
+  pointsRedeemed: number;
+  /** Premios de cortes canjeados en esta venta, que vuelven a quedar disponibles. */
+  rewards: string[];
+  /** Comisión ya liquidada (y pagada) que la anulación NO devuelve. */
+  paidCommission: number;
+}
+
+export function saleVoidImpact(
+  sale: Pick<SaleDetail, "payment_method" | "total" | "items">,
+  /** Filas de `sale_payments` (ver `fetchSaleReceiptExtras`). Solo pesan en un split. */
+  payments: { payment_method: string; amount: number }[] = [],
+  ledger: SaleLedgerEntry[] = [],
+  redemptions: SaleRedemption[] = [],
+): SaleVoidImpact {
+  // Un pago dividido se reparte por medio; uno simple es todo de su medio.
+  // `void_sale` hace la misma cuenta para decidir cuánto efectivo devolver.
+  const byMethod = (method: string) =>
+    sale.payment_method === "split"
+      ? payments.filter((p) => p.payment_method === method).reduce((s, p) => s + p.amount, 0)
+      : sale.payment_method === method
+        ? sale.total
+        : 0;
+
+  const cashRefund = byMethod("efectivo");
+  const creditReleased = byMethod("credito");
+  const otherRefund = byMethod("tarjeta") + byMethod("transferencia");
+
+  // Los `reverse` ya existentes no cuentan: la venta está completada, así que
+  // no debería haberlos, y si los hubiera ya están descontados.
+  const pointsEarned = ledger.filter((l) => l.kind === "earn").reduce((s, l) => s + Math.abs(l.points), 0);
+  const pointsRedeemed = ledger.filter((l) => l.kind === "redeem").reduce((s, l) => s + Math.abs(l.points), 0);
+
+  const paidCommission = sale.items
+    .filter((i) => i.commission_settlement_id)
+    .reduce((s, i) => s + i.commission_amount, 0);
+
+  return {
+    cashRefund,
+    otherRefund,
+    creditReleased,
+    pointsEarned,
+    pointsRedeemed,
+    rewards: redemptions.map((r) => r.reward).filter(Boolean),
+    paidCommission,
+  };
+}
+
+/**
+ * Puntos y premios atados a una venta, para el aviso de anulación.
+ *
+ * Va aparte del detalle y NO lo tumba si falla: el aviso es información extra,
+ * y quedarse sin poder abrir una venta por una tabla de fidelización sería
+ * cambiar lo importante por lo accesorio.
+ */
+export async function fetchSaleVoidExtras(
+  saleId: string,
+): Promise<{ ledger: SaleLedgerEntry[]; redemptions: SaleRedemption[] }> {
   const supabase = createClient();
+  const [ledger, redemptions] = await Promise.all([
+    supabase.from("loyalty_points_ledger").select("kind, points").eq("sale_id", saleId),
+    supabase.from("promo_redemptions").select("reward").eq("sale_id", saleId),
+  ]);
+  return {
+    ledger: ledger.error ? [] : ((ledger.data ?? []) as SaleLedgerEntry[]),
+    redemptions: redemptions.error ? [] : ((redemptions.data ?? []) as SaleRedemption[]),
+  };
+}
+
+/**
+ * Anula una venta. El motivo es obligatorio en la pantalla, pero `void_sale`
+ * todavía no tiene dónde guardarlo: se manda como `p_reason` y, si la base aún
+ * no conoce esa firma (PGRST202), se reintenta con la de un solo argumento.
+ * Así el día que se aplique la migración el motivo empieza a guardarse sin
+ * tocar este código.
+ */
+export async function voidSale(saleId: string, reason?: string): Promise<void> {
+  const supabase = createClient();
+  const motivo = reason?.trim();
+  if (motivo) {
+    const rpc = supabase.rpc as unknown as (
+      fn: string,
+      args: Record<string, unknown>,
+    ) => PromiseLike<{ error: { code?: string; message: string } | null }>;
+    const { error } = await rpc.call(supabase, "void_sale", { p_sale_id: saleId, p_reason: motivo });
+    if (!error) return;
+    if (error.code !== "PGRST202") throw error;
+  }
   const { error } = await supabase.rpc("void_sale", { p_sale_id: saleId });
   if (error) throw error;
+}
+
+// ---- Comprobante (reimpresión) ----
+
+/**
+ * Lo que el recibo necesita y `fetchSaleDetail` no trae: el documento del
+ * cliente y el detalle de los medios de pago. Va aparte —y no se le suma al
+ * `DETAIL_SELECT`— para no engordar el detalle que abre Ventas en cada fila.
+ */
+export interface SaleReceiptExtras {
+  saleNumber: number;
+  customer: { full_name: string; doc_type: string | null; identification: string | null } | null;
+  /** Filas de `sale_payments`. Una venta de total 0 no tiene ninguna. */
+  payments: {
+    payment_method: string;
+    amount: number;
+    transfer_method: string | null;
+    card_method: string | null;
+  }[];
+}
+
+export async function fetchSaleReceiptExtras(saleId: string): Promise<SaleReceiptExtras> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("sales")
+    .select(
+      "sale_number, customers(full_name, doc_type, identification), sale_payments(payment_method, amount, transfer_method, card_method, created_at)",
+    )
+    .eq("id", saleId)
+    .single();
+  if (error) throw error;
+  const raw = data as Record<string, unknown>;
+  const customer = one<{ full_name: string; doc_type: string | null; identification: string | null }>(
+    raw.customers,
+  );
+  const rawPayments = (Array.isArray(raw.sale_payments) ? raw.sale_payments : []) as Record<string, unknown>[];
+  const payments = [...rawPayments]
+    .sort((a, b) => String(a.created_at ?? "").localeCompare(String(b.created_at ?? "")))
+    .map((p) => ({
+      payment_method: p.payment_method as string,
+      amount: Number(p.amount ?? 0),
+      transfer_method: (p.transfer_method as string | null) ?? null,
+      card_method: (p.card_method as string | null) ?? null,
+    }));
+  return {
+    saleNumber: Number(raw.sale_number),
+    customer: customer
+      ? {
+          full_name: customer.full_name,
+          doc_type: customer.doc_type ?? null,
+          identification: customer.identification ?? null,
+        }
+      : null,
+    payments,
+  };
+}
+
+/** Detalle + extras en paralelo: todo lo que pide `buildReceiptFromSale`. */
+export async function fetchSaleForReceipt(
+  saleId: string,
+): Promise<{ sale: SaleDetail; extras: SaleReceiptExtras }> {
+  const [sale, extras] = await Promise.all([fetchSaleDetail(saleId), fetchSaleReceiptExtras(saleId)]);
+  return { sale, extras };
 }

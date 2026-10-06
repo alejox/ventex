@@ -113,7 +113,22 @@ export default function BillingPage() {
 
   const [formOpen, setFormOpen] = useState(false);
   const [form, setForm] = useState<NewInvoiceInput>(newEmptyInvoice());
-  const [detail, setDetail] = useState<Invoice | null>(null);
+  const [detailId, setDetailId] = useState<string | null>(null);
+  /** "Cancelada" pide confirmación: saca el documento de cartera y de ingresos. */
+  const [confirmCancel, setConfirmCancel] = useState(false);
+  /** Al convertir una cotización, de cuál viene (para la nota de la factura). */
+  const [convertedFrom, setConvertedFrom] = useState<number | null>(null);
+  // El detalle se lee de la lista del store y no de una copia: `updateStatus`
+  // actualiza la lista, y con una copia local el botón del estado nuevo no se
+  // marcaba hasta cerrar y volver a abrir.
+  const detail = useMemo(
+    () => (detailId ? invoices.find((i) => i.id === detailId) ?? null : null),
+    [detailId, invoices],
+  );
+  const setDetail = (inv: Invoice | null) => {
+    setDetailId(inv?.id ?? null);
+    setConfirmCancel(false);
+  };
 
   useEffect(() => {
     fetchInvoices();
@@ -138,6 +153,38 @@ export default function BillingPage() {
 
   const openCreate = () => {
     setForm(newEmptyInvoice());
+    setConvertedFrom(null);
+    setFormOpen(true);
+  };
+
+  /**
+   * "Convertir en factura": abre el formulario de una FACTURA nueva con los
+   * conceptos, cliente, descuento e impuesto de la cotización. La cotización
+   * queda como está —es el registro de lo que se ofreció— y la factura es un
+   * documento nuevo con su propio número, que es lo que se cobra.
+   */
+  const convertToInvoice = (quote: Invoice, lines: InvoiceItem[]) => {
+    setForm({
+      type: "factura",
+      customer_id: quote.customer_id,
+      issue_date: today(),
+      due_date: "",
+      discount_amount: String(quote.discount_amount ?? 0),
+      // `tax_rate` se guarda como fracción (0.19) y el formulario pide el %.
+      tax_rate: String(Math.round((quote.tax_rate ?? 0) * 10000) / 100),
+      notes: [quote.notes, `Generada desde la cotización #${quote.invoice_number}.`].filter(Boolean).join("\n"),
+      items:
+        lines.length > 0
+          ? lines.map((l) => ({
+              service_id: l.service_id,
+              description: l.description,
+              quantity: String(l.quantity),
+              unit_price: String(l.unit_price),
+            }))
+          : [{ ...EMPTY_LINE }],
+    });
+    setConvertedFrom(quote.invoice_number);
+    setDetail(null);
     setFormOpen(true);
   };
 
@@ -275,7 +322,14 @@ export default function BillingPage() {
         <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-surface-container rounded-t-3xl sm:rounded-3xl w-full sm:max-w-2xl max-h-[92vh] border border-outline-variant/10 shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200 flex flex-col">
             <div className="p-4 sm:p-6 border-b border-outline-variant/10 flex justify-between items-center bg-surface-container-low shrink-0">
-              <h2 className="text-lg sm:text-xl font-bold text-on-surface">Nuevo Documento</h2>
+              <div className="min-w-0">
+                <h2 className="text-lg sm:text-xl font-bold text-on-surface">Nuevo Documento</h2>
+                {convertedFrom !== null && (
+                  <p className="text-xs text-on-surface-variant">
+                    Desde la cotización #{convertedFrom}. Revisa los datos antes de crearla.
+                  </p>
+                )}
+              </div>
               <button
                 onClick={() => setFormOpen(false)}
                 className="w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors"
@@ -534,22 +588,92 @@ export default function BillingPage() {
             </div>
 
             <div className="p-4 sm:p-6 overflow-y-auto space-y-4">
-              {/* Estado */}
-              <div className="flex flex-wrap gap-2">
-                {(["pending", "paid", "cancelled"] as const).map((st) => (
+              {/* Estado. Una COTIZACIÓN no se paga: es una oferta, y marcarla
+                  "Pagada" la sumaba como ingreso en el panel. Lo que se cobra
+                  es la factura que sale de ella ("Convertir en factura"). */}
+              <div className="flex flex-wrap items-center gap-2">
+                {(detail.type === "cotizacion"
+                  ? (["pending", "cancelled"] as const)
+                  : (["pending", "paid", "cancelled"] as const)
+                ).map((st) => (
                   <button
                     key={st}
-                    onClick={() => updateStatus(detail.id, st)}
+                    type="button"
+                    aria-pressed={detail.status === st}
+                    onClick={() => {
+                      if (detail.status === st) return;
+                      // Cancelar saca el documento de cartera e ingresos: un
+                      // clic suelto no alcanza.
+                      if (st === "cancelled") {
+                        setConfirmCancel(true);
+                        return;
+                      }
+                      setConfirmCancel(false);
+                      void updateStatus(detail.id, st);
+                    }}
                     className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
                       detail.status === st
                         ? STATUS[st].cls
                         : "bg-surface-container border-outline-variant/10 text-on-surface-variant hover:bg-surface-container-high"
                     }`}
                   >
-                    {STATUS[st].label}
+                    {detail.type === "cotizacion" && st === "pending" ? "Vigente" : STATUS[st].label}
                   </button>
                 ))}
+                {detail.type === "cotizacion" && detail.status !== "cancelled" && (
+                  <button
+                    type="button"
+                    onClick={() => convertToInvoice(detail, items)}
+                    disabled={itemsLoading}
+                    className="ml-auto px-3 py-1.5 rounded-lg text-xs font-bold bg-primary/10 text-primary border border-primary/30 hover:bg-primary/15 transition-colors disabled:opacity-50"
+                  >
+                    Convertir en factura
+                  </button>
+                )}
               </div>
+
+              {confirmCancel && (
+                <div role="alert" className="rounded-xl border border-error-container/30 bg-error-container/10 p-3 space-y-2">
+                  <p className="text-sm font-medium text-on-surface">
+                    ¿Cancelar {detail.type === "cotizacion" ? "esta cotización" : "esta factura"}?
+                  </p>
+                  <p className="text-xs text-on-surface-variant">
+                    {detail.type === "cotizacion"
+                      ? "Queda como no vigente."
+                      : detail.status === "paid"
+                        ? `Deja de contar como ingreso (${formatMoney(detail.total)}) en el panel.`
+                        : "Sale de lo pendiente por cobrar."}{" "}
+                    Puedes volver a cambiar el estado después.
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const ok = await updateStatus(detail.id, "cancelled");
+                        if (ok) setConfirmCancel(false);
+                      }}
+                      className="px-3 py-1.5 rounded-lg text-xs font-bold bg-error-container/20 text-error hover:bg-error hover:text-on-error transition-colors"
+                    >
+                      Sí, cancelar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmCancel(false)}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-surface-container-high text-on-surface-variant hover:text-on-surface transition-colors"
+                    >
+                      No
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* El error de cambiar el estado se muestra acá: el de la página
+                  queda detrás del modal. */}
+              {error && (
+                <p role="alert" className="rounded-xl bg-error-container/20 border border-error-container/30 px-3 py-2 text-xs text-error-dim">
+                  {error}
+                </p>
+              )}
 
               {/* Líneas */}
               {itemsLoading ? (

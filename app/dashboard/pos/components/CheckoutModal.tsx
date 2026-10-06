@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useRef } from "react";
 import { Select } from "@/components/ui/Select";
 import { COLOMBIA_TRANSFER_METHODS } from "@/config/transferMethods";
 import { COLOMBIA_CARD_METHODS } from "@/config/cardMethods";
@@ -151,6 +151,16 @@ export function CheckoutModal({
     return () => window.removeEventListener("keydown", handleEnter);
   }, [handleEnter]);
 
+  /**
+   * El aviso de error vive DENTRO del área que scrollea (antes era una franja
+   * fija entre el contenido y los botones y tapaba a medias la fila "Cambio").
+   * Al aparecer se trae a la vista: es lo que el cajero tiene que leer.
+   */
+  const errorRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (error) errorRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [error]);
+
   const quickAdd = (amount: number) =>
     setAmountTendered((prev) => String((parseFloat(prev) || 0) + amount));
 
@@ -175,7 +185,7 @@ export function CheckoutModal({
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-5 space-y-4">
           {/* Sale summary */}
           <div className="bg-surface-container p-4 rounded-2xl border border-outline-variant/10">
             <h3 className="text-sm font-semibold text-on-surface mb-3">Resumen de venta</h3>
@@ -421,7 +431,7 @@ export function CheckoutModal({
                 <div
                   className={`flex justify-between items-center p-3 rounded-xl ${
                     change >= 0
-                      ? "bg-[#10b981]/5 border border-[#10b981]/20"
+                      ? "bg-accent-fin/5 border border-accent-fin/20"
                       : "bg-error/5 border border-error/20"
                   }`}
                 >
@@ -430,7 +440,7 @@ export function CheckoutModal({
                   </span>
                   <span
                     className={`text-base sm:text-lg font-bold tabular-nums tracking-tight truncate ${
-                      change >= 0 ? "text-[#10b981]" : "text-error"
+                      change >= 0 ? "text-accent-fin" : "text-error"
                     }`}
                   >
                     {change >= 0
@@ -441,24 +451,25 @@ export function CheckoutModal({
               )}
             </div>
           )}
-        </div>
 
-        {error && (
-          <div
-            role="alert"
-            className="shrink-0 mx-5 mb-2 flex items-start gap-2 rounded-xl border border-error/30 bg-error/10 px-3.5 py-2.5 text-sm text-error"
-          >
-            <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true">
-              <circle cx="12" cy="12" r="9" />
-              <path d="M12 8v5" />
-              <path d="M12 16.5h.01" />
-            </svg>
-            <div className="min-w-0">
-              <p className="font-semibold">No se pudo cobrar</p>
-              <p className="break-words">{error}</p>
+          {error && (
+            <div
+              ref={errorRef}
+              role="alert"
+              className="scroll-mb-2 flex items-start gap-2 rounded-xl border border-error/30 bg-error/10 px-3.5 py-2.5 text-sm text-error"
+            >
+              <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M12 8v5" />
+                <path d="M12 16.5h.01" />
+              </svg>
+              <div className="min-w-0">
+                <p className="font-semibold">No se pudo cobrar</p>
+                <p className="break-words">{error}</p>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         <div className="shrink-0 px-5 pb-5 pt-2 flex gap-3 border-t border-outline-variant/10">
           <button
@@ -472,7 +483,7 @@ export function CheckoutModal({
             type="button"
             onClick={onConfirm}
             disabled={!canConfirm}
-            className="flex-1 min-w-0 py-3 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary-dim transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex flex-col sm:flex-row items-center justify-center gap-0 sm:gap-2 leading-tight"
+            className="flex-1 min-w-0 py-3 rounded-xl bg-primary text-on-primary text-sm font-semibold hover:bg-primary-dim transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex flex-col sm:flex-row items-center justify-center gap-0 sm:gap-2 leading-tight"
           >
             {submitting ? (
               <svg

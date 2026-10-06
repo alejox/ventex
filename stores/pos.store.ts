@@ -5,6 +5,8 @@ import * as settingsService from "@/services/settings.service";
 import * as deliveryService from "@/services/delivery.service";
 import * as offlineQueue from "@/services/offline-queue.service";
 import * as offersService from "@/services/offers.service";
+import * as salesService from "@/services/sales.service";
+import type { SaleListItem, SaleDetail, SaleReceiptExtras } from "@/services/sales.service";
 import { loyaltyDiscountsToRestore, loyaltyLineDiscounts, loyaltyRedemptionMatches, pointsDiscountAmount } from "@/services/loyalty.service";
 import type { AppliedLoyaltyPoints } from "@/services/loyalty.service";
 import type { ProductOffer } from "@/services/offers.service";
@@ -74,6 +76,31 @@ export interface SaleTab {
 interface PosState {
   /** Id de la última venta registrada en el servidor. null si se encoló offline. */
   lastSaleId: string | null;
+  /**
+   * Número consecutivo de `lastSaleId`, para el comprobante. Llega DESPUÉS del
+   * cobro (se lee sin bloquear el `sold`); null mientras tanto.
+   */
+  lastSaleNumber: number | null;
+  /**
+   * Algo que falló DESPUÉS de que la venta quedó registrada (domicilio,
+   * refresco del catálogo). La venta no se toca: es un aviso para el cajero.
+   */
+  postSaleWarning: string | null;
+  clearPostSaleWarning: () => void;
+  /**
+   * Último "Vaciar venta", para poder deshacerlo (C5). Se guarda la pestaña
+   * entera —cliente, pagos, domicilio, puntos— y no solo el carrito.
+   */
+  lastClearedTab: { tabId: string; snapshot: SaleTab } | null;
+  /** true = se restauró; false = ya no se puede (la pestaña tiene ítems nuevos o se cerró). */
+  undoClearCart: () => boolean;
+
+  /** Las últimas ventas del negocio, para el panel "Últimas ventas" del POS. */
+  recentSales: SaleListItem[];
+  recentSalesLoading: boolean;
+  fetchRecentSales: () => Promise<void>;
+  /** Todo lo que hace falta para reimprimir el comprobante de una venta guardada. */
+  fetchSaleReceipt: (saleId: string) => Promise<{ sale: SaleDetail; extras: SaleReceiptExtras }>;
   /** Contexto de autoridad congelado al inicializar este POS. */
   executionContext: WorkspaceExecutionContext | null;
   // Datos del catálogo (vienen de services)
@@ -232,6 +259,108 @@ const createDefaultTab = (index: number, get?: () => PosState): SaleTab => {
   };
 };
 
+const tabDefaults = (get: () => PosState) => ({
+  paymentMethod: get().defaultPaymentMethod,
+  staffId: get().defaultStaffId,
+  customerId: get().defaultCustomerId,
+});
+
+/**
+ * La pestaña lista para la próxima venta: mismo id y nombre, todo lo demás a
+ * los valores por defecto del POS. Una sola versión para "Vaciar venta" y para
+ * los dos finales de un cobro (vendida y encolada) — antes eran tres copias.
+ */
+export function resetTabForNextSale(
+  tab: SaleTab,
+  defaults: { paymentMethod: PaymentMethod; staffId: string | null; customerId: string | null },
+): SaleTab {
+  return {
+    ...tab,
+    cart: [],
+    customerId: defaults.customerId,
+    staffId: defaults.staffId,
+    paymentMethod: defaults.paymentMethod,
+    transferMethod: null,
+    cardMethod: null,
+    splits: [],
+    isDelivery: false,
+    deliveryData: { personId: null, address: "", fee: 0, notes: "" },
+    checkoutId: null,
+    removedOfferKeys: [],
+    loyaltyApplied: null,
+  };
+}
+
+/**
+ * Deshace un "Vaciar venta". Solo si la pestaña sigue existiendo y sigue vacía:
+ * si el cajero ya empezó otra venta ahí, pisarla con la anterior le borraría lo
+ * nuevo sin avisar. Devuelve null cuando no corresponde restaurar.
+ */
+export function restoreClearedTab(
+  tabs: SaleTab[],
+  cleared: { tabId: string; snapshot: SaleTab } | null,
+): SaleTab[] | null {
+  if (!cleared) return null;
+  const current = tabs.find((t) => t.id === cleared.tabId);
+  if (!current || current.cart.length > 0) return null;
+  return tabs.map((t) =>
+    t.id === cleared.tabId ? { ...cleared.snapshot, id: t.id, name: t.name } : t,
+  );
+}
+
+/**
+ * Lo que se hace DESPUÉS de que `create_sale` respondió OK (C14).
+ *
+ * Nada de esto puede convertir la venta en fallida ni encolarla: la venta YA
+ * existe en el servidor. Si algo falla, se devuelve el aviso y la venta queda
+ * como está. Las dependencias se inyectan para poder probarlo sin red
+ * (`tests/pos-post-sale.test.ts`).
+ */
+export async function runPostSaleFollowUps(deps: {
+  saleId: string;
+  delivery: { personId: string; address: string; fee: number; notes?: string } | null;
+  createDelivery: (input: {
+    sale_id: string;
+    delivery_person_id: string;
+    address: string;
+    fee: number;
+    notes?: string;
+  }) => Promise<unknown>;
+  fetchCatalog: () => Promise<CatalogItem[]>;
+  fetchSaleNumber: (saleId: string) => Promise<number>;
+}): Promise<{ warnings: string[]; catalog: CatalogItem[] | null; saleNumber: number | null }> {
+  const deliveryJob: Promise<string | null> = deps.delivery
+    ? deps
+        .createDelivery({
+          sale_id: deps.saleId,
+          delivery_person_id: deps.delivery.personId,
+          address: deps.delivery.address,
+          fee: deps.delivery.fee,
+          notes: deps.delivery.notes || undefined,
+        })
+        .then(() => null)
+        .catch(
+          (e: unknown) =>
+            `La venta quedó registrada, pero no se pudo crear el domicilio: ${toMessage(e)}. Cárgalo a mano desde Domicilios.`,
+        )
+    : Promise.resolve(null);
+
+  const catalogJob: Promise<CatalogItem[] | null> = deps.fetchCatalog().catch(() => null);
+  // Sin número el comprobante sale igual, solo sin el consecutivo.
+  const numberJob: Promise<number | null> = deps.fetchSaleNumber(deps.saleId).catch(() => null);
+
+  const [deliveryWarning, catalog, saleNumber] = await Promise.all([deliveryJob, catalogJob, numberJob]);
+
+  const warnings: string[] = [];
+  if (deliveryWarning) warnings.push(deliveryWarning);
+  if (!catalog) {
+    warnings.push(
+      "La venta quedó registrada, pero no se pudo actualizar el stock en pantalla. Recarga el POS si ves cantidades raras.",
+    );
+  }
+  return { warnings, catalog, saleNumber };
+}
+
 /**
  * Guarda una venta en la cola del dispositivo.
  *
@@ -336,7 +465,34 @@ export const usePosStore = create<PosState>((set, get) => {
     activeTabId: "", // se inicializará luego o en la primera tab
     submitting: false,
     stockAlert: null,
-  lastSaleId: null,
+    lastSaleId: null,
+    lastSaleNumber: null,
+    postSaleWarning: null,
+    clearPostSaleWarning: () => set({ postSaleWarning: null }),
+    lastClearedTab: null,
+    undoClearCart: () => {
+      const restored = restoreClearedTab(get().tabs, get().lastClearedTab);
+      if (!restored) {
+        set({ lastClearedTab: null });
+        return false;
+      }
+      set({ tabs: restored, lastClearedTab: null });
+      return true;
+    },
+    recentSales: [],
+    recentSalesLoading: false,
+    fetchRecentSales: async () => {
+      set({ recentSalesLoading: true });
+      try {
+        // Sin rango y con página de 5: el panel no necesita más.
+        const page = await salesService.fetchSales({ from: null, to: null }, 0, 5);
+        set({ recentSales: page.items, recentSalesLoading: false });
+      } catch (e) {
+        console.error(e);
+        set({ recentSalesLoading: false });
+      }
+    },
+    fetchSaleReceipt: (saleId) => salesService.fetchSaleForReceipt(saleId),
     planLimitHit: false,
 
     includeTax: true,
@@ -910,15 +1066,12 @@ export const usePosStore = create<PosState>((set, get) => {
 
     clearCart: () =>
       set((s) => {
-        const defaultMethod = get().defaultPaymentMethod;
-        const defaultStaff = get().defaultStaffId;
-        const defaultCustomer = get().defaultCustomerId;
+        const current = s.tabs.find((t) => t.id === s.activeTabId);
+        if (!current) return {};
         return {
-          tabs: s.tabs.map((t) =>
-            t.id === s.activeTabId
-              ? { ...t, cart: [], customerId: defaultCustomer, staffId: defaultStaff,                 paymentMethod: defaultMethod, transferMethod: null, cardMethod: null, splits: [], isDelivery: false, deliveryData: { personId: null, address: "", fee: 0, notes: "" }, checkoutId: null, removedOfferKeys: [], loyaltyApplied: null }
-              : t,
-          ),
+          // La foto ANTES de vaciar: es lo que restaura "Deshacer".
+          lastClearedTab: current.cart.length > 0 ? { tabId: current.id, snapshot: current } : s.lastClearedTab,
+          tabs: s.tabs.map((t) => (t.id === current.id ? resetTabForNextSale(t, tabDefaults(get)) : t)),
         };
       }),
 
@@ -995,40 +1148,9 @@ export const usePosStore = create<PosState>((set, get) => {
         clientSaleId,
       };
 
+      let saleId: string;
       try {
-        const saleId = await posService.createSale(input);
-        // Se guarda para que el canje del premio pueda atarse a ESTA venta: sin
-        // el vínculo, anularla dejaría al cliente sin premio y sin progreso.
-        set({ lastSaleId: saleId });
-
-        if (isDelivery && deliveryData.personId) {
-          await deliveryService.createDelivery({
-            sale_id: saleId,
-            delivery_person_id: deliveryData.personId,
-            address: deliveryData.address,
-            fee: deliveryData.fee,
-            notes: deliveryData.notes || undefined,
-          });
-        }
-
-        const catalog = await posService.fetchCatalog();
-
-        set((s) => {
-          const defaultMethod = get().defaultPaymentMethod;
-          const defaultStaff = get().defaultStaffId;
-          const defaultCustomer = get().defaultCustomerId;
-          return {
-            submitting: false,
-            catalog,
-            tabs: s.tabs.map((t) =>
-              t.id === s.activeTabId
-                ? { ...t, cart: [], customerId: defaultCustomer, staffId: defaultStaff,                 paymentMethod: defaultMethod, transferMethod: null, cardMethod: null, splits: [], isDelivery: false, deliveryData: { personId: null, address: "", fee: 0, notes: "" }, checkoutId: null, removedOfferKeys: [], loyaltyApplied: null }
-                : t,
-            ),
-          };
-        });
-
-        return "sold";
+        saleId = await posService.createSale(input);
       } catch (e) {
         const message = toMessage(e);
         // El prefijo lo pone create_sale (misma convención que STOCK_INSUFICIENTE).
@@ -1075,9 +1197,6 @@ export const usePosStore = create<PosState>((set, get) => {
 
           if (queued) {
             set((s) => {
-              const defaultMethod = get().defaultPaymentMethod;
-              const defaultStaff = get().defaultStaffId;
-              const defaultCustomer = get().defaultCustomerId;
               return {
                 submitting: false,
                 error: null,
@@ -1087,9 +1206,7 @@ export const usePosStore = create<PosState>((set, get) => {
                 // mismas unidades disponibles y vende cinco veces la última.
                 catalog: applySoldUnits(s.catalog, cart),
                 tabs: s.tabs.map((t) =>
-                  t.id === s.activeTabId
-                    ? { ...t, cart: [], customerId: defaultCustomer, staffId: defaultStaff, paymentMethod: defaultMethod, transferMethod: null, cardMethod: null, splits: [], isDelivery: false, deliveryData: { personId: null, address: "", fee: 0, notes: "" }, checkoutId: null, removedOfferKeys: [], loyaltyApplied: null }
-                    : t,
+                  t.id === activeTab.id ? resetTabForNextSale(t, tabDefaults(get)) : t,
                 ),
               };
             });
@@ -1109,6 +1226,50 @@ export const usePosStore = create<PosState>((set, get) => {
         set({ error: message, submitting: false });
         return "failed";
       }
+
+      // A partir de acá la venta EXISTE en el servidor (C14). Nada de lo que
+      // sigue puede devolverla como fallida ni encolarla: antes, si el
+      // domicilio o el refresco del catálogo fallaban, el catch la guardaba
+      // como "cobrada sin conexión" o dejaba el carrito intacto para volver a
+      // cobrar — y el cajero cobraba dos veces.
+      //
+      // Se limpia la pestaña que se COBRÓ (no la activa: el cajero pudo
+      // cambiar de pestaña mientras esperaba la respuesta). El stock se
+      // descuenta en memoria ya, y el refresco real corre después.
+      set((s) => ({
+        submitting: false,
+        // Se guarda para que el canje del premio pueda atarse a ESTA venta: sin
+        // el vínculo, anularla dejaría al cliente sin premio y sin progreso.
+        lastSaleId: saleId,
+        lastSaleNumber: null,
+        catalog: applySoldUnits(s.catalog, cart),
+        tabs: s.tabs.map((t) => (t.id === activeTab.id ? resetTabForNextSale(t, tabDefaults(get)) : t)),
+      }));
+
+      void runPostSaleFollowUps({
+        saleId,
+        delivery:
+          isDelivery && deliveryData.personId
+            ? {
+                personId: deliveryData.personId,
+                address: deliveryData.address,
+                fee: deliveryData.fee,
+                notes: deliveryData.notes || undefined,
+              }
+            : null,
+        createDelivery: deliveryService.createDelivery,
+        fetchCatalog: posService.fetchCatalog,
+        fetchSaleNumber: async (id) => (await salesService.fetchSaleReceiptExtras(id)).saleNumber,
+      }).then(({ warnings, catalog, saleNumber }) => {
+        set((s) => ({
+          ...(catalog ? { catalog } : {}),
+          // Solo si sigue siendo la última: una venta más nueva ya pisó el id.
+          ...(s.lastSaleId === saleId ? { lastSaleNumber: saleNumber } : {}),
+          ...(warnings.length > 0 ? { postSaleWarning: warnings.join("\n") } : {}),
+        }));
+      });
+
+      return "sold";
     },
 
     pendingSales: 0,

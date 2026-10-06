@@ -2,61 +2,17 @@
 
 import React from "react";
 import { formatMoney } from "@/lib/money";
+import type { ReceiptData } from "@/lib/receipt";
 
-interface ReceiptItem {
-  name: string;
-  sku: string | null;
-  quantity: number;
-  /** "Caja x24 u." cuando la línea es una caja; ausente si es unidad suelta. */
-  packageLabel?: string | null;
-  price: number;
-  total: number;
-}
-
-interface ReceiptCustomer {
-  full_name: string;
-  doc_type: string | null;
-  identification: string | null;
-}
-
-interface ReceiptTotals {
-  gross: number;
-  subtotal: number;
-  taxAmount: number;
-  discount: number;
-  exemptionDiscount: number;
-  total: number;
-}
-
-import { getTransferMethodName } from "@/config/transferMethods";
-
-interface ReceiptData {
-  items: ReceiptItem[];
-  customer: ReceiptCustomer | null;
-  totals: ReceiptTotals;
-  paymentMethod: string;
-  transferMethod?: string | null;
-  date: Date;
-  businessName?: string | null;
-  logoUrl?: string | null;
-  municipality?: string | null;
-  phone?: string | null;
-  taxResponsibility?: string | null;
-  /** Si el negocio desglosa IVA (responsable de IVA). */
-  includeTax: boolean;
-}
+// Los datos se arman con `buildReceiptFromCart` / `buildReceiptFromSale`
+// (`lib/receipt.ts`): este componente solo dibuja.
+export type { ReceiptData } from "@/lib/receipt";
 
 interface Props {
   data: ReceiptData | null;
 }
 
 export function PosReceipt({ data }: Props) {
-  const paymentLabel: Record<string, string> = {
-    efectivo: "Efectivo",
-    tarjeta: "Datáfono",
-    transferencia: "Transferencia",
-  };
-
   // Solo el cliente exento tiene rebaja por exención.
   const isExempt = (data?.totals.exemptionDiscount ?? 0) > 0;
 
@@ -113,6 +69,11 @@ export function PosReceipt({ data }: Props) {
             <div className="text-center space-y-1 mb-4">
               <p className="font-bold">Pre-factura</p>
               <p className="font-bold">Sin valor fiscal</p>
+              {data.saleNumber != null ? (
+                <p className="font-bold">Venta N.&ordm; {data.saleNumber}</p>
+              ) : data.queued ? (
+                <p>Pendiente de env&iacute;o (cobrada sin conexi&oacute;n)</p>
+              ) : null}
             </div>
 
             {/* Cliente */}
@@ -132,9 +93,16 @@ export function PosReceipt({ data }: Props) {
                   minute: "2-digit",
                 })}
               </p>
-              <p className="text-xs text-gray-500 capitalize">
-                Pago: {data.paymentMethod === "transferencia" && data.transferMethod ? `Transferencia (${getTransferMethodName(data.transferMethod)})` : (paymentLabel[data.paymentMethod] ?? data.paymentMethod)}
-              </p>
+              {data.cashier && (
+                <p className="text-xs">
+                  <span className="font-bold">Cajero:</span> {data.cashier}
+                </p>
+              )}
+              {data.seller && (
+                <p className="text-xs">
+                  <span className="font-bold">Atendido por:</span> {data.seller}
+                </p>
+              )}
             </div>
 
             <hr className="border-t border-black mb-3 border-dashed" />
@@ -150,13 +118,18 @@ export function PosReceipt({ data }: Props) {
               </thead>
               <tbody>
                 {data.items.map((item, i) => (
-                  <tr key={i}>
+                  <tr key={i} className="align-top">
                     <td className="py-1 pr-2">
                       <span className="font-medium">{item.name}</span>
                       {item.packageLabel ? (
                         <span className="text-gray-500 block">{item.packageLabel}</span>
                       ) : (
                         item.sku && <span className="text-gray-500 block">SKU: {item.sku}</span>
+                      )}
+                      {item.discount > 0 && (
+                        <span className="text-gray-500 block">
+                          {formatMoney(item.gross)} &minus; {item.discountLabel ?? "Desc."} {formatMoney(item.discount)}
+                        </span>
                       )}
                     </td>
                     <td className="py-1 text-center">{item.quantity}</td>
@@ -179,7 +152,7 @@ export function PosReceipt({ data }: Props) {
                   </div>
                   <div className="flex justify-between">
                     <span className="font-bold">Desc. exenci&oacute;n IVA:</span>
-                    <span className="text-red-600">-{formatMoney(data.totals.exemptionDiscount)}</span>
+                    <span>-{formatMoney(data.totals.exemptionDiscount)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="font-bold">Subtotal:</span>
@@ -209,14 +182,41 @@ export function PosReceipt({ data }: Props) {
               )}
               {data.totals.discount > 0 && (
                 <div className="flex justify-between">
-                  <span className="font-bold">Descuento:</span>
-                  <span className="text-red-600">-{formatMoney(data.totals.discount)}</span>
+                  <span className="font-bold">Descuentos aplicados:</span>
+                  <span>-{formatMoney(data.totals.discount)}</span>
                 </div>
               )}
               <div className="flex justify-between text-base border-t border-black pt-1 mt-1">
                 <span className="font-bold">Total:</span>
                 <span className="font-bold">{formatMoney(data.totals.total)}</span>
               </div>
+            </div>
+
+            {/* Pago: con un pago dividido se lista cada medio; en efectivo,
+                lo recibido y el cambio que se entregó. */}
+            <div className="space-y-1 mb-4">
+              <div className="flex justify-between">
+                <span className="font-bold">Pago:</span>
+                <span>{data.paymentLabel}</span>
+              </div>
+              {data.payments.map((p, i) => (
+                <div key={i} className="flex justify-between pl-2">
+                  <span>{p.label}</span>
+                  <span>{formatMoney(p.amount)}</span>
+                </div>
+              ))}
+              {data.tendered != null && (
+                <div className="flex justify-between">
+                  <span className="font-bold">Recibido:</span>
+                  <span>{formatMoney(data.tendered)}</span>
+                </div>
+              )}
+              {data.tendered != null && (
+                <div className="flex justify-between">
+                  <span className="font-bold">Cambio:</span>
+                  <span>{formatMoney(data.change)}</span>
+                </div>
+              )}
             </div>
 
             {/* Footer info */}

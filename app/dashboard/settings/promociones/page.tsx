@@ -8,7 +8,6 @@ import { useSettingsStore } from "@/stores/settings.store";
 import { usesHaircutPromos } from "@/config/business";
 import type { RewardKind } from "@/services/promos.service";
 import {
-  DEFAULT_PROMO_MESSAGE,
   PROMO_VARIABLES,
   renderPromoMessage,
   availableReward,
@@ -20,6 +19,17 @@ import { Select } from "@/components/ui/Select";
 import { OffersManager } from "./OffersManager";
 import { LoyaltyManager } from "./LoyaltyManager";
 import { formatMoney } from "@/lib/money";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
+import {
+  articlePlural,
+  articleSingular,
+  capitalize,
+  defaultPromoMessageFor,
+  howMany,
+  promoNounFor,
+  type PromoNoun,
+} from "@/config/promo-nouns";
+import { isPromoDraftDirty } from "./promo-draft";
 
 /**
  * Configuración → Promociones.
@@ -46,6 +56,17 @@ const REWARD_KIND_OPTIONS: { value: RewardKind; label: string }[] = [
   { value: "porcentaje", label: "Porcentaje de descuento" },
   { value: "monto", label: "Monto de descuento" },
 ];
+
+/**
+ * La ayuda de cada variable dicha con la palabra del rubro. Solo cambia el
+ * texto del tooltip: el token (`{cortes}`) es el mismo en todos los negocios.
+ */
+function variableHelp(token: string, help: string, noun: PromoNoun): string {
+  const acumulados = noun.feminine ? "acumuladas" : "acumulados";
+  if (token === "{cortes}") return `${capitalize(noun.plural)} ${acumulados} hacia el premio`;
+  if (token === "{total}") return `${capitalize(noun.plural)} de por vida, sin reiniciar`;
+  return help;
+}
 
 /** Cómo se lee en la lista de hitos lo que la caja va a hacer con el premio. */
 function rewardKindLabel(m: { reward_kind: RewardKind; reward_value: number | null }): string {
@@ -100,6 +121,12 @@ function HaircutPromosSection() {
   const profile = useProfile();
   const settings = useSettingsStore((s) => s.settings);
   const fetchSettings = useSettingsStore((s) => s.fetchSettings);
+  const { confirm, dialog } = useConfirm();
+
+  // "Cortes" es la palabra de la barbería; cada rubro ve la suya. Solo copy:
+  // la variable de plantilla sigue siendo `{cortes}` (ver config/promo-nouns).
+  const noun = promoNounFor(profile?.businessType);
+  const defaultMessage = defaultPromoMessageFor(noun);
 
   const [enabled, setEnabled] = useState(false);
   const [serviceIds, setServiceIds] = useState<string[]>([]);
@@ -123,8 +150,10 @@ function HaircutPromosSection() {
     setSeeded(true);
     setEnabled(config.enabled);
     setServiceIds(config.serviceIds);
-    setMessage(config.message ?? DEFAULT_PROMO_MESSAGE);
+    setMessage(config.message ?? defaultMessage);
   }
+
+  const dirty = isPromoDraftDirty(config, { enabled, serviceIds, message }, defaultMessage);
 
   const toggleService = (id: string) => {
     setServiceIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -149,7 +178,7 @@ function HaircutPromosSection() {
   const handleSave = async () => {
     const ok = await saveConfig({ enabled, serviceIds, message });
     if (ok) notifySuccess("Promociones guardadas", "Los cambios ya están activos.");
-    else notifyError("No se pudo guardar", usePromosStore.getState().error ?? "Intentá de nuevo.");
+    else notifyError("No se pudo guardar", usePromosStore.getState().error ?? "Inténtalo de nuevo.");
   };
 
   const handleAddMilestone = async (e: React.FormEvent) => {
@@ -160,7 +189,7 @@ function HaircutPromosSection() {
       return;
     }
     if (!reward.trim()) {
-      notifyError("Falta el premio", "Escribí qué gana el cliente al llegar a ese hito.");
+      notifyError("Falta el premio", "Escribe qué gana el cliente al llegar a ese hito.");
       return;
     }
     // Un porcentaje o un monto sin valor deja una promo que la caja va a
@@ -179,16 +208,46 @@ function HaircutPromosSection() {
     if (ok) {
       setReward("");
       setRewardValue("");
-      notifySuccess("Hito agregado", `A los ${n} cortes: ${reward.trim()}`);
+      notifySuccess("Hito agregado", `A ${articlePlural(noun)} ${n} ${noun.plural}: ${reward.trim()}`);
     } else {
       notifyError("No se pudo agregar", usePromosStore.getState().error ?? "¿Ya existe un hito con ese número?");
     }
   };
 
+  const handleRemoveMilestone = async (m: { id: string; threshold: number; reward: string }) => {
+    const ok = await confirm({
+      title: `¿Eliminar el hito de ${m.threshold} ${noun.plural}?`,
+      description: `Deja de ofrecerse "${m.reward}" de inmediato. Los premios ya canjeados no cambian.`,
+      tone: "danger",
+      confirmLabel: "Eliminar hito",
+    });
+    if (!ok) return;
+    if (!(await removeMilestone(m.id))) {
+      notifyError("No se pudo eliminar", usePromosStore.getState().error ?? "Inténtalo de nuevo.");
+    }
+  };
+
   const handleRecalc = async () => {
+    // El botón deshabilitado ya lo impide; queda como red por si el estado
+    // cambió entre el render y el clic.
+    if (dirty) return;
+    const ok = await confirm({
+      title: "¿Recalcular todos los contadores?",
+      description: (
+        <>
+          <p>
+            Se reescribe el contador de TODOS tus clientes a partir del historial de ventas, con
+            la configuración guardada. Lo que cada cliente lleve hoy se reemplaza por el resultado.
+          </p>
+          <p>Los premios ya canjeados se respetan.</p>
+        </>
+      ),
+      confirmLabel: "Recalcular",
+    });
+    if (!ok) return;
     const n = await recalc();
     if (n === null) {
-      notifyError("No se pudo recalcular", usePromosStore.getState().error ?? "Intentá de nuevo.");
+      notifyError("No se pudo recalcular", usePromosStore.getState().error ?? "Inténtalo de nuevo.");
       return;
     }
     notifySuccess(
@@ -199,25 +258,38 @@ function HaircutPromosSection() {
 
   if (loading) return <CollectionLoading label="Cargando promociones…" />;
 
+  // Con el contador apagado lo que sigue no tiene efecto hasta encenderlo: se
+  // atenúa para que se lea así, pero sigue editable para dejarlo listo.
+  const dimmed = enabled ? "" : "opacity-60";
+
   return (
     <div className="flex flex-col gap-6 max-w-3xl">
       {error && <CollectionError message={error} onRetry={fetchAll} />}
+      {dialog}
 
       {/* 1. El interruptor */}
       <section className="bg-surface-container rounded-2xl border border-outline-variant/10 p-5 sm:p-6">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h2 className="text-base font-bold text-on-surface">Contador de cortes</h2>
+            <h2 id="promo-enabled-label" className="text-base font-bold text-on-surface">
+              Contador de {noun.plural}
+            </h2>
             <p className="text-sm text-on-surface-variant mt-1">
-              Cuenta cuántos cortes lleva cada cliente y te deja mandárselo por WhatsApp desde su
-              ficha.
+              Cuenta {howMany(noun)} {noun.plural} lleva cada cliente y te deja enviárselo por
+              WhatsApp desde su ficha.
             </p>
+            {!enabled && (
+              <p className="text-xs text-on-surface-variant mt-2">
+                Está apagado: lo de abajo no se aplica hasta que lo enciendas y guardes.
+              </p>
+            )}
           </div>
           <button
             type="button"
             onClick={() => setEnabled((v) => !v)}
-            aria-pressed={enabled}
-            aria-label="Activar el contador de cortes"
+            role="switch"
+            aria-checked={enabled}
+            aria-labelledby="promo-enabled-label"
             className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
               enabled ? "bg-[#6063ee]" : "bg-outline-variant/30"
             }`}
@@ -232,11 +304,11 @@ function HaircutPromosSection() {
       </section>
 
       {/* 2. Qué cuenta */}
-      <section className="bg-surface-container rounded-2xl border border-outline-variant/10 p-5 sm:p-6">
-        <h2 className="text-base font-bold text-on-surface">¿Qué cuenta como corte?</h2>
+      <section className={`bg-surface-container rounded-2xl border border-outline-variant/10 p-5 sm:p-6 transition-opacity ${dimmed}`}>
+        <h2 className="text-base font-bold text-on-surface">¿Qué cuenta como {noun.singular}?</h2>
         <p className="text-sm text-on-surface-variant mt-1 mb-4">
-          Elegí los servicios que suman al contador. Si no marcás ninguno, el contador no sube:
-          preferimos que lo decidas vos a adivinarlo por el nombre.
+          Elige los servicios que suman al contador. Si no marcas ninguno, el contador no sube:
+          preferimos que lo decidas tú a adivinarlo por el nombre.
         </p>
 
         {services.length === 0 ? (
@@ -269,17 +341,17 @@ function HaircutPromosSection() {
       </section>
 
       {/* 3. El mensaje */}
-      <section className="bg-surface-container rounded-2xl border border-outline-variant/10 p-5 sm:p-6">
+      <section className={`bg-surface-container rounded-2xl border border-outline-variant/10 p-5 sm:p-6 transition-opacity ${dimmed}`}>
         <h2 className="text-base font-bold text-on-surface">El mensaje</h2>
         <p className="text-sm text-on-surface-variant mt-1 mb-3">
-          Se abre en WhatsApp con este texto ya escrito. Lo mandás vos: nada sale solo.
+          Se abre en WhatsApp con este texto ya escrito. Lo envías tú: nada sale solo.
         </p>
         <textarea
           rows={3}
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all resize-none"
-          placeholder={DEFAULT_PROMO_MESSAGE}
+          placeholder={defaultMessage}
         />
         <div className="flex flex-wrap gap-2 mt-3">
           {PROMO_VARIABLES.map((v) => (
@@ -287,13 +359,21 @@ function HaircutPromosSection() {
               key={v.token}
               type="button"
               onClick={() => setMessage((m) => `${m}${m.endsWith(" ") || !m ? "" : " "}${v.token}`)}
-              title={v.help}
+              title={variableHelp(v.token, v.help, noun)}
               className="px-2.5 py-1 rounded-lg bg-surface-container-lowest border border-outline-variant/20 text-xs font-mono text-on-surface-variant hover:text-primary hover:border-primary/40 transition-colors"
             >
               {v.token}
             </button>
           ))}
         </div>
+        {noun.plural !== "cortes" && (
+          <p className="mt-2 text-xs text-on-surface-variant">
+            Las variables se llaman igual en todos los negocios. En el tuyo,{" "}
+            <code className="font-mono">{"{cortes}"}</code> es la cantidad de {noun.plural} que el
+            cliente lleva hacia el premio y <code className="font-mono">{"{total}"}</code>{" "}
+            {articlePlural(noun)} {noun.plural} de toda su historia.
+          </p>
+        )}
 
         {/* Un mensaje sin {premio} NO puede anunciar el corte gratis, por más
             hitos que haya configurados. Pasó de verdad: el editor precarga el
@@ -301,8 +381,8 @@ function HaircutPromosSection() {
             default ya no lo alcanza. */}
         {milestones.length > 0 && !message.includes("{premio}") && (
           <p role="alert" className="mt-3 text-xs rounded-lg border border-[#f59e0b]/30 bg-[#f59e0b]/10 px-3 py-2 text-on-surface">
-            <strong>Tenés hitos configurados pero el mensaje no incluye {"{premio}"}</strong>, así que
-            el cliente nunca se va a enterar de que ganó. Agregalo con el botón de abajo.
+            <strong>Tienes hitos configurados pero el mensaje no incluye {"{premio}"}</strong>, así que
+            el cliente nunca se va a enterar de que ganó. Agrégalo con el botón {"{premio}"} de arriba.
           </p>
         )}
 
@@ -315,11 +395,12 @@ function HaircutPromosSection() {
       </section>
 
       {/* 4. Los hitos */}
-      <section className="bg-surface-container rounded-2xl border border-outline-variant/10 p-5 sm:p-6">
+      <section className={`bg-surface-container rounded-2xl border border-outline-variant/10 p-5 sm:p-6 transition-opacity ${dimmed}`}>
         <h2 className="text-base font-bold text-on-surface">Hitos y premios</h2>
         <p className="text-sm text-on-surface-variant mt-1 mb-4">
-          Qué gana el cliente al llegar a cierta cantidad. Aparece en el mensaje con la variable{" "}
-          <code className="font-mono text-xs">{"{premio}"}</code>.
+          Qué gana el cliente al llegar a cierta cantidad de {noun.plural}. Aparece en el mensaje
+          con la variable <code className="font-mono text-xs">{"{premio}"}</code>. Los hitos se
+          guardan al instante, sin el botón de abajo.
         </p>
 
         {milestones.length > 0 && (
@@ -337,15 +418,16 @@ function HaircutPromosSection() {
                     </span>
                   </p>
                   <p className="text-xs text-on-surface-variant">
-                    Al canjearlo se descuentan {m.threshold} cortes. El corte que
-                    paga el premio no cuenta; lo que el cliente haya pagado de
-                    más arranca el conteo siguiente.
+                    Al canjearlo se descuentan {m.threshold} {noun.plural}.{" "}
+                    {capitalize(articleSingular(noun))} {noun.singular} que paga el premio no
+                    cuenta; lo que el cliente haya pagado de más arranca el conteo siguiente.
                   </p>
                 </div>
                 <button
-                  onClick={() => removeMilestone(m.id)}
+                  type="button"
+                  onClick={() => handleRemoveMilestone(m)}
                   disabled={submitting}
-                  aria-label={`Eliminar el hito de ${m.threshold} cortes`}
+                  aria-label={`Eliminar el hito de ${m.threshold} ${noun.plural}`}
                   className="shrink-0 text-xs font-semibold text-error-dim hover:text-error transition-colors disabled:opacity-50"
                 >
                   Eliminar
@@ -358,7 +440,7 @@ function HaircutPromosSection() {
         <form onSubmit={handleAddMilestone} className="flex flex-col sm:flex-row sm:flex-wrap gap-3">
           <div className="sm:w-28">
             <label htmlFor="promo-threshold" className="text-[13px] font-semibold text-on-surface block mb-1.5">
-              Cortes
+              {capitalize(noun.plural)}
             </label>
             <input
               id="promo-threshold"
@@ -378,7 +460,7 @@ function HaircutPromosSection() {
               type="text"
               value={reward}
               onChange={(e) => setReward(e.target.value)}
-              placeholder="Ej. el corte va por la casa"
+              placeholder={`Ej. ${articleSingular(noun)} ${noun.singular} va por la casa`}
               className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-base sm:text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 placeholder:text-on-surface-variant/50"
             />
           </div>
@@ -429,27 +511,36 @@ function HaircutPromosSection() {
       </section>
 
       {/* 5. El histórico */}
-      <section className="bg-surface-container rounded-2xl border border-outline-variant/10 p-5 sm:p-6">
+      <section className={`bg-surface-container rounded-2xl border border-outline-variant/10 p-5 sm:p-6 transition-opacity ${dimmed}`}>
         <h2 className="text-base font-bold text-on-surface">Clientes que ya venían</h2>
         <p className="text-sm text-on-surface-variant mt-1 mb-4">
-          Recalcula el contador de todos tus clientes leyendo tu historial de ventas. Corrélo
-          después de cambiar qué servicios cuentan, o para no arrancar a todos en cero.
+          Recalcula el contador de {noun.plural} de todos tus clientes leyendo tu historial de
+          ventas. Úsalo después de cambiar qué servicios cuentan, o para no arrancar a todos en
+          cero.
         </p>
         <button
           type="button"
           onClick={handleRecalc}
-          disabled={submitting}
-          className="px-5 py-2.5 rounded-xl text-sm font-semibold bg-surface-container-high text-on-surface hover:bg-surface-container-highest transition-colors disabled:opacity-50"
+          disabled={submitting || dirty}
+          aria-describedby={dirty ? "promo-recalc-dirty" : undefined}
+          className="px-5 py-2.5 rounded-xl text-sm font-semibold bg-surface-container-high text-on-surface hover:bg-surface-container-highest transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {submitting ? "Recalculando…" : "Recalcular desde el historial"}
+          {submitting ? "Procesando…" : "Recalcular desde el historial"}
         </button>
+        {dirty && (
+          <p id="promo-recalc-dirty" className="mt-2 text-xs text-on-surface-variant">
+            Tienes cambios sin guardar. Guárdalos primero: el recálculo usa la configuración
+            guardada y, con la anterior, dejaría mal los contadores.
+          </p>
+        )}
       </section>
 
-      <div className="flex justify-end">
+      <div className="flex items-center justify-end gap-4">
+        {dirty && <span className="text-sm text-on-surface-variant">Tienes cambios sin guardar</span>}
         <button
           type="button"
           onClick={handleSave}
-          disabled={submitting}
+          disabled={submitting || !dirty}
           className="px-8 py-3 rounded-xl text-sm font-semibold bg-primary hover:bg-primary-dim text-on-primary shadow-[0_0_20px_rgba(96,99,238,0.25)] transition-all disabled:opacity-50"
         >
           {submitting ? "Guardando…" : "Guardar cambios"}

@@ -1,4 +1,4 @@
-import { formatMoney } from "@/config/plans";
+import { formatMoney } from "@/lib/money";
 
 interface SuccessModalProps {
   onPrint: () => void;
@@ -42,6 +42,11 @@ interface SuccessModalProps {
    * justo cuando el cajero tenía que contarlo.
    */
   change?: number;
+  /**
+   * Todavía se está canjeando el premio o armando el mensaje del contador: el
+   * modal se abre sin esperarlos (C14) y el botón de WhatsApp aparece después.
+   */
+  preparingMessage?: boolean;
 }
 
 export function SuccessModal({
@@ -54,6 +59,7 @@ export function SuccessModal({
   total = null,
   tendered = null,
   change = 0,
+  preparingMessage = false,
 }: SuccessModalProps) {
   const hasChange = change > 0;
   return (
@@ -67,7 +73,7 @@ export function SuccessModal({
       >
         <div
           className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6 ${
-            offline ? "bg-[#f59e0b]/10 text-[#f59e0b]" : "bg-[#10b981]/10 text-[#10b981]"
+            offline ? "bg-[#f59e0b]/10 text-[#f59e0b]" : "bg-accent-fin/10 text-accent-fin"
           }`}
         >
           {offline ? (
@@ -120,6 +126,12 @@ export function SuccessModal({
           </div>
         )}
         <div className="flex flex-col gap-3">
+          {preparingMessage && !whatsappLink && (
+            <p role="status" className="flex items-center justify-center gap-2 text-xs text-on-surface-variant">
+              <span className="w-3.5 h-3.5 border-2 border-primary/30 border-t-primary rounded-full animate-spin" aria-hidden="true" />
+              Actualizando promociones del cliente…
+            </p>
+          )}
           {/* Va PRIMERO y en verde: es la acción nueva y la que el cajero
               tiene que ver mientras el cliente todavía está en la silla. */}
           {whatsappLink && (
@@ -141,7 +153,7 @@ export function SuccessModal({
             className={`w-full py-3 rounded-xl font-bold transition-colors flex justify-center items-center gap-2 ${
               whatsappLink
                 ? "border border-outline-variant/30 hover:bg-surface-container-low text-on-surface"
-                : "bg-[#6063ee] hover:bg-[#4f51c7] text-white shadow-lg shadow-[#6063ee]/20"
+                : "bg-primary text-on-primary hover:bg-primary-dim shadow-lg shadow-primary/20"
             }`}
           >
             <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-5 h-5">

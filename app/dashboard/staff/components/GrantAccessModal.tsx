@@ -5,8 +5,21 @@ import { IconX, IconCheck } from "@/app/assets/icons/DashboardIcons";
 import { useStaffStore } from "@/stores/staff.store";
 import { useProfile } from "@/components/ProfileProvider";
 import { Select } from "@/components/ui/Select";
-import { ADMIN_ROLE_LABEL, staffRolesForType, type WorkerPermissions, type WorkerPermission } from "@/config/business";
-import { PermissionToggles, togglePermission } from "./PermissionToggles";
+import {
+  ADMIN_ROLE_LABEL,
+  hasAnyPermission,
+  permissionTemplatesFor,
+  staffRolesForType,
+  suggestedTemplateForRole,
+  templatePermissions,
+  type WorkerPermissions,
+  type WorkerPermission,
+} from "@/config/business";
+import { PermissionToggles, togglePermission, useApplicablePermissions } from "./PermissionToggles";
+
+/** "" = desde cero; "custom" = el dueño tocó los toggles después de elegir. */
+type TemplateChoice = string;
+const CUSTOM = "custom";
 import type { TeamMember } from "@/lib/team";
 
 /**
@@ -36,15 +49,51 @@ export function GrantAccessModal({
   const [role, setRole] = useState(member.role ?? "");
   // Elegir el cargo "Administrador" lo sugiere, pero el dueño puede cambiarlo.
   const [isAdmin, setIsAdmin] = useState(member.role === ADMIN_ROLE_LABEL);
-  const [perms, setPerms] = useState<WorkerPermissions>({});
+  const applicable = useApplicablePermissions();
+  // Las plantillas dependen solo del perfil, que no cambia con el modal abierto.
+  const [templates] = useState(() =>
+    permissionTemplatesFor(profile?.businessType ?? null, profile?.modules ?? null),
+  );
+  // Nace con la plantilla de su cargo: antes nacía sin permisos, aceptaba la
+  // invitación y entraba a un sistema donde no veía nada.
+  const [initialTemplate] = useState(() =>
+    member.role === ADMIN_ROLE_LABEL ? null : suggestedTemplateForRole(member.role, templates),
+  );
+  const [templateId, setTemplateId] = useState<TemplateChoice>(initialTemplate?.id ?? "");
+  const [perms, setPermsState] = useState<WorkerPermissions>(() =>
+    initialTemplate ? templatePermissions(initialTemplate) : {},
+  );
+  // Aviso de "sin permisos": el primer envío lo muestra, el segundo confirma.
+  const [confirmEmpty, setConfirmEmpty] = useState(false);
   const [done, setDone] = useState(false);
 
-  const togglePerm = (p: WorkerPermission) => {
-    setPerms((prev) => togglePermission(prev, p));
+  const setPerms = (next: WorkerPermissions) => {
+    setPermsState(next);
+    setTemplateId(CUSTOM);
+    setConfirmEmpty(false);
   };
+
+  const togglePerm = (p: WorkerPermission) => {
+    setPermsState((prev) => togglePermission(prev, p));
+    setTemplateId(CUSTOM);
+    setConfirmEmpty(false);
+  };
+
+  const applyTemplate = (id: TemplateChoice) => {
+    const template = templates.find((t) => t.id === id);
+    setTemplateId(id);
+    setPermsState(template ? templatePermissions(template) : {});
+    setConfirmEmpty(false);
+  };
+
+  const sinPermisos = !isAdmin && !hasAnyPermission(perms, applicable);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (sinPermisos && !confirmEmpty) {
+      setConfirmEmpty(true);
+      return;
+    }
     const ok = await grantAccess({
       email,
       fullName: member.full_name,
@@ -120,8 +169,15 @@ export function GrantAccessModal({
             label="Rol / Cargo"
             value={role}
             onChange={(e) => {
-              setRole(e.target.value);
-              if (e.target.value === ADMIN_ROLE_LABEL) setIsAdmin(true);
+              const next = e.target.value;
+              setRole(next);
+              if (next === ADMIN_ROLE_LABEL) setIsAdmin(true);
+              // Cambiar de cargo cambia la plantilla, salvo que el dueño ya
+              // haya ajustado los permisos a mano: eso no se pisa.
+              if (templateId !== CUSTOM) {
+                const suggested = suggestedTemplateForRole(next, templates);
+                if (suggested) applyTemplate(suggested.id);
+              }
             }}
           >
             <option value="">Seleccionar cargo</option>
@@ -161,7 +217,38 @@ export function GrantAccessModal({
               <p className="text-xs text-on-surface-variant mb-3">
                 Elige a qué secciones tendrá acceso. Puedes cambiarlos después.
               </p>
+              <div className="mb-3">
+                <Select
+                  label="Empezar desde…"
+                  value={templateId}
+                  onChange={(e) => applyTemplate(e.target.value)}
+                >
+                  <option value="">Desde cero (sin permisos)</option>
+                  {templates.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.label}
+                    </option>
+                  ))}
+                  {templateId === CUSTOM && <option value={CUSTOM}>Personalizado</option>}
+                </Select>
+                {templates.find((t) => t.id === templateId) && (
+                  <p className="text-xs text-on-surface-variant mt-1">
+                    {templates.find((t) => t.id === templateId)!.description} Ajusta lo que quieras abajo.
+                  </p>
+                )}
+              </div>
               <PermissionToggles perms={perms} onToggle={togglePerm} onReplace={setPerms} />
+            </div>
+          )}
+
+          {confirmEmpty && sinPermisos && (
+            <div
+              role="alert"
+              className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-on-surface"
+            >
+              <strong>No marcaste ningún permiso.</strong> {member.full_name} podrá entrar, pero
+              no verá ninguna sección hasta que le des alguno. Elige una plantilla arriba o
+              envía la invitación igual.
             </div>
           )}
 
@@ -178,7 +265,7 @@ export function GrantAccessModal({
               disabled={submitting}
               className="px-5 py-2.5 rounded-xl bg-primary text-white font-semibold hover:bg-primary-dim transition-colors disabled:opacity-50"
             >
-              {submitting ? "Creando…" : "Crear invitación"}
+              {submitting ? "Creando…" : confirmEmpty && sinPermisos ? "Enviar sin permisos" : "Crear invitación"}
             </button>
           </div>
         </form>

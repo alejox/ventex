@@ -7,6 +7,8 @@ import type {
   SalesSummary,
   SalesPeriodId,
   ItemFilter,
+  SaleVoidImpact,
+  SaleReceiptExtras,
 } from "@/services/sales.service";
 import { NO_ITEM_FILTER } from "@/services/sales.service";
 
@@ -41,6 +43,20 @@ interface SalesState {
 
   detail: SaleDetail | null;
   detailLoading: boolean;
+  /**
+   * Qué mueve anular la venta abierta (efectivo, fiado, puntos, premio,
+   * comisión pagada). null mientras no se calculó.
+   */
+  voidImpact: SaleVoidImpact | null;
+  /** Documento del cliente y medios de pago: para reimprimir y para el split. */
+  receiptExtras: SaleReceiptExtras | null;
+  /** Anulación en curso: deshabilita el botón y el cierre del modal. */
+  voiding: boolean;
+  /**
+   * Error de la ANULACIÓN, aparte de `error`: este se muestra dentro del modal.
+   * El de la tabla quedaba detrás del modal y la anulación parecía no hacer nada.
+   */
+  voidError: string | null;
 
   /** Recarga listado + totales del período actual. */
   fetchSales: () => Promise<void>;
@@ -53,7 +69,9 @@ interface SalesState {
   setPage: (page: number) => Promise<void>;
   openDetail: (saleId: string) => Promise<void>;
   closeDetail: () => void;
-  voidSale: (saleId: string) => Promise<boolean>;
+  /** El motivo es obligatorio en la pantalla; ver `salesService.voidSale`. */
+  voidSale: (saleId: string, reason: string) => Promise<boolean>;
+  clearVoidError: () => void;
 }
 
 
@@ -77,6 +95,10 @@ export const useSalesStore = create<SalesState>((set, get) => ({
   itemFilter: NO_ITEM_FILTER,
   detail: null,
   detailLoading: false,
+  receiptExtras: null,
+  voidImpact: null,
+  voiding: false,
+  voidError: null,
 
   fetchSales: async () => {
     const { period, customFrom, customTo, page, customerQuery, paymentMethod, transferMethod, itemFilter } = get();
@@ -137,22 +159,43 @@ export const useSalesStore = create<SalesState>((set, get) => ({
   },
 
   openDetail: async (saleId) => {
-    set({ detailLoading: true, detail: null });
+    set({ detailLoading: true, detail: null, receiptExtras: null, voidImpact: null, voidError: null });
     try {
-      const detail = await salesService.fetchSaleDetail(saleId);
-      set({ detail, detailLoading: false });
+      // En paralelo. Los extras del recibo (documento del cliente y medios de
+      // un split) alimentan la reimpresión Y el aviso de efectivo; los de
+      // anulación (puntos/premio) devuelven vacío si fallan en vez de tumbar
+      // el detalle.
+      const [detail, receiptExtras, voidExtras] = await Promise.all([
+        salesService.fetchSaleDetail(saleId),
+        salesService.fetchSaleReceiptExtras(saleId),
+        salesService.fetchSaleVoidExtras(saleId),
+      ]);
+      set({
+        detail,
+        receiptExtras,
+        voidImpact: salesService.saleVoidImpact(
+          detail,
+          receiptExtras.payments,
+          voidExtras.ledger,
+          voidExtras.redemptions,
+        ),
+        detailLoading: false,
+      });
     } catch (e) {
       set({ error: toMessage(e), detailLoading: false });
     }
   },
 
-  closeDetail: () => set({ detail: null }),
+  closeDetail: () => set({ detail: null, receiptExtras: null, voidImpact: null, voidError: null }),
 
-  voidSale: async (saleId) => {
-    set({ error: null });
+  clearVoidError: () => set({ voidError: null }),
+
+  voidSale: async (saleId, reason) => {
+    set({ voiding: true, voidError: null });
     try {
-      await salesService.voidSale(saleId);
+      await salesService.voidSale(saleId, reason);
       set((s) => ({
+        voiding: false,
         sales: s.sales.map((sl) =>
           sl.id === saleId ? { ...sl, status: "void" } : sl
         ),
@@ -160,9 +203,23 @@ export const useSalesStore = create<SalesState>((set, get) => ({
           ? { ...s.detail, status: "void" }
           : s.detail,
       }));
+      // Las tarjetas (completadas, ingresos, ticket) cambiaron. Solo se
+      // recalcula el resumen: recargar la tabla haría parpadear el listado
+      // detrás del modal, y la fila ya quedó marcada como anulada.
+      const { period, customFrom, customTo, customerQuery, paymentMethod, transferMethod, itemFilter } = get();
+      salesService
+        .fetchSalesSummary(
+          salesService.resolvePeriod(period, customFrom, customTo),
+          customerQuery,
+          paymentMethod,
+          transferMethod,
+          itemFilter,
+        )
+        .then((summary) => set({ summary }))
+        .catch(() => {});
       return true;
     } catch (e) {
-      set({ error: toMessage(e) });
+      set({ voidError: toMessage(e), voiding: false });
       return false;
     }
   },

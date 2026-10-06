@@ -14,7 +14,8 @@ import { catalogOptions, catalogLabel } from "@/services/school-settings.service
 import { Select } from "@/components/ui/Select";
 import { ConfirmDialog, useConfirm } from "@/components/ui/ConfirmDialog";
 import { useProfile } from "@/components/ProfileProvider";
-import { staffRolesForType, effectiveModules } from "@/config/business";
+import { staffRolesForType, effectiveModules, permissionSummary } from "@/config/business";
+import { useApplicablePermissions } from "./components/PermissionToggles";
 import { mergeTeam, hasStaffRecord } from "@/lib/team";
 import { AvailabilityEditor } from "@/components/school/AvailabilityEditor";
 import { notifySuccess } from "@/lib/notifications";
@@ -108,6 +109,9 @@ export default function StaffPage() {
   const schoolModuleActive = Boolean(
     effectiveModules(profile?.businessType ?? null, profile?.modules ?? null).school,
   );
+
+  /** Permisos que existen en este negocio: el resumen "Ve: …" no nombra los que no aplican. */
+  const applicablePerms = useApplicablePermissions();
 
   // Una fila por PERSONA: la ficha manda y el acceso cuelga de ella.
   const team = useMemo(() => mergeTeam(staff, accounts), [staff, accounts]);
@@ -509,6 +513,31 @@ export default function StaffPage() {
                       )}
                     </div>
                   </div>
+
+                  {/* Qué VE esta persona, no solo si entra: "Activo" no dice si
+                      es la cajera o la que lleva el inventario. */}
+                  {m.account && (() => {
+                    const ve = m.account.is_admin
+                      ? null
+                      : permissionSummary(m.account.worker_permissions ?? {}, applicablePerms);
+                    const texto = m.account.is_admin
+                      ? "Ve: todo (administrador)"
+                      : ve && ve.length > 0
+                        ? `Ve: ${ve.join(" · ")}`
+                        : "Sin permisos: no ve ninguna sección";
+                    return (
+                      <p
+                        title={texto}
+                        className={`mt-2 truncate text-[11px] ${
+                          !m.account.is_admin && (!ve || ve.length === 0)
+                            ? "font-semibold text-amber-600"
+                            : "text-on-surface-variant"
+                        }`}
+                      >
+                        {texto}
+                      </p>
+                    );
+                  })()}
 
                   {canSettle && hasStaffRecord(m) && pending > 0 && (
                     <Link

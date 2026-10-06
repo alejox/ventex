@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { IconSearch, IconImagePlaceholder } from "@/app/assets/icons/DashboardIcons";
 import type { CatalogItem } from "@/services/pos.service";
 import { shouldSubmitIdleCode } from "./catalog-code";
+import { useProfile } from "@/components/ProfileProvider";
 import { formatMoney } from "@/lib/money";
 
 const BARCODE_IDLE_MS = 250;
@@ -126,6 +127,19 @@ export function PosCatalog({
 }: PosCatalogProps) {
   const salesBlocked = isWorker && requireActiveShift && !currentShift;
   const router = useRouter();
+  const profile = useProfile();
+  /**
+   * A dónde lleva el CTA del catálogo vacío (B2). Un negocio que solo vende
+   * servicios (sin inventario) arranca en la pestaña Servicio del formulario.
+   */
+  const firstItemHref =
+    profile?.modules?.services && !profile?.modules?.inventory
+      ? "/dashboard/inventory/product?type=servicio&from=/dashboard/pos"
+      : "/dashboard/inventory/product?from=/dashboard/pos";
+  /** Un empleado sin permiso de catálogo vería el formulario rechazado. */
+  const canCreateItems =
+    !isWorker ||
+    Boolean(profile?.workerPermissions?.inventory_edit || profile?.workerPermissions?.services);
   const internalSearchRef = useRef<HTMLInputElement>(null);
   const searchRef = externalSearchRef ?? internalSearchRef;
   const scanTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -245,7 +259,7 @@ export function PosCatalog({
                 className="h-12 px-4 rounded-2xl border border-outline-variant/30 text-sm font-semibold text-on-surface hover:bg-surface-container-low transition-colors shrink-0 flex items-center gap-2"
                 title={`Turno abierto desde ${new Date(currentShift.opened_at).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })}`}
               >
-                <span className="w-2 h-2 rounded-full bg-[#10b981] animate-pulse" />
+                <span className="w-2 h-2 rounded-full bg-accent-fin animate-pulse" />
                 Cerrar turno
               </button>
             </>
@@ -321,7 +335,7 @@ export function PosCatalog({
             onClick={() => setActiveCategory(cat)}
             className={`whitespace-nowrap px-4 py-2 rounded-full text-xs font-medium transition-colors ${
               cat === activeCategory
-                ? "bg-[#6063ee] text-white"
+                ? "bg-primary text-on-primary"
                 : "bg-surface-container border border-outline-variant/10 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high"
             }`}
           >
@@ -339,11 +353,39 @@ export function PosCatalog({
 
         {loading ? (
           <p className="text-center text-sm text-on-surface-variant py-12">Cargando catálogo…</p>
+        ) : catalog.length === 0 ? (
+          <div className="mx-auto max-w-sm py-12 text-center flex flex-col items-center">
+            <div className="w-14 h-14 mb-4 rounded-2xl bg-primary/10 text-primary flex items-center justify-center">
+              <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-7 h-7" aria-hidden="true">
+                <path d="M21 8l-9-5-9 5 9 5 9-5z" />
+                <path d="M3 8v8l9 5 9-5V8" />
+                <path d="M12 13v8" />
+              </svg>
+            </div>
+            <p className="text-base font-bold text-on-surface">Tu catálogo está vacío</p>
+            <p className="mt-1 text-sm text-on-surface-variant">
+              Carga lo que vendes para empezar a cobrar desde aquí.
+            </p>
+            {canCreateItems ? (
+              <button
+                type="button"
+                onClick={() => router.push(firstItemHref)}
+                className="mt-5 inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-on-primary hover:bg-primary-dim transition-colors"
+              >
+                <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-4 h-4" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" />
+                </svg>
+                Agregar mi primer producto o servicio
+              </button>
+            ) : (
+              <p className="mt-4 text-xs text-on-surface-variant">
+                Pídele al dueño del negocio que cargue los productos y servicios.
+              </p>
+            )}
+          </div>
         ) : filtered.length === 0 ? (
           <p className="text-center text-sm text-on-surface-variant py-12">
-            {catalog.length === 0
-              ? "No hay productos ni servicios. Agr\u00e9galos en Productos y Servicios."
-              : "Ning\u00fan \u00edtem coincide con el filtro."}
+            Ningún ítem coincide con el filtro.
           </p>
         ) : (
           <>

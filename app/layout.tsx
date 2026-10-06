@@ -3,7 +3,7 @@ import { SITE_URL } from "@/lib/site";
 import "./globals.css";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { PWAProvider } from "@/components/PWAProvider";
-import { Toaster } from "sonner";
+import { ThemedToaster } from "@/components/ui/ThemedToaster";
 
 export const metadata: Metadata = {
   /**
@@ -110,7 +110,7 @@ export default function RootLayout({
         <ThemeProvider>
           {children}
           <PWAProvider />
-          <Toaster position="top-right" />
+          <ThemedToaster />
         </ThemeProvider>
       </body>
     </html>

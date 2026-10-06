@@ -125,13 +125,22 @@ interface PosCartPanelProps {
   removeFromCart: (key: string) => void;
   /** Saca una oferta automática (T5) de una línea, solo para esta venta. */
   removeOffer: (key: string) => void;
+  /** "Vaciar venta". La pantalla le pone el "Deshacer" (C5). */
   clearCart: () => void;
+  /** Línea recién agregada por el escáner: se resalta un momento (C24). */
+  flashKey?: string | null;
+  /**
+   * Reimprime el comprobante de la última venta cobrada en esta sesión.
+   * null = no hay ninguna todavía (el botón queda deshabilitado).
+   */
+  onReprintLast?: (() => void) | null;
   onCheckout: () => void;
   onOpenDiscountModal: () => void;
   onOpenSaleConfigModal: () => void;
   onOpenRecentSalesModal: () => void;
   onOpenCustomerModal: () => void;
-  requireShift: (action: () => void) => void;
+  /** Ya no se usa en el panel (la reimpresión no exige turno); se conserva por compatibilidad. */
+  requireShift?: (action: () => void) => void;
   splitsCount: number;
   isDelivery: boolean;
   setDelivery: (enabled: boolean) => void;
@@ -176,12 +185,13 @@ export function PosCartPanel({
   removeFromCart,
   removeOffer,
   clearCart,
+  flashKey = null,
+  onReprintLast = null,
   onCheckout,
   onOpenDiscountModal,
   onOpenSaleConfigModal,
   onOpenRecentSalesModal,
   onOpenCustomerModal,
-  requireShift,
   splitsCount,
   isDelivery,
   setDelivery,
@@ -217,7 +227,7 @@ export function PosCartPanel({
             <div className="flex justify-between items-center gap-2">
               <h2 className="text-lg font-bold text-on-surface flex items-center gap-2 min-w-0">
                 <span className="truncate">Factura de venta</span>
-                <div className="w-6 h-6 shrink-0 rounded-full bg-[#6063ee]/10 flex items-center justify-center text-[#6063ee]">
+                <div className="w-6 h-6 shrink-0 rounded-full bg-primary/10 flex items-center justify-center text-primary">
                   <IconThunder className="w-3.5 h-3.5" />
                 </div>
               </h2>
@@ -228,7 +238,16 @@ export function PosCartPanel({
                     <line x1="7" y1="7" x2="7.01" y2="7" />
                   </svg>
                 </button>
-                <button onClick={() => requireShift(() => window.print())} className="hover:text-primary" title="Imprimir">
+                {/* Imprime el comprobante de la venta ANTERIOR, no la que se
+                    está armando: el nombre lo dice para que nadie lo confunda
+                    con una pre-cuenta. Sin venta cobrada, no hay qué imprimir. */}
+                <button
+                  onClick={() => onReprintLast?.()}
+                  disabled={!onReprintLast}
+                  className="hover:text-primary disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-on-surface-variant"
+                  title={onReprintLast ? "Reimprimir última venta" : "Todavía no hay una venta para reimprimir"}
+                  aria-label="Reimprimir última venta"
+                >
                   <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-5 h-5">
                     <polyline points="6 9 6 2 18 2 18 9"/>
                     <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
@@ -360,7 +379,7 @@ export function PosCartPanel({
                   aria-checked={isDelivery}
                   onClick={() => setDelivery(!isDelivery)}
                   className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${
-                    isDelivery ? "bg-[#6063ee]" : "bg-outline-variant/30"
+                    isDelivery ? "bg-primary" : "bg-outline-variant/30"
                   }`}
                 >
                   <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
@@ -430,7 +449,18 @@ export function PosCartPanel({
               <>
                 <div className="space-y-1">
                 {cart.map((line) => (
-                  <div key={cartLineKey(line)} className={`group flex items-center gap-2 py-1.5 px-1.5 -mx-1 rounded-lg hover:bg-surface-container-low transition-colors ${line.item.kind === "service" ? "border-l-2 border-emerald-500/60 pl-2.5" : ""}`}>
+                  <div
+                    key={cartLineKey(line)}
+                    // Al resaltarse, se trae a la vista si quedó fuera del scroll:
+                    // un resaltado que no se ve no confirma nada.
+                    ref={flashKey === cartLineKey(line) ? (el) => el?.scrollIntoView({ block: "nearest" }) : undefined}
+                    data-flash={flashKey === cartLineKey(line) ? "true" : undefined}
+                    className={`group flex items-center gap-2 py-1.5 px-1.5 -mx-1 rounded-lg transition-colors duration-500 ${
+                      flashKey === cartLineKey(line)
+                        ? "bg-primary/15 ring-1 ring-primary/40"
+                        : "hover:bg-surface-container-low"
+                    } ${line.item.kind === "service" ? "border-l-2 border-emerald-500/60 pl-2.5" : ""}`}
+                  >
                     <div className="flex items-center shrink-0">
                       <button
                         onClick={() => decrement(cartLineKey(line))}
@@ -479,7 +509,7 @@ export function PosCartPanel({
                           // cajero sepa POR QUÉ bajó el precio y no lo confunda
                           // con un descuento que puso alguien a mano.
                           <span className="inline-flex items-center gap-1 text-[9px] font-medium">
-                            <span className="text-[#10b981]">
+                            <span className="text-accent-fin">
                               {line.offerName} −{formatMoney(line.discountAmount!)}
                             </span>
                             <button
@@ -630,6 +660,21 @@ export function PosCartPanel({
               <span className="text-xs font-semibold text-on-surface-variant">
                 {cart.length} ítem{cart.length !== 1 ? "s" : ""} &middot; {cartUnits} unidad{cartUnits !== 1 ? "es" : ""}
               </span>
+              {/* Lejos de "Vender" a propósito (C5): pegado al botón de cobrar
+                  era fácil vaciar la venta con el dedo equivocado. Igual se
+                  puede deshacer unos segundos desde el aviso. */}
+              <button
+                type="button"
+                onClick={clearCart}
+                disabled={submitting}
+                className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-semibold text-on-surface-variant hover:text-error hover:bg-error/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-3.5 h-3.5" aria-hidden="true">
+                  <polyline points="3 6 5 6 21 6" />
+                  <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                </svg>
+                Vaciar venta
+              </button>
             </div>
           )}
 
@@ -642,7 +687,7 @@ export function PosCartPanel({
                     <span>Precio original</span>
                     <span className="font-semibold text-on-surface">{formatMoney(totals.gross)}</span>
                   </div>
-                  <div className="flex justify-between text-sm text-[#10b981]">
+                  <div className="flex justify-between text-sm text-accent-fin">
                     <span>Descuento por exención de IVA</span>
                     <span className="font-semibold">-{formatMoney(totals.exemptionDiscount)}</span>
                   </div>
@@ -702,7 +747,7 @@ export function PosCartPanel({
               className={`flex-1 flex items-center justify-center gap-2 rounded-xl px-4 py-3 font-semibold transition-all ${
                 salesBlocked || cart.length === 0 || missingPrice
                   ? "bg-surface-container-highest cursor-not-allowed opacity-70 text-on-surface-variant/50"
-                  : "bg-primary text-white hover:bg-primary-dim shadow-sm"
+                  : "bg-primary text-on-primary hover:bg-primary-dim shadow-sm"
               }`}
             >
               {submitting ? (
@@ -716,23 +761,6 @@ export function PosCartPanel({
                   <span>{formatMoney(totals.total)}</span>
                 </>
               )}
-            </button>
-            <button
-              onClick={() => {
-                clearCart();
-                setIsCartOpen(false);
-              }}
-              disabled={cart.length === 0 || submitting}
-              className="w-[52px] flex-shrink-0 flex items-center justify-center rounded-xl bg-surface-container border border-outline-variant/10 text-error hover:bg-error/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed py-3"
-              aria-label="Limpiar venta"
-            >
-              <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-6 h-6">
-                <polyline points="3 6 5 6 21 6" />
-                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                <path d="M10 11v6" />
-                <path d="M14 11v6" />
-                <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-              </svg>
             </button>
             <div className="relative group">
               <button

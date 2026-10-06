@@ -9,6 +9,7 @@ import { DataTable, type DataColumn } from "@/components/DataTable";
 import { backdropProps } from "@/components/modal";
 import { IconTrash } from "@/app/assets/icons/DashboardIcons";
 import { formatMoney } from "@/lib/money";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
 
 const STATUS_LABEL: Record<PurchaseOrderStatus, string> = {
   draft: "Borrador",
@@ -61,8 +62,11 @@ function IconEye(props: React.SVGProps<SVGSVGElement>) {
  * para que se entienda por qué un producto bajo de stock no aparece en la lista
  * de faltantes.
  *
- * "Completado" cierra el pedido sin tocar nada más. "Recibir" es otra cosa y
- * está separado a propósito: ese SÍ crea la factura de compra y suma stock.
+ * "Recibir y registrar compra" es la acción principal de un pedido pendiente:
+ * crea la factura de compra y suma stock. "Completar" queda como secundaria y
+ * pide confirmación, porque cierra el pedido SIN sumar stock — se confundía con
+ * recibir y dejaba el inventario corto sin que nadie lo notara. Las tres
+ * acciones que cambian el pedido (recibir, completar, cancelar) confirman.
  */
 export function SavedOrders({
   orders,
@@ -82,6 +86,58 @@ export function SavedOrders({
   onCancel: (id: string) => void;
 }) {
   const [detail, setDetail] = useState<PurchaseOrder | null>(null);
+  const { confirm, dialog } = useConfirm();
+
+  /**
+   * Recibir crea una factura de compra pagada y suma stock: desde la fila,
+   * donde el dedo va rápido, no puede quedar a un solo clic.
+   */
+  const askReceive = async (o: PurchaseOrder) => {
+    const ok = await confirm({
+      title: `¿Recibir el pedido #${o.order_number}?`,
+      description: (
+        <>
+          <p>
+            Se registra la compra a {o.distributor_name ?? "el proveedor"} por{" "}
+            <strong className="text-on-surface">{formatMoney(totalOf(o))}</strong> y se suman{" "}
+            {unitsOf(o)} unidades al stock de {o.items.length} producto
+            {o.items.length !== 1 ? "s" : ""}.
+          </p>
+        </>
+      ),
+      confirmLabel: "Recibir y registrar",
+    });
+    if (ok) onReceive(o);
+  };
+
+  const askComplete = async (o: PurchaseOrder) => {
+    const ok = await confirm({
+      title: `¿Completar el pedido #${o.order_number} sin recibirlo?`,
+      description: (
+        <>
+          <p>
+            <strong className="text-on-surface">Cierra el pedido sin sumar stock</strong> ni
+            registrar la compra. Úsalo solo si la mercancía ya la registraste por otro lado.
+          </p>
+          <p>Si te llegó la mercancía, usa «Recibir y registrar compra».</p>
+        </>
+      ),
+      confirmLabel: "Completar sin sumar stock",
+    });
+    if (ok) onComplete(o.id);
+  };
+
+  const askCancel = async (o: PurchaseOrder) => {
+    const ok = await confirm({
+      title: `¿Cancelar el pedido #${o.order_number}?`,
+      description:
+        "El pedido queda cancelado y sus productos vuelven a sugerirse como faltantes. No se puede reabrir.",
+      tone: "danger",
+      confirmLabel: "Cancelar pedido",
+      cancelLabel: "Volver",
+    });
+    if (ok) onCancel(o.id);
+  };
 
   if (loading && orders.length === 0) {
     return (
@@ -188,14 +244,27 @@ export function SavedOrders({
 
           {o.status === "issued" && (
             <>
-              {/* Cierra el pedido y libera sus productos. No toca inventario:
-                  para eso está "Recibir", en el detalle. */}
               <button
                 type="button"
-                onClick={() => onComplete(o.id)}
+                onClick={() => askReceive(o)}
+                disabled={submitting || !o.distributor_id}
+                className="px-3 py-1.5 rounded-lg bg-primary text-on-primary text-xs font-bold hover:bg-primary-dim transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                title={
+                  o.distributor_id
+                    ? "Genera la factura de compra y suma el stock"
+                    : "Asígnale un proveedor al pedido para poder registrarlo como compra"
+                }
+              >
+                Recibir y registrar compra
+              </button>
+              {/* Secundario y con confirmación: cierra el pedido y libera sus
+                  productos, pero NO toca inventario. */}
+              <button
+                type="button"
+                onClick={() => askComplete(o)}
                 disabled={submitting}
-                className="px-3 py-1.5 rounded-lg bg-primary text-on-primary text-xs font-bold hover:bg-primary-dim transition-colors disabled:opacity-50 whitespace-nowrap"
-                title="Cerrar el pedido sin registrar la compra"
+                className="px-3 py-1.5 rounded-lg border border-outline-variant/20 text-xs font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low transition-colors disabled:opacity-50 whitespace-nowrap"
+                title="Cierra el pedido sin sumar stock"
               >
                 Completar
               </button>
@@ -205,7 +274,7 @@ export function SavedOrders({
           {isOpenStatus(o.status) && (
             <button
               type="button"
-              onClick={() => onCancel(o.id)}
+              onClick={() => askCancel(o)}
               disabled={submitting}
               className="w-9 h-9 flex items-center justify-center rounded-lg text-error hover:bg-error/10 transition-colors disabled:opacity-50"
               aria-label={`Cancelar el pedido ${o.order_number}`}
@@ -234,7 +303,8 @@ export function SavedOrders({
         <h2 className="text-sm font-bold text-on-surface">Pedidos</h2>
         <p className="text-xs text-on-surface-variant mt-0.5">
           Mientras un pedido esté en borrador o pendiente, sus productos no se vuelven a sugerir
-          como faltantes. Completarlo o cancelarlo los libera.
+          como faltantes. Recibirlo, completarlo o cancelarlo los libera; solo recibirlo suma
+          stock.
         </p>
       </div>
 
@@ -246,7 +316,8 @@ export function SavedOrders({
         minWidth={860}
       />
 
-      {detail && <OrderDetail order={detail} submitting={submitting} onReceive={onReceive} onClose={() => setDetail(null)} />}
+      {detail && <OrderDetail order={detail} submitting={submitting} onReceive={askReceive} onClose={() => setDetail(null)} />}
+      {dialog}
     </div>
   );
 }
@@ -254,9 +325,8 @@ export function SavedOrders({
 /**
  * Detalle completo del pedido: sus líneas, con cantidades y costos.
  *
- * "Recibir" vive acá y no en la fila de la tabla a propósito: crea una factura
- * de compra pagada y suma stock, y eso no puede quedar a un clic de distancia
- * en una lista donde el dedo va rápido.
+ * También ofrece "Recibir", con la misma confirmación que la fila: crea una
+ * factura de compra pagada y suma stock.
  */
 function OrderDetail({
   order,

@@ -32,6 +32,7 @@ export type Modules = Partial<Record<ModuleId, boolean>>;
 export type WorkerPermission =
   | "panel"
   | "pos"
+  | "pos_discount"
   | "calendar"
   | "customers"
   | "sales"
@@ -51,15 +52,16 @@ export type WorkerPermissions = Partial<Record<WorkerPermission, boolean>>;
 export const WORKER_PERMISSION_LABELS: Record<WorkerPermission, string> = {
   panel: "Panel (inicio)",
   pos: "Punto de Venta",
+  pos_discount: "Aplicar descuentos",
   calendar: "Calendario / Citas",
   customers: "Clientes",
   sales: "Ventas",
-  inventory: "Inventario",
+  inventory: "Productos (inventario)",
   inventory_costs: "Ver costos y márgenes",
   inventory_edit: "Crear y editar productos",
   inventory_stock: "Ajustar stock y ver movimientos",
   services: "Servicios",
-  catalogo: "Catálogo (productos y servicios)",
+  catalogo: "Catálogo completo (productos y servicios)",
   vehicles: "Vehículos",
   billing: "Facturación",
   settings: "Configuración del negocio",
@@ -91,16 +93,56 @@ export const ADMIN_WORKER_PERMISSIONS: WorkerPermissions = Object.fromEntries(
  * está apagado, y los apaga al apagarlo.
  */
 export const WORKER_PERMISSION_PARENT: Partial<Record<WorkerPermission, WorkerPermission>> = {
+  // Cobrar no es lo mismo que rebajar: con solo `pos` el cajero cobra al precio
+  // del catálogo (y aplica las ofertas y premios automáticos); regalar plata a
+  // mano es otra decisión del dueño. Ver `DiscountModal`.
+  pos_discount: "pos",
   inventory_costs: "inventory",
   inventory_edit: "inventory",
   inventory_stock: "inventory",
 };
 
-export const WORKER_PERMISSION_HINTS: Partial<Record<WorkerPermission, string>> = {
+/**
+ * Una línea por permiso: qué ve y qué puede hacer quien lo tiene. Es `Record`
+ * completo a propósito — un permiso nuevo sin explicación no compila.
+ */
+export const WORKER_PERMISSION_HINTS: Record<WorkerPermission, string> = {
+  panel: "La pantalla de inicio con las ventas del día y los atajos.",
+  pos: "Cobrar ventas en el punto de venta, al precio del catálogo.",
+  pos_discount: "Rebajar el precio a mano en el punto de venta, en porcentaje o en pesos.",
+  calendar: "Ver la agenda y gestionar las citas.",
+  customers: "Ver y registrar clientes, y cobrar sus créditos (fiados).",
+  sales: "Historial de ventas y sus comprobantes.",
+  inventory: "Ver los productos, sus precios de venta y el stock.",
   inventory_costs: "Precio de compra, margen y valor total del inventario.",
   inventory_edit: "Alta y edición de productos y categorías.",
   inventory_stock: "Ajustes de stock, historial de movimientos y recepción de compras.",
+  services: "Ver, crear y editar los servicios que ofreces.",
+  catalogo: "Ver productos y servicios juntos de una vez (no da permiso para editarlos).",
+  vehicles: "Historial por placa: vehículos, sus dueños y sus visitas.",
+  billing: "Crear facturas y cotizaciones para tus clientes.",
+  settings: "Entrar a Ajustes y cambiar la configuración del negocio.",
   school: "Estudiantes, profesores, planes de clase, agenda y matrículas.",
+};
+
+/** Nombre corto para resúmenes de una línea ("Ve: POS · Calendario"). */
+export const WORKER_PERMISSION_SHORT_LABELS: Record<WorkerPermission, string> = {
+  panel: "Panel",
+  pos: "POS",
+  pos_discount: "Descuentos",
+  calendar: "Calendario",
+  customers: "Clientes",
+  sales: "Ventas",
+  inventory: "Productos",
+  inventory_costs: "Costos",
+  inventory_edit: "Editar productos",
+  inventory_stock: "Stock",
+  services: "Servicios",
+  catalogo: "Catálogo",
+  vehicles: "Vehículos",
+  billing: "Facturación",
+  settings: "Ajustes",
+  school: "Académico",
 };
 
 /** Datos del perfil de cuenta (tabla public.profiles). */
@@ -671,6 +713,207 @@ export function usesHaircutPromos(
   modules: Modules | null,
 ): boolean {
   return visibleNavItems(businessType, modules).some((item) => item.id === "promociones");
+}
+
+// ---- Permisos de trabajador que aplican a ESTE negocio ----
+//
+// Un salón no tiene vehículos ni facturación: ofrecerle esos permisos al
+// invitar a un barbero era ruido, y además invitaba a pensar que existían. La
+// regla sale del mismo cálculo que el menú del dueño (`visibleNavItems`): un
+// permiso se ofrece si la pantalla que abre existe para el negocio. Así un
+// permiso nunca puede prometer algo que el dueño mismo no ve.
+
+/**
+ * Ítem del menú que tiene que existir para que el permiso tenga sentido. Los
+ * que no figuran (panel, pos, clientes, ventas, ajustes) son universales.
+ *
+ * `inventory` (productos) se ata a "pedidos" y no a "inventory": el ítem
+ * "Productos y servicios" aparece también con solo el módulo `services`, y ahí
+ * no hay productos que ver. "pedidos" exige el módulo `inventory` o ser tienda,
+ * que es exactamente cuándo hay mercadería.
+ */
+const PERMISSION_NAV_GATE: Partial<Record<WorkerPermission, string>> = {
+  calendar: "calendar",
+  inventory: "pedidos",
+  services: "haircuts",
+  vehicles: "vehicles",
+  billing: "billing",
+  school: "school",
+};
+
+/**
+ * Los permisos que tiene sentido ofrecer en este negocio, en el orden de
+ * `WORKER_PERMISSION_LABELS`. Sin tipo de negocio se ofrecen todos (cuenta a
+ * medio configurar: mejor de más que esconder algo que sí usa).
+ *
+ * - Un hijo sigue a su padre (sin productos no hay "ver costos").
+ * - `catalogo` solo aparece si hay productos Y servicios: con una sola mitad
+ *   es un duplicado del permiso de esa mitad, y era justo el solapamiento que
+ *   confundía ("Servicios", "Catálogo" e "Inventario" decían lo mismo).
+ *
+ * Es UX, no seguridad: un permiso escondido que ya estaba encendido se
+ * conserva tal cual al guardar.
+ */
+export function permissionsForBusiness(
+  businessType: BusinessType | null,
+  modules: Modules | null,
+): WorkerPermission[] {
+  const all = Object.keys(WORKER_PERMISSION_LABELS) as WorkerPermission[];
+  if (!businessType) return all;
+  const navIds = new Set(visibleNavItems(businessType, modules).map((i) => i.id));
+  const applies = (p: WorkerPermission): boolean => {
+    const parent = WORKER_PERMISSION_PARENT[p];
+    if (parent) return applies(parent);
+    if (p === "catalogo") return applies("inventory") && applies("services");
+    const gate = PERMISSION_NAV_GATE[p];
+    return gate == null || navIds.has(gate);
+  };
+  return all.filter(applies);
+}
+
+/**
+ * Resumen de una línea de lo que ve un trabajador: solo los permisos de primer
+ * nivel (un hijo afina a su padre, no abre otra pantalla) y solo los que
+ * aplican al negocio.
+ */
+export function permissionSummary(
+  perms: WorkerPermissions,
+  applicable: WorkerPermission[],
+): string[] {
+  return applicable
+    .filter((p) => !WORKER_PERMISSION_PARENT[p] && perms[p])
+    .map((p) => WORKER_PERMISSION_SHORT_LABELS[p]);
+}
+
+/** ¿Hay al menos un permiso encendido entre los que aplican al negocio? */
+export function hasAnyPermission(
+  perms: WorkerPermissions,
+  applicable: WorkerPermission[],
+): boolean {
+  return applicable.some((p) => Boolean(perms[p]));
+}
+
+// ---- Plantillas de permisos por cargo ----
+//
+// Un trabajador invitado nacía con CERO permisos: aceptaba el correo, entraba y
+// no veía nada. Las plantillas son un punto de partida, no un rol: precargan
+// los toggles y el dueño los sigue ajustando uno por uno. Lo guardado es
+// siempre el mapa de permisos, nunca el nombre de la plantilla.
+
+export type PermissionTemplateId = "atencion" | "cajero" | "recepcion" | "bodega" | "encargado";
+
+export interface PermissionTemplate {
+  id: PermissionTemplateId;
+  label: string;
+  description: string;
+  permissions: WorkerPermission[];
+}
+
+/** "Todo menos Ajustes": se resuelve contra lo que aplica al negocio. */
+const ENCARGADO_EXCLUDED: WorkerPermission[] = ["settings"];
+
+/**
+ * Definición por rubro. El nombre de la plantilla de atención cambia (un
+ * barbero no es un profesor), y las que no tienen sentido para el rubro no
+ * figuran: la tienda no tiene recepción y solo la tienda tiene bodega.
+ */
+const PERMISSION_TEMPLATES_BY_TYPE: Record<BusinessType, PermissionTemplate[]> = {
+  salon: [
+    { id: "atencion", label: "Barbero / Estilista", description: "Cobra, ve su agenda y sus clientes.", permissions: ["pos", "calendar", "customers"] },
+    { id: "recepcion", label: "Recepción", description: "Agenda citas, registra clientes y cobra.", permissions: ["pos", "calendar", "customers", "services"] },
+    { id: "cajero", label: "Cajero", description: "Cobra y consulta el historial de ventas.", permissions: ["pos", "sales"] },
+  ],
+  tienda: [
+    { id: "atencion", label: "Vendedor", description: "Cobra, consulta productos y registra clientes.", permissions: ["pos", "customers", "inventory"] },
+    { id: "cajero", label: "Cajero", description: "Cobra y consulta el historial de ventas.", permissions: ["pos", "sales"] },
+    { id: "bodega", label: "Bodeguero", description: "Productos, stock y recepción de compras.", permissions: ["inventory", "inventory_stock", "inventory_edit"] },
+  ],
+  lavaautos: [
+    { id: "atencion", label: "Lavador / Detailer", description: "Cobra, ve la agenda, clientes y vehículos.", permissions: ["pos", "calendar", "customers", "vehicles"] },
+    { id: "recepcion", label: "Recepción", description: "Agenda turnos, registra clientes y vehículos, y cobra.", permissions: ["pos", "calendar", "customers", "vehicles"] },
+    { id: "cajero", label: "Cajero", description: "Cobra y consulta el historial de ventas.", permissions: ["pos", "sales"] },
+  ],
+  servicios: [
+    { id: "atencion", label: "Profesional", description: "Cobra, ve su agenda y sus clientes.", permissions: ["pos", "calendar", "customers"] },
+    { id: "recepcion", label: "Recepción / Asistente", description: "Agenda, clientes, cobro y facturas.", permissions: ["pos", "calendar", "customers", "billing"] },
+    { id: "cajero", label: "Cajero", description: "Cobra y consulta el historial de ventas.", permissions: ["pos", "sales"] },
+  ],
+  escuela: [
+    { id: "atencion", label: "Profesor", description: "Su agenda de clases, estudiantes y cobro.", permissions: ["pos", "customers", "school"] },
+    { id: "recepcion", label: "Recepción", description: "Matrículas, estudiantes, clientes y cobro.", permissions: ["pos", "customers", "school", "sales"] },
+    { id: "cajero", label: "Cajero", description: "Cobra y consulta el historial de ventas.", permissions: ["pos", "sales"] },
+  ],
+};
+
+const ENCARGADO_TEMPLATE: Omit<PermissionTemplate, "permissions"> = {
+  id: "encargado",
+  label: "Encargado",
+  description: "Casi todo, incluidos descuentos y costos. Sin acceso a Ajustes.",
+};
+
+/** Plantillas genéricas cuando el negocio aún no tiene tipo. */
+const DEFAULT_PERMISSION_TEMPLATES: PermissionTemplate[] = [
+  { id: "atencion", label: "Vendedor", description: "Cobra y registra clientes.", permissions: ["pos", "customers"] },
+  { id: "cajero", label: "Cajero", description: "Cobra y consulta el historial de ventas.", permissions: ["pos", "sales"] },
+];
+
+/**
+ * Plantillas para este negocio, con sus permisos YA recortados a los que
+ * aplican (un salón con Citas apagado no recibe `calendar` del barbero). Una
+ * plantilla que queda vacía no se ofrece.
+ */
+export function permissionTemplatesFor(
+  businessType: BusinessType | null,
+  modules: Modules | null,
+): PermissionTemplate[] {
+  const applicable = permissionsForBusiness(businessType, modules);
+  const base = businessType ? PERMISSION_TEMPLATES_BY_TYPE[businessType] : DEFAULT_PERMISSION_TEMPLATES;
+  const encargado: PermissionTemplate = {
+    ...ENCARGADO_TEMPLATE,
+    permissions: applicable.filter((p) => !ENCARGADO_EXCLUDED.includes(p)),
+  };
+  return [...base, encargado]
+    .map((t) => ({ ...t, permissions: t.permissions.filter((p) => applicable.includes(p)) }))
+    .filter((t) => t.permissions.length > 0);
+}
+
+/** El mapa de permisos que precarga una plantilla. */
+export function templatePermissions(template: PermissionTemplate): WorkerPermissions {
+  return Object.fromEntries(template.permissions.map((p) => [p, true])) as WorkerPermissions;
+}
+
+/**
+ * Plantilla sugerida para un cargo de `STAFF_ROLES_BY_TYPE`. Solo SUGIERE: el
+ * dueño ve el selector ya puesto y puede cambiarlo. Un cargo escrito a mano
+ * que no se reconoce no sugiere nada (mejor vacío que adivinar mal).
+ */
+const TEMPLATE_BY_ROLE: Record<string, PermissionTemplateId> = {
+  barbero: "atencion",
+  estilista: "atencion",
+  peluquero: "atencion",
+  manicurista: "atencion",
+  lavador: "atencion",
+  detailer: "atencion",
+  profesional: "atencion",
+  consultor: "atencion",
+  asesor: "atencion",
+  profesor: "atencion",
+  vendedor: "atencion",
+  cajero: "cajero",
+  recepcionista: "recepcion",
+  asistente: "recepcion",
+  bodeguero: "bodega",
+  encargado: "encargado",
+  "encargado de tienda": "encargado",
+  coordinador: "encargado",
+};
+
+export function suggestedTemplateForRole(
+  role: string | null | undefined,
+  templates: PermissionTemplate[],
+): PermissionTemplate | null {
+  const id = role ? TEMPLATE_BY_ROLE[role.trim().toLowerCase()] : undefined;
+  return (id && templates.find((t) => t.id === id)) || null;
 }
 
 /**

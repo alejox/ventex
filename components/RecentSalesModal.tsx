@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { fetchSales, SaleListItem } from "@/services/sales.service";
 import Link from "next/link";
+import { usePosStore } from "@/stores/pos.store";
 import { backdropProps } from "@/components/modal";
 import { formatMoney } from "@/lib/money";
 
@@ -22,26 +22,33 @@ function IconPrinter(props: React.SVGProps<SVGSVGElement>) {
 
 interface RecentSalesModalProps {
   onClose: () => void;
+  /**
+   * Reimprime el comprobante de esa venta (C7). Lo resuelve la pantalla que
+   * abre el panel, porque es la que tiene el recibo montado y los datos del
+   * negocio. Rechaza si no se pudo leer la venta.
+   */
+  onReprint: (saleId: string) => Promise<void>;
 }
 
-export function RecentSalesModal({ onClose }: RecentSalesModalProps) {
-  const [sales, setSales] = useState<SaleListItem[]>([]);
-  const [loading, setLoading] = useState(true);
+export function RecentSalesModal({ onClose, onReprint }: RecentSalesModalProps) {
+  const sales = usePosStore((s) => s.recentSales);
+  const loading = usePosStore((s) => s.recentSalesLoading);
+  const fetchRecentSales = usePosStore((s) => s.fetchRecentSales);
+  /** La venta cuyo comprobante se está armando, para el spinner de su fila. */
+  const [printingId, setPrintingId] = useState<string | null>(null);
 
   useEffect(() => {
-    // Sin rango y con página de 5: antes pedía TODO el histórico para
-    // quedarse con las primeras 5 filas.
-    fetchSales({ from: null, to: null }, 0, 5).then((data) => {
-      setSales(data.items);
-      setLoading(false);
-    }).catch((e) => {
-      console.error(e);
-      setLoading(false);
-    });
-  }, []);
+    void fetchRecentSales();
+  }, [fetchRecentSales]);
+
+  const reprint = (saleId: string) => {
+    if (printingId) return;
+    setPrintingId(saleId);
+    void onReprint(saleId).finally(() => setPrintingId(null));
+  };
 
   return (
-    <div className="fixed inset-0 z-[200] flex justify-end bg-black/20 backdrop-blur-sm animate-in fade-in duration-200" {...backdropProps(onClose)}>
+    <div className="fixed inset-0 z-[200] flex justify-end bg-black/20 backdrop-blur-sm animate-in fade-in duration-200 print:hidden" {...backdropProps(onClose)}>
       <div
         className="w-full max-w-md bg-surface-container-lowest h-full flex flex-col shadow-2xl animate-in slide-in-from-right duration-300"
         onClick={(e) => e.stopPropagation()}
@@ -63,7 +70,7 @@ export function RecentSalesModal({ onClose }: RecentSalesModalProps) {
         </div>
 
         <div className="flex-1 overflow-y-auto p-6">
-          {loading ? (
+          {loading && sales.length === 0 ? (
             <div className="flex justify-center p-8">
               <div className="w-8 h-8 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
             </div>
@@ -83,15 +90,26 @@ export function RecentSalesModal({ onClose }: RecentSalesModalProps) {
                 <tbody className="divide-y divide-outline-variant/10">
                   {sales.map((sale) => (
                     <tr key={sale.id} className="hover:bg-surface-container-lowest transition-colors">
-                      <td className="p-3">Factura {sale.sale_number}</td>
+                      <td className="p-3">Venta #{sale.sale_number}</td>
                       <td className="p-3 font-medium">{formatMoney(sale.total)}</td>
-                      <td className="p-3 text-on-surface-variant text-xs italic">
-                        {sale.status === "completed" ? "No electrónica" : "Pendiente"}
+                      <td className="p-3 text-on-surface-variant text-xs">
+                        {sale.status === "completed" ? "Completada" : sale.status === "void" ? "Anulada" : "Pendiente"}
                       </td>
                       <td className="p-3 text-right">
-                        <Link href={`/dashboard/sales`} className="text-on-surface-variant hover:text-primary transition-colors">
-                          <IconPrinter className="w-5 h-5 inline-block" />
-                        </Link>
+                        <button
+                          type="button"
+                          onClick={() => reprint(sale.id)}
+                          disabled={printingId !== null}
+                          aria-label={`Reimprimir comprobante de la venta #${sale.sale_number}`}
+                          title="Reimprimir comprobante"
+                          className="inline-flex items-center justify-center w-9 h-9 rounded-full text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          {printingId === sale.id ? (
+                            <span className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                          ) : (
+                            <IconPrinter className="w-5 h-5" />
+                          )}
+                        </button>
                       </td>
                     </tr>
                   ))}

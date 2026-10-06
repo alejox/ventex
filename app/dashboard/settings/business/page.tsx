@@ -83,6 +83,12 @@ function BusinessProfileForm({ settings }: { settings: Settings }) {
     [uploadLogo],
   );
 
+  /** Descarta lo editado: vuelve a lo último guardado. */
+  const handleCancel = () => {
+    setForm(settings.business_profile ?? {});
+    setLogoError(null);
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     const ok = await saveSettings({
@@ -264,53 +270,9 @@ function BusinessProfileForm({ settings }: { settings: Settings }) {
           </div>
         </div>
 
-        {/* Card: Información básica */}
-        <div className="bg-surface-container-lowest rounded-3xl overflow-hidden shadow-sm border border-outline-variant/10">
-          <div className="p-6 md:p-8">
-            <h2 className="text-lg font-bold text-on-surface">Información basica</h2>
-            <p className="text-sm text-on-surface-variant mt-1">Configura algunos datos necesarios para la generación de tus documentos y transacciones.</p>
-          </div>
-          
-          <hr className="border-outline-variant/10" />
-
-          <div className="p-6 md:p-8">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div>
-                <Select
-                  label="Sector"
-                  value={form.sector ?? ""}
-                  onChange={(e) => update("sector", e.target.value)}
-                >
-                  <option value="">Seleccionar</option>
-                  <option value="Otros">Otros</option>
-                  <option value="Tecnología">Tecnología</option>
-                  <option value="Alimentación">Alimentación</option>
-                </Select>
-              </div>
-              <div>
-                <Select
-                  label="Precisión decimal *"
-                  value={form.decimalPrecision ?? "2"}
-                  onChange={(e) => update("decimalPrecision", e.target.value)}
-                >
-                  <option value="0">0</option>
-                  <option value="1">1</option>
-                  <option value="2">2</option>
-                </Select>
-              </div>
-              <div>
-                <Select
-                  label="Separador decimal *"
-                  value={form.decimalSeparator ?? ","}
-                  onChange={(e) => update("decimalSeparator", e.target.value)}
-                >
-                  <option value=",">,</option>
-                  <option value=".">.</option>
-                </Select>
-              </div>
-            </div>
-          </div>
-        </div>
+        {/* "Información básica" (Sector, Precisión y Separador decimal) se quitó:
+            ningún lado de la app leía esos valores. Siguen en `business_profile` si
+            alguien los guardó antes — el formulario los conserva al guardar. */}
       </div>
 
       {/* Sticky Footer Area */}
@@ -319,7 +281,11 @@ function BusinessProfileForm({ settings }: { settings: Settings }) {
           Los campos marcados con <span className="text-primary">*</span> son obligatorios
         </p>
         <div className="flex gap-3 w-full sm:w-auto">
-          <button type="button" className="flex-1 sm:flex-none px-6 py-2.5 rounded-xl border border-outline-variant/20 text-on-surface font-semibold hover:bg-surface-container-low transition-colors">
+          <button
+            type="button"
+            onClick={handleCancel}
+            disabled={submitting}
+            className="flex-1 sm:flex-none px-6 py-2.5 rounded-xl border border-outline-variant/20 text-on-surface font-semibold hover:bg-surface-container-low transition-colors disabled:opacity-50">
             Cancelar
           </button>
           <button type="submit" disabled={submitting} className="flex-1 sm:flex-none px-6 py-2.5 rounded-xl bg-primary text-white font-semibold hover:bg-primary-dim transition-colors disabled:opacity-50">

@@ -15,7 +15,15 @@ import { useInventoryStore } from "@/stores/inventory.store";
 import { useServicesStore } from "@/stores/services.store";
 import { getUnitCost, calculateInventoryValue } from "@/services/inventory.service";
 import type { CatalogRow } from "@/lib/catalog";
-import { catalogRowsOf, catalogEditHref, catalogMatchesQuery } from "@/lib/catalog";
+import type { CatalogStatusFilter } from "@/lib/catalog";
+import {
+  catalogRowsOf,
+  catalogEditHref,
+  catalogMatchesQuery,
+  catalogMatchesStatus,
+  catalogKpis,
+  isArchivedRow,
+} from "@/lib/catalog";
 import { stockStatusOf, stockLabelOf, needsRestock, STOCK_CHIP, STOCK_DOT, SERVICE_CHIP, tracksStock, NO_STOCK_LABEL } from "@/lib/stock";
 import { useProfile } from "@/components/ProfileProvider";
 import { can } from "@/lib/permissions";
@@ -48,6 +56,15 @@ function IconLayers(props: React.SVGProps<SVGSVGElement>) {
       <polyline points="2 12 12 17 22 12" />
       <polyline points="2 17 12 22 22 17" />
     </svg>
+  );
+}
+
+/** Marca de "esto ya no se vende": acompaña a la fila atenuada. */
+function ArchivedChip() {
+  return (
+    <span className="ml-2 inline-flex items-center rounded-md border border-outline-variant/30 bg-surface-container-highest px-1.5 py-0.5 align-middle text-[10px] font-bold uppercase tracking-wide text-on-surface-variant">
+      Archivado
+    </span>
   );
 }
 
@@ -109,6 +126,9 @@ export default function CatalogPage() {
   const [typeFilter, setTypeFilter] = useState<"" | "product" | "service">("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [stockFilter, setStockFilter] = useState("");
+  // Activos por defecto: lo archivado no se vende, y mezclado con lo activo
+  // se leía como si siguiera en el catálogo.
+  const [statusFilter, setStatusFilter] = useState<CatalogStatusFilter>("active");
   const [scannerOpen, setScannerOpen] = useState(false);
   const [adjustModalOpen, setAdjustModalOpen] = useState(false);
   const [adjustProductId, setAdjustProductId] = useState<string | undefined>();
@@ -116,8 +136,10 @@ export default function CatalogPage() {
   const [newProductBarcode, setNewProductBarcode] = useState<string | null>(null);
 
   const rows = catalogRowsOf(products, services);
-  const productCount = products.length;
-  const serviceCount = services.length;
+  // Los KPIs cuentan solo lo activo (ver `catalogKpis`).
+  const kpis = catalogKpis(rows);
+  const productCount = kpis.products;
+  const serviceCount = kpis.services;
 
   /**
    * Un escaneo desde el catálogo responde una de dos cosas: "acá está" o
@@ -155,6 +177,7 @@ export default function CatalogPage() {
   /** Filtro por fila: búsqueda, tipo y categoría. */
   const matchesRow = (row: CatalogRow): boolean => {
     if (!catalogMatchesQuery(row, searchQuery)) return false;
+    if (!catalogMatchesStatus(row, statusFilter)) return false;
     if (typeFilter && row.kind !== typeFilter) return false;
     if (categoryFilter && row.categoryName !== categoryFilter) return false;
     return true;
@@ -203,6 +226,7 @@ export default function CatalogPage() {
     setTypeFilter("");
     setCategoryFilter("");
     setStockFilter("");
+    setStatusFilter("active");
     setCurrentPage(1);
   };
 
@@ -230,7 +254,8 @@ export default function CatalogPage() {
           <h1 className="text-3xl font-bold text-on-surface tracking-tight">Productos y Servicios</h1>
           <p className="text-on-surface-variant text-sm mt-1.5">
             {productCount} producto{productCount !== 1 ? "s" : ""} y {serviceCount} servicio
-            {serviceCount !== 1 ? "s" : ""} en tu catálogo
+            {serviceCount !== 1 ? "s" : ""} activos en tu catálogo
+            {kpis.archived > 0 && ` · ${kpis.archived} archivado${kpis.archived !== 1 ? "s" : ""}`}
           </p>
         </div>
         {/* Móvil: secundarios a dos columnas y el primario debajo, a ancho completo.
@@ -308,7 +333,7 @@ export default function CatalogPage() {
         <div className="bg-surface-container rounded-2xl p-6 border border-outline-variant/10 shadow-sm flex justify-between items-center group hover:border-outline-variant/20 transition-colors">
           <div>
             <p className="text-on-surface-variant text-sm font-medium mb-1.5">Stock Bajo</p>
-            <h3 className="text-4xl font-bold text-on-surface tracking-tight">{products.filter(needsRestock).length}</h3>
+            <h3 className="text-4xl font-bold text-on-surface tracking-tight">{kpis.lowStock}</h3>
           </div>
           <div className="w-14 h-14 shrink-0 rounded-xl bg-error/10 text-error flex items-center justify-center group-hover:scale-110 transition-transform">
             <IconAlertTriangle className="w-7 h-7" />
@@ -379,6 +404,16 @@ export default function CatalogPage() {
               <option value="Stock Bajo">Stock Bajo</option>
               <option value="Agotado">Agotado</option>
             </Select>
+            <Select
+              aria-label="Filtrar por estado"
+              containerClassName="flex-1 md:w-36"
+              value={statusFilter}
+              onChange={e => { setStatusFilter(e.target.value as CatalogStatusFilter); setCurrentPage(1); }}
+            >
+              <option value="active">Activos</option>
+              <option value="archived">Archivados</option>
+              <option value="all">Todos</option>
+            </Select>
           </div>
         </div>
 
@@ -400,6 +435,7 @@ export default function CatalogPage() {
           ) : (
             paginatedRows.map((row) => {
               const isService = row.kind === "service";
+              const archived = isArchivedRow(row);
               // `null` = no hay estado de stock que mostrar. Un servicio nunca
               // lo tuvo; un producto marcado "sin inventario" dejó de tenerlo, y
               // pintarle "Agotado" sobre un cero que nadie mantiene sería
@@ -426,6 +462,7 @@ export default function CatalogPage() {
                       <div className="min-w-0 flex-1">
                         <p className="text-[15px] leading-snug font-semibold text-on-surface break-words">
                           {row.name}
+                          {archived && <ArchivedChip />}
                         </p>
                         <p className="text-xs text-on-surface-variant mt-0.5 truncate">
                           {row.kind === "product" ? (
@@ -469,7 +506,7 @@ export default function CatalogPage() {
               const canOpen = row.kind === "product" ? canEdit : canEditServices;
 
               return (
-                <li key={`${row.kind}-${row.id}`} className={`even:bg-on-surface/[0.05] ${canMoveStock ? "flex items-stretch" : ""}`}>
+                <li key={`${row.kind}-${row.id}`} className={`even:bg-on-surface/[0.05] ${canMoveStock ? "flex items-stretch" : ""} ${archived ? "opacity-60" : ""}`}>
                   {canOpen ? (
                     <Link
                       href={catalogEditHref(row)}
@@ -538,8 +575,9 @@ export default function CatalogPage() {
                     ? stockStatusOf(row.product.stock_level, row.product.minimum_stock)
                     : null;
                   const canOpen = row.kind === "product" ? canEdit : canEditServices;
+                  const archived = isArchivedRow(row);
                   return (
-                    <tr key={`${row.kind}-${row.id}`} className="transition-colors group hover:bg-surface-container-lowest">
+                    <tr key={`${row.kind}-${row.id}`} className={`transition-colors group hover:bg-surface-container-lowest ${archived ? "opacity-60" : ""}`}>
                         <td className="px-7 py-3.5">
                           <div className="flex items-center gap-3.5">
                             <div className="relative w-10 h-10 rounded-xl bg-surface-container border border-outline-variant/10 flex items-center justify-center text-on-surface-variant/30 overflow-hidden shrink-0">
@@ -560,6 +598,7 @@ export default function CatalogPage() {
                             </div>
                             <div>
                               <span className="text-on-surface text-sm font-semibold">{row.name}</span>
+                              {archived && <ArchivedChip />}
                               {row.kind === "service" && (
                                 <span className="block text-xs text-on-surface-variant">
                                   {row.service.duration_minutes} min
@@ -642,14 +681,15 @@ export default function CatalogPage() {
                             <button
                               onClick={(e) => {
                                 e.preventDefault();
-                                if (row.status === "inactive") {
+                                if (archived) {
                                   setRowActive(row, true);
                                 } else {
                                   setConfirmArchive(row);
                                 }
                               }}
                               className="w-9 h-9 flex items-center justify-center rounded-xl text-on-surface-variant hover:text-error-dim hover:bg-error-container/10 transition-colors"
-                              title={row.status === "inactive" ? "Activar" : "Archivar"}
+                              title={archived ? "Activar" : "Archivar"}
+                              aria-label={archived ? `Activar ${row.name}` : `Archivar ${row.name}`}
                             >
                               <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-4 h-4">
                                 <polyline points="21 8 21 21 3 21 3 8" />

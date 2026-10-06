@@ -42,6 +42,12 @@ export interface ExpenseSlice {
 export interface FinanceOverview {
   revenue: number;
   expenses: number;
+  /**
+   * FLUJO DE CAJA: ingresos − egresos, compras de mercadería incluidas. NO es
+   * utilidad: un mes que repone inventario sale en rojo aunque haya ganado.
+   * Un margen real necesita el costo congelado por línea, que `sale_items`
+   * todavía no guarda.
+   */
   net: number;
   salesCount: number;
   monthly: MonthlyPoint[];
@@ -164,7 +170,115 @@ export async function fetchTodaySales(): Promise<TodaySales> {
   };
 }
 
+/**
+ * Qué es cada documento de `invoices` para las finanzas.
+ *
+ * - `factura` cobrada: INGRESO.
+ * - `compra` pagada: GASTO (lo que se le compra a un proveedor).
+ * - `cotizacion`: NADA. Es una oferta, no un cobro; aunque alguien la haya
+ *   marcado "Pagada" (Facturación ya no lo permite, pero hay filas viejas), lo
+ *   que se cobra es la factura que sale de ella. Contarla inflaba los ingresos.
+ */
+export function invoiceRole(type: string): "income" | "expense" | null {
+  if (type === "factura") return "income";
+  if (type === "compra") return "expense";
+  return null;
+}
+
+// ---- RPC `finance_overview` (agregación en la base) ----
+
+/** Forma cruda que devuelve el RPC. Ver el SQL propuesto en el informe F1. */
+export interface FinanceOverviewRpc {
+  revenue?: number | string | null;
+  expenses?: number | string | null;
+  sales_count?: number | string | null;
+  monthly?: { key: string; income: number | string; expense: number | string }[] | null;
+  by_category?: { id: string; label: string; color: string; amount: number | string }[] | null;
+  recent?: {
+    id: string;
+    kind: "sale" | "expense";
+    label: string;
+    amount: number | string;
+    date: string;
+    day: string;
+  }[] | null;
+}
+
+/**
+ * Traduce la respuesta del RPC al mismo `FinanceOverview` que arma la ruta
+ * paginada. Los meses salen de `lastMonths` (los del navegador) y se llenan
+ * con lo que mande la base: un mes sin movimientos no viene en la respuesta y
+ * tiene que aparecer igual, en cero.
+ */
+export function overviewFromRpc(raw: FinanceOverviewRpc, months = lastMonths(MONTHS)): FinanceOverview {
+  const n = (v: unknown) => Number(v ?? 0) || 0;
+  const byKey = new Map((raw.monthly ?? []).map((m) => [m.key, m]));
+  const revenue = n(raw.revenue);
+  const expenses = n(raw.expenses);
+  return {
+    revenue,
+    expenses,
+    net: revenue - expenses,
+    salesCount: n(raw.sales_count),
+    monthly: months.map((m) => ({
+      ...m,
+      income: n(byKey.get(m.key)?.income),
+      expense: n(byKey.get(m.key)?.expense),
+    })),
+    recent: (raw.recent ?? []).map((r) => ({
+      id: r.id,
+      kind: r.kind,
+      label: r.label,
+      amount: n(r.amount),
+      date: r.date,
+      day: r.day,
+    })),
+    expensesByCategory: (raw.by_category ?? [])
+      .map((c) => ({ id: c.id, label: c.label, color: c.color, amount: n(c.amount) }))
+      .filter((c) => c.amount > 0)
+      .sort((a, b) => b.amount - a.amount),
+  };
+}
+
+/**
+ * Si la base todavía no tiene el RPC (migración sin aplicar), se recuerda por
+ * sesión para no pagar un 404 en cada visita al panel.
+ */
+let financeRpcMissing = false;
+
+const isMissingRpc = (error: { code?: string; message?: string }) =>
+  error.code === "PGRST202" || error.code === "42883" || /finance_overview/.test(error.message ?? "");
+
+/**
+ * Resumen del panel.
+ *
+ * Primero intenta `finance_overview`, que agrega en SQL y devuelve unos pocos
+ * cientos de bytes sin importar cuántas ventas tenga el negocio. Si la base no
+ * lo tiene todavía, cae a la ruta paginada de siempre (`fetchOverviewPaged`),
+ * que es correcta pero descarga TODO el historial.
+ */
 export async function fetchOverview(): Promise<FinanceOverview> {
+  if (!financeRpcMissing) {
+    const supabase = createClient();
+    const rpc = supabase.rpc as unknown as (
+      fn: string,
+      args: Record<string, unknown>,
+    ) => PromiseLike<{ data: unknown; error: { code?: string; message?: string } | null }>;
+    const { data, error } = await rpc.call(supabase, "finance_overview", {
+      // El mes y el día se cortan en la zona del negocio, que es la del
+      // dispositivo que mira el panel (mismo criterio que el resto de la app).
+      p_tz: Intl.DateTimeFormat().resolvedOptions().timeZone || "America/Bogota",
+      p_months: MONTHS,
+    });
+    if (!error) return overviewFromRpc((data ?? {}) as FinanceOverviewRpc);
+    if (!isMissingRpc(error)) throw error;
+    financeRpcMissing = true;
+  }
+  return fetchOverviewPaged();
+}
+
+/** Ruta de respaldo: trae las filas y agrega en el navegador. */
+async function fetchOverviewPaged(): Promise<FinanceOverview> {
   const supabase = createClient();
   // Las tres consultas se paginan (fetchAllRows): sin eso PostgREST devolvía
   // las primeras 1.000 filas y los KPIs del panel salían por debajo de lo real.
@@ -202,18 +316,20 @@ export async function fetchOverview(): Promise<FinanceOverview> {
         .from("invoices")
         .select("id, invoice_number, type, total, status, issue_date")
         .eq("status", "paid")
+        // Las cotizaciones no son plata: ni se piden (ver `invoiceRole`).
+        .in("type", ["factura", "compra"])
         .order("issue_date", { ascending: false })
         .order("id")
         .range(from, to),
     ),
   ]);
 
-  // Facturas de VENTA pagadas: ingreso. Las pendientes y las cotizaciones sin
-  // pagar ya quedaron afuera por el filtro de status.
-  const salesInvoices = paidInvoices.filter((i) => i.type !== "compra");
+  // Facturas de VENTA pagadas: ingreso. Las pendientes ya quedaron afuera por
+  // el filtro de status; las cotizaciones, aunque digan "Pagada", no cuentan.
+  const salesInvoices = paidInvoices.filter((i) => invoiceRole(i.type) === "income");
   // Compras pagadas: gasto. Se cuentan las pagadas y no todas, por coherencia
   // con el lado del ingreso: una compra a crédito todavía no salió de la caja.
-  const purchases = paidInvoices.filter((i) => i.type === "compra");
+  const purchases = paidInvoices.filter((i) => invoiceRole(i.type) === "expense");
 
   const completed = sales.filter((s) => s.status === "completed");
   const revenue =

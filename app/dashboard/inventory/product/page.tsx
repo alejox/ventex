@@ -626,6 +626,7 @@ function ProductForm() {
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
             onReset={resetImage}
+            itemLabel={itemType === "Servicio" ? "servicio" : "producto"}
           />
         )}
         {imageError && (
@@ -989,13 +990,17 @@ function ProductForm() {
 
               <div className="mt-4 flex items-center justify-between p-3 sm:p-4 bg-surface-container-low rounded-xl border border-outline-variant/10">
                 <div>
-                  <p className="text-sm font-bold text-on-surface">Servicio Activo</p>
-                  <p className="text-xs text-on-surface-variant mt-1">Disponible para agendar y cobrar.</p>
+                  <p id="service-active-label" className="text-sm font-bold text-on-surface">Servicio Activo</p>
+                  <p id="service-active-help" className="text-xs text-on-surface-variant mt-1">Disponible para agendar y cobrar.</p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setServiceStatus((s) => (s === "active" ? "inactive" : "active"))}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none shrink-0 ml-4 ${
+                  role="switch"
+                  aria-checked={serviceStatus === "active"}
+                  aria-labelledby="service-active-label"
+                  aria-describedby="service-active-help"
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 shrink-0 ml-4 ${
                     serviceStatus === "active" ? "bg-[#6063ee]" : "bg-outline-variant/30"
                   }`}
                 >
@@ -1016,6 +1021,10 @@ function ProductForm() {
               <button
                 type="button"
                 onClick={() => setForm({ ...form, has_commission: !form.has_commission, commission_type: "percentage", commission_value: "" })}
+                role="switch"
+                aria-checked={form.has_commission}
+                aria-labelledby="commission-label"
+                aria-describedby="commission-help"
                 className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${
                   form.has_commission ? "bg-[#6063ee]" : "bg-outline-variant/30"
                 }`}
@@ -1025,8 +1034,10 @@ function ProductForm() {
                 }`} />
               </button>
               <div>
-                <p className="text-sm font-semibold text-on-surface">Genera comisión</p>
-                <p className="text-xs text-on-surface-variant">Asigna una comisión al personal por este producto</p>
+                <p id="commission-label" className="text-sm font-semibold text-on-surface">Genera comisión</p>
+                <p id="commission-help" className="text-xs text-on-surface-variant">
+                  Asigna una comisión al personal por este {itemType === "Servicio" ? "servicio" : "producto"}
+                </p>
               </div>
             </div>
 

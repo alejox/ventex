@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
+import { toast } from "sonner";
 import { usePosStore } from "@/stores/pos.store";
 import { useSettingsStore } from "@/stores/settings.store";
 import { useShiftsStore } from "@/stores/shifts.store";
@@ -15,8 +17,6 @@ import {
   type PaymentMethod,
   type CartLine,
   type CatalogItem,
-  type CustomerOption,
-  type SaleTotals,
 } from "@/services/pos.service";
 import { BarcodeScannerModal } from "@/components/BarcodeScannerModal";
 import { CustomerModal } from "@/components/CustomerModal";
@@ -64,6 +64,7 @@ import { PlanLimitModal } from "./components/PlanLimitModal";
 import { OfflineQueueBadge } from "./components/OfflineQueueBadge";
 import { RejectedSalesModal } from "./components/RejectedSalesModal";
 import { formatMoney } from "@/lib/money";
+import { buildReceiptFromCart, buildReceiptFromSale, type ReceiptData } from "@/lib/receipt";
 
 const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
   { value: "efectivo", label: "Efectivo" },
@@ -72,19 +73,10 @@ const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
   { value: "credito", label: "Cr\u00e9dito / Fiado" },
 ];
 
-interface ReceiptData {
-  items: { name: string; sku: string | null; quantity: number; price: number; total: number; packageLabel?: string | null }[];
-  customer: CustomerOption | null;
-  totals: SaleTotals;
-  paymentMethod: PaymentMethod;
-  date: Date;
-  businessName?: string | null;
-  logoUrl?: string | null;
-  municipality?: string | null;
-  phone?: string | null;
-  taxResponsibility?: string | null;
-  includeTax: boolean;
-}
+/** Cuánto dura el resaltado de la línea recién escaneada (C24). */
+const SCAN_FLASH_MS = 1200;
+/** Ventana para deshacer "Vaciar venta" (C5). */
+const UNDO_CLEAR_MS = 5000;
 
 export default function POSPage() {
   const catalog = usePosStore((s) => s.catalog);
@@ -102,6 +94,12 @@ export default function POSPage() {
   const clearStockAlert = usePosStore((s) => s.clearStockAlert);
   const planLimitHit = usePosStore((s) => s.planLimitHit);
   const clearPlanLimit = usePosStore((s) => s.clearPlanLimit);
+  const lastSaleId = usePosStore((s) => s.lastSaleId);
+  const lastSaleNumber = usePosStore((s) => s.lastSaleNumber);
+  const postSaleWarning = usePosStore((s) => s.postSaleWarning);
+  const clearPostSaleWarning = usePosStore((s) => s.clearPostSaleWarning);
+  const undoClearCart = usePosStore((s) => s.undoClearCart);
+  const fetchSaleReceipt = usePosStore((s) => s.fetchSaleReceipt);
 
   const businessProfile = useSettingsStore((s) => s.settings?.business_profile);
   const fetchSettings = useSettingsStore((s) => s.fetchSettings);
@@ -178,6 +176,15 @@ export default function POSPage() {
       clearStockAlert();
     }
   }, [stockAlert, clearStockAlert, allowOversell]);
+
+  // La venta ya quedó; esto es lo que falló DESPUÉS (domicilio, refresco del
+  // stock). Ámbar y no rojo: la acción sí ocurrió (C14).
+  useEffect(() => {
+    if (postSaleWarning) {
+      notifyWarning("Venta registrada con un pendiente", postSaleWarning);
+      clearPostSaleWarning();
+    }
+  }, [postSaleWarning, clearPostSaleWarning]);
 
   const init = usePosStore((s) => s.init);
   const addTab = usePosStore((s) => s.addTab);
@@ -268,6 +275,15 @@ export default function POSPage() {
   const [closingTabId, setClosingTabId] = useState<string | null>(null);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [receiptData, setReceiptData] = useState<ReceiptData | null>(null);
+  /**
+   * El canje del premio / los puntos / el mensaje de WhatsApp siguen corriendo
+   * DESPUÉS de abrir el modal de éxito. Mientras tanto el modal no se cierra
+   * solo, para que el botón de WhatsApp no llegue a un modal que ya se fue.
+   */
+  const [postSalePending, setPostSalePending] = useState(false);
+  /** Línea del carrito recién agregada por el escáner, resaltada un momento. */
+  const [flashKey, setFlashKey] = useState<string | null>(null);
+  const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [amountTendered, setAmountTendered] = useState("");
   /**
    * Por qué falló el último intento de cobro, mostrado DENTRO del modal de
@@ -325,11 +341,16 @@ export default function POSPage() {
     // es peor que no ofrecerlo.
     // Tampoco con cambio por entregar: el número tiene que seguir en pantalla
     // hasta que el cajero lo cuente y cierre él.
-    if (isSuccessModalOpen && !promoSend && !(lastSaleSummary && lastSaleSummary.change > 0)) {
+    if (
+      isSuccessModalOpen &&
+      !promoSend &&
+      !postSalePending &&
+      !(lastSaleSummary && lastSaleSummary.change > 0)
+    ) {
       const timer = setTimeout(() => setIsSuccessModalOpen(false), 5000);
       return () => clearTimeout(timer);
     }
-  }, [isSuccessModalOpen, promoSend, lastSaleSummary]);
+  }, [isSuccessModalOpen, promoSend, postSalePending, lastSaleSummary]);
 
   useEffect(() => { fetchPromos(); }, [fetchPromos]);
   useEffect(() => { fetchLoyaltyConfig(); }, [fetchLoyaltyConfig]);
@@ -461,10 +482,21 @@ export default function POSPage() {
         return source === "input";
       }
       addToCart(match);
-      notifySuccess("Agregado a la venta", match.name);
+      // Sin toast (C24): con un escáner, un aviso por lectura tapa la pantalla.
+      // La confirmación es la propia línea del carrito, resaltada un momento.
+      if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
+      setFlashKey(lineKey(match.id));
+      flashTimerRef.current = setTimeout(() => setFlashKey(null), SCAN_FLASH_MS);
       return true;
     },
     [catalog, addToCart, allowOversell, cart, salesBlocked],
+  );
+
+  useEffect(
+    () => () => {
+      if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
+    },
+    [],
   );
 
   const cartUnits = useMemo(() => cart.reduce((sum, l) => sum + l.quantity, 0), [cart]);
@@ -650,28 +682,14 @@ export default function POSPage() {
     // Mismo criterio que el modal de cobro: solo hay vuelto en efectivo sin
     // pago dividido. Se calcula acá porque después del cobro el total es cero.
     const summary = saleChangeSummary(totals.total, paymentMethod, splits.length, amountTendered);
-    const data: ReceiptData = {
-      items: cart.map((l) => ({
-        name: l.item.name,
-        sku: l.item.sku,
-        quantity: l.quantity,
-        packageLabel:
-          l.unitKind === "package" ? `Caja x${l.item.units_per_package} u.` : null,
-        price: linePrice(l),
-        total: linePrice(l) * l.quantity,
-      })),
-      customer: selectedCustomer,
-      totals,
-      paymentMethod,
-      date: new Date(),
-      businessName: businessProfile?.businessName ?? null,
-      logoUrl: businessProfile?.logoUrl ?? null,
-      municipality: businessProfile?.municipality ?? null,
-      phone: businessProfile?.phone ?? null,
-      taxResponsibility: businessProfile?.taxResponsibility ?? null,
-      includeTax,
-    };
-    setReceiptData(data);
+    // La foto del carrito para el comprobante. El recibo se ARMA después de
+    // `sold` (C13), con el id real de la venta, pero lo que se cobró hay que
+    // capturarlo ahora: al volver, el store ya vació la pestaña.
+    const soldCart = cart;
+    const soldTotals = totals;
+    const soldPayment = { paymentMethod, transferMethod, cardMethod, splits };
+    const soldSeller = staff.find((m) => m.id === staffId)?.full_name ?? null;
+
     const outcome = await checkout();
     if (outcome === "failed") {
       // El store deja el motivo en `error` (stock insuficiente, cupo de
@@ -687,180 +705,276 @@ export default function POSPage() {
       }
       return false;
     }
-    // "queued" es un cobro bueno: la venta est\u00e1 guardada en el dispositivo y se
-    // env\u00eda sola cuando vuelva la red. Se limpia la pantalla igual que en una
-    // venta normal, pero el aviso no puede prometer que ya qued\u00f3 registrada.
-    if (outcome === "sold" || outcome === "queued") {
-      setLastSaleQueued(outcome === "queued");
-      setLastSaleSummary(summary);
-      setIsCheckoutModalOpen(false);
 
-      // El cajón, PRIMERO y sin await.
-      //
-      // Antes se abría de rebote: el driver metía el pulso al arrancar el
-      // trabajo de impresión, así que el cajón no respondía a que se cobrara
-      // sino a que alguien apretara "Imprimir". Cobrar sin imprimir dejaba la
-      // plata afuera. Acá el disparo cuelga del cobro, que es lo que de verdad
-      // significa "abrí el cajón".
-      //
-      // Va antes de las idas a la base por promociones: el cliente está con el
-      // billete en la mano y esperar una consulta de red para abrir el cajón se
-      // siente roto. Y va sin `await` para que un puerto lento no frene la
-      // pantalla — `kick()` no lanza nunca.
-      //
-      // `ready` es la condición que evita el ruido: una terminal sin cajón
-      // configurado no tiene por qué comerse un cartel de error en cada venta.
-      openCashDrawerOnSale();
+    // "queued" es un cobro bueno: la venta está guardada en el dispositivo y se
+    // envía sola cuando vuelva la red. Se limpia la pantalla igual que en una
+    // venta normal, pero el aviso no puede prometer que ya quedó registrada.
+    const saleId = outcome === "sold" ? usePosStore.getState().lastSaleId : null;
+    setReceiptData(
+      buildReceiptFromCart({
+        cart: soldCart,
+        totals: soldTotals,
+        customer: selectedCustomer,
+        ...soldPayment,
+        tendered: summary.tendered,
+        change: summary.change,
+        cashier: profile?.fullName ?? null,
+        seller: soldSeller,
+        business: {
+          businessName: businessProfile?.businessName ?? null,
+          logoUrl: businessProfile?.logoUrl ?? null,
+          municipality: businessProfile?.municipality ?? null,
+          phone: businessProfile?.phone ?? null,
+          taxResponsibility: businessProfile?.taxResponsibility ?? null,
+        },
+        includeTax,
+        date: new Date(),
+        saleId,
+        // El número llega después, sin bloquear el cobro: se completa al
+        // dibujar el recibo (ver `receiptToPrint`).
+        saleNumber: null,
+        queued: outcome === "queued",
+        priceOf: linePrice,
+      }),
+    );
+    setLastSaleQueued(outcome === "queued");
+    setLastSaleSummary(summary);
+    setIsCheckoutModalOpen(false);
 
-      // La cita queda COMPLETADA. Si tenía cliente ya lo hizo el trigger de la
-      // base; esto cubre la que no lo tenía. En "queued" no hay venta todavía:
-      // al enviarse, el trigger se encarga de las que tienen cliente.
-      if (hasAppointments) {
-        const saleId = usePosStore.getState().lastSaleId;
-        if (outcome === "sold" && citaCobrada && saleId) {
-          void linkAppointmentSale(citaCobrada, saleId).then(() => fetchBillable(toISODate()));
-        } else {
-          void fetchBillable(toISODate());
-        }
-        if (citaCobrada) setCitaEnCobro(null);
-      }
+    // El cajón, PRIMERO y sin await.
+    //
+    // Antes se abría de rebote: el driver metía el pulso al arrancar el
+    // trabajo de impresión, así que el cajón no respondía a que se cobrara
+    // sino a que alguien apretara "Imprimir". Cobrar sin imprimir dejaba la
+    // plata afuera. Acá el disparo cuelga del cobro, que es lo que de verdad
+    // significa "abrí el cajón".
+    //
+    // `ready` es la condición que evita el ruido: una terminal sin cajón
+    // configurado no tiene por qué comerse un cartel de error en cada venta.
+    openCashDrawerOnSale();
 
-      if (outcome === "sold") {
-        notifySuccess(
-          "\u00a1Venta realizada con \u00e9xito! \ud83c\udf89",
-          "El comprobante de la transacci\u00f3n est\u00e1 listo."
-        );
+    // La cita queda COMPLETADA. Si tenía cliente ya lo hizo el trigger de la
+    // base; esto cubre la que no lo tenía. En "queued" no hay venta todavía:
+    // al enviarse, el trigger se encarga de las que tienen cliente.
+    if (hasAppointments) {
+      if (outcome === "sold" && citaCobrada && saleId) {
+        void linkAppointmentSale(citaCobrada, saleId).then(() => fetchBillable(toISODate()));
       } else {
-        notifyWarning(
-          "Venta cobrada sin conexi\u00f3n",
-          "Qued\u00f3 guardada en este dispositivo y se enviar\u00e1 sola cuando vuelva internet. No cierres sesi\u00f3n."
-        );
+        void fetchBillable(toISODate());
       }
-      setSearch("");
-      setActiveCategory("Todos");
-      setAmountTendered("");
-      setIsCartOpen(false);
+      if (citaCobrada) setCitaEnCobro(null);
+    }
 
-      // El mensaje del contador. Se arma DESPUÉS de cobrar y leyendo la base,
-      // porque el trigger ya sumó allá y la copia en memoria quedó vieja.
-      //
-      // `!queued` es la condición que más importa: una venta cobrada sin
-      // conexión todavía no llegó al servidor, así que el contador no subió y
-      // el mensaje diría un número que no corresponde.
+    // Sin toast de "venta realizada" (C24): el modal de éxito ya lo dice, y
+    // en una venta encolada también explica que se envía sola.
+    setSearch("");
+    setActiveCategory("Todos");
+    setAmountTendered("");
+    setIsCartOpen(false);
+
+    // Lo que depende de la base (canje del premio, puntos, mensaje del
+    // contador) corre DESPUÉS de abrir el modal de éxito: el cajero ve el
+    // cambio a entregar sin esperar dos idas a la red. Ninguna de esas
+    // piezas puede deshacer la venta; si fallan, avisan.
+    const premioAplicado = outcome === "sold" ? promoAplicado : null;
+    const puntosAplicados = outcome === "sold" ? loyaltyApplied : null;
+    const cliente = selectedCustomer;
+    const cobroCortes =
+      outcome === "sold" &&
+      promoConfig.enabled &&
+      promoConfig.serviceIds.length > 0 &&
+      Boolean(cliente) &&
+      soldCart.some((l) => l.item.kind === "service" && promoConfig.serviceIds.includes(l.item.id));
+
+    setPromoAplicado(null);
+    // Fuerza a releer el saldo la próxima vez que se elija este cliente: la
+    // copia en memoria quedó vieja apenas se ganaron o canjearon puntos.
+    setLoyaltyBalance(null);
+    setPromoSend(null);
+
+    const hayPendientes = Boolean(cliente) && (Boolean(premioAplicado) || Boolean(puntosAplicados) || cobroCortes);
+    setPostSalePending(hayPendientes);
+    setIsSuccessModalOpen(true);
+    if (!hayPendientes || !cliente) return true;
+
+    void (async () => {
       // El canje va DESPUÉS de que la venta quedó registrada, nunca antes: si
       // fallara el cobro, un canje adelantado le habría quemado el premio al
       // cliente por una venta que no existió. Al revés el peor caso es que
       // conserve el premio, y el cajero se entera.
-
+      //
       // Qué premio se entregó en ESTA venta, si se entregó alguno. Solo el POS
       // lo sabe con nombre y apellido, y por eso su mensaje puede nombrarlo:
       // desde Clientes o Promociones el contador en cero dice que hubo un canje
       // pero no cuál.
       let premioEntregado: string | null = null;
-
-      if (outcome === "sold" && promoAplicado && selectedCustomer) {
-        try {
-          // El id de la venta ata el canje a ella: sin eso, anularla dejaría al
-          // cliente sin premio y sin progreso por una venta que no existió.
-          const r = await redeemPromo(
-            selectedCustomer.id,
-            promoAplicado.amount,
-            usePosStore.getState().lastSaleId,
-          );
-          premioEntregado = r.reward;
-          // El número lo dice la base, no una promesa fija: "vuelve a cero" era
-          // mentira cuando el cliente había pagado un corte de más antes de
-          // canjear, y el cajero se enteraba recién en la ficha del cliente.
-          notifySuccess(
-            "Premio canjeado",
-            r.progress_after === 0
-              ? `${r.reward}. El contador arranca de cero.`
-              : `${r.reward}. El contador arranca en ${r.progress_after}.`,
-          );
-        } catch (e) {
-          notifyError(
-            "La venta quedó, pero el premio NO se canjeó",
-            e instanceof Error ? e.message : "Canjealo a mano desde Promociones.",
-          );
+      try {
+        if (premioAplicado) {
+          try {
+            // El id de la venta ata el canje a ella: sin eso, anularla dejaría al
+            // cliente sin premio y sin progreso por una venta que no existió.
+            const r = await redeemPromo(cliente.id, premioAplicado.amount, saleId);
+            premioEntregado = r.reward;
+            // El número lo dice la base, no una promesa fija: "vuelve a cero" era
+            // mentira cuando el cliente había pagado un corte de más antes de
+            // canjear, y el cajero se enteraba recién en la ficha del cliente.
+            notifySuccess(
+              "Premio canjeado",
+              r.progress_after === 0
+                ? `${r.reward}. El contador arranca de cero.`
+                : `${r.reward}. El contador arranca en ${r.progress_after}.`,
+            );
+          } catch (e) {
+            notifyError(
+              "La venta quedó, pero el premio NO se canjeó",
+              e instanceof Error ? e.message : "Canjealo a mano desde Promociones.",
+            );
+          }
         }
-      }
-      setPromoAplicado(null);
 
-      // Mismo orden que el premio de cortes: el canje corre DESPUÉS de que la
-      // venta quedó registrada, atado a su `sale_id`. Si la venta se encoló
-      // sin conexión (`outcome === "queued"`) todavía no hay un `sale_id` del
-      // servidor con qué canjear — el control ya viene deshabilitado offline
-      // (`isOnline`), así que en la práctica no debería llegar acá con
-      // `loyaltyApplied` puesto, pero por las dudas no se intenta.
-      if (outcome === "sold" && loyaltyApplied && selectedCustomer) {
-        const saleId = usePosStore.getState().lastSaleId;
-        try {
-          if (!saleId) throw new Error("No se encontró el id de la venta.");
-          const newBalance = await redeemLoyaltyPoints(saleId, loyaltyApplied.points);
-          notifySuccess(
-            "Puntos canjeados",
-            `Se descontaron ${loyaltyApplied.points} puntos. Saldo: ${newBalance}.`,
-          );
-        } catch (e) {
-          // La venta ya está cobrada y el descuento ya se aplicó al cliente;
-          // lo único que puede fallar es la resta del saldo. Se avisa en vez
-          // de reintentar solo, mismo trato que el premio de cortes.
-          notifyError(
-            "La venta quedó, pero los puntos NO se descontaron del saldo",
-            e instanceof Error ? e.message : "Reportalo si vuelve a pasar.",
-          );
+        // Mismo orden que el premio de cortes: el canje corre DESPUÉS de que la
+        // venta quedó registrada, atado a su `sale_id`. Una venta encolada sin
+        // conexión no llega acá (`puntosAplicados` es null fuera de `sold`).
+        if (puntosAplicados) {
+          try {
+            if (!saleId) throw new Error("No se encontró el id de la venta.");
+            const newBalance = await redeemLoyaltyPoints(saleId, puntosAplicados.points);
+            notifySuccess(
+              "Puntos canjeados",
+              `Se descontaron ${puntosAplicados.points} puntos. Saldo: ${newBalance}.`,
+            );
+          } catch (e) {
+            // La venta ya está cobrada y el descuento ya se aplicó al cliente;
+            // lo único que puede fallar es la resta del saldo. Se avisa en vez
+            // de reintentar solo, mismo trato que el premio de cortes.
+            notifyError(
+              "La venta quedó, pero los puntos NO se descontaron del saldo",
+              e instanceof Error ? e.message : "Reportalo si vuelve a pasar.",
+            );
+          }
         }
-      }
-      // Fuerza a releer el saldo la próxima vez que se elija este cliente: la
-      // copia en memoria quedó vieja apenas se ganaron o canjearon puntos.
-      setLoyaltyBalance(null);
 
-      setPromoSend(null);
-      const cobroCortes =
-        outcome === "sold" &&
-        promoConfig.enabled &&
-        promoConfig.serviceIds.length > 0 &&
-        Boolean(selectedCustomer) &&
-        cart.some((l) => l.item.kind === "service" && promoConfig.serviceIds.includes(l.item.id));
-
-      // El canje también manda mensaje aunque el premio no haya sido un corte:
-      // lo que se le cuenta al cliente es que lo canjeó, no qué se descontó.
-      if ((cobroCortes || premioEntregado) && selectedCustomer) {
-        try {
-          const { count, progress, phone } = await fetchCustomerPromoTarget(selectedCustomer.id);
-          const nombre = selectedCustomer.full_name.split(" ")[0];
-          const negocio = businessDisplayName(businessProfile?.businessName, profile?.businessName);
-          // Dos mensajes distintos para dos momentos distintos. En la visita del
-          // canje el contador quedó en 0 y contarlo sería mandarle "Ya llevás 0
-          // cortes" a quien se acaba de llevar el premio; el contador vuelve a
-          // ser noticia en la visita siguiente.
-          const texto = premioEntregado
-            ? renderRedeemMessage(null, {
-                cliente: nombre,
-                negocio,
-                premio: premioEntregado,
-                total: count,
-              })
-            : renderPromoMessage(promoConfig.message, {
-                cliente: nombre,
-                // El premio sale del PROGRESO; el histórico va como `{total}`.
-                cortes: progress,
-                total: count,
-                negocio,
-                premio: availableReward(progress, promoMilestones)?.reward ?? null,
-              });
-          const link = buildWhatsappLink(phone, texto);
-          if (link) setPromoSend({ link, name: selectedCustomer.full_name.split(" ")[0] });
-        } catch {
-          // Que falle leer el contador no puede ensuciar una venta que ya se
-          // cobró: se pierde el botón, no la venta.
+        // El mensaje del contador. Se arma DESPUÉS de cobrar y leyendo la base,
+        // porque el trigger ya sumó allá y la copia en memoria quedó vieja.
+        // El canje también manda mensaje aunque el premio no haya sido un corte:
+        // lo que se le cuenta al cliente es que lo canjeó, no qué se descontó.
+        if (cobroCortes || premioEntregado) {
+          try {
+            const { count, progress, phone } = await fetchCustomerPromoTarget(cliente.id);
+            const nombre = cliente.full_name.split(" ")[0];
+            const negocio = businessDisplayName(businessProfile?.businessName, profile?.businessName);
+            // Dos mensajes distintos para dos momentos distintos. En la visita del
+            // canje el contador quedó en 0 y contarlo sería mandarle "Ya llevás 0
+            // cortes" a quien se acaba de llevar el premio; el contador vuelve a
+            // ser noticia en la visita siguiente.
+            const texto = premioEntregado
+              ? renderRedeemMessage(null, {
+                  cliente: nombre,
+                  negocio,
+                  premio: premioEntregado,
+                  total: count,
+                })
+              : renderPromoMessage(promoConfig.message, {
+                  cliente: nombre,
+                  // El premio sale del PROGRESO; el histórico va como `{total}`.
+                  cortes: progress,
+                  total: count,
+                  negocio,
+                  premio: availableReward(progress, promoMilestones)?.reward ?? null,
+                });
+            const link = buildWhatsappLink(phone, texto);
+            if (link) setPromoSend({ link, name: nombre });
+          } catch {
+            // Que falle leer el contador no puede ensuciar una venta que ya se
+            // cobró: se pierde el botón, no la venta.
+          }
         }
+      } finally {
+        setPostSalePending(false);
       }
-
-      setIsSuccessModalOpen(true);
-    }
+    })();
     return true;
   };
+
+  /**
+   * El comprobante que se imprime. El número de la venta llega DESPUÉS del
+   * cobro (el store lo lee sin bloquear el `sold`), así que se completa acá
+   * al dibujar en vez de con un efecto que vuelva a escribir el estado.
+   */
+  const receiptToPrint: ReceiptData | null =
+    receiptData &&
+    receiptData.saleNumber == null &&
+    receiptData.saleId != null &&
+    receiptData.saleId === lastSaleId &&
+    lastSaleNumber != null
+      ? { ...receiptData, saleNumber: lastSaleNumber }
+      : receiptData;
+
+  /** Monta un comprobante y abre el diálogo de impresión con ESE comprobante. */
+  const printReceipt = useCallback((data: ReceiptData) => {
+    // `flushSync`: `window.print()` toma una foto del DOM en el momento, así
+    // que el recibo nuevo tiene que estar dibujado antes de llamarlo.
+    flushSync(() => setReceiptData(data));
+    window.print();
+  }, []);
+
+  /** Reimprime una venta guardada (C7): "Últimas ventas" del POS. */
+  const handleReprintSale = useCallback(
+    async (saleIdToPrint: string) => {
+      try {
+        const { sale, extras } = await fetchSaleReceipt(saleIdToPrint);
+        printReceipt(
+          buildReceiptFromSale({
+            sale,
+            extras,
+            includeTax,
+            business: {
+              businessName: businessProfile?.businessName ?? null,
+              logoUrl: businessProfile?.logoUrl ?? null,
+              municipality: businessProfile?.municipality ?? null,
+              phone: businessProfile?.phone ?? null,
+              taxResponsibility: businessProfile?.taxResponsibility ?? null,
+            },
+          }),
+        );
+      } catch (e) {
+        notifyError(
+          "No se pudo reimprimir",
+          e instanceof Error ? e.message : "Revisa la conexión y vuelve a intentarlo.",
+        );
+      }
+    },
+    [fetchSaleReceipt, printReceipt, includeTax, businessProfile],
+  );
+
+  /** "Vaciar venta" con red de seguridad: 5 s para deshacerlo (C5). */
+  const handleClearCart = useCallback(() => {
+    clearCart();
+    setIsCartOpen(false);
+    toast.custom(
+      (t) => (
+        <div
+          role="status"
+          className="flex w-[min(356px,calc(100vw-2rem))] items-center gap-3 rounded-xl border border-outline-variant/30 bg-inverse-surface px-4 py-3 text-inverse-on-surface shadow-lg"
+        >
+          <span className="flex-1 text-sm font-semibold">Venta vaciada</span>
+          <button
+            type="button"
+            onClick={() => {
+              toast.dismiss(t);
+              if (!undoClearCart()) {
+                notifyError("No se pudo deshacer", "La venta ya tiene ítems nuevos.");
+              }
+            }}
+            className="shrink-0 rounded-lg px-3 py-1.5 text-sm font-bold text-inverse-primary hover:bg-inverse-on-surface/10 transition-colors"
+          >
+            Deshacer
+          </button>
+        </div>
+      ),
+      { duration: UNDO_CLEAR_MS },
+    );
+  }, [clearCart, undoClearCart]);
 
   // Se lee una vez al montar: la config del cajón vive en localStorage (es de
   // este dispositivo) y el permiso del puerto lo recuerda el navegador.
@@ -1060,7 +1174,7 @@ export default function POSPage() {
             promoSlot={
               isTienda ? (
                 (loyaltyConfig.enabled && customerId) || loyaltyApplied ? (
-                  <div className="mx-4 mt-3 rounded-xl border border-[#6063ee]/30 bg-[#6063ee]/10 px-4 py-3 flex flex-col gap-2.5">
+                  <div className="mx-4 mt-3 rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 flex flex-col gap-2.5">
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
                         {customerId && <p className="text-sm font-bold text-on-surface">
@@ -1124,7 +1238,7 @@ export default function POSPage() {
                           <button
                             type="button"
                             onClick={handleApplyLoyaltyPoints}
-                            className="shrink-0 px-3 py-1.5 rounded-lg bg-[#6063ee] text-white text-[11px] font-bold hover:bg-[#4f52d1] transition-colors"
+                            className="shrink-0 px-3 py-1.5 rounded-lg bg-primary text-on-primary text-[11px] font-bold hover:bg-primary-dim transition-colors"
                           >
                             Canjear
                           </button>
@@ -1134,7 +1248,7 @@ export default function POSPage() {
                   </div>
                 ) : null
               ) : (promoSugerido || promoAplicado) && hitoGanado ? (
-            <div className="mx-4 mt-3 rounded-xl border border-[#10b981]/30 bg-[#10b981]/10 px-4 py-3 flex items-center gap-3">
+            <div className="mx-4 mt-3 rounded-xl border border-accent-fin/30 bg-accent-fin/10 px-4 py-3 flex items-center gap-3">
               <span className="text-xl shrink-0">🎁</span>
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-bold text-on-surface truncate">{hitoGanado.reward}</p>
@@ -1165,7 +1279,7 @@ export default function POSPage() {
                       forTab: activeTabId,
                     });
                   }}
-                  className="shrink-0 px-3 py-1.5 rounded-lg bg-[#10b981] text-white text-[11px] font-bold hover:bg-[#059669] transition-colors"
+                  className="shrink-0 px-3 py-1.5 rounded-lg bg-accent-fin text-background text-[11px] font-bold hover:opacity-90 transition-opacity"
                 >
                   Aplicar −{formatMoney(promoSugerido!.discountAmount)}
                 </button>
@@ -1209,7 +1323,9 @@ export default function POSPage() {
             setQuantity={setQuantity}
             removeFromCart={removeFromCart}
             removeOffer={removeOffer}
-            clearCart={clearCart}
+            clearCart={handleClearCart}
+            flashKey={flashKey}
+            onReprintLast={receiptToPrint ? () => window.print() : null}
             onCheckout={handleCheckoutClick}
             onOpenDiscountModal={() => setIsDiscountModalOpen(true)}
             onOpenSaleConfigModal={() => setIsSaleConfigModalOpen(true)}
@@ -1287,7 +1403,12 @@ export default function POSPage() {
       )}
       {isCustomerModalOpen && <CustomerModal onClose={() => setIsCustomerModalOpen(false)} />}
       {isDiscountModalOpen && <DiscountModal onClose={() => setIsDiscountModalOpen(false)} />}
-      {isRecentSalesModalOpen && <RecentSalesModal onClose={() => setIsRecentSalesModalOpen(false)} />}
+      {isRecentSalesModalOpen && (
+        <RecentSalesModal
+          onClose={() => setIsRecentSalesModalOpen(false)}
+          onReprint={handleReprintSale}
+        />
+      )}
 
       {isWorker && isWithdrawalOpen && <WithdrawalModal onClose={() => setIsWithdrawalOpen(false)} />}
       {isWorker && isOpenShiftOpen && (
@@ -1366,6 +1487,7 @@ export default function POSPage() {
             setIsSuccessModalOpen(false);
           }}
           onClose={() => { setIsSuccessModalOpen(false); setPromoSend(null); }}
+          preparingMessage={postSalePending}
           offline={lastSaleQueued}
           total={lastSaleSummary?.total ?? null}
           tendered={lastSaleSummary?.tendered ?? null}
@@ -1384,7 +1506,7 @@ export default function POSPage() {
           seguir hasta que suban de plan, así que se corta con un modal. */}
       {planLimitHit && <PlanLimitModal onClose={clearPlanLimit} />}
 
-      <PosReceipt data={receiptData} />
+      <PosReceipt data={receiptToPrint} />
     </>
   );
 }

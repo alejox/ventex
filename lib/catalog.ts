@@ -1,5 +1,6 @@
 import type { Product } from "@/services/inventory.service";
 import type { Service } from "@/services/services.service";
+import { needsRestock } from "@/lib/stock";
 
 /**
  * El catálogo del negocio: lo que se puede cobrar, sea mercadería o trabajo.
@@ -112,4 +113,56 @@ export function catalogMatchesQuery(row: CatalogRow, query: string): boolean {
     row.product.sku.toLowerCase().includes(q) ||
     (row.product.barcode ?? "").toLowerCase().includes(q)
   );
+}
+
+/**
+ * Archivado = cualquier estado que no sea "active". Las dos tablas usan
+ * "inactive" para archivar; tratar todo lo demás igual evita que un estado
+ * nuevo aparezca de golpe como vendible en el catálogo.
+ */
+export function isArchivedRow(row: Pick<CatalogRow, "status">): boolean {
+  return row.status !== "active";
+}
+
+/** Filtro "Estado" del catálogo. Activos es el default: es lo que se vende. */
+export type CatalogStatusFilter = "active" | "archived" | "all";
+
+export function catalogMatchesStatus(
+  row: Pick<CatalogRow, "status">,
+  filter: CatalogStatusFilter,
+): boolean {
+  if (filter === "all") return true;
+  return filter === "archived" ? isArchivedRow(row) : !isArchivedRow(row);
+}
+
+/**
+ * Los números de arriba del catálogo, contados SOLO sobre lo activo.
+ *
+ * Lo archivado ya no se ofrece en el POS ni se repone: contarlo inflaba "Total
+ * en catálogo" y, peor, mantenía en "Stock bajo" productos que nadie piensa
+ * volver a comprar.
+ */
+export function catalogKpis(rows: CatalogRow[]): {
+  products: number;
+  services: number;
+  lowStock: number;
+  archived: number;
+} {
+  let products = 0;
+  let services = 0;
+  let lowStock = 0;
+  let archived = 0;
+  for (const row of rows) {
+    if (isArchivedRow(row)) {
+      archived++;
+      continue;
+    }
+    if (row.kind === "product") {
+      products++;
+      if (needsRestock(row.product)) lowStock++;
+    } else {
+      services++;
+    }
+  }
+  return { products, services, lowStock, archived };
 }

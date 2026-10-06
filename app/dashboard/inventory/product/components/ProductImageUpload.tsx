@@ -8,6 +8,8 @@ interface ProductImageUploadProps {
   onDragLeave: (e: React.DragEvent) => void;
   onDrop: (e: React.DragEvent) => void;
   onReset: () => void;
+  /** De qué se está subiendo la foto: el mismo formulario sirve a los dos. */
+  itemLabel?: "producto" | "servicio";
 }
 
 export function ProductImageUpload({
@@ -18,12 +20,13 @@ export function ProductImageUpload({
   onDragLeave,
   onDrop,
   onReset,
+  itemLabel = "producto",
 }: ProductImageUploadProps) {
   return (
     <div className="bg-surface-container rounded-2xl sm:rounded-3xl border border-outline-variant/10 shadow-sm p-4 sm:p-8 space-y-5">
       <div>
-        <h2 className="text-lg font-bold text-on-surface mb-1">Imagen del Producto</h2>
-        <p className="text-sm text-on-surface-variant">Sube una foto para identificar el producto visualmente</p>
+        <h2 className="text-lg font-bold text-on-surface mb-1">Imagen del {itemLabel}</h2>
+        <p className="text-sm text-on-surface-variant">Sube una foto para identificar el {itemLabel} visualmente</p>
       </div>
 
       {imagePreview ? (

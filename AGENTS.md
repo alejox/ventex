@@ -139,6 +139,16 @@ Two products in one: the **Smart Checkout** (hosted payment) and the **ApiFy** R
 - **`/api/billing/recurring` is a documented NO-OP.** ePayco exposes no recurring charge without tokenizing a card (`POST /token/card` takes the raw PAN, expiry and CVC), which would add a PCI surface Ventex does not have. Since no order stores a reusable token, `sync_billing_schedule` leaves `billing_recurring` false everywhere, so there is nobody to charge. The route still **requires `CRON_SECRET`** and returns 503 without it — do **not** re-add an `x-vercel-cron` header bypass: that header is forgeable.
 - **Buying and renewing always go through the checkout — never WhatsApp.** WhatsApp is support-only (`Soporte` button + the "¿Dudas?" link under the landing prices). Don't reintroduce WhatsApp purchase CTAs on the plan cards. If ePayco is unconfigured, `/api/billing/subscribe` degrades with a 503 and a message pointing at WhatsApp; there is no client-side feature flag.
 
+# Primitivas de UI (`components/ui/`)
+
+Para pantallas NUEVAS o al tocar una existente; no hace falta migrar todo de una vez.
+
+- **`Modal`** (`open`, `onClose`, `title`, `size`, `footer`, `dismissible`, `closeOnEscape`, `initialFocusRef`): todo diálogo con contenido propio. Va sobre `<dialog>.showModal()`: foco atrapado, Escape, scroll del fondo bloqueado y `aria-labelledby` vienen solos — no escribas otro `fixed inset-0` a mano. Es controlado: Escape/fondo/X solo PIDEN cierre (`onClose`); si estás guardando, ignorá el pedido. Va en la *top layer* y el resto de la página queda `inert`: un desplegable portaleado tiene que usar `usePortalContainer()` (`portal-container.ts`), como ya hace `Select`, o se abre debajo del fondo y no recibe clics.
+- **`ConfirmDialog` / `useConfirm`**: toda pregunta sí/no antes de una acción (nunca `window.confirm`). Usa `Modal` por dentro; el foco arranca en Cancelar.
+- **`Switch`** (`checked`, `onCheckedChange`, y `label` o `aria-labelledby` o `aria-label`): todo interruptor encendido/apagado. `role="switch"` + `aria-checked`, área táctil de 40px. No más `<input type="checkbox" class="sr-only peer">` con la pista dibujada a mano.
+- **`Button` / `IconButton`**: `variant` primary/secondary/danger/ghost, `size`, `loading` (deshabilita + spinner + `aria-busy`). `type="button"` por defecto: para enviar un formulario, `type="submit"` explícito. `IconButton` exige `aria-label` y mide 40×40.
+- Animaciones de entrada: `animate-in fade-in zoom-in-95 slide-in-from-*` vienen de `tw-animate-css` (importado en `app/globals.css`), y se apagan solas con `prefers-reduced-motion`.
+
 # Next.js 16 specifics
 
 - **`proxy.ts`** (repo root) replaces `middleware.ts`. Exports `proxy(request)`. Handles session refresh and route guards (`/dashboard*`, `/admin*`; **not** `/reseller*` — that route group guards itself via its `layout.tsx` Server Component using `fetchProfileServer()`).

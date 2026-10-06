@@ -1,4 +1,7 @@
 @import "tailwindcss";
+/* Utilidades `animate-in fade-in zoom-in-95 slide-in-from-*` (A19). Sin esta
+   librería esas clases no generaban CSS y los modales aparecían de golpe. */
+@import "tw-animate-css";
 
 /* Brand colors map to the existing theme contract; semantic error/accent roles stay separate. */
 :root {
@@ -361,5 +364,26 @@ html::-webkit-scrollbar-thumb:hover {
   .site-action,
   .site-card {
     transition: none;
+  }
+}
+
+/* tw-animate-css no mira `prefers-reduced-motion`: las entradas de modales y
+   paneles se apagan para quien pidió menos movimiento. `animation: none` deja
+   el elemento en su estado final (las keyframes de entrada parten de un estado
+   intermedio y terminan en el normal), así que no queda nada a medio aparecer. */
+/* Fondo de <Modal> (components/ui/Modal.tsx): el panel entra con
+   `animate-in`; el ::backdrop no acepta clases, así que su fundido va acá. */
+@keyframes ui-modal-backdrop-in {
+  from { opacity: 0; }
+}
+.ui-modal::backdrop {
+  animation: ui-modal-backdrop-in 200ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-in,
+  .animate-out,
+  .ui-modal::backdrop {
+    animation: none !important;
   }
 }

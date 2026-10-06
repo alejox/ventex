@@ -13,6 +13,7 @@ import {
   NO_ITEM_FILTER,
   type ItemFilterOptions,
   type SaleListItem,
+  type SaleVoidImpact,
 } from "@/services/sales.service";
 import { Select } from "@/components/ui/Select";
 import { formatQty } from "@/lib/stock";
@@ -21,6 +22,9 @@ import { getCardMethodName } from "@/config/cardMethods";
 import { DataTable, type DataColumn } from "@/components/DataTable";
 import { CollectionEmpty, CollectionError, CollectionFilteredEmpty, CollectionLoading } from "@/components/CollectionState";
 import { formatMoney } from "@/lib/money";
+import { notifySuccess } from "@/lib/notifications";
+import { PosReceipt } from "@/components/PosReceipt";
+import { buildReceiptFromSale } from "@/lib/receipt";
 
 const formatDate = (iso: string) =>
   new Date(iso).toLocaleString("es-CO", {
@@ -31,10 +35,12 @@ const formatDate = (iso: string) =>
     minute: "2-digit",
   });
 
-  const PAYMENT_LABELS: Record<string, string> = {
+const PAYMENT_LABELS: Record<string, string> = {
   efectivo: "Efectivo",
   tarjeta: "Datáfono",
   transferencia: "Transferencia",
+  credito: "Crédito / Fiado",
+  split: "Pago dividido",
 };
 
 /**
@@ -62,6 +68,7 @@ const PAYMENT_FILTERS = [
   { value: "efectivo", label: "Efectivo" },
   { value: "tarjeta", label: "Datáfono" },
   { value: "transferencia", label: "Transferencia" },
+  { value: "credito", label: "Crédito / Fiado" },
 ] as const;
 
 const STATUS_STYLES: Record<string, string> = {
@@ -155,6 +162,35 @@ const SALE_COLUMNS: DataColumn<SaleListItem>[] = [
   },
 ];
 
+/** Las consecuencias de anular, en frases. Vacío = solo el stock. */
+function voidImpactLines(impact: SaleVoidImpact | null): string[] {
+  if (!impact) return [];
+  const lines: string[] = [];
+  if (impact.cashRefund > 0) {
+    lines.push(
+      `Devuelve ${formatMoney(impact.cashRefund)} en efectivo al cliente: sale de la caja de tu turno abierto (sin turno abierto no se puede anular).`,
+    );
+  }
+  if (impact.otherRefund > 0) {
+    lines.push(
+      `${formatMoney(impact.otherRefund)} se cobraron por datáfono o transferencia: esa devolución hazla por el mismo medio, Ventex no la mueve.`,
+    );
+  }
+  if (impact.creditReleased > 0) {
+    lines.push(`Se cancela ${formatMoney(impact.creditReleased)} de saldo fiado del cliente.`);
+  }
+  if (impact.pointsEarned > 0) {
+    lines.push(`Se le quitan al cliente ${impact.pointsEarned} puntos que ganó con esta venta.`);
+  }
+  if (impact.pointsRedeemed > 0) {
+    lines.push(`Se le devuelven al cliente ${impact.pointsRedeemed} puntos que canjeó en esta venta.`);
+  }
+  for (const reward of impact.rewards) {
+    lines.push(`El premio «${reward}» vuelve a quedar disponible para el cliente.`);
+  }
+  return lines;
+}
+
 export default function SalesPage() {
   const sales = useSalesStore((s) => s.sales);
   const loading = useSalesStore((s) => s.loading);
@@ -165,8 +201,14 @@ export default function SalesPage() {
   const openDetail = useSalesStore((s) => s.openDetail);
   const closeDetail = useSalesStore((s) => s.closeDetail);
   const voidSale = useSalesStore((s) => s.voidSale);
+  const voidImpact = useSalesStore((s) => s.voidImpact);
+  const receiptExtras = useSalesStore((s) => s.receiptExtras);
+  const voiding = useSalesStore((s) => s.voiding);
+  const voidError = useSalesStore((s) => s.voidError);
+  const clearVoidError = useSalesStore((s) => s.clearVoidError);
 
   const [voidConfirm, setVoidConfirm] = useState(false);
+  const [voidReason, setVoidReason] = useState("");
   const summary = useSalesStore((s) => s.summary);
   const period = useSalesStore((s) => s.period);
   const customFrom = useSalesStore((s) => s.customFrom);
@@ -255,11 +297,66 @@ export default function SalesPage() {
     return () => clearTimeout(timer);
   }, [searchInput, customerQuery, setCustomerQuery]);
 
+  const closeSaleDetail = () => {
+    // Mientras se anula no se cierra: el resultado (éxito o error) se muestra
+    // en este mismo modal.
+    if (voiding) return;
+    closeDetail();
+    setVoidConfirm(false);
+    setVoidReason("");
+  };
+
+  // Esc cierra el detalle, igual que tocar el fondo.
+  const detailOpen = Boolean(detail);
+  useEffect(() => {
+    if (!detailOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || useSalesStore.getState().voiding) return;
+      useSalesStore.getState().closeDetail();
+      setVoidConfirm(false);
+      setVoidReason("");
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [detailOpen]);
+
+  // Mismo constructor que usa el POS para reimprimir (`lib/receipt.ts`): el
+  // papel sale igual desde las dos pantallas.
+  const receipt = useMemo(
+    () =>
+      detail && receiptExtras
+        ? buildReceiptFromSale({
+            sale: detail,
+            extras: receiptExtras,
+            business: settings?.business_profile ?? {},
+            includeTax: settings?.include_tax ?? false,
+          })
+        : null,
+    [detail, receiptExtras, settings?.business_profile, settings?.include_tax],
+  );
+
+  const confirmVoid = async () => {
+    if (!detail || !voidReason.trim()) return;
+    const cash = voidImpact?.cashRefund ?? 0;
+    const ok = await voidSale(detail.id, voidReason);
+    if (!ok) return;
+    setVoidConfirm(false);
+    setVoidReason("");
+    notifySuccess(
+      `Venta #${detail.sale_number} anulada`,
+      cash > 0
+        ? `Entrégale ${formatMoney(cash)} en efectivo al cliente. El stock volvió al inventario.`
+        : "El stock volvió al inventario.",
+    );
+  };
+
   const firstRow = total === 0 ? 0 : page * SALES_PAGE_SIZE + 1;
   const lastRow = Math.min((page + 1) * SALES_PAGE_SIZE, total);
 
   return (
-    <div className="space-y-6">
+    <>
+    {/* Al reimprimir solo sale el recibo: la pantalla entera se oculta. */}
+    <div className="space-y-6 print:hidden">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-on-surface">Historial de Ventas</h1>
@@ -544,11 +641,21 @@ export default function SalesPage() {
 
       {/* Modal de detalle */}
       {detail && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-surface-container w-full max-w-lg rounded-3xl border border-outline-variant/10 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="p-6 border-b border-outline-variant/10 flex justify-between items-start">
+        <div
+          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) closeSaleDetail();
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="sale-detail-title"
+            className="bg-surface-container w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-3xl border border-outline-variant/10 shadow-2xl animate-in fade-in zoom-in-95 duration-200"
+          >
+            <div className="p-6 border-b border-outline-variant/10 flex justify-between items-start gap-3">
               <div>
-                <h2 className="text-lg font-bold text-on-surface">
+                <h2 id="sale-detail-title" className="text-lg font-bold text-on-surface">
                   Venta #{detail.sale_number}
                 </h2>
                 {detail && (
@@ -564,12 +671,27 @@ export default function SalesPage() {
                   </p>
                 )}
               </div>
-              <button
-                onClick={() => { closeDetail(); setVoidConfirm(false); }}
-                className="text-on-surface-variant hover:text-on-surface"
-              >
-                ✕
-              </button>
+              <div className="flex items-center gap-1 shrink-0">
+                {/* Reimprimir solo una venta vigente: el recibo de una anulada
+                    se leería como un comprobante válido. */}
+                {detail.status === "completed" && receipt && (
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-colors"
+                  >
+                    Reimprimir
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={closeSaleDetail}
+                  aria-label="Cerrar"
+                  className="w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
 
             {detailLoading ? (
@@ -641,55 +763,88 @@ export default function SalesPage() {
                   </div>
                 </div>
 
-                <div className="flex justify-between text-xs text-on-surface-variant">
+                <div className="flex justify-between gap-3 text-xs text-on-surface-variant">
                   <span>
                     Pago: {paymentLabelOf(detail.payment_method, detail.transfer_method, detail.card_method)}
+                    {/* En un pago dividido el medio solo no dice nada: se
+                        muestra cuánto entró por cada uno. */}
+                    {detail.payment_method === "split" && (receiptExtras?.payments.length ?? 0) > 0 && (
+                      <span className="block mt-0.5">
+                        {receiptExtras!.payments
+                          .map((p) => `${paymentLabelOf(p.payment_method, p.transfer_method, p.card_method)} ${formatMoney(p.amount)}`)
+                          .join(" · ")}
+                      </span>
+                    )}
                   </span>
-                  <span>{STATUS_LABELS[detail.status] ?? detail.status}</span>
+                  <span className="shrink-0">{STATUS_LABELS[detail.status] ?? detail.status}</span>
                 </div>
 
                 {detail.status === "completed" && (
                   <div className="pt-3 border-t border-outline-variant/10">
                     {voidConfirm ? (
-                      <div className="space-y-2">
+                      <div className="space-y-3">
                         <p className="text-sm text-on-surface font-medium">
                           ¿Anular esta venta?
                         </p>
-                        <p className="text-xs text-on-surface-variant">
-                          Se devolverá el stock al inventario. Esta acción no se puede deshacer.
-                        </p>
+                        <ul className="text-xs text-on-surface-variant space-y-1 list-disc pl-4">
+                          <li>Se devuelve el stock al inventario. Esta acción no se puede deshacer.</li>
+                          {voidImpactLines(voidImpact).map((line) => (
+                            <li key={line}>{line}</li>
+                          ))}
+                        </ul>
                         {/* La comisión ya liquidada NO se reversa sola: esa plata
                             ya se le entregó a la persona. Anular igual es válido
                             —la venta puede estar mal de verdad—, pero el dueño
                             tiene que saber que queda un saldo a favor suyo. */}
-                        {(() => {
-                          const paid = detail.items
-                            .filter((i) => i.commission_settlement_id)
-                            .reduce((sum, i) => sum + i.commission_amount, 0);
-                          if (paid <= 0) return null;
-                          return (
-                            <p role="alert" className="text-xs rounded-lg border border-[#f59e0b]/30 bg-[#f59e0b]/10 px-3 py-2 text-on-surface">
-                              <strong className="font-bold">Ojo:</strong> {formatMoney(paid)} de comisión de
-                              esta venta ya se liquidaron y se pagaron. Anularla no devuelve ese dinero:
-                              descontalo en la próxima liquidación.
-                            </p>
-                          );
-                        })()}
+                        {voidImpact && voidImpact.paidCommission > 0 && (
+                          <p role="alert" className="text-xs rounded-lg border border-[#f59e0b]/30 bg-[#f59e0b]/10 px-3 py-2 text-on-surface">
+                            <strong className="font-bold">Ojo:</strong> {formatMoney(voidImpact.paidCommission)} de comisión de
+                            esta venta ya se liquidaron y se pagaron. Anularla no devuelve ese dinero:
+                            descuéntalo en la próxima liquidación.
+                          </p>
+                        )}
+                        <div>
+                          <label htmlFor="void-reason" className="block text-xs font-semibold text-on-surface mb-1.5">
+                            Motivo de la anulación <span className="text-error">*</span>
+                          </label>
+                          <textarea
+                            id="void-reason"
+                            rows={2}
+                            maxLength={300}
+                            value={voidReason}
+                            onChange={(e) => {
+                              setVoidReason(e.target.value);
+                              if (voidError) clearVoidError();
+                            }}
+                            placeholder="Ej.: cobro duplicado, el cliente devolvió el producto…"
+                            className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary resize-none placeholder:text-on-surface-variant/50"
+                          />
+                        </div>
+                        {/* El error va ACÁ y no en la tabla: detrás del modal
+                            no se veía y la anulación parecía no hacer nada. */}
+                        {voidError && (
+                          <p role="alert" className="text-xs rounded-lg border border-error-container/30 bg-error-container/20 px-3 py-2 text-error-dim">
+                            No se pudo anular: {voidError}
+                          </p>
+                        )}
                         <div className="flex gap-2">
                           <button
                             type="button"
-                            onClick={async () => {
-                              const ok = await voidSale(detail.id);
-                              if (ok) setVoidConfirm(false);
-                            }}
-                            className="px-4 py-2 rounded-xl text-xs font-bold bg-error-container/20 text-error hover:bg-error hover:text-on-error transition-colors"
+                            onClick={confirmVoid}
+                            disabled={voiding || !voidReason.trim()}
+                            className="px-4 py-2 rounded-xl text-xs font-bold bg-error-container/20 text-error hover:bg-error hover:text-on-error transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                           >
-                            Sí, anular venta
+                            {voiding ? "Anulando…" : "Sí, anular venta"}
                           </button>
                           <button
                             type="button"
-                            onClick={() => setVoidConfirm(false)}
-                            className="px-4 py-2 rounded-xl text-xs font-semibold bg-surface-container-high text-on-surface-variant hover:text-on-surface transition-colors"
+                            disabled={voiding}
+                            onClick={() => {
+                              setVoidConfirm(false);
+                              setVoidReason("");
+                              clearVoidError();
+                            }}
+                            className="px-4 py-2 rounded-xl text-xs font-semibold bg-surface-container-high text-on-surface-variant hover:text-on-surface transition-colors disabled:opacity-50"
                           >
                             Cancelar
                           </button>
@@ -712,5 +867,7 @@ export default function SalesPage() {
         </div>
       )}
     </div>
+    <PosReceipt data={receipt} />
+    </>
   );
 }

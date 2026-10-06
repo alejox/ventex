@@ -8,10 +8,13 @@ import { useProfile } from "@/components/ProfileProvider";
 import {
   BUSINESS_OPTIONS,
   MODULES_BY_TYPE,
+  effectiveModules,
   type BusinessType,
   type ModuleId,
   type Modules,
 } from "@/config/business";
+import { cleanModulesForType, modulesForSwitch, navChangeOnSwitch } from "@/lib/business-change";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
 import type { Settings } from "@/services/settings.service";
 import { COLOMBIA_TRANSFER_METHODS, DEFAULT_TRANSFER_METHODS } from "@/config/transferMethods";
 import { COLOMBIA_CARD_METHODS, DEFAULT_CARD_METHODS } from "@/config/cardMethods";
@@ -78,8 +81,14 @@ function BusinessModulesForm() {
   const [businessType, setBusinessType] = useState<BusinessType>(
     profile?.businessType ?? "tienda",
   );
-  const [modules, setModules] = useState<Modules>(profile?.modules ?? {});
+  // Se siembra con los módulos EFECTIVOS (lo que el menú muestra hoy), no con
+  // los guardados en crudo: para un rubro "full module" un módulo sin valor
+  // guardado está encendido, y sembrarlo como apagado lo apagaba al guardar.
+  const [modules, setModules] = useState<Modules>(() =>
+    effectiveModules(profile?.businessType ?? null, profile?.modules ?? null),
+  );
   const [saved, setSaved] = useState(false);
+  const { confirm, dialog } = useConfirm();
 
   // Solo módulos realmente disponibles: un `comingSoon` no se puede encender.
   // Antes esta lista no lo filtraba y el toggle sí persistía en el perfil, así
@@ -95,8 +104,58 @@ function BusinessModulesForm() {
     e.preventDefault();
     setSaved(false);
     // Conserva solo los módulos pertinentes al tipo seleccionado.
-    const cleaned: Modules = {};
-    for (const mod of available) cleaned[mod.id] = Boolean(modules[mod.id]);
+    const cleaned = cleanModulesForType(modules, businessType);
+
+    // Cambiar de rubro reescribe el menú entero y descarta los módulos que el
+    // rubro nuevo no ofrece: no puede pasar sin que el dueño vea qué pierde.
+    if (profile && profile.businessType !== businessType) {
+      const change = navChangeOnSwitch(
+        { businessType: profile.businessType, modules: profile.modules },
+        { businessType, modules: cleaned },
+      );
+      const nextLabel = BUSINESS_OPTIONS.find((b) => b.id === businessType)?.label ?? businessType;
+      const ok = await confirm({
+        title: `¿Cambiar el negocio a ${nextLabel}?`,
+        tone: change.removed.length > 0 ? "danger" : "primary",
+        confirmLabel: "Cambiar tipo de negocio",
+        description: (
+          <>
+            {change.added.length === 0 && change.removed.length === 0 ? (
+              <p>Las secciones del menú no cambian.</p>
+            ) : (
+              <>
+                {change.added.length > 0 && (
+                  <div>
+                    <p className="font-semibold text-on-surface">Aparecen en el menú</p>
+                    <ul className="mt-1 list-disc pl-5">
+                      {change.added.map((name) => (
+                        <li key={name}>{name}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {change.removed.length > 0 && (
+                  <div>
+                    <p className="font-semibold text-on-surface">Desaparecen del menú</p>
+                    <ul className="mt-1 list-disc pl-5">
+                      {change.removed.map((name) => (
+                        <li key={name}>{name}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </>
+            )}
+            <p>
+              Tus datos no se borran: si vuelves a este tipo de negocio, las secciones
+              reaparecen con lo que tenías.
+            </p>
+          </>
+        ),
+      });
+      if (!ok) return;
+    }
+
     const ok = await saveProfile({ businessType, modules: cleaned });
     if (ok) {
       setSaved(true);
@@ -116,7 +175,11 @@ function BusinessModulesForm() {
         label="Tipo de negocio"
         value={businessType}
         onChange={(e) => {
-          setBusinessType(e.target.value as BusinessType);
+          const next = e.target.value as BusinessType;
+          setBusinessType(next);
+          // Rubro nuevo, módulos de ese rubro: sin esto, los del rubro anterior
+          // que el nuevo no ofrece quedaban apagados sin que nadie lo decidiera.
+          setModules((m) => modulesForSwitch(m, next));
           setSaved(false);
         }}
       >
@@ -175,6 +238,7 @@ function BusinessModulesForm() {
           {submitting ? "Guardando…" : "Guardar Cambios"}
         </button>
       </div>
+      {dialog}
     </form>
   );
 }

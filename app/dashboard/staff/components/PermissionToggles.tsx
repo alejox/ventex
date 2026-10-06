@@ -1,13 +1,23 @@
 "use client";
 
+import { useMemo } from "react";
 import {
-  ADMIN_WORKER_PERMISSIONS,
   WORKER_PERMISSION_LABELS,
   WORKER_PERMISSION_PARENT,
   WORKER_PERMISSION_HINTS,
+  permissionsForBusiness,
   type WorkerPermission,
   type WorkerPermissions,
 } from "@/config/business";
+import { useProfile } from "@/components/ProfileProvider";
+
+/** Los permisos que aplican al negocio del perfil activo (ver `permissionsForBusiness`). */
+export function useApplicablePermissions(): WorkerPermission[] {
+  const profile = useProfile();
+  const businessType = profile?.businessType ?? null;
+  const modules = profile?.modules ?? null;
+  return useMemo(() => permissionsForBusiness(businessType, modules), [businessType, modules]);
+}
 
 export function togglePermission(prev: WorkerPermissions, p: WorkerPermission): WorkerPermissions {
   const next: WorkerPermissions = { ...prev, [p]: !prev[p] };
@@ -29,7 +39,9 @@ export function PermissionToggles({
   /** Si viene, se ofrecen los atajos "Marcar todos" / "Desmarcar todos". */
   onReplace?: (next: WorkerPermissions) => void;
 }) {
-  const allKeys = Object.keys(WORKER_PERMISSION_LABELS) as WorkerPermission[];
+  // Solo lo que existe en este negocio: un salón no ve Vehículos ni
+  // Facturación. Lo escondido que ya estaba encendido se conserva al guardar.
+  const allKeys = useApplicablePermissions();
   const topLevel = allKeys.filter((k) => !WORKER_PERMISSION_PARENT[k]);
   const childrenOf = (parent: WorkerPermission) =>
     allKeys.filter((k) => WORKER_PERMISSION_PARENT[k] === parent);
@@ -81,7 +93,9 @@ export function PermissionToggles({
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={() => onReplace({ ...ADMIN_WORKER_PERMISSIONS })}
+              onClick={() =>
+                onReplace({ ...perms, ...Object.fromEntries(allKeys.map((k) => [k, true])) })
+              }
               className="rounded-full border border-primary/40 bg-primary/5 px-3 py-1 text-xs font-semibold text-primary hover:bg-primary/10"
             >
               Marcar todos

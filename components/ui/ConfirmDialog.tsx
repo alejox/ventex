@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { backdropProps } from "@/components/modal";
+import { Modal } from "@/components/ui/Modal";
+import { Button } from "@/components/ui/Button";
 
 type ConfirmTone = "primary" | "danger";
 
@@ -28,11 +29,6 @@ interface ConfirmDialogProps extends ConfirmOptions {
   onCancel: () => void;
 }
 
-const CONFIRM_TONE: Record<ConfirmTone, string> = {
-  primary: "bg-primary text-on-primary hover:bg-primary-dim",
-  danger: "bg-error text-on-error hover:bg-error/90",
-};
-
 const ICON_TONE: Record<ConfirmTone, string> = {
   primary: "bg-primary/10 text-primary",
   danger: "bg-error/10 text-error",
@@ -44,6 +40,9 @@ const ICON_TONE: Record<ConfirmTone, string> = {
  *
  * Controlado (`open`/`onConfirm`/`onCancel`). Para usarlo como `confirm()`
  * —esperando la respuesta en un handler— está `useConfirm` más abajo.
+ *
+ * Se apoya en `<Modal>` (foco atrapado, Escape, scroll bloqueado). Escape y el
+ * clic afuera equivalen a Cancelar, salvo mientras `loading`.
  */
 export function ConfirmDialog({
   open,
@@ -58,61 +57,54 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
-  useEffect(() => {
-    if (!open) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !loading) onCancel();
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open, loading, onCancel]);
-
-  if (!open) return null;
+  // El foco arranca en Cancelar: un Enter distraído nunca confirma.
+  const cancelRef = useRef<HTMLButtonElement>(null);
 
   return (
-    <div
-      className="fixed inset-0 z-[210] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
-      {...backdropProps(() => {
+    <Modal
+      open={open}
+      onClose={() => {
         if (!loading) onCancel();
-      })}
-    >
-      <div
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby="confirm-dialog-title"
-        className="bg-surface-container-lowest rounded-3xl w-full max-w-sm border border-outline-variant/10 shadow-2xl p-6 animate-in zoom-in-95 duration-200"
-      >
-        {icon && (
-          <div className={`w-12 h-12 mb-4 rounded-full flex items-center justify-center ${ICON_TONE[tone]}`}>
+      }}
+      title={title}
+      role="alertdialog"
+      size="sm"
+      showCloseButton={false}
+      initialFocusRef={cancelRef}
+      icon={
+        icon ? (
+          <div className={`flex h-12 w-12 items-center justify-center rounded-full ${ICON_TONE[tone]}`}>
             {icon}
           </div>
-        )}
-        <h3 id="confirm-dialog-title" className="text-lg font-bold text-on-surface mb-2">
-          {title}
-        </h3>
-        {description && <div className="text-sm text-on-surface-variant mb-6 space-y-3">{description}</div>}
+        ) : undefined
+      }
+      bodyClassName={description ? "px-6 pb-2" : "p-0"}
+      footerClassName="px-6 pt-4 pb-6"
+      footer={
         <div className="flex gap-3">
-          <button
-            type="button"
+          <Button
+            ref={cancelRef}
+            variant="ghost"
             onClick={onCancel}
             disabled={loading}
-            // El foco arranca en Cancelar: un Enter distraído nunca confirma.
-            autoFocus
-            className="flex-1 px-5 py-2.5 rounded-xl text-sm font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-colors disabled:opacity-50"
+            className="flex-1"
           >
             {cancelLabel}
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant={tone === "danger" ? "danger" : "primary"}
             onClick={onConfirm}
-            disabled={loading}
-            className={`flex-1 px-5 py-2.5 rounded-xl text-sm font-semibold transition-colors disabled:opacity-50 ${CONFIRM_TONE[tone]}`}
+            loading={loading}
+            loadingLabel={loadingLabel}
+            className="flex-1"
           >
-            {loading ? loadingLabel : confirmLabel}
-          </button>
+            {confirmLabel}
+          </Button>
         </div>
-      </div>
-    </div>
+      }
+    >
+      {description && <div className="space-y-3 text-sm text-on-surface-variant">{description}</div>}
+    </Modal>
   );
 }
 

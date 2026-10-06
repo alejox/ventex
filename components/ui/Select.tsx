@@ -2,6 +2,7 @@
 
 import { Children, isValidElement, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { usePortalContainer } from "@/components/ui/portal-container";
 
 export interface SelectProps {
   /** Opciones como `<option value="x">Etiqueta</option>`, igual que un select nativo. */
@@ -137,6 +138,8 @@ export function Select({
   const listRef = useRef<HTMLUListElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const typeahead = useRef({ query: "", at: 0 });
+  // Dentro de un <Modal> el destino es su <dialog> (ver portal-container.ts).
+  const portalContainer = usePortalContainer();
 
   const message = error ?? hint;
   const enabledIndexes = visible.map((o, i) => (o.disabled ? -1 : i)).filter((i) => i >= 0);
@@ -334,7 +337,7 @@ export function Select({
           contenedor de sus descendientes `fixed`. Sin el portal, el desplegable
           se posicionaba contra el panel y quedaba corrido ~20px en x y ~80 en y.
           Es la misma clase de trampa que el `overflow` que recorta. */}
-      {open && rect && createPortal(
+      {open && rect && portalContainer && createPortal(
         <>
           <div className="fixed inset-0 z-[190]" onClick={() => setOpen(false)} />
           {searchable && (
@@ -409,7 +412,7 @@ export function Select({
             )}
           </ul>
         </>,
-        document.body,
+        portalContainer,
       )}
 
       {message && (
