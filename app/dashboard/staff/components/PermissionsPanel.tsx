@@ -54,7 +54,7 @@ export function PermissionsPanel({
             Activa o desactiva las secciones a las que esta persona puede entrar.
           </p>
 
-          <PermissionToggles perms={perms} onToggle={toggle} />
+          <PermissionToggles perms={perms} onToggle={toggle} onReplace={setPerms} />
         </div>
 
         <div className="flex items-center justify-between gap-4 p-6 pt-0 shrink-0">

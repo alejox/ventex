@@ -67,6 +67,18 @@ export const WORKER_PERMISSION_LABELS: Record<WorkerPermission, string> = {
 };
 
 /**
+ * Preset "Administrador": todos los permisos granulares encendidos.
+ *
+ * Es solo un atajo sobre `worker_permissions`; no es un rol aparte. Lo que es
+ * exclusivo del dueño (liquidar comisiones, escribir en staff, ofertas) sigue
+ * exigiendo `is_tenant_owner()` en la RLS y los RPC, así que un administrador
+ * no lo obtiene por tener todos los toggles.
+ */
+export const ADMIN_WORKER_PERMISSIONS: WorkerPermissions = Object.fromEntries(
+  (Object.keys(WORKER_PERMISSION_LABELS) as WorkerPermission[]).map((k) => [k, true]),
+);
+
+/**
  * Permisos que afinan a otro en vez de abrir un módulo propio.
  *
  * Ver el catálogo no es lo mismo que ver cuánto costó cada cosa, ni que poder

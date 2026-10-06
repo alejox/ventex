@@ -127,7 +127,7 @@ export function GrantAccessModal({
             <p className="text-xs text-on-surface-variant mb-3">
               Elige a qué secciones tendrá acceso. Puedes cambiarlos después.
             </p>
-            <PermissionToggles perms={perms} onToggle={togglePerm} />
+            <PermissionToggles perms={perms} onToggle={togglePerm} onReplace={setPerms} />
           </div>
 
           <div className="flex justify-end gap-3 pt-4">

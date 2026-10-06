@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  ADMIN_WORKER_PERMISSIONS,
   WORKER_PERMISSION_LABELS,
   WORKER_PERMISSION_PARENT,
   WORKER_PERMISSION_HINTS,
@@ -21,9 +22,12 @@ export function togglePermission(prev: WorkerPermissions, p: WorkerPermission): 
 export function PermissionToggles({
   perms,
   onToggle,
+  onReplace,
 }: {
   perms: WorkerPermissions;
   onToggle: (p: WorkerPermission) => void;
+  /** Si viene, se ofrece el atajo "Administrador" (todos los permisos). */
+  onReplace?: (next: WorkerPermissions) => void;
 }) {
   const allKeys = Object.keys(WORKER_PERMISSION_LABELS) as WorkerPermission[];
   const topLevel = allKeys.filter((k) => !WORKER_PERMISSION_PARENT[k]);
@@ -69,6 +73,29 @@ export function PermissionToggles({
 
   return (
     <div className="space-y-2">
+      {onReplace && (
+        <div className="flex flex-wrap items-center justify-between gap-2 pb-1">
+          <span className="text-xs text-on-surface-variant">
+            Atajo: dale acceso a todos los módulos.
+          </span>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => onReplace({ ...ADMIN_WORKER_PERMISSIONS })}
+              className="rounded-full border border-primary/40 bg-primary/5 px-3 py-1 text-xs font-semibold text-primary hover:bg-primary/10"
+            >
+              Administrador (todos)
+            </button>
+            <button
+              type="button"
+              onClick={() => onReplace({})}
+              className="rounded-full border border-outline-variant/20 px-3 py-1 text-xs font-semibold text-on-surface-variant hover:bg-surface-container"
+            >
+              Ninguno
+            </button>
+          </div>
+        </div>
+      )}
       {topLevel.map((perm) => {
         const children = childrenOf(perm);
         return (
