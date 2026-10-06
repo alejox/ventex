@@ -28,6 +28,8 @@ export interface InviteWorkerInput {
   role: string;
   staffId: string;
   permissions?: WorkerPermissions;
+  /** Solo lo respeta el servidor si quien invita es el dueño real. */
+  isAdmin?: boolean;
 }
 
 export interface UpdateWorkerInput {

@@ -5,7 +5,7 @@ import { IconX, IconCheck } from "@/app/assets/icons/DashboardIcons";
 import { useStaffStore } from "@/stores/staff.store";
 import { useProfile } from "@/components/ProfileProvider";
 import { Select } from "@/components/ui/Select";
-import { staffRolesForType, type WorkerPermissions, type WorkerPermission } from "@/config/business";
+import { ADMIN_ROLE_LABEL, staffRolesForType, type WorkerPermissions, type WorkerPermission } from "@/config/business";
 import { PermissionToggles, togglePermission } from "./PermissionToggles";
 import type { TeamMember } from "@/lib/team";
 
@@ -34,6 +34,8 @@ export function GrantAccessModal({
 
   const [email, setEmail] = useState(member.email ?? "");
   const [role, setRole] = useState(member.role ?? "");
+  // Elegir el cargo "Administrador" lo sugiere, pero el dueño puede cambiarlo.
+  const [isAdmin, setIsAdmin] = useState(member.role === ADMIN_ROLE_LABEL);
   const [perms, setPerms] = useState<WorkerPermissions>({});
   const [done, setDone] = useState(false);
 
@@ -48,7 +50,8 @@ export function GrantAccessModal({
       fullName: member.full_name,
       role,
       staffId: member.id,
-      permissions: perms,
+      permissions: isAdmin ? {} : perms,
+      isAdmin,
     });
     if (ok) setDone(true);
   };
@@ -113,7 +116,14 @@ export function GrantAccessModal({
             </p>
           </div>
 
-          <Select label="Rol / Cargo" value={role} onChange={(e) => setRole(e.target.value)}>
+          <Select
+            label="Rol / Cargo"
+            value={role}
+            onChange={(e) => {
+              setRole(e.target.value);
+              if (e.target.value === ADMIN_ROLE_LABEL) setIsAdmin(true);
+            }}
+          >
             <option value="">Seleccionar cargo</option>
             {options.map((r) => (
               <option key={r} value={r}>
@@ -122,13 +132,38 @@ export function GrantAccessModal({
             ))}
           </Select>
 
-          <div className="pt-2 border-t border-outline-variant/10">
-            <label className="block text-sm font-semibold text-on-surface mb-1.5">Permisos</label>
-            <p className="text-xs text-on-surface-variant mb-3">
-              Elige a qué secciones tendrá acceso. Puedes cambiarlos después.
+          <button
+            type="button"
+            onClick={() => setIsAdmin((v) => !v)}
+            className={`w-full flex items-center justify-between gap-4 p-3 rounded-2xl border text-left transition-colors ${
+              isAdmin ? "bg-primary/5 border-primary/40" : "bg-surface-container-low border-outline-variant/10 hover:bg-surface-container"
+            }`}
+          >
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold text-on-surface">Administrador del negocio</span>
+              <span className="block text-xs text-on-surface-variant mt-0.5">
+                Actúa como el dueño: ve y gestiona todo el negocio, liquida comisiones y
+                configura. No puede cambiar la facturación ni los accesos del equipo.
+              </span>
+            </span>
+            <span className={`shrink-0 w-11 h-6 rounded-full relative transition-colors ${isAdmin ? "bg-primary" : "bg-surface-container-highest border border-outline-variant/20"}`}>
+              <span className={`absolute top-[2px] w-5 h-5 bg-white rounded-full shadow-sm transition-all ${isAdmin ? "left-[22px]" : "left-[2px]"}`} />
+            </span>
+          </button>
+
+          {isAdmin ? (
+            <p className="text-sm text-on-surface-variant">
+              Un administrador tiene acceso a todo; los permisos individuales no aplican.
             </p>
-            <PermissionToggles perms={perms} onToggle={togglePerm} onReplace={setPerms} />
-          </div>
+          ) : (
+            <div className="pt-2 border-t border-outline-variant/10">
+              <label className="block text-sm font-semibold text-on-surface mb-1.5">Permisos</label>
+              <p className="text-xs text-on-surface-variant mb-3">
+                Elige a qué secciones tendrá acceso. Puedes cambiarlos después.
+              </p>
+              <PermissionToggles perms={perms} onToggle={togglePerm} onReplace={setPerms} />
+            </div>
+          )}
 
           <div className="flex justify-end gap-3 pt-4">
             <button

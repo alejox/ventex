@@ -166,18 +166,25 @@ export const REGISTER_BUSINESS_OPTIONS: BusinessOption[] = BUSINESS_OPTIONS.filt
   (o) => REGISTRABLE_BUSINESS_TYPES.includes(o.id),
 );
 
+/**
+ * Cargo que, al dar acceso, sugiere el rol de administrador. Solo es la
+ * etiqueta: el poder real vive en `workspace_memberships.is_admin` y lo decide
+ * el dueño al invitar (o después, en Permisos).
+ */
+export const ADMIN_ROLE_LABEL = "Administrador";
+
 // ---- Roles/cargos sugeridos para el personal, según el tipo de negocio ----
 /** Roles ofrecidos al invitar un trabajador. Se usa para poblar el selector de "Rol / Cargo". */
 export const STAFF_ROLES_BY_TYPE: Record<BusinessType, string[]> = {
-  salon: ["Barbero", "Estilista", "Peluquero", "Manicurista", "Recepcionista", "Cajero"],
-  tienda: ["Vendedor", "Cajero", "Bodeguero", "Encargado de tienda", "Administrador"],
-  lavaautos: ["Lavador", "Detailer", "Recepcionista", "Cajero", "Encargado"],
-  servicios: ["Profesional", "Consultor", "Asesor", "Recepcionista", "Asistente"],
-  escuela: ["Profesor", "Coordinador", "Recepcionista", "Cajero"],
+  salon: ["Barbero", "Estilista", "Peluquero", "Manicurista", "Recepcionista", "Cajero", ADMIN_ROLE_LABEL],
+  tienda: ["Vendedor", "Cajero", "Bodeguero", "Encargado de tienda", ADMIN_ROLE_LABEL],
+  lavaautos: ["Lavador", "Detailer", "Recepcionista", "Cajero", "Encargado", ADMIN_ROLE_LABEL],
+  servicios: ["Profesional", "Consultor", "Asesor", "Recepcionista", "Asistente", ADMIN_ROLE_LABEL],
+  escuela: ["Profesor", "Coordinador", "Recepcionista", "Cajero", ADMIN_ROLE_LABEL],
 };
 
 /** Roles genéricos cuando el negocio aún no tiene un tipo definido. */
-export const DEFAULT_STAFF_ROLES = ["Vendedor", "Cajero", "Administrador", "Asistente"];
+export const DEFAULT_STAFF_ROLES = ["Vendedor", "Cajero", ADMIN_ROLE_LABEL, "Asistente"];
 
 /** Devuelve la lista de roles a mostrar para un tipo de negocio (o los genéricos). */
 export function staffRolesForType(businessType: BusinessType | null): string[] {

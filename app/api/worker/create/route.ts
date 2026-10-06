@@ -67,6 +67,7 @@ export async function POST(request: NextRequest) {
   const staffId = String(body.staffId ?? "");
   const role = body.role ? String(body.role).trim() : null;
   const permissions = sanitizePermissions(body.permissions);
+  const isAdmin = body.isAdmin === true;
   const { workspaceId } = owner;
 
   if (!email || !email.includes("@") || !staffId) {
@@ -148,6 +149,7 @@ export async function POST(request: NextRequest) {
           invited_email: email,
           role,
           permissions,
+          is_admin: isAdmin,
           status: "pending",
           provisional_auth_user: false,
           invited_at: new Date().toISOString(),
@@ -176,6 +178,7 @@ export async function POST(request: NextRequest) {
         member_kind: "member",
         role,
         permissions,
+        is_admin: isAdmin,
         status: "pending",
         provisional_auth_user: false,
         accepted_at: null,
