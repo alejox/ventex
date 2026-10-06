@@ -84,7 +84,15 @@ export function RescheduleDialog({ mode, lesson, onDone, onClose }: RescheduleDi
   const [newStartAt, setNewStartAt] = useState("");
   const [newEndAt, setNewEndAt] = useState("");
   const [rejectReason, setRejectReason] = useState("");
-  const [shared, setShared] = useState<string | null>(null);
+  /**
+   * Pedido recién aprobado con fecha, para ofrecer compartirlo. Se guarda el
+   * pedido ENTERO (no solo su id): al aprobar, el store vuelve a pedir los
+   * pendientes y este pedido sale de la lista, así que el paso de compartir no
+   * puede vivir dentro de su fila — antes desaparecía con ella.
+   */
+  const [shared, setShared] = useState<{ req: PendingRescheduleRequest; startIso: string } | null>(
+    null
+  );
 
   useEffect(() => {
     if (mode === "decide") void fetchPendingRescheduleRequests();
@@ -125,7 +133,9 @@ export function RescheduleDialog({ mode, lesson, onDone, onClose }: RescheduleDi
     });
     if (!ok) return;
     notifySuccess("Reprogramación aprobada", "La clase nueva quedó en la agenda.");
-    setShared(req.id);
+    setShared({ req, startIso });
+    setApproving(null);
+    setExpanded(null);
   };
 
   const confirmApproveOpen = async (req: PendingRescheduleRequest) => {
@@ -223,7 +233,38 @@ export function RescheduleDialog({ mode, lesson, onDone, onClose }: RescheduleDi
           </>
         )}
 
-        {mode === "decide" && (
+        {mode === "decide" && shared && (
+          <div className="space-y-3 rounded-2xl border border-outline-variant/10 bg-surface-container-lowest p-4">
+            <p className="text-sm font-bold text-on-surface">Reprogramación aprobada</p>
+            <p className="text-sm text-on-surface-variant">
+              {shareTextOf(shared.req, shared.startIso)}
+            </p>
+            <div className="flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                onClick={() =>
+                  window.open(
+                    `https://wa.me/?text=${encodeURIComponent(shareTextOf(shared.req, shared.startIso))}`,
+                    "_blank",
+                    "noopener"
+                  )
+                }
+                className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-emerald-700"
+              >
+                Compartir cambio por WhatsApp
+              </button>
+              <button
+                type="button"
+                onClick={onDone}
+                className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-primary-dim"
+              >
+                Listo
+              </button>
+            </div>
+          </div>
+        )}
+
+        {mode === "decide" && !shared && (
           <>
             {loading && pending.length === 0 ? (
               <CollectionLoading label="Cargando solicitudes…" />
@@ -304,53 +345,26 @@ export function RescheduleDialog({ mode, lesson, onDone, onClose }: RescheduleDi
                         </div>
                         {error && <p className="text-xs font-medium text-error">{error}</p>}
                         <div className="flex flex-wrap justify-end gap-2">
-                          {shared === req.id ? (
-                            <>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  window.open(
-                                    `https://wa.me/?text=${encodeURIComponent(shareTextOf(req, new Date(newStartAt).toISOString()))}`,
-                                    "_blank",
-                                    "noopener"
-                                  )
-                                }
-                                className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-emerald-700"
-                              >
-                                Compartir cambio por WhatsApp
-                              </button>
-                              <button
-                                type="button"
-                                onClick={onDone}
-                                className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-primary-dim"
-                              >
-                                Listo
-                              </button>
-                            </>
-                          ) : (
-                            <>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setApproving(null);
-                                  setExpanded(null);
-                                }}
-                                className="rounded-lg px-3 py-1.5 text-xs font-semibold text-on-surface-variant transition-colors hover:bg-surface-container-low"
-                              >
-                                Volver
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => void confirmApprove(req)}
-                                disabled={
-                                  saving || !newStartAt || !newEndAt || newEndAt <= newStartAt
-                                }
-                                className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-primary-dim disabled:opacity-50"
-                              >
-                                {saving ? "Aprobando…" : "Aprobar con esta fecha"}
-                              </button>
-                            </>
-                          )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setApproving(null);
+                              setExpanded(null);
+                            }}
+                            className="rounded-lg px-3 py-1.5 text-xs font-semibold text-on-surface-variant transition-colors hover:bg-surface-container-low"
+                          >
+                            Volver
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void confirmApprove(req)}
+                            disabled={
+                              saving || !newStartAt || !newEndAt || newEndAt <= newStartAt
+                            }
+                            className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-primary-dim disabled:opacity-50"
+                          >
+                            {saving ? "Aprobando…" : "Aprobar con esta fecha"}
+                          </button>
                         </div>
                       </div>
                     )}

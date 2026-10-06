@@ -26,7 +26,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Falta el material." }, { status: 400 });
   }
 
-  const admin = createAdminClient();
+  // El cliente admin se crea recién DESPUÉS de autorizar: construirlo antes
+  // hacía que un pedido sin sesión respondiera 500 (si falta la service role
+  // key) en vez de 401/403. Mismo orden que `app/api/school/upload/route.ts`.
+  let adminClient: ReturnType<typeof createAdminClient> | null = null;
+  const admin = () => (adminClient ??= createAdminClient());
 
   let tenantId: string | null = null;
 
@@ -46,7 +50,7 @@ export async function GET(request: NextRequest) {
     }
     // El tenant se resuelve del propio material ya autorizado por el token
     // (nunca de un parámetro del llamador).
-    const { data: material } = await admin
+    const { data: material } = await admin()
       .from("school_materials")
       .select("user_id")
       .eq("id", materialId)
@@ -67,7 +71,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Material no encontrado." }, { status: 404 });
   }
 
-  const { data: material, error } = await admin
+  const { data: material, error } = await admin()
     .from("school_materials")
     .select("kind, file_path, external_url, user_id")
     .eq("id", materialId)
@@ -91,7 +95,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Material no encontrado." }, { status: 404 });
   }
 
-  const { data: signed, error: signError } = await admin.storage
+  const { data: signed, error: signError } = await admin().storage
     .from(BUCKET)
     .createSignedUrl(material.file_path, SIGNED_URL_TTL_SECONDS);
   if (signError || !signed?.signedUrl) {
