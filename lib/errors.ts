@@ -133,6 +133,12 @@ export function toMessage(e: unknown): string {
   if (e && typeof e === "object") {
     const raw = (e as { message?: unknown }).message;
     if (typeof raw === "string" && raw.trim()) {
+      // `create_sale` con descuento manual de un trabajador sin `pos_discount`.
+      // Va antes del `SIN_PERMISO:` genérico: no lleva los dos puntos y el
+      // código crudo no le dice nada al cajero.
+      if (/^SIN_PERMISO_DESCUENTO\b/.test(raw)) {
+        return "No tienes permiso para aplicar descuentos manuales. Quita el descuento o pídele al dueño que active “Aplicar descuentos” en Personal → Permisos.";
+      }
       // `SIN_PERMISO: no tenés permiso para X` → `No tenés permiso para X`
       const withoutTag = raw.replace(/^SIN_PERMISO:\s*/i, "");
       const clean = withoutTag === raw ? raw : withoutTag.charAt(0).toUpperCase() + withoutTag.slice(1);

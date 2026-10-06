@@ -28,8 +28,9 @@ type DiscountMode = "percent" | "amount";
  * podía regalar el 100 % de una venta. Un trabajador sin el permiso ve el
  * modal bloqueado con la explicación — esconder el botón sin decir por qué
  * deja al cajero buscándolo. El dueño y el administrador del negocio
- * (`isWorker === false`) siempre pueden. Es UX: el gate real tiene que estar
- * en `create_sale` (ver propuesta en el reporte de C17).
+ * (`isWorker === false`) siempre pueden. Es UX: el gate real está en
+ * `create_sale`, que recibe esta parte como `p_manual_discount` y rechaza con
+ * SIN_PERMISO_DESCUENTO (migración 20261006230000).
  */
 export function DiscountModal({ onClose }: DiscountModalProps) {
   const profile = useProfile();
@@ -133,14 +134,17 @@ function DiscountForm({ onClose }: { onClose: () => void }) {
     // cerraba el panel igual: el cajero creía haber aplicado un descuento que
     // nunca se aplicó. Ahora un valor inválido no cierra nada.
     if (invalid || !activeTab) return;
-    const discounts = activeTab.cart.map(line => {
-      const key = keyOf(line);
-      if (selectedItems.has(key)) {
+    // Solo las líneas MARCADAS: antes se reescribían también las demás con su
+    // mismo monto, y eso las convertía en "manuales" —borrándoles la oferta—
+    // sin que el cajero las tocara. Con `create_sale` separando el descuento
+    // manual (permiso `pos_discount`) eso además las declararía manuales.
+    const discounts = activeTab.cart
+      .filter((line) => selectedItems.has(keyOf(line)))
+      .map((line) => {
+        const key = keyOf(line);
         return { key, discountAmount: newDiscountByKey.get(key) ?? 0 };
-      }
-      return { key, discountAmount: line.discountAmount || 0 };
-    });
-    setLineDiscounts(discounts);
+      });
+    setLineDiscounts(discounts, "manual");
     onClose();
   };
 

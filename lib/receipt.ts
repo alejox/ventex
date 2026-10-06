@@ -18,6 +18,7 @@ import type { SaleTotals, CartLine, PaymentMethod, PaymentSplit } from "@/servic
 import type { SaleDetail, SaleReceiptExtras } from "@/services/sales.service";
 import { getTransferMethodName } from "@/config/transferMethods";
 import { getCardMethodName } from "@/config/cardMethods";
+import { savedLineDiscounts } from "@/lib/sale-discounts";
 
 export interface ReceiptItem {
   name: string;
@@ -206,24 +207,38 @@ export interface SaleReceiptInput {
  * Comprobante de una venta ya guardada (reimpresión).
  *
  * Lo que la base NO guarda no se inventa:
- * - el descuento por línea (`sale_items` no lo tiene; viaja solo el total en
- *   `sales.discount_amount`), así que las líneas salen a precio lleno y el
- *   descuento va en los totales;
- * - el efectivo recibido y el cambio (no hay columna), así que no se imprimen.
+ * - el descuento por línea sale de `sale_items.discount_amount` solo si cuadra
+ *   con `sales.discount_amount` (`savedLineDiscounts`). Las ventas anteriores a
+ *   la migración 20261006230000 —o la base sin aplicarla— no lo tienen: sus
+ *   líneas salen a precio lleno y el descuento va en los totales. El motivo
+ *   (nombre de la oferta) no se guarda, así que no se imprime;
+ * - el efectivo recibido sale de `sales.amount_tendered` y el cambio se
+ *   calcula contra el total. Sin ese dato (venta vieja, otro medio, pago
+ *   dividido) no se imprimen.
  */
 export function buildReceiptFromSale(input: SaleReceiptInput): ReceiptData {
   const { sale, extras } = input;
-  const items: ReceiptItem[] = sale.items.map((it) => ({
-    name: it.product_name,
-    sku: it.sku,
-    quantity: Number(it.quantity),
-    packageLabel: it.unit_kind === "package" ? `Caja x${it.units_per_item} u.` : null,
-    unitPrice: Number(it.unit_price),
-    gross: Number(it.line_total),
-    discount: 0,
-    discountLabel: null,
-    total: Number(it.line_total),
-  }));
+  const perLine = extras.lineDiscounts
+    ? savedLineDiscounts(
+        sale.items.map((it) => extras.lineDiscounts?.[it.id]),
+        Number(sale.discount_amount) || 0,
+      )
+    : null;
+  const items: ReceiptItem[] = sale.items.map((it, index) => {
+    const gross = Number(it.line_total);
+    const discount = Math.min(perLine?.[index] ?? 0, gross);
+    return {
+      name: it.product_name,
+      sku: it.sku,
+      quantity: Number(it.quantity),
+      packageLabel: it.unit_kind === "package" ? `Caja x${it.units_per_item} u.` : null,
+      unitPrice: Number(it.unit_price),
+      gross,
+      discount,
+      discountLabel: null,
+      total: round2(gross - discount),
+    };
+  });
 
   const gross = round2(items.reduce((s, i) => s + i.gross, 0));
   const discount = round2(Number(sale.discount_amount) || 0);
@@ -242,6 +257,12 @@ export function buildReceiptFromSale(input: SaleReceiptInput): ReceiptData {
           amount: Number(p.amount),
         }))
       : [];
+
+  // Mismo criterio que al cobrar: solo hay "recibido" en efectivo sin split.
+  const savedTendered =
+    payments.length === 0 && sale.payment_method === "efectivo" && extras.tendered != null && extras.tendered > 0
+      ? round2(extras.tendered)
+      : null;
 
   return {
     ...input.business,
@@ -271,8 +292,8 @@ export function buildReceiptFromSale(input: SaleReceiptInput): ReceiptData {
         ? "Pago dividido"
         : paymentLabelFor(sale.payment_method, sale.transfer_method, sale.card_method),
     payments,
-    tendered: null,
-    change: 0,
+    tendered: savedTendered,
+    change: savedTendered != null ? Math.max(round2(savedTendered - total), 0) : 0,
     cashier: input.cashier ?? null,
     seller: sellerUnlessCashier(sale.staff_name, input.cashier ?? null),
     date: new Date(sale.created_at),

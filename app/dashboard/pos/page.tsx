@@ -692,7 +692,9 @@ export default function POSPage() {
     const soldPayment = { paymentMethod, transferMethod, cardMethod, splits };
     const soldSeller = staff.find((m) => m.id === staffId)?.full_name ?? null;
 
-    const outcome = await checkout();
+    // Lo recibido viaja con la venta: sin esto, reimprimirla no puede
+    // mostrar recibido ni cambio.
+    const outcome = await checkout({ amountTendered: summary.tendered });
     if (outcome === "failed") {
       // El store deja el motivo en `error` (stock insuficiente, cupo de
       // crédito, precio faltante…). Un tope de plan NO deja error: lo muestra
@@ -1263,7 +1265,9 @@ export default function POSPage() {
               {promoAplicado ? (
                 <button
                   onClick={() => {
-                    setLineDiscounts([{ key: promoAplicado.key, discountAmount: 0 }]);
+                    // "auto": el premio es un canal automático, no un
+                    // descuento manual (no pide `pos_discount`).
+                    setLineDiscounts([{ key: promoAplicado.key, discountAmount: 0 }], "auto");
                     setPromoAplicado(null);
                   }}
                   className="shrink-0 text-[11px] font-bold text-on-surface-variant hover:text-error transition-colors"
@@ -1273,7 +1277,7 @@ export default function POSPage() {
               ) : (
                 <button
                   onClick={() => {
-                    setLineDiscounts([promoSugerido!]);
+                    setLineDiscounts([promoSugerido!], "auto");
                     setPromoAplicado({
                       key: promoSugerido!.key,
                       amount: promoSugerido!.discountAmount,

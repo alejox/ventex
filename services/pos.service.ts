@@ -1,6 +1,6 @@
 import { createClient } from "@/utils/supabase/client";
 import { SERVICE_UNIT, tracksStock } from "@/services/inventory.service";
-import type { Database, Json } from "@/utils/supabase/database.types";
+import { createSaleWithFallback } from "@/lib/sale-discounts";
 
 // ---- Tipos del dominio del POS ----
 /** Un ítem del catálogo: producto (con stock) o servicio (sin stock). */
@@ -85,6 +85,14 @@ export interface CartLine {
    */
   offerId?: string;
   offerName?: string;
+  /**
+   * La parte de `discountAmount` que puso el cajero a mano en el
+   * DiscountModal. Es lo que viaja como `p_manual_discount` y lo único que a
+   * un trabajador le exige el permiso `pos_discount` en `create_sale`; las
+   * ofertas, el premio de cortes y los puntos no. `undefined` = nada manual.
+   * La mantiene `setLineDiscounts` (ver `nextManualDiscount`).
+   */
+  manualDiscount?: number;
   staffId?: string | null;
   /**
    * Precio asignado en el mostrador. Solo lo aceptan los ítems `open_price`:
@@ -194,6 +202,12 @@ interface CheckoutItem {
   kind?: SaleUnitKind;
   /** Precio asignado al vender. Solo para productos `open_price`. */
   unit_price?: number;
+  /**
+   * Descuento de ESTA línea (todos los canales), en centavos exactos. La base
+   * lo guarda en `sale_items.discount_amount` y exige que sumen el total.
+   * Ausente en ventas encoladas antes de que existiera.
+   */
+  discount_amount?: number;
 }
 
 export interface CheckoutInput {
@@ -206,7 +220,15 @@ export interface CheckoutInput {
   paymentMethod: PaymentMethod;
   transferMethod?: string | null;
   cardMethod?: string | null;
+  /** Descuento TOTAL de la venta (manual + ofertas + premio + puntos). */
   discount: number;
+  /**
+   * Parte manual de `discount` (DiscountModal). Ausente en ventas encoladas
+   * antes de esto: la base la toma como 0, igual que antes.
+   */
+  manualDiscount?: number;
+  /** Efectivo recibido (solo efectivo sin pago dividido). null = no se anotó. */
+  amountTendered?: number | null;
   items: CheckoutItem[];
   /** Desglosar IVA en esta venta. Sin esto manda la configuración del negocio. */
   includeTax?: boolean;
@@ -430,35 +452,34 @@ export async function fetchPosConfig(): Promise<PosConfig> {
 export async function createSale(input: CheckoutInput): Promise<string> {
   const supabase = createClient();
 
-  type CreateSaleArgs = Database["public"]["Functions"]["create_sale"]["Args"];
-  type WorkspaceCreateSaleArgs = CreateSaleArgs & {
-    p_expected_workspace_id: string;
-    p_expected_membership_id: string;
-    p_expected_shift_id?: string;
-  };
+  // `database.types.ts` todavía describe la firma vieja (se regenera al
+  // aplicar la migración), así que la llamada va sin tipar los argumentos.
+  // Los nombres los arma `createSaleArgs`, que es lo que está testeado.
+  const rpc = supabase.rpc as unknown as (
+    fn: "create_sale",
+    args: Record<string, unknown>,
+  ) => PromiseLike<{ data: unknown; error: { code?: string; message: string } | null }>;
 
-  const payload: WorkspaceCreateSaleArgs = {
-    p_customer_id: input.customerId as string,
-    p_payment_method: input.paymentMethod,
-    p_discount_amount: input.discount,
-    p_items: input.items as unknown as Json,
-    p_staff_id: input.staffId ?? undefined,
-    p_expected_workspace_id: input.workspaceId,
-    p_expected_membership_id: input.membershipId,
-    ...(input.shiftId ? { p_expected_shift_id: input.shiftId } : {}),
-    ...(input.transferMethod ? { p_transfer_method: input.transferMethod } : {}),
-    ...(input.cardMethod ? { p_card_method: input.cardMethod } : {}),
-    ...(input.clientSaleId ? { p_client_sale_id: input.clientSaleId } : {}),
-  };
-
-  if (input.splits && input.splits.length > 0) {
-    payload.p_payments = input.splits as unknown as Json;
-  }
-
-  const { data, error } = await supabase.rpc("create_sale", payload);
-  if (error) throw error;
-  return data as string;
+  // Si la base todavía no tiene `p_manual_discount`/`p_amount_tendered`
+  // (migración 20261006230000 sin aplicar), repite con la firma vieja — mismo
+  // patrón que `voidSale`. La cola offline pasa por acá también, así que una
+  // venta encolada se reenvía bien contra cualquiera de las dos bases.
+  const { saleId, legacy } = await createSaleWithFallback(
+    (args) => rpc.call(supabase, "create_sale", args),
+    input,
+    legacyCreateSale,
+  );
+  // Se recuerda para no pagar dos llamadas por venta el resto de la sesión.
+  legacyCreateSale = legacy;
+  return saleId;
 }
+
+/**
+ * true = esta sesión ya vio que la base no conoce la firma nueva de
+ * `create_sale`. Se reinicia al recargar: aplicada la migración, la próxima
+ * sesión empieza a mandar los parámetros nuevos sin tocar código.
+ */
+let legacyCreateSale = false;
 
 export async function createCustomer(params: {
   name: string;

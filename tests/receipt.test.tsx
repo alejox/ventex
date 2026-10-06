@@ -190,6 +190,58 @@ test("un solo pago no se lista como dividido", () => {
   assert.equal(r.customer?.full_name, "Marta");
 });
 
+test("reimpresión con la migración: descuento por línea, recibido y cambio salen de la base", () => {
+  const twoLines: SaleDetail = {
+    ...sale,
+    items: [
+      sale.items[0],
+      { ...sale.items[0], id: "l2", product_name: "Pan", unit_price: 1000, quantity: 1, line_total: 1000 },
+    ],
+    discount_amount: 2500,
+    total: 10500,
+  };
+  const extras: SaleReceiptExtras = {
+    saleNumber: 42,
+    customer: null,
+    payments: [{ payment_method: "efectivo", amount: 10500, transfer_method: null, card_method: null }],
+    tendered: 20000,
+    lineDiscounts: { l1: 2000, l2: 500 },
+  };
+  const r = buildReceiptFromSale({ sale: twoLines, extras, business: {}, includeTax: true });
+  assert.deepEqual(r.items.map((i) => [i.discount, i.total]), [[2000, 10000], [500, 500]]);
+  assert.equal(r.tendered, 20000);
+  assert.equal(r.change, 9500);
+});
+
+test("reimpresión de una venta VIEJA: líneas en 0 no inventan un desglose que no suma", () => {
+  const extras: SaleReceiptExtras = {
+    saleNumber: 42,
+    customer: null,
+    payments: [],
+    tendered: null,
+    lineDiscounts: { l1: 0 },
+  };
+  const r = buildReceiptFromSale({ sale, extras, business: {}, includeTax: true });
+  assert.equal(r.items[0].discount, 0);
+  assert.equal(r.items[0].total, 12000);
+  assert.equal(r.totals.discount, 2000);
+  assert.equal(r.tendered, null);
+  assert.equal(r.change, 0);
+});
+
+test("reimpresión: el recibido no se imprime en un pago que no fue en efectivo", () => {
+  const extras: SaleReceiptExtras = {
+    saleNumber: 42,
+    customer: null,
+    payments: [],
+    tendered: 20000,
+    lineDiscounts: null,
+  };
+  const r = buildReceiptFromSale({ sale: { ...sale, payment_method: "tarjeta" }, extras, business: {}, includeTax: true });
+  assert.equal(r.tendered, null);
+  assert.equal(r.change, 0);
+});
+
 test("el recibo impreso muestra número de venta, cajero, recibido y cambio", () => {
   const cart: CartLine[] = [{ item, quantity: 2, discountAmount: 500 }];
   const data = buildReceiptFromCart({

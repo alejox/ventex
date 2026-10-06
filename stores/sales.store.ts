@@ -165,11 +165,15 @@ export const useSalesStore = create<SalesState>((set, get) => ({
       // un split) alimentan la reimpresión Y el aviso de efectivo; los de
       // anulación (puntos/premio) devuelven vacío si fallan en vez de tumbar
       // el detalle.
-      const [detail, receiptExtras, voidExtras] = await Promise.all([
+      // `fetchSaleReceiptAmounts` (recibido y descuento por línea) nunca
+      // tira: sin la migración aplicada devuelve nulls.
+      const [detail, extras, amounts, voidExtras] = await Promise.all([
         salesService.fetchSaleDetail(saleId),
         salesService.fetchSaleReceiptExtras(saleId),
+        salesService.fetchSaleReceiptAmounts(saleId),
         salesService.fetchSaleVoidExtras(saleId),
       ]);
+      const receiptExtras = { ...extras, ...amounts };
       set({
         detail,
         receiptExtras,

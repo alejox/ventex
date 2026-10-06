@@ -581,6 +581,56 @@ export interface SaleReceiptExtras {
     transfer_method: string | null;
     card_method: string | null;
   }[];
+  /**
+   * `sales.amount_tendered`: efectivo que entregó el cliente. null = no se
+   * guardó (venta vieja, no fue en efectivo, o la base todavía no tiene la
+   * columna). Lo trae `fetchSaleReceiptAmounts`.
+   */
+  tendered?: number | null;
+  /**
+   * `sale_items.discount_amount` por id de línea. null/ausente = la base no
+   * tiene la columna todavía. Ventas viejas traen 0 en todas: el recibo decide
+   * si sirven (`savedLineDiscounts`).
+   */
+  lineDiscounts?: Record<string, number> | null;
+}
+
+/** Undefined column (Postgres 42703, también así por PostgREST). */
+function isMissingColumn(error: { code?: string } | null): boolean {
+  return error?.code === "42703";
+}
+
+/**
+ * Efectivo recibido y descuento por línea de una venta guardada.
+ *
+ * Tolerante a que la migración 20261006230000 todavía no esté aplicada: sin
+ * las columnas devuelve nulls y el recibo se imprime como siempre. Cualquier
+ * otro error también degrada a null — el comprobante no se puede caer por un
+ * dato accesorio.
+ */
+export async function fetchSaleReceiptAmounts(
+  saleId: string,
+): Promise<{ tendered: number | null; lineDiscounts: Record<string, number> | null }> {
+  const supabase = createClient();
+  // Columnas que `database.types.ts` todavía no conoce (se regenera al aplicar
+  // la migración): el resultado se lee como `unknown` y se valida a mano.
+  const { data, error } = await supabase
+    .from("sales")
+    .select("amount_tendered, sale_items(id, discount_amount)")
+    .eq("id", saleId)
+    .maybeSingle();
+  if (error || !data) {
+    if (error && !isMissingColumn(error)) console.warn("fetchSaleReceiptAmounts", error.message);
+    return { tendered: null, lineDiscounts: null };
+  }
+  const raw = data as unknown as { amount_tendered?: unknown; sale_items?: unknown };
+  const items = (Array.isArray(raw.sale_items) ? raw.sale_items : []) as { id: string; discount_amount?: unknown }[];
+  const lineDiscounts: Record<string, number> = {};
+  for (const it of items) lineDiscounts[it.id] = Number(it.discount_amount ?? 0) || 0;
+  return {
+    tendered: raw.amount_tendered == null ? null : Number(raw.amount_tendered),
+    lineDiscounts,
+  };
 }
 
 export async function fetchSaleReceiptExtras(saleId: string): Promise<SaleReceiptExtras> {
@@ -623,6 +673,10 @@ export async function fetchSaleReceiptExtras(saleId: string): Promise<SaleReceip
 export async function fetchSaleForReceipt(
   saleId: string,
 ): Promise<{ sale: SaleDetail; extras: SaleReceiptExtras }> {
-  const [sale, extras] = await Promise.all([fetchSaleDetail(saleId), fetchSaleReceiptExtras(saleId)]);
-  return { sale, extras };
+  const [sale, extras, amounts] = await Promise.all([
+    fetchSaleDetail(saleId),
+    fetchSaleReceiptExtras(saleId),
+    fetchSaleReceiptAmounts(saleId),
+  ]);
+  return { sale, extras: { ...extras, ...amounts } };
 }

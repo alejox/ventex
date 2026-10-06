@@ -12,6 +12,7 @@ import type { AppliedLoyaltyPoints } from "@/services/loyalty.service";
 import type { ProductOffer } from "@/services/offers.service";
 import { useShiftsStore } from "@/stores/shifts.store";
 import { lineKey, cartLineKey as keyOf } from "@/services/pos.service";
+import { checkoutDiscounts, nextManualDiscount, tenderedForSale, type DiscountSource } from "@/lib/sale-discounts";
 import {
   getWorkspaceExecutionContext,
   type WorkspaceExecutionContext,
@@ -180,7 +181,13 @@ interface PosState {
   setLineKind: (key: string, unitKind: SaleUnitKind) => void;
   setCustomer: (customerId: string | null) => void;
   setStaff: (staffId: string | null) => void;
-  setLineDiscounts: (discounts: { key: string; discountAmount: number }[]) => void;
+  /**
+   * `source` dice de qué canal viene el descuento, para separar lo MANUAL
+   * (lo que a un trabajador le pide `pos_discount` en `create_sale`):
+   * "manual" = DiscountModal, "auto" = premio de cortes (reemplaza),
+   * "layer" (default) = puntos, que se suman/restauran sobre lo que había.
+   */
+  setLineDiscounts: (discounts: { key: string; discountAmount: number }[], source?: DiscountSource) => void;
   applyLoyaltyPoints: (points: number, pointsValue: number) => boolean;
   removeLoyaltyPoints: () => void;
   /**
@@ -206,7 +213,12 @@ interface PosState {
   setDeliveryData: (data: Partial<DeliveryData>) => void;
   clearCart: () => void;
   /** Ver `CheckoutOutcome`: `queued` también es un cobro bueno. */
-  checkout: () => Promise<CheckoutOutcome>;
+  /**
+   * `amountTendered`: el efectivo que entregó el cliente (lo anota el modal
+   * de cobro). Se guarda con la venta para reimprimir recibido y cambio; solo
+   * cuenta en efectivo sin pago dividido (ver `tenderedForSale`).
+   */
+  checkout: (options?: { amountTendered?: number | null }) => Promise<CheckoutOutcome>;
 
   /**
    * Ventas cobradas sin conexión que todavía no llegaron al servidor. Solo las
@@ -855,7 +867,7 @@ export const usePosStore = create<PosState>((set, get) => {
      * revés — un descuento a mano siempre gana, nunca se suma a una oferta
      * (ver `offerDiscountsFor`).
      */
-    setLineDiscounts: (discounts) => {
+    setLineDiscounts: (discounts, source = "layer") => {
       set((s) => ({
         tabs: s.tabs.map((t) => {
           if (t.id !== s.activeTabId) return t;
@@ -864,7 +876,13 @@ export const usePosStore = create<PosState>((set, get) => {
             cart: t.cart.map((line) => {
               const d = discounts.find((x) => x.key === keyOf(line));
               return d
-                ? { ...line, discountAmount: d.discountAmount, offerId: undefined, offerName: undefined }
+                ? {
+                    ...line,
+                    discountAmount: d.discountAmount,
+                    manualDiscount: nextManualDiscount(line.manualDiscount, d.discountAmount, source),
+                    offerId: undefined,
+                    offerName: undefined,
+                  }
                 : line;
             }),
           };
@@ -1075,7 +1093,7 @@ export const usePosStore = create<PosState>((set, get) => {
         };
       }),
 
-    checkout: async () => {
+    checkout: async (options) => {
       const state = get();
       const activeTab = state.tabs.find((t) => t.id === state.activeTabId);
       if (!activeTab || activeTab.cart.length === 0) return "failed";
@@ -1117,6 +1135,11 @@ export const usePosStore = create<PosState>((set, get) => {
       // El payload se arma UNA vez: lo que sale a la red y lo que se guarda en
       // la cola tienen que ser byte por byte lo mismo. Recalcularlo al reenviar
       // abriría la puerta a que la venta encolada no sea la que se cobró.
+      //
+      // El descuento sale desglosado: el total (como siempre), la parte
+      // MANUAL —la única que a un trabajador le pide `pos_discount` en la
+      // base— y el de cada línea, redondeado a centavos sin perder la suma.
+      const discounts = checkoutDiscounts(cart, (l) => posService.linePrice(l) * l.quantity);
       const input: posService.CheckoutInput = {
         workspaceId: state.executionContext.workspaceId,
         membershipId: state.executionContext.membershipId,
@@ -1126,9 +1149,11 @@ export const usePosStore = create<PosState>((set, get) => {
         paymentMethod,
         transferMethod,
         cardMethod,
-        discount: cart.reduce((acc, l) => acc + (l.discountAmount || 0), 0),
+        discount: discounts.total,
+        manualDiscount: discounts.manual,
+        amountTendered: tenderedForSale(options?.amountTendered, paymentMethod, splits.length),
         includeTax: state.includeTax,
-        items: cart.map((l) => {
+        items: cart.map((l, index) => {
           const base = l.item.kind === "service"
             ? { service_id: l.item.id }
             : { product_id: l.item.id };
@@ -1142,6 +1167,7 @@ export const usePosStore = create<PosState>((set, get) => {
             ...(l.item.open_price && l.customPrice != null
               ? { unit_price: l.customPrice }
               : {}),
+            ...(discounts.lines ? { discount_amount: discounts.lines[index] } : {}),
           };
         }),
         splits: splits.length > 0 ? splits : undefined,
