@@ -5,6 +5,8 @@ import { useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { toast } from "sonner";
 import { useBusinessSiteStore } from "@/stores/business-site.store";
+import { useInventoryStore } from "@/stores/inventory.store";
+import { useStaffStore } from "@/stores/staff.store";
 import { slugify } from "@/services/business-site.service";
 import type { BusinessHour, SiteInput } from "@/services/business-site.service";
 import {
@@ -174,7 +176,7 @@ export function LandingEditor({ siteId: initialSiteId, onSaved, onBack, initial,
             {activeTab === "design" ? <DesignPanel config={form.draft_config} businessType={businessType} onChange={updateConfig} /> : null}
             {activeTab === "sections" ? <SectionsPanel config={form.draft_config} onChange={updateConfig} /> : null}
             {activeTab === "content" ? <ContentPanel config={form.draft_config} onChange={updateConfig} /> : null}
-            {activeTab === "business" ? <BusinessPanel sharing={<LandingQr slug={savedSlug} saving={saving} onGenerate={saveDraft} published={published} changed={!!savedSlug && slugify(form.slug) !== savedSlug} />} form={form} hours={hours} onForm={updateForm} onHours={(next) => { setHours(next); setDirty(true); }} onConfig={updateConfig} /> : null}
+            {activeTab === "business" ? <BusinessPanel sharing={<LandingQr slug={savedSlug} label={form.site_name.trim() || businessName} saving={saving} onGenerate={saveDraft} published={published} changed={!!savedSlug && slugify(form.slug) !== savedSlug} />} form={form} hours={hours} onForm={updateForm} onHours={(next) => { setHours(next); setDirty(true); }} onConfig={updateConfig} /> : null}
             {activeTab === "seo" ? <SeoPanel config={form.draft_config} onChange={updateConfig} /> : null}
           </div>
         </aside>
@@ -199,11 +201,63 @@ function DesignPanel({ config, businessType, onChange }: PanelProps & { business
 
 function SectionsPanel({ config, onChange }: PanelProps) {
   function move(index: number, direction: -1 | 1) { onChange((current) => { const sections = [...current.sections]; const target = index + direction; if (target < 0 || target >= sections.length) return current; [sections[index], sections[target]] = [sections[target], sections[index]]; return { ...current, sections }; }); }
-  return <div className="space-y-4"><PanelTitle title="Orden y visibilidad" text="La portada siempre permanece al inicio." />{config.sections.map((section, index) => <div key={section.id} className="rounded-xl border border-outline-variant/30 p-3"><div className="flex items-center gap-2"><input type="checkbox" checked={section.visible} onChange={(event) => onChange((current) => ({ ...current, sections: current.sections.map((item) => item.id === section.id ? { ...item, visible: event.target.checked } : item) }))} className="h-4 w-4 accent-[var(--primary)]" /><span className="flex-1 text-sm font-bold text-on-surface">{section.title}</span><button type="button" disabled={index === 0} onClick={() => move(index, -1)} className="rounded p-2 text-on-surface-variant disabled:opacity-20" aria-label={`Subir ${section.title}`}>↑</button><button type="button" disabled={index === config.sections.length - 1} onClick={() => move(index, 1)} className="rounded p-2 text-on-surface-variant disabled:opacity-20" aria-label={`Bajar ${section.title}`}>↓</button></div><div className="mt-3 grid gap-2"><input value={section.subtitle} onChange={(event) => updateSectionText(onChange, section.id, "subtitle", event.target.value)} className={INPUT} placeholder="Antetítulo" /><input value={section.title} onChange={(event) => updateSectionText(onChange, section.id, "title", event.target.value)} className={INPUT} placeholder="Título" /></div></div>)}</div>;
+  return <div className="space-y-4"><PanelTitle title="Orden y visibilidad" text="La portada siempre permanece al inicio." />{config.sections.map((section, index) => <div key={section.id} className="rounded-xl border border-outline-variant/30 p-3"><div className="flex items-center gap-2"><input type="checkbox" checked={section.visible} onChange={(event) => onChange((current) => ({ ...current, sections: current.sections.map((item) => item.id === section.id ? { ...item, visible: event.target.checked } : item) }))} className="h-4 w-4 accent-[var(--primary)]" /><span className="flex-1 text-sm font-bold text-on-surface">{section.title}</span><button type="button" disabled={index === 0} onClick={() => move(index, -1)} className="rounded p-2 text-on-surface-variant disabled:opacity-20" aria-label={`Subir ${section.title}`}>↑</button><button type="button" disabled={index === config.sections.length - 1} onClick={() => move(index, 1)} className="rounded p-2 text-on-surface-variant disabled:opacity-20" aria-label={`Bajar ${section.title}`}>↓</button></div><div className="mt-3 grid gap-2"><input value={section.subtitle} onChange={(event) => updateSectionText(onChange, section.id, "subtitle", event.target.value)} className={INPUT} placeholder="Antetítulo" /><input value={section.title} onChange={(event) => updateSectionText(onChange, section.id, "title", event.target.value)} className={INPUT} placeholder="Título" /></div>{section.id === "services" || section.id === "products" || section.id === "team" ? <CatalogPicker config={config} onChange={onChange} sectionId={section.id} /> : null}</div>)}</div>;
 }
 
 function ContentPanel({ config, onChange }: PanelProps) {
   return <div className="space-y-7"><PanelTitle title="Portada" text="Las imágenes de muestra se usan hasta que subas las tuyas." /><Field label="Antetítulo"><input value={config.hero.eyebrow} onChange={(event) => onChange((current) => ({ ...current, hero: { ...current.hero, eyebrow: event.target.value } }))} className={INPUT} /></Field><Field label="Título principal"><input value={config.hero.title ?? ""} onChange={(event) => onChange((current) => ({ ...current, hero: { ...current.hero, title: event.target.value || null } }))} className={INPUT} placeholder="Usa el nombre del negocio si queda vacío" /></Field><Field label="Descripción"><textarea rows={3} value={config.hero.description ?? ""} onChange={(event) => onChange((current) => ({ ...current, hero: { ...current.hero, description: event.target.value || null } }))} className={INPUT} /></Field><ImageField label="Imagen de portada" value={config.hero.imageUrl} fallback={DEFAULT_SITE_IMAGES[config.template]} onChange={(url) => onChange((current) => ({ ...current, hero: { ...current.hero, imageUrl: url } }))} />{heroHasOverlay(config.template) ? <OverlayField config={config} onChange={onChange} /> : null}<hr className="border-outline-variant/20" /><PanelTitle title="Sobre nosotros" text="Contá qué hace diferente a tu negocio." /><Field label="Texto"><textarea rows={5} value={config.about.description ?? ""} onChange={(event) => onChange((current) => ({ ...current, about: { ...current.about, description: event.target.value || null } }))} className={INPUT} /></Field><ImageField label="Imagen de la sección" value={config.about.imageUrl} fallback={null} onChange={(url) => onChange((current) => ({ ...current, about: { ...current.about, imageUrl: url } }))} /><hr className="border-outline-variant/20" /><PanelTitle title="Galería" text="Podés mostrar hasta 12 imágenes." /><GalleryEditor config={config} onChange={onChange} /></div>;
+}
+
+type CatalogKey = keyof LandingConfig["catalog"];
+
+/**
+ * Selector OPCIONAL de qué muestra una sección (categorías de servicios, de
+ * productos, o personas del equipo). Va plegado dentro de la sección: quien no
+ * lo abre no ve cambio alguno, y sin nada marcado la sección muestra todo.
+ */
+function CatalogPicker({ config, onChange, sectionId }: PanelProps & { sectionId: SiteSectionId }) {
+  const categories = useInventoryStore((state) => state.categories);
+  const fetchCategories = useInventoryStore((state) => state.fetchCategories);
+  const staff = useStaffStore((state) => state.staff);
+  const fetchStaff = useStaffStore((state) => state.fetchStaff);
+  useEffect(() => {
+    if (sectionId === "team") void fetchStaff();
+    else void fetchCategories();
+  }, [sectionId, fetchCategories, fetchStaff]);
+
+  const key: CatalogKey = sectionId === "services" ? "serviceCategoryIds" : sectionId === "products" ? "productCategoryIds" : "staffIds";
+  const selected = config.catalog[key];
+  const options = sectionId === "team"
+    ? staff.filter((member) => member.status === "active").map((member) => ({ id: member.id, name: member.full_name }))
+    : categories.map((category) => ({ id: category.id, name: category.name }));
+  const noun = sectionId === "team" ? "personas" : "categorías";
+  const toggle = (id: string) =>
+    onChange((current) => {
+      const list = current.catalog[key];
+      const next = list.includes(id) ? list.filter((item) => item !== id) : [...list, id];
+      return { ...current, catalog: { ...current.catalog, [key]: next } };
+    });
+
+  return (
+    <details className="mt-3 rounded-lg border border-outline-variant/20 p-3" open={selected.length > 0}>
+      <summary className="cursor-pointer text-xs font-bold text-on-surface-variant">
+        Elegir qué mostrar (opcional){selected.length > 0 ? ` · ${selected.length} seleccionadas` : " · muestra todo"}
+      </summary>
+      <p className="mt-2 text-xs text-on-surface-variant">
+        Marca las {noun} que aparecen en esta página. Sin ninguna marcada se muestra todo. Se aplica al publicar.
+      </p>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {options.length === 0 ? <p className="text-xs text-on-surface-variant">Aún no hay {noun} para elegir.</p> : null}
+        {options.map((option) => {
+          const active = selected.includes(option.id);
+          return (
+            <button key={option.id} type="button" aria-pressed={active} onClick={() => toggle(option.id)} className={`rounded-full border px-3 py-1.5 text-xs font-bold transition-colors ${active ? "border-primary bg-primary/10 text-primary" : "border-outline-variant/30 text-on-surface-variant hover:text-on-surface"}`}>{option.name}</button>
+          );
+        })}
+      </div>
+      {sectionId !== "team" && selected.length > 0 ? <p className="mt-2 text-xs text-on-surface-variant">Lo que no tenga categoría no se muestra en esta página.</p> : null}
+    </details>
+  );
 }
 
 function BusinessPanel({ form, hours, onForm, onHours, onConfig, sharing }: { sharing: React.ReactNode; form: SiteInput; hours: BusinessHour[]; onForm: <K extends keyof SiteInput>(key: K, value: SiteInput[K]) => void; onHours: (hours: BusinessHour[]) => void; onConfig: PanelProps["onChange"] }) {

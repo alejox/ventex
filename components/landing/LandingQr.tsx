@@ -4,10 +4,10 @@ import { useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { landingQr } from "@/services/landing-qr.service";
 
-export function LandingQr({ slug, published, changed, saving, onGenerate }: { slug?: string; published: boolean; changed: boolean; saving: boolean; onGenerate: () => Promise<boolean> }) {
+export function LandingQr({ slug, label, published, changed, saving, onGenerate }: { slug?: string; label?: string; published: boolean; changed: boolean; saving: boolean; onGenerate: () => Promise<boolean> }) {
   const [color, setColor] = useState("#000000");
   const colorInput = useRef<HTMLInputElement>(null);
-  const qr = useMemo(() => slug ? landingQr(slug, slug, color) : null, [slug, color]);
+  const qr = useMemo(() => slug ? landingQr(slug, label || slug, color) : null, [slug, label, color]);
 
   return (
     <section className="space-y-3 rounded-xl border border-outline-variant/30 p-4" aria-label="QR de tu web">

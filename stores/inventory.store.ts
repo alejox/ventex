@@ -23,6 +23,8 @@ interface InventoryState {
    */
   addProduct: (input: NewProductInput, imageFile?: File | null) => Promise<string | false>;
   updateProduct: (id: string, input: NewProductInput, imageFile?: File | null) => Promise<boolean>;
+  /** Solo las categorías: para pantallas que no necesitan todo el inventario. */
+  fetchCategories: () => Promise<void>;
   /** Devuelve el id de la categoría creada para poder seleccionarla, o false. */
   addCategory: (input: NewCategoryInput) => Promise<string | false>;
   updateCategory: (id: string, input: NewCategoryInput) => Promise<boolean>;
@@ -54,6 +56,14 @@ export const useInventoryStore = create<InventoryState>((set) => ({
       set({ categories, products, distributors, loading: false });
     } catch (e) {
       set({ error: toMessage(e), loading: false });
+    }
+  },
+
+  fetchCategories: async () => {
+    try {
+      set({ categories: await inventoryService.fetchCategories() });
+    } catch (e) {
+      set({ error: toMessage(e) });
     }
   },
 

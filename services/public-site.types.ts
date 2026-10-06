@@ -120,6 +120,16 @@ export interface LandingConfig {
   contact: SiteContactConfig;
   seo: { title: string | null; description: string | null; imageUrl: string | null };
   sections: SiteSectionConfig[];
+  /**
+   * Qué muestra ESTA página en cada sección. Cada lista es opcional: vacía =
+   * todo, que es lo que se mostraba siempre.
+   *
+   * Un mismo negocio puede tener una página para la barbería y otra para
+   * manicure o spa: cada una elige, por sección, qué categorías de servicios,
+   * qué categorías de productos y qué personas del equipo aparecen. Se aplica
+   * al publicar, igual que el resto.
+   */
+  catalog: { serviceCategoryIds: string[]; productCategoryIds: string[]; staffIds: string[] };
 }
 
 const SECTION_DEFAULTS: Record<SiteSectionId, Omit<SiteSectionConfig, "id">> = {
@@ -176,7 +186,16 @@ export function defaultLandingConfig(template: SiteTemplate = "rasm"): LandingCo
     contact: { ...EMPTY_CONTACT },
     seo: { title: null, description: null, imageUrl: null },
     sections: SITE_SECTION_IDS.map((id) => ({ id, ...SECTION_DEFAULTS[id] })),
+    catalog: { serviceCategoryIds: [], productCategoryIds: [], staffIds: [] },
   };
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Solo ids con forma de uuid, sin repetir: lo demás nunca coincidiría con una fila. */
+function uuidList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.filter((item): item is string => typeof item === "string" && UUID_RE.test(item)))];
 }
 
 function nullableString(value: unknown): string | null {
@@ -275,6 +294,13 @@ export function normalizeLandingConfig(value: unknown): LandingConfig {
     title: nullableString(seo.title),
     description: nullableString(seo.description),
     imageUrl: nullableString(seo.imageUrl),
+  };
+
+  const catalog = raw.catalog && typeof raw.catalog === "object" ? raw.catalog as Record<string, unknown> : {};
+  result.catalog = {
+    serviceCategoryIds: uuidList(catalog.serviceCategoryIds),
+    productCategoryIds: uuidList(catalog.productCategoryIds),
+    staffIds: uuidList(catalog.staffIds),
   };
 
   const seen = new Set<SiteSectionId>();
