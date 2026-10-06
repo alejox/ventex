@@ -28,6 +28,9 @@ export function formatSalesLimit(max: number | null, currency = "COP"): string {
  */
 export const UNLIMITED_COLLABORATORS = 9999;
 
+/** Plan que la página de precios destaca por defecto («Más elegido»). */
+export const FEATURED_PLAN_ID = "oro";
+
 export const isUnlimitedCollaborators = (max: number): boolean => max >= UNLIMITED_COLLABORATORS;
 
 /** Cuántos colaboradores admite un plan, como lo diría una persona. */

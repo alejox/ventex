@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { Plan, PlanPeriod } from "@/services/subscription.service";
-import { collaboratorsLabel, formatMoney, formatSalesLimit } from "@/config/plans";
+import { collaboratorsLabel, FEATURED_PLAN_ID, formatMoney, formatSalesLimit } from "@/config/plans";
 import { whatsappUrl } from "@/config/contact";
 import { useSubscriptionBillingStore } from "@/stores/subscription-billing.store";
 import { PaymentModal, GUEST_EMAIL_KEY } from "@/components/billing/PaymentModal";
@@ -131,7 +131,7 @@ export function PricingSection({
         <PeriodSwitch options={options} value={selected?.months ?? 1} onChange={setMonths} />
       )}
 
-      <div className={`grid gap-6 items-start ${plans.length >= 4 ? "md:grid-cols-2 xl:grid-cols-4" : "md:grid-cols-3"}`}>
+      <div className={`grid items-stretch gap-6 ${plans.length >= 4 ? "md:grid-cols-2 xl:grid-cols-4" : "md:grid-cols-3"}`}>
         {plans.map((plan) => (
           <PlanCard
             key={plan.id}
@@ -335,13 +335,14 @@ function PlanCard({
 }
 
 /**
- * Plan que lleva el badge y el botón sólido: el de pago más caro, que es el
- * tope de la escalera y lo que se quiere empujar. Sale del dato, así que si en
- * /admin/plans se agrega un plan superior, el destaque se mueve solo.
+ * Plan que lleva el badge «Más elegido» y el botón sólido: el que se quiere
+ * empujar. Por defecto Oro (`FEATURED_PLAN_ID`); si ese plan no existe o se
+ * desactiva, el de pago más caro, para que nunca quede la fila sin destaque.
  */
 function findFeaturedPlan(plans: Plan[]): string | null {
   const paid = plans.filter((p) => Number(p.price) > 0);
   if (paid.length === 0) return null;
+  if (paid.some((p) => p.id === FEATURED_PLAN_ID)) return FEATURED_PLAN_ID;
   return paid.reduce((best, p) => (Number(p.price) > Number(best.price) ? p : best)).id;
 }
 

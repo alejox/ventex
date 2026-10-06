@@ -24,3 +24,17 @@ on conflict (id) do update set
   sort_order = excluded.sort_order,
   is_active = excluded.is_active,
   updated_at = now();
+
+-- Períodos de cobro de Diamante. Sin estas filas la tarjeta no tiene período
+-- que cobrar y su botón «Pagar ahora» queda desactivado. Mensual, semestral
+-- (7 meses por el precio de 6) y anual (12 meses por 10), como Oro y Plata.
+insert into public.plan_periods (plan_id, name, months, price, credits, is_active, sort_order)
+select 'diamante', v.name, v.months, v.price, v.credits, true, v.sort_order
+from (values
+  ('Mensual',   1,  110000,  1, 1),
+  ('Semestral', 7,  660000,  6, 3),
+  ('Anual',     12, 1100000, 10, 4)
+) as v(name, months, price, credits, sort_order)
+where not exists (
+  select 1 from public.plan_periods pp where pp.plan_id = 'diamante' and pp.months = v.months
+);
