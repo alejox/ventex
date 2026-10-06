@@ -12,6 +12,7 @@ import { useProfile } from "@/components/ProfileProvider";
 import { OpenShiftModal } from "@/components/shift/OpenShiftModal";
 import { formatDuration } from "@/lib/duration";
 import { Select } from "@/components/ui/Select";
+import { DatePicker } from "@/components/ui/DatePicker";
 import { whatsappUrl, toWhatsappNumber } from "@/config/contact";
 import type {
   Appointment,
@@ -544,14 +545,9 @@ function AppointmentModalBody({
             <label className="text-[13px] font-semibold text-on-surface block">
               Fecha *
             </label>
-            <input
-              type="date"
-              required
+            <DatePicker
               value={form.appointment_date}
-              onChange={(e) =>
-                setForm({ ...form, appointment_date: e.target.value })
-              }
-              className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
+              onChange={(iso) => setForm({ ...form, appointment_date: iso })}
             />
           </div>
 
