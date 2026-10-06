@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { IconPlus, IconSearch, IconTag } from "@/app/assets/icons/DashboardIcons";
+import { useServicesStore } from "@/stores/services.store";
 import { useInventoryStore } from "@/stores/inventory.store";
 import { DataTable, type DataColumn } from "@/components/DataTable";
 import { CollectionEmpty, CollectionFilteredEmpty, CollectionError, CollectionLoading } from "@/components/CollectionState";
@@ -34,6 +35,9 @@ const EMPTY_CATEGORY: NewCategoryInput = {
 export default function CategoriesPage() {
   const categories = useInventoryStore((s) => s.categories);
   const products = useInventoryStore((s) => s.products);
+  // Los servicios viven en su propia tabla (`services.category_id`), no en `products`.
+  const services = useServicesStore((s) => s.services);
+  const fetchServices = useServicesStore((s) => s.fetchServices);
   const loading = useInventoryStore((s) => s.loading);
   const error = useInventoryStore((s) => s.error);
   const fetchInventory = useInventoryStore((s) => s.fetchInventory);
@@ -53,18 +57,28 @@ export default function CategoriesPage() {
 
   useEffect(() => {
     fetchInventory();
-  }, [fetchInventory]);
+    fetchServices();
+  }, [fetchInventory, fetchServices]);
 
-  // Contar productos por categoría
-  const productCountMap = useMemo(() => {
-    const map: Record<string, number> = {};
+  // Contar productos y servicios por categoría
+  const { productCountMap, serviceCountMap, itemCountMap } = useMemo(() => {
+    const productMap: Record<string, number> = {};
+    const serviceMap: Record<string, number> = {};
+    const totalMap: Record<string, number> = {};
     for (const p of products) {
       if (p.category_id) {
-        map[p.category_id] = (map[p.category_id] || 0) + 1;
+        productMap[p.category_id] = (productMap[p.category_id] || 0) + 1;
+        totalMap[p.category_id] = (totalMap[p.category_id] || 0) + 1;
       }
     }
-    return map;
-  }, [products]);
+    for (const sv of services) {
+      if (sv.category_id) {
+        serviceMap[sv.category_id] = (serviceMap[sv.category_id] || 0) + 1;
+        totalMap[sv.category_id] = (totalMap[sv.category_id] || 0) + 1;
+      }
+    }
+    return { productCountMap: productMap, serviceCountMap: serviceMap, itemCountMap: totalMap };
+  }, [products, services]);
 
   // Filtrado por búsqueda
   const filteredCategories = useMemo(() => {
@@ -146,6 +160,7 @@ export default function CategoriesPage() {
     if (!deleteTarget) return;
     setDeleting(true);
     const ok = await deleteCategory(deleteTarget.id);
+    if (ok) fetchServices();
     setDeleting(false);
 
     if (ok) {
@@ -186,14 +201,21 @@ export default function CategoriesPage() {
       ),
     },
     {
-      header: "Productos Asociados",
+      header: "Ítems Asociados",
       mobile: "badge",
       cell: (cat) => {
-        const count = productCountMap[cat.id] || 0;
+        const nProducts = productCountMap[cat.id] || 0;
+        const nServices = serviceCountMap[cat.id] || 0;
+        const parts = [
+          nProducts > 0 || nServices === 0
+            ? `${nProducts} ${nProducts === 1 ? "producto" : "productos"}`
+            : null,
+          nServices > 0 ? `${nServices} ${nServices === 1 ? "servicio" : "servicios"}` : null,
+        ].filter(Boolean);
         return (
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-surface-container-high border border-outline-variant/15 text-on-surface-variant">
             <span className="w-2 h-2 rounded-full bg-primary" />
-            {count} {count === 1 ? "producto" : "productos"}
+            {parts.join(" · ")}
           </span>
         );
       },
@@ -404,9 +426,9 @@ export default function CategoriesPage() {
               <p className="text-xs text-on-surface-variant">
                 Estás por eliminar la categoría <strong className="text-on-surface uppercase">{deleteTarget.name}</strong>.
               </p>
-              {(productCountMap[deleteTarget.id] || 0) > 0 && (
+              {(itemCountMap[deleteTarget.id] || 0) > 0 && (
                 <div className="mt-2 p-3 rounded-xl bg-error-container/20 border border-error-container/30 text-xs text-error-dim text-left">
-                  ⚠️ Hay <strong>{productCountMap[deleteTarget.id]}</strong> productos asignados a esta categoría. Al eliminarla, quedarán marcados como sin categoría.
+                  ⚠️ Hay <strong>{itemCountMap[deleteTarget.id]}</strong> {itemCountMap[deleteTarget.id] === 1 ? "producto o servicio asignado" : "productos y servicios asignados"} a esta categoría. Al eliminarla, quedarán marcados como sin categoría.
                 </div>
               )}
             </div>
