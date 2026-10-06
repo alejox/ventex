@@ -33,6 +33,7 @@ export const fetchProfileServer = cache(async function fetchProfileServer(): Pro
     is_super_admin?: boolean | null;
     is_reseller?: boolean | null;
     is_worker?: boolean | null;
+    is_workspace_admin?: boolean | null;
     worker_access_status?: string | null;
     workspace_id?: string | null;
     membership_id?: string | null;
@@ -51,6 +52,7 @@ export const fetchProfileServer = cache(async function fetchProfileServer(): Pro
     isSuperAdmin: Boolean(row?.is_super_admin),
     isReseller: Boolean(row?.is_reseller),
     isWorker: Boolean(row?.is_worker),
+    isWorkspaceAdmin: Boolean(row?.is_workspace_admin),
     workerAccessStatus:
       row?.worker_access_status === "pending" ||
       row?.worker_access_status === "active" ||

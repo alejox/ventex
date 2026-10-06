@@ -53,6 +53,8 @@ interface StaffState {
 
   fetchStaff: () => Promise<void>;
   fetchAccounts: () => Promise<void>;
+  /** Nombra o quita al administrador del negocio (solo el dueño). */
+  setAdmin: (accountId: string, isAdmin: boolean) => Promise<boolean>;
   fetchCommissions: (period?: CommissionPeriod) => Promise<void>;
   fetchSettlements: () => Promise<void>;
   fetchServicesReport: (period: CommissionPeriod) => Promise<void>;
@@ -275,6 +277,23 @@ export const useStaffStore = create<StaffState>((set) => ({
       set((s) => ({
         accounts: s.accounts.map((a) =>
           a.id === accountId ? { ...a, worker_permissions: permissions } : a,
+        ),
+        submitting: false,
+      }));
+      return true;
+    } catch (e) {
+      set({ error: toMessage(e), submitting: false });
+      return false;
+    }
+  },
+
+  setAdmin: async (accountId, isAdmin) => {
+    set({ submitting: true, error: null });
+    try {
+      await workerService.setWorkerAdmin(accountId, isAdmin);
+      set((s) => ({
+        accounts: s.accounts.map((a) =>
+          a.id === accountId ? { ...a, is_admin: isAdmin } : a,
         ),
         submitting: false,
       }));

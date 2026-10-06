@@ -17,6 +17,7 @@ type CurrentProfileRow = {
   membership_kind?: string | null;
   staff_id?: string | null;
   worker_permissions?: unknown;
+  is_workspace_admin?: boolean | null;
 };
 
 /** Mapea la proyección segura del perfil (+ datos de auth) al tipo de dominio. */
@@ -34,6 +35,7 @@ function toProfile(
     isSuperAdmin: Boolean(row.is_super_admin),
     isReseller: Boolean(row.is_reseller),
     isWorker: Boolean(row.is_worker),
+    isWorkspaceAdmin: Boolean(row.is_workspace_admin),
     workerAccessStatus:
       row.worker_access_status === "pending" ||
       row.worker_access_status === "active" ||

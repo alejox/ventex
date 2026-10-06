@@ -116,6 +116,13 @@ export interface Profile {
   isReseller: boolean;
   /** Trabajador (empleado con acceso limitado). */
   isWorker: boolean;
+  /**
+   * Administrador del negocio: miembro del equipo con poderes de dueño.
+   * `isWorker` es false para él (la app lo trata como dueño); lo que sigue
+   * siendo solo del dueño real (facturación, accesos del equipo) se decide con
+   * `membershipKind === "owner"`.
+   */
+  isWorkspaceAdmin: boolean;
   /** Estado autoritativo del acceso del trabajador. */
   workerAccessStatus: "pending" | "active" | "suspended" | null;
   /** ID del perfil del dueño del negocio (solo para workers). */

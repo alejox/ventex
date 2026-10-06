@@ -138,6 +138,9 @@ export default function StaffPage() {
   // policy de `expenses`, y el RPC lo revalida). Un empleado ve la pantalla,
   // pero el botón que siempre le fallaría no se le dibuja.
   const canSettle = !profile?.isWorker;
+  // Crear, editar y quitar accesos es solo del dueño real: un administrador
+  // tiene poderes de dueño pero no puede ascender a nadie (ni a sí mismo).
+  const canManageAccess = profile?.membershipKind === "owner";
 
   const grantMember = grantFor ? team.find((m) => m.id === grantFor) ?? null : null;
   const accountToEdit = editAccessFor ? accounts.find((a) => a.id === editAccessFor) ?? null : null;
@@ -165,10 +168,10 @@ export default function StaffPage() {
 
   useEffect(() => {
     fetchStaff();
-    fetchAccounts();
+    if (canManageAccess) fetchAccounts();
     fetchCommissions();
     fetchSubscription();
-  }, [fetchStaff, fetchAccounts, fetchCommissions, fetchSubscription]);
+  }, [fetchStaff, fetchAccounts, fetchCommissions, fetchSubscription, canManageAccess]);
 
   // Perfiles docentes y catálogo de especialidades: solo tiene sentido pedirlos
   // si el negocio tiene Académico activo (si no, la sección ni se dibuja).
@@ -516,6 +519,7 @@ export default function StaffPage() {
                   )}
 
                   {/* Acceso al sistema: la mitad que antes vivía en Ajustes. */}
+                  {canManageAccess && (
                   <div className="mt-3 flex gap-1.5">
                     {m.account ? (
                       <>
@@ -557,6 +561,7 @@ export default function StaffPage() {
                       </button>
                     )}
                   </div>
+                  )}
 
                   {/* `mt-auto` en el envoltorio y no en el botón: empuja este
                       bloque al fondo para que la última acción quede a la misma
@@ -984,6 +989,7 @@ export default function StaffPage() {
         <PermissionsPanel
           workerId={accountForPerms.id}
           current={accountForPerms.worker_permissions ?? {}}
+          isAdmin={accountForPerms.is_admin}
           onClose={() => setPermsFor(null)}
         />
       )}

@@ -10,12 +10,15 @@ import { PermissionToggles, togglePermission } from "./PermissionToggles";
 export function PermissionsPanel({
   workerId,
   current,
+  isAdmin,
   onClose,
 }: {
   workerId: string;
   current: WorkerPermissions;
+  isAdmin: boolean;
   onClose: () => void;
 }) {
+  const setAdmin = useStaffStore((s) => s.setAdmin);
   const updatePermissions = useStaffStore((s) => s.updatePermissions);
   const submitting = useStaffStore((s) => s.submitting);
   const error = useStaffStore((s) => s.error);
@@ -25,7 +28,12 @@ export function PermissionsPanel({
     setPerms((prev) => togglePermission(prev, p));
   };
 
+  const [admin, setAdminOn] = useState(isAdmin);
+
   const handleSave = async () => {
+    // El rol de administrador es una decisión aparte de los toggles: se guarda
+    // primero, y si falla no se tocan los permisos.
+    if (admin !== isAdmin && !(await setAdmin(workerId, admin))) return;
     const ok = await updatePermissions(workerId, perms);
     if (ok) {
       notifySuccess("Permisos guardados", "Los permisos se actualizaron.");
@@ -50,11 +58,38 @@ export function PermissionsPanel({
             </div>
           )}
 
-          <p className="text-sm text-on-surface-variant mb-4">
-            Activa o desactiva las secciones a las que esta persona puede entrar.
-          </p>
+          <button
+            type="button"
+            onClick={() => setAdminOn((v) => !v)}
+            className={`w-full flex items-center justify-between gap-4 p-3 rounded-2xl border text-left transition-colors ${
+              admin ? "bg-primary/5 border-primary/40" : "bg-surface-container-low border-outline-variant/10 hover:bg-surface-container"
+            }`}
+          >
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold text-on-surface">Administrador del negocio</span>
+              <span className="block text-xs text-on-surface-variant mt-0.5">
+                Actúa como el dueño: ve y gestiona todo el negocio, liquida comisiones y
+                configura. No puede cambiar la facturación ni los accesos del equipo.
+              </span>
+            </span>
+            <span className={`shrink-0 w-11 h-6 rounded-full relative transition-colors ${admin ? "bg-primary" : "bg-surface-container-highest border border-outline-variant/20"}`}>
+              <span className={`absolute top-[2px] w-5 h-5 bg-white rounded-full shadow-sm transition-all ${admin ? "left-[22px]" : "left-[2px]"}`} />
+            </span>
+          </button>
 
-          <PermissionToggles perms={perms} onToggle={toggle} onReplace={setPerms} />
+          {admin ? (
+            <p className="text-sm text-on-surface-variant">
+              Un administrador tiene acceso a todo; los permisos individuales no aplican.
+            </p>
+          ) : (
+            <>
+              <p className="text-sm text-on-surface-variant mb-4">
+                Activa o desactiva las secciones a las que esta persona puede entrar.
+              </p>
+
+              <PermissionToggles perms={perms} onToggle={toggle} onReplace={setPerms} />
+            </>
+          )}
         </div>
 
         <div className="flex items-center justify-between gap-4 p-6 pt-0 shrink-0">

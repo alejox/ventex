@@ -8,6 +8,7 @@ export interface WorkspaceMembershipAdminRow {
   staff_id: string | null;
   invited_email: string;
   member_kind: "owner" | "member";
+  is_admin: boolean;
   role: string | null;
   permissions: Json;
   status: "pending" | "active" | "suspended" | "revoked";

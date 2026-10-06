@@ -71,6 +71,7 @@ export async function GET() {
       staff_id: membership.staff_id,
       role: membership.role,
       worker_permissions: membership.permissions,
+      is_admin: membership.is_admin,
       access_status: membership.status,
       invited_at: membership.invited_at,
       activated_at: membership.activated_at,
@@ -171,6 +172,26 @@ export async function POST(request: NextRequest) {
     } catch (error) {
       return NextResponse.json(
         { error: error instanceof Error ? error.message : "No se pudieron actualizar los permisos." },
+        { status: 500 },
+      );
+    }
+  } else if (action === "set_admin") {
+    // Solo el dueño real llega hasta acá (requireSelectedWorkspaceOwner), y es
+    // lo que impide que un administrador ascienda a otros o a sí mismo.
+    if (membership.status !== "active") {
+      return NextResponse.json(
+        { error: "Solo se puede nombrar administrador a quien ya tiene acceso activo." },
+        { status: 409 },
+      );
+    }
+    try {
+      await updateMembership(membershipId, workspaceId, {
+        is_admin: body.isAdmin === true,
+        updated_at: new Date().toISOString(),
+      });
+    } catch (error) {
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message : "No se pudo cambiar el rol." },
         { status: 500 },
       );
     }

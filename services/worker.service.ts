@@ -13,6 +13,8 @@ export interface WorkerMember {
   staff_id: string | null;
   role: string | null;
   worker_permissions: WorkerPermissions;
+  /** Administrador del negocio (poderes de dueño salvo facturación y accesos). */
+  is_admin: boolean;
   access_status: WorkerAccessStatus;
   invited_at: string | null;
   activated_at: string | null;
@@ -54,6 +56,7 @@ export async function fetchWorkers(): Promise<WorkerMember[]> {
       staff_id: string | null;
       role: string | null;
       worker_permissions: WorkerPermissions | null;
+      is_admin?: boolean;
       access_status: WorkerAccessStatus;
       invited_at: string | null;
       activated_at: string | null;
@@ -70,6 +73,7 @@ export async function fetchWorkers(): Promise<WorkerMember[]> {
     staff_id: row.staff_id,
     role: row.role,
     worker_permissions: row.worker_permissions ?? {},
+    is_admin: row.is_admin === true,
     access_status: row.access_status,
     invited_at: row.invited_at,
     activated_at: row.activated_at,
@@ -107,6 +111,17 @@ export async function updateWorkerPermissions(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ membershipId, action: "permissions", permissions }),
+  });
+}
+
+export async function setWorkerAdmin(
+  membershipId: string,
+  isAdmin: boolean,
+): Promise<void> {
+  await api("/api/worker/update", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ membershipId, action: "set_admin", isAdmin }),
   });
 }
 
