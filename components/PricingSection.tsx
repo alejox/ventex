@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { Plan, PlanPeriod } from "@/services/subscription.service";
-import { formatMoney, formatSalesLimit } from "@/config/plans";
+import { collaboratorsLabel, formatMoney, formatSalesLimit } from "@/config/plans";
 import { whatsappUrl } from "@/config/contact";
 import { useSubscriptionBillingStore } from "@/stores/subscription-billing.store";
 import { PaymentModal, GUEST_EMAIL_KEY } from "@/components/billing/PaymentModal";
@@ -131,7 +131,7 @@ export function PricingSection({
         <PeriodSwitch options={options} value={selected?.months ?? 1} onChange={setMonths} />
       )}
 
-      <div className="grid gap-6 md:grid-cols-3 items-start">
+      <div className={`grid gap-6 items-start ${plans.length >= 4 ? "md:grid-cols-2 xl:grid-cols-4" : "md:grid-cols-3"}`}>
         {plans.map((plan) => (
           <PlanCard
             key={plan.id}
@@ -300,9 +300,7 @@ function PlanCard({
 
       <ul className="mt-6 space-y-3 text-sm text-on-surface-variant flex-1">
         <Feature>
-          {plan.max_collaborators === 0
-            ? "Solo tú"
-            : `Hasta ${plan.max_collaborators} colaborador${plan.max_collaborators === 1 ? "" : "es"}`}
+          {collaboratorsLabel(plan.max_collaborators)}
         </Feature>
         <Feature>Ventas al mes: {formatSalesLimit(plan.max_monthly_sales)}</Feature>
         <Feature>POS, inventario, finanzas y clientes</Feature>

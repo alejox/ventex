@@ -18,6 +18,25 @@ export function formatSalesLimit(max: number | null, currency = "COP"): string {
   return max == null ? "Ilimitado" : formatMoney(max, currency);
 }
 
+/**
+ * Tope que significa "sin límite de colaboradores".
+ *
+ * `plans.max_collaborators` es un entero NOT NULL y `0` ya significa "solo tú",
+ * así que lo ilimitado se guarda como un número que ningún negocio alcanza. Toda
+ * pantalla que muestre o compare el tope pasa por estos dos helpers, para que ese
+ * número nunca se vea como "Hasta 9999 colaboradores" ni cuente como un límite.
+ */
+export const UNLIMITED_COLLABORATORS = 9999;
+
+export const isUnlimitedCollaborators = (max: number): boolean => max >= UNLIMITED_COLLABORATORS;
+
+/** Cuántos colaboradores admite un plan, como lo diría una persona. */
+export function collaboratorsLabel(max: number): string {
+  if (isUnlimitedCollaborators(max)) return "Colaboradores ilimitados";
+  if (max === 0) return "Solo tú";
+  return `Hasta ${max} colaborador${max === 1 ? "" : "es"}`;
+}
+
 /** Porcentaje de uso (0–100) acotado, evitando división por cero/infinito. */
 export function usagePercent(used: number, max: number | null): number {
   if (max == null || max <= 0) return 0;
@@ -29,6 +48,7 @@ const PLAN_ACCENTS: Record<string, { bg: string; text: string; ring: string }> =
   gratis: { bg: "bg-surface-container-high", text: "text-on-surface-variant", ring: "ring-outline-variant/30" },
   basica: { bg: "bg-primary/10", text: "text-primary", ring: "ring-primary/30" },
   oro: { bg: "bg-amber-500/15", text: "text-amber-500", ring: "ring-amber-500/40" },
+  diamante: { bg: "bg-cyan-500/15", text: "text-cyan-500", ring: "ring-cyan-500/40" },
 };
 
 export function planAccent(planId: string) {

@@ -25,6 +25,7 @@ import { ShiftHistorySection } from "./components/ShiftHistorySection";
 import { CollectionEmpty, CollectionError, CollectionLoading } from "@/components/CollectionState";
 import { StaffPhotoField } from "@/components/StaffPhotoField";
 import Image from "next/image";
+import { isUnlimitedCollaborators } from "@/config/plans";
 
 // Los cargos NO se escriben acá: salen de STAFF_ROLES_BY_TYPE según el rubro
 // (config/business.ts). Una barbería ofrece Barbero y Estilista; una tienda,
@@ -197,7 +198,8 @@ export default function StaffPage() {
   );
 
   const activeCount = staff.filter((m) => m.status === "active").length;
-  const maxCollaborators = subscription?.max_collaborators ?? Infinity;
+  const maxCollaborators =
+    subscription && !isUnlimitedCollaborators(subscription.max_collaborators) ? subscription.max_collaborators : Infinity;
   const atCollaboratorLimit = activeCount >= maxCollaborators;
 
   const openCreate = () => {

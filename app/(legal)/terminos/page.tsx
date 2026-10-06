@@ -48,7 +48,7 @@ export default function TerminosPage() {
       <h2>3. Planes y pagos</h2>
       <ul>
         <li>
-          Ventex ofrece un plan gratuito y planes pagos (Plata, Oro) con límites de ventas mensuales y
+          Ventex ofrece un plan gratuito y planes pagos (Plata, Oro y Diamante) con límites de ventas mensuales y
           número de colaboradores, según lo publicado en{" "}
           <Link href="/#precios">ventex.app</Link>.
         </li>

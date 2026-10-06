@@ -5,8 +5,10 @@ import { useSubscriptionStore } from "@/stores/subscription.store";
 import { useSettingsStore } from "@/stores/settings.store";
 import type { Plan, PlanPeriod } from "@/services/subscription.service";
 import {
+  collaboratorsLabel,
   formatMoney,
   formatSalesLimit,
+  isUnlimitedCollaborators,
   usagePercent,
   planAccent,
   SUBSCRIPTION_STATUS_LABELS,
@@ -142,7 +144,7 @@ export default function SubscriptionPage() {
           )}
 
           <h2 className="text-lg font-bold text-on-surface mt-10 mb-4">Planes disponibles</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className={`grid grid-cols-1 gap-4 ${plans.filter((p) => p.is_active).length >= 4 ? "md:grid-cols-2 xl:grid-cols-4" : "md:grid-cols-3"}`}>
             {plans
               .filter((p) => p.is_active)
               .map((p) => (
@@ -248,7 +250,7 @@ function CurrentPlanCard({
         <UsageBar
           label="Colaboradores"
           used={subscription.staff_count}
-          max={subscription.max_collaborators}
+          max={isUnlimitedCollaborators(subscription.max_collaborators) ? null : subscription.max_collaborators}
           format={(n) => String(n)}
         />
         <UsageBar
@@ -645,8 +647,7 @@ function PlanCard({
       </div>
       <ul className="space-y-3 text-sm flex-1">
         <li className="flex items-center gap-2 text-on-surface-variant">
-          <Check /> Hasta <strong className="text-on-surface">{plan.max_collaborators}</strong>{" "}
-          colaborador{plan.max_collaborators === 1 ? "" : "es"}
+          <Check /> <strong className="text-on-surface">{collaboratorsLabel(plan.max_collaborators)}</strong>
         </li>
         <li className="flex items-center gap-2 text-on-surface-variant">
           <Check /> Ventas/mes:{" "}
