@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { CalendarDays, ChevronRight, X } from "lucide-react";
+import { CalendarDays, ChevronRight, Clock, X } from "lucide-react";
 import { DatePicker } from "@/components/ui/DatePicker";
 import { AppointmentTimeInput } from "./AppointmentTimeInput";
 import { formatDateOnly } from "@/lib/date";
@@ -25,6 +25,9 @@ const toTime = (total: number) => {
 
 /** Solo la primera letra: `capitalize` de CSS también sube "de" ("7 De Octubre"). */
 const upperFirst = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
+
+/** Inicios sugeridos: cada 30 min, de 6:00 a 22:00. */
+const START_SLOTS = Array.from({ length: 33 }, (_, i) => toTime(6 * 60 + i * 30));
 
 const QUICK_DURATIONS = [30, 45, 60, 90, 120];
 
@@ -70,10 +73,15 @@ export function DateTimeField({ value, format, onChange }: { value: DateTimeValu
 function DateTimeDialog({ initial, format, onClose, onApply }: { initial: DateTimeValue; format: TimeFormat; onClose: () => void; onApply: (next: DateTimeValue) => void }) {
   const [draft, setDraft] = useState(initial);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const selectedRef = useRef<HTMLButtonElement>(null);
   const duration = toMinutes(draft.end) - toMinutes(draft.start);
   const invalid = !draft.date || duration <= 0;
 
-  useEffect(() => { closeRef.current?.focus(); }, []);
+  useEffect(() => {
+    closeRef.current?.focus();
+    // La hora elegida queda a la vista aunque la lista sea más larga que su caja.
+    selectedRef.current?.scrollIntoView({ block: "center" });
+  }, []);
 
   // Cambiar la hora de inicio conserva la duración: mover una cita de las 3 a
   // las 4 no debería dejar la hora de fin atrás y romper el rango.
@@ -104,9 +112,16 @@ function DateTimeDialog({ initial, format, onClose, onApply }: { initial: DateTi
         <div className="space-y-5 overflow-y-auto px-6 py-5">
           <DatePicker value={draft.date} onChange={(date) => setDraft((current) => ({ ...current, date }))} />
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <AppointmentTimeInput label="Hora de inicio" value={draft.start} format={format} onChange={setStart} />
-            <AppointmentTimeInput label="Hora de fin" value={draft.end} format={format} onChange={(end) => setDraft((current) => ({ ...current, end }))} />
+          <div>
+            <span className="text-xs font-semibold text-on-surface-variant">Hora de inicio</span>
+            <div role="radiogroup" aria-label="Hora de inicio" className="mt-2 grid max-h-44 grid-cols-3 gap-2 overflow-y-auto rounded-xl border border-outline-variant/20 bg-surface-container-lowest p-2 sm:grid-cols-4">
+              {START_SLOTS.map((slot) => {
+                const active = slot === draft.start;
+                return (
+                  <button key={slot} ref={active ? selectedRef : undefined} type="button" role="radio" aria-checked={active} onClick={() => setStart(slot)} className={`rounded-lg px-2 py-2 text-xs font-bold tabular-nums transition-colors ${active ? "bg-primary text-on-primary" : "text-on-surface hover:bg-surface-container-high"}`}>{formatAppointmentTime(slot, format)}</button>
+                );
+              })}
+            </div>
           </div>
 
           <div>
@@ -116,8 +131,25 @@ function DateTimeDialog({ initial, format, onClose, onApply }: { initial: DateTi
                 <button key={minutes} type="button" aria-pressed={duration === minutes} onClick={() => setDraft((current) => ({ ...current, end: toTime(toMinutes(current.start) + minutes) }))} className={`rounded-full border px-3 py-1.5 text-xs font-bold transition-colors ${duration === minutes ? "border-primary bg-primary/10 text-primary" : "border-outline-variant/30 text-on-surface-variant hover:text-on-surface"}`}>{formatDuration(minutes)}</button>
               ))}
             </div>
-            {duration <= 0 ? <p role="alert" className="mt-2 text-xs text-error">La hora de fin debe ser después de la de inicio.</p> : null}
+            {duration > 0 ? (
+              <p className="mt-3 flex items-center gap-2 rounded-xl bg-primary/5 px-3 py-2 text-sm text-on-surface">
+                <Clock size={15} aria-hidden="true" className="text-primary" />
+                Termina a las <strong>{formatAppointmentTime(draft.end, format)}</strong>
+                <span className="text-xs text-on-surface-variant">({formatDuration(duration)})</span>
+              </p>
+            ) : (
+              <p role="alert" className="mt-2 text-xs text-error">La hora de fin debe ser después de la de inicio.</p>
+            )}
           </div>
+
+          {/* Para horas que no caen en la cuadrícula (9:10) o un fin a medida. */}
+          <details className="rounded-xl border border-outline-variant/20 p-3" open={!START_SLOTS.includes(draft.start) || duration <= 0}>
+            <summary className="cursor-pointer text-xs font-semibold text-on-surface-variant">Ajustar horas exactas</summary>
+            <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <AppointmentTimeInput label="Hora de inicio" value={draft.start} format={format} onChange={setStart} />
+              <AppointmentTimeInput label="Hora de fin" value={draft.end} format={format} onChange={(end) => setDraft((current) => ({ ...current, end }))} />
+            </div>
+          </details>
         </div>
 
         <div className="flex justify-end gap-3 border-t border-outline-variant/10 px-6 py-4">

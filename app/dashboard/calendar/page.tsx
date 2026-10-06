@@ -17,6 +17,7 @@ import { toISODate } from "@/lib/date";
 import { useStaffStore } from "@/stores/staff.store";
 import { formatDuration } from "@/lib/duration";
 import { Select } from "@/components/ui/Select";
+import { TimeGrid } from "@/components/calendar/TimeGrid";
 
 import { useSettingsStore } from "@/stores/settings.store";
 import { formatAppointmentTime } from "@/lib/time";
@@ -90,8 +91,6 @@ function timeRange(a: Appointment, timeFormat: Parameters<typeof formatAppointme
   const range = `${formatAppointmentTime(a.start_time, timeFormat)} - ${formatAppointmentTime(a.end_time, timeFormat)}`;
   return dur ? `${range} · ${dur}` : range;
 }
-
-const HOURS = Array.from({ length: 14 }, (_, i) => i + 7); // 7:00 - 20:00
 
 function getStatusColor(status: string) {
   switch (status) {
@@ -265,6 +264,10 @@ function CalendarContent() {
 
   // Get week days
   const weekDays = useMemo(() => getWeekDays(currentDate), [currentDate]);
+  const dayColumn = useMemo(
+    () => ({ date: formatDate(currentDate), day: currentDate.getDate(), dayName: DAYS_SHORT[currentDate.getDay()] }),
+    [currentDate],
+  );
 
   /**
    * ¿El periodo que se está viendo ya contiene el día de hoy?
@@ -283,15 +286,6 @@ function CalendarContent() {
     }
     return formatDate(currentDate) === today;
   }, [view, currentMonth, currentYear, weekDays, currentDate, today]);
-
-  // Get appointments for a specific hour (day view)
-  const getAppointmentsForHour = (date: string, hour: number) => {
-    const dayAppts = appointmentsByDate[date] || [];
-    return dayAppts.filter((a) => {
-      const startH = parseInt(a.start_time.split(":")[0]);
-      return startH === hour;
-    });
-  };
 
   return (
     <div className="flex flex-col gap-6 w-full animate-in fade-in duration-500">
@@ -517,160 +511,17 @@ function CalendarContent() {
         </div>
       )}
 
-      {/* ---- WEEK VIEW ---- */}
-      {!loading && displayMode === "calendar" && view === "week" && (
-        <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-3xl shadow-sm overflow-hidden">
-          {/* Day headers */}
-          <div className="grid grid-cols-8 border-b border-outline-variant/10 bg-surface-container/50">
-            <div className="p-3" />
-            {weekDays.map((d) => {
-              const isToday = d.date === today;
-              return (
-                <div key={d.date} className="p-3 text-center">
-                  <div className="text-xs font-bold text-on-surface-variant">
-                    {d.dayName}
-                  </div>
-                  <div
-                    className={`text-lg font-bold ${
-                      isToday
-                        ? "text-[#6063ee]"
-                        : "text-on-surface"
-                    }`}
-                  >
-                    {d.day}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Time grid */}
-          <div className="grid grid-cols-8 max-h-[600px] overflow-y-auto">
-            {/* Hour labels */}
-            <div className="border-r border-outline-variant/5">
-              {HOURS.map((h) => (
-                <div
-                  key={h}
-                  className="h-16 border-b border-outline-variant/5 flex items-start justify-end pr-2 pt-1"
-                >
-                  <span className="text-[10px] font-medium text-on-surface-variant">
-                    {formatAppointmentTime(`${String(h).padStart(2, "0")}:00`, timeFormat)}
-                  </span>
-                </div>
-              ))}
-            </div>
-
-            {/* Day columns */}
-            {weekDays.map((d) => (
-              <div
-                key={d.date}
-                className="border-r border-outline-variant/5"
-              >
-                {HOURS.map((h) => {
-                  const hourAppts = getAppointmentsForHour(d.date, h);
-                  return (
-                    <div
-                      key={h}
-                      className="h-16 border-b border-outline-variant/5 relative hover:bg-surface-container/20 transition-colors cursor-pointer"
-                      onClick={() => handleNewAppointment(d.date, `${String(h).padStart(2, "0")}:00`)}
-                    >
-                      {hourAppts.map((appt) => (
-                        <button
-                          key={appt.id}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleEditAppointment(appt);
-                          }}
-                          className={`absolute inset-x-1 top-0 px-1.5 py-0.5 text-[10px] font-bold rounded border-l-2 ${getStatusColor(
-                            appt.status,
-                          )} truncate z-10`}
-                          style={{
-                            height: `${Math.max(
-                              ((parseInt(appt.end_time.split(":")[0]) * 60 +
-                                parseInt(appt.end_time.split(":")[1])) -
-                                (parseInt(appt.start_time.split(":")[0]) * 60 +
-                                  parseInt(appt.start_time.split(":")[1]))) /
-                                60 *
-                                64,
-                              20,
-                            )}px`,
-                          }}
-                        >
-                          {formatAppointmentTime(appt.start_time, timeFormat)} {appt.title}
-                        </button>
-                      ))}
-                    </div>
-                  );
-                })}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ---- DAY VIEW ---- */}
-      {!loading && displayMode === "calendar" && view === "day" && (
-        <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-3xl shadow-sm overflow-hidden">
-          <div className="max-h-[600px] overflow-y-auto">
-            {HOURS.map((h) => {
-              const dateStr = formatDate(currentDate);
-              const hourAppts = getAppointmentsForHour(dateStr, h);
-
-              return (
-                <div key={h} className="flex border-b border-outline-variant/5">
-                  <div className="w-20 shrink-0 p-3 text-right border-r border-outline-variant/5">
-                    <span className="text-xs font-medium text-on-surface-variant">
-                      {formatAppointmentTime(`${String(h).padStart(2, "0")}:00`, timeFormat)}
-                    </span>
-                  </div>
-                  <div
-                    className="flex-1 min-h-[64px] p-2 hover:bg-surface-container/20 transition-colors cursor-pointer"
-                    onClick={() =>
-                      handleNewAppointment(
-                        dateStr,
-                        `${String(h).padStart(2, "0")}:00`,
-                      )
-                    }
-                  >
-                    {hourAppts.map((appt) => (
-                      <button
-                        key={appt.id}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleEditAppointment(appt);
-                        }}
-                        className={`w-full text-left p-3 rounded-xl mb-1 border-l-4 ${getStatusColor(
-                          appt.status,
-                        )}`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-bold text-on-surface">
-                            {appt.title}
-                          </span>
-                          <span className="text-xs text-on-surface-variant">
-                            {timeRange(appt, timeFormat)}
-                          </span>
-                        </div>
-                        {appt.customers?.full_name && (
-                          <span className="block text-xs text-on-surface-variant">
-                            {appt.customers.full_name}
-                          </span>
-                        )}
-                        {(appt.services?.name || appt.service_type || appt.staff?.full_name) && (
-                          <span className="block text-xs text-on-surface-variant/80">
-                            {[appt.services?.name ?? appt.service_type, appt.staff?.full_name]
-                              .filter(Boolean)
-                              .join(" · ")}
-                          </span>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+      {/* ---- WEEK / DAY VIEW: cuadrícula horaria, la cita ocupa su tramo ---- */}
+      {!loading && displayMode === "calendar" && view !== "month" && (
+        <TimeGrid
+          days={view === "week" ? weekDays : [dayColumn]}
+          appointmentsByDate={appointmentsByDate}
+          today={today}
+          timeFormat={timeFormat}
+          statusClass={getStatusColor}
+          onCreate={handleNewAppointment}
+          onEdit={handleEditAppointment}
+        />
       )}
 
       {/* ---- LIST VIEW ---- */}
