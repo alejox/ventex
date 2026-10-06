@@ -493,5 +493,7 @@ export interface BookingResult {
   time: string;
   service: string;
   status: string;
+  /** Quien quedó asignado (si el cliente no eligió, el sistema escoge a alguien libre). */
+  staff?: string | null;
   whatsapp: string | null;
 }

@@ -158,6 +158,7 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
     date: string;
     time: string;
     service: string;
+    staff: string | null;
     whatsapp: string | null;
   } | null>(null);
 
@@ -261,6 +262,7 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
         date: result.date,
         time: result.time,
         service: result.service,
+        staff: result.staff ?? null,
         whatsapp: result.whatsapp ?? site.whatsapp ?? null,
       });
       return;
@@ -299,7 +301,7 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
 
         <dl className="mt-4 space-y-1.5 rounded-[var(--site-radius)] bg-[var(--site-surface-alt)] p-4 text-left text-sm">
           <SummaryRow label="Servicio" value={confirmed.service} />
-          <SummaryRow label="Con" value={staffMember?.fullName ?? "Cualquiera disponible"} />
+          <SummaryRow label="Con" value={staffMember?.fullName ?? confirmed.staff ?? "Cualquiera disponible"} />
           <SummaryRow label="Cuándo" value={cuando} />
           {service ? (
             <SummaryRow label="Duración" value={formatDuration(service.durationMinutes)} />

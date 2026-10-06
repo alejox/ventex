@@ -1,3 +1,4 @@
+import type { BusyAppointment } from "@/lib/appointment-availability";
 import { createClient } from "@/utils/supabase/client";
 import { findOrCreateVehicleByPlate } from "@/services/vehicles.service";
 import { createSale } from "@/services/pos.service";
@@ -92,6 +93,29 @@ export async function fetchAppointments(
   })) as Appointment[];
 }
 
+/**
+ * El trigger `appointments_prevent_staff_overlap` rechaza con 23P01 una cita que
+ * se pisa con otra de la misma persona. Es la última defensa: la pantalla ya
+ * avisa antes, pero dos personas pueden guardar a la vez.
+ */
+export const STAFF_BUSY_MESSAGE = "Esa persona ya tiene una cita en ese horario. Elige otra hora u otra persona.";
+
+function mapAppointmentError(error: { code?: string; message?: string }): Error | typeof error {
+  return error.code === "23P01" ? new Error(STAFF_BUSY_MESSAGE) : error;
+}
+
+/** Las citas no canceladas de un día, para saber quién está libre. */
+export async function fetchDayBusy(date: string): Promise<BusyAppointment[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("appointments")
+    .select("id, staff_id, start_time, end_time, title")
+    .eq("appointment_date", date)
+    .neq("status", "cancelled");
+  if (error) throw error;
+  return (data ?? []) as BusyAppointment[];
+}
+
 export async function createAppointment(
   input: NewAppointmentInput,
 ): Promise<Appointment> {
@@ -120,7 +144,7 @@ export async function createAppointment(
     })
     .select(SELECT)
     .single();
-  if (error) throw error;
+  if (error) throw mapAppointmentError(error);
   return {
     ...data,
     customers: one<{ full_name: string }>(data.customers),
@@ -159,7 +183,7 @@ export async function updateAppointment(
     .eq("id", id)
     .select(SELECT)
     .single();
-  if (error) throw error;
+  if (error) throw mapAppointmentError(error);
   return {
     ...data,
     customers: one<{ full_name: string }>(data.customers),

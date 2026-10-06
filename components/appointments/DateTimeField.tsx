@@ -5,6 +5,7 @@ import { CalendarDays, ChevronRight, Clock, X } from "lucide-react";
 import { DatePicker } from "@/components/ui/DatePicker";
 import { AppointmentTimeInput } from "./AppointmentTimeInput";
 import { formatDateOnly } from "@/lib/date";
+import { isTaken, type BusyAppointment } from "@/lib/appointment-availability";
 import { formatDuration } from "@/lib/duration";
 import { formatAppointmentTime, type TimeFormat } from "@/lib/time";
 
@@ -41,7 +42,20 @@ const QUICK_DURATIONS = [30, 45, 60, 90, 120];
  * calendario y las horas. Los cambios se aplican al pulsar «Listo», así que
  * cerrar sin confirmar no altera la cita.
  */
-export function DateTimeField({ value, format, onChange }: { value: DateTimeValue; format: TimeFormat; onChange: (next: DateTimeValue) => void }) {
+/**
+ * Con esto el selector sabe qué horas están ocupadas: de la persona elegida o,
+ * si no hay ninguna, de todo el equipo. `loadBusy` trae las citas del día que se
+ * está mirando (que puede no ser el de la cita).
+ */
+export interface Availability {
+  staffId: string | null;
+  staffName?: string;
+  pool: string[];
+  excludeId?: string | null;
+  loadBusy: (date: string) => Promise<BusyAppointment[]>;
+}
+
+export function DateTimeField({ value, format, onChange, availability }: { value: DateTimeValue; format: TimeFormat; onChange: (next: DateTimeValue) => void; availability?: Availability }) {
   const [open, setOpen] = useState(false);
   const duration = Math.max(toMinutes(value.end) - toMinutes(value.start), 0);
 
@@ -65,23 +79,39 @@ export function DateTimeField({ value, format, onChange }: { value: DateTimeValu
         </span>
         <span className="flex items-center gap-1 text-xs font-bold text-primary">Cambiar<ChevronRight size={14} aria-hidden="true" className="transition-transform group-hover:translate-x-0.5" /></span>
       </button>
-      {open ? <DateTimeDialog initial={value} format={format} onClose={() => setOpen(false)} onApply={(next) => { onChange(next); setOpen(false); }} /> : null}
+      {open ? <DateTimeDialog initial={value} format={format} availability={availability} onClose={() => setOpen(false)} onApply={(next) => { onChange(next); setOpen(false); }} /> : null}
     </div>
   );
 }
 
-function DateTimeDialog({ initial, format, onClose, onApply }: { initial: DateTimeValue; format: TimeFormat; onClose: () => void; onApply: (next: DateTimeValue) => void }) {
+function DateTimeDialog({ initial, format, availability, onClose, onApply }: { initial: DateTimeValue; format: TimeFormat; availability?: Availability; onClose: () => void; onApply: (next: DateTimeValue) => void }) {
   const [draft, setDraft] = useState(initial);
+  const [timeOpen, setTimeOpen] = useState(false);
   const closeRef = useRef<HTMLButtonElement>(null);
-  const selectedRef = useRef<HTMLButtonElement>(null);
   const duration = toMinutes(draft.end) - toMinutes(draft.start);
-  const invalid = !draft.date || duration <= 0;
+  const [busy, setBusy] = useState<BusyAppointment[]>([]);
 
+  useEffect(() => { closeRef.current?.focus(); }, []);
+
+  // Las citas del día que se está mirando: cambian al elegir otro día.
+  const loadBusy = availability?.loadBusy;
   useEffect(() => {
-    closeRef.current?.focus();
-    // La hora elegida queda a la vista aunque la lista sea más larga que su caja.
-    selectedRef.current?.scrollIntoView({ block: "center" });
-  }, []);
+    if (!loadBusy || !draft.date) return;
+    let stale = false;
+    void loadBusy(draft.date).then((rows) => { if (!stale) setBusy(rows); });
+    return () => { stale = true; };
+  }, [loadBusy, draft.date]);
+
+  const length = duration > 0 ? duration : 30;
+  const taken = (start: string, end: string) =>
+    availability ? isTaken(busy, { staffId: availability.staffId, pool: availability.pool }, start, end, availability.excludeId) : false;
+  const slotTaken = (slot: string) => taken(slot, toTime(toMinutes(slot) + length));
+  const conflict = availability && draft.date && duration > 0 && taken(draft.start, draft.end)
+    ? availability.staffId
+      ? `${availability.staffName ?? "Esa persona"} ya tiene una cita en ese horario.`
+      : "No hay nadie disponible a esa hora."
+    : null;
+  const invalid = !draft.date || duration <= 0 || conflict !== null;
 
   // Cambiar la hora de inicio conserva la duración: mover una cita de las 3 a
   // las 4 no debería dejar la hora de fin atrás y romper el rango.
@@ -110,19 +140,17 @@ function DateTimeDialog({ initial, format, onClose, onApply }: { initial: DateTi
         </div>
 
         <div className="space-y-5 overflow-y-auto px-6 py-5">
-          <DatePicker value={draft.date} onChange={(date) => setDraft((current) => ({ ...current, date }))} />
+          {/* Elegir un día abre «¿A qué hora?», igual que la reserva del sitio web. */}
+          <DatePicker value={draft.date} onChange={(date) => { setDraft((current) => ({ ...current, date })); setTimeOpen(true); }} />
 
-          <div>
-            <span className="text-xs font-semibold text-on-surface-variant">Hora de inicio</span>
-            <div role="radiogroup" aria-label="Hora de inicio" className="mt-2 grid max-h-44 grid-cols-3 gap-2 overflow-y-auto rounded-xl border border-outline-variant/20 bg-surface-container-lowest p-2 sm:grid-cols-4">
-              {START_SLOTS.map((slot) => {
-                const active = slot === draft.start;
-                return (
-                  <button key={slot} ref={active ? selectedRef : undefined} type="button" role="radio" aria-checked={active} onClick={() => setStart(slot)} className={`rounded-lg px-2 py-2 text-xs font-bold tabular-nums transition-colors ${active ? "bg-primary text-on-primary" : "text-on-surface hover:bg-surface-container-high"}`}>{formatAppointmentTime(slot, format)}</button>
-                );
-              })}
-            </div>
-          </div>
+          <button type="button" onClick={() => setTimeOpen(true)} className="group flex w-full items-center gap-3 rounded-xl border border-outline-variant/30 bg-surface-container-lowest px-4 py-3 text-left transition-colors hover:border-primary focus:outline-none focus:ring-2 focus:ring-primary/40">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary"><Clock size={17} aria-hidden="true" /></span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[11px] font-semibold text-on-surface-variant">Hora de inicio</span>
+              <span className="block text-sm font-bold text-on-surface">{formatAppointmentTime(draft.start, format)}</span>
+            </span>
+            <span className="flex items-center gap-1 text-xs font-bold text-primary">Cambiar<ChevronRight size={14} aria-hidden="true" className="transition-transform group-hover:translate-x-0.5" /></span>
+          </button>
 
           <div>
             <span className="text-xs font-semibold text-on-surface-variant">Duración</span>
@@ -131,6 +159,7 @@ function DateTimeDialog({ initial, format, onClose, onApply }: { initial: DateTi
                 <button key={minutes} type="button" aria-pressed={duration === minutes} onClick={() => setDraft((current) => ({ ...current, end: toTime(toMinutes(current.start) + minutes) }))} className={`rounded-full border px-3 py-1.5 text-xs font-bold transition-colors ${duration === minutes ? "border-primary bg-primary/10 text-primary" : "border-outline-variant/30 text-on-surface-variant hover:text-on-surface"}`}>{formatDuration(minutes)}</button>
               ))}
             </div>
+            {conflict ? <p role="alert" className="mt-3 rounded-xl bg-error/10 px-3 py-2 text-sm font-semibold text-error">{conflict} Elige otra hora{availability?.staffId ? " u otra persona" : ""}.</p> : null}
             {duration > 0 ? (
               <p className="mt-3 flex items-center gap-2 rounded-xl bg-primary/5 px-3 py-2 text-sm text-on-surface">
                 <Clock size={15} aria-hidden="true" className="text-primary" />
@@ -152,10 +181,76 @@ function DateTimeDialog({ initial, format, onClose, onApply }: { initial: DateTi
           </details>
         </div>
 
+        {timeOpen ? <TimeDialog date={draft.date} start={draft.start} format={format} isTaken={availability ? slotTaken : undefined} onClose={() => setTimeOpen(false)} onPick={(slot) => { setStart(slot); setTimeOpen(false); }} /> : null}
+
         <div className="flex justify-end gap-3 border-t border-outline-variant/10 px-6 py-4">
           <button type="button" onClick={onClose} className="rounded-xl border border-outline-variant/30 px-5 py-2.5 text-sm font-semibold text-on-surface hover:bg-surface-container-low">Cancelar</button>
           <button type="button" disabled={invalid} onClick={() => onApply(draft)} className="rounded-xl bg-primary px-6 py-2.5 text-sm font-bold text-on-primary hover:bg-primary-dim disabled:opacity-50">Listo</button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+const PERIODS = [
+  { id: "manana", label: "Mañana", from: 0, to: 12 * 60 },
+  { id: "tarde", label: "Tarde", from: 12 * 60, to: 18 * 60 },
+  { id: "noche", label: "Noche", from: 18 * 60, to: 24 * 60 },
+] as const;
+
+/**
+ * «¿A qué hora?»: las horas en píldoras agrupadas por mañana, tarde y noche. Es
+ * el mismo gesto del selector de la reserva en el sitio web: se elige el día en
+ * el calendario y las horas aparecen aparte, sin una lista con scroll adentro.
+ */
+function TimeDialog({ date, start, format, isTaken: taken, onClose, onPick }: { date: string; start: string; format: TimeFormat; isTaken?: (slot: string) => boolean; onClose: () => void; onPick: (slot: string) => void }) {
+  const selected = useRef<HTMLButtonElement>(null);
+  useEffect(() => { selected.current?.focus(); }, []);
+  const offGrid = !START_SLOTS.includes(start);
+
+  return (
+    <div
+      className="fixed inset-0 z-[130] flex items-end justify-center bg-black/55 p-0 sm:items-center sm:p-4"
+      onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
+      // Escape cierra solo este paso; el diálogo de abajo (y el formulario) siguen abiertos.
+      onKeyDown={(event) => { event.stopPropagation(); if (event.key === "Escape") onClose(); }}
+    >
+      <div role="dialog" aria-modal="true" aria-label="¿A qué hora?" className="max-h-[85svh] w-full overflow-y-auto rounded-t-3xl bg-surface-container-lowest p-5 shadow-2xl sm:max-w-lg sm:rounded-3xl">
+        <div className="mb-4 flex items-start justify-between gap-4">
+          <div>
+            <h3 className="text-lg font-bold text-on-surface">¿A qué hora?</h3>
+            <p className="mt-0.5 text-xs text-on-surface-variant">{date ? formatDateOnly(date, { weekday: "long", day: "numeric", month: "long" }) : ""}</p>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Cerrar horarios" className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-outline-variant/30 text-on-surface hover:bg-surface-container-high"><X size={16} aria-hidden="true" /></button>
+        </div>
+
+        <div className="space-y-5">
+          {PERIODS.map((period) => {
+            const slots = START_SLOTS.filter((slot) => toMinutes(slot) >= period.from && toMinutes(slot) < period.to);
+            if (slots.length === 0) return null;
+            return (
+              <section key={period.id} aria-label={period.label}>
+                <div className="mb-2 flex items-baseline justify-between">
+                  <h4 className="text-[11px] font-bold uppercase tracking-wide text-on-surface">{period.label}</h4>
+                  <span className="text-[11px] text-on-surface-variant">{taken ? `${slots.filter((slot) => !taken(slot)).length} disponibles` : `${slots.length} horarios`}</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                  {slots.map((slot) => {
+                    const active = slot === start;
+                    const reserved = !active && taken?.(slot) === true;
+                    return (
+                      <button key={slot} ref={active ? selected : undefined} type="button" aria-pressed={active} disabled={reserved} onClick={() => onPick(slot)} className={`rounded-full border px-2 py-2 text-sm font-semibold tabular-nums transition-colors ${active ? "border-primary bg-primary text-on-primary" : reserved ? "cursor-not-allowed border-outline-variant/20 text-on-surface-variant/50" : "border-outline-variant/40 text-on-surface hover:border-primary hover:text-primary"}`}>
+                        <span className={reserved ? "line-through" : ""}>{formatAppointmentTime(slot, format)}</span>
+                        {reserved ? <span className="block text-[10px] font-medium leading-tight no-underline">Reservado</span> : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+            );
+          })}
+        </div>
+        {offGrid ? <p className="mt-4 text-xs text-on-surface-variant">La cita empieza a las {formatAppointmentTime(start, format)}. Elige otra hora, o usa «Ajustar horas exactas» para una hora a medida.</p> : null}
       </div>
     </div>
   );

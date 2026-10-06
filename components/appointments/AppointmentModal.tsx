@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { toast } from "sonner";
 import { useAppointmentsStore } from "@/stores/appointments.store";
 import { useCustomersStore } from "@/stores/customers.store";
@@ -20,6 +20,7 @@ import type {
 import { toISODate, formatDateOnly } from "@/lib/date";
 import { formatAppointmentTime, type TimeFormat } from "@/lib/time";
 import { DateTimeField } from "./DateTimeField";
+import { conflictsFor, pickStaff, type BusyAppointment } from "@/lib/appointment-availability";
 
 /**
  * Mensaje de confirmación ya redactado para el cliente.
@@ -233,9 +234,36 @@ function AppointmentModalBody({
     services.find((service) => service.id === form.service_id)?.name || form.service_type,
     selectedCustomer?.full_name,
   ].filter(Boolean).join(" · ");
+  // ---- Disponibilidad: una persona no puede tener dos citas a la misma hora ----
+  const fetchDayBusy = useAppointmentsStore((s) => s.fetchDayBusy);
+  const [dayBusy, setDayBusy] = useState<BusyAppointment[]>([]);
+  const refreshBusy = useCallback(async () => { if (form.appointment_date) setDayBusy(await fetchDayBusy(form.appointment_date)); }, [fetchDayBusy, form.appointment_date]);
+  useEffect(() => {
+    if (!form.appointment_date) return;
+    let stale = false;
+    void fetchDayBusy(form.appointment_date).then((rows) => { if (!stale) setDayBusy(rows); });
+    return () => { stale = true; };
+  }, [fetchDayBusy, form.appointment_date]);
+
+  const teamIds = useMemo(() => staff.filter((member) => member.status === "active").map((member) => member.id), [staff]);
+  const staffNameOf = (id: string | null) => staff.find((member) => member.id === id)?.full_name ?? "Esa persona";
+  const staffConflicts = form.staff_id ? conflictsFor(dayBusy, form.staff_id, form.start_time, form.end_time, appointment?.id) : [];
+  // Sin persona elegida se asigna sola a quien esté libre; si hay equipo y nadie lo está, no hay cupo.
+  const autoStaff = !form.staff_id && teamIds.length > 0 ? pickStaff(dayBusy, teamIds, form.start_time, form.end_time, appointment?.id) : null;
+  const nobodyFree = !form.staff_id && teamIds.length > 0 && autoStaff === null;
+
   const saveForm = async (): Promise<boolean> => {
     const input = { ...form, title: customTitle ? form.title : generatedTitle || form.title };
     setError("");
+    if (staffConflicts.length > 0) {
+      setError(`${staffNameOf(form.staff_id)} ya tiene una cita en ese horario. Elige otra hora u otra persona.`);
+      return false;
+    }
+    if (nobodyFree) {
+      setError("No hay nadie disponible a esa hora. Elige otra hora.");
+      return false;
+    }
+    if (autoStaff) input.staff_id = autoStaff;
     if (!input.title.trim()) {
       setError("Elegí un servicio o personalizá el título de la cita.");
       return false;
@@ -248,7 +276,7 @@ function AppointmentModalBody({
       ? await updateAppointment(appointment.id, input)
       : await addAppointment(input);
     if (!ok) setError(useAppointmentsStore.getState().error ?? "No se pudo guardar la cita.");
-    if (ok) { setForm(input); setSavedForm(input); }
+    if (ok) { setForm(input); setSavedForm(input); void refreshBusy(); }
     return ok;
   };
   const handleSubmit = async (event: React.FormEvent) => {
@@ -535,7 +563,17 @@ function AppointmentModalBody({
             value={{ date: form.appointment_date, start: form.start_time, end: form.end_time }}
             format={timeFormat}
             onChange={({ date, start, end }) => setForm({ ...form, appointment_date: date, start_time: start, end_time: end })}
+            availability={{ staffId: form.staff_id, staffName: staffNameOf(form.staff_id), pool: teamIds, excludeId: appointment?.id ?? null, loadBusy: fetchDayBusy }}
           />
+          {staffConflicts.length > 0 ? (
+            <p role="alert" className="-mt-2 rounded-xl bg-error/10 px-3 py-2 text-sm font-semibold text-error">
+              {staffNameOf(form.staff_id)} ya tiene una cita de {formatAppointmentTime(staffConflicts[0].start_time, timeFormat)} a {formatAppointmentTime(staffConflicts[0].end_time, timeFormat)}. Elige otra hora u otra persona.
+            </p>
+          ) : nobodyFree ? (
+            <p role="alert" className="-mt-2 rounded-xl bg-error/10 px-3 py-2 text-sm font-semibold text-error">No hay nadie disponible a esa hora. Elige otra hora.</p>
+          ) : autoStaff ? (
+            <p className="-mt-2 rounded-xl bg-primary/5 px-3 py-2 text-xs text-on-surface-variant">Se asignará automáticamente a <strong className="text-on-surface">{staffNameOf(autoStaff)}</strong>, que está disponible a esa hora.</p>
+          ) : null}
 
           <details className="rounded-xl border border-outline-variant/20 p-3">
             <summary className="cursor-pointer text-sm font-semibold text-on-surface">Notas y detalles opcionales</summary>

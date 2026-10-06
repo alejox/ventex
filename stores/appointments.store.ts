@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { toMessage } from "@/lib/errors";
+import type { BusyAppointment } from "@/lib/appointment-availability";
 import * as appointmentsService from "@/services/appointments.service";
 import type {
   Appointment,
@@ -20,6 +21,8 @@ interface AppointmentsState {
   fetchLinkedAppointment: (id: string) => Promise<Appointment | null>;
 
   fetchAppointments: (startDate: string, endDate: string) => Promise<void>;
+  /** Las citas de un día (sin cancelar) para calcular quién está libre. No toca el estado. */
+  fetchDayBusy: (date: string) => Promise<BusyAppointment[]>;
   addAppointment: (input: NewAppointmentInput) => Promise<boolean>;
   updateAppointment: (
     id: string,
@@ -85,6 +88,15 @@ export const useAppointmentsStore = create<AppointmentsState>((set) => ({
     } catch (e) {
       if (request !== calendarRequest) return;
       set({ error: toMessage(e), loading: false });
+    }
+  },
+
+  fetchDayBusy: async (date) => {
+    try {
+      return await appointmentsService.fetchDayBusy(date);
+    } catch {
+      // Sin esta lista la pantalla no avisa, pero el trigger igual protege al guardar.
+      return [];
     }
   },
 
