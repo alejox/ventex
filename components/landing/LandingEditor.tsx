@@ -33,7 +33,12 @@ const TABS: { id: EditorTab; label: string }[] = [
 ];
 const DEFAULT_COLORS = { rasm: "#a96550", fallspa: "#a87696", qutter: "#d5a928", barberia: "#c5a572", "barberia-artesanal": "#552d25", "barberia-urbana": "#538167" };
 
-export function LandingEditor({ initial, initialHours, initialPublished, currentSlug, businessName, businessType, logoUrl }: {
+export function LandingEditor({ siteId: initialSiteId, onSaved, onBack, initial, initialHours, initialPublished, currentSlug, businessName, businessType, logoUrl }: {
+  /** Sede que se edita; sin id es una sede nueva que todavía no se guardó. */
+  siteId?: string;
+  /** Se llama al crear la sede por primera vez, con su id. */
+  onSaved: (id: string) => void;
+  onBack: () => void;
   initial: SiteInput;
   initialHours: BusinessHour[];
   initialPublished: boolean;
@@ -46,7 +51,9 @@ export function LandingEditor({ initial, initialHours, initialPublished, current
   const setPublished = useBusinessSiteStore((state) => state.setPublished);
   const checkSlug = useBusinessSiteStore((state) => state.checkSlug);
   const saving = useBusinessSiteStore((state) => state.saving);
-  const storedSite = useBusinessSiteStore((state) => state.site);
+  const sites = useBusinessSiteStore((state) => state.sites);
+  const [siteId, setSiteId] = useState<string | null>(initialSiteId ?? null);
+  const storedSite = siteId ? sites.find((site) => site.id === siteId) ?? null : null;
   const [form, setForm] = useState(initial);
   const [hours, setHours] = useState(initialHours);
   const [published, setPublishedLocal] = useState(initialPublished);
@@ -92,8 +99,11 @@ export function LandingEditor({ initial, initialHours, initialPublished, current
       toast.error("Esa dirección ya está ocupada.");
       return false;
     }
-    const ok = await saveConfig({ ...form, slug: cleanSlug }, hours);
-    if (ok) {
+    const saved = await saveConfig(siteId, { ...form, slug: cleanSlug }, hours);
+    const ok = saved !== null;
+    if (saved) {
+      if (!siteId) onSaved(saved.id);
+      setSiteId(saved.id);
       setForm((current) => ({ ...current, slug: cleanSlug }));
       setDirty(false);
       toast.success("Borrador guardado.");
@@ -105,18 +115,18 @@ export function LandingEditor({ initial, initialHours, initialPublished, current
 
   async function publish() {
     if (!(await saveDraft())) return;
-    const ok = await setPublished(true);
+    const ok = siteId !== null && (await setPublished(siteId, true));
     if (ok) {
       setPublishedLocal(true);
-      toast.success("Landing publicada.");
+      toast.success("Página web publicada.");
     } else toast.error(useBusinessSiteStore.getState().error ?? "No se pudo publicar.");
   }
 
   async function unpublish() {
-    const ok = await setPublished(false);
+    const ok = siteId !== null && (await setPublished(siteId, false));
     if (ok) {
       setPublishedLocal(false);
-      toast.success("Landing retirada de internet.");
+      toast.success("Página web retirada de internet.");
     } else toast.error(useBusinessSiteStore.getState().error ?? "No se pudo retirar.");
   }
 
@@ -138,8 +148,8 @@ export function LandingEditor({ initial, initialHours, initialPublished, current
     <div className="-m-6 flex h-[calc(100dvh-5rem)] flex-col overflow-hidden lg:-m-10">
       <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-outline-variant/20 bg-surface px-4 py-3 sm:px-6">
         <div>
-          <div className="flex items-center gap-2"><h1 className="text-xl font-bold text-on-surface">Landing</h1><span className={`rounded-full px-2 py-1 text-[11px] font-bold ${published ? "bg-emerald-500/15 text-emerald-600" : "bg-surface-container-high text-on-surface-variant"}`}>{published ? "Publicada" : "Borrador"}</span>{dirty ? <span className="text-xs text-on-surface-variant">Cambios sin guardar</span> : null}</div>
-          <p className="text-xs text-on-surface-variant">Editá el sitio que ven tus clientes.</p>
+          <div className="flex items-center gap-2"><button type="button" onClick={onBack} className="rounded-lg border border-outline-variant/30 px-2.5 py-1 text-xs font-semibold text-on-surface-variant hover:text-on-surface">← Mis páginas</button><h1 className="text-xl font-bold text-on-surface">{form.site_name.trim() || "Página web"}</h1><span className={`rounded-full px-2 py-1 text-[11px] font-bold ${published ? "bg-emerald-500/15 text-emerald-600" : "bg-surface-container-high text-on-surface-variant"}`}>{published ? "Publicada" : "Borrador"}</span>{dirty ? <span className="text-xs text-on-surface-variant">Cambios sin guardar</span> : null}</div>
+          <p className="text-xs text-on-surface-variant">Edita la página que ven tus clientes.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {published && savedSlug ? <a href={`/${savedSlug}`} target="_blank" rel="noopener noreferrer" className="rounded-lg border border-outline-variant/30 px-3 py-2 text-sm font-semibold text-on-surface">Ver sitio</a> : null}
@@ -175,7 +185,7 @@ export function LandingEditor({ initial, initialHours, initialPublished, current
             <button type="button" onClick={() => setDevice("mobile")} className={`rounded-lg px-3 py-1.5 text-xs font-bold ${device === "mobile" ? "bg-primary text-on-primary" : "text-on-surface-variant"}`}>Móvil</button>
           </div>
           <div className="min-h-0 flex-1">
-            <LandingPreview config={previewConfig} hours={hours} businessName={businessName} logoUrl={logoUrl} bookingEnabled={form.booking_enabled} device={device} />
+            <LandingPreview config={previewConfig} hours={hours} businessName={form.site_name.trim() || businessName} logoUrl={logoUrl} bookingEnabled={form.booking_enabled} device={device} />
           </div>
         </main>
       </div>
@@ -199,7 +209,7 @@ function ContentPanel({ config, onChange }: PanelProps) {
 function BusinessPanel({ form, hours, onForm, onHours, onConfig, sharing }: { sharing: React.ReactNode; form: SiteInput; hours: BusinessHour[]; onForm: <K extends keyof SiteInput>(key: K, value: SiteInput[K]) => void; onHours: (hours: BusinessHour[]) => void; onConfig: PanelProps["onChange"] }) {
   const contact = form.draft_config.contact;
   const updateContact = (key: keyof SiteContactConfig, value: string) => onConfig((current) => ({ ...current, contact: { ...current.contact, [key]: value || null } }));
-  return <div className="space-y-6"><PanelTitle title="Dirección pública" text="Este será el enlace para compartir." /><Field label={`${SITE_URL}/`}><input value={form.slug} onChange={(event) => onForm("slug", event.target.value)} className={INPUT} /></Field>{sharing}<label className="flex gap-3 text-sm text-on-surface"><input type="checkbox" checked={form.booking_enabled} onChange={(event) => onForm("booking_enabled", event.target.checked)} className="h-4 w-4 accent-[var(--primary)]" />Aceptar reservas en línea</label><Field label="WhatsApp"><input value={contact.whatsapp ?? ""} onChange={(event) => updateContact("whatsapp", event.target.value)} className={INPUT} placeholder="573001234567" /></Field><Field label="Dirección"><input value={contact.address ?? ""} onChange={(event) => updateContact("address", event.target.value)} className={INPUT} /></Field><div className="grid gap-3">{SOCIAL_NETWORKS.map((network) => <Field key={network} label={SOCIAL_META[network].label} icon={<BrandIcon name={network} className="h-4 w-4" colored />}><input value={contact[network] ?? ""} onChange={(event) => updateContact(network, event.target.value)} className={INPUT} placeholder={SOCIAL_META[network].placeholder} /></Field>)}</div><hr className="border-outline-variant/20" /><PanelTitle title="Horarios" text="También definen la disponibilidad de reservas." />{hours.map((hour) => <div key={hour.weekday} className="rounded-xl border border-outline-variant/30 p-3"><label className="flex items-center gap-2 text-sm font-bold text-on-surface"><input type="checkbox" checked={hour.is_open} onChange={(event) => onHours(hours.map((item) => item.weekday === hour.weekday ? { ...item, is_open: event.target.checked } : item))} />{WEEKDAY_LABELS[hour.weekday]}</label>{hour.is_open ? <div className="mt-3 flex items-center gap-2"><input type="time" value={hour.opens_at} onChange={(event) => onHours(hours.map((item) => item.weekday === hour.weekday ? { ...item, opens_at: event.target.value } : item))} className={INPUT} /><span>–</span><input type="time" value={hour.closes_at} onChange={(event) => onHours(hours.map((item) => item.weekday === hour.weekday ? { ...item, closes_at: event.target.value } : item))} className={INPUT} /></div> : null}</div>)}</div>;
+  return <div className="space-y-6"><PanelTitle title="Nombre de la sede" text="Se muestra en el título de la página y en Google. Si lo dejas vacío usa el nombre de tu negocio." /><Field label="Nombre"><input value={form.site_name} maxLength={80} onChange={(event) => onForm("site_name", event.target.value)} placeholder="Ej. Sede Norte" className={INPUT} /></Field><PanelTitle title="Dirección pública" text="Este será el enlace para compartir." /><Field label={`${SITE_URL}/`}><input value={form.slug} onChange={(event) => onForm("slug", event.target.value)} className={INPUT} /></Field>{sharing}<label className="flex gap-3 text-sm text-on-surface"><input type="checkbox" checked={form.booking_enabled} onChange={(event) => onForm("booking_enabled", event.target.checked)} className="h-4 w-4 accent-[var(--primary)]" />Aceptar reservas en línea</label><Field label="WhatsApp"><input value={contact.whatsapp ?? ""} onChange={(event) => updateContact("whatsapp", event.target.value)} className={INPUT} placeholder="573001234567" /></Field><Field label="Dirección"><input value={contact.address ?? ""} onChange={(event) => updateContact("address", event.target.value)} className={INPUT} /></Field><div className="grid gap-3">{SOCIAL_NETWORKS.map((network) => <Field key={network} label={SOCIAL_META[network].label} icon={<BrandIcon name={network} className="h-4 w-4" colored />}><input value={contact[network] ?? ""} onChange={(event) => updateContact(network, event.target.value)} className={INPUT} placeholder={SOCIAL_META[network].placeholder} /></Field>)}</div><hr className="border-outline-variant/20" /><PanelTitle title="Horarios" text="También definen la disponibilidad de reservas." />{hours.map((hour) => <div key={hour.weekday} className="rounded-xl border border-outline-variant/30 p-3"><label className="flex items-center gap-2 text-sm font-bold text-on-surface"><input type="checkbox" checked={hour.is_open} onChange={(event) => onHours(hours.map((item) => item.weekday === hour.weekday ? { ...item, is_open: event.target.checked } : item))} />{WEEKDAY_LABELS[hour.weekday]}</label>{hour.is_open ? <div className="mt-3 flex items-center gap-2"><input type="time" value={hour.opens_at} onChange={(event) => onHours(hours.map((item) => item.weekday === hour.weekday ? { ...item, opens_at: event.target.value } : item))} className={INPUT} /><span>–</span><input type="time" value={hour.closes_at} onChange={(event) => onHours(hours.map((item) => item.weekday === hour.weekday ? { ...item, closes_at: event.target.value } : item))} className={INPUT} /></div> : null}</div>)}</div>;
 }
 
 function SeoPanel({ config, onChange }: PanelProps) { return <div className="space-y-5"><PanelTitle title="Google y redes" text="Controlá cómo aparece el enlace al compartirlo." /><Field label="Título"><input value={config.seo.title ?? ""} onChange={(event) => onChange((current) => ({ ...current, seo: { ...current.seo, title: event.target.value || null } }))} className={INPUT} placeholder="Nombre del negocio" /></Field><Field label="Descripción"><textarea rows={4} value={config.seo.description ?? ""} onChange={(event) => onChange((current) => ({ ...current, seo: { ...current.seo, description: event.target.value || null } }))} className={INPUT} /></Field><ImageField label="Imagen al compartir" value={config.seo.imageUrl} fallback={null} onChange={(url) => onChange((current) => ({ ...current, seo: { ...current.seo, imageUrl: url } }))} /></div>; }

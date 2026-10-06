@@ -10,12 +10,15 @@ import type { LandingConfig } from "@/services/public-site.types";
 export interface BusinessSite {
   id: string;
   slug: string;
+  /** Nombre propio de la sede; null = usa el nombre del negocio. */
+  site_name: string | null;
   published: boolean;
   booking_enabled: boolean;
   timezone: string;
   slot_interval_minutes: number;
   draft_config: LandingConfig;
   published_config: LandingConfig | null;
+  created_at: string;
 }
 
 export interface BusinessHour {
@@ -27,12 +30,14 @@ export interface BusinessHour {
 }
 
 export interface SiteConfig {
-  site: BusinessSite | null;
+  /** Todas las páginas web del negocio, la más antigua primero. */
+  sites: BusinessSite[];
   hours: BusinessHour[];
 }
 
 export interface SiteInput {
   slug: string;
+  site_name: string;
   booking_enabled: boolean;
   timezone: string;
   slot_interval_minutes: number;
@@ -40,7 +45,7 @@ export interface SiteInput {
 }
 
 const SITE_SELECT =
-  "id, slug, published, booking_enabled, timezone, slot_interval_minutes, draft_config, published_config";
+  "id, slug, site_name, published, booking_enabled, timezone, slot_interval_minutes, draft_config, published_config, created_at";
 const SITE_IMAGES_BUCKET = "site-images";
 
 export function defaultHours(): BusinessHour[] {
@@ -55,6 +60,7 @@ export function defaultHours(): BusinessHour[] {
 export function emptySiteInput(): SiteInput {
   return {
     slug: "",
+    site_name: "",
     booking_enabled: true,
     timezone: "America/Bogota",
     slot_interval_minutes: 30,
@@ -65,6 +71,7 @@ export function emptySiteInput(): SiteInput {
 export function toSiteInput(site: BusinessSite): SiteInput {
   return {
     slug: site.slug,
+    site_name: site.site_name ?? "",
     booking_enabled: site.booking_enabled,
     timezone: site.timezone,
     slot_interval_minutes: site.slot_interval_minutes,
@@ -87,6 +94,8 @@ function mapSite(raw: Record<string, unknown>): BusinessSite {
   return {
     id: raw.id as string,
     slug: raw.slug as string,
+    site_name: (raw.site_name as string | null) ?? null,
+    created_at: raw.created_at as string,
     published: raw.published as boolean,
     booking_enabled: raw.booking_enabled as boolean,
     timezone: raw.timezone as string,
@@ -101,7 +110,7 @@ function mapSite(raw: Record<string, unknown>): BusinessSite {
 export async function fetchSiteConfig(): Promise<SiteConfig> {
   const supabase = createClient();
   const [siteResult, hoursResult] = await Promise.all([
-    supabase.from("business_sites").select(SITE_SELECT).maybeSingle(),
+    supabase.from("business_sites").select(SITE_SELECT).order("created_at"),
     supabase
       .from("business_hours")
       .select("weekday, is_open, opens_at, closes_at")
@@ -116,29 +125,40 @@ export async function fetchSiteConfig(): Promise<SiteConfig> {
     closes_at: hour.closes_at.slice(0, 5),
   })) as BusinessHour[];
   return {
-    site: siteResult.data
-      ? mapSite(siteResult.data as unknown as Record<string, unknown>)
-      : null,
+    sites: (siteResult.data ?? []).map((row) =>
+      mapSite(row as unknown as Record<string, unknown>),
+    ),
     hours: hours.length ? hours : defaultHours(),
   };
 }
 
-export async function saveSite(input: SiteInput): Promise<BusinessSite> {
+/**
+ * Crea la sede (sin `siteId`) o actualiza la que se está editando. Por id y no
+ * por `user_id`: un negocio puede tener varias, y un upsert por inquilino
+ * pisaría siempre la misma.
+ */
+export async function saveSite(input: SiteInput, siteId?: string | null): Promise<BusinessSite> {
   const supabase = createClient();
   const payload = {
     slug: slugify(input.slug),
+    site_name: input.site_name.trim() || null,
     booking_enabled: input.booking_enabled,
     timezone: input.timezone,
     slot_interval_minutes: input.slot_interval_minutes,
     draft_config: normalizeLandingConfig(input.draft_config) as unknown as Json,
   };
-  const { data, error } = await supabase
-    .from("business_sites")
-    .upsert(payload, { onConflict: "user_id" })
-    .select(SITE_SELECT)
-    .single();
+  const query = siteId
+    ? supabase.from("business_sites").update(payload).eq("id", siteId)
+    : supabase.from("business_sites").insert(payload);
+  const { data, error } = await query.select(SITE_SELECT).single();
   if (error) throw error;
   return mapSite(data as unknown as Record<string, unknown>);
+}
+
+export async function deleteSite(siteId: string): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase.from("business_sites").delete().eq("id", siteId);
+  if (error) throw error;
 }
 
 export async function saveHours(hours: BusinessHour[]): Promise<void> {
@@ -149,9 +169,10 @@ export async function saveHours(hours: BusinessHour[]): Promise<void> {
   if (error) throw error;
 }
 
-export async function setSitePublished(published: boolean): Promise<BusinessSite> {
+export async function setSitePublished(siteId: string, published: boolean): Promise<BusinessSite> {
   const supabase = createClient();
   const { data, error } = await supabase.rpc("set_business_site_published", {
+    p_site_id: siteId,
     p_published: published,
   });
   if (error) throw error;

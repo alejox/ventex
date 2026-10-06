@@ -397,7 +397,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: "haircuts", name: "Servicios por persona", href: "/dashboard/staff/servicios", modules: ["services"] },
   { id: "billing", name: "Facturación", href: "/dashboard/billing", modules: ["billing"] },
   { id: "subscription", name: "Mi Plan", href: "/dashboard/subscription", modules: [] },
-  { id: "landing", name: "Landing", href: "/dashboard/landing", modules: [] },
+  { id: "landing", name: "Página web", href: "/dashboard/landing", modules: [] },
 ];
 
 // ---- Acciones rápidas del dashboard. Iconos se mapean por id. ----

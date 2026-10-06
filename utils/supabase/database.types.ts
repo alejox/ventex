@@ -255,6 +255,7 @@ export type Database = {
           site_copy: Json
           slot_interval_minutes: number
           slug: string
+          site_name: string | null
           telegram: string | null
           template: string
           theme_colors: Json
@@ -288,6 +289,7 @@ export type Database = {
           site_copy?: Json
           slot_interval_minutes?: number
           slug: string
+          site_name?: string | null
           telegram?: string | null
           template?: string
           theme_colors?: Json
@@ -321,6 +323,7 @@ export type Database = {
           site_copy?: Json
           slot_interval_minutes?: number
           slug?: string
+          site_name?: string | null
           telegram?: string | null
           template?: string
           theme_colors?: Json
@@ -4087,7 +4090,7 @@ export type Database = {
         Returns: Json
       }
       set_business_site_published: {
-        Args: { p_published: boolean }
+        Args: { p_published: boolean; p_site_id: string }
         Returns: Json
       }
       set_credit_alert: {
