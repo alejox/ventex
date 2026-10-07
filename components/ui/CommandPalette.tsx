@@ -72,6 +72,7 @@ export const NAV_KEYWORDS: Record<string, string[]> = {
   promociones: ["promos", "fidelizacion", "cortes"],
   inventory: ["productos", "servicios", "catalogo", "stock", "precios"],
   pedidos: ["reponer", "faltantes"],
+  production: ["recetas", "lotes", "insumos", "preparacion", "fabricacion", "costo"],
   distributors: ["proveedores", "distribuidores"],
   purchases: ["compras", "facturas de compra"],
   expenses: ["gastos", "egresos"],

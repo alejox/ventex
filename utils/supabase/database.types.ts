@@ -1406,6 +1406,165 @@ export type Database = {
           },
         ]
       }
+      production_batch_counters: {
+        Row: {
+          last_number: number
+          user_id: string
+        }
+        Insert: {
+          last_number?: number
+          user_id: string
+        }
+        Update: {
+          last_number?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
+      production_batch_items: {
+        Row: {
+          batch_id: string
+          created_at: string
+          id: string
+          ingredient_id: string | null
+          ingredient_name: string
+          line_cost: number | null
+          quantity: number
+          stock_applied: boolean
+          unit: string
+          unit_cost: number | null
+          user_id: string
+        }
+        Insert: {
+          batch_id: string
+          created_at?: string
+          id?: string
+          ingredient_id?: string | null
+          ingredient_name: string
+          line_cost?: number | null
+          quantity: number
+          stock_applied?: boolean
+          unit: string
+          unit_cost?: number | null
+          user_id: string
+        }
+        Update: {
+          batch_id?: string
+          created_at?: string
+          id?: string
+          ingredient_id?: string | null
+          ingredient_name?: string
+          line_cost?: number | null
+          quantity?: number
+          stock_applied?: boolean
+          unit?: string
+          unit_cost?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "production_batch_items_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "production_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "production_batch_items_ingredient_id_fkey"
+            columns: ["ingredient_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      production_batches: {
+        Row: {
+          batch_number: number
+          batches: number | null
+          client_batch_id: string | null
+          cost_complete: boolean
+          created_at: string
+          created_by: string | null
+          id: string
+          membership_id: string | null
+          notes: string | null
+          output_qty: number
+          output_stock_applied: boolean
+          output_unit: string
+          product_id: string
+          recipe_id: string | null
+          status: string
+          total_cost: number | null
+          unit_cost: number | null
+          user_id: string
+          void_reason: string | null
+          voided_at: string | null
+          voided_by: string | null
+        }
+        Insert: {
+          batch_number: number
+          batches?: number | null
+          client_batch_id?: string | null
+          cost_complete?: boolean
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          membership_id?: string | null
+          notes?: string | null
+          output_qty: number
+          output_stock_applied?: boolean
+          output_unit: string
+          product_id: string
+          recipe_id?: string | null
+          status?: string
+          total_cost?: number | null
+          unit_cost?: number | null
+          user_id: string
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
+        }
+        Update: {
+          batch_number?: number
+          batches?: number | null
+          client_batch_id?: string | null
+          cost_complete?: boolean
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          membership_id?: string | null
+          notes?: string | null
+          output_qty?: number
+          output_stock_applied?: boolean
+          output_unit?: string
+          product_id?: string
+          recipe_id?: string | null
+          status?: string
+          total_cost?: number | null
+          unit_cost?: number | null
+          user_id?: string
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "production_batches_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "production_batches_recipe_id_fkey"
+            columns: ["recipe_id"]
+            isOneToOne: false
+            referencedRelation: "recipes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       products: {
         Row: {
           allows_fractions: boolean | null
@@ -1419,6 +1578,7 @@ export type Database = {
           icon: string | null
           id: string
           image_url: string | null
+          is_ingredient: boolean
           minimum_stock: number
           name: string
           open_price: boolean
@@ -1446,6 +1606,7 @@ export type Database = {
           icon?: string | null
           id?: string
           image_url?: string | null
+          is_ingredient?: boolean
           minimum_stock?: number
           name: string
           open_price?: boolean
@@ -1473,6 +1634,7 @@ export type Database = {
           icon?: string | null
           id?: string
           image_url?: string | null
+          is_ingredient?: boolean
           minimum_stock?: number
           name?: string
           open_price?: boolean
@@ -1841,6 +2003,108 @@ export type Database = {
           },
         ]
       }
+      recipe_items: {
+        Row: {
+          created_at: string
+          id: string
+          ingredient_id: string
+          position: number
+          quantity: number
+          recipe_id: string
+          unit: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          ingredient_id: string
+          position?: number
+          quantity: number
+          recipe_id: string
+          unit: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          ingredient_id?: string
+          position?: number
+          quantity?: number
+          recipe_id?: string
+          unit?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recipe_items_ingredient_id_fkey"
+            columns: ["ingredient_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recipe_items_recipe_id_fkey"
+            columns: ["recipe_id"]
+            isOneToOne: false
+            referencedRelation: "recipes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recipes: {
+        Row: {
+          created_at: string
+          id: string
+          kind: string
+          notes: string | null
+          product_id: string | null
+          service_id: string | null
+          updated_at: string
+          user_id: string
+          yield_qty: number | null
+          yield_unit: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          kind: string
+          notes?: string | null
+          product_id?: string | null
+          service_id?: string | null
+          updated_at?: string
+          user_id: string
+          yield_qty?: number | null
+          yield_unit?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          kind?: string
+          notes?: string | null
+          product_id?: string | null
+          service_id?: string | null
+          updated_at?: string
+          user_id?: string
+          yield_qty?: number | null
+          yield_unit?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recipes_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recipes_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       reseller_credits: {
         Row: {
           client_id: string | null
@@ -1895,6 +2159,64 @@ export type Database = {
             columns: ["reseller_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sale_item_consumptions: {
+        Row: {
+          created_at: string
+          id: string
+          ingredient_id: string | null
+          quantity: number
+          sale_id: string
+          sale_item_id: string
+          unit: string
+          unit_cost: number | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          ingredient_id?: string | null
+          quantity: number
+          sale_id: string
+          sale_item_id: string
+          unit: string
+          unit_cost?: number | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          ingredient_id?: string | null
+          quantity?: number
+          sale_id?: string
+          sale_item_id?: string
+          unit?: string
+          unit_cost?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sale_item_consumptions_ingredient_id_fkey"
+            columns: ["ingredient_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sale_item_consumptions_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sale_item_consumptions_sale_item_id_fkey"
+            columns: ["sale_item_id"]
+            isOneToOne: false
+            referencedRelation: "sale_items"
             referencedColumns: ["id"]
           },
         ]
@@ -3838,6 +4160,18 @@ export type Database = {
         Returns: undefined
       }
       apply_billing_charge: { Args: { p_order_id: string }; Returns: Json }
+      apply_sale_recipe: {
+        Args: {
+          p_actor: string
+          p_multiplier: number
+          p_recipe_id: string
+          p_sale_id: string
+          p_sale_item_id: string
+          p_sale_number: number
+          p_tenant: string
+        }
+        Returns: undefined
+      }
       assert_monthly_sales_limit: {
         Args: { p_add: number; p_uid: string }
         Returns: undefined
@@ -3896,17 +4230,36 @@ export type Database = {
           purchase_price: number
         }[]
       }
+      get_production_batch_costs: {
+        Args: { p_ids: string[] }
+        Returns: {
+          batch_id: string
+          items: Json
+          total_cost: number
+          unit_cost: number
+        }[]
+      }
       is_reseller: { Args: never; Returns: boolean }
       is_super_admin: { Args: never; Returns: boolean }
       is_tenant_owner: { Args: never; Returns: boolean }
       is_workspace_owner: { Args: never; Returns: boolean }
       my_subscription: { Args: never; Returns: Json }
+      notify_low_ingredient: {
+        Args: {
+          p_new: number
+          p_old: number
+          p_product_id: string
+          p_tenant: string
+        }
+        Returns: undefined
+      }
       open_shift: { Args: { p_opening_cash: number }; Returns: Json }
       open_shift_for_commission: {
         Args: { p_staff_id: string }
         Returns: string
       }
       own_site_preview: { Args: never; Returns: Json }
+      production_module_enabled: { Args: never; Returns: boolean }
       public_site_availability: {
         Args: {
           p_days?: number
@@ -4022,6 +4375,16 @@ export type Database = {
         }
         Returns: undefined
       }
+      register_production_batch: {
+        Args: {
+          p_batches?: number
+          p_client_batch_id?: string
+          p_notes?: string
+          p_output_qty?: number
+          p_product_id: string
+        }
+        Returns: Json
+      }
       replace_purchase_invoice_items: {
         Args: { p_invoice_id: string; p_items: Json }
         Returns: undefined
@@ -4093,6 +4456,19 @@ export type Database = {
       }
       save_purchase_order: {
         Args: { p_header: Json; p_items: Json; p_order_id: string }
+        Returns: string
+      }
+      save_recipe: {
+        Args: {
+          p_clear_stock?: boolean
+          p_items: Json
+          p_kind: string
+          p_notes?: string
+          p_product_id: string
+          p_service_id: string
+          p_yield_qty?: number
+          p_yield_unit?: string
+        }
         Returns: string
       }
       school_add_participant: {
@@ -4247,8 +4623,13 @@ export type Database = {
         Args: { p_product_ids: string[]; p_tenant: string }
         Returns: undefined
       }
+      unit_factor: { Args: { p_from: string; p_to: string }; Returns: number }
       void_commission_settlement: {
         Args: { p_settlement_id: string }
+        Returns: Json
+      }
+      void_production_batch: {
+        Args: { p_batch_id: string; p_reason?: string }
         Returns: Json
       }
       void_sale: {

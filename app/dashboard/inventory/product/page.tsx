@@ -32,6 +32,28 @@ import { isSafeNext } from "@/lib/safe-next";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { useUnsavedChangesGuard } from "@/lib/unsaved-changes";
 import { Switch } from "@/components/ui/Switch";
+import { effectiveModules } from "@/config/business";
+import { useRecipesStore } from "@/stores/recipes.store";
+import { RecipeSection, newEditorLine, type RecipeDraft } from "./components/RecipeSection";
+import { editorLineIssues, editorToLines, parseQty } from "@/lib/recipe-editor";
+import type { Recipe } from "@/services/recipes.service";
+
+/** Receta en blanco: apagada, de venta. */
+const EMPTY_RECIPE: RecipeDraft = { enabled: false, kind: "sale", lines: [], yieldQty: "", yieldUnit: "" };
+
+/** Lo que muestra el editor a partir de una receta guardada. */
+function draftFromRecipe(recipe: Recipe | null): RecipeDraft {
+  if (!recipe || recipe.items.length === 0) return EMPTY_RECIPE;
+  return {
+    enabled: true,
+    kind: recipe.kind,
+    lines: recipe.items.map((i) =>
+      newEditorLine({ ingredientId: i.ingredient_id, qty: String(i.quantity).replace(".", ","), unit: i.unit }),
+    ),
+    yieldQty: recipe.yield_qty !== null ? String(recipe.yield_qty).replace(".", ",") : "",
+    yieldUnit: recipe.yield_unit ?? "",
+  };
+}
 
 interface FieldErrors {
   name?: string;
@@ -121,6 +143,22 @@ function ProductForm() {
   const addService = useServicesStore((s) => s.addService);
   const updateService = useServicesStore((s) => s.updateService);
 
+  /**
+   * Recetas (módulo opt-in "Recetas y producción"). Con el módulo apagado nada
+   * de esto se muestra ni se guarda: el formulario queda como siempre.
+   */
+  const productionOn =
+    effectiveModules(profile?.businessType ?? null, profile?.modules ?? null).production === true;
+  const recipes = useRecipesStore((s) => s.recipes);
+  const recipesLoaded = useRecipesStore((s) => s.loaded);
+  const recipesLoadError = useRecipesStore((s) => s.error);
+  const fetchRecipes = useRecipesStore((s) => s.fetchRecipes);
+  const saveRecipe = useRecipesStore((s) => s.saveRecipe);
+  const [recipeDraft, setRecipeDraft] = useState<RecipeDraft>(EMPTY_RECIPE);
+  const [recipeSeededFor, setRecipeSeededFor] = useState<string | null>(null);
+  const [recipeError, setRecipeError] = useState<string | null>(null);
+  const { confirm: confirmRecipe, dialog: recipeDialog } = useConfirm();
+
   const [form, setForm] = useState<NewProductInput>({
     name: "",
     category_id: "",
@@ -138,6 +176,7 @@ function ProductForm() {
     units_per_package: "1",
     tracks_stock: true,
     open_price: false,
+    is_ingredient: false,
   });
   const handleDistributorCreated = () => {
     fetchInventory();
@@ -241,6 +280,10 @@ function ProductForm() {
     fetchServices();
   }, [fetchInventory, fetchServices]);
 
+  useEffect(() => {
+    if (productionOn) void fetchRecipes();
+  }, [productionOn, fetchRecipes]);
+
   /**
    * Stock inicial en unidades sueltas: cajas enteras MÁS unidades sueltas.
    *
@@ -248,7 +291,14 @@ function ProductForm() {
    * 23, o queda un resto del mes pasado. Sin el campo suelto la única salida era
    * cargar la caja entera y arrancar el inventario con una unidad que no existe.
    */
-  const noStock = form.tracks_stock === false;
+  // Con receta de VENTA el producto no lleva stock propio: se descuenta de sus
+  // insumos (la base lo exige: `products_guard_recipe`). Por lotes, el
+  // preparado SÍ lleva stock: es lo que suma cada lote.
+  const saleRecipeActive =
+    productionOn && itemType === "Producto" && recipeDraft.enabled && recipeDraft.kind === "sale" && !form.is_ingredient;
+  const productionRecipeActive =
+    productionOn && itemType === "Producto" && recipeDraft.enabled && (recipeDraft.kind === "production" || form.is_ingredient === true);
+  const noStock = saleRecipeActive || (!productionRecipeActive && form.tracks_stock === false);
   const initialStock = noStock ? 0 : stockUnitsOf(
     presentation === "package" ? initialPackages : "",
     initialLoose,
@@ -329,6 +379,7 @@ function ProductForm() {
       units_per_package: editingProduct.units_per_package ? String(editingProduct.units_per_package) : "1",
       tracks_stock: editingProduct.tracks_stock !== false,
       open_price: editingProduct.open_price === true,
+      is_ingredient: editingProduct.is_ingredient === true,
     });
     setPresentation((editingProduct.units_per_package ?? 1) > 1 ? "package" : "unit");
     setPurchase.fromTotal(String(editingProduct.purchase_price ?? "0"));
@@ -351,6 +402,29 @@ function ProductForm() {
 
   const editingId = editId ?? editServiceId;
   const loadingProduct = !!editingId && seededId !== editingId;
+
+  /** La receta guardada del ítem que se edita (si el módulo está encendido). */
+  const existingRecipe: Recipe | null = !productionOn
+    ? null
+    : editId
+      ? recipes.find((r) => r.product_id === editId) ?? null
+      : editServiceId
+        ? recipes.find((r) => r.service_id === editServiceId) ?? null
+        : null;
+  // La receta se siembra una vez, cuando ya llegaron las recetas (mismo patrón
+  // que la siembra del producto: durante el render, no en un efecto).
+  const recipeKey = editingId ?? "new";
+  const recipesReady = recipesLoaded || recipesLoadError !== null;
+  if (productionOn && (recipesReady || !editingId) && !loadingProduct && recipeSeededFor !== recipeKey) {
+    setRecipeSeededFor(recipeKey);
+    setRecipeDraft(draftFromRecipe(existingRecipe));
+  }
+  const loadingRecipe = productionOn && !!editingId && recipeSeededFor !== recipeKey;
+  /** Si las recetas no cargaron, NO se toca la receta al guardar: podría borrarse una que existe. */
+  const recipeUnknown = productionOn && !!editingId && !recipesLoaded;
+  const saleRecipeProductIds = new Set(
+    recipes.filter((r) => r.kind === "sale" && r.product_id).map((r) => r.product_id as string),
+  );
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] ?? null;
@@ -392,6 +466,57 @@ function ProductForm() {
     setForm((prev) => ({ ...prev, image_url: "" }));
   };
 
+  /**
+   * Guarda la receta DESPUÉS del producto o servicio (necesita su id). Si el
+   * producto tiene stock y pasa a receta de venta, la base pide confirmación
+   * (RECETA_CON_STOCK): se pregunta y se reintenta. `false` = no seguir (la
+   * pantalla se queda para que se vea el error o se decida de nuevo).
+   */
+  const persistRecipe = async (
+    target: { productId?: string; serviceId?: string },
+    lines: ReturnType<typeof editorToLines>,
+  ): Promise<boolean> => {
+    if (!productionOn || recipeUnknown) return true;
+    const isService = !!target.serviceId;
+    const wantRecipe = recipeDraft.enabled && lines.length > 0;
+    if (!wantRecipe) {
+      // Apagar la receta de un servicio (la de un producto ya se borró antes).
+      if (isService && existingRecipe) {
+        const removed = await saveRecipe({ ...target, kind: "sale", items: [] });
+        if (!removed.ok) setRecipeError(removed.error);
+        return removed.ok;
+      }
+      return true;
+    }
+    const kind = isService ? "sale" : form.is_ingredient ? "production" : recipeDraft.kind;
+    const input = {
+      ...target,
+      kind,
+      items: lines,
+      yieldQty: kind === "production" ? parseQty(recipeDraft.yieldQty) : null,
+      yieldUnit: kind === "production" ? (recipeDraft.yieldUnit || form.unit) : null,
+    };
+    let result = await saveRecipe(input);
+    if (!result.ok && result.needsStockClear) {
+      const go = await confirmRecipe({
+        title: "¿Pasar este producto a receta?",
+        description: `${result.error} Desde ahora cada venta descuenta los insumos de la receta y el stock del producto queda en 0 (queda registrado en el kardex).`,
+        confirmLabel: "Sí, usar la receta",
+        cancelLabel: "Revisar",
+      });
+      if (!go) {
+        setRecipeError("La receta no se guardó: el producto sigue con su stock propio.");
+        return false;
+      }
+      result = await saveRecipe({ ...input, clearStock: true });
+    }
+    if (!result.ok) {
+      setRecipeError(result.error);
+      return false;
+    }
+    return true;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const isService = itemType === "Servicio";
@@ -412,13 +537,45 @@ function ProductForm() {
     }
     if (!isService) {
       try {
-        parseProductSalePrice(sellingPriceTotal, form.open_price);
+        parseProductSalePrice(sellingPriceTotal, form.open_price, form.is_ingredient === true);
       } catch (error) {
         errores.price = error instanceof Error ? error.message : "Indica un precio de venta válido.";
       }
     }
     const commission = commissionError(form.has_commission, form.commission_type, form.commission_value);
     if (commission) errores.commission = commission;
+
+    // La receta se valida ANTES de guardar nada: guardar el producto y que la
+    // receta rebote dejaría la mitad del cambio hecho.
+    const recipeLines = editorToLines(recipeDraft.lines);
+    if (productionOn && recipeDraft.enabled && !recipeUnknown && Object.keys(errores).length === 0) {
+      const issues = editorLineIssues(recipeDraft.lines);
+      const realIssues = issues.filter((issue, i) => {
+        const l = recipeDraft.lines[i];
+        // Una línea totalmente vacía no es un error: se ignora.
+        return issue !== null && !(issue === "missing-ingredient" && !l.qty.trim());
+      });
+      let message: string | null = null;
+      if (realIssues.length > 0) {
+        message = realIssues.includes("duplicate")
+          ? "Un insumo está dos veces en la receta: deja una sola línea con la cantidad total."
+          : "Completa la cantidad de cada insumo de la receta, o quita la línea.";
+      } else if (recipeLines.length === 0) {
+        message = "Agrega al menos un insumo a la receta, o apágala.";
+      } else if (
+        !isService &&
+        (recipeDraft.kind === "production" || form.is_ingredient) &&
+        parseQty(recipeDraft.yieldQty) === null
+      ) {
+        message = "Indica cuánto rinde cada lote.";
+      }
+      if (message) {
+        setRecipeError(message);
+        document.getElementById("recipe-title")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        return;
+      }
+    }
+    setRecipeError(null);
     if (Object.keys(errores).length > 0) {
       setFieldErrors(errores);
       // Al primer campo con problema, que puede estar fuera de la pantalla.
@@ -480,12 +637,44 @@ function ProductForm() {
         const savedService = editServiceId
           ? await updateService(editServiceId, serviceInput)
           : await addService(serviceInput);
-        if (savedService) router.push(backTo);
+        if (!savedService) return;
+        const serviceId = editServiceId ?? (typeof savedService === "string" ? savedService : null);
+        if (serviceId && !(await persistRecipe({ serviceId }, recipeLines))) return;
+        router.push(backTo);
         return;
+      }
+
+      // Pasar de receta de venta a otra cosa (sin receta, por lotes o "Solo
+      // insumo") exige borrar la receta ANTES de tocar el stock propio: con la
+      // receta de venta viva, la base no deja volver a encender el inventario.
+      if (
+        editId &&
+        productionOn &&
+        !recipeUnknown &&
+        existingRecipe &&
+        (!recipeDraft.enabled ||
+          (existingRecipe.kind === "sale" && !saleRecipeActive) ||
+          (existingRecipe.kind === "production" && !productionRecipeActive))
+      ) {
+        const removed = await saveRecipe({ productId: editId, kind: existingRecipe.kind, items: [] });
+        if (!removed.ok) {
+          setRecipeError(removed.error);
+          return;
+        }
       }
 
       const payload = {
         ...form,
+        // Receta de venta: sin stock propio. Por lotes: el preparado SÍ lleva
+        // stock. Un producto existente que recién pasa a receta de venta
+        // conserva su valor: `save_recipe` lo apaga y, si tiene stock, se
+        // pregunta antes.
+        tracks_stock: saleRecipeActive && (!editId || existingRecipe?.kind === "sale")
+          ? false
+          : productionRecipeActive
+            ? true
+            : form.tracks_stock,
+        is_ingredient: productionOn ? form.is_ingredient === true : undefined,
         name: form.name.trim(),
         purchase_price: purchasePriceTotal,
         price: sellingPriceTotal,
@@ -500,6 +689,8 @@ function ProductForm() {
         ? await updateProduct(editId, payload, imageFile)
         : await addProduct(payload, imageFile);
       const saved = typeof ok === "string" || ok === true;
+      const productId = editId ?? (typeof ok === "string" ? ok : null);
+      if (saved && productId && !(await persistRecipe({ productId }, recipeLines))) return;
 
       // La entrada de stock va DESPUÉS de guardar el producto y por su propio RPC.
       //
@@ -604,8 +795,11 @@ function ProductForm() {
     entryPackages,
     entryLoose,
     image: imageFile?.name ?? null,
+    recipe: productionOn
+      ? { ...recipeDraft, lines: recipeDraft.lines.map(({ ingredientId, qty, unit }) => ({ ingredientId, qty, unit })) }
+      : null,
   });
-  if (!loadingProduct && baseline === null) setBaseline(snapshot);
+  if (!loadingProduct && !loadingRecipe && baseline === null) setBaseline(snapshot);
   const dirty = baseline !== null && baseline !== snapshot && !saving;
   useUnsavedChangesGuard(dirty);
 
@@ -636,7 +830,7 @@ function ProductForm() {
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, [dirty]);
 
-  if (loadingProduct) {
+  if (loadingProduct || loadingRecipe) {
     return (
       <div className="flex items-center justify-center py-20">
         <p className="text-on-surface-variant">Cargando producto…</p>
@@ -793,6 +987,27 @@ function ProductForm() {
             </div>
           </div>
 
+          {/* "Solo insumo": lo que se compra para preparar (café, leche, vasos).
+              Lleva stock y costo, pero no se ofrece en el punto de venta. */}
+          {productionOn && itemType === "Producto" && (
+            <div className="flex items-start justify-between gap-4 rounded-2xl border border-outline-variant/15 bg-surface-container-low/50 p-4">
+              <div>
+                <p id="ingredient-label" className="text-sm font-semibold text-on-surface">Solo insumo</p>
+                <p id="ingredient-help" className="text-xs text-on-surface-variant mt-0.5">
+                  {saleRecipeActive
+                    ? "Un producto que se prepara al venderlo no puede ser insumo: se vende en el punto de venta."
+                    : "Se compra y lleva stock para tus recetas, pero no aparece en el punto de venta. Ej.: café en grano, leche, vasos."}
+                </p>
+              </div>
+              <Switch
+                aria-labelledby="ingredient-label"
+                checked={form.is_ingredient === true}
+                disabled={saleRecipeActive}
+                onCheckedChange={(on) => setForm((prev) => ({ ...prev, is_ingredient: on }))}
+              />
+            </div>
+          )}
+
           {/* Distributor & Unit of Measure — 2 column grid for products */}
           {itemType === "Producto" && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
@@ -929,8 +1144,9 @@ function ProductForm() {
                 packagePrice={form.package_price ?? ""}
                 onPackagePriceChange={(v) => setForm({ ...form, package_price: v })}
                 packageHint={packageHint}
-                tracksStock={form.tracks_stock !== false}
+                tracksStock={!noStock}
                 onTracksStockChange={(v) => setForm((prev) => ({ ...prev, tracks_stock: v }))}
+                recipeManagedStock={saleRecipeActive}
                 openPrice={form.open_price === true}
                 onOpenPriceChange={(v) => setForm((prev) => ({ ...prev, open_price: v }))}
                 currentStock={currentStock}
@@ -1172,6 +1388,27 @@ function ProductForm() {
           </div>
         </div>
 
+        {productionOn && (
+          <RecipeSection
+            target={itemType === "Servicio" ? "service" : "product"}
+            selfId={editId}
+            productUnit={form.unit}
+            price={itemType === "Servicio" ? serviceFinalValue : parseFloat(sellingPriceTotal || "0") || 0}
+            draft={form.is_ingredient && itemType === "Producto" ? { ...recipeDraft, kind: "production" } : recipeDraft}
+            onChange={(next) => { setRecipeDraft(next); setRecipeError(null); }}
+            products={products}
+            saleRecipeProductIds={saleRecipeProductIds}
+            canSeeCosts={can(profile, "inventory_costs")}
+            ownStockToClear={
+              editingProduct && existingRecipe?.kind !== "sale" && editingProduct.tracks_stock !== false
+                ? editingProduct.stock_level
+                : null
+            }
+            error={recipeError}
+            onlyProduction={itemType === "Producto" && form.is_ingredient === true}
+          />
+        )}
+
         {/* Cada mitad guarda en su tabla, así que el fallo llega por el store
             que corresponde. Antes el servicio se guardaba con `catch {}` vacíos
             y un error de la base no llegaba nunca a la pantalla. */}
@@ -1237,6 +1474,7 @@ function ProductForm() {
       )}
 
       {leaveDialog}
+      {recipeDialog}
     </div>
   );
 }

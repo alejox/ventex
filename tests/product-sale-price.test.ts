@@ -36,3 +36,10 @@ test("create and update reject invalid prices before attempting an image upload"
   assert.equal(await useInventoryStore.getState().updateProduct("product-id", input, image), false);
   assert.match(useInventoryStore.getState().error ?? "", /precio de venta válido/i);
 });
+
+test("un insumo ('Solo insumo') puede quedar sin precio de venta", () => {
+  assert.equal(parseProductSalePrice("", false, true), 0);
+  assert.equal(parseProductSalePrice("0", false, true), 0);
+  assert.equal(parseProductSalePrice("2500", false, true), 2500);
+  assert.throws(() => parseProductSalePrice("-1", false, true), Error);
+});

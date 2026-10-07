@@ -23,3 +23,9 @@ test("appointment IDs cannot append unrelated query parameters", () => {
   const destination = notificationDestination(notification({ data: { appointment_id: "id&extra=1" } }));
   assert.equal(new URL(destination!, "https://ventex.app").searchParams.get("appointment"), "id&extra=1");
 });
+
+test("'Reponer insumo' opens the ingredient's product page", () => {
+  const alert = notification({ type: "insumo_bajo", data: { product_id: "prod-1", stock: -2 } });
+  assert.equal(notificationDestination(alert), "/dashboard/inventory/product?id=prod-1");
+  assert.equal(notificationDestination(notification({ type: "insumo_bajo", data: {} })), null);
+});

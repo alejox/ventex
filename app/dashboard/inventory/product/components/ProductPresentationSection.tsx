@@ -30,6 +30,12 @@ interface ProductPresentationSectionProps {
   setEntryLoose: (v: string) => void;
   /** Unidades que sumaría la entrada, cajas ya convertidas. */
   entryUnits: number;
+  /**
+   * El producto tiene receta de VENTA: su stock está en los insumos. Se
+   * esconde "No lleva inventario" (lo decide la receta, no la persona) y los
+   * campos de stock, y se explica por qué.
+   */
+  recipeManagedStock?: boolean;
 }
 
 export function ProductPresentationSection({
@@ -57,6 +63,7 @@ export function ProductPresentationSection({
   entryLoose,
   setEntryLoose,
   entryUnits,
+  recipeManagedStock = false,
 }: ProductPresentationSectionProps) {
   // En presentación suelta no hay caja que ofrecer, por más que el producto
   // arrastre un `units_per_package` de una edición anterior.
@@ -79,6 +86,17 @@ export function ProductPresentationSection({
           siendo productos —con costo, proveedor y margen—; lo único que se
           apaga es la parte que no se puede sostener. */}
       <div className="rounded-2xl border border-outline-variant/20 bg-surface-container-low/40 p-4 space-y-3">
+        {recipeManagedStock ? (
+          <p className="flex items-start gap-3">
+            <span aria-hidden="true" className="mt-0.5 w-4 h-4 shrink-0 rounded-full bg-primary/15 ring-4 ring-primary/5" />
+            <span>
+              <span className="text-[13px] font-semibold text-on-surface block">El stock se descuenta de sus insumos</span>
+              <span className="text-xs text-on-surface-variant">
+                Este producto tiene receta: cada venta gasta los insumos de la receta. Repón los insumos, no el producto.
+              </span>
+            </span>
+          </p>
+        ) : (
         <label className="flex items-start gap-3 cursor-pointer">
           <input
             type="checkbox"
@@ -94,6 +112,7 @@ export function ProductPresentationSection({
             </span>
           </span>
         </label>
+        )}
 
         <label className="flex items-start gap-3 cursor-pointer">
           <input

@@ -201,6 +201,9 @@ export function toMessage(e: unknown): string {
       // --- Compras y pedidos de compra (migraciones 20261007120000-120200) ---
       const purchaseMessage = purchaseErrorMessage(raw);
       if (purchaseMessage) return purchaseMessage;
+      // --- Recetas y producción (migraciones 20261008100000-100300) ---
+      const recipeMessage = recipeErrorMessage(raw);
+      if (recipeMessage) return recipeMessage;
       // `SIN_PERMISO: no tenés permiso para X` → `No tenés permiso para X`
       const withoutTag = raw.replace(/^SIN_PERMISO:\s*/i, "");
       const clean = withoutTag === raw ? raw : withoutTag.charAt(0).toUpperCase() + withoutTag.slice(1);
@@ -262,6 +265,45 @@ function purchaseErrorMessage(raw: string): string | null {
   }
   for (const [pattern, message] of PURCHASE_ORDER_ERRORS) {
     if (pattern.test(raw)) return message;
+  }
+  return null;
+}
+
+/**
+ * Recetas y producción: códigos de `save_recipe`, `register_production_batch`,
+ * `void_production_batch` y del trigger `products_guard_recipe`. Varios traen
+ * el nombre del producto en el detalle ("RECETA_CICLICA: Masa ya se usa…"):
+ * esos se muestran con su detalle, sin el código, más una indicación de qué
+ * hacer. Bloque aparte, como el de compras.
+ */
+const RECIPE_ERRORS: [RegExp, string | ((detail: string) => string)][] = [
+  [/^MODULO_PRODUCCION_INACTIVO\b/, "El módulo Recetas y producción está apagado. Actívalo en Ajustes → General → Módulos."],
+  [/^RECETA_DESTINO_INVALIDO\b/, "La receta tiene que ser de un producto o de un servicio."],
+  [/^RECETA_TIPO_INVALIDO\b/, "Solo un producto se puede fabricar en lotes; un servicio lleva receta de venta."],
+  [/^RECETA_LINEA_INVALIDA\b/, "Cada insumo de la receta necesita una cantidad mayor que cero."],
+  [/^RECETA_INSUMO_REPETIDO\b/, "Cada insumo va una sola vez en la receta: suma las cantidades en una línea."],
+  [/^RECETA_RENDIMIENTO_INVALIDO\b/, "Indica cuánto rinde un lote (por ejemplo, 12 L o 20 unidades)."],
+  [/^RECETA_NO_ENCONTRADA\b/, "Este producto no tiene receta de producción. Agrégala en su ficha antes de registrar un lote."],
+  [/^RECETA_ES_INSUMO\b/, (d) => `${d}. Quítalo de esas recetas antes de darle una receta propia.`],
+  [/^RECETA_INSUMO_SIN_STOCK\b/, (d) => `${d}.`],
+  [/^RECETA_CICLICA\b/, (d) => `${d}: una receta no puede usarse a sí misma.`],
+  [/^UNIDAD_INCOMPATIBLE\b/, (d) => `${d}. Elige una unidad de la misma medida (peso, volumen o largo).`],
+  [/^RECETA_CON_STOCK\b/, (d) => `${d}. Con receta, su stock se descuenta de los insumos: confirma para dejarlo en 0.`],
+  [/^RECETA_SIN_STOCK_PROPIO\b/, (d) => `${d}. Quita la receta si quieres volver a contarle el stock.`],
+  [/^RECETA_UNIDAD_INCOMPATIBLE\b/, (d) => `${d}. Puedes cambiar a una unidad de la misma medida (por ejemplo, de kg a g).`],
+  [/^LOTE_CANTIDAD_INVALIDA\b/, "Indica cuánto produjiste o cuántas tandas hiciste (una de las dos, mayor que cero)."],
+  [/^LOTE_SIN_INSUMOS\b/, "Con esa cantidad la receta no gasta ningún insumo. Revisa la cantidad del lote."],
+  [/^LOTE_YA_ANULADO\b/, "Este lote ya estaba anulado. Actualiza la lista."],
+  [/^INSUMO_INSUFICIENTE\b/, (d) => `No alcanza el insumo: ${d}. Registra la compra o activa la venta sin stock en Ajustes.`],
+  [/^CANTIDAD_ENTERA: .* se produce\b/, (d) => `${d}.`],
+];
+
+function recipeErrorMessage(raw: string): string | null {
+  for (const [pattern, message] of RECIPE_ERRORS) {
+    if (!pattern.test(raw)) continue;
+    if (typeof message === "string") return message;
+    const detail = raw.replace(/^[A-Z_]+:\s*/, "").trim();
+    return message(detail.charAt(0).toUpperCase() + detail.slice(1));
   }
   return null;
 }

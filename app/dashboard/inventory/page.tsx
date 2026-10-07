@@ -45,6 +45,36 @@ import { CollectionEmpty, CollectionError, CollectionFilteredEmpty, CollectionLo
 import { Pagination } from "@/components/Pagination";
 import { useFormatMoney } from "@/lib/useMoney";
 import { Modal } from "@/components/ui/Modal";
+import { effectiveModules } from "@/config/business";
+import { useRecipesStore } from "@/stores/recipes.store";
+import { ingredientNeedsRestock } from "@/lib/recipe-editor";
+
+/**
+ * Vistas del catálogo que solo existen con "Recetas y producción". `?filtro=`
+ * es el alias que usan los enlaces de afuera (avisos, Panel).
+ */
+const RECIPE_VIEWS = [
+  { id: "", label: "Todo" },
+  { id: "insumos", label: "Insumos" },
+  { id: "insumos-bajos", label: "Insumos por reponer" },
+  { id: "receta", label: "Con receta" },
+] as const;
+type RecipeView = (typeof RECIPE_VIEWS)[number]["id"];
+
+/** Etiqueta chica junto al nombre: "Insumo", "Receta", "Por lotes". */
+function KindChip({ label, tone }: { label: string; tone: "ingredient" | "recipe" }) {
+  return (
+    <span
+      className={`ml-2 inline-flex items-center rounded-md px-1.5 py-0.5 align-middle text-[11px] font-bold uppercase tracking-wide ${
+        tone === "ingredient"
+          ? "bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20"
+          : "bg-primary/10 text-primary-ink border border-primary/20"
+      }`}
+    >
+      {label}
+    </span>
+  );
+}
 
 
 function IconScanLine(props: React.SVGProps<SVGSVGElement>) {
@@ -152,6 +182,25 @@ export default function CatalogPage() {
    */
   const canSeeInventoryValue = !profile?.isWorker;
 
+  /** "Recetas y producción": vistas de insumos y etiquetas de receta. */
+  const productionOn =
+    effectiveModules(profile?.businessType ?? null, profile?.modules ?? null).production === true;
+  const recipes = useRecipesStore((s) => s.recipes);
+  const fetchRecipes = useRecipesStore((s) => s.fetchRecipes);
+  useEffect(() => {
+    if (productionOn) void fetchRecipes();
+  }, [productionOn, fetchRecipes]);
+  const recipeKindByProduct = useMemo(() => {
+    const map = new Map<string, "sale" | "production">();
+    if (!productionOn) return map;
+    for (const r of recipes) if (r.product_id && r.items.length > 0) map.set(r.product_id, r.kind);
+    return map;
+  }, [productionOn, recipes]);
+  const servicesWithRecipe = useMemo(
+    () => new Set(productionOn ? recipes.filter((r) => r.service_id && r.items.length > 0).map((r) => r.service_id as string) : []),
+    [productionOn, recipes],
+  );
+
   const [confirmArchive, setConfirmArchive] = useState<CatalogRow | null>(null);
 
 
@@ -183,6 +232,8 @@ export default function CatalogPage() {
     type: "",
     cat: "",
     stock: "",
+    vista: "",
+    filtro: "",
     // Activos por defecto: lo archivado no se vende, y mezclado con lo activo
     // se leía como si siguiera en el catálogo.
     status: "active",
@@ -207,6 +258,10 @@ export default function CatalogPage() {
   const setTypeFilter = (type: string) => setFilters({ type, page: null });
   const setCategoryFilter = (cat: string) => setFilters({ cat, page: null });
   const setStockFilter = (stock: string) => setFilters({ stock, page: null });
+  const recipeView: RecipeView = !productionOn
+    ? ""
+    : (RECIPE_VIEWS.find((v) => v.id === (filters.vista || filters.filtro))?.id ?? "");
+  const setRecipeView = (vista: RecipeView) => setFilters({ vista: vista || null, filtro: null, page: null });
   const setStatusFilter = (status: CatalogStatusFilter) => setFilters({ status, page: null });
   const setCurrentPage = (page: number) => setFilters({ page });
   const setPageSize = (size: number) => setFilters({ size, page: null });
@@ -285,6 +340,17 @@ export default function CatalogPage() {
     return true;
   };
 
+  /** Vistas de "Recetas y producción" (insumos, por reponer, con receta). */
+  const matchesRecipeView = (row: CatalogRow): boolean => {
+    if (!recipeView) return true;
+    if (recipeView === "receta") {
+      return row.kind === "product" ? recipeKindByProduct.has(row.id) : servicesWithRecipe.has(row.id);
+    }
+    if (row.kind !== "product") return false;
+    if (recipeView === "insumos") return row.product.is_ingredient === true;
+    return ingredientNeedsRestock(row.product);
+  };
+
   const matchesStock = (row: CatalogRow): boolean => {
     // Un servicio no tiene stock, así que no puede estar agotado, bajo ni
     // óptimo: en cuanto se filtra por estado de inventario, queda afuera.
@@ -304,7 +370,7 @@ export default function CatalogPage() {
    * corte plano de la lista filtrada.
    */
   const filteredRows = sortCatalogRows(
-    rows.filter((row) => matchesRow(row) && matchesStock(row)),
+    rows.filter((row) => matchesRow(row) && matchesStock(row) && matchesRecipeView(row)),
     sortKey,
     sortDir,
   );
@@ -328,7 +394,7 @@ export default function CatalogPage() {
   const pageEndItem = rowsBeforePage + paginatedRows.length;
 
   const clearFilters = () =>
-    setFilters({ q: null, type: null, cat: null, stock: null, status: null, page: null });
+    setFilters({ q: null, type: null, cat: null, stock: null, status: null, vista: null, filtro: null, page: null });
 
   /** Exporta lo que se está viendo: los filtros aplicados, en el orden elegido. */
   const exportCatalog = () =>
@@ -558,6 +624,36 @@ export default function CatalogPage() {
           </Select>
         </div>
 
+        {productionOn && (
+          <div className="flex gap-2 overflow-x-auto px-4 lg:px-7 py-3 border-b border-outline-variant/10 bg-surface-container-lowest" role="group" aria-label="Vista de insumos y recetas">
+            {RECIPE_VIEWS.map((v) => {
+              const count =
+                v.id === "insumos-bajos"
+                  ? products.filter((p) => p.status !== "inactive" && ingredientNeedsRestock(p)).length
+                  : null;
+              const active = recipeView === v.id;
+              return (
+                <button
+                  key={v.id || "all"}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => setRecipeView(v.id)}
+                  className={`shrink-0 inline-flex items-center gap-1.5 h-9 px-3 rounded-xl border text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                    active
+                      ? "border-primary/40 bg-primary/10 text-primary-ink"
+                      : "border-outline-variant/20 bg-surface-container text-on-surface-variant hover:text-on-surface"
+                  }`}
+                >
+                  {v.label}
+                  {count !== null && count > 0 && (
+                    <span className="rounded-full bg-error px-1.5 text-[10px] leading-4 text-on-error tabular-nums">{count}</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         {/* Móvil: la tabla de 7 columnas no entra en un teléfono, así que cada
             ítem se dibuja como tarjeta. El fondo alterno es lo que separa
             uno del siguiente: la ficha ocupa tres líneas y una divisoria de
@@ -604,6 +700,10 @@ export default function CatalogPage() {
                         <p className="text-[15px] leading-snug font-semibold text-on-surface break-words">
                           {row.name}
                           {archived && <ArchivedChip />}
+                          {row.kind === "product" && productionOn && row.product.is_ingredient && <KindChip label="Insumo" tone="ingredient" />}
+                          {row.kind === "product" && recipeKindByProduct.get(row.id) === "sale" && <KindChip label="Receta" tone="recipe" />}
+                          {row.kind === "product" && recipeKindByProduct.get(row.id) === "production" && <KindChip label="Por lotes" tone="recipe" />}
+                          {row.kind === "service" && servicesWithRecipe.has(row.id) && <KindChip label="Receta" tone="recipe" />}
                         </p>
                         <p className="text-xs text-on-surface-variant mt-0.5 truncate">
                           {row.kind === "product" ? (
@@ -758,6 +858,10 @@ export default function CatalogPage() {
                                 <span className="text-on-surface text-sm font-semibold">{row.name}</span>
                               )}
                               {archived && <ArchivedChip />}
+                              {row.kind === "product" && productionOn && row.product.is_ingredient && <KindChip label="Insumo" tone="ingredient" />}
+                              {row.kind === "product" && recipeKindByProduct.get(row.id) === "sale" && <KindChip label="Receta" tone="recipe" />}
+                              {row.kind === "product" && recipeKindByProduct.get(row.id) === "production" && <KindChip label="Por lotes" tone="recipe" />}
+                              {row.kind === "service" && servicesWithRecipe.has(row.id) && <KindChip label="Receta" tone="recipe" />}
                               {row.kind === "service" && (
                                 <span className="block text-xs text-on-surface-variant">
                                   {row.service.duration_minutes} min

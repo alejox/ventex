@@ -25,6 +25,18 @@ const typeColor: Record<string, string> = {
   adjust: "bg-amber-100 text-amber-700",
 };
 
+/** Origen de cada movimiento, tal como lo escribe la base en `reference_type`. */
+const REFERENCE_LABELS: Record<string, string> = {
+  purchase: "Compra",
+  cancellation: "Anulación de compra",
+  manual: "Manual",
+  sale: "Venta",
+  sale_void: "Anulación de venta",
+  production: "Producción",
+  production_void: "Anulación de lote",
+  recipe_conversion: "Paso a receta",
+};
+
 const MOVEMENT_COLUMNS: DataColumn<InventoryMovement>[] = [
   {
     header: "Producto",
@@ -83,16 +95,7 @@ const MOVEMENT_COLUMNS: DataColumn<InventoryMovement>[] = [
   {
     header: "Referencia",
     className: "text-xs text-on-surface-variant font-mono",
-    cell: (mov) =>
-      mov.reference_type === "purchase"
-        ? "Compra"
-        : mov.reference_type === "manual"
-          ? "Manual"
-          : mov.reference_type === "sale"
-            ? "Venta"
-            : mov.reference_type === "sale_void"
-              ? "Anulación de venta"
-              : (mov.reference_type ?? "—"),
+    cell: (mov) => REFERENCE_LABELS[mov.reference_type ?? ""] ?? mov.reference_type ?? "—",
   },
   {
     header: "Responsable",

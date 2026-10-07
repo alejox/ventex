@@ -111,6 +111,14 @@ const MusicIcon = () => (
   </svg>
 );
 
+const FlaskIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M9 3h6" />
+    <path d="M10 3v6.5L4.6 18.2A1.8 1.8 0 0 0 6.1 21h11.8a1.8 1.8 0 0 0 1.5-2.8L14 9.5V3" />
+    <path d="M7.5 15h9" />
+  </svg>
+);
+
 export const BUSINESS_ICONS: Record<BusinessType, React.ReactNode> = {
   salon: <ScissorsIcon />,
   tienda: <BagIcon />,
@@ -129,4 +137,5 @@ export const MODULE_ICONS: Record<ModuleId, React.ReactNode> = {
   staff: <UsersIcon />,
   vehicles: <CarIcon />,
   school: <MusicIcon />,
+  production: <FlaskIcon />,
 };

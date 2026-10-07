@@ -21,6 +21,7 @@ import {
   IconCar,
   IconFileText,
   IconRefreshCw,
+  IconFlask,
   IconReceipt,
   IconTag,
   IconWallet,
@@ -132,6 +133,8 @@ const NAV_ICONS: Record<string, IconType> = {
   categories: IconTag,
   services: IconScissors,
   pedidos: IconRefreshCw,
+  // Recetas y producción (opt-in): lotes y costo de cada receta.
+  production: IconFlask,
   customers: IconUsers,
   promociones: IconTag,
   distributors: IconTruck,

@@ -38,6 +38,11 @@ export interface Product {
   /** true = el precio se asigna al vender; `price` queda como sugerido. */
   open_price: boolean;
   /**
+   * Solo insumo (módulo Recetas y producción): se compra y tiene stock, pero no
+   * se vende — fuera del POS y del sitio público. Ausente en filas viejas = false.
+   */
+  is_ingredient?: boolean;
+  /**
    * Si admite media unidad. Lo decide la UNIDAD DE MEDIDA, no una preferencia:
    * es una columna generada en la base (`kg`, `g`, `lb`, `L`, `ml`, `m`, `cm`),
    * así que no se escribe desde acá y no puede divergir entre pantallas.
@@ -137,6 +142,8 @@ export interface NewProductInput {
   units_per_package?: string;
   tracks_stock?: boolean;
   open_price?: boolean;
+  /** Solo insumo. `undefined` = no tocar la columna (formularios sin el módulo). */
+  is_ingredient?: boolean;
 }
 
 
@@ -303,12 +310,13 @@ export function handlePresentationModeChange(
  * products". El costo se pide aparte con `attachCosts`, vía el RPC
  * `get_product_costs`, que es quien evalúa el permiso `inventory_costs`.
  *
- * Si agregás una columna a la tabla, agregala también acá y al GRANT.
+ * Si agregas una columna a la tabla, agrégala también acá y al GRANT
+ * (20261008100500_products_cost_column_privileges.sql).
  */
 const PRODUCT_COLUMNS =
   "id, created_at, updated_at, user_id, name, sku, barcode, price, package_price, stock_level, image_url, status, " +
   "category_id, unit, distributor_id, minimum_stock, icon, has_commission, commission_type, " +
-  "commission_value, units_per_package, tracks_stock, open_price, allows_fractions";
+  "commission_value, units_per_package, tracks_stock, open_price, allows_fractions, is_ingredient";
 
 const PRODUCT_SELECT = `${PRODUCT_COLUMNS}, categories(name), distributors(business_name)`;
 
@@ -460,22 +468,34 @@ function stockPatch(input: NewProductInput): { stock_level: number; minimum_stoc
   return { stock_level: parseFloat(input.stock_level || "0") || 0 };
 }
 
-/** Las dos banderas, con el default seguro: producto normal, precio de catálogo. */
-function flagsPatch(input: NewProductInput): { tracks_stock: boolean; open_price: boolean } {
+/**
+ * Las banderas, con el default seguro: producto normal, precio de catálogo.
+ *
+ * `is_ingredient` solo viaja si el formulario lo trae: un formulario sin el
+ * módulo de recetas no lo conoce, y mandarlo en `false` des-marcaría un insumo.
+ *
+ * Ojo con `tracks_stock` en un producto con RECETA DE VENTA: su stock está en
+ * los insumos y la base rechaza volver a encenderlo (RECETA_SIN_STOCK_PROPIO).
+ * El formulario tiene que mandar `tracks_stock: false` para esos productos.
+ */
+function flagsPatch(input: NewProductInput): { tracks_stock: boolean; open_price: boolean; is_ingredient?: boolean } {
   return {
     tracks_stock: input.tracks_stock !== false,
     open_price: input.open_price === true,
+    ...(input.is_ingredient !== undefined ? { is_ingredient: input.is_ingredient } : {}),
   };
 }
 
 /** The catalog stores the tax-inclusive shelf price, not a formatted display value. */
-export function parseProductSalePrice(raw: string, openPrice = false): number {
-  const value = raw.trim();
+export function parseProductSalePrice(raw: string, openPrice = false, isIngredient = false): number {
+  // Un insumo ("Solo insumo") no se vende: su precio de venta puede quedar en
+  // 0 o vacío. Todo lo demás conserva la regla de siempre.
+  const value = isIngredient && raw.trim() === "" ? "0" : raw.trim();
   if (!/^\d+(?:\.\d+)?$/.test(value)) {
     throw new Error("Indica un precio de venta válido.");
   }
   const price = Number(value);
-  if (!Number.isFinite(price) || price < 0 || (!openPrice && price === 0)) {
+  if (!Number.isFinite(price) || price < 0 || (!openPrice && !isIngredient && price === 0)) {
     throw new Error(openPrice
       ? "Indica un precio sugerido válido (cero o mayor)."
       : "El precio de venta debe ser mayor que cero.");
@@ -484,7 +504,7 @@ export function parseProductSalePrice(raw: string, openPrice = false): number {
 }
 
 export async function createProduct(input: NewProductInput): Promise<Product> {
-  const price = parseProductSalePrice(input.price, input.open_price);
+  const price = parseProductSalePrice(input.price, input.open_price, input.is_ingredient === true);
   const supabase = createClient();
   const { data, error } = await supabase
     .from("products")
@@ -542,7 +562,7 @@ export async function activateProduct(id: string): Promise<void> {
  * responsable—, por la recepción de compras y por la venta. Nunca por acá.
  */
 export async function updateProduct(id: string, input: NewProductInput): Promise<Product> {
-  const price = parseProductSalePrice(input.price, input.open_price);
+  const price = parseProductSalePrice(input.price, input.open_price, input.is_ingredient === true);
   const supabase = createClient();
   const { data, error } = await supabase
     .from("products")

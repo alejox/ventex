@@ -26,7 +26,8 @@ export type ModuleId =
   | "services"
   | "staff"
   | "vehicles"
-  | "school";
+  | "school"
+  | "production";
 export type Modules = Partial<Record<ModuleId, boolean>>;
 
 export type WorkerPermission =
@@ -45,7 +46,8 @@ export type WorkerPermission =
   | "vehicles"
   | "billing"
   | "settings"
-  | "school";
+  | "school"
+  | "production";
 
 export type WorkerPermissions = Partial<Record<WorkerPermission, boolean>>;
 
@@ -66,6 +68,7 @@ export const WORKER_PERMISSION_LABELS: Record<WorkerPermission, string> = {
   billing: "Facturación",
   settings: "Configuración del negocio",
   school: "Académico",
+  production: "Producción (lotes)",
 };
 
 /**
@@ -123,6 +126,7 @@ export const WORKER_PERMISSION_HINTS: Record<WorkerPermission, string> = {
   billing: "Crear facturas y cotizaciones para tus clientes.",
   settings: "Entrar a Ajustes y cambiar la configuración del negocio.",
   school: "Estudiantes, profesores, planes de clase, agenda y matrículas.",
+  production: "Registrar y anular lotes de fabricación, y ver las recetas.",
 };
 
 /** Nombre corto para resúmenes de una línea ("Ve: POS · Calendario"). */
@@ -143,6 +147,7 @@ export const WORKER_PERMISSION_SHORT_LABELS: Record<WorkerPermission, string> = 
   billing: "Facturación",
   settings: "Ajustes",
   school: "Académico",
+  production: "Producción",
 };
 
 /** Datos del perfil de cuenta (tabla public.profiles). */
@@ -242,6 +247,15 @@ export interface ModuleOption {
   comingSoon?: boolean;
 }
 
+/**
+ * Recetas y producción: disponible para TODO rubro (una cafetería se registra
+ * como tienda; un salón gasta tinte por servicio; un lavaautos, shampoo por
+ * lavado), siempre opt-in. La fuente autoritativa es
+ * `profiles.modules->>'production'` (`production_module_enabled()` en la base).
+ */
+const PRODUCTION_MODULE_DESCRIPTION =
+  "Recetas que descuentan insumos al vender (café, leche, vaso) y lotes de preparación con su costo.";
+
 export const MODULES_BY_TYPE: Record<BusinessType, ModuleOption[]> = {
   salon: [
     { id: "appointments", label: "Citas", description: "Gestiona citas, agendas y disponibilidad de tus barberos y estilistas." },
@@ -250,19 +264,26 @@ export const MODULES_BY_TYPE: Record<BusinessType, ModuleOption[]> = {
     { id: "inventory", label: "Inventario", description: "Controla stock de productos, pomadas, ceras, shampoos y más." },
     // Opt-in, nunca preseleccionado: se elige en Ajustes (ver OPT_IN_MODULE_IDS).
     { id: "school", label: "Académico", description: "Estudiantes, profesores, planes de clase y el progreso de las clases." },
+    // Opt-in, nunca preseleccionado: se elige en Ajustes (ver OPT_IN_MODULE_IDS).
+    { id: "production", label: "Recetas y producción", description: PRODUCTION_MODULE_DESCRIPTION },
   ],
   // Inventario NO es un extra opcional de la tienda: es parte del núcleo y ya
   // viene en el menú base (ver BASE_NAV_BY_TYPE.tienda). Los dos extras que se
   // anunciaban acá (E-commerce y Página web) no tienen implementación, así que
-  // no se ofrecen: hoy la tienda no tiene módulos opcionales. Las pantallas que
-  // consumen esta lista contemplan que venga vacía.
-  tienda: [],
+  // no se ofrecen. Su único módulo opcional es Recetas y producción (cafetería,
+  // pizzería, granizados): opt-in, apagado hasta que el dueño lo encienda.
+  tienda: [
+    // Opt-in, nunca preseleccionado: se elige en Ajustes (ver OPT_IN_MODULE_IDS).
+    { id: "production", label: "Recetas y producción", description: PRODUCTION_MODULE_DESCRIPTION },
+  ],
   lavaautos: [
     { id: "appointments", label: "Citas", description: "Agenda turnos de lavado, detailing y mantenimiento." },
     { id: "services", label: "Servicios", description: "Tu menú de lavados: básico, premium, encerado y detailing, con precio y duración." },
     { id: "staff", label: "Personal", description: "Administra tus lavadores y detailers, con sus comisiones." },
     { id: "vehicles", label: "Vehículos", description: "Historial por placa: vehículos, sus dueños y todas sus visitas." },
     { id: "inventory", label: "Inventario", description: "Controla insumos: jabones, ceras, filtros y más." },
+    // Opt-in, nunca preseleccionado: se elige en Ajustes (ver OPT_IN_MODULE_IDS).
+    { id: "production", label: "Recetas y producción", description: PRODUCTION_MODULE_DESCRIPTION },
   ],
   servicios: [
     { id: "appointments", label: "Citas / Agenda", description: "Gestiona tu agenda de consultas y reuniones." },
@@ -271,6 +292,8 @@ export const MODULES_BY_TYPE: Record<BusinessType, ModuleOption[]> = {
     { id: "billing", label: "Facturación", description: "Genera facturas y cotizaciones para tus clientes." },
     // Opt-in, nunca preseleccionado: se elige en Ajustes (ver OPT_IN_MODULE_IDS).
     { id: "school", label: "Académico", description: "Estudiantes, profesores, planes de clase y el progreso de las clases." },
+    // Opt-in, nunca preseleccionado: se elige en Ajustes (ver OPT_IN_MODULE_IDS).
+    { id: "production", label: "Recetas y producción", description: PRODUCTION_MODULE_DESCRIPTION },
   ],
   // Acá `school` NO es un extra: es la razón de ser del negocio, así que viene
   // encendido desde el registro (ver CORE_MODULES_BY_TYPE). Sin Citas: la
@@ -279,6 +302,8 @@ export const MODULES_BY_TYPE: Record<BusinessType, ModuleOption[]> = {
     { id: "school", label: "Académico", description: "Estudiantes, acudientes, profesores, matrículas, agenda de clases y asistencia." },
     { id: "services", label: "Servicios", description: "Los planes de clase se venden como servicios en el POS: mensualidades, paquetes y clases sueltas." },
     { id: "staff", label: "Personal", description: "Tus profesores y coordinadores, con sus accesos y comisiones." },
+    // Opt-in, nunca preseleccionado: se elige en Ajustes (ver OPT_IN_MODULE_IDS).
+    { id: "production", label: "Recetas y producción", description: PRODUCTION_MODULE_DESCRIPTION },
   ],
 };
 
@@ -293,7 +318,7 @@ export const MODULES_BY_TYPE: Record<BusinessType, ModuleOption[]> = {
  * encienda en Ajustes. La fuente autoritativa es `profiles.modules->>'school'`;
  * acá nunca se inventa un `true`.
  */
-const OPT_IN_MODULE_IDS: ModuleId[] = ["school"];
+const OPT_IN_MODULE_IDS: ModuleId[] = ["school", "production"];
 
 const isOptIn = (id: ModuleId) => OPT_IN_MODULE_IDS.includes(id);
 
@@ -411,6 +436,10 @@ export const NAV_ITEMS: NavItem[] = [
   // salón sin inventario igual necesita su catálogo de servicios, y una tienda
   // sin servicios igual necesita el de productos.
   { id: "inventory", name: "Productos y servicios", href: "/dashboard/inventory", modules: ["inventory", "services"] },
+  // Recetas y producción (opt-in): lotes de preparación y el costo/margen de
+  // cada receta. Las recetas se editan en la ficha del producto o servicio;
+  // esta pantalla es donde se fabrica y se mira el conjunto.
+  { id: "production", name: "Producción", href: "/dashboard/production", modules: ["production"] },
   { id: "pedidos", name: "Pedidos", href: "/dashboard/pedidos", modules: ["inventory"] },
   { id: "distributors", name: "Proveedores", href: "/dashboard/distributors", modules: ["inventory"] },
   { id: "purchases", name: "Compras", href: "/dashboard/purchases", modules: ["inventory"] },
@@ -625,7 +654,7 @@ const NAV_GROUP_ORDER: { id: string; label: string | null; itemIds: string[] }[]
   { id: "clientes", label: "Clientes", itemIds: ["customers", "credits", "promociones", "vehicles"] },
   // El ciclo completo del inventario, en el orden en que se vive: qué vendo →
   // qué me falta → a quién se lo pido → qué me llegó.
-  { id: "inventario", label: "Inventario", itemIds: ["inventory", "pedidos", "distributors", "purchases"] },
+  { id: "inventario", label: "Inventario", itemIds: ["inventory", "production", "pedidos", "distributors", "purchases"] },
   { id: "finanzas", label: "Finanzas", itemIds: ["expenses", "reports"] },
   { id: "equipo", label: "Equipo", itemIds: ["staff", "commissions", "haircuts"] },
   // Académico es OPT-IN: el grupo entero desaparece cuando el módulo está apagado
@@ -743,6 +772,7 @@ const PERMISSION_NAV_GATE: Partial<Record<WorkerPermission, string>> = {
   vehicles: "vehicles",
   billing: "billing",
   school: "school",
+  production: "production",
 };
 
 /**
@@ -830,7 +860,7 @@ const PERMISSION_TEMPLATES_BY_TYPE: Record<BusinessType, PermissionTemplate[]> =
   tienda: [
     { id: "atencion", label: "Vendedor", description: "Cobra, consulta productos y registra clientes.", permissions: ["pos", "customers", "inventory"] },
     { id: "cajero", label: "Cajero", description: "Cobra y consulta el historial de ventas.", permissions: ["pos", "sales"] },
-    { id: "bodega", label: "Bodeguero", description: "Productos, stock y recepción de compras.", permissions: ["inventory", "inventory_stock", "inventory_edit"] },
+    { id: "bodega", label: "Bodeguero", description: "Productos, stock y recepción de compras.", permissions: ["inventory", "inventory_stock", "inventory_edit", "production"] },
   ],
   lavaautos: [
     { id: "atencion", label: "Lavador / Detailer", description: "Cobra, ve la agenda, clientes y vehículos.", permissions: ["pos", "calendar", "customers", "vehicles"] },
@@ -980,6 +1010,10 @@ export function workerNavItems(
   if (modules && !modules.school) {
     for (const id of SCHOOL_NAV_ITEM_IDS) granted.delete(id);
   }
+  // Producción también es opt-in: el permiso suelto no destapa la pantalla en
+  // un negocio que no encendió el módulo (los RPC igual lo rechazan con
+  // MODULO_PRODUCCION_INACTIVO).
+  if (modules && !modules.production) granted.delete("production");
 
   return NAV_ITEMS.filter((item) => granted.has(item.id));
 }

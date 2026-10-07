@@ -20,6 +20,13 @@ const NOTIFICATION_SELECT = "id, type, severity, title, body, data, read_at, cre
 
 /** Booking alerts carry the appointment ID, including alerts already stored. */
 export function notificationDestination(notification: AppNotification): string | null {
+  // "Reponer insumo" (Recetas y producción): a la ficha del insumo, donde se ve
+  // el stock y desde donde se repone.
+  if (notification.type === "insumo_bajo") {
+    const productId = notification.data?.product_id;
+    if (typeof productId !== "string" || !productId.trim()) return null;
+    return `/dashboard/inventory/product?id=${encodeURIComponent(productId)}`;
+  }
   if (notification.type !== "appointment") return null;
   const appointmentId = notification.data?.appointment_id;
   if (typeof appointmentId !== "string" || !appointmentId.trim()) return null;

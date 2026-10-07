@@ -328,6 +328,8 @@ export async function fetchCatalog(): Promise<CatalogItem[]> {
       // Un servicio entra por `services`, nunca por acá: las filas con unidad
       // "Servicio" son legadas y su servicio ya viaja en la otra consulta.
       .neq("unit", SERVICE_UNIT)
+      // Un insumo (módulo Recetas y producción) se compra pero no se vende.
+      .eq("is_ingredient", false)
       .order("name"),
     supabase
       .from("services")
