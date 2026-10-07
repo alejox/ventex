@@ -1914,6 +1914,7 @@ export type Database = {
           service_id: string | null
           sku: string | null
           staff_id: string | null
+          stock_qty_applied: number | null
           unit_kind: string
           unit_price: number
           units_per_item: number
@@ -1933,6 +1934,7 @@ export type Database = {
           service_id?: string | null
           sku?: string | null
           staff_id?: string | null
+          stock_qty_applied?: number | null
           unit_kind?: string
           unit_price: number
           units_per_item?: number
@@ -1952,6 +1954,7 @@ export type Database = {
           service_id?: string | null
           sku?: string | null
           staff_id?: string | null
+          stock_qty_applied?: number | null
           unit_kind?: string
           unit_price?: number
           units_per_item?: number

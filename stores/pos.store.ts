@@ -140,6 +140,13 @@ interface PosState {
   setIncludeTax: (val: boolean) => Promise<boolean>;
   /** Del negocio (`settings.allow_oversell`). false = no se cobra sin stock. */
   allowOversell: boolean;
+  /**
+   * Relee tasa de IVA, desglose y sobreventa de `settings`. `init()` las lee
+   * una sola vez; si el dueño las cambia desde otro equipo, el POS abierto
+   * mostraría un total distinto al que cobra `create_sale`. Lo llama la página
+   * al volver el foco, y `checkout()` antes de cobrar. Sin red no cambia nada.
+   */
+  refreshPosConfig: () => Promise<void>;
   defaultPaymentMethod: PaymentMethod;
   setDefaultPaymentMethod: (method: PaymentMethod) => void;
   defaultStaffId: string | null;
@@ -537,6 +544,17 @@ export const usePosStore = create<PosState>((set, get) => {
       }
     },
     allowOversell: true,
+    refreshPosConfig: async () => {
+      try {
+        const { taxRate, includeTax, allowOversell } = await posService.fetchPosConfig();
+        const s = get();
+        if (s.taxRate !== taxRate || s.includeTax !== includeTax || s.allowOversell !== allowOversell) {
+          set({ taxRate, includeTax, allowOversell });
+        }
+      } catch {
+        // Sin red se sigue con lo último leído: la venta se encola igual.
+      }
+    },
     defaultPaymentMethod: "efectivo",
     setDefaultPaymentMethod: (method) => set({ defaultPaymentMethod: method }),
     defaultStaffId: null,
@@ -1150,6 +1168,27 @@ export const usePosStore = create<PosState>((set, get) => {
         return "failed";
       }
 
+      // IVA fresco antes de cobrar: si el dueño cambió la tasa o el desglose
+      // desde otro equipo, el total en pantalla ya no es el que cobra
+      // `create_sale`. Si con la config nueva el total cambia, se corta acá
+      // para que el cajero lo vea (y rehaga un pago dividido) antes de cobrar.
+      set({ submitting: true, error: null });
+      {
+        const before = get();
+        const exempt = before.customers.find((c) => c.id === customerId)?.tax_exempt ?? false;
+        const shownTotal = posService.computeTotals(cart, before.taxRate, exempt, before.includeTax).total;
+        await get().refreshPosConfig();
+        const after = get();
+        const freshTotal = posService.computeTotals(cart, after.taxRate, exempt, after.includeTax).total;
+        if (freshTotal !== shownTotal) {
+          set({
+            submitting: false,
+            error: "La configuración de IVA del negocio cambió y el total de la venta se actualizó. Revísalo y vuelve a cobrar.",
+          });
+          return "failed";
+        }
+      }
+
       // La clave se acuña UNA vez por carrito y se guarda en la pestaña antes
       // de salir a la red. Si este intento muere sin respuesta y el cajero
       // vuelve a tocar "Cobrar", viaja la misma clave y el servidor devuelve la
@@ -1181,7 +1220,6 @@ export const usePosStore = create<PosState>((set, get) => {
         discount: discounts.total,
         manualDiscount: discounts.manual,
         amountTendered: tenderedForSale(options?.amountTendered, paymentMethod, splits.length),
-        includeTax: state.includeTax,
         items: cart.map((l, index) => {
           const base = l.item.kind === "service"
             ? { service_id: l.item.id }
@@ -1231,11 +1269,12 @@ export const usePosStore = create<PosState>((set, get) => {
           // muestra el POS. Es contra este número que se cuadra la caja si la
           // venta después no entra.
           const cliente = state.customers.find((c) => c.id === customerId);
+          const { taxRate, includeTax } = get();
           const { total } = posService.computeTotals(
             cart,
-            state.taxRate,
+            taxRate,
             cliente?.tax_exempt ?? false,
-            state.includeTax,
+            includeTax,
           );
 
           const queued = await queueSale({

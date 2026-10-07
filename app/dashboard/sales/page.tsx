@@ -338,7 +338,9 @@ export default function SalesPage() {
             sale: detail,
             extras: receiptExtras,
             business: settings?.business_profile ?? {},
-            includeTax: settings?.include_tax ?? false,
+            // Mismo default que el POS y `create_sale`: sin fila en
+            // `settings`, el negocio desglosa IVA.
+            includeTax: settings?.include_tax ?? true,
           })
         : null,
     [detail, receiptExtras, settings?.business_profile, settings?.include_tax],

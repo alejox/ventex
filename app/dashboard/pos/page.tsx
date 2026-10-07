@@ -120,16 +120,23 @@ export default function POSPage() {
   const acceptsCard = useSettingsStore((s) => s.settings?.accepts_card) ?? true;
   const acceptsTransfer = useSettingsStore((s) => s.settings?.accepts_transfer) ?? true;
 
+  const refreshPosConfig = usePosStore((s) => s.refreshPosConfig);
   useEffect(() => {
     void fetchSettings();
-    const refresh = () => { if (document.visibilityState === "visible") void fetchSettings(); };
+    // El IVA del POS también se relee al volver: si cambió en otro equipo, el
+    // total en pantalla tiene que ser el que va a cobrar `create_sale`.
+    const refresh = () => {
+      if (document.visibilityState !== "visible") return;
+      void fetchSettings();
+      void refreshPosConfig();
+    };
     window.addEventListener("focus", refresh);
     document.addEventListener("visibilitychange", refresh);
     return () => {
       window.removeEventListener("focus", refresh);
       document.removeEventListener("visibilitychange", refresh);
     };
-  }, [fetchSettings]);
+  }, [fetchSettings, refreshPosConfig]);
 
   const profile = useProfile();
   const isWorker = profile?.isWorker ?? false;

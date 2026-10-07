@@ -230,8 +230,9 @@ export interface CheckoutInput {
   /** Efectivo recibido (solo efectivo sin pago dividido). null = no se anotó. */
   amountTendered?: number | null;
   items: CheckoutItem[];
-  /** Desglosar IVA en esta venta. Sin esto manda la configuración del negocio. */
-  includeTax?: boolean;
+  // No hay `includeTax`: `create_sale` no recibe ese parámetro, el desglose lo
+  // decide SIEMPRE `settings.include_tax` en la base. (El campo existía y no
+  // viajaba a ningún lado; una venta encolada que todavía lo traiga lo ignora.)
   /** Pagos divididos: si se envía, ignora paymentMethod/transferMethod/cardMethod. */
   splits?: PaymentSplit[];
   /**
@@ -243,6 +244,20 @@ export interface CheckoutInput {
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/**
+ * Total de UNA línea en centavos, igual que `create_sale`: el precio va a
+ * centavos, la cantidad a milésimas (`round(quantity, 3)`) y `line_total`
+ * (numeric(12,2)) redondea el producto a centavos POR LÍNEA, mitad hacia
+ * arriba. Todo en enteros: `3333.33 * 1.5` en flotante da 4999.99499… y
+ * redondea para abajo, la base da 5000.00.
+ */
+export function lineTotalCents(price: number, quantity: number): number {
+  const priceCents = Math.round((Number(price) || 0) * 100);
+  const qtyMilli = Math.round((Number(quantity) || 0) * 1000);
+  // Enteros exactos mientras precio × cantidad no pase de ~9·10^15.
+  return Math.round((priceCents * qtyMilli) / 1000);
+}
 
 /**
  * Totales de la venta para previsualización. Espejo de la matemática del RPC
@@ -266,9 +281,15 @@ export function computeTotals(
   taxExempt: boolean,
   includeTax: boolean
 ): SaleTotals {
-  const gross = round2(lines.reduce((s, l) => s + linePrice(l) * l.quantity, 0));
-  const discount = round2(lines.reduce((s, l) => s + (l.discountAmount || 0), 0));
-  const neto = Math.max(round2(gross - discount), 0);
+  // En centavos y POR LÍNEA, como el RPC: redondear solo la suma dejaba,
+  // con cantidades fraccionarias, un total un centavo distinto al que cobra
+  // la base, y un pago dividido por ese total fallaba con "La suma de los
+  // pagos no coincide".
+  const grossCents = lines.reduce((s, l) => s + lineTotalCents(linePrice(l), l.quantity), 0);
+  const discountCents = lines.reduce((s, l) => s + Math.round((l.discountAmount || 0) * 100), 0);
+  const gross = grossCents / 100;
+  const discount = discountCents / 100;
+  const neto = Math.max(grossCents - discountCents, 0) / 100;
 
   if (!includeTax) {
     return { gross, subtotal: neto, taxAmount: 0, discount, exemptionDiscount: 0, total: neto };

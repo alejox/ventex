@@ -192,6 +192,12 @@ export function toMessage(e: unknown): string {
       if (/^OWNER_REQUIRED\b/.test(raw)) {
         return "Solo el dueño o un administrador del negocio puede hacer esto.";
       }
+      // ---- Ventas: método de pago (migración 20261007140000) ----
+      // `create_sale` con un método de pago que no es efectivo/tarjeta/
+      // transferencia/fiado (venta o pago dividido).
+      if (/^METODO_PAGO_INVALIDO\b/.test(raw)) {
+        return "El método de pago de la venta no es válido. Elige efectivo, tarjeta, transferencia o fiado y vuelve a cobrar.";
+      }
       // --- Compras y pedidos de compra (migraciones 20261007120000-120200) ---
       const purchaseMessage = purchaseErrorMessage(raw);
       if (purchaseMessage) return purchaseMessage;

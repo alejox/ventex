@@ -21,12 +21,13 @@
 -- Resultado esperado (ensayado el 2026-10-07 contra producción):
 --   A totales=345000/65360/409360 (IVA sobre subtotal-descuento) stock p1 +3, box +53
 --     costo p1=10000 box=140000 (precio de CAJA)
---   B edición: stock p1 +2, box -53; costo p1=11000; box vuelve al costo previo
+--   B edición: stock p1 +2, box -53; costo p1=11000; box conserva 140000 si ninguna
+--     otra compra no anulada lo trae (sin compra que lo respalde, el costo no se toca)
 --   C update status=cancelled -> COMPRA_ANULAR_CON_ACCION; update total=1 -> total
 --     recalculado; delete -> COMPRA_NO_SE_BORRA; insert/delete líneas -> COMPRA_LINEAS_POR_RPC
 --   D anular -> stock devuelto, costo NO cambia; reactivar -> COMPRA_ANULADA
 --   E factura y cotización: insert/items/anular/reactivar/borrar OK
---   F recibir pedido: 1 compra, 2ª llamada already_received=true con el mismo id;
+--   F recibir pedido (creado con save_purchase_order): 1 compra, 2ª llamada already_received=true con el mismo id;
 --     box 30 u. a 150000/caja = 1 caja + 6 sueltas = 187500; borrador -> PEDIDO_NO_EMITIDO
 --   G trabajador con inventory_stock sin inventory_costs: la compra mueve el costo
 --     (p2=5000); editar el costo a mano -> 0 filas (la RLS lo filtra)
@@ -149,13 +150,15 @@ begin
   delete from public.invoices where id = v_fac;
   v_out := v_out || ' | E factura/cotizacion OK';
 
-  -- F: recibir pedido
-  insert into public.purchase_orders (distributor_id, status, issued_at) values (v_dist, 'issued', now())
-  returning id into v_order;
-  insert into public.purchase_order_items (purchase_order_id, product_id, product_name, quantity, unit_price) values
-    (v_order, v_box, 'box', 30, 150000),
-    (v_order, v_p2, 'p2', 2, 4700),
-    (v_order, null, 'texto libre', 1, 999);
+  -- F: recibir pedido. Se crea por `save_purchase_order` (20261007160100): un
+  -- pedido ya emitido no admite líneas sueltas (PEDIDO_NO_EDITABLE), así que el
+  -- pedido y sus líneas nacen juntos, emitidos, en una sola llamada.
+  v_order := public.save_purchase_order(null,
+    jsonb_build_object('distributor_id', v_dist, 'status', 'issued'),
+    jsonb_build_array(
+      jsonb_build_object('product_id', v_box, 'product_name', 'box', 'quantity', 30, 'unit_price', 150000),
+      jsonb_build_object('product_id', v_p2, 'product_name', 'p2', 'quantity', 2, 'unit_price', 4700),
+      jsonb_build_object('product_id', null, 'product_name', 'texto libre', 'quantity', 1, 'unit_price', 999)));
   v_res := public.receive_purchase_order(v_order, '2099-02-01');
   v_res2 := public.receive_purchase_order(v_order, '2099-02-01');
   select count(*) into v_n from public.invoices i join public.purchase_orders po on i.supplier_invoice_number = 'PED-' || po.order_number
@@ -172,7 +175,9 @@ begin
   select purchase_price into v_cb from public.products where id = v_box;
   v_out := v_out || format(' costo box=%s', v_cb);
   execute 'set local role authenticated';
-  insert into public.purchase_orders (distributor_id, status) values (v_dist, 'draft') returning id into v_draft;
+  v_draft := public.save_purchase_order(null,
+    jsonb_build_object('distributor_id', v_dist, 'status', 'draft'),
+    jsonb_build_array(jsonb_build_object('product_id', v_p2, 'product_name', 'p2', 'quantity', 1, 'unit_price', 4700)));
   begin
     perform public.receive_purchase_order(v_draft);
     v_out := v_out || ' | F borrador SIN ERROR (MAL)';

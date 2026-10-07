@@ -88,7 +88,11 @@ const MOVEMENT_COLUMNS: DataColumn<InventoryMovement>[] = [
         ? "Compra"
         : mov.reference_type === "manual"
           ? "Manual"
-          : (mov.reference_type ?? "—"),
+          : mov.reference_type === "sale"
+            ? "Venta"
+            : mov.reference_type === "sale_void"
+              ? "Anulación de venta"
+              : (mov.reference_type ?? "—"),
   },
   {
     header: "Responsable",

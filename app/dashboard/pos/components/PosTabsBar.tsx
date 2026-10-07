@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import type { SaleTab } from "@/stores/pos.store";
+import { usePosStore, type SaleTab } from "@/stores/pos.store";
 import { computeTotals } from "@/services/pos.service";
 import { heldTabUnits } from "@/lib/pos-held-tabs";
 import { formatQty } from "@/lib/stock";
@@ -34,6 +34,12 @@ export function PosTabsBar({
   onCloseTab,
 }: PosTabsBarProps) {
   const fmtMoney = useFormatMoney();
+  // Mismos insumos que el total principal del POS (tasa, desglose y exención
+  // del cliente de CADA pestaña): el resumen de una venta aparcada tiene que
+  // dar el mismo número que muestra al abrirla.
+  const taxRate = usePosStore((s) => s.taxRate);
+  const includeTax = usePosStore((s) => s.includeTax);
+  const customers = usePosStore((s) => s.customers);
   // El menú se posiciona con coordenadas de ventana en lugar de `absolute`:
   // la barra es `fixed` en móvil pero estática en desktop, así que un
   // `bottom-full` se resolvía contra el viewport y dibujaba el menú fuera de
@@ -74,12 +80,15 @@ export function PosTabsBar({
         {tabs.map((t) => {
           const isActive = t.id === activeTabId;
           // "3 · $45.000" (C16): qué tiene cada venta aparcada sin abrirla.
-          // Neto de descuentos; el IVA va incluido en el precio de vitrina.
+          // Neto de descuentos y con la exención de IVA del cliente aplicada.
           const units = heldTabUnits(t.cart);
+          const exempt = t.customerId
+            ? (customers.find((c) => c.id === t.customerId)?.tax_exempt ?? false)
+            : false;
           const summary =
             t.cart.length === 0
               ? "Vacía"
-              : `${formatQty(units)} · ${fmtMoney(computeTotals(t.cart, 0, false, false).total)}`;
+              : `${formatQty(units)} · ${fmtMoney(computeTotals(t.cart, taxRate, exempt, includeTax).total)}`;
           return (
             <div key={t.id} className="shrink-0">
               <div
