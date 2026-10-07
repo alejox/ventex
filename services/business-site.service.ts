@@ -10,7 +10,7 @@ import type { LandingConfig } from "@/services/public-site.types";
 export interface BusinessSite {
   id: string;
   slug: string;
-  /** Nombre propio de la sede; null = usa el nombre del negocio. */
+  /** Nombre propio de la página; null = usa el nombre del negocio. */
   site_name: string | null;
   published: boolean;
   booking_enabled: boolean;
@@ -133,7 +133,7 @@ export async function fetchSiteConfig(): Promise<SiteConfig> {
 }
 
 /**
- * Crea la sede (sin `siteId`) o actualiza la que se está editando. Por id y no
+ * Crea la página (sin `siteId`) o actualiza la que se está editando. Por id y no
  * por `user_id`: un negocio puede tener varias, y un upsert por inquilino
  * pisaría siempre la misma.
  */
