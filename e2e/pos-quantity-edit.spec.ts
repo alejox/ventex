@@ -13,7 +13,7 @@ const PRODUCTO = "Producto E2E Offline";
  */
 async function agregarProducto(page: Page) {
   const tarjeta = page
-    .getByRole("button", { name: new RegExp(PRODUCTO, "i") })
+    .getByRole("option", { name: new RegExp(PRODUCTO, "i") })
     .filter({ visible: true })
     .first();
   await expect(tarjeta).toBeVisible({ timeout: 15000 });

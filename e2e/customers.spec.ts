@@ -17,11 +17,13 @@ test.describe("Clientes", () => {
 
   test("abre el modal de nuevo cliente", async ({ page }) => {
     await page.getByRole("button", { name: "Añadir Cliente" }).click();
-    await expect(page.getByText("Nuevo Cliente")).toBeVisible({ timeout: 5000 });
-    await expect(page.getByText("Nombre Completo")).toBeVisible();
-    await expect(page.getByText("Teléfono")).toBeVisible();
-    await expect(page.getByText("Correo Electrónico")).toBeVisible();
-    await expect(page.getByText("Documento")).toBeVisible();
+    // Acotado al diálogo: "Documento" y "Teléfono" también son columnas de la tabla.
+    const dialog = page.getByRole("dialog", { name: "Nuevo Cliente" });
+    await expect(dialog).toBeVisible({ timeout: 5000 });
+    await expect(dialog.getByText("Nombre Completo")).toBeVisible();
+    await expect(dialog.getByText("Teléfono", { exact: true })).toBeVisible();
+    await expect(dialog.getByText("Correo Electrónico")).toBeVisible();
+    await expect(dialog.getByText("Documento", { exact: true })).toBeVisible();
   });
 
   test("llena el formulario de nuevo cliente", async ({ page }) => {

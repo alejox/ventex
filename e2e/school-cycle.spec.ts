@@ -102,7 +102,7 @@ async function createCustomer(page: Page, name: string, phone?: string) {
   await expect(page.getByRole("heading", { name: "Nuevo Cliente" })).toBeVisible({ timeout: 5000 });
   await page.getByPlaceholder("Ej. María González").fill(name);
   if (phone) {
-    await page.getByPlaceholder("+52 55 1234 5678").fill(phone);
+    await page.getByRole("dialog", { name: "Nuevo Cliente" }).getByLabel("Teléfono", { exact: true }).fill(phone);
   }
   await page.locator('button[type="submit"]').click();
   await expect(page.getByRole("heading", { name: "Nuevo Cliente" })).toBeHidden({ timeout: 10000 });
@@ -301,7 +301,8 @@ test.describe.serial("Académico — ciclo completo (cuenta E2E real)", () => {
     // /dashboard/school/profesores).
     await page.goto("/dashboard/staff");
     await page.waitForLoadState("networkidle");
-    await page.getByRole("heading", { name: teacherStaffName, exact: true }).click();
+    // La tarjeta entera es un botón ("Abrir la ficha de …") desde el rediseño de Personal.
+    await page.getByRole("button", { name: `Abrir la ficha de ${teacherStaffName}` }).click();
     await expect(page.getByRole("heading", { name: "Editar Personal" })).toBeVisible({ timeout: 5000 });
 
     if (!existingProfile) {
@@ -401,7 +402,8 @@ test.describe.serial("Académico — ciclo completo (cuenta E2E real)", () => {
       await exactAmount.click();
     }
     await page.getByRole("button", { name: /Confirmar venta/ }).click();
-    await expect(page.getByText(/Venta realizada con éxito/)).toBeVisible({ timeout: 20000 });
+    // El toast de éxito se quitó (duplicaba el modal): la señal es el modal.
+    await expect(page.getByRole("dialog", { name: "¡Venta exitosa!" })).toBeVisible({ timeout: 20000 });
 
     // Matricula al alumno en el plan, vinculando esa venta (foto congelada).
     const studentCustomer = await getCustomerByName(STUDENT_CUSTOMER_NAME);

@@ -62,7 +62,7 @@ export function WorkspaceSwitcher() {
   // "Cambiar negocio" que abre una lista de uno es ruido (A23). Queda el nombre.
   if (available.length <= 1 && invitations === 0) {
     return (
-      <div className="min-w-0 max-w-32 sm:max-w-48 px-1 text-xs text-on-surface" title={businessName}>
+      <div className="min-w-0 max-w-24 sm:max-w-48 px-1 text-xs text-on-surface" title={businessName}>
         <span className="block truncate font-semibold">{businessName}</span>
       </div>
     );
@@ -74,7 +74,7 @@ export function WorkspaceSwitcher() {
         ref={buttonRef}
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className="w-full max-w-32 sm:max-w-48 rounded-xl border border-divider bg-surface-container px-2.5 sm:px-3 py-1.5 text-left text-xs text-on-surface hover:bg-surface-container-high transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-ink"
+        className="w-full max-w-24 sm:max-w-48 rounded-xl border border-divider bg-surface-container px-2.5 sm:px-3 py-1.5 text-left text-xs text-on-surface hover:bg-surface-container-high transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-ink"
         aria-expanded={open}
         aria-haspopup="true"
       >

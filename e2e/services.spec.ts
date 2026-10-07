@@ -63,17 +63,12 @@ test.describe("Servicios (dentro del catálogo)", () => {
   test("el toggle de servicio activo funciona", async ({ page }) => {
     await page.goto("/dashboard/inventory/product?type=servicio");
     await page.waitForLoadState("networkidle");
-    // El interruptor es un <button> sin nombre accesible, hermano del bloque
-    // de texto "Servicio Activo": se ubica por la fila que contiene ese texto.
-    const activeToggle = page
-      .locator("div")
-      .filter({ has: page.getByText("Servicio Activo", { exact: true }) })
-      .filter({ has: page.getByText("Disponible para agendar y cobrar.") })
-      .filter({ has: page.locator(":scope > button") })
-      .last()
-      .locator(":scope > button");
+    // Interruptor accesible (components/ui/Switch): role="switch" con nombre.
+    const activeToggle = page.getByRole("switch", { name: /Servicio Activo/i });
     await expect(activeToggle).toBeVisible({ timeout: 15000 });
+    const before = await activeToggle.getAttribute("aria-checked");
     await activeToggle.click();
+    await expect(activeToggle).not.toHaveAttribute("aria-checked", before ?? "");
   });
 
   test("un servicio del catálogo se edita por ?serviceId=", async ({ page }) => {

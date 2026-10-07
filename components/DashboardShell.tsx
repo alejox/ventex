@@ -33,6 +33,7 @@ import {
 } from "@/app/assets/icons/DashboardIcons";
 import { whatsappUrl } from "@/config/contact";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { useTheme } from "@/components/ThemeProvider";
 import { ShellUserMenu } from "@/components/ShellUserMenu";
 import { NotificationsBell } from "@/components/NotificationsBell";
 import { InstallPrompt } from "@/components/InstallPrompt";
@@ -157,6 +158,7 @@ export function DashboardShell({
   /** Preferencia leída de la cookie en el layout de servidor (ver lib/sidebar.ts). */
   defaultCollapsed?: boolean;
 }) {
+  const { theme, toggleTheme } = useTheme();
   const pathname = usePathname();
   const router = useRouter();
   const profile = useProfile();
@@ -655,7 +657,7 @@ export function DashboardShell({
             </kbd>
           </button>
 
-          <div className="flex items-center gap-1 sm:gap-2 md:gap-3 ml-auto min-w-0">
+          <div className="flex items-center gap-0.5 sm:gap-2 md:gap-3 ml-auto min-w-0">
             <WorkspaceSwitcher />
             {/* Solo cuando el sitio existe y está publicado. Antes se mostraba
                 siempre y, sin sitio, llevaba a Ajustes: un botón que dice "Ver
@@ -711,7 +713,11 @@ export function DashboardShell({
             >
               <CalculatorIcon />
             </button>
-            <ThemeToggle />
+            {/* En el teléfono no entra junto al avatar (desbordaba a 375px):
+                vive en "Acciones rápidas" del cajón. */}
+            <div className="hidden sm:block">
+              <ThemeToggle />
+            </div>
             <NotificationsBell />
             <button
               type="button"
@@ -809,6 +815,10 @@ export function DashboardShell({
                   >
                     <CalculatorIcon />
                     Calculadora
+                  </button>
+                  <button type="button" onClick={toggleTheme} className={`sm:hidden ${QUICK_ACTION}`}>
+                    <span className="w-5 h-5 shrink-0 text-center" aria-hidden="true">{theme === "dark" ? "☀" : "☾"}</span>
+                    {theme === "dark" ? "Modo claro" : "Modo oscuro"}
                   </button>
                 </div>
               </section>

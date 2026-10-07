@@ -22,7 +22,7 @@ test("desktop - con ítems, el botón Vender queda dentro del panel y de la pant
   await page.waitForLoadState("networkidle");
 
   const tarjeta = page
-    .getByRole("button", { name: new RegExp(PRODUCTO, "i") })
+    .getByRole("option", { name: new RegExp(PRODUCTO, "i") })
     .filter({ visible: true })
     .first();
   await expect(tarjeta).toBeVisible({ timeout: 15000 });

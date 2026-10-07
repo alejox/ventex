@@ -333,7 +333,22 @@ export default function PurchasesPage() {
         {loading ? (
           <CollectionLoading label="Cargando compras…" />
         ) : !hasInvoices ? (
-          <CollectionEmpty icon={<IconShoppingCart className="h-8 w-8" />} title="Aún no has creado tu primera factura de compra" description="Registra tus compras y mantén tu inventario actualizado." action={{ label: "Nueva compra", onClick: () => router.push("/dashboard/purchases/new") }} />
+          <>
+            {/* El buscador queda a la vista incluso sin compras: evita que la
+                barra aparezca de golpe tras la primera alta. Comparte el estado
+                (y la URL) con el de la tabla. */}
+            <div className="p-4 border-b border-outline-variant/10">
+              <input
+                type="search"
+                value={table.state.q}
+                onChange={(e) => table.setState({ q: e.target.value, page: 1 })}
+                placeholder="Buscar por N° de factura o proveedor"
+                aria-label="Buscar compras"
+                className="w-full sm:max-w-xs bg-surface-container-lowest border border-outline-variant/20 rounded-xl py-2.5 px-3 text-base lg:text-sm text-on-surface focus:outline-none focus:border-primary-ink focus:ring-1 focus:ring-primary-ink transition-all placeholder:text-on-surface-variant/80"
+              />
+            </div>
+            <CollectionEmpty icon={<IconShoppingCart className="h-8 w-8" />} title="Aún no has creado tu primera factura de compra" description="Registra tus compras y mantén tu inventario actualizado." action={{ label: "Nueva compra", onClick: () => router.push("/dashboard/purchases/new") }} />
+          </>
         ) : (
           <>
             <DataTable

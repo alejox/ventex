@@ -17,7 +17,7 @@ test.describe("Compras", () => {
   });
 
   test("el buscador está visible haya o no compras", async ({ page }) => {
-    const searchInput = page.getByPlaceholder("Buscar No. de factura");
+    const searchInput = page.getByPlaceholder("Buscar por N° de factura o proveedor");
     await expect(searchInput).toBeVisible({ timeout: 15000 });
     await searchInput.fill("FAC-001");
     await expect(searchInput).toHaveValue("FAC-001");
