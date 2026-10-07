@@ -8,6 +8,8 @@ import { PermissionToggles, togglePermission } from "./PermissionToggles";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { samePermissions } from "./permission-diff";
 import { Modal } from "@/components/ui/Modal";
+import { useShiftsStore } from "@/stores/shifts.store";
+import { CloseShiftModal } from "@/components/shift/CloseShiftModal";
 
 export function PermissionsPanel({
   workerId,
@@ -31,6 +33,15 @@ export function PermissionsPanel({
   };
 
   const [admin, setAdminOn] = useState(isAdmin);
+  const [closingShiftId, setClosingShiftId] = useState<string | null>(null);
+
+  // Sin permiso de caja no se abre ni se cierra turno (close_shift lo exige).
+  // Si se le quita con un turno abierto, ese cajón lo cierra el dueño.
+  const openShift = useShiftsStore((s) =>
+    s.shifts.find((sh) => sh.worker_id === workerId && sh.status === "open"),
+  );
+  const losesPos = !admin && (isAdmin || current.pos === true) && perms.pos !== true;
+  const showShiftWarning = Boolean(openShift) && losesPos;
   const dirty = admin !== isAdmin || !samePermissions(perms, current);
   const { confirm, dialog } = useConfirm();
 
@@ -129,10 +140,33 @@ export function PermissionsPanel({
               </p>
 
               <PermissionToggles perms={perms} onToggle={toggle} onReplace={setPerms} />
+
+              {showShiftWarning && openShift && (
+                <div className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-on-surface">
+                  <p>
+                    Tiene un turno abierto desde las{" "}
+                    {new Date(openShift.opened_at).toLocaleTimeString("es-CO", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                    . Sin permiso de Punto de Venta no podrá cerrarlo: ciérralo tú para cuadrar la caja.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setClosingShiftId(openShift.id)}
+                    className="mt-2 px-3 py-1.5 rounded-lg border border-outline-variant/20 text-xs font-semibold text-on-surface hover:bg-surface-container-low transition-colors"
+                  >
+                    Cerrar su turno
+                  </button>
+                </div>
+              )}
             </>
           )}
         </div>
 
+        {closingShiftId && (
+          <CloseShiftModal shiftId={closingShiftId} onClose={() => setClosingShiftId(null)} />
+        )}
     </Modal>
     {dialog}
     </>
