@@ -2,7 +2,14 @@
 
 import { useState } from "react";
 import { useCustomersStore } from "@/stores/customers.store";
-import { paymentAmountOf, creditAvailable } from "@/lib/credits";
+import {
+  abonoMethodOptions,
+  paymentAmountOf,
+  creditAvailable,
+  type AbonoOptions,
+  type AbonoPaymentMethod,
+} from "@/lib/credits";
+import { useSettingsStore } from "@/stores/settings.store";
 import type { Customer } from "@/services/customers.service";
 import { useFormatMoney } from "@/lib/useMoney";
 import { Modal } from "@/components/ui/Modal";
@@ -18,7 +25,7 @@ interface CustomerPaymentModalProps {
    * cobro es lo mismo que dos validaciones distintas del mismo monto, y la
    * segunda siempre nace más floja.
    */
-  onConfirm?: (amount: number, notes?: string) => Promise<boolean>;
+  onConfirm?: (amount: number, notes: string | undefined, options: AbonoOptions) => Promise<boolean>;
   submitting?: boolean;
 }
 
@@ -33,6 +40,13 @@ export function CustomerPaymentModal({
   const [amount, setAmount] = useState("");
   const [notes, setNotes] = useState("");
   const [localSubmitting, setLocalSubmitting] = useState(false);
+  const acceptsCard = useSettingsStore((s) => s.settings?.accepts_card);
+  const acceptsTransfer = useSettingsStore((s) => s.settings?.accepts_transfer);
+  const methods = abonoMethodOptions({ acceptsCard, acceptsTransfer });
+  const [method, setMethod] = useState<AbonoPaymentMethod>("efectivo");
+  // UN id por intento de cobro (el modal abierto): si la respuesta se pierde y
+  // se vuelve a apretar, la base reconoce el abono y no descuenta dos veces.
+  const [clientPaymentId] = useState(() => crypto.randomUUID());
 
   const submitting = submittingProp ?? localSubmitting;
   const debt = customer.credit_balance;
@@ -46,9 +60,10 @@ export function CustomerPaymentModal({
 
   const handleSubmit = async () => {
     if (parsed == null) return;
-    const run = onConfirm ?? ((a: number, n?: string) => registerPayment(customer.id, a, n));
+    const run =
+      onConfirm ?? ((a: number, n: string | undefined, o: AbonoOptions) => registerPayment(customer.id, a, n, o));
     if (!onConfirm) setLocalSubmitting(true);
-    const ok = await run(parsed, notes || undefined);
+    const ok = await run(parsed, notes || undefined, { paymentMethod: method, clientPaymentId });
     if (!onConfirm) setLocalSubmitting(false);
     if (ok) onClose();
   };
@@ -143,6 +158,33 @@ export function CustomerPaymentModal({
               </p>
             )}
           </div>
+
+          <fieldset className="space-y-1.5">
+            <legend className="text-[13px] font-semibold text-on-surface mb-1.5">Medio de pago</legend>
+            <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Medio de pago">
+              {methods.map((m) => (
+                <button
+                  key={m.value}
+                  type="button"
+                  role="radio"
+                  aria-checked={method === m.value}
+                  onClick={() => setMethod(m.value)}
+                  className={`py-2 rounded-xl border text-xs font-semibold transition-colors ${
+                    method === m.value
+                      ? "bg-primary/10 border-primary/40 text-primary"
+                      : "bg-surface-container-lowest border-outline-variant/30 text-on-surface-variant hover:text-on-surface"
+                  }`}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+            {method === "efectivo" && (
+              <p className="text-xs text-on-surface-variant">
+                El efectivo entra al arqueo del turno de caja abierto.
+              </p>
+            )}
+          </fieldset>
 
           <div className="space-y-1.5">
             <label className="text-[13px] font-semibold text-on-surface block">Notas</label>

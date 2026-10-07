@@ -23,6 +23,88 @@ export function shiftMethodLabel(method: string): string {
   return SHIFT_METHOD_LABEL[method] ?? method;
 }
 
+// ---- Desglose del efectivo esperado --------------------------------------
+
+/** Cómo se nombra cada tipo de salida de caja (`cash_movements.kind`). */
+export const CASH_MOVEMENT_LABEL: Record<string, string> = {
+  gasto: "Gastos",
+  devolucion: "Devoluciones",
+  comision: "Comisiones",
+  traslado: "Traslados",
+};
+
+/** Orden fijo de las salidas en el arqueo. */
+const MOVEMENT_ORDER = ["gasto", "devolucion", "comision", "traslado"] as const;
+
+export interface ShiftCashInput {
+  openingCash: number;
+  expectedCash: number;
+  /** Total de salidas de caja del turno (todas las `kind`). */
+  withdrawals: number;
+  /** Efectivo de ventas (incluye la parte en efectivo de los pagos divididos). */
+  cashIn?: number | null;
+  /** Abonos de fiado cobrados en efectivo en el turno. */
+  cashAbonos?: number | null;
+  /** Salidas agrupadas por `kind`. Sin él (turnos viejos), van en una sola fila. */
+  movementsByKind?: Record<string, number | string> | null;
+}
+
+export interface CashLine {
+  key: string;
+  label: string;
+  /** Siempre positivo; `sign` dice si suma o resta. */
+  amount: number;
+  sign: 1 | -1;
+}
+
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/**
+ * Las filas que explican el efectivo esperado, en el orden en que se suman:
+ * Base + Efectivo de ventas + Abonos en efectivo − Gastos − Devoluciones −
+ * Comisiones − Traslados = Esperado.
+ *
+ * Cuadra por construcción: si el servidor no mandó el efectivo de ventas (un
+ * `close_shift` anterior a 20261007110100), se deduce de lo que sí mandó; si
+ * una salida no tiene `kind` conocido, va a "Otros retiros". Así la columna
+ * siempre suma el esperado que calculó la base, que es el que vale.
+ */
+export function shiftCashBreakdown(input: ShiftCashInput): { lines: CashLine[]; expected: number } {
+  const num = (v: unknown) => Number(v ?? 0) || 0;
+  const abonos = input.cashAbonos == null ? null : num(input.cashAbonos);
+  const cashIn =
+    input.cashIn == null
+      ? round2(input.expectedCash - input.openingCash + input.withdrawals - (abonos ?? 0))
+      : num(input.cashIn);
+
+  const lines: CashLine[] = [
+    { key: "base", label: "Base de caja", amount: input.openingCash, sign: 1 },
+    { key: "ventas", label: "Efectivo de ventas", amount: cashIn, sign: 1 },
+  ];
+  if (abonos != null) lines.push({ key: "abonos", label: "Abonos en efectivo", amount: abonos, sign: 1 });
+
+  if (input.movementsByKind) {
+    const byKind = input.movementsByKind;
+    let attributed = 0;
+    for (const kind of MOVEMENT_ORDER) {
+      const amount = num(byKind[kind]);
+      attributed += amount;
+      lines.push({ key: kind, label: CASH_MOVEMENT_LABEL[kind], amount, sign: -1 });
+    }
+    const rest = round2(input.withdrawals - attributed);
+    if (rest > 0) lines.push({ key: "otros", label: "Otros retiros", amount: rest, sign: -1 });
+  } else if (input.withdrawals > 0) {
+    lines.push({ key: "retiros", label: "Retiros de caja", amount: input.withdrawals, sign: -1 });
+  }
+
+  return { lines, expected: input.expectedCash };
+}
+
+/** Suma de las filas con su signo: tiene que dar el esperado. */
+export function sumCashLines(lines: CashLine[]): number {
+  return round2(lines.reduce((s, l) => s + l.sign * l.amount, 0));
+}
+
 export interface ShiftCloseReportInput {
   businessName?: string | null;
   cashier?: string | null;
@@ -36,6 +118,10 @@ export interface ShiftCloseReportInput {
   salesTotal: number;
   withdrawals: number;
   byMethod: Record<string, number>;
+  /** Desde 20261007110100 (ver `shiftCashBreakdown`). */
+  cashIn?: number | null;
+  cashAbonos?: number | null;
+  movementsByKind?: Record<string, number | string> | null;
   notes?: string | null;
   /** Piezas contadas por denominación, si se usó el contador. */
   denominations?: { label: string; count: number; subtotal: number }[];
@@ -80,8 +166,11 @@ export function shiftCloseReport(input: ShiftCloseReportInput, fmt: MoneyFormatt
     })),
   ];
 
-  const cash: ReportRow[] = [{ label: "Base de caja", value: fmt(input.openingCash) }];
-  if (input.withdrawals > 0) cash.push({ label: "Retiros de caja", value: `-${fmt(input.withdrawals)}` });
+  const { lines } = shiftCashBreakdown(input);
+  const cash: ReportRow[] = lines.map((l) => ({
+    label: l.label,
+    value: l.sign < 0 && l.amount > 0 ? `-${fmt(l.amount)}` : fmt(l.amount),
+  }));
   cash.push({ label: "Efectivo esperado", value: fmt(input.expectedCash), strong: true });
   cash.push({ label: "Efectivo contado", value: fmt(input.closingCash), strong: true });
   const diff = Math.round(input.difference * 100) / 100;

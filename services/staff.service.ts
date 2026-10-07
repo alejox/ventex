@@ -1,6 +1,7 @@
 import { createClient } from "@/utils/supabase/client";
 import { getSelectedWorkspaceId } from "@/services/workspace.service";
 import { toWebp, verificarPeso } from "@/lib/image";
+import { fetchAllRows } from "@/services/finance.service";
 
 // ---- Tipos del dominio de staff (barberos / estilistas / empleados) ----
 /**
@@ -202,8 +203,54 @@ export interface SettleCommissionsInput {
   period: CommissionPeriod;
   paymentMethod: "efectivo" | "transferencia" | "tarjeta";
   paidOn: string;
-  /** Líneas que el dueño sacó de esta liquidación (disputa, error, etc.). */
+  /**
+   * Líneas que el dueño VIO y dejó tildadas. Es la lista que se paga: el RPC no
+   * toma nada fuera de ella (modelo de inclusión).
+   */
+  itemIds: string[];
+  /** Suma que el dueño confirmó en pantalla. Si la base suma otra cosa, rechaza. */
+  expectedTotal: number;
+  /**
+   * Líneas que el dueño sacó de esta liquidación. Solo se usa si la base todavía
+   * tiene la firma vieja (exclusión) y hay que reintentar con ella.
+   */
   excludedItemIds?: string[];
+}
+
+/** Lo que quedó registrado al liquidar. */
+export interface SettleCommissionsResult {
+  id: string;
+  /** Total que guardó la base (commission_settlements.total_amount). */
+  total: number;
+}
+
+/**
+ * Arma lo que se manda a `settle_commissions` a partir de lo que muestra el
+ * modal: los ids tildados y su suma redondeada a centavos (la base compara con
+ * ±0,01, y sumar flotantes en JS deja colas tipo 0.30000000000000004).
+ */
+export function settlementSelection(
+  items: Pick<StaffSaleItem, "id" | "commissionAmount">[],
+  excluded: ReadonlySet<string>,
+): { itemIds: string[]; expectedTotal: number; excludedItemIds: string[] } {
+  const included = items.filter((i) => !excluded.has(i.id));
+  const cents = included.reduce((sum, i) => sum + Math.round((i.commissionAmount ?? 0) * 100), 0);
+  return {
+    itemIds: included.map((i) => i.id),
+    expectedTotal: cents / 100,
+    excludedItemIds: items.filter((i) => excluded.has(i.id)).map((i) => i.id),
+  };
+}
+
+/**
+ * ¿La base rechazó la liquidación porque lo pendiente cambió mientras el dueño
+ * miraba el modal (venta nueva, línea ya liquidada en otra pestaña, total
+ * distinto)? En ese caso hay que recargar el detalle, no solo mostrar el error.
+ */
+export function isSettlementChangedError(e: unknown): boolean {
+  if (!e || typeof e !== "object") return false;
+  const message = (e as { message?: unknown }).message;
+  return typeof message === "string" && /^LIQUIDACION_CAMBIO\b/.test(message);
 }
 
 const SELECT = "id, full_name, role, phone, email, status, created_at, photo_url, show_on_website";
@@ -419,17 +466,24 @@ export async function fetchStaffSales(
 ): Promise<StaffSaleItem[]> {
   const supabase = createClient();
   const range = period ?? currentMonthPeriod();
-  const { data, error } = await supabase
-    .from("sale_items")
-    .select("id, product_name, sku, unit_price, quantity, line_total, commission_amount, commission_settlement_id, sales!inner(sale_number, created_at, payment_method, status, customers(full_name))")
-    .eq("staff_id", staffId)
-    // Mismo filtro que fetchCommissions: una venta anulada (void_sale la deja en
-    // 'void') no se paga. Sin esto, este detalle sumaba más comisión que el
-    // reporte del mes y el dueño no sabía cuál de los dos creer.
-    .eq("sales.status", "completed")
-    .gte("sales.created_at", range.fromTs)
-    .lt("sales.created_at", range.toTs);
-  if (error) throw error;
+  // Paginado: PostgREST corta en 1.000 filas sin avisar, y este detalle es lo
+  // que el dueño revisa antes de liquidar — una línea que no se ve no se paga
+  // (settle_commissions solo toma los ids que se le mandan). Orden por id: es
+  // estable, así las páginas no se pisan ni se saltean filas.
+  const data = await fetchAllRows((from, to) =>
+    supabase
+      .from("sale_items")
+      .select("id, product_name, sku, unit_price, quantity, line_total, commission_amount, commission_settlement_id, sales!inner(sale_number, created_at, payment_method, status, customers(full_name))")
+      .eq("staff_id", staffId)
+      // Mismo filtro que fetchCommissions: una venta anulada (void_sale la deja en
+      // 'void') no se paga. Sin esto, este detalle sumaba más comisión que el
+      // reporte del mes y el dueño no sabía cuál de los dos creer.
+      .eq("sales.status", "completed")
+      .gte("sales.created_at", range.fromTs)
+      .lt("sales.created_at", range.toTs)
+      .order("id")
+      .range(from, to),
+  );
 
   // El embed anidado de PostgREST (sale_items → sales → customers) no queda bien
   // tipado por el generador, así que se describe la forma que sí devuelve.
@@ -602,9 +656,11 @@ export async function fetchServicesByStaff(period: CommissionPeriod): Promise<St
  * bloqueado), el total del comprobante es la suma exacta del detalle, y el
  * gasto no puede quedar sin su liquidación ni al revés.
  */
-export async function settleCommissions(input: SettleCommissionsInput): Promise<string> {
+export async function settleCommissions(
+  input: SettleCommissionsInput,
+): Promise<SettleCommissionsResult> {
   const supabase = createClient();
-  const { data, error } = await supabase.rpc("settle_commissions", {
+  const base = {
     p_staff_id: input.staffId,
     p_from: input.period.from,
     p_to: input.period.to,
@@ -613,9 +669,28 @@ export async function settleCommissions(input: SettleCommissionsInput): Promise<
     p_payment_method: input.paymentMethod,
     p_paid_on: input.paidOn,
     p_exclude_item_ids: input.excludedItemIds ?? [],
+  };
+  let { data, error } = await supabase.rpc("settle_commissions", {
+    ...base,
+    p_item_ids: input.itemIds,
+    p_expected_total: input.expectedTotal,
   });
+  // Base sin la migración 20261007130100: no conoce p_item_ids. Se reintenta
+  // con la firma vieja (exclusión), igual que createSaleWithFallback.
+  if (error?.code === "PGRST202") {
+    ({ data, error } = await supabase.rpc("settle_commissions", base));
+  }
   if (error) throw error;
-  return data as unknown as string;
+  const id = data as unknown as string;
+
+  // El total del aviso sale de lo que GUARDÓ la base, no de la cuenta del
+  // modal: si alguna vez difirieran, el dueño tiene que ver el número real.
+  const { data: row } = await supabase
+    .from("commission_settlements")
+    .select("total_amount")
+    .eq("id", id)
+    .maybeSingle();
+  return { id, total: Number(row?.total_amount ?? input.expectedTotal) };
 }
 
 /** Qué se pudo reversar al anular. */

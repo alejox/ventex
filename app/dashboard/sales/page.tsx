@@ -25,7 +25,7 @@ import { DataTable, type DataColumn } from "@/components/DataTable";
 import { CollectionEmpty, CollectionError, CollectionFilteredEmpty, CollectionLoading } from "@/components/CollectionState";
 import type { MoneyFormatter } from "@/lib/money";
 import { useFormatMoney } from "@/lib/useMoney";
-import { notifySuccess } from "@/lib/notifications";
+import { notifySuccess, notifyWarning } from "@/lib/notifications";
 import { PosReceipt } from "@/components/PosReceipt";
 import { buildReceiptFromSale } from "@/lib/receipt";
 import { downloadCsv, downloadXlsx, exportFilename, inclusiveEnd, sheet } from "@/lib/export";
@@ -176,7 +176,7 @@ function voidImpactLines(impact: SaleVoidImpact | null, formatMoney: MoneyFormat
   const lines: string[] = [];
   if (impact.cashRefund > 0) {
     lines.push(
-      `Devuelve ${formatMoney(impact.cashRefund)} en efectivo al cliente: sale de la caja de tu turno abierto (sin turno abierto no se puede anular).`,
+      `Devuelve ${formatMoney(impact.cashRefund)} en efectivo al cliente: sale de la caja del turno en que se cobró si sigue abierto; si no, de tu turno abierto.`,
     );
   }
   if (impact.otherRefund > 0) {
@@ -347,10 +347,19 @@ export default function SalesPage() {
   const confirmVoid = async () => {
     if (!detail || !voidReason.trim()) return;
     const cash = voidImpact?.cashRefund ?? 0;
-    const ok = await voidSale(detail.id, voidReason);
-    if (!ok) return;
+    const result = await voidSale(detail.id, voidReason);
+    if (!result) return;
     setVoidConfirm(false);
     setVoidReason("");
+    if (result.cashRefundUnrecorded) {
+      // El turno de la venta ya cerró y quien anuló no tenía turno abierto: la
+      // base anuló igual, pero esa plata no salió de ninguna caja en Ventex.
+      notifyWarning(
+        `Venta #${detail.sale_number} anulada`,
+        `La devolución en efectivo (${fmtMoney(result.cashRefund || cash)}) no quedó registrada en ninguna caja. El stock volvió al inventario.`,
+      );
+      return;
+    }
     notifySuccess(
       `Venta #${detail.sale_number} anulada`,
       cash > 0

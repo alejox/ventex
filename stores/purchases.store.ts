@@ -25,7 +25,7 @@ interface PurchasesState {
 }
 
 
-export const usePurchasesStore = create<PurchasesState>((set) => ({
+export const usePurchasesStore = create<PurchasesState>((set, get) => ({
   invoices: [],
   // Arranca en `true`: el primer render es anterior al fetch del efecto, y con
   // `false` mostraba el estado vacío sobre datos que sí existen.
@@ -44,6 +44,7 @@ export const usePurchasesStore = create<PurchasesState>((set) => ({
   },
 
   createInvoice: async (params) => {
+    if (get().submitting) return false;
     set({ submitting: true, error: null });
     try {
       const invoice = await purchasesService.createPurchaseInvoice(params);
@@ -56,6 +57,7 @@ export const usePurchasesStore = create<PurchasesState>((set) => ({
   },
 
   updateInvoice: async (id, params) => {
+    if (get().submitting) return false;
     set({ submitting: true, error: null });
     try {
       const invoice = await purchasesService.updatePurchaseInvoice(id, params);
@@ -91,6 +93,7 @@ export const usePurchasesStore = create<PurchasesState>((set) => ({
   },
 
   cancelInvoice: async (id) => {
+    if (get().submitting) return false;
     set({ submitting: true, error: null });
     try {
       await purchasesService.cancelPurchaseInvoice(id);

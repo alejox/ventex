@@ -1,4 +1,6 @@
 import { createClient } from "@/utils/supabase/client";
+import { purchaseTotalsOf } from "@/lib/purchase-totals";
+import { isUnknownSignatureError } from "@/lib/sale-discounts";
 
 export interface PurchaseInvoice {
   id: string;
@@ -229,16 +231,83 @@ function requireSupplierNumber(value: string): string {
   return trimmed;
 }
 
-export async function createPurchaseInvoice(params: PurchaseInvoiceParams): Promise<PurchaseInvoice> {
+/** Las líneas tal como las recibe la base: `quantity` es el TOTAL en sueltas. */
+function toRpcItems(items: PurchaseLineInput[]) {
+  return items.map((i) => ({
+    product_id: i.product_id,
+    description: i.description,
+    // `quantity` es el TOTAL en unidades sueltas; las cajas quedan aparte para
+    // poder reabrir la compra tal cual se cargó.
+    quantity: totalUnitsOf(i),
+    package_quantity: i.package_quantity,
+    unit_price: i.unit_price,
+    package_price: i.package_price,
+    // La base lo recalcula; se manda igual para la RPC vieja (fallback).
+    line_total: lineTotalOf(i),
+    units_per_package: i.units_per_package,
+  }));
+}
+
+/** Totales con la misma cuenta que la base (IVA sobre subtotal − descuento). */
+function totalsFor(params: PurchaseInvoiceParams) {
+  const subtotal = params.items.reduce((s, i) => s + lineTotalOf(i), 0);
+  return purchaseTotalsOf(subtotal, params.discount_amount ?? 0, params.tax_rate ?? 0);
+}
+
+/**
+ * Alta (`id` null) o edición de una compra en UNA transacción:
+ * `save_purchase_invoice` escribe cabecera, líneas, stock, historial, totales
+ * (calculados en la base desde las líneas) y el último costo de cada producto.
+ *
+ * Antes eran dos llamadas HTTP —cabecera y líneas— con totales calculados en
+ * el navegador: un fallo entre ambas dejaba la factura describiendo líneas que
+ * no tenía. Si la base todavía no tiene la RPC (PGRST202, no se ejecutó nada)
+ * cae al camino viejo, que sigue funcionando.
+ */
+export async function savePurchaseInvoice(
+  id: string | null,
+  params: PurchaseInvoiceParams,
+): Promise<PurchaseInvoice> {
+  const supabase = createClient();
+  const supplierNumber = requireSupplierNumber(params.supplier_invoice_number);
+
+  const { data, error } = await supabase.rpc("save_purchase_invoice", {
+    // null = alta; los tipos generados no marcan args nulables.
+    p_invoice_id: id as string,
+    p_header: {
+      distributor_id: params.distributor_id,
+      supplier_invoice_number: supplierNumber,
+      status: params.status,
+      issue_date: params.issue_date,
+      due_date: params.due_date || null,
+      notes: params.notes || null,
+      discount_amount: params.discount_amount ?? 0,
+      tax_rate: params.tax_rate ?? 0,
+    },
+    p_items: toRpcItems(params.items),
+  });
+
+  if (error) {
+    if (!isUnknownSignatureError(error)) throw error;
+    return id ? legacyUpdatePurchaseInvoice(id, params) : legacyCreatePurchaseInvoice(params);
+  }
+
+  const saved = await fetchPurchaseInvoice(data as string);
+  if (!saved) throw new Error("La compra se guardó, pero no pudimos volver a leerla. Recarga la página.");
+  return saved;
+}
+
+export const createPurchaseInvoice = (params: PurchaseInvoiceParams) => savePurchaseInvoice(null, params);
+
+export const updatePurchaseInvoice = (id: string, params: PurchaseInvoiceParams) =>
+  savePurchaseInvoice(id, params);
+
+/** Camino viejo del alta: solo si la base no tiene `save_purchase_invoice`. */
+async function legacyCreatePurchaseInvoice(params: PurchaseInvoiceParams): Promise<PurchaseInvoice> {
   const supabase = createClient();
 
   const supplierNumber = requireSupplierNumber(params.supplier_invoice_number);
-
-  const taxRate = params.tax_rate ?? 0;
-  const discountAmount = params.discount_amount ?? 0;
-  const subtotal = params.items.reduce((s, i) => s + lineTotalOf(i), 0);
-  const taxAmount = Math.round(subtotal * taxRate * 100) / 100;
-  const total = subtotal + taxAmount - discountAmount;
+  const { subtotal, taxAmount, total } = totalsFor(params);
 
   const { data: invoice, error: invErr } = await supabase
     .from("invoices")
@@ -251,8 +320,8 @@ export async function createPurchaseInvoice(params: PurchaseInvoiceParams): Prom
       due_date: params.due_date || null,
       notes: params.notes || null,
       subtotal,
-      discount_amount: discountAmount,
-      tax_rate: taxRate,
+      discount_amount: params.discount_amount ?? 0,
+      tax_rate: params.tax_rate ?? 0,
       tax_amount: taxAmount,
       total,
     })
@@ -264,34 +333,13 @@ export async function createPurchaseInvoice(params: PurchaseInvoiceParams): Prom
   const raw = invoice as unknown as RawInvoice;
   const invoiceId = raw.id as string;
 
-  // Las líneas, el stock y los movimientos los escribe la MISMA RPC que usa la
-  // edición. Una factura recién creada no tiene líneas, así que su "antes" está
-  // vacío y cada línea entra como delta positivo — el alta es el caso borde de
-  // la edición, no un camino aparte.
-  //
-  // Antes esto eran tres pasos sueltos desde el navegador: insert de líneas, un
-  // bucle de `increment_stock` sin mirar el error, e insert de movimientos
-  // tampoco chequeado. Un fallo en el medio dejaba la compra con stock a medio
-  // aplicar y el historial afirmando lo contrario.
   const { error: itemsErr } = await supabase.rpc("replace_purchase_invoice_items", {
     p_invoice_id: invoiceId,
-    p_items: params.items.map((i) => ({
-      product_id: i.product_id,
-      description: i.description,
-      // `quantity` es el TOTAL en unidades sueltas; las cajas quedan aparte para
-      // poder reabrir la compra tal cual se cargó.
-      quantity: totalUnitsOf(i),
-      package_quantity: i.package_quantity,
-      unit_price: i.unit_price,
-      package_price: i.package_price,
-      line_total: lineTotalOf(i),
-      units_per_package: i.units_per_package,
-    })),
+    p_items: toRpcItems(params.items),
   });
 
   // La cabecera se insertó en una llamada aparte, así que hay que compensarla a
-  // mano: sin esto la factura sobrevive sin líneas, con totales cargados y cero
-  // productos, que es como se ve una compra rota en el listado.
+  // mano: sin esto la factura sobrevive sin líneas.
   if (itemsErr) {
     await supabase.from("invoices").delete().eq("id", invoiceId);
     throw itemsErr;
@@ -322,44 +370,21 @@ export async function updateInvoiceStatus(id: string, status: string): Promise<v
   if (error) throw error;
 }
 
-export async function updatePurchaseInvoice(
+/** Camino viejo de la edición: solo si la base no tiene `save_purchase_invoice`. */
+async function legacyUpdatePurchaseInvoice(
   id: string,
   params: PurchaseInvoiceParams
 ): Promise<PurchaseInvoice> {
   const supabase = createClient();
 
   const supplierNumber = requireSupplierNumber(params.supplier_invoice_number);
+  const { subtotal, taxAmount, total } = totalsFor(params);
 
-  const taxRate = params.tax_rate ?? 0;
-  const discountAmount = params.discount_amount ?? 0;
-  const subtotal = params.items.reduce((s, i) => s + lineTotalOf(i), 0);
-  const taxAmount = Math.round(subtotal * taxRate * 100) / 100;
-  const total = subtotal + taxAmount - discountAmount;
-
-  // Las LÍNEAS van primero, y no es un detalle de orden.
-  //
-  // La RPC ahora valida (permiso de stock, compra anulada) y además mueve
-  // inventario, así que es la que puede fallar. Con la cabecera primero, ese
-  // fallo dejaba los totales nuevos describiendo las líneas viejas — la factura
-  // mentía sobre su propio contenido y nadie se enteraba. Al revés, si la RPC
-  // rechaza no se tocó absolutamente nada.
-  //
-  // Sigue sin ser atómico de punta a punta: son dos llamadas HTTP. Si fallara la
-  // cabecera con las líneas ya guardadas, quedan totales viejos con líneas
-  // nuevas, que se arregla volviendo a guardar. La atomicidad real pide mover
-  // también la cabecera adentro de la RPC.
+  // Las LÍNEAS van primero: la RPC es la que valida y mueve inventario, así que
+  // si rechaza no se tocó nada.
   const { error: itemsErr } = await supabase.rpc("replace_purchase_invoice_items", {
     p_invoice_id: id,
-    p_items: params.items.map((i) => ({
-      product_id: i.product_id,
-      description: i.description,
-      quantity: totalUnitsOf(i),
-      package_quantity: i.package_quantity,
-      unit_price: i.unit_price,
-      package_price: i.package_price,
-      line_total: lineTotalOf(i),
-      units_per_package: i.units_per_package,
-    })),
+    p_items: toRpcItems(params.items),
   });
   if (itemsErr) throw itemsErr;
 
@@ -373,14 +398,12 @@ export async function updatePurchaseInvoice(
       notes: params.notes || null,
       status: params.status,
       subtotal,
-      discount_amount: discountAmount,
-      tax_rate: taxRate,
+      discount_amount: params.discount_amount ?? 0,
+      tax_rate: params.tax_rate ?? 0,
       tax_amount: taxAmount,
       total,
     })
     .eq("id", id)
-    // Redundante con el guard de la RPC, que ya rechaza una compra anulada. Se
-    // deja igual porque esta cláusula no depende de que la RPC siga cuidándolo.
     .neq("status", "cancelled")
     .select(INVOICE_SELECT)
     .single();

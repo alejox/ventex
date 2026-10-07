@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { toMessage } from "@/lib/errors";
 import type { ImportResult } from "@/lib/import/core";
+import type { AbonoOptions } from "@/lib/credits";
 import * as customersService from "@/services/customers.service";
 import type { Customer, NewCustomerInput } from "@/services/customers.service";
 
@@ -20,7 +21,7 @@ interface CustomersState {
   addCustomer: (input: NewCustomerInput) => Promise<Customer | null>;
   updateCustomer: (id: string, input: NewCustomerInput) => Promise<boolean>;
   deleteCustomer: (id: string) => Promise<boolean>;
-  registerPayment: (customerId: string, amount: number, notes?: string) => Promise<boolean>;
+  registerPayment: (customerId: string, amount: number, notes?: string, options?: AbonoOptions) => Promise<boolean>;
   /** Borra y devuelve el mensaje de error (o `null`), para mostrarlo DENTRO del diálogo. */
   deleteCustomerOrError: (id: string) => Promise<string | null>;
   fetchImpact: (id: string) => Promise<customersService.CustomerImpact>;
@@ -91,13 +92,13 @@ export const useCustomersStore = create<CustomersState>((set, get) => ({
     }
   },
 
-  registerPayment: async (customerId, amount, notes) => {
+  registerPayment: async (customerId, amount, notes, options) => {
     set({ error: null });
     try {
       // El saldo que queda lo dice la base, no una resta local: entre que se
       // leyó la lista y se cobró el abono pudo cobrar alguien más, y el número
       // que se le muestra al cliente tiene que ser el que quedó asentado.
-      const balance = await customersService.registerPayment(customerId, amount, notes);
+      const balance = await customersService.registerPayment(customerId, amount, notes, options);
       set((s) => ({
         customers: s.customers.map((c) =>
           c.id === customerId ? { ...c, credit_balance: balance } : c,

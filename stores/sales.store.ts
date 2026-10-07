@@ -69,8 +69,11 @@ interface SalesState {
   setPage: (page: number) => Promise<void>;
   openDetail: (saleId: string) => Promise<void>;
   closeDetail: () => void;
-  /** El motivo es obligatorio en la pantalla; ver `salesService.voidSale`. */
-  voidSale: (saleId: string, reason: string) => Promise<boolean>;
+  /**
+   * El motivo es obligatorio en la pantalla; ver `salesService.voidSale`.
+   * Devuelve null si la anulación falló (el motivo queda en `voidError`).
+   */
+  voidSale: (saleId: string, reason: string) => Promise<salesService.VoidSaleResult | null>;
   clearVoidError: () => void;
   /** Todas las ventas de los filtros activos (no solo la página), para exportar. */
   fetchExportRows: () => Promise<SaleListItem[]>;
@@ -210,7 +213,7 @@ export const useSalesStore = create<SalesState>((set, get) => ({
   voidSale: async (saleId, reason) => {
     set({ voiding: true, voidError: null });
     try {
-      await salesService.voidSale(saleId, reason);
+      const result = await salesService.voidSale(saleId, reason);
       set((s) => ({
         voiding: false,
         sales: s.sales.map((sl) =>
@@ -234,10 +237,10 @@ export const useSalesStore = create<SalesState>((set, get) => ({
         )
         .then((summary) => set({ summary }))
         .catch(() => {});
-      return true;
+      return result;
     } catch (e) {
       set({ voidError: toMessage(e), voiding: false });
-      return false;
+      return null;
     }
   },
 }));

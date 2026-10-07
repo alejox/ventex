@@ -12,6 +12,7 @@ import {
   CollectionLoading,
 } from "@/components/CollectionState";
 import {
+  abonoMethodLabel,
   CREDIT_CHIP,
   creditAlertText,
   creditAvailable,
@@ -334,7 +335,7 @@ export default function CreditsPage() {
               {cuenta.payments.map((p) => (
                 <li key={p.id} className="flex items-center justify-between gap-3 text-xs">
                   <span className="text-on-surface-variant">
-                    {fecha(p.created_at)}
+                    {fecha(p.created_at)} · {abonoMethodLabel(p.payment_method)}
                     {p.notes && <span className="ml-1 text-on-surface-variant/60">· {p.notes}</span>}
                   </span>
                   <span className="font-semibold text-success tabular-nums shrink-0">
@@ -481,7 +482,7 @@ export default function CreditsPage() {
         <CustomerPaymentModal
           customer={paymentCustomer}
           submitting={submitting}
-          onConfirm={(amount, notes) => registerPayment(paymentCustomer.id, amount, notes)}
+          onConfirm={(amount, notes, options) => registerPayment(paymentCustomer.id, amount, notes, options)}
           onClose={() => setPaymentCustomer(null)}
         />
       )}

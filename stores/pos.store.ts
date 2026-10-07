@@ -219,7 +219,13 @@ interface PosState {
    * de cobro). Se guarda con la venta para reimprimir recibido y cambio; solo
    * cuenta en efectivo sin pago dividido (ver `tenderedForSale`).
    */
-  checkout: (options?: { amountTendered?: number | null }) => Promise<CheckoutOutcome>;
+  /**
+   * `rewardApplied`: la pantalla aplicó el premio de cortes en este carrito.
+   * Ese canje vive en la página (no en la pestaña), así que se avisa acá para
+   * no encolar la venta: encolada, `redeem_promo` nunca corre y el cliente se
+   * queda con el premio. Mismo trato que los puntos (`loyaltyApplied`).
+   */
+  checkout: (options?: { amountTendered?: number | null; rewardApplied?: boolean }) => Promise<CheckoutOutcome>;
 
   /**
    * Ventas cobradas sin conexión que todavía no llegaron al servidor. Solo las
@@ -1215,6 +1221,10 @@ export const usePosStore = create<PosState>((set, get) => {
         if (isNetworkError(e)) {
           if (activeTab.loyaltyApplied) {
             set({ error: "No se pudo confirmar la venta en línea. No se encoló porque tenía puntos canjeados; comprueba la venta antes de reintentar.", submitting: false });
+            return "failed";
+          }
+          if (options?.rewardApplied) {
+            set({ error: "No se pudo confirmar la venta en línea. No se encoló porque tenía el premio de cortes aplicado; comprueba la venta antes de reintentar.", submitting: false });
             return "failed";
           }
           // El total tal cual se lo dijo al cliente, con la misma cuenta que

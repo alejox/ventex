@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { toMessage } from "@/lib/errors";
 import * as creditsService from "@/services/credits.service";
 import type { CreditDetail, CreditRow } from "@/services/credits.service";
+import type { AbonoOptions } from "@/lib/credits";
 
 interface CreditsState {
   /**
@@ -25,7 +26,7 @@ interface CreditsState {
 
   fetchRows: () => Promise<void>;
   loadDetail: (customerId: string) => Promise<void>;
-  registerPayment: (customerId: string, amount: number, notes?: string) => Promise<boolean>;
+  registerPayment: (customerId: string, amount: number, notes?: string, options?: AbonoOptions) => Promise<boolean>;
   setCreditAlert: (customerId: string, alert: boolean, note: string | null) => Promise<boolean>;
 }
 
@@ -60,10 +61,10 @@ export const useCreditsStore = create<CreditsState>((set, get) => ({
     }
   },
 
-  registerPayment: async (customerId, amount, notes) => {
+  registerPayment: async (customerId, amount, notes, options) => {
     set({ submitting: true, error: null });
     try {
-      const balance = await creditsService.registerPayment(customerId, amount, notes);
+      const balance = await creditsService.registerPayment(customerId, amount, notes, options);
       const ahora = new Date().toISOString();
       set((s) => ({
         // El cliente que salda NO se borra: se queda con su saldo en cero y

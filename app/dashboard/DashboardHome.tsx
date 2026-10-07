@@ -354,7 +354,7 @@ export function DashboardHome({ canAddExpense = false }: { canAddExpense?: boole
           icon={<IconTrendingUp className="w-5 h-5" />}
           label={`Ingresos · ${periodLabel}`}
           value={overviewBusy ? "—" : fmtMoney(overview.revenue)}
-          sub={overviewBusy ? "" : `${overview.salesCount} ${overview.salesCount === 1 ? "venta" : "ventas"} + facturas cobradas`}
+          sub={overviewBusy ? "" : `Cobrado: ${overview.salesCount} ${overview.salesCount === 1 ? "venta" : "ventas"}, abonos y facturas`}
           change={changeOf(comparison?.revenue, true)}
           loading={overviewBusy}
         />

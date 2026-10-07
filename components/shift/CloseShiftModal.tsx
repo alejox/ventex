@@ -13,7 +13,12 @@ import {
   parseDenominationCount,
   sumDenominationCounts,
 } from "@/lib/pos-cash";
-import { shiftCloseReport, shiftCloseReportHtml, shiftMethodLabel } from "@/lib/pos-shift-close";
+import {
+  shiftCashBreakdown,
+  shiftCloseReport,
+  shiftCloseReportHtml,
+  shiftMethodLabel,
+} from "@/lib/pos-shift-close";
 import { Modal } from "@/components/ui/Modal";
 
 /**
@@ -43,6 +48,9 @@ function SummaryRows({
   openingCash,
   withdrawals,
   expectedCash,
+  cashIn,
+  cashAbonos,
+  movementsByKind,
 }: {
   byMethod: Record<string, number>;
   salesCount: number;
@@ -50,8 +58,21 @@ function SummaryRows({
   openingCash: number;
   withdrawals: number;
   expectedCash: number;
+  cashIn?: number | null;
+  cashAbonos?: number | null;
+  movementsByKind?: Record<string, number> | null;
 }) {
   const fmtMoney = useFormatMoney();
+  // Base + efectivo de ventas + abonos − salidas por tipo = esperado. Suma el
+  // esperado del servidor por construcción (ver `shiftCashBreakdown`).
+  const { lines } = shiftCashBreakdown({
+    openingCash,
+    expectedCash,
+    withdrawals,
+    cashIn,
+    cashAbonos,
+    movementsByKind,
+  });
   return (
     <div className="rounded-2xl bg-surface-container-low border border-outline-variant/10 divide-y divide-outline-variant/10 text-sm">
       <div className="flex justify-between px-4 py-2.5">
@@ -66,16 +87,15 @@ function SummaryRows({
           <span className="font-semibold text-on-surface tabular-nums">{fmtMoney(total)}</span>
         </div>
       ))}
-      <div className="flex justify-between px-4 py-2.5">
-        <span className="text-on-surface-variant">Base de caja</span>
-        <span className="font-semibold text-on-surface tabular-nums">{fmtMoney(openingCash)}</span>
-      </div>
-      {withdrawals > 0 && (
-        <div className="flex justify-between px-4 py-2.5">
-          <span className="text-on-surface-variant">Retiros de caja</span>
-          <span className="font-semibold text-on-surface tabular-nums">-{fmtMoney(withdrawals)}</span>
+      {lines.map((line) => (
+        <div key={line.key} className="flex justify-between px-4 py-2.5">
+          <span className="text-on-surface-variant">{line.label}</span>
+          <span className="font-semibold text-on-surface tabular-nums">
+            {line.sign < 0 && line.amount > 0 ? "-" : ""}
+            {fmtMoney(line.amount)}
+          </span>
         </div>
-      )}
+      ))}
       <div className="flex justify-between px-4 py-2.5">
         <span className="font-semibold text-on-surface">Efectivo esperado en caja</span>
         <span className="font-bold text-on-surface tabular-nums">{fmtMoney(expectedCash)}</span>
@@ -157,6 +177,9 @@ export function CloseShiftModal({
         salesTotal: result.sales_total,
         withdrawals: result.withdrawals_total ?? 0,
         byMethod: result.totals_by_method ?? {},
+        cashIn: result.cash_in ?? null,
+        cashAbonos: result.cash_abonos ?? null,
+        movementsByKind: result.movements_by_kind ?? null,
         notes: notes.trim() || null,
         denominations: COP_DENOMINATIONS.map((d) => {
           const count = parseDenominationCount(counts[d.id] ?? "");
@@ -235,6 +258,9 @@ export function CloseShiftModal({
               openingCash={summary.opening_cash}
               withdrawals={summary.withdrawals_total ?? 0}
               expectedCash={summary.expected_cash}
+              cashIn={summary.cash_in ?? null}
+              cashAbonos={summary.cash_abonos ?? null}
+              movementsByKind={summary.movements_by_kind ?? null}
             />
             <div className="rounded-2xl bg-surface-container-low border border-outline-variant/10 divide-y divide-outline-variant/10 text-sm">
               <div className="flex justify-between px-4 py-2.5">

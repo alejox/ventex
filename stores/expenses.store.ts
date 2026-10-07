@@ -24,7 +24,7 @@ interface ExpensesState {
   setCategoryId: (id: string) => Promise<void>;
   setOrigin: (origin: ExpenseOrigin) => Promise<void>;
   create: (input: ExpenseInput) => Promise<boolean>;
-  update: (id: string, input: ExpenseInput) => Promise<boolean>;
+  update: (id: string, input: ExpenseInput, options?: { descriptionAndCategoryOnly?: boolean }) => Promise<boolean>;
   remove: (id: string) => Promise<boolean>;
   addCategory: (input: Pick<ExpenseCategory, "name" | "description" | "color">) => Promise<ExpenseCategory | null>;
   updateCategory: (id: string, input: Pick<ExpenseCategory, "name" | "description" | "color">) => Promise<boolean>;
@@ -59,7 +59,7 @@ export const useExpensesStore = create<ExpensesState>((set, get) => ({
   setCategoryId: async (categoryId) => { set({ categoryId }); await get().fetch(); },
   setOrigin: async (origin) => { set({ origin }); await get().fetch(); },
   create: async (input) => { set({ saving: true, error: null }); try { await service.createExpenseRecord(input); await get().fetch(); set({ saving: false }); return true; } catch (e) { set({ error: toMessage(e), saving: false }); return false; } },
-  update: async (id, input) => { set({ saving: true, error: null }); try { await service.updateExpense(id, input); await get().fetch(); set({ saving: false }); return true; } catch (e) { set({ error: toMessage(e), saving: false }); return false; } },
+  update: async (id, input, options) => { set({ saving: true, error: null }); try { await service.updateExpense(id, input, options); await get().fetch(); set({ saving: false }); return true; } catch (e) { set({ error: toMessage(e), saving: false }); return false; } },
   remove: async (id) => { try { await service.deleteExpense(id); await get().fetch(); return true; } catch (e) { set({ error: toMessage(e) }); return false; } },
   addCategory: async (input) => { try { const category = await service.createExpenseCategory(input); set((s) => ({ categories: [...s.categories, category].sort((a, b) => a.name.localeCompare(b.name)) })); return category; } catch (e) { set({ error: toMessage(e) }); return null; } },
   updateCategory: async (id, input) => { try { const category = await service.updateExpenseCategory(id, input); set((s) => ({ categories: s.categories.map((item) => item.id === id ? category : item) })); return true; } catch (e) { set({ error: toMessage(e) }); return false; } },

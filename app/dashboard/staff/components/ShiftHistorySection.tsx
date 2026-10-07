@@ -147,6 +147,14 @@ export function ShiftHistorySection({ workers }: { workers: WorkerMember[] }) {
       cell: (s) => fmtMoney(s.opening_cash),
     },
     {
+      // Abonos de fiado en efectivo: sin ellos el esperado no se explica.
+      // Turnos cerrados antes de que existieran quedan en "—".
+      header: "Abonos",
+      align: "right",
+      className: "text-on-surface-variant tabular-nums",
+      cell: (s) => (s.cash_abonos ? `+${fmtMoney(s.cash_abonos)}` : "—"),
+    },
+    {
       header: "Retiros",
       align: "right",
       className: "text-on-surface-variant tabular-nums",

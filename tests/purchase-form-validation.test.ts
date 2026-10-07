@@ -25,7 +25,7 @@ const draft = (over: Partial<PurchaseFormDraft> = {}): PurchaseFormDraft => ({
   issueDate: "2026-10-06",
   dueDate: "",
   discount: "0",
-  grossTotal: 2000,
+  subtotal: 2000,
   lines: [line()],
   ...over,
 });
@@ -77,7 +77,7 @@ test("costo inválido solo cuenta para la cantidad que se usa", () => {
 test("vencimiento antes de la compra y descuento mayor que el total", () => {
   const e = validatePurchaseForm(draft({ dueDate: "2026-10-01", discount: "5000" }));
   assert.ok(e.dueDate);
-  assert.equal(e.discount, "El descuento no puede superar el total de la compra.");
+  assert.equal(e.discount, "El descuento no puede superar el subtotal de la compra.");
   const neg = validatePurchaseForm(draft({ discount: "-1" }));
   assert.ok(neg.discount);
   assert.equal(hasErrors(validatePurchaseForm(draft({ discount: "" }))), false);
@@ -92,4 +92,11 @@ test("applyLastPurchase: reemplazar o agregar sin perder lo cargado", () => {
   assert.deepEqual(applyLastPurchase(current, [], "replace"), current);
   assert.equal(hasFilledLines([{ product_id: "" }]), false);
   assert.equal(hasFilledLines(current), true);
+});
+
+test("el tope del descuento es el SUBTOTAL (el IVA va después del descuento)", () => {
+  assert.equal(hasErrors(validatePurchaseForm(draft({ subtotal: 2000, discount: "2000" }))), false);
+  assert.ok(validatePurchaseForm(draft({ subtotal: 2000, discount: "2000.01" })).discount);
+  // Sin subtotal no hay nada que descontar: la base lo rechazaría igual.
+  assert.ok(validatePurchaseForm(draft({ subtotal: 0, discount: "1" })).discount);
 });

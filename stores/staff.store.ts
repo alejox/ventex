@@ -11,6 +11,7 @@ import type {
   CommissionSettlement,
   ServicesByStaff,
   SettleCommissionsInput,
+  SettleCommissionsResult,
   VoidSettlementResult,
 } from "@/services/staff.service";
 import type {
@@ -68,11 +69,16 @@ interface StaffState {
   fetchServicesReport: (period: CommissionPeriod) => Promise<void>;
 
   /**
-   * Liquida y devuelve el id de la liquidación (para abrir su comprobante), o
-   * null si falló. Relee comisiones e historial: después de pagar, el pendiente
-   * de esa persona cambió y la pantalla tiene que decirlo.
+   * Liquida y devuelve el id de la liquidación (para abrir su comprobante) con
+   * el total que REGISTRÓ la base. Si falló devuelve `{ changed }`: true cuando
+   * la base rechazó porque lo pendiente cambió mientras el modal estaba abierto
+   * (LIQUIDACION_CAMBIO) y hay que recargar el detalle. Relee comisiones e
+   * historial: después de pagar, el pendiente de esa persona cambió y la
+   * pantalla tiene que decirlo.
    */
-  settleCommissions: (input: SettleCommissionsInput) => Promise<string | null>;
+  settleCommissions: (
+    input: SettleCommissionsInput,
+  ) => Promise<({ ok: true } & SettleCommissionsResult) | { ok: false; changed: boolean }>;
   /** Devuelve qué se pudo reversar (incluido el efectivo), o null si falló. */
   voidSettlement: (settlementId: string) => Promise<VoidSettlementResult | null>;
 
@@ -179,16 +185,16 @@ export const useStaffStore = create<StaffState>((set, get) => ({
   settleCommissions: async (input) => {
     set({ submitting: true, error: null });
     try {
-      const id = await staffService.settleCommissions(input);
+      const result = await staffService.settleCommissions(input);
       const [commissions, settlements] = await Promise.all([
         staffService.fetchCommissions(get().commissionsScope),
         staffService.fetchSettlements(),
       ]);
       set({ commissions, settlements, submitting: false });
-      return id;
+      return { ok: true as const, ...result };
     } catch (e) {
       set({ error: toMessage(e), submitting: false });
-      return null;
+      return { ok: false as const, changed: staffService.isSettlementChangedError(e) };
     }
   },
 

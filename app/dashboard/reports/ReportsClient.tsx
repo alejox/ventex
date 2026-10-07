@@ -145,7 +145,7 @@ export function ReportsClient() {
 
       {/* Totales del período */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Kpi label="Ingresos" value={data ? fmtMoney(totals.income) : "—"} loading={loading} />
+        <Kpi label="Ingresos" value={data ? fmtMoney(totals.income) : "—"} note="Lo cobrado: ventas, abonos y facturas" loading={loading} />
         <Kpi label="Egresos" value={data ? fmtMoney(totals.expense) : "—"} note="Incluye compras a proveedores" loading={loading} />
         <Kpi
           label="Flujo de caja"
@@ -218,7 +218,10 @@ export function ReportsClient() {
         <section className="bg-surface-container-lowest border border-outline-variant/10 rounded-2xl p-5 sm:p-6 shadow-sm min-w-0">
           <h2 className="text-sm font-bold text-on-surface">Ingresos por medio de pago</h2>
           <p className="text-xs text-on-surface-variant mt-1 mb-5">
-            Un pago dividido suma en cada medio. Lo fiado figura en Crédito hasta que se cobra.
+            Es la plata que entró. Un pago dividido suma en cada medio, y lo fiado cuenta cuando se abona.
+            {data && data.overview.creditIssued > 0 && (
+              <> En este período se fiaron {fmtMoney(data.overview.creditIssued)}.</>
+            )}
           </p>
           {loading && !data ? (
             <p className="text-sm text-on-surface-variant text-center py-8">Cargando…</p>

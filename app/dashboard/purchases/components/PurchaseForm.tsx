@@ -15,6 +15,7 @@ import { usePurchasesStore } from "@/stores/purchases.store";
 import { useProfile } from "@/components/ProfileProvider";
 import { can } from "@/lib/permissions";
 import { useBusinessTax } from "@/lib/useBusinessTax";
+import { purchaseTaxRateFor, purchaseTotalsOf } from "@/lib/purchase-totals";
 import type { Product } from "@/services/inventory.service";
 import { getUnitCost, isServiceItem, tracksStock } from "@/services/inventory.service";
 import { needsRestock } from "@/lib/stock";
@@ -344,14 +345,19 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
   }, []);
 
 
-  const taxMultiplier = taxOption === "Ninguno" ? 0 : businessTaxRate;
-  const subtotal = useMemo(() => lines.reduce((s, l) => s + lineTotalOf(l), 0), [lines]);
-  const taxAmount = useMemo(
-    () => Math.round(subtotal * taxMultiplier * 100) / 100,
-    [subtotal, taxMultiplier]
-  );
+  // Editando, la tasa GUARDADA manda: si el negocio cambió su IVA después,
+  // reabrir una compra vieja no le recalcula el impuesto en silencio.
+  const taxMultiplier = purchaseTaxRateFor(taxOption, editingInvoice?.tax_rate, businessTaxRate);
+  const ivaLabel =
+    editingInvoice && editingInvoice.tax_rate > 0
+      ? `${+(editingInvoice.tax_rate * 100).toFixed(2)}%`
+      : percentLabel;
   const discount = parseFloat(discountAmount || "0") || 0;
-  const total = subtotal + taxAmount - discount;
+  // IVA sobre (subtotal − descuento), la misma cuenta que hace la base.
+  const { subtotal, taxAmount, total } = useMemo(
+    () => purchaseTotalsOf(lines.reduce((s, l) => s + lineTotalOf(l), 0), discount, taxMultiplier),
+    [lines, discount, taxMultiplier]
+  );
 
   /**
    * D14: "Última compra" ya no pisa en silencio lo que estaba cargado. Si hay
@@ -411,7 +417,7 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
     issueDate,
     dueDate,
     discount: discountAmount,
-    grossTotal: subtotal + taxAmount,
+    subtotal,
     lines,
   });
   const errors = showErrors ? validation : null;
@@ -658,7 +664,7 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
 
               <Select label="Impuesto" value={taxOption} onChange={(e) => setTaxOption(e.target.value)}>
                 <option value="Ninguno">Ninguno</option>
-                <option value="IVA">IVA {percentLabel}</option>
+                <option value="IVA">IVA {ivaLabel}</option>
               </Select>
             </div>
           </section>

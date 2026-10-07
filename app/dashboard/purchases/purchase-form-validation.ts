@@ -26,8 +26,12 @@ export interface PurchaseFormDraft {
   dueDate: string;
   /** Tal como está en el campo (texto). */
   discount: string;
-  /** Subtotal + impuesto, para no permitir un descuento mayor que la compra. */
-  grossTotal: number;
+  /**
+   * Subtotal de las líneas. El descuento se aplica ANTES del IVA (el IVA va
+   * sobre subtotal − descuento), así que el tope es el subtotal — la base
+   * rechaza lo mismo con DESCUENTO_COMPRA_INVALIDO.
+   */
+  subtotal: number;
   lines: PurchaseLineDraft[];
 }
 
@@ -117,8 +121,8 @@ export function validatePurchaseForm(draft: PurchaseFormDraft): PurchaseFormErro
   if (!Number.isFinite(discount) || discount < 0) {
     errors.discount = "El descuento debe ser un número igual o mayor que cero.";
     mark(FIELD_IDS.discount, errors.discount);
-  } else if (discount > draft.grossTotal && draft.grossTotal > 0) {
-    errors.discount = "El descuento no puede superar el total de la compra.";
+  } else if (discount > draft.subtotal) {
+    errors.discount = "El descuento no puede superar el subtotal de la compra.";
     mark(FIELD_IDS.discount, errors.discount);
   }
 

@@ -29,7 +29,7 @@ import { customersExportRows, exportFileName } from "@/lib/import/export";
 import { downloadCsv } from "@/lib/import/spreadsheet";
 import { docTypeOptionsFor, PHONE_PLACEHOLDER } from "@/lib/import/doc-types";
 import { parsePhone } from "@/lib/import/values";
-import type { CustomerImpact } from "@/services/customers.service";
+import type { CustomerImpact, CustomerImportItem } from "@/services/customers.service";
 import { customerImpactLines, filterCustomersByDebt } from "./customer-list";
 
 const EMPTY_CUSTOMER: NewCustomerInput = {
@@ -41,6 +41,16 @@ const EMPTY_CUSTOMER: NewCustomerInput = {
   tax_exempt: false,
   credit_limit: null,
 };
+
+/** Saldo de fiado distinto de cero: la base no deja borrar a ese cliente. */
+const hasBalance = (c: Customer | null) => Boolean(c && Number(c.credit_balance ?? 0) !== 0);
+
+/**
+ * Un trabajador no puede asignar cupo ni exención: si el archivo los trae, se
+ * ignoran en vez de hacer fallar la fila entera contra el guard de la base.
+ */
+const withoutOwnerFields = (items: CustomerImportItem[]): CustomerImportItem[] =>
+  items.map((i) => ({ ...i, record: { ...i.record, credit_limit: null, tax_exempt: null } }));
 
 const PAYMENT_LABELS: Record<string, string> = {
   efectivo: "Efectivo",
@@ -95,6 +105,10 @@ export default function CustomersPage() {
   const fetchLoyaltyLedger = useLoyaltyStore((s) => s.fetchLedger);
   const profile = useProfile();
   const isTienda = profile?.businessType === "tienda";
+  // Cupo, exención de IVA y borrar son del dueño (o admin del negocio): la base
+  // los rechaza a un trabajador (trigger `customers_guard_owner_fields`, RLS de
+  // DELETE). Acá solo se esconde lo que igual no podría hacer.
+  const canManageCredit = Boolean(profile && !profile.isWorker);
   const settings = useSettingsStore((s) => s.settings);
   const fetchSettings = useSettingsStore((s) => s.fetchSettings);
   const [paymentCustomer, setPaymentCustomer] = useState<Customer | null>(null);
@@ -352,6 +366,7 @@ export default function CustomersPage() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
             </svg>
           </button>
+          {canManageCredit && (
           <button
             type="button"
             onClick={() => askDelete(c)}
@@ -363,6 +378,7 @@ export default function CustomersPage() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
             </svg>
           </button>
+          )}
         </div>
       ),
     },
@@ -523,6 +539,8 @@ export default function CustomersPage() {
                 <p className="text-xs text-on-surface-variant">Requerido para facturación.</p>
               </div>
 
+              {canManageCredit && (
+              <>
               <div className="space-y-1.5">
                 <label htmlFor="customer-credit-limit" className="text-[13px] font-semibold text-on-surface block">
                   Cupo de crédito
@@ -538,7 +556,6 @@ export default function CustomersPage() {
                   Hasta cuánto le puedes fiar. Déjalo vacío si no tiene cupo definido.
                 </p>
               </div>
-
               <div className="p-3 sm:p-4 bg-surface-container-low rounded-xl border border-outline-variant/10">
                 <Switch
                   checked={form.tax_exempt}
@@ -547,6 +564,8 @@ export default function CustomersPage() {
                   description="No aplicar IVA a las compras de este cliente."
                 />
               </div>
+              </>
+              )}
 
               <div className="pt-4 flex flex-col sm:flex-row gap-3 border-t border-outline-variant/10">
                 <button
@@ -588,7 +607,7 @@ export default function CustomersPage() {
               onClick={handleDelete}
               loading={submitting}
               loadingLabel="Eliminando…"
-              disabled={impact === null && !impactError}
+              disabled={(impact === null && !impactError) || hasBalance(deleting)}
             >
               Eliminar
             </Button>
@@ -611,9 +630,14 @@ export default function CustomersPage() {
               ))}
             </ul>
           )}
-          {deleting && deleting.credit_balance > 0 && (
-            <p className="text-on-surface">
-              Te debe <strong>{fmtMoney(deleting.credit_balance)}</strong>: al borrarlo pierdes el registro de esa deuda.
+          {deleting && hasBalance(deleting) && (
+            <p role="alert" className="rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 text-on-surface">
+              {Number(deleting.credit_balance) > 0 ? (
+                <>Te debe <strong>{fmtMoney(deleting.credit_balance)}</strong> de fiado. </>
+              ) : (
+                <>Tiene un saldo a favor de <strong>{fmtMoney(Math.abs(Number(deleting.credit_balance)))}</strong>. </>
+              )}
+              No puedes eliminarlo mientras el saldo no esté en cero: cobra o resuelve ese saldo primero.
             </p>
           )}
           {deleteError && (
@@ -632,7 +656,7 @@ export default function CustomersPage() {
         existing={existingKeys}
         templateFileName="plantilla-clientes.xlsx"
         previewKeys={["full_name", "identification", "phone"]}
-        onImport={importCustomers}
+        onImport={canManageCredit ? importCustomers : (items, onProgress) => importCustomers(withoutOwnerFields(items), onProgress)}
         note="Un cliente que ya existe se reconoce por su documento."
       />
 

@@ -2,6 +2,7 @@ import { createClient } from "@/utils/supabase/client";
 import type { TablesUpdate } from "@/utils/supabase/database.types";
 import { runInBatches, errorMessage as importErrorMessage, type ImportResult } from "@/lib/import/core";
 import type { CustomerImportRecord } from "@/lib/import/customers";
+import type { AbonoOptions } from "@/lib/credits";
 
 // ---- Tipos del dominio de clientes ----
 export interface Customer {
@@ -51,6 +52,8 @@ export interface CustomerPayment {
   amount: number;
   notes: string | null;
   created_at: string;
+  /** efectivo | tarjeta | transferencia (desde 20261007110100; antes, todo efectivo). */
+  payment_method?: string | null;
 }
 
 export interface CustomerSale {
@@ -161,8 +164,13 @@ export async function updateCustomer(id: string, input: NewCustomerInput): Promi
 
 export async function deleteCustomer(id: string): Promise<void> {
   const supabase = createClient();
-  const { error } = await supabase.from("customers").delete().eq("id", id);
+  // `.select` para saber si borró algo: la RLS de DELETE (solo el dueño) no
+  // da error, filtra. Sin esto un rechazo se veía como un borrado exitoso.
+  const { data, error } = await supabase.from("customers").delete().eq("id", id).select("id");
   if (error) throw error;
+  if (!data || data.length === 0) {
+    throw new Error("No se eliminó el cliente: solo el dueño del negocio puede eliminar clientes.");
+  }
 }
 
 /**
@@ -178,27 +186,48 @@ export async function deleteCustomer(id: string): Promise<void> {
  * El saldo nuevo lo devuelve la base porque restarlo acá es apostar a que nadie
  * más cobró en el medio.
  */
+/**
+ * `options` (medio de pago + id del intento) va al RPC desde 20261007110100. El
+ * medio decide si el abono entra al arqueo del turno (efectivo); el id hace el
+ * reintento idempotente. Si la base todavía tiene la firma vieja (`PGRST202`),
+ * se reintenta sin ellos — mismo patrón que `createSaleWithFallback`.
+ */
 export async function registerPayment(
   customerId: string,
   amount: number,
   notes?: string,
+  options?: AbonoOptions,
 ): Promise<number> {
   const supabase = createClient();
-  const { data, error } = await supabase.rpc("register_customer_payment", {
-    p_customer_id: customerId,
-    p_amount: amount,
-    p_notes: notes ?? undefined,
-  });
+  const rpc = supabase.rpc as unknown as (
+    fn: string,
+    args: Record<string, unknown>,
+  ) => PromiseLike<{ data: unknown; error: { code?: string; message?: string } | null }>;
+  const base = { p_customer_id: customerId, p_amount: amount, p_notes: notes ?? undefined };
+  if (options && !legacyRegisterPayment) {
+    const { data, error } = await rpc.call(supabase, "register_customer_payment", {
+      ...base,
+      p_payment_method: options.paymentMethod,
+      p_client_payment_id: options.clientPaymentId,
+    });
+    if (!error) return Number(data ?? 0);
+    if (error.code !== "PGRST202") throw error;
+    legacyRegisterPayment = true;
+  }
+  const { data, error } = await rpc.call(supabase, "register_customer_payment", base);
   if (error) throw error;
   return Number(data ?? 0);
 }
+
+/** La base no tiene la firma nueva: se recuerda por sesión (ver `registerPayment`). */
+let legacyRegisterPayment = false;
 
 /** Historial de abonos de un cliente, del más reciente al más viejo. */
 export async function fetchCustomerPayments(customerId: string): Promise<CustomerPayment[]> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("customer_payments")
-    .select("id, customer_id, amount, notes, created_at")
+    .select("*")
     .eq("customer_id", customerId)
     .order("created_at", { ascending: false });
   if (error) throw error;

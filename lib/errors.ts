@@ -139,6 +139,55 @@ export function toMessage(e: unknown): string {
       if (/^SIN_PERMISO_DESCUENTO\b/.test(raw)) {
         return "No tienes permiso para aplicar descuentos manuales. Quita el descuento o pídele al dueño que active “Aplicar descuentos” en Personal → Permisos.";
       }
+      // `create_sale`: un trabajador sin `pos_discount` mandó más descuento del
+      // que justifican las ofertas, el premio y los puntos del cliente.
+      if (/^DESCUENTO_NO_JUSTIFICADO\b/.test(raw)) {
+        return "El descuento de esta venta es mayor que el de las ofertas, el premio y los puntos del cliente, y no tienes permiso para descuentos manuales. Quita el descuento o pídele al dueño que lo autorice.";
+      }
+      // `create_sale` con un cliente que no es de este negocio (o se borró).
+      if (/^CLIENTE_NO_ENCONTRADO\b/.test(raw)) {
+        return "El cliente de la venta ya no existe en este negocio. Elige otro cliente o cobra sin cliente.";
+      }
+      // `void_sale` (trigger de crédito): el fiado ya se abonó en parte o todo.
+      if (/^CREDITO_YA_ABONADO\b/.test(raw)) {
+        return "No se puede anular: el cliente ya abonó parte o todo este fiado, y anularla borraría esos pagos de su cuenta. Resuelve primero la devolución de lo que pagó y luego anula la venta.";
+      }
+      // `settle_commissions` con lista de inclusión: lo pendiente cambió entre
+      // que se abrió el modal y se confirmó. El modal recarga el detalle.
+      if (/^LIQUIDACION_CAMBIO\b/.test(raw)) {
+        return "Las comisiones pendientes cambiaron mientras revisabas (una venta nueva o una línea ya pagada). Actualizamos el detalle: revísalo y vuelve a confirmar.";
+      }
+      // Guard de `expenses`: un gasto nacido de un retiro de caja.
+      if (/^GASTO_DE_RETIRO\b/.test(raw)) {
+        return "Este gasto viene de un retiro de caja: el monto y la fecha no se pueden cambiar. Solo puedes editar la descripción y la categoría.";
+      }
+      if (/^GASTO_VINCULADO\b/.test(raw)) {
+        return "Los gastos de una liquidación o de un retiro de caja solo los crea el sistema.";
+      }
+      // ---- Clientes, abonos y caja (migraciones 20261007110000–20261007119999) ----
+      // Guard de `customers`: cupo y exención de IVA son del dueño.
+      if (/^CLIENTE_CAMPO_DE_DUENO\b/.test(raw)) {
+        return "Solo el dueño del negocio puede asignar o cambiar el cupo de crédito y la exención de IVA de un cliente.";
+      }
+      if (/^CLIENTE_SOLO_DUENO\b/.test(raw)) {
+        return "Solo el dueño del negocio puede eliminar clientes.";
+      }
+      if (/^CLIENTE_CON_SALDO\b/.test(raw)) {
+        return "No puedes eliminar a este cliente: tiene saldo de fiado pendiente. Cobra o resuelve el saldo primero.";
+      }
+      // `register_customer_payment`: un trabajador cobra en efectivo sin turno.
+      if (/^ABONO_SIN_TURNO\b/.test(raw)) {
+        return "Para recibir un abono en efectivo tienes que abrir tu turno de caja primero. Ábrelo en el Punto de venta o elige otro medio de pago.";
+      }
+      if (/^ABONO_ID_REPETIDO\b/.test(raw)) {
+        return "Este abono ya se había registrado con otro monto. Cierra la ventana, revisa el saldo del cliente y vuelve a registrarlo si hace falta.";
+      }
+      if (/^METODO_DE_PAGO_INVALIDO\b/.test(raw)) {
+        return "Elige un medio de pago válido para el abono.";
+      }
+      // --- Compras y pedidos de compra (migraciones 20261007120000-120200) ---
+      const purchaseMessage = purchaseErrorMessage(raw);
+      if (purchaseMessage) return purchaseMessage;
       // `SIN_PERMISO: no tenés permiso para X` → `No tenés permiso para X`
       const withoutTag = raw.replace(/^SIN_PERMISO:\s*/i, "");
       const clean = withoutTag === raw ? raw : withoutTag.charAt(0).toUpperCase() + withoutTag.slice(1);
@@ -152,4 +201,34 @@ export function toMessage(e: unknown): string {
   }
 
   return "Ocurrió un error inesperado";
+}
+
+/**
+ * Compras (`invoices.type = 'compra'`) y pedidos de compra: códigos que
+ * levantan `save_purchase_invoice`, `receive_purchase_order` y los guards de
+ * `invoices` / `invoice_items`. Bloque aparte para no mezclarlo con ventas.
+ */
+const PURCHASE_ERRORS: [RegExp, string][] = [
+  [/^DESCUENTO_COMPRA_INVALIDO\b/, "El descuento no puede ser negativo ni mayor que el subtotal de la compra."],
+  [/^TASA_IVA_INVALIDA\b/, "La tasa de IVA de la compra no es válida."],
+  [/^ESTADO_COMPRA_INVALIDO\b/, "Una compra solo puede quedar como Pagada o Pendiente. Para anularla usa la acción Anular."],
+  [/^COMPRA_SIN_LINEAS\b/, "Agrega al menos un producto a la compra."],
+  [/^LINEA_COMPRA_INVALIDA\b/, "Una línea de la compra tiene cantidades o costos inválidos. Revísala y vuelve a guardar."],
+  [/^PROVEEDOR_NO_ENCONTRADO\b/, "El proveedor ya no existe en este negocio. Elige otro."],
+  [/^COMPRA_ANULAR_CON_ACCION\b/, "Para anular una compra usa la acción Anular: así se devuelve el stock."],
+  [/^COMPRA_ANULADA\b/, "Esta compra está anulada y no se puede reactivar. Si la necesitas, registra una compra nueva."],
+  [/^COMPRA_NO_SE_BORRA\b/, "Una compra con productos no se borra. Anúlala para devolver el stock."],
+  [/^COMPRA_LINEAS_POR_RPC\b/, "Los productos de una compra solo se cambian editando la compra."],
+  [/^COMPRA_TIPO_FIJO\b/, "Una compra no se puede convertir en otro tipo de documento."],
+  [/^PEDIDO_NO_EMITIDO\b/, "Este pedido ya no está pendiente: solo se recibe un pedido emitido. Actualiza la lista."],
+  [/^PEDIDO_SIN_PROVEEDOR\b/, "Asigna un proveedor al pedido antes de recibirlo."],
+  [/^PEDIDO_SIN_PRODUCTOS\b/, "El pedido no tiene productos del catálogo para ingresar al inventario."],
+  [/^PEDIDO_NO_ENCONTRADO\b/, "No encontramos este pedido. Actualiza la lista."],
+];
+
+function purchaseErrorMessage(raw: string): string | null {
+  for (const [pattern, message] of PURCHASE_ERRORS) {
+    if (pattern.test(raw)) return message;
+  }
+  return null;
 }

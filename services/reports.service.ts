@@ -148,6 +148,7 @@ export const PAYMENT_METHOD_LABELS: Record<string, string> = {
   tarjeta: "Datáfono",
   transferencia: "Transferencia",
   credito: "Crédito / Fiado",
+  abonos: "Abonos de fiado",
   facturas: "Facturas cobradas",
 };
 
@@ -210,6 +211,23 @@ export function withInvoiceIncome(slices: PaymentSlice[], revenue: number): Paym
   );
 }
 
+/**
+ * Desglose de INGRESOS (caja) por medio, que suma lo mismo que `revenue`:
+ * - las ventas por medio, SIN 'credito': lo fiado no entró a la caja;
+ * - los abonos de fiado como una porción propia (entran cuando se cobran);
+ * - las facturas cobradas, por diferencia (`withInvoiceIncome`).
+ */
+export function incomeBreakdown(
+  sales: SaleWithPayments[],
+  overview: Pick<FinanceOverview, "revenue" | "abonosIncome">,
+): PaymentSlice[] {
+  const slices = paymentBreakdown(sales).filter((s) => s.method !== "credito");
+  if (overview.abonosIncome > 0) {
+    slices.push({ method: "abonos", label: PAYMENT_METHOD_LABELS.abonos, amount: overview.abonosIncome, count: 0 });
+  }
+  return withInvoiceIncome(slices, overview.revenue);
+}
+
 async function fetchSalesWithPayments(range: { from: string; to: string }): Promise<SaleWithPayments[]> {
   const supabase = createClient();
   return fetchAllRows<SaleWithPayments>((from, to) =>
@@ -244,7 +262,7 @@ export async function fetchReport(span: MonthSpan, now: Date = new Date()): Prom
     span,
     overview,
     rows: monthlyRows(overview.monthly, span),
-    payments: withInvoiceIncome(paymentBreakdown(sales), overview.revenue),
+    payments: incomeBreakdown(sales, overview),
     categories: overview.expensesByCategory,
   };
 }
@@ -261,7 +279,7 @@ export const MONTHLY_EXPORT_COLUMNS: ExportColumn<MonthlyRow>[] = [
 
 export const PAYMENT_EXPORT_COLUMNS: ExportColumn<PaymentSlice>[] = [
   { header: "Medio de pago", value: (p) => p.label, width: 22 },
-  { header: "Ventas", value: (p) => (p.method === "facturas" ? null : p.count), width: 10 },
+  { header: "Ventas", value: (p) => (p.method === "facturas" || p.method === "abonos" ? null : p.count), width: 10 },
   { header: "Monto", value: (p) => p.amount, width: 16, numFmt: MONEY_NUM_FMT },
 ];
 

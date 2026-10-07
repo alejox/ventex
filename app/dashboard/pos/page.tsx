@@ -71,7 +71,7 @@ import { buildReceiptFromCart, buildReceiptFromSale, type ReceiptData } from "@/
 
 const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
   { value: "efectivo", label: "Efectivo" },
-  { value: "tarjeta", label: "Dat\u00f3fono" },
+  { value: "tarjeta", label: "Dat\u00e1fono" },
   { value: "transferencia", label: "Transferencia" },
   { value: "credito", label: "Cr\u00e9dito / Fiado" },
 ];
@@ -80,6 +80,14 @@ const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
 const SCAN_FLASH_MS = 1200;
 /** Ventana para deshacer "Vaciar venta" (C5). */
 const UNDO_CLEAR_MS = 5000;
+
+/**
+ * El premio de cortes se canjea DESPUÉS de registrar la venta (`redeem_promo`
+ * con el id real). Una venta encolada sin conexión no tiene ese id, así que el
+ * canje nunca correría y el cliente se quedaría con el premio: igual que los
+ * puntos, sin conexión no se aplica ni se cobra con él puesto.
+ */
+const PREMIO_OFFLINE_MSG = "Sin conexión no se puede canjear el premio. Quítalo antes de cobrar o espera a que vuelva la conexión.";
 
 export default function POSPage() {
   const fmtMoney = useFormatMoney();
@@ -692,6 +700,12 @@ export default function POSPage() {
       notifyError("Revisa el canje", msg);
       return false;
     }
+    if (promoAplicado && !isOnline) {
+      const msg = PREMIO_OFFLINE_MSG;
+      setCheckoutError(msg);
+      notifyError("Revisa el premio", msg);
+      return false;
+    }
     setCheckoutError(null);
     // Mismo criterio que el modal de cobro: solo hay vuelto en efectivo sin
     // pago dividido. Se calcula acá porque después del cobro el total es cero.
@@ -716,7 +730,7 @@ export default function POSPage() {
 
     // Lo recibido viaja con la venta: sin esto, reimprimirla no puede
     // mostrar recibido ni cambio.
-    const outcome = await checkout({ amountTendered: summary.tendered });
+    const outcome = await checkout({ amountTendered: summary.tendered, rewardApplied: Boolean(promoAplicado) });
     if (outcome === "failed") {
       // El store deja el motivo en `error` (stock insuficiente, cupo de
       // crédito, precio faltante…). Un tope de plan NO deja error: lo muestra
@@ -1053,6 +1067,10 @@ export default function POSPage() {
       notifyError("Revisa el canje", "Quita los puntos y vuelve a aplicarlos antes de cobrar en línea.");
       return false;
     }
+    if (promoAplicado && !isOnline) {
+      notifyError("Revisa el premio", PREMIO_OFFLINE_MSG);
+      return false;
+    }
     requireShift(() => {
       setAmountTendered("");
       setCheckoutError(null);
@@ -1285,6 +1303,13 @@ export default function POSPage() {
                     ? `Aplicado: −${fmtMoney(promoAplicado.amount)}. Se canjea al cobrar.`
                     : `Ganado con ${promoGanado?.progress} cortes`}
                 </p>
+                {!isOnline && (
+                  <p role="alert" className="text-xs font-semibold text-error">
+                    {promoAplicado
+                      ? PREMIO_OFFLINE_MSG
+                      : "Sin conexión: el premio no se puede canjear en esta venta."}
+                  </p>
+                )}
               </div>
               {promoAplicado ? (
                 <button
@@ -1300,7 +1325,9 @@ export default function POSPage() {
                 </button>
               ) : (
                 <button
+                  disabled={!isOnline}
                   onClick={() => {
+                    if (!isOnline) return;
                     setLineDiscounts([promoSugerido!], "auto");
                     setPromoAplicado({
                       key: promoSugerido!.key,
@@ -1309,7 +1336,7 @@ export default function POSPage() {
                       forTab: activeTabId,
                     });
                   }}
-                  className="shrink-0 px-3 py-1.5 rounded-lg bg-accent-fin text-background text-[11px] font-bold hover:opacity-90 transition-opacity"
+                  className="shrink-0 px-3 py-1.5 rounded-lg bg-accent-fin text-background text-[11px] font-bold hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Aplicar −{fmtMoney(promoSugerido!.discountAmount)}
                 </button>

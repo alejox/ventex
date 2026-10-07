@@ -241,3 +241,47 @@ export function renderStatementMessage(input: StatementInput): string {
     .join("\n")
     .trim();
 }
+
+// ---- Medio de pago del abono ----------------------------------------------
+
+/**
+ * Medios con los que se puede cobrar un abono: los del POS SIN "Crédito /
+ * Fiado" (pagar un fiado con fiado no es un pago). Los valores son los mismos
+ * que acepta `register_customer_payment` (CHECK de `customer_payments`).
+ */
+export type AbonoPaymentMethod = "efectivo" | "tarjeta" | "transferencia";
+
+export const ABONO_PAYMENT_METHODS: { value: AbonoPaymentMethod; label: string }[] = [
+  { value: "efectivo", label: "Efectivo" },
+  { value: "tarjeta", label: "Datáfono" },
+  { value: "transferencia", label: "Transferencia" },
+];
+
+/**
+ * Los medios que ofrece el modal de abono, con el mismo filtro que el POS:
+ * Datáfono y Transferencia se esconden si el negocio los apagó en Ajustes.
+ * Efectivo siempre está.
+ */
+export function abonoMethodOptions(opts: { acceptsCard?: boolean | null; acceptsTransfer?: boolean | null }) {
+  return ABONO_PAYMENT_METHODS.filter(
+    (m) =>
+      (m.value !== "tarjeta" || opts.acceptsCard !== false) &&
+      (m.value !== "transferencia" || opts.acceptsTransfer !== false),
+  );
+}
+
+/** Nombre del medio de un abono guardado (filas viejas: efectivo). */
+export function abonoMethodLabel(method: string | null | undefined): string {
+  return ABONO_PAYMENT_METHODS.find((m) => m.value === method)?.label ?? "Efectivo";
+}
+
+/** Lo que el modal de abono le pasa a quien lo registra. */
+export interface AbonoOptions {
+  paymentMethod: AbonoPaymentMethod;
+  /**
+   * Id generado UNA vez por intento de cobro (al abrir el modal): un reintento
+   * con el mismo id no descuenta dos veces (`register_customer_payment` es
+   * idempotente por `client_payment_id`).
+   */
+  clientPaymentId: string;
+}

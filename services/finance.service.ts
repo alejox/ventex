@@ -50,6 +50,20 @@ export interface FinanceOverview {
    */
   net: number;
   salesCount: number;
+  /**
+   * Las tres partes de `revenue` (CAJA, no facturación):
+   * - `salesIncome`: lo cobrado AL VENDER — `sale_payments` sin 'credito'; las
+   *   ventas viejas sin filas de pago cuentan su total salvo que sean fiadas.
+   * - `abonosIncome`: abonos de fiado cobrados en el período.
+   * - `invoicesIncome`: facturas de venta pagadas, por `paid_at`.
+   */
+  salesIncome: number;
+  abonosIncome: number;
+  invoicesIncome: number;
+  /** Lo facturado en el POS (suma de totales): contexto, no caja. */
+  salesBilled: number;
+  /** Lo que se fió en el período (facturado − cobrado al vender). */
+  creditIssued: number;
   monthly: MonthlyPoint[];
   recent: FinanceTransaction[];
   /**
@@ -192,6 +206,12 @@ export interface FinanceOverviewRpc {
   revenue?: number | string | null;
   expenses?: number | string | null;
   sales_count?: number | string | null;
+  /** Desde 20261007110300. Un RPC viejo no los manda. */
+  sales_income?: number | string | null;
+  abonos_income?: number | string | null;
+  invoices_income?: number | string | null;
+  sales_billed?: number | string | null;
+  credit_issued?: number | string | null;
   monthly?: { key: string; income: number | string; expense: number | string }[] | null;
   by_category?: { id: string; label: string; color: string; amount: number | string }[] | null;
   recent?: {
@@ -215,11 +235,19 @@ export function overviewFromRpc(raw: FinanceOverviewRpc, months = lastMonths(MON
   const byKey = new Map((raw.monthly ?? []).map((m) => [m.key, m]));
   const revenue = n(raw.revenue);
   const expenses = n(raw.expenses);
+  // Un RPC anterior a 20261007110300 no trae el desglose: todo su `revenue`
+  // era "ventas" (facturado del POS + facturas).
+  const hasSplit = raw.sales_income != null;
   return {
     revenue,
     expenses,
     net: revenue - expenses,
     salesCount: n(raw.sales_count),
+    salesIncome: hasSplit ? n(raw.sales_income) : revenue,
+    abonosIncome: hasSplit ? n(raw.abonos_income) : 0,
+    invoicesIncome: hasSplit ? n(raw.invoices_income) : 0,
+    salesBilled: hasSplit ? n(raw.sales_billed) : revenue,
+    creditIssued: hasSplit ? n(raw.credit_issued) : 0,
     monthly: months.map((m) => ({
       ...m,
       income: n(byKey.get(m.key)?.income),
@@ -283,131 +311,149 @@ export async function fetchOverview(
   return fetchOverviewPaged(range, months);
 }
 
-/** Ruta de respaldo: trae las filas y agrega en el navegador. */
-async function fetchOverviewPaged(range: IsoRange, monthCount: number): Promise<FinanceOverview> {
-  const supabase = createClient();
-  const inInstant = instantFilter(range);
-  const inDay = dayFilter(range);
-  // Las tres consultas se paginan (fetchAllRows): sin eso PostgREST devolvía
-  // las primeras 1.000 filas y los KPIs del panel salían por debajo de lo real.
-  // El `id` desempata el orden para que ninguna fila caiga entre dos páginas.
-  const [allSales, allExpenses, allPaidInvoices] = await Promise.all([
-    fetchAllRows((from, to) =>
-      supabase
-        .from("sales")
-        .select("id, sale_number, total, status, created_at")
-        // Solo se usan las completadas: filtrar acá ahorra páginas.
-        .eq("status", "completed")
-        .order("created_at", { ascending: false })
-        .order("id")
-        .range(from, to),
-    ),
-    fetchAllRows((from, to) =>
-      supabase
-        .from("expenses")
-        // La categoría viene embebida para el desglose del panel: sin ella habría
-        // que pedir la tabla de gastos dos veces.
-        .select("id, description, category, amount, expense_date, expense_categories(id, name, color)")
-        .order("expense_date", { ascending: false })
-        .order("id")
-        .range(from, to),
-    ),
-    // `type` es OBLIGATORIO en este select: la tabla `invoices` guarda las dos
-    // puntas del negocio. `type = 'compra'` es lo que se le compra a un
-    // proveedor (un GASTO); 'factura' y 'cotizacion' son lo que se le cobra a
-    // un cliente (un INGRESO). Los otros dos servicios que leen esta tabla ya
-    // discriminan —`purchases.service.ts` con .eq("type","compra") y
-    // `billing.service.ts` con .neq("type","compra")—; este era el único que
-    // no, y por eso sumaba las compras como ingreso.
-    fetchAllRows((from, to) =>
-      supabase
-        .from("invoices")
-        .select("id, invoice_number, type, total, status, issue_date")
-        .eq("status", "paid")
-        // Las cotizaciones no son plata: ni se piden (ver `invoiceRole`).
-        .in("type", ["factura", "compra"])
-        .order("issue_date", { ascending: false })
-        .order("id")
-        .range(from, to),
-    ),
-  ]);
+/** Una venta con sus filas de pago, tal como la trae PostgREST. */
+export interface SaleCashRow {
+  total: number | string;
+  payment_method: string;
+  sale_payments?: { payment_method: string; amount: number | string }[] | null;
+}
 
-  // El período se aplica acá y no en la consulta: es la ruta de respaldo (la
-  // base sin el RPC) y así las tres consultas siguen siendo las de siempre.
-  const sales = allSales.filter((s) => inInstant(s.created_at));
-  const expenses = allExpenses.filter((e) => inDay(e.expense_date));
-  const paidInvoices = allPaidInvoices.filter((i) => inDay(i.issue_date));
+/**
+ * Plata que ENTRÓ al vender (caja, no facturación). Con filas en
+ * `sale_payments` es la suma de las que no son 'credito' (un pago dividido
+ * efectivo + fiado solo suma el efectivo); una venta vieja sin filas cuenta su
+ * total, salvo que se haya fiado entera. Mismo criterio que `finance_overview`.
+ */
+export function saleCashReceived(sale: SaleCashRow): number {
+  const payments = sale.sale_payments ?? [];
+  if (payments.length > 0) {
+    return payments
+      .filter((p) => p.payment_method !== "credito")
+      .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+  }
+  return sale.payment_method === "credito" ? 0 : Number(sale.total) || 0;
+}
 
-  // Facturas de VENTA pagadas: ingreso. Las pendientes ya quedaron afuera por
-  // el filtro de status; las cotizaciones, aunque digan "Pagada", no cuentan.
-  const salesInvoices = paidInvoices.filter((i) => invoiceRole(i.type) === "income");
-  // Compras pagadas: gasto. Se cuentan las pagadas y no todas, por coherencia
-  // con el lado del ingreso: una compra a crédito todavía no salió de la caja.
-  const purchases = paidInvoices.filter((i) => invoiceRole(i.type) === "expense");
+export interface OverviewSaleRow extends SaleCashRow {
+  id: string;
+  sale_number: number;
+  created_at: string;
+}
 
-  const completed = sales.filter((s) => s.status === "completed");
-  const revenue =
-    completed.reduce((sum, s) => sum + s.total, 0) +
-    salesInvoices.reduce((sum, i) => sum + i.total, 0);
-  const totalExpenses =
-    expenses.reduce((sum, e) => sum + e.amount, 0) +
-    purchases.reduce((sum, i) => sum + i.total, 0);
+export interface OverviewAbonoRow {
+  id: string;
+  amount: number | string;
+  created_at: string;
+  customer_name: string | null;
+}
 
-  const months = lastMonths(monthCount);
+export interface OverviewDocRow {
+  id: string;
+  invoice_number: number;
+  type: string;
+  total: number | string;
+  /** Instante en que se pagó (`invoices.paid_at`). */
+  paid_at: string;
+}
+
+export interface OverviewExpenseRow {
+  id: string;
+  description: string;
+  amount: number | string;
+  expense_date: string;
+  category?: { id: string; name: string; color: string } | null;
+}
+
+/** Los `n` más recientes según `at` (instante o fecha ISO). */
+function newest<T>(list: T[], at: (x: T) => string, n = 8): T[] {
+  return [...list].sort((a, b) => +new Date(at(b)) - +new Date(at(a))).slice(0, n);
+}
+
+/**
+ * Agrega el panel desde filas YA filtradas por período (ventas completadas,
+ * abonos y facturas/compras pagadas por instante; gastos por día). Pura: la
+ * usa la ruta de respaldo y la prueban los tests con los mismos casos que el
+ * RPC `finance_overview`, que tiene que dar lo mismo.
+ */
+export function aggregateOverview(
+  rows: {
+    sales: OverviewSaleRow[];
+    abonos: OverviewAbonoRow[];
+    docs: OverviewDocRow[];
+    expenses: OverviewExpenseRow[];
+  },
+  months: { key: string; label: string }[],
+): FinanceOverview {
+  const num = (v: unknown) => Number(v ?? 0) || 0;
+  const sales = rows.sales.map((s) => ({ ...s, received: saleCashReceived(s), billed: num(s.total) }));
+  const salesInvoices = rows.docs.filter((i) => invoiceRole(i.type) === "income");
+  const purchases = rows.docs.filter((i) => invoiceRole(i.type) === "expense");
+
+  const salesIncome = sales.reduce((sum, s) => sum + s.received, 0);
+  const salesBilled = sales.reduce((sum, s) => sum + s.billed, 0);
+  const abonosIncome = rows.abonos.reduce((sum, a) => sum + num(a.amount), 0);
+  const invoicesIncome = salesInvoices.reduce((sum, i) => sum + num(i.total), 0);
+  const revenue = salesIncome + abonosIncome + invoicesIncome;
+  const purchasesTotal = purchases.reduce((sum, i) => sum + num(i.total), 0);
+  const totalExpenses = rows.expenses.reduce((sum, e) => sum + num(e.amount), 0) + purchasesTotal;
+
   const buckets = new Map(months.map((m) => [m.key, { ...m, income: 0, expense: 0 }]));
-  for (const s of completed) {
-    const b = buckets.get(monthKeyOfInstant(s.created_at));
-    if (b) b.income += s.total;
-  }
-  for (const i of salesInvoices) {
-    const b = buckets.get(monthKeyOfDate(i.issue_date));
-    if (b) b.income += i.total;
-  }
-  for (const e of expenses) {
-    const b = buckets.get(monthKeyOfDate(e.expense_date));
-    if (b) b.expense += e.amount;
-  }
-  // Las compras van a la barra de gastos del mes. Sin esto el gráfico mostraba
-  // seis meses sin una sola barra roja aunque el negocio comprara mercadería.
-  for (const i of purchases) {
-    const b = buckets.get(monthKeyOfDate(i.issue_date));
-    if (b) b.expense += i.total;
-  }
+  const addTo = (key: string, field: "income" | "expense", amount: number) => {
+    const b = buckets.get(key);
+    if (b) b[field] += amount;
+  };
+  for (const s of sales) addTo(monthKeyOfInstant(s.created_at), "income", s.received);
+  for (const a of rows.abonos) addTo(monthKeyOfInstant(a.created_at), "income", num(a.amount));
+  for (const i of salesInvoices) addTo(monthKeyOfInstant(i.paid_at), "income", num(i.total));
+  for (const e of rows.expenses) addTo(monthKeyOfDate(e.expense_date), "expense", num(e.amount));
+  // Las compras van a la barra de gastos del mes en que se PAGARON.
+  for (const i of purchases) addTo(monthKeyOfInstant(i.paid_at), "expense", num(i.total));
 
   const recent: FinanceTransaction[] = [
-    ...completed.slice(0, 8).map((s) => ({
+    ...newest(
+      sales.filter((s) => s.received > 0),
+      (s) => s.created_at,
+    ).map((s) => ({
       id: s.id,
       kind: "sale" as const,
       label: `Venta #${s.sale_number}`,
-      amount: s.total,
+      amount: s.received,
       date: s.created_at,
       // Instante → día del mostrador. Una venta de las 8 de la noche en UTC-5
       // es del día siguiente en UTC, y así se mostraba corrida.
       day: toISODate(new Date(s.created_at)),
     })),
-    ...salesInvoices.slice(0, 8).map((i) => ({
+    ...newest(rows.abonos, (a) => a.created_at).map((a) => ({
+      id: a.id,
+      kind: "sale" as const,
+      label: `Abono de ${a.customer_name ?? "cliente"}`,
+      amount: num(a.amount),
+      date: a.created_at,
+      day: toISODate(new Date(a.created_at)),
+    })),
+    ...newest(salesInvoices, (i) => i.paid_at).map((i) => ({
       id: i.id,
       kind: "sale" as const,
       label: `Factura #${i.invoice_number}`,
-      amount: i.total,
-      date: i.issue_date,
-      day: i.issue_date,
+      amount: num(i.total),
+      date: i.paid_at,
+      day: toISODate(new Date(i.paid_at)),
     })),
     // El signo negativo es lo que la fila usa para pintarse en rojo con una
     // flecha hacia abajo: una compra tiene que LEERSE como plata que sale.
-    ...purchases.slice(0, 8).map((i) => ({
+    ...newest(purchases, (i) => i.paid_at).map((i) => ({
       id: i.id,
       kind: "expense" as const,
       label: `Compra #${i.invoice_number}`,
-      amount: -i.total,
-      date: i.issue_date,
-      day: i.issue_date,
+      amount: -num(i.total),
+      date: i.paid_at,
+      day: toISODate(new Date(i.paid_at)),
     })),
-    ...expenses.slice(0, 8).map((e) => ({
+    ...newest(rows.expenses, (e) => e.expense_date).map((e) => ({
       id: e.id,
       kind: "expense" as const,
       label: e.description,
-      amount: -e.amount,
+      amount: -num(e.amount),
       date: e.expense_date,
       day: e.expense_date,
     })),
@@ -418,9 +464,8 @@ async function fetchOverviewPaged(range: IsoRange, monthCount: number): Promise<
   // Desglose por categoría. Las compras entran como una porción propia para que
   // el total del gráfico coincida con el KPI de Gastos totales.
   const slices = new Map<string, ExpenseSlice>();
-  for (const e of expenses) {
-    const category = (e as { expense_categories?: { id: string; name: string; color: string } | null })
-      .expense_categories;
+  for (const e of rows.expenses) {
+    const category = e.category;
     const id = category?.id ?? "sin-categoria";
     const current = slices.get(id) ?? {
       id,
@@ -428,11 +473,9 @@ async function fetchOverviewPaged(range: IsoRange, monthCount: number): Promise<
       color: category?.color ?? "#94a3b8",
       amount: 0,
     };
-    current.amount += e.amount;
+    current.amount += num(e.amount);
     slices.set(id, current);
   }
-
-  const purchasesTotal = purchases.reduce((sum, i) => sum + i.total, 0);
   if (purchasesTotal > 0) {
     slices.set("compras", {
       id: "compras",
@@ -442,17 +485,122 @@ async function fetchOverviewPaged(range: IsoRange, monthCount: number): Promise<
     });
   }
 
-  const expensesByCategory = [...slices.values()].sort((a, b) => b.amount - a.amount);
-
   return {
     revenue,
     expenses: totalExpenses,
     net: revenue - totalExpenses,
-    salesCount: completed.length,
+    salesCount: sales.length,
+    salesIncome,
+    abonosIncome,
+    invoicesIncome,
+    salesBilled,
+    creditIssued: salesBilled - salesIncome,
     monthly: months.map((m) => buckets.get(m.key)!),
     recent,
-    expensesByCategory,
+    expensesByCategory: [...slices.values()].sort((a, b) => b.amount - a.amount),
   };
+}
+
+type PagedQuery<T> = PromiseLike<{ data: T[] | null; error: unknown }>;
+
+interface AbonoQueryRow {
+  id: string;
+  amount: number;
+  created_at: string;
+  customers: { full_name: string } | null;
+}
+
+interface ExpenseQueryRow {
+  id: string;
+  description: string;
+  amount: number;
+  expense_date: string;
+  expense_categories: { id: string; name: string; color: string } | null;
+}
+
+/** Ruta de respaldo: trae las filas y agrega en el navegador. */
+async function fetchOverviewPaged(range: IsoRange, monthCount: number): Promise<FinanceOverview> {
+  const supabase = createClient();
+  const inInstant = instantFilter(range);
+  const inDay = dayFilter(range);
+  // Todas las consultas se paginan (fetchAllRows): sin eso PostgREST devolvía
+  // las primeras 1.000 filas y los KPIs del panel salían por debajo de lo real.
+  // El `id` desempata el orden para que ninguna fila caiga entre dos páginas.
+  const [allSales, allAbonos, allExpenses, allPaidInvoices] = await Promise.all([
+    fetchAllRows<OverviewSaleRow>((from, to) =>
+      supabase
+        .from("sales")
+        // Las filas de pago dicen cuánto entró de verdad (un fiado no es caja).
+        .select("id, sale_number, total, payment_method, created_at, sale_payments(payment_method, amount)")
+        // Solo se usan las completadas: filtrar acá ahorra páginas.
+        .eq("status", "completed")
+        .order("created_at", { ascending: false })
+        .order("id")
+        .range(from, to) as unknown as PagedQuery<OverviewSaleRow>,
+    ),
+    // Abonos de fiado: plata que entra el día que se cobra, no el día que se fió.
+    fetchAllRows<AbonoQueryRow>((from, to) =>
+      supabase
+        .from("customer_payments")
+        .select("id, amount, created_at, customers(full_name)")
+        .order("created_at", { ascending: false })
+        .order("id")
+        .range(from, to) as unknown as PagedQuery<AbonoQueryRow>,
+    ),
+    fetchAllRows<ExpenseQueryRow>((from, to) =>
+      supabase
+        .from("expenses")
+        // La categoría viene embebida para el desglose del panel: sin ella habría
+        // que pedir la tabla de gastos dos veces.
+        .select("id, description, amount, expense_date, expense_categories(id, name, color)")
+        .order("expense_date", { ascending: false })
+        .order("id")
+        .range(from, to) as unknown as PagedQuery<ExpenseQueryRow>,
+    ),
+    // `type` es OBLIGATORIO en este select: la tabla `invoices` guarda las dos
+    // puntas del negocio (`compra` es un GASTO; `factura` un INGRESO). Se
+    // fechan por `paid_at`: el flujo de caja cuenta cuando la plata se mueve,
+    // no cuando se emitió el documento.
+    fetchAllRows<OverviewDocRow>((from, to) =>
+      supabase
+        .from("invoices")
+        .select("id, invoice_number, type, total, paid_at")
+        .eq("status", "paid")
+        // Las cotizaciones no son plata: ni se piden (ver `invoiceRole`).
+        .in("type", ["factura", "compra"])
+        .not("paid_at", "is", null)
+        .order("paid_at", { ascending: false })
+        .order("id")
+        .range(from, to) as unknown as PagedQuery<OverviewDocRow>,
+    ),
+  ]);
+
+  // El período se aplica acá y no en la consulta: es la ruta de respaldo (la
+  // base sin el RPC) y así las consultas siguen siendo simples.
+  return aggregateOverview(
+    {
+      sales: allSales.filter((s) => inInstant(s.created_at)),
+      abonos: allAbonos
+        .filter((a) => inInstant(a.created_at))
+        .map((a) => ({
+          id: a.id,
+          amount: a.amount,
+          created_at: a.created_at,
+          customer_name: a.customers?.full_name ?? null,
+        })),
+      docs: allPaidInvoices.filter((i) => inInstant(i.paid_at)),
+      expenses: allExpenses
+        .filter((e) => inDay(e.expense_date))
+        .map((e) => ({
+          id: e.id,
+          description: e.description,
+          amount: e.amount,
+          expense_date: e.expense_date,
+          category: e.expense_categories ?? null,
+        })),
+    },
+    lastMonths(monthCount),
+  );
 }
 
 export async function createExpense(input: NewExpenseInput): Promise<Expense> {

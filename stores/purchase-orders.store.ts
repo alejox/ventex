@@ -79,6 +79,10 @@ export const usePurchaseOrdersStore = create<PurchaseOrdersState>((set, get) => 
   },
 
   receive: async (order) => {
+    // Doble clic: el segundo no sale mientras el primero sigue en vuelo. La RPC
+    // igual es idempotente (bloquea el pedido y devuelve la compra existente),
+    // esto solo ahorra la llamada.
+    if (get().submitting) return false;
     set({ submitting: true, error: null });
     try {
       await service.receivePurchaseOrder(order);

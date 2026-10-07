@@ -1,13 +1,14 @@
 import { createClient } from "@/utils/supabase/client";
 import { createPurchaseInvoice } from "@/services/purchases.service";
 import { todayISO } from "@/lib/date";
+import { isUnknownSignatureError } from "@/lib/sale-discounts";
 
 /**
  * Órdenes de compra (pedidos de reposición a proveedor).
  *
  * Ciclo: `draft` → `issued` → `received` | `completed`. Al RECIBIR se genera la
- * factura de compra, que es lo que suma stock y costo — este módulo no toca
- * inventario por su cuenta: reusa `createPurchaseInvoice`.
+ * factura de compra, que es lo que suma stock y costo — lo hace la RPC
+ * `receive_purchase_order`, que reusa `save_purchase_invoice` en la base.
  *
  * `completed` es el cierre SIN efectos: ni factura ni stock. Sirve para el
  * pedido que ya se resolvió por fuera (se registró la compra a mano, el
@@ -288,26 +289,52 @@ export async function cancelPurchaseOrder(id: string): Promise<void> {
   if (error) throw error;
 }
 
+export interface ReceivePurchaseOrderResult {
+  invoiceId: string;
+  /** El pedido ya estaba recibido (doble clic, otra pestaña, reintento). */
+  alreadyReceived: boolean;
+}
+
 /**
- * Marca el pedido como recibido y crea su factura de compra.
+ * Recibe el pedido: crea su factura de compra (stock, costo, totales) y lo marca
+ * recibido, TODO en la RPC `receive_purchase_order`, en una transacción con el
+ * pedido bloqueado.
  *
- * El stock y el costo los mueve `createPurchaseInvoice`, que ya existe y es la
- * única puerta del módulo de Compras: duplicar ese cálculo acá sería tener dos
- * verdades sobre el inventario.
+ * Antes eran dos llamadas desde el navegador —crear la compra y después marcar
+ * el pedido— y la segunda no miraba cuántas filas cambiaba: doble clic, dos
+ * pestañas o un reintento creaban dos compras (stock y gasto duplicados). Ahora
+ * la segunda llamada devuelve la compra que ya existe (`alreadyReceived`).
  *
- * Si la factura se crea pero marcar el pedido falla, la compra ya entró al
- * inventario y el pedido queda en `issued`: se puede reintentar sin duplicar
- * stock porque `receivePurchaseOrder` exige que siga en `issued`.
+ * Si la base todavía no tiene la RPC (PGRST202: no se ejecutó nada), cae al
+ * camino viejo.
  */
-export async function receivePurchaseOrder(order: PurchaseOrder): Promise<string> {
+export async function receivePurchaseOrder(order: PurchaseOrder): Promise<ReceivePurchaseOrderResult> {
   if (!order.distributor_id) {
     throw new Error("Asigna un proveedor al pedido antes de recibirlo.");
   }
 
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("receive_purchase_order", {
+    p_order_id: order.id,
+    // Día local: la base corre en UTC y fecharía la recepción de la tarde en
+    // el día siguiente.
+    p_issue_date: todayISO(),
+  });
+
+  if (error) {
+    if (!isUnknownSignatureError(error)) throw error;
+    return { invoiceId: await legacyReceivePurchaseOrder(order), alreadyReceived: false };
+  }
+
+  const result = (data ?? {}) as { invoice_id?: string; already_received?: boolean };
+  if (!result.invoice_id) throw new Error("No se pudo registrar la compra del pedido.");
+  return { invoiceId: result.invoice_id, alreadyReceived: result.already_received === true };
+}
+
+/** Camino viejo (dos llamadas): solo si la base no tiene `receive_purchase_order`. */
+async function legacyReceivePurchaseOrder(order: PurchaseOrder): Promise<string> {
   const invoice = await createPurchaseInvoice({
-    distributor_id: order.distributor_id,
-    // Día local: `toISOString()` habría fechado la recepción de la tarde en el
-    // día siguiente. `issued_at`/`received_at` sí son instantes y siguen en UTC.
+    distributor_id: order.distributor_id as string,
     issue_date: todayISO(),
     supplier_invoice_number: `PED-${order.order_number}`,
     status: "paid",
@@ -316,9 +343,6 @@ export async function receivePurchaseOrder(order: PurchaseOrder): Promise<string
       .map((item) => ({
         product_id: item.product_id as string,
         description: item.product_name,
-        // Un pedido no distingue caja de unidad: sus cantidades siempre fueron
-        // unidades sueltas, que es lo que `increment_stock` sumaba tal cual.
-        // Marcarlo explícito deja el comportamiento idéntico al de antes.
         package_quantity: 0,
         loose_quantity: item.quantity,
         unit_price: item.unit_price,

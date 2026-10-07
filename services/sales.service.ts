@@ -465,7 +465,10 @@ export interface SaleRedemption {
  * Si alguna de las dos cambia, este cálculo tiene que seguirla.
  */
 export interface SaleVoidImpact {
-  /** Efectivo que sale de la caja del turno de quien anula. */
+  /**
+   * Efectivo a devolver. Sale del turno de la venta si sigue abierto; si no,
+   * del de quien anula (ver `voidSale`).
+   */
   cashRefund: number;
   /** Parte pagada con datáfono/transferencia: NO se devuelve sola. */
   otherRefund: number;
@@ -542,27 +545,59 @@ export async function fetchSaleVoidExtras(
   };
 }
 
+/** Lo que contesta `void_sale` sobre el efectivo devuelto. */
+export interface VoidSaleResult {
+  /** Efectivo que la venta tenía que devolver (0 si no fue en efectivo). */
+  cashRefund: number;
+  /**
+   * true = la devolución NO quedó en ninguna caja: el turno de la venta ya
+   * cerró, quien anuló (dueño/administrador) no tenía turno abierto, y la base
+   * anuló igual sin movimiento de caja. La pantalla tiene que avisarlo.
+   */
+  cashRefundUnrecorded: boolean;
+}
+
 /**
- * Anula una venta. El motivo es obligatorio en la pantalla, pero `void_sale`
- * todavía no tiene dónde guardarlo: se manda como `p_reason` y, si la base aún
- * no conoce esa firma (PGRST202), se reintenta con la de un solo argumento.
- * Así el día que se aplique la migración el motivo empieza a guardarse sin
- * tocar este código.
+ * Lee la respuesta de `void_sale`. Desde 20261007100100 devuelve jsonb con
+ * `cash_refund`/`cash_refund_unrecorded`; la versión anterior devolvía `void`
+ * (null), y entonces no hay nada que avisar.
  */
-export async function voidSale(saleId: string, reason?: string): Promise<void> {
+export function parseVoidSaleResult(data: unknown): VoidSaleResult {
+  if (!data || typeof data !== "object") {
+    return { cashRefund: 0, cashRefundUnrecorded: false };
+  }
+  const row = data as { cash_refund?: unknown; cash_refund_unrecorded?: unknown };
+  const cash = Number(row.cash_refund ?? 0);
+  return {
+    cashRefund: Number.isFinite(cash) ? cash : 0,
+    cashRefundUnrecorded: row.cash_refund_unrecorded === true,
+  };
+}
+
+/**
+ * Anula una venta. El motivo es obligatorio en la pantalla; se manda como
+ * `p_reason` y, si la base no conoce esa firma (PGRST202), se reintenta con la
+ * de un solo argumento.
+ *
+ * La devolución en efectivo va al turno de la venta si sigue abierto, si no al
+ * de quien anula; si no hay ninguno y anula el dueño, la base anula igual y
+ * avisa con `cashRefundUnrecorded`.
+ */
+export async function voidSale(saleId: string, reason?: string): Promise<VoidSaleResult> {
   const supabase = createClient();
   const motivo = reason?.trim();
+  const rpc = supabase.rpc as unknown as (
+    fn: string,
+    args: Record<string, unknown>,
+  ) => PromiseLike<{ data: unknown; error: { code?: string; message: string } | null }>;
   if (motivo) {
-    const rpc = supabase.rpc as unknown as (
-      fn: string,
-      args: Record<string, unknown>,
-    ) => PromiseLike<{ error: { code?: string; message: string } | null }>;
-    const { error } = await rpc.call(supabase, "void_sale", { p_sale_id: saleId, p_reason: motivo });
-    if (!error) return;
+    const { data, error } = await rpc.call(supabase, "void_sale", { p_sale_id: saleId, p_reason: motivo });
+    if (!error) return parseVoidSaleResult(data);
     if (error.code !== "PGRST202") throw error;
   }
-  const { error } = await supabase.rpc("void_sale", { p_sale_id: saleId });
+  const { data, error } = await rpc.call(supabase, "void_sale", { p_sale_id: saleId });
   if (error) throw error;
+  return parseVoidSaleResult(data);
 }
 
 // ---- Comprobante (reimpresión) ----

@@ -605,26 +605,35 @@ export type Database = {
       customer_payments: {
         Row: {
           amount: number
+          client_payment_id: string | null
           created_at: string
           customer_id: string
           id: string
           notes: string | null
+          payment_method: string
+          shift_id: string | null
           user_id: string
         }
         Insert: {
           amount: number
+          client_payment_id?: string | null
           created_at?: string
           customer_id: string
           id?: string
           notes?: string | null
+          payment_method?: string
+          shift_id?: string | null
           user_id?: string
         }
         Update: {
           amount?: number
+          client_payment_id?: string | null
           created_at?: string
           customer_id?: string
           id?: string
           notes?: string | null
+          payment_method?: string
+          shift_id?: string | null
           user_id?: string
         }
         Relationships: [
@@ -633,6 +642,13 @@ export type Database = {
             columns: ["customer_id"]
             isOneToOne: false
             referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_payments_shift_id_fkey"
+            columns: ["shift_id"]
+            isOneToOne: false
+            referencedRelation: "shifts"
             referencedColumns: ["id"]
           },
         ]
@@ -1056,6 +1072,7 @@ export type Database = {
           invoice_number: number
           issue_date: string
           notes: string | null
+          paid_at: string | null
           status: string
           subtotal: number
           supplier_invoice_number: string | null
@@ -1076,6 +1093,7 @@ export type Database = {
           invoice_number?: number
           issue_date?: string
           notes?: string | null
+          paid_at?: string | null
           status?: string
           subtotal?: number
           supplier_invoice_number?: string | null
@@ -1096,6 +1114,7 @@ export type Database = {
           invoice_number?: number
           issue_date?: string
           notes?: string | null
+          paid_at?: string | null
           status?: string
           subtotal?: number
           supplier_invoice_number?: string | null
@@ -3164,12 +3183,15 @@ export type Database = {
       }
       shifts: {
         Row: {
+          cash_abonos: number | null
+          cash_sales: number | null
           closed_at: string | null
           closing_cash: number | null
           difference: number | null
           expected_cash: number | null
           id: string
           membership_id: string
+          movements_by_kind: Json | null
           notes: string | null
           opened_at: string
           opening_cash: number
@@ -3182,12 +3204,15 @@ export type Database = {
           worker_id: string
         }
         Insert: {
+          cash_abonos?: number | null
+          cash_sales?: number | null
           closed_at?: string | null
           closing_cash?: number | null
           difference?: number | null
           expected_cash?: number | null
           id?: string
           membership_id: string
+          movements_by_kind?: Json | null
           notes?: string | null
           opened_at?: string
           opening_cash?: number
@@ -3200,12 +3225,15 @@ export type Database = {
           worker_id?: string
         }
         Update: {
+          cash_abonos?: number | null
+          cash_sales?: number | null
           closed_at?: string | null
           closing_cash?: number | null
           difference?: number | null
           expected_cash?: number | null
           id?: string
           membership_id?: string
+          movements_by_kind?: Json | null
           notes?: string | null
           opened_at?: string
           opening_cash?: number
@@ -3910,7 +3938,23 @@ export type Database = {
         }[]
       }
       public_site_slug_taken: { Args: { p_slug: string }; Returns: boolean }
+      purchase_totals: {
+        Args: { p_discount: number; p_subtotal: number; p_tax_rate: number }
+        Returns: {
+          subtotal: number
+          tax_amount: number
+          total: number
+        }[]
+      }
       recalc_haircut_counts: { Args: never; Returns: number }
+      receive_purchase_order: {
+        Args: { p_issue_date?: string; p_order_id: string }
+        Returns: Json
+      }
+      recompute_purchase_invoice_totals: {
+        Args: { p_invoice_id: string }
+        Returns: undefined
+      }
       redeem_loyalty_points: {
         Args: { p_points: number; p_sale_id: string }
         Returns: number
@@ -3933,7 +3977,13 @@ export type Database = {
         Returns: string
       }
       register_customer_payment: {
-        Args: { p_amount: number; p_customer_id: string; p_notes?: string }
+        Args: {
+          p_amount: number
+          p_client_payment_id?: string
+          p_customer_id: string
+          p_notes?: string
+          p_payment_method?: string
+        }
         Returns: number
       }
       register_manual_movement: {
@@ -4010,6 +4060,10 @@ export type Database = {
           p_transfer_method?: string
         }
         Returns: Json
+      }
+      save_purchase_invoice: {
+        Args: { p_header: Json; p_invoice_id: string; p_items: Json }
+        Returns: string
       }
       school_add_participant: {
         Args: { p_enrollment_id: string; p_lesson_id: string }
@@ -4133,8 +4187,10 @@ export type Database = {
       settle_commissions: {
         Args: {
           p_exclude_item_ids?: string[]
+          p_expected_total?: number
           p_from: string
           p_from_ts: string
+          p_item_ids?: string[]
           p_paid_on?: string
           p_payment_method: string
           p_staff_id: string
@@ -4157,13 +4213,17 @@ export type Database = {
         Args: { p_months: number; p_user_id: string }
         Returns: string
       }
+      sync_products_last_cost: {
+        Args: { p_product_ids: string[]; p_tenant: string }
+        Returns: undefined
+      }
       void_commission_settlement: {
         Args: { p_settlement_id: string }
         Returns: Json
       }
       void_sale: {
         Args: { p_reason?: string; p_sale_id: string }
-        Returns: undefined
+        Returns: Json
       }
       worker_can: { Args: { perm: string }; Returns: boolean }
       workspace_context: { Args: never; Returns: Json }

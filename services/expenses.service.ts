@@ -1,5 +1,7 @@
 import { createClient } from "@/utils/supabase/client";
 import { MONEY_NUM_FMT, type ExportColumn } from "@/lib/export";
+import { toISODate } from "@/lib/date";
+import { fetchAllRows } from "@/services/finance.service";
 
 export type ExpensePeriod = "today" | "yesterday" | "last7" | "month" | "lastMonth" | "all" | "custom";
 
@@ -123,6 +125,16 @@ export function resolveExpenseRange(
   return { from: null, to: null };
 }
 
+/**
+ * Día de calendario LOCAL ("YYYY-MM-DD") → instante ISO de su medianoche
+ * local. Las compras se fechan por `invoices.paid_at` (un instante): el rango de
+ * días de Gastos se traduce a instantes para no correr el corte del día a UTC.
+ */
+export function localDayStartIso(day: string): string {
+  const [y, m, d] = day.split("-").map(Number);
+  return new Date(y, (m ?? 1) - 1, d ?? 1).toISOString();
+}
+
 export async function listExpenseCategories(includeInactive = false): Promise<ExpenseCategory[]> {
   const supabase = createClient();
   const query = supabase.from("expense_categories").select("id, name, description, color, is_default, is_active").order("name");
@@ -187,38 +199,46 @@ export async function listExpenses(
     origin === "manual" || origin === "caja" || origin === "comision" || Boolean(categoryId);
   const skipExpenses = origin === "compra";
 
-  let query = supabase
-    .from("expenses")
-    .select("id, description, amount, expense_date, category_id, cash_movement_id, commission_settlement_id, expense_categories(id, name, description, color, is_default, is_active)")
-    .order("expense_date", { ascending: false });
-  if (range.from) query = query.gte("expense_date", range.from);
-  if (range.to) query = query.lt("expense_date", range.to);
-  if (categoryId) query = query.eq("category_id", categoryId);
-  // El origen se deduce de los dos vínculos, sin columna extra.
-  if (origin === "caja") query = query.not("cash_movement_id", "is", null);
-  if (origin === "comision") query = query.not("commission_settlement_id", "is", null);
-  if (origin === "manual") {
-    query = query.is("cash_movement_id", null).is("commission_settlement_id", null);
-  }
-  if (term) query = query.ilike("description", `%${term}%`);
+  // Las dos consultas se paginan (fetchAllRows): PostgREST corta en 1.000
+  // filas sin avisar. El `id` desempata el orden para que ninguna fila caiga
+  // entre dos páginas.
+  const expensesPage = (from: number, to: number) => {
+    let query = supabase
+      .from("expenses")
+      .select("id, description, amount, expense_date, category_id, cash_movement_id, commission_settlement_id, expense_categories(id, name, description, color, is_default, is_active)");
+    if (range.from) query = query.gte("expense_date", range.from);
+    if (range.to) query = query.lt("expense_date", range.to);
+    if (categoryId) query = query.eq("category_id", categoryId);
+    // El origen se deduce de los dos vínculos, sin columna extra.
+    if (origin === "caja") query = query.not("cash_movement_id", "is", null);
+    if (origin === "comision") query = query.not("commission_settlement_id", "is", null);
+    if (origin === "manual") {
+      query = query.is("cash_movement_id", null).is("commission_settlement_id", null);
+    }
+    if (term) query = query.ilike("description", `%${term}%`);
+    return query.order("expense_date", { ascending: false }).order("id").range(from, to);
+  };
 
-  let purchasesQuery = supabase
-    .from("invoices")
-    .select("id, total, issue_date, distributors(business_name)")
-    .eq("type", "compra")
-    .eq("status", "paid")
-    .order("issue_date", { ascending: false });
-  if (range.from) purchasesQuery = purchasesQuery.gte("issue_date", range.from);
-  if (range.to) purchasesQuery = purchasesQuery.lt("issue_date", range.to);
+  // Una compra es egreso el día que se PAGÓ (`paid_at`), no el que se emitió:
+  // mismo criterio que el flujo de caja del Panel.
+  const purchasesPage = (from: number, to: number) => {
+    let purchasesQuery = supabase
+      .from("invoices")
+      .select("id, total, paid_at, distributors(business_name)")
+      .eq("type", "compra")
+      .eq("status", "paid")
+      .not("paid_at", "is", null);
+    if (range.from) purchasesQuery = purchasesQuery.gte("paid_at", localDayStartIso(range.from));
+    if (range.to) purchasesQuery = purchasesQuery.lt("paid_at", localDayStartIso(range.to));
+    return purchasesQuery.order("paid_at", { ascending: false }).order("id").range(from, to);
+  };
 
-  const [expensesRes, purchasesRes] = await Promise.all([
-    skipExpenses ? Promise.resolve({ data: [], error: null }) : query,
-    skipPurchases ? Promise.resolve({ data: [], error: null }) : purchasesQuery,
+  const [expenseRows, purchaseRows] = await Promise.all([
+    skipExpenses ? Promise.resolve([]) : fetchAllRows<unknown>(expensesPage),
+    skipPurchases ? Promise.resolve([]) : fetchAllRows<unknown>(purchasesPage),
   ]);
-  if (expensesRes.error) throw expensesRes.error;
-  if (purchasesRes.error) throw purchasesRes.error;
 
-  const operativos: ExpenseRecord[] = ((expensesRes.data ?? []) as unknown as Record<string, unknown>[]).map((row) => {
+  const operativos: ExpenseRecord[] = (expenseRows as Record<string, unknown>[]).map((row) => {
     const embedded = row.expense_categories;
     const category = (Array.isArray(embedded) ? embedded[0] ?? null : embedded ?? null) as ExpenseCategory | null;
     const settlementId = (row.commission_settlement_id as string | null) ?? null;
@@ -234,14 +254,15 @@ export async function listExpenses(
     };
   });
 
-  const compras: ExpenseRecord[] = ((purchasesRes.data ?? []) as unknown as Record<string, unknown>[])
+  const compras: ExpenseRecord[] = (purchaseRows as Record<string, unknown>[])
     .map((row) => {
       const proveedor = (row.distributors as { business_name?: string } | null)?.business_name ?? "Proveedor sin nombre";
       return {
         id: `compra-${row.id as string}`,
         description: proveedor,
         amount: row.total as number,
-        expense_date: row.issue_date as string,
+        // Día LOCAL del pago: cortar el ISO daría el día en UTC.
+        expense_date: toISODate(new Date(row.paid_at as string)),
         cash_movement_id: null,
         commission_settlement_id: null,
         category: PURCHASES_CATEGORY,
@@ -284,11 +305,25 @@ export async function createExpenseRecord(input: ExpenseInput): Promise<void> {
   if (error) throw error;
 }
 
-export async function updateExpense(id: string, input: ExpenseInput): Promise<void> {
-  if (!input.description.trim() || input.amount <= 0) throw new Error("Completa una descripción y un monto mayor que cero.");
+/**
+ * `descriptionAndCategoryOnly`: para un gasto nacido de un retiro de caja. Su
+ * monto y su fecha los fija el retiro (la base lo exige con
+ * `expenses_guard_commission`), así que ni se mandan: reenviar el mismo número
+ * pasaría, pero uno redondeado distinto reventaría la edición entera.
+ */
+export async function updateExpense(
+  id: string,
+  input: ExpenseInput,
+  options?: { descriptionAndCategoryOnly?: boolean },
+): Promise<void> {
+  const onlyText = options?.descriptionAndCategoryOnly === true;
+  if (!input.description.trim() || (!onlyText && input.amount <= 0)) throw new Error("Completa una descripción y un monto mayor que cero.");
   const supabase = createClient();
   const categoryId = await resolveCategoryId(input.category_id);
-  const { error } = await supabase.from("expenses").update({ description: input.description.trim(), amount: input.amount, expense_date: input.expense_date, category_id: categoryId }).eq("id", id);
+  const patch = onlyText
+    ? { description: input.description.trim(), category_id: categoryId }
+    : { description: input.description.trim(), amount: input.amount, expense_date: input.expense_date, category_id: categoryId };
+  const { error } = await supabase.from("expenses").update(patch).eq("id", id);
   if (error) throw error;
 }
 

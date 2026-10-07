@@ -8,6 +8,7 @@ import {
   currentMonthPeriod,
   localDateOf,
   openShiftForCommission,
+  settlementSelection,
 } from "@/services/staff.service";
 import type { StaffMember, StaffSaleItem, CommissionPeriod } from "@/services/staff.service";
 import { Select } from "@/components/ui/Select";
@@ -42,6 +43,10 @@ interface Props {
  * `commission_settlement_id IS NULL` y las bloquea antes de sumarlas—, así que
  * dos pestañas abiertas sobre el mismo período no pueden pagar dos veces por
  * más que las dos muestren el mismo total.
+ *
+ * Se paga LO QUE SE VE: el modal manda los ids tildados y su suma, y la base
+ * rechaza (LIQUIDACION_CAMBIO) si alguno ya no está pendiente o el total no
+ * cuadra. Entonces el detalle se recarga y el dueño vuelve a confirmar.
  */
 export function SettleCommissionModal({ member, onClose, onSettled, initialPeriod }: Props) {
   const fmtMoney = useFormatMoney();
@@ -58,8 +63,13 @@ export function SettleCommissionModal({ member, onClose, onSettled, initialPerio
 
   const period: CommissionPeriod = useMemo(() => commissionPeriodOf(from, to), [from, to]);
   const rangeIsValid = from <= to;
-  /** Identidad del período pedido. Es lo que dice si lo cargado sirve o quedó viejo. */
-  const periodKey = `${from}|${to}`;
+  /**
+   * Sube cuando la base rechazó la liquidación porque lo pendiente cambió: fuerza
+   * a releer el detalle aunque el período sea el mismo.
+   */
+  const [reloadNonce, setReloadNonce] = useState(0);
+  /** Identidad de lo pedido. Es lo que dice si lo cargado sirve o quedó viejo. */
+  const periodKey = `${from}|${to}|${reloadNonce}`;
 
   /**
    * Lo cargado viene ETIQUETADO con el período al que pertenece.
@@ -88,15 +98,14 @@ export function SettleCommissionModal({ member, onClose, onSettled, initialPerio
         if (cancelled) return;
         // Solo lo que se puede pagar: pendiente y con comisión real. Una línea
         // sin comisión no es parte de una liquidación, es ruido en el listado.
-        setLoaded({
-          key: periodKey,
-          items: rows.filter((r) => !r.settlementId && r.commissionAmount > 0),
-          error: null,
-        });
-        // Al cambiar el período lo excluido deja de tener sentido: son otras
-        // líneas. Se limpia acá —en el callback, no en un efecto aparte— para
-        // que no quede un id viejo excluyendo por accidente.
-        setExcluded(new Set());
+        const payable = rows.filter((r) => !r.settlementId && r.commissionAmount > 0);
+        setLoaded({ key: periodKey, items: payable, error: null });
+        // Lo destildado solo sobrevive para las líneas que siguen en pantalla
+        // (una recarga tras LIQUIDACION_CAMBIO no le borra al dueño lo que ya
+        // había sacado). Se resuelve acá —en el callback, no en un efecto
+        // aparte— para que no quede un id viejo excluyendo por accidente.
+        const visible = new Set(payable.map((r) => r.id));
+        setExcluded((prev) => new Set([...prev].filter((id) => visible.has(id))));
       })
       .catch((e: unknown) => {
         if (cancelled) return;
@@ -135,7 +144,8 @@ export function SettleCommissionModal({ member, onClose, onSettled, initialPerio
   }, [member.id]);
 
   const included = items.filter((i) => !excluded.has(i.id));
-  const total = included.reduce((sum, i) => sum + i.commissionAmount, 0);
+  const selection = settlementSelection(items, excluded);
+  const total = selection.expectedTotal;
   const canSettle = rangeIsValid && !loading && included.length > 0 && total > 0 && !submitting;
 
   const toggle = (id: string) => {
@@ -150,19 +160,23 @@ export function SettleCommissionModal({ member, onClose, onSettled, initialPerio
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canSettle) return;
-    const id = await settleCommissions({
+    const result = await settleCommissions({
       staffId: member.id,
       period,
       paymentMethod,
       paidOn,
-      excludedItemIds: [...excluded],
+      ...selection,
     });
-    if (id) {
+    if (result.ok) {
       notifySuccess(
         "Comisión liquidada",
-        `${fmtMoney(total)} para ${member.full_name}. Ya quedó registrado en Gastos.`,
+        `${fmtMoney(result.total)} para ${member.full_name}. Ya quedó registrado en Gastos.`,
       );
-      onSettled(id);
+      onSettled(result.id);
+    } else if (result.changed) {
+      // Lo pendiente cambió mientras el modal estaba abierto: se relee el
+      // detalle y el error del store explica por qué hay que confirmar de nuevo.
+      setReloadNonce((n) => n + 1);
     }
   };
 
@@ -331,8 +345,9 @@ export function SettleCommissionModal({ member, onClose, onSettled, initialPerio
               <p className="text-xs mt-2 pt-2 border-t border-outline-variant/10 text-on-surface-variant">
                 {cashShiftId ? (
                   <>
-                    <strong className="text-on-surface">Sale de la caja:</strong> se descuenta del
-                    arqueo del turno abierto, así al cerrarlo no aparece como faltante.
+                    <strong className="text-on-surface">Sale de la caja abierta ahora:</strong> se
+                    descuenta del arqueo del turno abierto hoy (aunque la fecha de pago sea
+                    anterior), así al cerrarlo no aparece como faltante.
                   </>
                 ) : (
                   <>

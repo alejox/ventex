@@ -12,6 +12,14 @@ export interface CurrentShift {
   sales_count: number;
   sales_total: number;
   cash_total: number;
+  /**
+   * Desglose del esperado (desde 20261007110100; opcionales para tolerar la
+   * base vieja): efectivo de ventas, abonos de fiado en efectivo y salidas por
+   * tipo (`gasto`/`devolucion`/`comision`/`traslado`).
+   */
+  cash_in?: number;
+  cash_abonos?: number;
+  movements_by_kind?: Record<string, number>;
   /** Retiros de caja del turno; ya descontados de `expected_cash`. */
   withdrawals_total: number;
   expected_cash: number;
@@ -31,6 +39,10 @@ export interface ShiftSummary {
   sales_count: number;
   withdrawals_total: number;
   totals_by_method: Record<string, number>;
+  /** Ver `CurrentShift`. */
+  cash_in?: number;
+  cash_abonos?: number;
+  movements_by_kind?: Record<string, number>;
 }
 
 /** Fila del historial de turnos del negocio (tabla shifts). */
@@ -47,12 +59,16 @@ export interface Shift {
   sales_count: number | null;
   withdrawals_total: number | null;
   totals_by_method: Record<string, number> | null;
+  /** Snapshot del cierre desde 20261007110100; null en turnos anteriores. */
+  cash_sales?: number | null;
+  cash_abonos?: number | null;
+  movements_by_kind?: Record<string, number> | null;
   notes: string | null;
   status: string;
 }
 
 const SHIFT_SELECT =
-  "id, worker_id, opened_at, closed_at, opening_cash, closing_cash, expected_cash, difference, sales_total, sales_count, withdrawals_total, totals_by_method, notes, status";
+  "id, worker_id, opened_at, closed_at, opening_cash, closing_cash, expected_cash, difference, sales_total, sales_count, withdrawals_total, totals_by_method, cash_sales, cash_abonos, movements_by_kind, notes, status";
 
 /**
  * El servidor exige justificar todo cierre descuadrado. Se marca con un código
