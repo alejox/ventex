@@ -64,14 +64,19 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
 
   fetchOverview: async () => {
     const { period, customFrom, customTo } = get();
-    const range = financeService.homePeriodRange(period, new Date(), customFrom, customTo);
+    const seq = ++requestSeq;
+    // El día y el mes se cortan en la zona del NEGOCIO (la misma con la que la
+    // base fecha los retiros de caja), con la del dispositivo de respaldo.
+    const tz = await financeService.fetchBusinessTimeZone();
+    if (seq !== requestSeq) return;
+    const now = new Date();
+    const range = financeService.homePeriodRange(period, now, customFrom, customTo, tz);
     // "Personalizado" sin las dos fechas: se espera a que estén.
     if (!range) return;
-    const previousRange = financeService.previousPeriod(period, range);
-    const seq = ++requestSeq;
+    const previousRange = financeService.previousPeriod(period, range, now, tz);
     set({ loading: true, error: null, range, previousRange });
     try {
-      const data = await financeService.fetchHomeOverview(range, previousRange);
+      const data = await financeService.fetchHomeOverview(range, previousRange, tz);
       if (seq !== requestSeq) return;
       set({ overview: data.current, previous: data.previous, chart: data.chart, loading: false });
     } catch (e) {
@@ -82,7 +87,8 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
 
   fetchTodaySales: async () => {
     try {
-      const todaySales = await financeService.fetchTodaySales();
+      const tz = await financeService.fetchBusinessTimeZone();
+      const todaySales = await financeService.fetchTodaySales(tz);
       set({ todaySales });
     } catch (e) {
       // No tumba el panel: es un KPI más, el resto del resumen sigue sirviendo.

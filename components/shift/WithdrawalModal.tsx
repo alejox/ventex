@@ -158,10 +158,15 @@ export function WithdrawalModal({ onClose }: { onClose: () => void }) {
               </select>
               {/* La regla contra el doble conteo, donde se toma la decisión y no
                   en la cabeza de alguien: una compra a proveedor ya suma a
-                  Gastos por su factura. */}
-              <p className="text-[11px] text-on-surface-variant mt-1.5">
-                Si estás pagando una factura de proveedor, elige Traslado y regístrala en Compras:
-                si no, ese dinero se cuenta dos veces.
+                  Gastos por su factura. Si además se anota como gasto de caja,
+                  el mismo pago cuenta dos veces. */}
+              <p
+                role="note"
+                className="mt-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-on-surface"
+              >
+                <span className="font-semibold">¿Es el pago de una compra a un proveedor?</span>{" "}
+                Si este pago es de una compra, regístrala como compra pagada y no como gasto de caja:
+                elige Traslado aquí para que el dinero no se cuente dos veces.
               </p>
             </div>
           )}

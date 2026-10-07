@@ -37,6 +37,7 @@ import { formatDateOnly } from "@/lib/date";
 import { useCurrency, useFormatMoney } from "@/lib/useMoney";
 import {
   HOME_PERIODS,
+  averageTicket,
   changeTone,
   comparePeriods,
   formatChange,
@@ -192,7 +193,9 @@ export function DashboardHome({ canAddExpense = false }: { canAddExpense?: boole
     return { text: `${formatChange(pct)} ${vsLabel}`.trim(), tone: changeTone(pct, higherIsBetter) };
   };
 
-  const ticket = todaySales && todaySales.count > 0 ? todaySales.revenue / todaySales.count : 0;
+  // El ticket se divide por las ventas con total > 0: un premio canjeado
+  // entero es una venta, pero no un ticket.
+  const ticket = todaySales ? averageTicket(todaySales.revenue, todaySales.ticketCount) : 0;
   const periodLabel = HOME_PERIODS.find((p) => p.id === period)?.label ?? "";
 
   return (

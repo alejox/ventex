@@ -1,7 +1,8 @@
 import { createClient } from "@/utils/supabase/client";
 import { MONEY_NUM_FMT, type ExportColumn } from "@/lib/export";
 import { toISODate } from "@/lib/date";
-import { fetchAllRows } from "@/services/finance.service";
+import { calendarDayIn, isValidTimeZone, zonedMidnight } from "@/lib/tz";
+import { fetchAllRows, todayIn } from "@/services/finance.service";
 
 export type ExpensePeriod = "today" | "yesterday" | "last7" | "month" | "lastMonth" | "all" | "custom";
 
@@ -91,8 +92,13 @@ const dateOnly = (date: Date) => {
 
 /**
  * Rango de días ("YYYY-MM-DD", `to` EXCLUSIVO) de un período de Gastos. Las
- * columnas son `date`, así que se cortan días de calendario locales y no
- * instantes.
+ * columnas son `date`, así que se cortan días de calendario y no instantes.
+ *
+ * "Este mes" es el mes de calendario COMPLETO (hasta el 1 del siguiente), el
+ * mismo corte que `homePeriodRange` del Panel: un gasto con fecha futura del
+ * mes (el arriendo del 30) sale en las dos pantallas o en ninguna.
+ *
+ * `tz` (zona del negocio) decide qué día es hoy; sin ella, el dispositivo.
  *
  * En "custom", `customTo` es el último día INCLUIDO: se corre al siguiente.
  * Una punta vacía deja ese lado abierto; las fechas al revés se ordenan.
@@ -102,8 +108,9 @@ export function resolveExpenseRange(
   customFrom = "",
   customTo = "",
   now: Date = new Date(),
+  tz?: string,
 ): { from: string | null; to: string | null } {
-  const today = startOfDay(now);
+  const today = tz ? todayIn(now, tz) : startOfDay(now);
   if (period === "custom") {
     const [a, b] = customFrom && customTo && customFrom > customTo ? [customTo, customFrom] : [customFrom, customTo];
     const next = (day: string) => {
@@ -126,11 +133,13 @@ export function resolveExpenseRange(
 }
 
 /**
- * Día de calendario LOCAL ("YYYY-MM-DD") → instante ISO de su medianoche
- * local. Las compras se fechan por `invoices.paid_at` (un instante): el rango de
- * días de Gastos se traduce a instantes para no correr el corte del día a UTC.
+ * Día de calendario ("YYYY-MM-DD") → instante ISO de su medianoche, en la zona
+ * del negocio (`tz`) o, sin ella, la del dispositivo. Las compras se fechan por
+ * `invoices.paid_at` (un instante): el rango de días de Gastos se traduce a
+ * instantes para no correr el corte del día a UTC.
  */
-export function localDayStartIso(day: string): string {
+export function localDayStartIso(day: string, tz?: string): string {
+  if (tz && isValidTimeZone(tz)) return zonedMidnight(day, tz).toISOString();
   const [y, m, d] = day.split("-").map(Number);
   return new Date(y, (m ?? 1) - 1, d ?? 1).toISOString();
 }
@@ -141,8 +150,16 @@ export async function listExpenseCategories(includeInactive = false): Promise<Ex
   const { data, error } = includeInactive ? await query : await query.eq("is_active", true);
   if (error) throw error;
   if (!includeInactive && (data ?? []).length === 0) {
-    const { data: created, error: createError } = await supabase.from("expense_categories").insert({ name: "Otros", description: "Gastos todavía no clasificados", color: "#64748b", is_default: true }).select("id, name, description, color, is_default, is_active").single();
-    if (!createError && created) return [created as ExpenseCategory];
+    // Sembrar "Otros" es escribir el catálogo, y eso es del dueño/admin (la
+    // RLS de `expense_categories` lo exige). Un cajero que abre el retiro de
+    // caja intentaba el INSERT, fallaba en silencio y se quedaba con la lista
+    // vacía igual: ahora ni lo intenta. El retiro sin categoría cae en la
+    // categoría por defecto del negocio dentro del RPC.
+    const { data: isOwner } = await supabase.rpc("is_tenant_owner");
+    if (isOwner === true) {
+      const { data: created, error: createError } = await supabase.from("expense_categories").insert({ name: "Otros", description: "Gastos todavía no clasificados", color: "#64748b", is_default: true }).select("id, name, description, color, is_default, is_active").single();
+      if (!createError && created) return [created as ExpenseCategory];
+    }
   }
   return (data ?? []) as ExpenseCategory[];
 }
@@ -189,9 +206,10 @@ export async function listExpenses(
   origin: ExpenseOrigin = "",
   customFrom = "",
   customTo = "",
+  tz?: string,
 ): Promise<ExpenseRecord[]> {
   const supabase = createClient();
-  const range = resolveExpenseRange(period, customFrom, customTo);
+  const range = resolveExpenseRange(period, customFrom, customTo, new Date(), tz);
   const term = search.trim();
 
   // Filtrar por una categoría real deja fuera a las compras: no tienen una.
@@ -228,8 +246,8 @@ export async function listExpenses(
       .eq("type", "compra")
       .eq("status", "paid")
       .not("paid_at", "is", null);
-    if (range.from) purchasesQuery = purchasesQuery.gte("paid_at", localDayStartIso(range.from));
-    if (range.to) purchasesQuery = purchasesQuery.lt("paid_at", localDayStartIso(range.to));
+    if (range.from) purchasesQuery = purchasesQuery.gte("paid_at", localDayStartIso(range.from, tz));
+    if (range.to) purchasesQuery = purchasesQuery.lt("paid_at", localDayStartIso(range.to, tz));
     return purchasesQuery.order("paid_at", { ascending: false }).order("id").range(from, to);
   };
 
@@ -261,8 +279,11 @@ export async function listExpenses(
         id: `compra-${row.id as string}`,
         description: proveedor,
         amount: row.total as number,
-        // Día LOCAL del pago: cortar el ISO daría el día en UTC.
-        expense_date: toISODate(new Date(row.paid_at as string)),
+        // Día del pago en la zona del negocio: cortar el ISO daría el día en UTC.
+        expense_date:
+          tz && isValidTimeZone(tz)
+            ? calendarDayIn(tz, new Date(row.paid_at as string))
+            : toISODate(new Date(row.paid_at as string)),
         cash_movement_id: null,
         commission_settlement_id: null,
         category: PURCHASES_CATEGORY,

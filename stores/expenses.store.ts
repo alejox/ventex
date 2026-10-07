@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { toMessage } from "@/lib/errors";
 import * as service from "@/services/expenses.service";
+import { fetchBusinessTimeZone } from "@/services/finance.service";
 import type { ExpenseCategory, ExpenseInput, ExpenseOrigin, ExpensePeriod, ExpenseRecord } from "@/services/expenses.service";
 
 interface ExpensesState {
@@ -16,6 +17,12 @@ interface ExpensesState {
   search: string;
   categoryId: string;
   origin: ExpenseOrigin;
+  /**
+   * Zona horaria del negocio con la que se cortó el período (null hasta la
+   * primera carga). La pantalla la usa para nombrar el archivo exportado con
+   * el mismo rango que la lista.
+   */
+  timeZone: string | null;
   fetch: () => Promise<void>;
   fetchCategories: () => Promise<void>;
   setPeriod: (period: ExpensePeriod) => Promise<void>;
@@ -33,11 +40,15 @@ interface ExpensesState {
 
 export const useExpensesStore = create<ExpensesState>((set, get) => ({
   expenses: [], categories: [], loading: true, saving: false, error: null,
-  period: "month", customFrom: "", customTo: "", search: "", categoryId: "", origin: "",
+  period: "month", customFrom: "", customTo: "", search: "", categoryId: "", origin: "", timeZone: null,
   fetch: async () => {
     set({ loading: true, error: null });
     const { period, search, categoryId, origin, customFrom, customTo } = get();
-    try { set({ expenses: await service.listExpenses(period, search, categoryId, origin, customFrom, customTo), loading: false }); }
+    try {
+      // "Hoy" y "Este mes" se cortan en la zona del negocio, igual que el Panel.
+      const timeZone = await fetchBusinessTimeZone();
+      set({ timeZone, expenses: await service.listExpenses(period, search, categoryId, origin, customFrom, customTo, timeZone), loading: false });
+    }
     catch (e) { set({ error: toMessage(e), loading: false }); }
   },
   fetchCategories: async () => {

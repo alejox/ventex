@@ -2,8 +2,14 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import type { PurchaseOrder, PurchaseOrderStatus } from "@/services/purchase-orders.service";
+import type {
+  PurchaseOrder,
+  PurchaseOrderStatus,
+  ReceivePurchaseOrderOptions,
+} from "@/services/purchase-orders.service";
 import { isOpenStatus } from "@/services/purchase-orders.service";
+import { orderLineQuantityLabel, orderLineTotal, orderTotal } from "@/lib/purchase-order-lines";
+import { ReceiveOrderModal } from "./ReceiveOrderModal";
 import { CollectionLoading } from "@/components/CollectionState";
 import { DataTable, type DataColumn } from "@/components/DataTable";
 import { IconTrash } from "@/app/assets/icons/DashboardIcons";
@@ -35,8 +41,12 @@ function fecha(iso: string): string {
   });
 }
 
-const totalOf = (order: PurchaseOrder) =>
-  order.items.reduce((sum, i) => sum + i.quantity * i.unit_price, 0);
+/**
+ * Valor del pedido. `quantity` está en unidades y `unit_price` es el costo de
+ * la CAJA en productos por caja: `orderTotal` arma cajas + sueltas igual que
+ * `receive_purchase_order`, así que es lo que va a costar la compra al recibir.
+ */
+const totalOf = (order: PurchaseOrder) => orderTotal(order.items);
 
 const unitsOf = (order: PurchaseOrder) =>
   order.items.reduce((sum, i) => sum + i.quantity, 0);
@@ -81,35 +91,21 @@ export function SavedOrders({
   loading: boolean;
   submitting: boolean;
   onResume: (order: PurchaseOrder) => void;
-  onReceive: (order: PurchaseOrder) => void;
+  onReceive: (order: PurchaseOrder, options: ReceivePurchaseOrderOptions) => void;
   onComplete: (id: string) => void;
   onCancel: (id: string) => void;
 }) {
   const fmtMoney = useFormatMoney();
   const [detail, setDetail] = useState<PurchaseOrder | null>(null);
+  const [receiving, setReceiving] = useState<PurchaseOrder | null>(null);
   const { confirm, dialog } = useConfirm();
 
   /**
-   * Recibir crea una factura de compra pagada y suma stock: desde la fila,
-   * donde el dedo va rápido, no puede quedar a un solo clic.
+   * Recibir crea una factura de compra y suma stock: desde la fila, donde el
+   * dedo va rápido, no puede quedar a un solo clic. El modal además elige el
+   * estado (pagada/pendiente) y el IVA de la compra.
    */
-  const askReceive = async (o: PurchaseOrder) => {
-    const ok = await confirm({
-      title: `¿Recibir el pedido #${o.order_number}?`,
-      description: (
-        <>
-          <p>
-            Se registra la compra a {o.distributor_name ?? "el proveedor"} por{" "}
-            <strong className="text-on-surface">{fmtMoney(totalOf(o))}</strong> y se suman{" "}
-            {unitsOf(o)} unidades al stock de {o.items.length} producto
-            {o.items.length !== 1 ? "s" : ""}.
-          </p>
-        </>
-      ),
-      confirmLabel: "Recibir y registrar",
-    });
-    if (ok) onReceive(o);
-  };
+  const askReceive = (o: PurchaseOrder) => setReceiving(o);
 
   const askComplete = async (o: PurchaseOrder) => {
     const ok = await confirm({
@@ -318,6 +314,17 @@ export function SavedOrders({
       />
 
       {detail && <OrderDetail order={detail} submitting={submitting} onReceive={askReceive} onClose={() => setDetail(null)} />}
+      {receiving && (
+        <ReceiveOrderModal
+          order={receiving}
+          submitting={submitting}
+          onConfirm={(o, options) => {
+            onReceive(o, options);
+            setReceiving(null);
+          }}
+          onClose={() => setReceiving(null)}
+        />
+      )}
       {dialog}
     </div>
   );
@@ -326,8 +333,8 @@ export function SavedOrders({
 /**
  * Detalle completo del pedido: sus líneas, con cantidades y costos.
  *
- * También ofrece "Recibir", con la misma confirmación que la fila: crea una
- * factura de compra pagada y suma stock.
+ * También ofrece "Recibir", con el mismo modal que la fila: crea la factura de
+ * compra (pagada o pendiente, con o sin IVA) y suma stock.
  */
 function OrderDetail({
   order,
@@ -370,11 +377,16 @@ function OrderDetail({
                     <p className="text-[11px] text-on-surface-variant font-mono">{item.sku}</p>
                   )}
                 </div>
-                <span className="text-sm text-on-surface-variant tabular-nums shrink-0">
-                  {item.quantity} × {fmtMoney(item.unit_price)}
+                <span className="text-sm text-on-surface-variant tabular-nums shrink-0 text-right">
+                  {orderLineQuantityLabel(item)}
+                  <span className="block text-[11px]">
+                    {item.units_per_package > 1
+                      ? `${fmtMoney(item.unit_price)} la caja`
+                      : `× ${fmtMoney(item.unit_price)}`}
+                  </span>
                 </span>
                 <span className="text-sm font-bold text-on-surface tabular-nums shrink-0 w-28 text-right">
-                  {fmtMoney(item.quantity * item.unit_price)}
+                  {fmtMoney(orderLineTotal(item))}
                 </span>
               </li>
             ))}

@@ -1,5 +1,7 @@
 import { createClient } from "@/utils/supabase/client";
-import { toISODate } from "@/lib/date";
+import { parseDateOnly, toISODate } from "@/lib/date";
+import { addMoney, sumMoney } from "@/lib/money-sum";
+import { calendarDayIn, isValidTimeZone, monthKeyIn, zonedMidnight } from "@/lib/tz";
 
 // ---- Tipos del dominio de finanzas ----
 interface MonthlyPoint {
@@ -49,7 +51,14 @@ export interface FinanceOverview {
    * todavía no guarda.
    */
   net: number;
+  /** Ventas completadas del período, TODAS (también las de total 0). */
   salesCount: number;
+  /**
+   * Divisor del ticket promedio: ventas completadas con total > 0. Una venta
+   * pagada entera con un premio existe (se atendió a alguien) pero no es un
+   * ticket: contarla tiraba el promedio para abajo sin que entrara un peso.
+   */
+  ticketCount: number;
   /**
    * Las tres partes de `revenue` (CAJA, no facturación):
    * - `salesIncome`: lo cobrado AL VENDER — `sale_payments` sin 'credito'; las
@@ -85,7 +94,14 @@ const PURCHASES_SLICE_COLOR = "#6366f1";
 /** Corte del día en curso para el KPI "Ventas hoy" del panel. */
 export interface TodaySales {
   count: number;
+  /** Ventas con total > 0: el divisor del ticket promedio (ver `ticketCount`). */
+  ticketCount: number;
   revenue: number;
+}
+
+/** Ticket promedio: facturado ÷ ventas con total > 0. Cero si no hubo ninguna. */
+export function averageTicket(billed: number, ticketCount: number): number {
+  return ticketCount > 0 ? Math.round((billed / ticketCount) * 100) / 100 : 0;
 }
 
 export interface Expense {
@@ -106,10 +122,21 @@ export interface NewExpenseInput {
 
 const MONTHS = 6;
 
+/**
+ * Hoy como "contenedor" local: un `Date` en la medianoche LOCAL cuyo año, mes
+ * y día son los del calendario del negocio (`tz`) o, sin zona, los del
+ * dispositivo. Los rangos del panel se arman con estos contenedores y se
+ * traducen a instantes recién en `toIsoRange`, con la zona.
+ */
+export function todayIn(now: Date = new Date(), tz?: string): Date {
+  if (tz && isValidTimeZone(tz)) return parseDateOnly(calendarDayIn(tz, now));
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
 /** Últimos N meses (incluido el actual) como claves "YYYY-MM" con etiqueta corta. */
-function lastMonths(n: number): { key: string; label: string }[] {
+export function lastMonths(n: number, nowArg: Date = new Date(), tz?: string): { key: string; label: string }[] {
   const out: { key: string; label: string }[] = [];
-  const now = new Date();
+  const now = todayIn(nowArg, tz);
   for (let i = n - 1; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -130,7 +157,12 @@ const monthKeyOfDate = (value: string) => value.slice(0, 7);
  * ISO daría el mes en UTC: la venta de las 20:00 del 31 en Colombia caía en el
  * mes siguiente.
  */
-export const monthKeyOfInstant = (iso: string) => toISODate(new Date(iso)).slice(0, 7);
+export const monthKeyOfInstant = (iso: string, tz?: string) =>
+  tz && isValidTimeZone(tz) ? monthKeyIn(tz, iso) : toISODate(new Date(iso)).slice(0, 7);
+
+/** Día "YYYY-MM-DD" de un instante en la zona del negocio (o la del dispositivo). */
+const dayOfInstant = (iso: string, tz?: string) =>
+  tz && isValidTimeZone(tz) ? calendarDayIn(tz, new Date(iso)) : toISODate(new Date(iso));
 
 /** Tope de filas por respuesta de PostgREST (max-rows por defecto de Supabase). */
 export const PAGE_SIZE = 1000;
@@ -160,13 +192,43 @@ export async function fetchAllRows<T>(
 }
 
 /**
- * Ventas completadas desde la medianoche local. La medianoche se calcula en el
- * navegador y se manda en ISO: el corte del día es el del negocio, no UTC.
+ * Zona horaria del negocio: `business_sites.timezone` (la misma con la que la
+ * base fecha el gasto de un retiro de caja), o la del dispositivo si el negocio
+ * no tiene fila o trae un valor que `Intl` no conoce. Se pide una vez por
+ * sesión: no cambia mientras se mira el panel.
  */
-export async function fetchTodaySales(): Promise<TodaySales> {
+let businessTzPromise: Promise<string> | null = null;
+
+export function fetchBusinessTimeZone(): Promise<string> {
+  if (!businessTzPromise) {
+    businessTzPromise = (async () => {
+      try {
+        const supabase = createClient();
+        const { data, error } = await supabase
+          .from("business_sites")
+          .select("timezone")
+          .limit(1)
+          .maybeSingle();
+        const tz = (data as { timezone?: string | null } | null)?.timezone;
+        if (!error && isValidTimeZone(tz)) return tz;
+      } catch {
+        // Sin conexión o sin permiso: la zona del dispositivo es un buen respaldo.
+      }
+      return browserTimeZone();
+    })();
+  }
+  return businessTzPromise;
+}
+
+/**
+ * Ventas completadas desde la medianoche del negocio. La medianoche se calcula
+ * en el navegador con la zona del negocio y se manda en ISO: el corte del día
+ * es el del mostrador, no UTC ni el del dispositivo.
+ */
+export async function fetchTodaySales(tz?: string): Promise<TodaySales> {
   const supabase = createClient();
-  const midnight = new Date();
-  midnight.setHours(0, 0, 0, 0);
+  const midnight =
+    tz && isValidTimeZone(tz) ? zonedMidnight(calendarDayIn(tz), tz) : todayIn(new Date());
 
   const rows = await fetchAllRows((from, to) =>
     supabase
@@ -180,7 +242,8 @@ export async function fetchTodaySales(): Promise<TodaySales> {
 
   return {
     count: rows.length,
-    revenue: rows.reduce((s, r) => s + (r.total ?? 0), 0),
+    ticketCount: rows.filter((r) => Number(r.total) > 0).length,
+    revenue: sumMoney(rows.map((r) => r.total)),
   };
 }
 
@@ -206,6 +269,8 @@ export interface FinanceOverviewRpc {
   revenue?: number | string | null;
   expenses?: number | string | null;
   sales_count?: number | string | null;
+  /** Desde 20261007150100: ventas con total > 0. Un RPC viejo no lo manda. */
+  ticket_count?: number | string | null;
   /** Desde 20261007110300. Un RPC viejo no los manda. */
   sales_income?: number | string | null;
   abonos_income?: number | string | null;
@@ -243,6 +308,9 @@ export function overviewFromRpc(raw: FinanceOverviewRpc, months = lastMonths(MON
     expenses,
     net: revenue - expenses,
     salesCount: n(raw.sales_count),
+    // Un RPC anterior a 20261007150100 no lo trae: el conteo crudo es lo mejor
+    // que hay.
+    ticketCount: raw.ticket_count != null ? n(raw.ticket_count) : n(raw.sales_count),
     salesIncome: hasSplit ? n(raw.sales_income) : revenue,
     abonosIncome: hasSplit ? n(raw.abonos_income) : 0,
     invoicesIncome: hasSplit ? n(raw.invoices_income) : 0,
@@ -288,6 +356,7 @@ const isMissingRpc = (error: { code?: string; message?: string }) =>
 export async function fetchOverview(
   range: IsoRange = ALL_TIME,
   months: number = MONTHS,
+  tz: string = browserTimeZone(),
 ): Promise<FinanceOverview> {
   if (!financeRpcMissing) {
     const supabase = createClient();
@@ -296,19 +365,19 @@ export async function fetchOverview(
       args: Record<string, unknown>,
     ) => PromiseLike<{ data: unknown; error: { code?: string; message?: string } | null }>;
     const { data, error } = await rpc.call(supabase, "finance_overview", {
-      // El mes y el día se cortan en la zona del negocio, que es la del
-      // dispositivo que mira el panel (mismo criterio que el resto de la app).
-      p_tz: browserTimeZone(),
+      // El mes y el día se cortan en la zona del NEGOCIO
+      // (`fetchBusinessTimeZone`), la misma que fecha los retiros de caja.
+      p_tz: tz,
       p_months: months,
       // `to` es EXCLUSIVO, igual que en el RPC.
       p_from: range.from ?? null,
       p_to: range.to ?? null,
     });
-    if (!error) return overviewFromRpc((data ?? {}) as FinanceOverviewRpc, lastMonths(months));
+    if (!error) return overviewFromRpc((data ?? {}) as FinanceOverviewRpc, lastMonths(months, new Date(), tz));
     if (!isMissingRpc(error)) throw error;
     financeRpcMissing = true;
   }
-  return fetchOverviewPaged(range, months);
+  return fetchOverviewPaged(range, months, tz);
 }
 
 /** Una venta con sus filas de pago, tal como la trae PostgREST. */
@@ -327,9 +396,7 @@ export interface SaleCashRow {
 export function saleCashReceived(sale: SaleCashRow): number {
   const payments = sale.sale_payments ?? [];
   if (payments.length > 0) {
-    return payments
-      .filter((p) => p.payment_method !== "credito")
-      .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+    return sumMoney(payments.filter((p) => p.payment_method !== "credito").map((p) => p.amount));
   }
   return sale.payment_method === "credito" ? 0 : Number(sale.total) || 0;
 }
@@ -383,31 +450,35 @@ export function aggregateOverview(
     expenses: OverviewExpenseRow[];
   },
   months: { key: string; label: string }[],
+  tz?: string,
 ): FinanceOverview {
   const num = (v: unknown) => Number(v ?? 0) || 0;
   const sales = rows.sales.map((s) => ({ ...s, received: saleCashReceived(s), billed: num(s.total) }));
   const salesInvoices = rows.docs.filter((i) => invoiceRole(i.type) === "income");
   const purchases = rows.docs.filter((i) => invoiceRole(i.type) === "expense");
 
-  const salesIncome = sales.reduce((sum, s) => sum + s.received, 0);
-  const salesBilled = sales.reduce((sum, s) => sum + s.billed, 0);
-  const abonosIncome = rows.abonos.reduce((sum, a) => sum + num(a.amount), 0);
-  const invoicesIncome = salesInvoices.reduce((sum, i) => sum + num(i.total), 0);
-  const revenue = salesIncome + abonosIncome + invoicesIncome;
-  const purchasesTotal = purchases.reduce((sum, i) => sum + num(i.total), 0);
-  const totalExpenses = rows.expenses.reduce((sum, e) => sum + num(e.amount), 0) + purchasesTotal;
+  // Todas las sumas van en centavos enteros (`sumMoney`): sumando floats, un
+  // período con cientos de ventas con centavos mostraba ±$0,01 de diferencia
+  // contra el mismo total del RPC.
+  const salesIncome = sumMoney(sales.map((s) => s.received));
+  const salesBilled = sumMoney(sales.map((s) => s.billed));
+  const abonosIncome = sumMoney(rows.abonos.map((a) => a.amount));
+  const invoicesIncome = sumMoney(salesInvoices.map((i) => i.total));
+  const revenue = sumMoney([salesIncome, abonosIncome, invoicesIncome]);
+  const purchasesTotal = sumMoney(purchases.map((i) => i.total));
+  const totalExpenses = sumMoney([...rows.expenses.map((e) => e.amount), purchasesTotal]);
 
   const buckets = new Map(months.map((m) => [m.key, { ...m, income: 0, expense: 0 }]));
   const addTo = (key: string, field: "income" | "expense", amount: number) => {
     const b = buckets.get(key);
-    if (b) b[field] += amount;
+    if (b) b[field] = addMoney(b[field], amount);
   };
-  for (const s of sales) addTo(monthKeyOfInstant(s.created_at), "income", s.received);
-  for (const a of rows.abonos) addTo(monthKeyOfInstant(a.created_at), "income", num(a.amount));
-  for (const i of salesInvoices) addTo(monthKeyOfInstant(i.paid_at), "income", num(i.total));
+  for (const s of sales) addTo(monthKeyOfInstant(s.created_at, tz), "income", s.received);
+  for (const a of rows.abonos) addTo(monthKeyOfInstant(a.created_at, tz), "income", num(a.amount));
+  for (const i of salesInvoices) addTo(monthKeyOfInstant(i.paid_at, tz), "income", num(i.total));
   for (const e of rows.expenses) addTo(monthKeyOfDate(e.expense_date), "expense", num(e.amount));
   // Las compras van a la barra de gastos del mes en que se PAGARON.
-  for (const i of purchases) addTo(monthKeyOfInstant(i.paid_at), "expense", num(i.total));
+  for (const i of purchases) addTo(monthKeyOfInstant(i.paid_at, tz), "expense", num(i.total));
 
   const recent: FinanceTransaction[] = [
     ...newest(
@@ -421,7 +492,7 @@ export function aggregateOverview(
       date: s.created_at,
       // Instante → día del mostrador. Una venta de las 8 de la noche en UTC-5
       // es del día siguiente en UTC, y así se mostraba corrida.
-      day: toISODate(new Date(s.created_at)),
+      day: dayOfInstant(s.created_at, tz),
     })),
     ...newest(rows.abonos, (a) => a.created_at).map((a) => ({
       id: a.id,
@@ -429,7 +500,7 @@ export function aggregateOverview(
       label: `Abono de ${a.customer_name ?? "cliente"}`,
       amount: num(a.amount),
       date: a.created_at,
-      day: toISODate(new Date(a.created_at)),
+      day: dayOfInstant(a.created_at, tz),
     })),
     ...newest(salesInvoices, (i) => i.paid_at).map((i) => ({
       id: i.id,
@@ -437,7 +508,7 @@ export function aggregateOverview(
       label: `Factura #${i.invoice_number}`,
       amount: num(i.total),
       date: i.paid_at,
-      day: toISODate(new Date(i.paid_at)),
+      day: dayOfInstant(i.paid_at, tz),
     })),
     // El signo negativo es lo que la fila usa para pintarse en rojo con una
     // flecha hacia abajo: una compra tiene que LEERSE como plata que sale.
@@ -447,7 +518,7 @@ export function aggregateOverview(
       label: `Compra #${i.invoice_number}`,
       amount: -num(i.total),
       date: i.paid_at,
-      day: toISODate(new Date(i.paid_at)),
+      day: dayOfInstant(i.paid_at, tz),
     })),
     ...newest(rows.expenses, (e) => e.expense_date).map((e) => ({
       id: e.id,
@@ -473,7 +544,7 @@ export function aggregateOverview(
       color: category?.color ?? "#94a3b8",
       amount: 0,
     };
-    current.amount += num(e.amount);
+    current.amount = addMoney(current.amount, e.amount);
     slices.set(id, current);
   }
   if (purchasesTotal > 0) {
@@ -488,13 +559,14 @@ export function aggregateOverview(
   return {
     revenue,
     expenses: totalExpenses,
-    net: revenue - totalExpenses,
+    net: sumMoney([revenue, -totalExpenses]),
     salesCount: sales.length,
+    ticketCount: sales.filter((s) => s.billed > 0).length,
     salesIncome,
     abonosIncome,
     invoicesIncome,
     salesBilled,
-    creditIssued: salesBilled - salesIncome,
+    creditIssued: sumMoney([salesBilled, -salesIncome]),
     monthly: months.map((m) => buckets.get(m.key)!),
     recent,
     expensesByCategory: [...slices.values()].sort((a, b) => b.amount - a.amount),
@@ -519,10 +591,10 @@ interface ExpenseQueryRow {
 }
 
 /** Ruta de respaldo: trae las filas y agrega en el navegador. */
-async function fetchOverviewPaged(range: IsoRange, monthCount: number): Promise<FinanceOverview> {
+async function fetchOverviewPaged(range: IsoRange, monthCount: number, tz?: string): Promise<FinanceOverview> {
   const supabase = createClient();
   const inInstant = instantFilter(range);
-  const inDay = dayFilter(range);
+  const inDay = dayFilter(range, tz);
   // Todas las consultas se paginan (fetchAllRows): sin eso PostgREST devolvía
   // las primeras 1.000 filas y los KPIs del panel salían por debajo de lo real.
   // El `id` desempata el orden para que ninguna fila caiga entre dos páginas.
@@ -599,7 +671,8 @@ async function fetchOverviewPaged(range: IsoRange, monthCount: number): Promise<
           category: e.expense_categories ?? null,
         })),
     },
-    lastMonths(monthCount),
+    lastMonths(monthCount, new Date(), tz),
+    tz,
   );
 }
 
@@ -643,7 +716,10 @@ export interface IsoRange {
 
 export const ALL_TIME: IsoRange = { from: null, to: null };
 
-/** Zona del negocio: la del dispositivo que mira (mismo criterio que el resto). */
+/**
+ * Zona del dispositivo que mira. Es el RESPALDO de `fetchBusinessTimeZone`
+ * (negocio sin `business_sites` o con una zona inválida), no la fuente.
+ */
 export function browserTimeZone(): string {
   try {
     return Intl.DateTimeFormat().resolvedOptions().timeZone || "America/Bogota";
@@ -663,9 +739,9 @@ function instantFilter(range: IsoRange) {
 }
 
 /** ¿Este día de calendario cae en el rango? (para columnas `date`) */
-function dayFilter(range: IsoRange) {
-  const from = range.from ? toISODate(new Date(range.from)) : null;
-  const to = range.to ? toISODate(new Date(range.to)) : null;
+function dayFilter(range: IsoRange, tz?: string) {
+  const from = range.from ? dayOfInstant(range.from, tz) : null;
+  const to = range.to ? dayOfInstant(range.to, tz) : null;
   return (day: string) => (!from || day >= from) && (!to || day < to);
 }
 
@@ -699,9 +775,15 @@ function localDay(iso: string): Date {
 /**
  * Rango del período elegido.
  *
- * "Este mes" corta en MAÑANA y no en el primero del mes siguiente: los datos
- * son los mismos (el futuro no tiene ventas), pero así el rango dice cuántos
- * días van, que es lo que necesita la comparación para ser justa.
+ * "Este mes" es el mes de calendario COMPLETO (del 1 al 1 del siguiente), el
+ * mismo corte que usa Gastos (`resolveExpenseRange`). Antes cortaba en mañana
+ * y Gastos en fin de mes: un arriendo cargado con fecha del 30 salía en una
+ * pantalla y no en la otra. Ventas y abonos no tienen futuro, así que para
+ * ellos da lo mismo; la comparación justa ("los mismos días transcurridos")
+ * la arma `previousPeriod` con la fecha de hoy, no con el largo del rango.
+ *
+ * `tz` es la zona del negocio: decide qué día es "hoy". Sin ella, el del
+ * dispositivo.
  *
  * "Personalizado" sin las dos fechas devuelve null: no hay nada que pedir.
  */
@@ -710,15 +792,19 @@ export function homePeriodRange(
   now: Date = new Date(),
   customFrom = "",
   customTo = "",
+  tz?: string,
 ): LocalRange | null {
-  const today = midnight(now);
+  const today = todayIn(now, tz);
   switch (id) {
     case "today":
       return { from: today, to: plusDays(today, 1) };
     case "last7":
       return { from: plusDays(today, -6), to: plusDays(today, 1) };
     case "month":
-      return { from: new Date(today.getFullYear(), today.getMonth(), 1), to: plusDays(today, 1) };
+      return {
+        from: new Date(today.getFullYear(), today.getMonth(), 1),
+        to: new Date(today.getFullYear(), today.getMonth() + 1, 1),
+      };
     case "lastMonth":
       return {
         from: new Date(today.getFullYear(), today.getMonth() - 1, 1),
@@ -743,15 +829,25 @@ export function homePeriodRange(
  *   Comparar del 1 al 6 de octubre contra septiembre entero daría "▼ 80 %"
  *   todos los principios de mes, y es mentira.
  */
-export function previousPeriod(id: HomePeriodId, range: LocalRange): LocalRange {
+export function previousPeriod(
+  id: HomePeriodId,
+  range: LocalRange,
+  now: Date = new Date(),
+  tz?: string,
+): LocalRange {
   const span = daysBetween(range.from, range.to);
   if (id === "lastMonth") {
     // Un mes completo se compara con el mes completo anterior, sea del largo que sea.
     return { from: new Date(range.from.getFullYear(), range.from.getMonth() - 1, 1), to: range.from };
   }
   if (id === "month") {
+    // Días TRANSCURRIDOS del mes (hoy incluido), no el largo del rango: el
+    // rango llega a fin de mes, pero comparar contra el mes anterior entero
+    // sería injusto los primeros días.
+    const tomorrow = plusDays(todayIn(now, tz), 1);
+    const elapsed = daysBetween(range.from, tomorrow < range.to ? tomorrow : range.to);
     const from = new Date(range.from.getFullYear(), range.from.getMonth() - 1, 1);
-    const sameSpan = plusDays(from, span);
+    const sameSpan = plusDays(from, elapsed);
     // Un mes más corto (marzo contra febrero) no puede invadir el actual.
     const to = sameSpan < range.from ? sameSpan : range.from;
     return { from, to };
@@ -759,8 +855,17 @@ export function previousPeriod(id: HomePeriodId, range: LocalRange): LocalRange 
   return { from: plusDays(range.from, -span), to: range.from };
 }
 
-/** Rango local → ISO para los RPC. */
-export function toIsoRange(range: LocalRange): IsoRange {
+/**
+ * Rango local → ISO para los RPC. Con `tz`, cada punta es la medianoche de
+ * ese día EN LA ZONA DEL NEGOCIO; sin ella, la del dispositivo.
+ */
+export function toIsoRange(range: LocalRange, tz?: string): IsoRange {
+  if (tz && isValidTimeZone(tz)) {
+    return {
+      from: zonedMidnight(toISODate(range.from), tz).toISOString(),
+      to: zonedMidnight(toISODate(range.to), tz).toISOString(),
+    };
+  }
   return { from: range.from.toISOString(), to: range.to.toISOString() };
 }
 
@@ -826,8 +931,9 @@ export function comparePeriods(current: FinanceOverview, previous: FinanceOvervi
 }
 
 /** Primer día del mes `n - 1` meses atrás: el arranque del gráfico de `n` meses. */
-export function chartStart(n: number = MONTHS, now: Date = new Date()): Date {
-  return new Date(now.getFullYear(), now.getMonth() - (n - 1), 1);
+export function chartStart(n: number = MONTHS, now: Date = new Date(), tz?: string): Date {
+  const today = todayIn(now, tz);
+  return new Date(today.getFullYear(), today.getMonth() - (n - 1), 1);
 }
 
 /**
@@ -838,11 +944,13 @@ export function chartStart(n: number = MONTHS, now: Date = new Date()): Date {
 export async function fetchHomeOverview(
   current: LocalRange,
   previous: LocalRange,
+  tz: string = browserTimeZone(),
 ): Promise<{ current: FinanceOverview; previous: FinanceOverview; chart: FinanceOverview }> {
+  const start = chartStart(MONTHS, new Date(), tz);
   const [cur, prev, chart] = await Promise.all([
-    fetchOverview(toIsoRange(current), 1),
-    fetchOverview(toIsoRange(previous), 1),
-    fetchOverview({ from: chartStart().toISOString(), to: null }, MONTHS),
+    fetchOverview(toIsoRange(current, tz), 1, tz),
+    fetchOverview(toIsoRange(previous, tz), 1, tz),
+    fetchOverview({ from: toIsoRange({ from: start, to: start }, tz).from, to: null }, MONTHS, tz),
   ]);
   return { current: cur, previous: prev, chart };
 }

@@ -3,6 +3,7 @@ import { toMessage } from "@/lib/errors";
 import * as service from "@/services/purchase-orders.service";
 import type {
   PurchaseOrder,
+  ReceivePurchaseOrderOptions,
   SavePurchaseOrderInput,
 } from "@/services/purchase-orders.service";
 
@@ -16,7 +17,8 @@ interface PurchaseOrdersState {
   /** Devuelve el pedido creado para que la pantalla muestre su número. */
   saveDraft: (input: SavePurchaseOrderInput, id?: string | null) => Promise<PurchaseOrder | null>;
   issue: (input: SavePurchaseOrderInput, id?: string | null) => Promise<PurchaseOrder | null>;
-  receive: (order: PurchaseOrder) => Promise<boolean>;
+  /** `options`: estado (pagada/pendiente) e IVA de la compra que se registra. */
+  receive: (order: PurchaseOrder, options?: ReceivePurchaseOrderOptions) => Promise<boolean>;
   /** Cierra el pedido sin crear compra ni mover stock. */
   complete: (id: string) => Promise<boolean>;
   cancel: (id: string) => Promise<boolean>;
@@ -46,9 +48,7 @@ export const usePurchaseOrdersStore = create<PurchaseOrdersState>((set, get) => 
     try {
       // Con id se está retomando un borrador: se reemplazan sus líneas en vez
       // de acumular un pedido nuevo cada vez que se guarda.
-      const order = id
-        ? await service.updatePurchaseOrder(id, input)
-        : await service.createPurchaseOrder(input, "draft");
+      const order = await service.savePurchaseOrder(id ?? null, input, "draft");
       await get().fetchOrders();
       set({ submitting: false });
       return order;
@@ -61,14 +61,9 @@ export const usePurchaseOrdersStore = create<PurchaseOrdersState>((set, get) => 
   issue: async (input, id) => {
     set({ submitting: true, error: null });
     try {
-      let order: PurchaseOrder;
-      if (id) {
-        order = await service.updatePurchaseOrder(id, input);
-        await service.issuePurchaseOrder(id);
-        order = { ...order, status: "issued" };
-      } else {
-        order = await service.createPurchaseOrder(input, "issued");
-      }
+      // Guardar y emitir en la misma transacción: antes eran dos llamadas y un
+      // fallo en la segunda dejaba el borrador guardado pero sin emitir.
+      const order = await service.savePurchaseOrder(id ?? null, input, "issued");
       await get().fetchOrders();
       set({ submitting: false });
       return order;
@@ -78,14 +73,14 @@ export const usePurchaseOrdersStore = create<PurchaseOrdersState>((set, get) => 
     }
   },
 
-  receive: async (order) => {
+  receive: async (order, options) => {
     // Doble clic: el segundo no sale mientras el primero sigue en vuelo. La RPC
     // igual es idempotente (bloquea el pedido y devuelve la compra existente),
     // esto solo ahorra la llamada.
     if (get().submitting) return false;
     set({ submitting: true, error: null });
     try {
-      await service.receivePurchaseOrder(order);
+      await service.receivePurchaseOrder(order, options);
       await get().fetchOrders();
       set({ submitting: false });
       return true;

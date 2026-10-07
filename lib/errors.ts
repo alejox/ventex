@@ -185,6 +185,13 @@ export function toMessage(e: unknown): string {
       if (/^METODO_DE_PAGO_INVALIDO\b/.test(raw)) {
         return "Elige un medio de pago válido para el abono.";
       }
+      // ---- Turnos de caja (migración 20261007150000) ----
+      // `close_shift` con `p_shift_id`: cerrar el turno de OTRA persona es del
+      // dueño/admin (el propio se cierra siempre). Otras RPC del dueño usan el
+      // mismo código, así que el texto es genérico.
+      if (/^OWNER_REQUIRED\b/.test(raw)) {
+        return "Solo el dueño o un administrador del negocio puede hacer esto.";
+      }
       // --- Compras y pedidos de compra (migraciones 20261007120000-120200) ---
       const purchaseMessage = purchaseErrorMessage(raw);
       if (purchaseMessage) return purchaseMessage;
@@ -226,8 +233,28 @@ const PURCHASE_ERRORS: [RegExp, string][] = [
   [/^PEDIDO_NO_ENCONTRADO\b/, "No encontramos este pedido. Actualiza la lista."],
 ];
 
+/**
+ * Pedidos de compra (`purchase_orders`): `save_purchase_order` y los guards
+ * `purchase_orders_guard_write` / `purchase_order_items_guard_write`
+ * (migración 20261007160100). Bloque aparte del de compras.
+ */
+const PURCHASE_ORDER_ERRORS: [RegExp, string][] = [
+  [/^PEDIDO_NO_EDITABLE\b/, "Este pedido ya no es un borrador: sus productos no se pueden cambiar. Actualiza la lista."],
+  [/^PEDIDO_RECEPCION_POR_RPC\b/, "Un pedido solo se marca recibido con «Recibir y registrar compra», que registra la compra y suma el stock."],
+  [/^PEDIDO_TRANSICION_INVALIDA\b/, "El pedido no puede pasar a ese estado. Actualiza la lista."],
+  [/^PEDIDO_CERRADO\b/, "Este pedido ya está cerrado y no se puede cambiar. Actualiza la lista."],
+  [/^PEDIDO_RECIBIDO_NO_SE_BORRA\b/, "Un pedido recibido tiene una compra registrada y no se borra. Si hace falta, anula la compra desde Compras."],
+  [/^PEDIDO_ESTADO_INVALIDO\b/, "Un pedido solo se guarda como borrador o emitido."],
+  [/^PEDIDO_SIN_LINEAS\b/, "Agrega al menos un producto al pedido."],
+  [/^LINEA_PEDIDO_INVALIDA\b/, "Una línea del pedido tiene cantidad, costo o nombre inválido. Revísala y vuelve a guardar."],
+  [/^PRODUCTO_NO_ENCONTRADO\b/, "Un producto del pedido ya no existe en el catálogo. Quítalo y vuelve a guardar."],
+];
+
 function purchaseErrorMessage(raw: string): string | null {
   for (const [pattern, message] of PURCHASE_ERRORS) {
+    if (pattern.test(raw)) return message;
+  }
+  for (const [pattern, message] of PURCHASE_ORDER_ERRORS) {
     if (pattern.test(raw)) return message;
   }
   return null;

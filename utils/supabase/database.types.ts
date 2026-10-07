@@ -1002,6 +1002,7 @@ export type Database = {
           product_id: string | null
           quantity: number
           service_id: string | null
+          stock_qty_applied: number | null
           unit_price: number
           units_per_package: number
           user_id: string
@@ -1017,6 +1018,7 @@ export type Database = {
           product_id?: string | null
           quantity?: number
           service_id?: string | null
+          stock_qty_applied?: number | null
           unit_price?: number
           units_per_package?: number
           user_id?: string
@@ -1032,6 +1034,7 @@ export type Database = {
           product_id?: string | null
           quantity?: number
           service_id?: string | null
+          stock_qty_applied?: number | null
           unit_price?: number
           units_per_package?: number
           user_id?: string
@@ -1711,6 +1714,21 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      purchase_order_counters: {
+        Row: {
+          last_number: number
+          user_id: string
+        }
+        Insert: {
+          last_number?: number
+          user_id: string
+        }
+        Update: {
+          last_number?: number
+          user_id?: string
+        }
+        Relationships: []
       }
       purchase_order_items: {
         Row: {
@@ -3948,7 +3966,12 @@ export type Database = {
       }
       recalc_haircut_counts: { Args: never; Returns: number }
       receive_purchase_order: {
-        Args: { p_issue_date?: string; p_order_id: string }
+        Args: {
+          p_issue_date?: string
+          p_order_id: string
+          p_status?: string
+          p_tax_rate?: number
+        }
         Returns: Json
       }
       recompute_purchase_invoice_totals: {
@@ -4063,6 +4086,10 @@ export type Database = {
       }
       save_purchase_invoice: {
         Args: { p_header: Json; p_invoice_id: string; p_items: Json }
+        Returns: string
+      }
+      save_purchase_order: {
+        Args: { p_header: Json; p_items: Json; p_order_id: string }
         Returns: string
       }
       school_add_participant: {

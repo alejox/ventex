@@ -1,11 +1,16 @@
 import { createClient } from "@/utils/supabase/client";
 import {
+  browserTimeZone,
   fetchAllRows,
   fetchOverview,
+  todayIn,
   type ExpenseSlice,
   type FinanceOverview,
 } from "@/services/finance.service";
 import { MONEY_NUM_FMT, type ExportColumn } from "@/lib/export";
+import { toISODate } from "@/lib/date";
+import { addMoney, sumMoney } from "@/lib/money-sum";
+import { isValidTimeZone, zonedMidnight } from "@/lib/tz";
 
 /**
  * Reportes (F10): estado de resultados por mes, medios de pago y gastos por
@@ -42,13 +47,18 @@ const monthStart = (key: string) => {
   return new Date(y, (m ?? 1) - 1, 1);
 };
 
-/** Meses del período elegido. "Personalizado" sin las dos puntas devuelve null. */
+/**
+ * Meses del período elegido. "Personalizado" sin las dos puntas devuelve null.
+ * `tz` (zona del negocio) decide en qué mes estamos; sin ella, el dispositivo.
+ */
 export function reportMonths(
   id: ReportPeriodId,
-  now: Date = new Date(),
+  nowArg: Date = new Date(),
   customFrom = "",
   customTo = "",
+  tz?: string,
 ): MonthSpan | null {
+  const now = todayIn(nowArg, tz);
   const y = now.getFullYear();
   const m = now.getMonth();
   switch (id) {
@@ -86,16 +96,26 @@ export function monthsIn(span: MonthSpan): string[] {
  * `finance_overview` arma sus meses contando desde HOY (`p_months`), no desde
  * una fecha, así que "Año pasado" en octubre necesita 22.
  */
-export function monthsBackTo(fromMonth: string, now: Date = new Date()): number {
+export function monthsBackTo(fromMonth: string, nowArg: Date = new Date(), tz?: string): number {
+  const now = todayIn(nowArg, tz);
   const from = monthStart(fromMonth);
   return Math.max(1, (now.getFullYear() - from.getFullYear()) * 12 + (now.getMonth() - from.getMonth()) + 1);
 }
 
-/** Tramo de meses → rango ISO (medianoches locales, `to` exclusivo). */
-export function monthSpanToIso(span: MonthSpan): { from: string; to: string } {
+/**
+ * Tramo de meses → rango ISO (`to` exclusivo). Con `tz`, medianoches del
+ * NEGOCIO; sin ella, del dispositivo.
+ */
+export function monthSpanToIso(span: MonthSpan, tz?: string): { from: string; to: string } {
   const from = monthStart(span.fromMonth);
   const last = monthStart(span.toMonth);
   const to = new Date(last.getFullYear(), last.getMonth() + 1, 1);
+  if (tz && isValidTimeZone(tz)) {
+    return {
+      from: zonedMidnight(toISODate(from), tz).toISOString(),
+      to: zonedMidnight(toISODate(to), tz).toISOString(),
+    };
+  }
   return { from: from.toISOString(), to: to.toISOString() };
 }
 
@@ -129,16 +149,17 @@ export function monthlyRows(
   return monthsIn(span).map((key) => {
     const income = byKey.get(key)?.income ?? 0;
     const expense = byKey.get(key)?.expense ?? 0;
-    const net = income - expense;
-    cumulative += net;
+    // En centavos: el acumulado de doce meses no puede terminar en …,99999.
+    const net = sumMoney([income, -expense]);
+    cumulative = addMoney(cumulative, net);
     return { key, label: monthLabel(key), income, expense, net, cumulative };
   });
 }
 
 export function totalsOf(rows: MonthlyRow[]): { income: number; expense: number; net: number } {
-  const income = rows.reduce((s, r) => s + r.income, 0);
-  const expense = rows.reduce((s, r) => s + r.expense, 0);
-  return { income, expense, net: income - expense };
+  const income = sumMoney(rows.map((r) => r.income));
+  const expense = sumMoney(rows.map((r) => r.expense));
+  return { income, expense, net: sumMoney([income, -expense]) };
 }
 
 // ---- Medios de pago ----
@@ -179,7 +200,7 @@ export function paymentBreakdown(sales: SaleWithPayments[]): PaymentSlice[] {
   const add = (method: string, amount: number) => {
     const key = method || "otro";
     const slice = map.get(key) ?? { method: key, label: PAYMENT_METHOD_LABELS[key] ?? key, amount: 0, count: 0 };
-    slice.amount += amount;
+    slice.amount = addMoney(slice.amount, amount);
     slice.count += 1;
     map.set(key, slice);
   };
@@ -188,7 +209,7 @@ export function paymentBreakdown(sales: SaleWithPayments[]): PaymentSlice[] {
     if (payments.length > 0) {
       // Un mismo medio repetido dentro de la venta cuenta UNA vez en `count`.
       const perMethod = new Map<string, number>();
-      for (const p of payments) perMethod.set(p.payment_method, (perMethod.get(p.payment_method) ?? 0) + Number(p.amount));
+      for (const p of payments) perMethod.set(p.payment_method, addMoney(perMethod.get(p.payment_method) ?? 0, p.amount));
       for (const [method, amount] of perMethod) add(method, amount);
     } else if (Number(sale.total) > 0) {
       add(sale.payment_method, Number(sale.total));
@@ -203,8 +224,8 @@ export function paymentBreakdown(sales: SaleWithPayments[]): PaymentSlice[] {
  * RPC − ventas del POS) en vez de pedirlas aparte: así cuadra por construcción.
  */
 export function withInvoiceIncome(slices: PaymentSlice[], revenue: number): PaymentSlice[] {
-  const pos = slices.reduce((s, x) => s + x.amount, 0);
-  const invoices = Math.round((revenue - pos) * 100) / 100;
+  const pos = sumMoney(slices.map((x) => x.amount));
+  const invoices = sumMoney([revenue, -pos]);
   if (invoices <= 0.5) return slices;
   return [...slices, { method: "facturas", label: PAYMENT_METHOD_LABELS.facturas, amount: invoices, count: 0 }].sort(
     (a, b) => b.amount - a.amount,
@@ -251,11 +272,18 @@ export interface ReportData {
   categories: ExpenseSlice[];
 }
 
-/** Todo el reporte en paralelo: totales (RPC) y medios de pago. */
-export async function fetchReport(span: MonthSpan, now: Date = new Date()): Promise<ReportData> {
-  const range = monthSpanToIso(span);
+/**
+ * Todo el reporte en paralelo: totales (RPC) y medios de pago. `tz` es la zona
+ * del negocio (`fetchBusinessTimeZone`): los meses se cortan ahí.
+ */
+export async function fetchReport(
+  span: MonthSpan,
+  now: Date = new Date(),
+  tz: string = browserTimeZone(),
+): Promise<ReportData> {
+  const range = monthSpanToIso(span, tz);
   const [overview, sales] = await Promise.all([
-    fetchOverview(range, monthsBackTo(span.fromMonth, now)),
+    fetchOverview(range, monthsBackTo(span.fromMonth, now, tz), tz),
     fetchSalesWithPayments(range),
   ]);
   return {

@@ -13,6 +13,7 @@ import {
   productIdsInOpenOrders,
   type PurchaseOrder,
   type PurchaseOrderLineInput,
+  type ReceivePurchaseOrderOptions,
 } from "@/services/purchase-orders.service";
 import { notifySuccess, notifyError } from "@/lib/notifications";
 import { ProductBrowser } from "./ProductBrowser";
@@ -221,12 +222,14 @@ export function PedidosClient({
   }, []);
 
   const handleReceive = useCallback(
-    async (order: PurchaseOrder) => {
-      const ok = await receiveOrder(order);
+    async (order: PurchaseOrder, options: ReceivePurchaseOrderOptions) => {
+      const ok = await receiveOrder(order, options);
       if (ok) {
         notifySuccess(
           `Pedido #${order.order_number} recibido`,
-          "Se registró la compra y el stock ya quedó actualizado.",
+          options.status === "pending"
+            ? "Se registró la compra como pendiente de pago y el stock ya quedó actualizado."
+            : "Se registró la compra y el stock ya quedó actualizado.",
         );
       }
     },

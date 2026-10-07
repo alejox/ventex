@@ -24,10 +24,11 @@ const span = (r: { from: Date; to: Date } | null) => (r ? [day(r.from), day(r.to
 
 const NOW = new Date(2026, 9, 6, 15, 30); // 6 oct 2026, 15:30 local
 
-test("homePeriodRange: hoy, 7 días, este mes (hasta mañana) y mes pasado", () => {
+test("homePeriodRange: hoy, 7 días, este mes (calendario completo) y mes pasado", () => {
   assert.deepEqual(span(homePeriodRange("today", NOW)), ["2026-10-06", "2026-10-07"]);
   assert.deepEqual(span(homePeriodRange("last7", NOW)), ["2026-09-30", "2026-10-07"]);
-  assert.deepEqual(span(homePeriodRange("month", NOW)), ["2026-10-01", "2026-10-07"]);
+  // Mismo corte que Gastos (`resolveExpenseRange`): hasta el 1 del mes siguiente.
+  assert.deepEqual(span(homePeriodRange("month", NOW)), ["2026-10-01", "2026-11-01"]);
   assert.deepEqual(span(homePeriodRange("lastMonth", NOW)), ["2026-09-01", "2026-10-01"]);
 });
 
@@ -38,23 +39,24 @@ test("homePeriodRange: personalizado incluye el último día, ordena las puntas 
 });
 
 test("previousPeriod: hoy contra ayer y 7 días contra los 7 anteriores", () => {
-  assert.deepEqual(span(previousPeriod("today", homePeriodRange("today", NOW)!)), ["2026-10-05", "2026-10-06"]);
-  assert.deepEqual(span(previousPeriod("last7", homePeriodRange("last7", NOW)!)), ["2026-09-23", "2026-09-30"]);
+  assert.deepEqual(span(previousPeriod("today", homePeriodRange("today", NOW)!, NOW)), ["2026-10-05", "2026-10-06"]);
+  assert.deepEqual(span(previousPeriod("last7", homePeriodRange("last7", NOW)!, NOW)), ["2026-09-23", "2026-09-30"]);
 });
 
 test("previousPeriod: este mes contra los MISMOS días del mes anterior, no el mes entero", () => {
-  assert.deepEqual(span(previousPeriod("month", homePeriodRange("month", NOW)!)), ["2026-09-01", "2026-09-07"]);
+  // El rango llega a fin de mes, pero se compara contra los días TRANSCURRIDOS.
+  assert.deepEqual(span(previousPeriod("month", homePeriodRange("month", NOW)!, NOW)), ["2026-09-01", "2026-09-07"]);
 });
 
 test("previousPeriod: un 31 de marzo no invade marzo al compararse con febrero", () => {
   const march31 = new Date(2026, 2, 31, 10);
-  assert.deepEqual(span(previousPeriod("month", homePeriodRange("month", march31)!)), ["2026-02-01", "2026-03-01"]);
+  assert.deepEqual(span(previousPeriod("month", homePeriodRange("month", march31)!, march31)), ["2026-02-01", "2026-03-01"]);
 });
 
 test("previousPeriod: mes pasado contra el anterior completo; personalizado contra el tramo previo", () => {
-  assert.deepEqual(span(previousPeriod("lastMonth", homePeriodRange("lastMonth", NOW)!)), ["2026-08-01", "2026-09-01"]);
+  assert.deepEqual(span(previousPeriod("lastMonth", homePeriodRange("lastMonth", NOW)!, NOW)), ["2026-08-01", "2026-09-01"]);
   const custom = homePeriodRange("custom", NOW, "2026-09-10", "2026-09-19")!;
-  assert.deepEqual(span(previousPeriod("custom", custom)), ["2026-08-31", "2026-09-10"]);
+  assert.deepEqual(span(previousPeriod("custom", custom, NOW)), ["2026-08-31", "2026-09-10"]);
 });
 
 test("rangeLabel nombra el período de la comparación", () => {

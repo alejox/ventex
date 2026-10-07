@@ -11,7 +11,7 @@ import {
   totalsOf,
   type MonthlyRow,
 } from "@/services/reports.service";
-import type { ExpenseSlice } from "@/services/finance.service";
+import { averageTicket, type ExpenseSlice } from "@/services/finance.service";
 import { ExpensesByCategory } from "@/components/ExpensesByCategory";
 import { CollectionError } from "@/components/CollectionState";
 import { useCurrency, useFormatMoney } from "@/lib/useMoney";
@@ -153,7 +153,18 @@ export function ReportsClient() {
           tone={data && totals.net < 0 ? "bad" : "neutral"}
           loading={loading}
         />
-        <Kpi label="Ventas" value={data ? String(data.overview.salesCount) : "—"} note="Completadas en el POS" loading={loading} />
+        {/* El ticket se divide por las ventas con total > 0: un premio
+            canjeado entero cuenta como venta, no como ticket. */}
+        <Kpi
+          label="Ventas"
+          value={data ? String(data.overview.salesCount) : "—"}
+          note={
+            data && data.overview.ticketCount > 0
+              ? `Ticket promedio ${fmtMoney(averageTicket(data.overview.salesBilled, data.overview.ticketCount))}`
+              : "Completadas en el POS"
+          }
+          loading={loading}
+        />
       </div>
 
       <section className="bg-surface-container-lowest border border-outline-variant/10 rounded-2xl p-5 sm:p-6 shadow-sm">
