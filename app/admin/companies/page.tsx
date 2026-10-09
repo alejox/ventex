@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useAdminStore } from "@/stores/admin.store";
-import type { AdminCompany } from "@/services/admin.service";
+import type { AdminCompany, AdminCompanySite } from "@/services/admin.service";
 import {
   formatMoney,
   planAccent,
@@ -82,6 +82,7 @@ const SORTABLE_COLUMNS: { key: CompanySortKey; label: string; align?: "right"; d
 export default function AdminCompaniesPage() {
   const companies = useAdminStore((s) => s.companies);
   const companyActivity = useAdminStore((s) => s.companyActivity);
+  const companySites = useAdminStore((s) => s.companySites);
   const companyActivityAvailable = useAdminStore((s) => s.companyActivityAvailable);
   const companyActivityError = useAdminStore((s) => s.companyActivityError);
   const plans = useAdminStore((s) => s.plans);
@@ -111,6 +112,16 @@ export default function AdminCompaniesPage() {
     () => new Map(companyActivity.map((activity) => [activity.user_id, activity])),
     [companyActivity],
   );
+
+  const sitesByCompany = useMemo(() => {
+    const map = new Map<string, AdminCompanySite[]>();
+    for (const site of companySites) {
+      const list = map.get(site.user_id);
+      if (list) list.push(site);
+      else map.set(site.user_id, [site]);
+    }
+    return map;
+  }, [companySites]);
 
   // La RPC excluye workers en el servidor. Cuando está disponible, su conjunto
   // de IDs también evita que admin_companies cuele cuentas de trabajadores.
@@ -297,6 +308,7 @@ export default function AdminCompaniesPage() {
                     <CompanyTableRow
                       key={row.company.user_id}
                       row={row}
+                      sites={sitesByCompany.get(row.company.user_id) ?? []}
                       now={now}
                       onManage={() => setEditing(row.company)}
                       onGrant={() => setGrantingId(row.company.user_id)}
@@ -364,11 +376,13 @@ function SortableHeader({
 
 function CompanyTableRow({
   row,
+  sites,
   now,
   onManage,
   onGrant,
 }: {
   row: CompanyRow;
+  sites: AdminCompanySite[];
   now: number;
   onManage: () => void;
   onGrant: () => void;
@@ -401,6 +415,28 @@ function CompanyTableRow({
           {businessTypeLabel(activity?.business_type)}
           {company.reseller_name ? ` · Cliente de ${company.reseller_name}` : ""}
         </span>
+        {sites.length > 0 && (
+          <ul className="mt-1 space-y-0.5">
+            {sites.map((site) => (
+              <li key={site.slug} className="flex items-center gap-1.5 text-xs min-w-0">
+                <a
+                  href={`/${site.slug}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={site.site_name ?? undefined}
+                  className="text-primary-ink font-medium hover:underline truncate"
+                >
+                  /{site.slug}
+                </a>
+                {!site.published && (
+                  <span className="shrink-0 text-[11px] font-bold px-1.5 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant">
+                    Borrador
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
       </td>
       <td className="px-3 py-3">
         <span className={`inline-block text-xs font-bold px-2 py-0.5 rounded-full ring-1 ${accent.bg} ${accent.text} ${accent.ring}`}>

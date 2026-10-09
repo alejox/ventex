@@ -4057,6 +4057,16 @@ export type Database = {
           user_id: string
         }[]
       }
+      admin_company_sites: {
+        Args: never
+        Returns: {
+          created_at: string
+          published: boolean
+          site_name: string
+          slug: string
+          user_id: string
+        }[]
+      }
       admin_credit_movements: {
         Args: { p_limit?: number }
         Returns: {

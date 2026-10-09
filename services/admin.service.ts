@@ -45,6 +45,15 @@ export interface AdminCompanyActivity {
   staff_count: number;
 }
 
+/** Página web pública (landing) de un negocio (RPC admin_company_sites). */
+export interface AdminCompanySite {
+  user_id: string;
+  slug: string;
+  site_name: string | null;
+  published: boolean;
+  created_at: string;
+}
+
 export interface AdminCompanyActivityResult {
   rows: AdminCompanyActivity[];
   available: boolean;
@@ -85,6 +94,17 @@ export async function fetchCompanies(): Promise<AdminCompany[]> {
  * La RPC es complementaria: mientras la migración no esté aplicada, el panel
  * conserva la información de admin_companies y explica qué detalle falta.
  */
+/**
+ * Complementaria: si la RPC falla (p. ej. migración sin aplicar) el panel sigue
+ * funcionando, solo sin los enlaces a las landings.
+ */
+export async function fetchCompanySites(): Promise<AdminCompanySite[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("admin_company_sites");
+  if (error) return [];
+  return (data ?? []) as unknown as AdminCompanySite[];
+}
+
 export async function fetchCompanyActivity(): Promise<AdminCompanyActivityResult> {
   const supabase = createClient();
   const { data, error } = await supabase.rpc("admin_company_activity");

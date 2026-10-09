@@ -6,6 +6,7 @@ import type {
   AdminBillingStats,
   AdminCompany,
   AdminCompanyActivity,
+  AdminCompanySite,
   AdminCreditMovement,
   AdminReseller,
   AdminStats,
@@ -21,6 +22,7 @@ interface AdminState {
   companyActivity: AdminCompanyActivity[];
   companyActivityAvailable: boolean;
   companyActivityError: string | null;
+  companySites: AdminCompanySite[];
   resellers: AdminReseller[];
   packs: CreditPack[];
   movements: AdminCreditMovement[];
@@ -66,6 +68,7 @@ export const useAdminStore = create<AdminState>((set) => ({
   companyActivity: [],
   companyActivityAvailable: false,
   companyActivityError: null,
+  companySites: [],
   resellers: [],
   packs: [],
   movements: [],
@@ -96,9 +99,10 @@ export const useAdminStore = create<AdminState>((set) => ({
     set({ loading: true, error: null });
     try {
       // Revendedores y promos también: desde Empresas se pueden recargar créditos.
-      const [companies, activity, plans, periods, resellers, packs] = await Promise.all([
+      const [companies, activity, sites, plans, periods, resellers, packs] = await Promise.all([
         adminService.fetchCompanies(),
         adminService.fetchCompanyActivity(),
+        adminService.fetchCompanySites(),
         adminService.fetchPlans(),
         adminService.fetchPlanPeriods(),
         adminService.fetchResellers(),
@@ -109,6 +113,7 @@ export const useAdminStore = create<AdminState>((set) => ({
         companyActivity: activity.rows,
         companyActivityAvailable: activity.available,
         companyActivityError: activity.error,
+        companySites: sites,
         plans,
         periods,
         resellers,
