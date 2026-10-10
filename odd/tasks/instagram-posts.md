@@ -42,5 +42,7 @@ Strategy: `ask-on-risk`. Forecast ~250 authored lines (under the 400 budget): si
   - Public: `app/[slug]/templates/InstagramSection.tsx` (client); embed.js via `next/script` (`lazyOnload`, `onReady`) on the public site. The editor preview portals into an iframe (`PreviewFrame`), so there the component injects embed.js into the frame's own document and processes it. Blockquotes are injected with `dangerouslySetInnerHTML` so embed.js can replace them without breaking React reconciliation; permalinks are re-validated at render.
   - Checks: `npm test` 580/580 pass; `npx tsc --noEmit` clean; eslint on touched files clean. Not run: browser check of the live embed (needs network + a real post).
 
+- Review assessment (`676b5b2..e2b7237`, committed-only, unrelated untracked files excluded): risk `medium` (executable change), 387 lines, `review_due: false` (`under_budget`). Parent spot check: test file 5/5 pass; embed markup only interpolates the rebuilt permalink.
+
 ## Next step
 Manual check in the browser: add a post in the editor (preview), publish, open `/[slug]`. Then decide on PR.
