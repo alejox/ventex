@@ -11,6 +11,7 @@ import { socialLinksOf } from "@/lib/socialLinks";
 import { BrandIcon } from "@/app/assets/icons/BrandIcons";
 import { BookServiceLink } from "../BookServiceLink";
 import { BookingWidget } from "../BookingWidget";
+import { InstagramSection } from "./InstagramSection";
 import { formatCOP, whatsappHref } from "./theme";
 
 function SectionHeading({ section }: { section: SiteSectionConfig }) {
@@ -201,6 +202,7 @@ export function ConfigurableSections({ site, preview = false }: { site: PublicSi
       case "products": return <ProductsSection key={section.id} site={site} section={section} />;
       case "team": return <TeamSection key={section.id} site={site} section={section} />;
       case "gallery": return <GallerySection key={section.id} site={site} section={section} />;
+      case "instagram": return <InstagramSection key={section.id} posts={site.config.instagramPosts} preview={preview} heading={<SectionHeading section={section} />} />;
       case "booking": return <BookingSection key={section.id} site={site} section={section} preview={preview} />;
       case "hours": return <HoursSection key={section.id} site={site} section={section} />;
       case "contact": return <ContactSection key={section.id} site={site} section={section} />;
