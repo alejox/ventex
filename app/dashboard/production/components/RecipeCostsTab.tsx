@@ -57,8 +57,8 @@ export function RecipeCostsTab({
       <CollectionEmpty
         icon={<BookOpen className="h-8 w-8" aria-hidden="true" />}
         title="Aún no tienes recetas"
-        description="Abre un producto o servicio, enciende “Receta” y agrega lo que gasta. Ej.: Latte → 20 g de café, 200 ml de leche, 1 vaso."
-        action={{ label: "Ir a productos y servicios", href: "/dashboard/inventory" }}
+        description="Abre un producto o servicio, enciende “Receta” (justo debajo del precio) y agrega lo que gasta; los insumos que falten los creas ahí mismo. Ej.: Latte → 20 g de café, 200 ml de leche, 1 vaso."
+        action={{ label: "Crear un producto con receta", href: "/dashboard/inventory/product?receta=venta&from=/dashboard/production" }}
       />
     );
   }

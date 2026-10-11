@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { Suspense, useState, useEffect, useMemo, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -40,7 +40,7 @@ import { Select } from "@/components/ui/Select";
 import { BarcodeScannerModal } from "@/components/BarcodeScannerModal";
 import { StockAdjustmentModal } from "@/components/StockAdjustmentModal";
 import { ProductModal } from "@/components/ProductModal";
-import { notifyError } from "@/lib/notifications";
+import { notifyError, notifySuccess } from "@/lib/notifications";
 import { CollectionEmpty, CollectionError, CollectionFilteredEmpty, CollectionLoading } from "@/components/CollectionState";
 import { Pagination } from "@/components/Pagination";
 import { useFormatMoney } from "@/lib/useMoney";
@@ -48,6 +48,10 @@ import { Modal } from "@/components/ui/Modal";
 import { effectiveModules } from "@/config/business";
 import { useRecipesStore } from "@/stores/recipes.store";
 import { ingredientNeedsRestock } from "@/lib/recipe-editor";
+import { contentLabel } from "@/lib/units";
+import { Button } from "@/components/ui/Button";
+import { OpenOnNewParam } from "@/components/ui/OpenOnNewParam";
+import { IngredientQuickModal } from "./product/components/IngredientQuickModal";
 
 /**
  * Vistas del catálogo que solo existen con "Recetas y producción". `?filtro=`
@@ -144,6 +148,16 @@ function ArchivedChip() {
       Archivado
     </span>
   );
+}
+
+/**
+ * "Unidad · 900 ml c/u": en qué se cuenta el producto y qué trae cada una.
+ * Solo para los que declaran contenido; al resto la unidad no les agrega nada.
+ */
+function packagingOf(row: CatalogRow): string | null {
+  if (row.kind !== "product") return null;
+  const content = contentLabel(row.product);
+  return content ? `${row.product.unit} · ${content}` : null;
 }
 
 /**
@@ -293,6 +307,15 @@ export default function CatalogPage() {
   const [adjustProductId, setAdjustProductId] = useState<string | undefined>();
   /** Código escaneado que no existe en el catálogo: abre el alta con él puesto. */
   const [newProductBarcode, setNewProductBarcode] = useState<string | null>(null);
+  /**
+   * Alta rápida de insumos (Recetas y producción): el mismo modal que usa la
+   * receta, sin pasar por la ficha completa. También se abre con `?new=insumo`.
+   */
+  const canCreateIngredient = productionOn && canEdit;
+  const [ingredientModalOpen, setIngredientModalOpen] = useState(false);
+  const openFromUrl = useCallback((value: string) => {
+    if (value === "insumo") setIngredientModalOpen(true);
+  }, [setIngredientModalOpen]);
 
   const rows = catalogRowsOf(products, services);
   // Los KPIs cuentan solo lo activo (ver `catalogKpis`).
@@ -468,6 +491,20 @@ export default function CatalogPage() {
             Categor&iacute;as
           </Link>
           )}
+          {canCreateIngredient && (
+          <Button
+            variant="secondary"
+            onClick={() => setIngredientModalOpen(true)}
+            className="h-11 col-span-2 lg:col-span-1 whitespace-nowrap"
+            icon={
+              <svg aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-4 h-4">
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+            }
+          >
+            Nuevo insumo
+          </Button>
+          )}
           {(canEdit || canEditServices) && (
           <Link
             href={withBackParam("/dashboard/inventory/product", backTo, "/dashboard/inventory")}
@@ -481,6 +518,12 @@ export default function CatalogPage() {
           )}
         </div>
       </div>
+
+      {/* `?new=insumo` abre el alta de insumo (enlaces de Producción y del Panel).
+          En su propio Suspense: `useSearchParams` en una ruta prerenderizada lo exige. */}
+      <Suspense fallback={null}>
+        <OpenOnNewParam onOpenNew={openFromUrl} />
+      </Suspense>
 
       {error && <CollectionError message={error} onRetry={fetchInventory} />}
       {serviceError && <CollectionError message={serviceError} onRetry={fetchServices} />}
@@ -680,6 +723,7 @@ export default function CatalogPage() {
             paginatedRows.map((row) => {
               const isService = row.kind === "service";
               const archived = isArchivedRow(row);
+              const packaging = packagingOf(row);
               // `null` = no hay estado de stock que mostrar. Un servicio nunca
               // lo tuvo; un producto marcado "sin inventario" dejó de tenerlo, y
               // pintarle "Agotado" sobre un cero que nadie mantiene sería
@@ -719,6 +763,7 @@ export default function CatalogPage() {
                             <span>{row.service.duration_minutes} min</span>
                           )}
                           {row.categoryName ? ` · ${row.categoryName}` : ""}
+                          {packaging ? ` · ${packaging}` : ""}
                         </p>
                       </div>
                       {/* El precio de venta acompaña al nombre; el costo baja a
@@ -836,6 +881,7 @@ export default function CatalogPage() {
                     : null;
                   const canOpen = row.kind === "product" ? canEdit : canEditServices;
                   const archived = isArchivedRow(row);
+                  const packaging = packagingOf(row);
                   return (
                     <tr key={`${row.kind}-${row.id}`} className={`transition-colors group hover:bg-surface-container-lowest ${archived ? "opacity-60" : ""}`}>
                         <td className="px-7 py-3.5">
@@ -869,6 +915,9 @@ export default function CatalogPage() {
                               {row.kind === "product" && recipeKindByProduct.get(row.id) === "sale" && <KindChip label="Receta" tone="recipe" />}
                               {row.kind === "product" && recipeKindByProduct.get(row.id) === "production" && <KindChip label="Por lotes" tone="recipe" />}
                               {row.kind === "service" && servicesWithRecipe.has(row.id) && <KindChip label="Receta" tone="recipe" />}
+                              {packaging && (
+                                <span className="block text-xs text-on-surface-variant">{packaging}</span>
+                              )}
                               {row.kind === "service" && (
                                 <span className="block text-xs text-on-surface-variant">
                                   {row.service.duration_minutes} min
@@ -1090,6 +1139,20 @@ export default function CatalogPage() {
               <strong>Movimientos</strong>.
             </>
           }
+        />
+      )}
+
+      {canCreateIngredient && ingredientModalOpen && (
+        <IngredientQuickModal
+          canSetCost={canSeeCosts}
+          onClose={() => setIngredientModalOpen(false)}
+          onCreated={(created) => {
+            // El modal ya recargó el inventario (el costo se lee aparte); acá
+            // solo se avisa. Vale también para "Usar ese insumo": no se creó
+            // nada, pero el insumo está.
+            setIngredientModalOpen(false);
+            notifySuccess("Insumo listo", `${created.name} ya está en tus insumos.`);
+          }}
         />
       )}
 

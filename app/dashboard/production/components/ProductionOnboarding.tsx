@@ -35,12 +35,22 @@ export function ProductionOnboarding({
   hasIngredients,
   hasRecipes,
   hasBatches,
+  onCreateIngredient,
   onRegisterBatch,
+  needsBatches,
 }: {
   hasIngredients: boolean;
   hasRecipes: boolean;
   hasBatches: boolean;
+  /** Abre el alta rápida de insumo acá mismo: la ficha completa (precio, comisión…) no es el camino. */
+  onCreateIngredient: () => void;
   onRegisterBatch: () => void;
+  /**
+   * Hay algo que se fabrica por lotes. Sin eso, quien solo vende con receta
+   * ya terminó de configurar al armarla: cada venta descuenta sola y no hay
+   * lote que registrar, así que el paso 3 se da por hecho.
+   */
+  needsBatches: boolean;
 }) {
   // En el servidor (y en el primer render) se da por cerrada: así no aparece y
   // desaparece al hidratar.
@@ -52,19 +62,19 @@ export function ProductionOnboarding({
     {
       done: hasIngredients,
       title: "Crea tus insumos",
-      body: "Lo que compras para preparar: café, leche, vasos, harina. Márcalos como “Solo insumo”.",
-      href: "/dashboard/inventory/product?from=/dashboard/production",
+      body: "Lo que compras para preparar: café, leche, vasos. Dinos en qué lo compras (bolsa de 900 ml, kg) y cuánto tienes.",
+      onClick: onCreateIngredient,
       cta: "Crear insumo",
     },
     {
       done: hasRecipes,
       title: "Arma la receta",
-      body: "En la ficha del producto: “Latte → 20 g de café, 200 ml de leche, 1 vaso”.",
-      href: "/dashboard/inventory?from=/dashboard/production",
-      cta: "Ir a productos",
+      body: "“Latte → 20 g de café, 200 ml de leche, 1 vaso”. Si el producto ya existe, ábrelo en Productos y enciende Receta.",
+      href: "/dashboard/inventory/product?receta=venta&from=/dashboard/production",
+      cta: "Crear producto con receta",
     },
     {
-      done: hasBatches,
+      done: hasBatches || (hasRecipes && !needsBatches),
       title: "Vende o registra un lote",
       body: "Cada venta descuenta los insumos sola. Lo que preparas por tandas, regístralo aquí.",
       onClick: onRegisterBatch,

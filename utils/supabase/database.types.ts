@@ -1614,6 +1614,8 @@ export type Database = {
           category_id: string | null
           commission_type: string | null
           commission_value: number | null
+          content_qty: number | null
+          content_unit: string | null
           created_at: string
           distributor_id: string | null
           has_commission: boolean
@@ -1642,6 +1644,8 @@ export type Database = {
           category_id?: string | null
           commission_type?: string | null
           commission_value?: number | null
+          content_qty?: number | null
+          content_unit?: string | null
           created_at?: string
           distributor_id?: string | null
           has_commission?: boolean
@@ -1670,6 +1674,8 @@ export type Database = {
           category_id?: string | null
           commission_type?: string | null
           commission_value?: number | null
+          content_qty?: number | null
+          content_unit?: string | null
           created_at?: string
           distributor_id?: string | null
           has_commission?: boolean
@@ -4292,6 +4298,7 @@ export type Database = {
           unit_cost: number
         }[]
       }
+      is_measure_unit: { Args: { p_unit: string }; Returns: boolean }
       is_reseller: { Args: never; Returns: boolean }
       is_super_admin: { Args: never; Returns: boolean }
       is_tenant_owner: { Args: never; Returns: boolean }
@@ -4312,6 +4319,19 @@ export type Database = {
         Returns: string
       }
       own_site_preview: { Args: never; Returns: Json }
+      product_unit_factor: {
+        Args: {
+          p_content_qty: number
+          p_content_unit: string
+          p_from: string
+          p_unit: string
+        }
+        Returns: number
+      }
+      product_unit_label: {
+        Args: { p_content_qty: number; p_content_unit: string; p_unit: string }
+        Returns: string
+      }
       production_module_enabled: { Args: never; Returns: boolean }
       public_instagram_permalinks: {
         Args: { p_slug: string }

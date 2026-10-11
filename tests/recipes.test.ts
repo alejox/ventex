@@ -134,3 +134,48 @@ test("ciclos: directo, indirecto y sin ciclo", () => {
   assert.equal(wouldCreateCycle(graph, "azucar", ["jarabe"]), true);
   assert.equal(wouldCreateCycle(graph, "masa", ["harina", "agua"]), false);
 });
+
+const bolsaLeche: IngredientInfo = {
+  id: "bolsa", name: "Leche bolsa", unit: "Unidad", content_qty: 900, content_unit: "ml",
+  purchase_price: 3800, stock_level: 10, tracks_stock: true, allows_fractions: false,
+};
+
+test("costo con presentación: 150 ml de una bolsa de 900 ml a 3.800 cuestan 633,33", () => {
+  const cost = recipeCost([{ ingredientId: "bolsa", quantity: 150, unit: "ml" }], byId([bolsaLeche]));
+  assert.equal(cost.incomplete, false);
+  assert.equal(cost.lines[0].stockUnit, "Unidad");
+  assert.equal(Math.round((cost.lines[0].stockQty ?? 0) * 10000) / 10000, 0.1667);
+  assert.equal(cost.total, 633.33);
+});
+
+test("plan de lote con un preparado embotellado: rinde 12 L = 12 botellas de 1 L", () => {
+  const botella = { unit: "Unidad", content_qty: 1, content_unit: "L", allows_fractions: false };
+  const plan = batchPlan(granizado, botella, { batches: 1 }, byId([colorante, azucar, agua]));
+  assert.ok(plan);
+  assert.equal(plan.outputQty, 12);
+  assert.equal(plan.fractionalOutput, false);
+  assert.equal(productionUnitCost(12000, 12, "L", botella), 1000);
+});
+
+test("plan de lote avisa la salida fraccionaria de lo que se cuenta entero (CANTIDAD_ENTERA)", () => {
+  const masa = { yieldQty: 5, yieldUnit: "Unidad", lines: [{ ingredientId: "azucar", quantity: 1, unit: "kg" }] };
+  const entera = { unit: "Unidad", allows_fractions: false };
+  const media = batchPlan(masa, entera, { batches: 0.5 }, byId([azucar]));
+  assert.ok(media);
+  assert.equal(media.outputQty, 2.5);
+  assert.equal(media.fractionalOutput, true);
+  const dos = batchPlan(masa, entera, { batches: 2 }, byId([azucar]));
+  assert.equal(dos?.fractionalOutput, false);
+  // En litros la fracción es normal.
+  const liquido = batchPlan(granizado, { unit: "L", allows_fractions: true }, { batches: 0.5 }, byId([colorante, azucar, agua]));
+  assert.equal(liquido?.fractionalOutput, false);
+  // Un string (solo la unidad) nunca marca fracción: no sabe si el producto admite.
+  assert.equal(batchPlan(masa, "Unidad", { batches: 0.5 }, byId([azucar]))?.fractionalOutput, false);
+});
+
+test("el plan consume insumos con presentación en su unidad (bolsas)", () => {
+  const receta = { yieldQty: 10, yieldUnit: "L", lines: [{ ingredientId: "bolsa", quantity: 4.5, unit: "L" }] };
+  const plan = batchPlan(receta, "L", { batches: 2 }, byId([bolsaLeche]));
+  assert.ok(plan);
+  assert.deepEqual(plan.lines.map((l) => [l.qty, l.unit, l.stockAfter]), [[10, "Unidad", 0]]);
+});

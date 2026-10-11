@@ -9,19 +9,57 @@
  * número que alguien escribió con coma, qué color lleva un margen.
  */
 
-import { compatibleUnits, roundStock } from "@/lib/units";
+import { compatibleUnits, contentLabel, isMeasureUnit, roundStock, type UnitTarget } from "@/lib/units";
 import { recipeCost, recipeMargin, type IngredientInfo, type RecipeLine } from "@/lib/recipes";
+
+/** La unidad chica de cada dimensión: así se piensan las recetas. */
+const SMALLER_UNIT: Record<string, string> = { kg: "g", lb: "g", L: "ml", m: "cm" };
 
 /**
  * Unidad que se propone al agregar un insumo a una receta: la más chica de su
  * dimensión, porque así se piensan las recetas ("20 g de café", "200 ml de
- * leche"), aunque el insumo se compre por kilo o por litro. Lo que no tiene
- * dimensión (Unidad, Caja…) se queda en su unidad.
+ * leche"), aunque el insumo se compre por kilo o por litro. Un producto sin
+ * dimensión pero con contenido (bolsa de 900 ml) propone la chica de su
+ * contenido (ml). Lo que no tiene ni una ni otra (vasos) se queda en su unidad.
  */
-export function defaultLineUnit(stockUnit: string): string {
-  const smaller: Record<string, string> = { kg: "g", lb: "g", L: "ml", m: "cm" };
-  const candidate = smaller[stockUnit];
-  return candidate && compatibleUnits(stockUnit).includes(candidate) ? candidate : stockUnit;
+export function defaultLineUnit(product: UnitTarget): string {
+  const h = typeof product === "string" ? { unit: product } : product;
+  const units = compatibleUnits(h);
+  if (isMeasureUnit(h.unit)) {
+    const candidate = SMALLER_UNIT[h.unit];
+    return candidate && units.includes(candidate) ? candidate : h.unit;
+  }
+  if (h.content_unit && units.length > 1) {
+    const candidate = SMALLER_UNIT[h.content_unit] ?? h.content_unit;
+    return units.includes(candidate) ? candidate : units[1];
+  }
+  return h.unit;
+}
+
+/**
+ * Nombre de producto normalizado para comparar: sin espacios de más, sin
+ * tildes y sin mayúsculas. "Leche entera" y "leche  Entera" son el mismo insumo.
+ */
+export function normalizeProductName(name: string): string {
+  return name
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * ¿Ya existe un producto con ese nombre? Para avisar ANTES de crear un insumo
+ * repetido (dos "leche" con distinta unidad es como se pierde el stock de las dos).
+ */
+export function findSameNameProduct<T extends { id: string; name: string }>(
+  name: string,
+  products: readonly T[],
+): T | null {
+  const wanted = normalizeProductName(name);
+  if (!wanted) return null;
+  return products.find((p) => normalizeProductName(p.name) === wanted) ?? null;
 }
 
 /**
@@ -79,6 +117,9 @@ export interface CandidateProduct {
   id: string;
   name: string;
   unit: string;
+  /** Presentación: cada unidad trae `content_qty content_unit` (bolsa de 900 ml). */
+  content_qty?: number | null;
+  content_unit?: string | null;
   stock_level: number;
   tracks_stock?: boolean | null;
   is_ingredient?: boolean | null;
@@ -115,10 +156,12 @@ export function ingredientCandidates<T extends CandidateProduct>(
     });
 }
 
-/** Texto de una opción del buscador de insumos: nombre, unidad y stock. */
+/** Texto de una opción del buscador de insumos: nombre, unidad, contenido y stock. */
 export function candidateLabel(p: CandidateProduct): string {
-  if (p.tracks_stock === false) return `${p.name} · ${p.unit} · sin inventario`;
-  return `${p.name} · ${formatQty(p.stock_level, p.unit)} en stock`;
+  const content = contentLabel(p);
+  const suffix = content ? ` · ${content}` : "";
+  if (p.tracks_stock === false) return `${p.name} · ${p.unit}${suffix} · sin inventario`;
+  return `${p.name} · ${formatQty(p.stock_level, p.unit)} en stock${suffix}`;
 }
 
 /** Una línea del editor, tal como está en pantalla (la cantidad aún es texto). */

@@ -1,5 +1,6 @@
 import { MoneyInput } from "@/components/ui/MoneyInput";
 import { StockQuantityFields } from "@/components/StockQuantityFields";
+import { displayQty } from "@/lib/stock";
 
 interface ProductPresentationSectionProps {
   presentation: "unit" | "package";
@@ -36,6 +37,12 @@ interface ProductPresentationSectionProps {
    * campos de stock, y se explica por qué.
    */
   recipeManagedStock?: boolean;
+  /**
+   * "Solo insumo": no se vende, así que no hay "Precio abierto" ni "Precio de
+   * venta por caja". La presentación (unidad/caja), "Unidades por caja", "No
+   * lleva inventario" y el stock SÍ se quedan: un insumo llega por caja de 12.
+   */
+  ingredientMode?: boolean;
 }
 
 export function ProductPresentationSection({
@@ -64,6 +71,7 @@ export function ProductPresentationSection({
   setEntryLoose,
   entryUnits,
   recipeManagedStock = false,
+  ingredientMode = false,
 }: ProductPresentationSectionProps) {
   // En presentación suelta no hay caja que ofrecer, por más que el producto
   // arrastre un `units_per_package` de una edición anterior.
@@ -76,7 +84,7 @@ export function ProductPresentationSection({
       <div>
         <h3 className="text-base font-bold text-on-surface">Presentación y stock</h3>
         <p className="text-xs text-on-surface-variant mt-1">
-          ¿Este producto se maneja suelto o por caja?
+          {ingredientMode ? "¿Este insumo se maneja suelto o por caja?" : "¿Este producto se maneja suelto o por caja?"}
         </p>
       </div>
 
@@ -107,28 +115,32 @@ export function ProductPresentationSection({
           <span>
             <span className="text-[13px] font-semibold text-on-surface block">No lleva inventario</span>
             <span className="text-xs text-on-surface-variant">
-              Para verduras, granel o todo lo que no se pueda contar. No descuenta al vender,
-              no pide reposición y no entra en la valorización. El costo y el margen se siguen midiendo.
+              {ingredientMode
+                ? "Para lo que no se pueda contar. No descuenta al usarlo en una receta, no pide reposición y no entra en la valorización. El costo se sigue midiendo."
+                : "Para verduras, granel o todo lo que no se pueda contar. No descuenta al vender, no pide reposición y no entra en la valorización. El costo y el margen se siguen midiendo."}
             </span>
           </span>
         </label>
         )}
 
-        <label className="flex items-start gap-3 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={openPrice}
-            onChange={(e) => onOpenPriceChange(e.target.checked)}
-            className="mt-0.5 w-4 h-4 accent-[var(--primary)]"
-          />
-          <span>
-            <span className="text-[13px] font-semibold text-on-surface block">Precio abierto</span>
-            <span className="text-xs text-on-surface-variant">
-              El precio se asigna en el momento de la venta. El precio de venta de arriba queda
-              como sugerido, y el cajero tiene que confirmarlo o cambiarlo para poder cobrar.
+        {/* Un insumo no se vende: no hay precio que abrir en el mostrador. */}
+        {!ingredientMode && (
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={openPrice}
+              onChange={(e) => onOpenPriceChange(e.target.checked)}
+              className="mt-0.5 w-4 h-4 accent-[var(--primary)]"
+            />
+            <span>
+              <span className="text-[13px] font-semibold text-on-surface block">Precio abierto</span>
+              <span className="text-xs text-on-surface-variant">
+                El precio se asigna en el momento de la venta. El precio de venta de arriba queda
+                como sugerido, y el cajero tiene que confirmarlo o cambiarlo para poder cobrar.
+              </span>
             </span>
-          </span>
-        </label>
+          </label>
+        )}
       </div>
 
       <div className="flex gap-2 sm:gap-3 max-w-sm">
@@ -172,18 +184,20 @@ export function ProductPresentationSection({
             </p>
           </div>
 
-          <div className="space-y-1.5 max-w-sm">
-            <label className="text-[13px] font-semibold text-on-surface block">
-              Precio de venta por caja <span className="text-on-surface-variant font-normal">(opcional)</span>
-            </label>
-            <MoneyInput
-              aria-label="Precio de venta por caja"
-              value={packagePrice}
-              onChange={onPackagePriceChange}
-              placeholder="Vacío = no se vende por caja"
-            />
-            {packageHint && <p className="text-xs text-on-surface-variant">{packageHint}</p>}
-          </div>
+          {!ingredientMode && (
+            <div className="space-y-1.5 max-w-sm">
+              <label className="text-[13px] font-semibold text-on-surface block">
+                Precio de venta por caja <span className="text-on-surface-variant font-normal">(opcional)</span>
+              </label>
+              <MoneyInput
+                aria-label="Precio de venta por caja"
+                value={packagePrice}
+                onChange={onPackagePriceChange}
+                placeholder="Vacío = no se vende por caja"
+              />
+              {packageHint && <p className="text-xs text-on-surface-variant">{packageHint}</p>}
+            </div>
+          )}
         </div>
       )}
 
@@ -212,7 +226,7 @@ export function ProductPresentationSection({
       {editId && tracksStock && (
         <div className="rounded-2xl border border-outline-variant/20 bg-surface-container-low/40 p-4 space-y-4">
           <div className="text-sm text-on-surface-variant">
-            Stock actual: <strong className="text-on-surface font-mono">{currentStock}</strong> unidades
+            Stock actual: <strong className="text-on-surface font-mono">{displayQty(currentStock)}</strong> unidades
           </div>
 
           {canMoveStock ? (
@@ -235,9 +249,9 @@ export function ProductPresentationSection({
               {entryUnits > 0 ? (
                 <p className="text-sm text-on-surface">
                   Queda en{" "}
-                  <strong className="font-mono text-primary">{currentStock + entryUnits}</strong> unidades
+                  <strong className="font-mono text-primary">{displayQty(currentStock + entryUnits)}</strong> unidades
                   <span className="text-xs text-on-surface-variant font-normal">
-                    {" "}({currentStock} + {entryUnits})
+                    {" "}({displayQty(currentStock)} + {displayQty(entryUnits)})
                   </span>
                 </p>
               ) : (

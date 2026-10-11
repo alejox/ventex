@@ -18,6 +18,7 @@ import type { IngredientInfo } from "@/lib/recipes";
 import type { RecipeRowInput } from "@/lib/recipe-editor";
 import { toIngredientInfo, toRecipeLines } from "@/services/recipes.service";
 import type { ProductionBatch } from "@/services/production.service";
+import { IngredientQuickModal } from "@/app/dashboard/inventory/product/components/IngredientQuickModal";
 import { RegisterBatchModal, type PreparedOption } from "./components/RegisterBatchModal";
 import { VoidBatchModal } from "./components/VoidBatchModal";
 import { RecipeCostsTab } from "./components/RecipeCostsTab";
@@ -34,7 +35,10 @@ const batchDate = (iso: string) =>
  * Dos preguntas, dos pestañas: "¿qué preparé y qué gasté?" (Lotes) y "¿cuánto
  * me cuesta hacer cada cosa y cuánto me queda?" (Recetas y costos). Las
  * recetas se ARMAN en la ficha de cada producto —donde ya está el precio—;
- * acá se miran todas juntas.
+ * acá se miran todas juntas. Lo único que se crea desde acá es un insumo (el
+ * primer paso de la guía), con el mismo modal rápido que usa la receta: mandar
+ * a la ficha completa por un "Café, kg, $40.000" era el paso que más gente
+ * abandonaba.
  */
 export default function ProductionPage() {
   const profile = useProfile();
@@ -59,6 +63,7 @@ export default function ProductionPage() {
 
   const [tab, setTab] = useState<Tab>("lotes");
   const [registerOpen, setRegisterOpen] = useState(false);
+  const [ingredientModalOpen, setIngredientModalOpen] = useState(false);
   const [voiding, setVoiding] = useState<ProductionBatch | null>(null);
 
   useEffect(() => {
@@ -92,7 +97,21 @@ export default function ProductionPage() {
         .filter((r) => r.kind === "production" && r.product_id && productById.has(r.product_id))
         .map((r) => {
           const p = productById.get(r.product_id as string)!;
-          return { recipe: r, productId: p.id, name: p.name, unit: p.unit, stock: Number(p.stock_level) || 0 };
+          return {
+            recipe: r,
+            productId: p.id,
+            name: p.name,
+            unit: p.unit,
+            stock: Number(p.stock_level) || 0,
+            // Unidad + presentación + si se cuenta entero: lo que `batchPlan`
+            // necesita para convertir el rendimiento y avisar CANTIDAD_ENTERA.
+            product: {
+              unit: p.unit,
+              content_qty: p.content_qty === null || p.content_qty === undefined ? null : Number(p.content_qty),
+              content_unit: p.content_unit ?? null,
+              allows_fractions: p.allows_fractions === true,
+            },
+          };
         })
         .sort((a, b) => a.name.localeCompare(b.name, "es")),
     [recipes, productById],
@@ -251,6 +270,8 @@ export default function ProductionPage() {
           hasIngredients={hasIngredients}
           hasRecipes={recipeRows.length > 0}
           hasBatches={batches.length > 0}
+          needsBatches={prepared.length > 0}
+          onCreateIngredient={() => setIngredientModalOpen(true)}
           onRegisterBatch={openRegister}
         />
       )}
@@ -293,8 +314,16 @@ export default function ProductionPage() {
             <CollectionEmpty
               icon={<FlaskConical className="h-8 w-8" aria-hidden="true" />}
               title="Aún no registras lotes"
-              description="Un lote es una tanda que preparas y dejas en stock. Ej.: con 10 L de agua, 200 ml de colorante y 2 kg de azúcar haces 12 L de líquido de granizado."
-              action={canRegister ? { label: "Registrar el primero", onClick: openRegister } : undefined}
+              description="Un lote es una tanda que preparas y dejas en stock. Ej.: con 10 L de agua, 200 ml de colorante y 2 kg de azúcar haces 12 L de líquido de granizado. El preparado necesita su receta “por lotes” en la ficha, justo debajo del precio."
+              action={
+                !canRegister
+                  ? undefined
+                  : prepared.length > 0
+                    ? { label: "Registrar el primero", onClick: openRegister }
+                    // Sin nada que se fabrique por lotes, abrir el modal solo
+                    // diría que no se puede: se va directo a crear el preparado.
+                    : { label: "Crear el preparado", href: "/dashboard/inventory/product?receta=lotes&from=/dashboard/production" }
+              }
             />
           ) : (
             <DataTable
@@ -324,6 +353,19 @@ export default function ProductionPage() {
           allowOversell={settings?.allow_oversell ?? true}
           canSeeCosts={canSeeCosts}
           onClose={closeRegister}
+        />
+      )}
+
+      {ingredientModalOpen && (
+        <IngredientQuickModal
+          canSetCost={canSeeCosts}
+          onClose={() => setIngredientModalOpen(false)}
+          onCreated={() => {
+            // Creado (o elegido el que ya existía con ese nombre): la guía
+            // tacha el paso sola en cuanto el inventario trae el insumo.
+            setIngredientModalOpen(false);
+            void fetchInventory();
+          }}
         />
       )}
 

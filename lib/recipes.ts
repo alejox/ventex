@@ -11,7 +11,7 @@
  * cambia una de las dos, cambia la otra.
  */
 
-import { consumedQty, convertQty, unitFactor } from "@/lib/units";
+import { consumedQty, convertQty, productUnitFactor, type UnitTarget } from "@/lib/units";
 import { sumMoney } from "@/lib/money-sum";
 
 export type RecipeKind = "sale" | "production";
@@ -28,6 +28,11 @@ export interface IngredientInfo {
   id: string;
   name: string;
   unit: string;
+  /** Presentación: cada `unit` trae `content_qty content_unit` (una bolsa = 900 ml). */
+  content_qty?: number | null;
+  content_unit?: string | null;
+  /** Si la unidad admite fracción (columna generada desde `unit`). */
+  allows_fractions?: boolean;
   /** Costo de compra (de la CAJA si units_per_package > 1). Ausente = sin permiso o sin costo. */
   purchase_price?: number | null;
   units_per_package?: number | null;
@@ -84,7 +89,8 @@ export function recipeCost(lines: RecipeLine[], ingredients: ReadonlyMap<string,
         unitCost: 0, cost: 0, missingCost: true, incompatible: false,
       };
     }
-    const stockQty = convertQty(line.quantity, line.unit, ing.unit);
+    // En la unidad del insumo (bolsas, kg…): el costo unitario ya está en esa unidad.
+    const stockQty = convertQty(line.quantity, line.unit, ing);
     const unitCost = ingredientUnitCost(ing);
     const missingCost = unitCost <= 0;
     if (missingCost || stockQty === null) incomplete = true;
@@ -105,9 +111,9 @@ export function productionUnitCost(
   batchCost: number,
   yieldQty: number,
   yieldUnit: string,
-  productUnit: string,
+  product: UnitTarget,
 ): number | null {
-  const yieldInProductUnit = convertQty(yieldQty, yieldUnit, productUnit);
+  const yieldInProductUnit = convertQty(yieldQty, yieldUnit, product);
   if (yieldInProductUnit === null || !(yieldInProductUnit > 0)) return null;
   return batchCost / yieldInProductUnit;
 }
@@ -153,7 +159,16 @@ export interface BatchPlan {
   lines: BatchPlanLine[];
   /** Algún insumo queda en negativo. */
   anyNegative: boolean;
+  /**
+   * La salida no es entera y el preparado se cuenta por unidades enteras
+   * (`allows_fractions === false`): la base lo rechazaría con CANTIDAD_ENTERA.
+   * El plan se devuelve igual para mostrar por qué; la pantalla bloquea.
+   */
+  fractionalOutput: boolean;
 }
+
+/** El preparado como destino: su unidad, su contenido y si admite fracción. */
+export type BatchProduct = string | (UnitTarget & { allows_fractions?: boolean });
 
 /**
  * Lo que va a pasar al registrar un lote, igual que `register_production_batch`:
@@ -163,11 +178,11 @@ export interface BatchPlan {
  */
 export function batchPlan(
   recipe: { lines: RecipeLine[]; yieldQty: number; yieldUnit: string },
-  productUnit: string,
+  product: BatchProduct,
   amount: { batches: number } | { outputQty: number },
   ingredients: ReadonlyMap<string, IngredientInfo>,
 ): BatchPlan | null {
-  const yieldInProductUnit = convertQty(recipe.yieldQty, recipe.yieldUnit, productUnit);
+  const yieldInProductUnit = convertQty(recipe.yieldQty, recipe.yieldUnit, product);
   if (yieldInProductUnit === null || !(yieldInProductUnit > 0)) return null;
 
   let factor: number;
@@ -186,7 +201,7 @@ export function batchPlan(
   for (const line of recipe.lines) {
     const ing = ingredients.get(line.ingredientId);
     if (!ing) return null;
-    const qty = consumedQty(line.quantity, line.unit, ing.unit, factor);
+    const qty = consumedQty(line.quantity, line.unit, ing, factor);
     if (qty === null) return null;
     if (qty <= 0) continue;
     const stockAfter = ing.tracks_stock ? Math.round((ing.stock_level - qty) * 1000) / 1000 : null;
@@ -202,11 +217,13 @@ export function batchPlan(
     });
   }
 
+  const wholeUnitsOnly = typeof product !== "string" && product.allows_fractions === false;
   return {
     outputQty,
     batches: Math.round(factor * 1000) / 1000,
     lines,
     anyNegative: lines.some((l) => l.goesNegative),
+    fractionalOutput: wholeUnitsOnly && outputQty !== Math.trunc(outputQty),
   };
 }
 
@@ -235,6 +252,6 @@ export function wouldCreateCycle(
 }
 
 /** ¿La línea mide el insumo en una unidad que se le puede convertir? */
-export function lineUnitIsValid(line: RecipeLine, ing: Pick<IngredientInfo, "unit">): boolean {
-  return unitFactor(line.unit, ing.unit) !== null;
+export function lineUnitIsValid(line: RecipeLine, ing: UnitTarget): boolean {
+  return productUnitFactor(line.unit, ing) !== null;
 }

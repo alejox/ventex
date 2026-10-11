@@ -26,6 +26,8 @@ function product(over: Partial<Product> = {}): Product {
     tracks_stock: true,
     open_price: false,
     allows_fractions: false,
+    content_qty: null,
+    content_unit: null,
     minimum_stock: 3,
     image_url: null,
     has_commission: false,

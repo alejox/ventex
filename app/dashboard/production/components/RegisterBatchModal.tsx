@@ -11,7 +11,7 @@ import { useFormatMoney } from "@/lib/useMoney";
 import { notifySuccess } from "@/lib/notifications";
 import { batchPlan, productionUnitCost, recipeCost, type IngredientInfo } from "@/lib/recipes";
 import { formatQty, parseQty, unitLabel } from "@/lib/recipe-editor";
-import { convertQty, roundStock } from "@/lib/units";
+import { contentLabel, convertQty, roundStock } from "@/lib/units";
 import { toRecipeLines, type Recipe } from "@/services/recipes.service";
 
 export interface PreparedOption {
@@ -20,6 +20,18 @@ export interface PreparedOption {
   name: string;
   unit: string;
   stock: number;
+  /**
+   * El preparado como destino de conversión: su unidad, su presentación
+   * ("cada botella trae 1 L") y si se cuenta entero. Con contenido, un
+   * rendimiento escrito en L se convierte a botellas; sin fracciones, una
+   * salida de 2,5 botellas se avisa acá antes de que la base la rechace.
+   */
+  product: {
+    unit: string;
+    content_qty: number | null;
+    content_unit: string | null;
+    allows_fractions: boolean;
+  };
 }
 
 interface RegisterBatchModalProps {
@@ -37,6 +49,18 @@ type Mode = "batches" | "output";
 
 const BATCH_CHIPS = ["0,5", "1", "2", "3"];
 
+/** "unidad entera", "caja entera", "par entero": el aviso de CANTIDAD_ENTERA en palabras. */
+function wholeUnitPhrase(unit: string): string {
+  switch (unit) {
+    case "Unidad": return "unidad entera";
+    case "Caja": return "caja entera";
+    case "Docena": return "docena entera";
+    case "Par": return "par entero";
+    case "Pack": return "pack entero";
+    default: return `${unit} entera`;
+  }
+}
+
 /**
  * Registrar un lote: "hice 2 tandas de líquido de granizado".
  *
@@ -44,7 +68,9 @@ const BATCH_CHIPS = ["0,5", "1", "2", "3"];
  * (`batchPlan`): cuánto entra del preparado, cuánto sale de cada insumo y con
  * cuánto queda cada uno. Un insumo que queda en negativo se marca en rojo; si
  * el negocio no permite vender sin stock, el botón se apaga y se explica por
- * qué (la base lo rechazaría igual).
+ * qué (la base lo rechazaría igual). Lo mismo con una salida fraccionaria de
+ * algo que se cuenta por unidades enteras (`CANTIDAD_ENTERA`): se muestra el
+ * plan para que se entienda el porqué, y se bloquea.
  */
 export function RegisterBatchModal({
   options,
@@ -86,7 +112,7 @@ export function RegisterBatchModal({
     };
     return batchPlan(
       recipe,
-      option.unit,
+      option.product,
       mode === "batches" ? { batches: value } : { outputQty: value },
       ingredients,
     );
@@ -100,12 +126,18 @@ export function RegisterBatchModal({
       perBatch.total,
       option.recipe.yield_qty ?? 0,
       option.recipe.yield_unit ?? option.unit,
-      option.unit,
+      option.product,
     );
     return { total, perUnit, incomplete: perBatch.incomplete };
   }, [option, plan, canSeeCosts, ingredients]);
 
-  const blocked = !!plan?.anyNegative && !allowOversell;
+  // Media tanda de algo que se cuenta entero puede ser válida (0,5 × 24 u. =
+  // 12 u.), así que el chip se esconde pero lo que decide es la SALIDA.
+  const chips = option?.product.allows_fractions ? BATCH_CHIPS : BATCH_CHIPS.filter((c) => c !== "0,5");
+
+  const stockBlocked = !!plan?.anyNegative && !allowOversell;
+  const wholeBlocked = !!plan?.fractionalOutput;
+  const blocked = stockBlocked || wholeBlocked;
   const canSubmit = !!option && !!plan && !blocked && !registering;
 
   const submit = async () => {
@@ -125,6 +157,12 @@ export function RegisterBatchModal({
       `${made}.${negatives}`,
     );
     onClose();
+  };
+
+  const optionLabel = (o: PreparedOption) => {
+    const content = contentLabel(o.product);
+    const yieldText = formatQty(o.recipe.yield_qty ?? 0, o.recipe.yield_unit ?? o.unit);
+    return `${o.name}${content ? ` · ${content}` : ""} · rinde ${yieldText} por lote`;
   };
 
   return (
@@ -152,11 +190,11 @@ export function RegisterBatchModal({
           <p className="text-sm font-semibold text-on-surface">Todavía no tienes nada que se fabrique por lotes</p>
           <ol className="mt-3 space-y-2 text-sm text-on-surface-variant list-decimal pl-5">
             <li>Crea el preparado como producto (ej. “Líquido de granizado”, en L).</li>
-            <li>En su ficha, enciende <span className="font-semibold text-on-surface">Receta</span> y elige <span className="font-semibold text-on-surface">Se fabrica por lotes</span>.</li>
-            <li>Agrega sus insumos y cuánto rinde un lote (ej. 12 L).</li>
+            <li>En su ficha, justo debajo del precio, enciende <span className="font-semibold text-on-surface">Receta</span> y elige <span className="font-semibold text-on-surface">Se fabrica por lotes</span>.</li>
+            <li>Agrega sus insumos (los que falten los creas ahí mismo) y cuánto rinde un lote (ej. 12 L).</li>
           </ol>
           <Link
-            href="/dashboard/inventory/product?from=/dashboard/production"
+            href="/dashboard/inventory/product?receta=lotes&from=/dashboard/production"
             className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 h-10 text-sm font-semibold text-on-primary hover:bg-primary-dim"
           >
             Crear el preparado <ArrowRight className="h-4 w-4" aria-hidden="true" />
@@ -174,7 +212,7 @@ export function RegisterBatchModal({
             <option value="">Elige un preparado</option>
             {options.map((o) => (
               <option key={o.productId} value={o.productId}>
-                {o.name} · rinde {formatQty(o.recipe.yield_qty ?? 0, o.recipe.yield_unit ?? o.unit)} por lote
+                {optionLabel(o)}
               </option>
             ))}
           </Select>
@@ -203,7 +241,7 @@ export function RegisterBatchModal({
                             ? "1"
                             : String(
                                 roundStock(
-                                  convertQty(option.recipe.yield_qty ?? 0, option.recipe.yield_unit ?? option.unit, option.unit) ?? 0,
+                                  convertQty(option.recipe.yield_qty ?? 0, option.recipe.yield_unit ?? option.unit, option.product) ?? 0,
                                 ),
                               ).replace(".", ","),
                         );
@@ -229,7 +267,7 @@ export function RegisterBatchModal({
                     inputMode="decimal"
                     value={amount}
                     onChange={(e) => change(() => setAmount(e.target.value))}
-                    aria-invalid={amount.trim() !== "" && value === null}
+                    aria-invalid={(amount.trim() !== "" && value === null) || wholeBlocked}
                     className="w-40 bg-surface-container-lowest border border-outline-variant/30 rounded-xl h-12 pl-4 pr-20 text-lg font-semibold text-on-surface tabular-nums focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                   />
                   <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm text-on-surface-variant">
@@ -238,7 +276,7 @@ export function RegisterBatchModal({
                 </div>
                 {mode === "batches" && (
                   <div className="flex gap-1.5" role="group" aria-label="Tandas frecuentes">
-                    {BATCH_CHIPS.map((chip) => (
+                    {chips.map((chip) => (
                       <button
                         key={chip}
                         type="button"
@@ -264,7 +302,7 @@ export function RegisterBatchModal({
               <div className="flex flex-wrap items-baseline justify-between gap-2 px-4 sm:px-5 py-4 border-b border-outline-variant/10">
                 <p className="text-sm text-on-surface-variant">
                   Vas a obtener{" "}
-                  <span className="text-2xl font-extrabold text-on-surface tabular-nums align-middle">
+                  <span className={`text-2xl font-extrabold tabular-nums align-middle ${wholeBlocked ? "text-error" : "text-on-surface"}`}>
                     {formatQty(plan.outputQty, option.unit)}
                   </span>{" "}
                   de {option.name}
@@ -329,17 +367,29 @@ export function RegisterBatchModal({
             </div>
           )}
 
+          {option && plan?.fractionalOutput && (
+            <p
+              role="alert"
+              className="flex items-start gap-2 rounded-xl px-4 py-3 text-sm border border-error/25 bg-error/10 text-error"
+            >
+              <TriangleAlert className="h-4 w-4 mt-0.5 shrink-0" aria-hidden="true" />
+              {mode === "batches"
+                ? `${option.name} se produce por ${wholeUnitPhrase(option.unit)}: con ${plan.batches.toLocaleString("es-CO")} ${plan.batches === 1 ? "tanda" : "tandas"} saldrían ${formatQty(plan.outputQty, option.unit)}. Usa tandas enteras o indica la cantidad producida.`
+                : `${option.name} se produce por ${wholeUnitPhrase(option.unit)}: indica una cantidad sin decimales.`}
+            </p>
+          )}
+
           {plan?.anyNegative && (
             <p
-              role={blocked ? "alert" : undefined}
+              role={stockBlocked ? "alert" : undefined}
               className={`flex items-start gap-2 rounded-xl px-4 py-3 text-sm border ${
-                blocked
+                stockBlocked
                   ? "border-error/25 bg-error/10 text-error"
                   : "border-amber-500/30 bg-amber-500/10 text-on-surface"
               }`}
             >
-              <TriangleAlert className={`h-4 w-4 mt-0.5 shrink-0 ${blocked ? "" : "text-amber-600 dark:text-amber-400"}`} aria-hidden="true" />
-              {blocked
+              <TriangleAlert className={`h-4 w-4 mt-0.5 shrink-0 ${stockBlocked ? "" : "text-amber-600 dark:text-amber-400"}`} aria-hidden="true" />
+              {stockBlocked
                 ? "No alcanzan los insumos marcados en rojo y tu negocio no permite quedar en negativo. Registra la compra o ajusta su stock antes de registrar el lote."
                 : "Los insumos en rojo quedarán en negativo. Puedes registrar el lote igual; repónlos cuando compres."}
             </p>

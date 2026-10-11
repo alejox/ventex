@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useEffect, useCallback, useRef } from "react";
+import { Suspense, useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useInventoryStore } from "@/stores/inventory.store";
@@ -34,8 +34,11 @@ import { useUnsavedChangesGuard } from "@/lib/unsaved-changes";
 import { Switch } from "@/components/ui/Switch";
 import { effectiveModules } from "@/config/business";
 import { useRecipesStore } from "@/stores/recipes.store";
-import { RecipeSection, newEditorLine, type RecipeDraft } from "./components/RecipeSection";
-import { editorLineIssues, editorToLines, parseQty } from "@/lib/recipe-editor";
+import { RecipeSection, buildIngredientsMap, newEditorLine, type RecipeDraft } from "./components/RecipeSection";
+import { editorLineIssues, editorToLines, parseQty, unitLabel } from "@/lib/recipe-editor";
+import { productionUnitCost, recipeCost } from "@/lib/recipes";
+import type { RecipeCostInfo } from "./components/ProductPricingSection";
+import { MEASURE_UNITS, compatibleUnits, isMeasureUnit } from "@/lib/units";
 import type { Recipe } from "@/services/recipes.service";
 
 /** Receta en blanco: apagada, de venta. */
@@ -59,6 +62,16 @@ interface FieldErrors {
   name?: string;
   price?: string;
   commission?: string;
+  /** "Cada unidad trae": cantidad escrita pero ilegible. */
+  content?: string;
+}
+
+/** Contenido por defecto del formulario: sin cantidad, en ml (lo más común: bolsas y botellas). */
+const EMPTY_CONTENT = { content_qty: "", content_unit: "ml" } as const;
+
+/** "unidad" / "caja" / "par": la unidad del producto como palabra, para "Cada caja trae". */
+function unitNoun(unit: string): string {
+  return unit === "Unidad" ? "unidad" : unitLabel(unit, 1);
 }
 
 /**
@@ -177,6 +190,10 @@ function ProductForm() {
     tracks_stock: true,
     open_price: false,
     is_ingredient: false,
+    // Van desde el arranque (y no `undefined`) para que el snapshot de
+    // "cambios sin guardar" sea estable: una clave que aparece después cuenta
+    // como cambio.
+    ...EMPTY_CONTENT,
   });
   const handleDistributorCreated = () => {
     fetchInventory();
@@ -196,6 +213,7 @@ function ProductForm() {
   const nameRef = useRef<HTMLInputElement>(null);
   const priceRef = useRef<HTMLInputElement>(null);
   const commissionRef = useRef<HTMLInputElement>(null);
+  const contentRef = useRef<HTMLInputElement>(null);
   const [seededId, setSeededId] = useState<string | null>(null);
   const [distributorModalOpen, setDistributorModalOpen] = useState(false);
   const [categoryModalOpen, setCategoryModalOpen] = useState(false);
@@ -299,6 +317,56 @@ function ProductForm() {
   const productionRecipeActive =
     productionOn && itemType === "Producto" && recipeDraft.enabled && (recipeDraft.kind === "production" || form.is_ingredient === true);
   const noStock = saleRecipeActive || (!productionRecipeActive && form.tracks_stock === false);
+  /** "Solo insumo": no se vende. La ficha esconde precio de venta, margen, precio abierto y comisión. */
+  const ingredientMode = productionOn && itemType === "Producto" && form.is_ingredient === true;
+  const canSeeCosts = can(profile, "inventory_costs");
+  /**
+   * El producto como destino de conversión (unidad + "cada unidad trae"): lo
+   * usa el editor de receta para ofrecer unidades de rendimiento y la ficha
+   * para mandar un rendimiento que la base pueda convertir.
+   */
+  const productHolder = {
+    unit: form.unit,
+    content_qty: parseQty(form.content_qty ?? "") ?? null,
+    content_unit: form.content_unit || null,
+  };
+  const ingredientsMap = useMemo(() => buildIngredientsMap(products), [products]);
+  /**
+   * "Cada unidad trae" solo hace ruido en un producto que nunca va a una
+   * receta (una cera, una gaseosa). Se muestra abierto cuando sirve —insumo,
+   * ya tiene contenido, o ya se usa en alguna receta— y, si no, queda un
+   * enlace para abrirlo.
+   */
+  const [contentOpened, setContentOpened] = useState(false);
+  const usedInRecipes = !!editId && recipes.some((r) => r.items.some((i) => i.ingredient_id === editId));
+  const contentApplies = productionOn && itemType === "Producto" && !isMeasureUnit(form.unit);
+  const showContent =
+    contentApplies && (ingredientMode || contentOpened || usedInRecipes || (form.content_qty ?? "").trim() !== "");
+  /**
+   * Con receta de venta el producto no se compra: su costo es el de sus
+   * insumos, por unidad vendida. Se calcula acá (con el mismo mapa que usa el
+   * editor) para que la tarjeta de precio no muestre un "Precio de compra" en
+   * 0. Solo si quien edita puede ver costos; si no, la tarjeta no se muestra.
+   */
+  const recipeCostInfo = ((): RecipeCostInfo | null => {
+    if (!canSeeCosts || (!saleRecipeActive && !productionRecipeActive)) return null;
+    const lines = editorToLines(recipeDraft.lines);
+    const basis = saleRecipeActive ? "sale" : "production";
+    if (lines.length === 0) {
+      return { total: 0, incomplete: false, basis, pending: "Agrega los insumos de la receta para ver cuánto te cuesta." };
+    }
+    const c = recipeCost(lines, ingredientsMap);
+    if (basis === "sale") return { total: c.total, incomplete: c.incomplete, basis };
+    // Por lotes: costo del lote ÷ lo que rinde, en la unidad del producto.
+    const yieldQty = parseQty(recipeDraft.yieldQty);
+    const perUnit = yieldQty
+      ? productionUnitCost(c.total, yieldQty, recipeDraft.yieldUnit || form.unit, productHolder)
+      : null;
+    if (perUnit === null) {
+      return { total: 0, incomplete: false, basis, pending: "Indica cuánto rinde un lote para ver el costo por unidad." };
+    }
+    return { total: perUnit, incomplete: c.incomplete, basis };
+  })();
   const initialStock = noStock ? 0 : stockUnitsOf(
     presentation === "package" ? initialPackages : "",
     initialLoose,
@@ -380,6 +448,13 @@ function ProductForm() {
       tracks_stock: editingProduct.tracks_stock !== false,
       open_price: editingProduct.open_price === true,
       is_ingredient: editingProduct.is_ingredient === true,
+      // Presentación ("cada unidad trae 900 ml"), con coma decimal como el
+      // resto de cantidades de la receta.
+      content_qty:
+        editingProduct.content_qty != null && editingProduct.content_qty > 0
+          ? String(editingProduct.content_qty).replace(".", ",")
+          : EMPTY_CONTENT.content_qty,
+      content_unit: editingProduct.content_unit || EMPTY_CONTENT.content_unit,
     });
     setPresentation((editingProduct.units_per_package ?? 1) > 1 ? "package" : "unit");
     setPurchase.fromTotal(String(editingProduct.purchase_price ?? "0"));
@@ -417,7 +492,17 @@ function ProductForm() {
   const recipesReady = recipesLoaded || recipesLoadError !== null;
   if (productionOn && (recipesReady || !editingId) && !loadingProduct && recipeSeededFor !== recipeKey) {
     setRecipeSeededFor(recipeKey);
-    setRecipeDraft(draftFromRecipe(existingRecipe));
+    // `?receta=lotes|venta` (desde Producción) abre un alta con la receta ya
+    // encendida: un paso menos para quien viene a crear un preparado o un
+    // producto con receta, sin cambiar nada al editar. La línea lleva clave
+    // fija: esto corre también en el servidor, y una clave con Date.now() no
+    // coincidiría al hidratar.
+    const preset = !editingId ? searchParams.get("receta") : null;
+    setRecipeDraft(
+      preset === "lotes" || preset === "venta"
+        ? { ...EMPTY_RECIPE, enabled: true, kind: preset === "lotes" ? "production" : "sale", lines: [newEditorLine({ key: "preset" })] }
+        : draftFromRecipe(existingRecipe),
+    );
   }
   const loadingRecipe = productionOn && !!editingId && recipeSeededFor !== recipeKey;
   /** Si las recetas no cargaron, NO se toca la receta al guardar: podría borrarse una que existe. */
@@ -494,7 +579,13 @@ function ProductForm() {
       kind,
       items: lines,
       yieldQty: kind === "production" ? parseQty(recipeDraft.yieldQty) : null,
-      yieldUnit: kind === "production" ? (recipeDraft.yieldUnit || form.unit) : null,
+      // La misma regla que muestra el editor: una unidad de rendimiento que ya
+      // no se convierte (cambió la unidad o el contenido del producto) cae a
+      // la del producto, en vez de rebotar en la base.
+      yieldUnit:
+        kind === "production"
+          ? compatibleUnits(productHolder).includes(recipeDraft.yieldUnit) ? recipeDraft.yieldUnit : form.unit
+          : null,
     };
     let result = await saveRecipe(input);
     if (!result.ok && result.needsStockClear) {
@@ -542,8 +633,23 @@ function ProductForm() {
         errores.price = error instanceof Error ? error.message : "Indica un precio de venta válido.";
       }
     }
-    const commission = commissionError(form.has_commission, form.commission_type, form.commission_value);
+    // Un insumo no se vende, así que no comisiona: el bloque está escondido y
+    // no puede frenar el guardado un campo que no se ve.
+    const commission = ingredientMode
+      ? undefined
+      : commissionError(form.has_commission, form.commission_type, form.commission_value);
     if (commission) errores.commission = commission;
+    // "Cada unidad trae": vacío vale (sin presentación; `contentPatch` guarda
+    // null), pero si se escribió algo tiene que ser una cantidad legible.
+    if (
+      !isService &&
+      productionOn &&
+      !isMeasureUnit(form.unit) &&
+      (form.content_qty ?? "").trim() !== "" &&
+      parseQty(form.content_qty ?? "") === null
+    ) {
+      errores.content = "Escribe cuánto trae cada unidad (un número mayor que 0), o deja el campo vacío.";
+    }
 
     // La receta se valida ANTES de guardar nada: guardar el producto y que la
     // receta rebote dejaría la mitad del cambio hecho.
@@ -579,7 +685,8 @@ function ProductForm() {
     if (Object.keys(errores).length > 0) {
       setFieldErrors(errores);
       // Al primer campo con problema, que puede estar fuera de la pantalla.
-      (errores.name ? nameRef : errores.price ? priceRef : commissionRef).current?.focus();
+      // En el orden en que aparecen en la pantalla.
+      (errores.name ? nameRef : errores.content ? contentRef : errores.price ? priceRef : commissionRef).current?.focus();
       return;
     }
 
@@ -675,6 +782,10 @@ function ProductForm() {
             ? true
             : form.tracks_stock,
         is_ingredient: productionOn ? form.is_ingredient === true : undefined,
+        // Lo que un insumo no tiene (no se vende) no se guarda aunque haya
+        // quedado encendido de antes de marcarlo "Solo insumo".
+        has_commission: ingredientMode ? false : form.has_commission,
+        open_price: ingredientMode ? false : form.open_price,
         name: form.name.trim(),
         purchase_price: purchasePriceTotal,
         price: sellingPriceTotal,
@@ -682,7 +793,7 @@ function ProductForm() {
         // columna, y en edición la entrada va por el RPC de movimientos.
         stock_level: String(initialStock),
         units_per_package: presentation === "package" ? (form.units_per_package || "1") : "1",
-        package_price: presentation === "package" ? form.package_price : "",
+        package_price: presentation === "package" && !ingredientMode ? form.package_price : "",
       };
 
       const ok = editId
@@ -752,6 +863,11 @@ function ProductForm() {
           if (u && (prev.unit === "Unidad" || canAutofill(prev.unit, auto.unit))) {
             next.unit = u;
             auto.unit = u;
+            // Una unidad que mide no tiene contenido ("cada unidad trae").
+            if (isMeasureUnit(u)) {
+              next.content_qty = EMPTY_CONTENT.content_qty;
+              next.content_unit = EMPTY_CONTENT.content_unit;
+            }
           }
         }
 
@@ -837,6 +953,32 @@ function ProductForm() {
       </div>
     );
   }
+
+  /**
+   * La receta va DENTRO de la tarjeta, pegada al precio (producto) o al bloque
+   * del servicio y antes de la presentación: es lo que explica el costo, así
+   * que se lee junto a él. Se arma una vez y cada rama la coloca donde le toca.
+   */
+  const recipeSection = productionOn ? (
+    <RecipeSection
+      target={itemType === "Servicio" ? "service" : "product"}
+      selfId={editId}
+      product={productHolder}
+      price={itemType === "Servicio" ? serviceFinalValue : parseFloat(sellingPriceTotal || "0") || 0}
+      draft={form.is_ingredient && itemType === "Producto" ? { ...recipeDraft, kind: "production" } : recipeDraft}
+      onChange={(next) => { setRecipeDraft(next); setRecipeError(null); }}
+      products={products}
+      saleRecipeProductIds={saleRecipeProductIds}
+      canSeeCosts={canSeeCosts}
+      ownStockToClear={
+        editingProduct && existingRecipe?.kind !== "sale" && editingProduct.tracks_stock !== false
+          ? editingProduct.stock_level
+          : null
+      }
+      error={recipeError}
+      onlyProduction={itemType === "Producto" && form.is_ingredient === true}
+    />
+  ) : null;
 
   return (
     /* El layout del dashboard ya aporta el padding de página: aquí solo el ancho. */
@@ -1043,7 +1185,12 @@ function ProductForm() {
               <Select
                 label="Unidad de Medida"
                 value={form.unit}
-                onChange={(e) => setForm({ ...form, unit: e.target.value })}
+                onChange={(e) => {
+                  const unit = e.target.value;
+                  // Una unidad que ya mide (kg, L…) no tiene contenido: se limpia.
+                  setForm((prev) => ({ ...prev, unit, ...(isMeasureUnit(unit) ? EMPTY_CONTENT : {}) }));
+                  setFieldErrors((p) => ({ ...p, content: undefined }));
+                }}
               >
                 <option value="Unidad">Unidad</option>
                 <option value="kg">kg</option>
@@ -1058,6 +1205,67 @@ function ProductForm() {
                 <option value="Caja">Caja</option>
                 <option value="Pack">Pack</option>
               </Select>
+
+              {/* Presentación: "cada bolsa trae 900 ml". Solo con el módulo de
+                  recetas y solo si la unidad NO mide: algo que ya está en ml se
+                  gasta en ml. Stock, compras y POS siguen contando bolsas; la
+                  receta la gasta en ml. Va debajo del selector de unidad, que
+                  es lo que completa. */}
+              {contentApplies && !showContent && (
+                <div className="sm:col-start-2 -mt-2">
+                  <button
+                    type="button"
+                    onClick={() => setContentOpened(true)}
+                    className="text-xs font-semibold text-primary-ink underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded"
+                  >
+                    ¿Lo usas en recetas medido en ml o g? Indica cuánto trae cada {unitNoun(form.unit)}
+                  </button>
+                </div>
+              )}
+              {showContent && (
+                <div className="space-y-1.5 sm:col-start-2">
+                  <label htmlFor="product-content-qty" className="text-[13px] font-semibold text-on-surface block">
+                    Cada {unitNoun(form.unit)} trae <span className="text-on-surface-variant font-normal">(opcional)</span>
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      id="product-content-qty"
+                      ref={contentRef}
+                      inputMode="decimal"
+                      value={form.content_qty ?? ""}
+                      onChange={(e) => {
+                        setForm({ ...form, content_qty: e.target.value });
+                        setFieldErrors((p) => ({ ...p, content: undefined }));
+                      }}
+                      aria-invalid={!!fieldErrors.content}
+                      aria-describedby={fieldErrors.content ? "product-content-error" : "product-content-help"}
+                      placeholder="Ej. 900"
+                      className={`flex-1 min-w-0 bg-surface-container-lowest border rounded-xl h-11 px-4 text-base sm:text-sm text-on-surface tabular-nums focus:outline-none focus:ring-2 transition-all placeholder:text-on-surface-variant/50 ${
+                        fieldErrors.content
+                          ? "border-error focus:border-error focus:ring-error/20"
+                          : "border-outline-variant/30 focus:border-primary focus:ring-primary/20"
+                      }`}
+                    />
+                    <Select
+                      aria-label="Unidad del contenido"
+                      containerClassName="w-24 shrink-0"
+                      value={form.content_unit || EMPTY_CONTENT.content_unit}
+                      onChange={(e) => setForm({ ...form, content_unit: e.target.value })}
+                    >
+                      {MEASURE_UNITS.map((u) => (
+                        <option key={u} value={u}>{u}</option>
+                      ))}
+                    </Select>
+                  </div>
+                  {fieldErrors.content ? (
+                    <p id="product-content-error" className="text-xs font-medium text-error">{fieldErrors.content}</p>
+                  ) : (
+                    <p id="product-content-help" className="text-xs text-on-surface-variant">
+                      Ej.: una bolsa de leche trae 900 ml. Así sigues contando bolsas y la receta la gasta en ml.
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -1129,7 +1337,11 @@ function ProductForm() {
                 unitsPerPackage={form.units_per_package ?? "1"}
                 sellingPriceError={fieldErrors.price}
                 sellingPriceRef={priceRef}
+                ingredientMode={ingredientMode}
+                recipeCost={recipeCostInfo}
               />
+
+              {recipeSection}
 
               <ProductPresentationSection
                 presentation={presentation}
@@ -1147,6 +1359,7 @@ function ProductForm() {
                 tracksStock={!noStock}
                 onTracksStockChange={(v) => setForm((prev) => ({ ...prev, tracks_stock: v }))}
                 recipeManagedStock={saleRecipeActive}
+                ingredientMode={ingredientMode}
                 openPrice={form.open_price === true}
                 onOpenPriceChange={(v) => setForm((prev) => ({ ...prev, open_price: v }))}
                 currentStock={currentStock}
@@ -1308,8 +1521,10 @@ function ProductForm() {
             </div>
           )}
 
+          {itemType === "Servicio" && recipeSection}
 
-          {/* Comisión */}
+          {/* Comisión. Un insumo no se vende, así que no comisiona. */}
+          {!ingredientMode && (
           <div className="pt-4 border-t border-outline-variant/10">
             <div className="flex items-center gap-3 mb-4">
               <Switch
@@ -1386,28 +1601,8 @@ function ProductForm() {
               </div>
             )}
           </div>
+          )}
         </div>
-
-        {productionOn && (
-          <RecipeSection
-            target={itemType === "Servicio" ? "service" : "product"}
-            selfId={editId}
-            productUnit={form.unit}
-            price={itemType === "Servicio" ? serviceFinalValue : parseFloat(sellingPriceTotal || "0") || 0}
-            draft={form.is_ingredient && itemType === "Producto" ? { ...recipeDraft, kind: "production" } : recipeDraft}
-            onChange={(next) => { setRecipeDraft(next); setRecipeError(null); }}
-            products={products}
-            saleRecipeProductIds={saleRecipeProductIds}
-            canSeeCosts={can(profile, "inventory_costs")}
-            ownStockToClear={
-              editingProduct && existingRecipe?.kind !== "sale" && editingProduct.tracks_stock !== false
-                ? editingProduct.stock_level
-                : null
-            }
-            error={recipeError}
-            onlyProduction={itemType === "Producto" && form.is_ingredient === true}
-          />
-        )}
 
         {/* Cada mitad guarda en su tabla, así que el fallo llega por el store
             que corresponde. Antes el servicio se guardaba con `catch {}` vacíos

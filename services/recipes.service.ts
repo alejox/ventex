@@ -143,15 +143,22 @@ export function toIngredientInfo(product: {
   id: string;
   name: string;
   unit: string;
+  content_qty?: number | string | null;
+  content_unit?: string | null;
+  allows_fractions?: boolean | null;
   purchase_price?: number | null;
   units_per_package?: number | null;
   stock_level: number;
   tracks_stock?: boolean | null;
 }): IngredientInfo {
+  const contentQty = product.content_qty === null || product.content_qty === undefined ? null : Number(product.content_qty);
   return {
     id: product.id,
     name: product.name,
     unit: product.unit,
+    content_qty: contentQty !== null && contentQty > 0 ? contentQty : null,
+    content_unit: product.content_unit ?? null,
+    allows_fractions: product.allows_fractions === true,
     purchase_price: product.purchase_price ?? null,
     units_per_package: product.units_per_package ?? 1,
     stock_level: Number(product.stock_level) || 0,

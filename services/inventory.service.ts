@@ -2,6 +2,7 @@ import { createClient } from "@/utils/supabase/client";
 import type { TablesUpdate } from "@/utils/supabase/database.types";
 import { getSelectedWorkspaceId } from "@/services/workspace.service";
 import { toWebp, verificarPeso } from "@/lib/image";
+import { isMeasureUnit } from "@/lib/units";
 import { runInBatches, errorMessage as importErrorMessage, type ImportResult } from "@/lib/import/core";
 import type { ProductImportRecord } from "@/lib/import/products";
 
@@ -27,6 +28,14 @@ export interface Product {
   /** Código del fabricante (EAN-13 / UPC) impreso en el empaque. */
   barcode: string | null;
   unit: string;
+  /**
+   * Presentación (módulo Recetas y producción): cada `unit` trae
+   * `content_qty content_unit` (una bolsa de leche = 900 ml). Solo cuando `unit`
+   * no mide (Unidad, Caja…); con una unidad que mide van en null. Permite contar
+   * bolsas en stock, compras y POS y gastarlas en ml en la receta.
+   */
+  content_qty: number | null;
+  content_unit: string | null;
   purchase_price?: number;
   price: number;
   /** Precio de venta de la CAJA (IVA incluido). null = no se vende por caja. */
@@ -131,6 +140,9 @@ export interface NewProductInput {
   sku: string;
   barcode?: string;
   unit: string;
+  /** Presentación "cada unidad trae": cantidad y unidad de medida (strings del formulario). */
+  content_qty?: string;
+  content_unit?: string;
   purchase_price: string;
   price: string;
   package_price?: string;
@@ -268,12 +280,19 @@ export function calculateInventoryValue(
 /**
  * Calcula el porcentaje de margen de ganancia real y el costo por unidad derivado.
  */
+/**
+ * Margen de un producto: cuánto del PRECIO de venta queda después del costo
+ * (`(precio − costo) / precio`), en %. Es la misma convención que
+ * `recipeMargin` (lib/recipes.ts): antes acá se calculaba sobre el costo y la
+ * ficha mostraba dos "márgenes" distintos para el mismo precio y el mismo
+ * costo. `profit` es la plata que queda por unidad.
+ */
 export function calculateMargin(
   purchaseTotalRaw: string | number,
   sellingTotalRaw: string | number,
   presentation: "unit" | "package",
   unitsPerPackageRaw?: string | number
-): { pct: number; costPerUnit: number } | null {
+): { pct: number; costPerUnit: number; profit: number } | null {
   const cost = typeof purchaseTotalRaw === "number" ? purchaseTotalRaw : parseFloat(purchaseTotalRaw || "0");
   const price = typeof sellingTotalRaw === "number" ? sellingTotalRaw : parseFloat(sellingTotalRaw || "0");
   if (!(cost > 0) || !(price > 0)) return null;
@@ -281,8 +300,9 @@ export function calculateMargin(
   const rawUnits = typeof unitsPerPackageRaw === "number" ? unitsPerPackageRaw : parseInt(String(unitsPerPackageRaw || "1"));
   const units = presentation === "package" ? Math.max(rawUnits || 1, 1) : 1;
   const costPerUnit = cost / units;
-  const pct = ((price - costPerUnit) / costPerUnit) * 100;
-  return { pct, costPerUnit };
+  const profit = price - costPerUnit;
+  const pct = (profit / price) * 100;
+  return { pct, costPerUnit, profit };
 }
 
 /**
@@ -316,7 +336,8 @@ export function handlePresentationModeChange(
 const PRODUCT_COLUMNS =
   "id, created_at, updated_at, user_id, name, sku, barcode, price, package_price, stock_level, image_url, status, " +
   "category_id, unit, distributor_id, minimum_stock, icon, has_commission, commission_type, " +
-  "commission_value, units_per_package, tracks_stock, open_price, allows_fractions, is_ingredient";
+  "commission_value, units_per_package, tracks_stock, open_price, allows_fractions, is_ingredient, " +
+  "content_qty, content_unit";
 
 const PRODUCT_SELECT = `${PRODUCT_COLUMNS}, categories(name), distributors(business_name)`;
 
@@ -448,6 +469,24 @@ function normalizeBarcode(raw: string | undefined): string | null {
 }
 
 /**
+ * Presentación "cada unidad trae 900 ml". Solo tiene sentido en una unidad que
+ * NO mide (Unidad, Caja…) y con cantidad positiva en una unidad que sí mide;
+ * cualquier otra combinación va en null, que es lo que la base exige
+ * (`products_content_shape`). Acepta coma decimal: "0,9".
+ */
+export function contentPatch(input: Pick<NewProductInput, "unit" | "content_qty" | "content_unit">): {
+  content_qty: number | null;
+  content_unit: string | null;
+} {
+  const unit = (input.content_unit ?? "").trim();
+  const qty = parseFloat((input.content_qty ?? "").trim().replace(",", "."));
+  if (isMeasureUnit(input.unit) || !isMeasureUnit(unit) || !Number.isFinite(qty) || qty <= 0) {
+    return { content_qty: null, content_unit: null };
+  }
+  return { content_qty: Math.round(qty * 1000) / 1000, content_unit: unit };
+}
+
+/**
  * Existencias con las que NACE el ítem. Solo el alta: ver `updateProduct`.
  *
  * Un servicio siempre queda en cero, y además con mínimo cero: el `minimum_stock`
@@ -516,6 +555,7 @@ export async function createProduct(input: NewProductInput): Promise<Product> {
       sku: normalizeSku(input.sku),
       barcode: normalizeBarcode(input.barcode),
       unit: input.unit,
+      ...contentPatch(input),
       ...costPatch(input.purchase_price),
       price,
       package_price: normalizePackagePrice(input.package_price),
@@ -574,6 +614,7 @@ export async function updateProduct(id: string, input: NewProductInput): Promise
       sku: normalizeSku(input.sku),
       barcode: normalizeBarcode(input.barcode),
       unit: input.unit,
+      ...contentPatch(input),
       ...costPatch(input.purchase_price),
       price,
       package_price: normalizePackagePrice(input.package_price),

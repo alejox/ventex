@@ -4,8 +4,11 @@ import {
   areUnitsCompatible,
   compatibleUnits,
   consumedQty,
+  contentLabel,
   convertQty,
+  isMeasureUnit,
   losesPrecision,
+  productUnitFactor,
   roundStock,
   unitFactor,
 } from "../lib/units";
@@ -62,4 +65,54 @@ test("losesPrecision avisa cuando 3 decimales no alcanzan para la cantidad por u
   assert.equal(losesPrecision(20, "g", "kg"), false); // 0,02 kg
   assert.equal(losesPrecision(0.5, "g", "g"), false);
   assert.equal(losesPrecision(1, "kg", "Unidad"), false); // incompatibles: lo marca otra validación
+});
+
+const bolsaLeche = { unit: "Unidad", content_qty: 900, content_unit: "ml" };
+const bultoHarina = { unit: "Unidad", content_qty: 50, content_unit: "kg" };
+
+test("presentación: una bolsa de 900 ml se puede medir en ml y en L (espejo de product_unit_factor)", () => {
+  assert.equal(productUnitFactor("Unidad", bolsaLeche), 1);
+  assert.equal(productUnitFactor("ml", bolsaLeche), 1 / 900);
+  assert.equal(productUnitFactor("L", bolsaLeche), 1000 / 900);
+  assert.equal(productUnitFactor("g", bolsaLeche), null);
+  assert.equal(productUnitFactor("g", bultoHarina), 1 / 50000);
+  // Sin contenido, Unidad solo es Unidad.
+  assert.equal(productUnitFactor("ml", "Unidad"), null);
+  assert.equal(productUnitFactor("ml", { unit: "Unidad" }), null);
+  // Un producto que ya mide ignora el contenido (la base lo deja en null).
+  assert.equal(productUnitFactor("g", { unit: "kg", content_qty: 900, content_unit: "ml" }), 0.001);
+  assert.equal(productUnitFactor("ml", { unit: "kg", content_qty: 900, content_unit: "ml" }), null);
+  assert.equal(areUnitsCompatible("ml", bolsaLeche), true);
+});
+
+test("convertQty y consumedQty con contenido: 150 ml de leche son 0,167 bolsas", () => {
+  assert.equal(convertQty(150, "ml", bolsaLeche), 150 / 900);
+  assert.equal(consumedQty(150, "ml", bolsaLeche, 1), 0.167);
+  assert.equal(consumedQty(150, "ml", bolsaLeche, 6), 1);
+  assert.equal(consumedQty(900, "ml", bolsaLeche, 1), 1);
+  assert.equal(consumedQty(2, "Unidad", bolsaLeche, 1), 2);
+});
+
+test("compatibleUnits con contenido ofrece la unidad y la dimensión del contenido", () => {
+  assert.deepEqual(compatibleUnits(bolsaLeche), ["Unidad", "ml", "L"]);
+  assert.deepEqual(compatibleUnits(bultoHarina), ["Unidad", "g", "kg", "lb"]);
+  assert.deepEqual(compatibleUnits({ unit: "Unidad" }), ["Unidad"]);
+  assert.deepEqual(compatibleUnits({ unit: "Caja", content_qty: 0, content_unit: "ml" }), ["Caja"]);
+});
+
+test("losesPrecision es relativo: la bolsa de 900 ml no avisa, el medio gramo en kg sí", () => {
+  assert.equal(losesPrecision(150, "ml", bolsaLeche), false); // 0,1667 → 0,167 (0,2 %)
+  assert.equal(losesPrecision(0.3, "ml", bolsaLeche), true); // 0,00033 → 0
+  assert.equal(losesPrecision(50, "ml", bolsaLeche), false); // 0,05556 → 0,056 (0,8 %)
+  assert.equal(losesPrecision(5, "ml", bolsaLeche), true); // 0,00556 → 0,006 (8 %): un chorrito en bolsa se deforma
+});
+
+test("isMeasureUnit y contentLabel", () => {
+  assert.equal(isMeasureUnit("kg"), true);
+  assert.equal(isMeasureUnit("Unidad"), false);
+  assert.equal(isMeasureUnit(null), false);
+  assert.equal(contentLabel(bolsaLeche), "900 ml c/u");
+  assert.equal(contentLabel({ unit: "Unidad", content_qty: 0.9, content_unit: "L" }), "0,9 L c/u");
+  assert.equal(contentLabel({ unit: "Unidad" }), null);
+  assert.equal(contentLabel({ unit: "kg", content_qty: 1, content_unit: "L" }), null);
 });

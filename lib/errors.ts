@@ -113,6 +113,14 @@ export function isNetworkError(e: unknown): boolean {
  *
  * - `P0001`: los `raise exception` de `create_sale` (STOCK_INSUFICIENTE, tope
  *   del plan, cupo de crédito, turno cerrado).
+ * - clase `22` (datos inválidos): los `raise … using errcode = '22023'` de
+ *   `create_sale` — `INSUMO_INSUFICIENTE` (receta de venta con la sobreventa
+ *   apagada, 20261011100000) y `METODO_PAGO_INVALIDO`— y los propios de
+ *   Postgres (un número fuera de rango, un uuid mal formado). Es la misma
+ *   venta la que se reenvía, así que el mismo payload da el mismo "no": sin
+ *   esto, una venta encolada que no alcanzaba insumos gastaba los
+ *   `MAX_SYNC_ATTEMPTS` reintentos antes de llegar a conflictos, mientras
+ *   contaba como "pendiente" en el POS.
  * - clase `23`: violaciones de restricción.
  * - clase `42`: permisos y RLS.
  *
@@ -124,7 +132,7 @@ export function isBusinessRejection(e: unknown): boolean {
   if (!e || typeof e !== "object") return false;
   const code = (e as { code?: unknown }).code;
   if (typeof code !== "string") return false;
-  return code === "P0001" || code.startsWith("23") || code.startsWith("42");
+  return code === "P0001" || code.startsWith("22") || code.startsWith("23") || code.startsWith("42");
 }
 
 export function toMessage(e: unknown): string {
@@ -201,7 +209,7 @@ export function toMessage(e: unknown): string {
       // --- Compras y pedidos de compra (migraciones 20261007120000-120200) ---
       const purchaseMessage = purchaseErrorMessage(raw);
       if (purchaseMessage) return purchaseMessage;
-      // --- Recetas y producción (migraciones 20261008100000-100300) ---
+      // --- Recetas y producción (migraciones 20261008100000-100300 y 20261011100000) ---
       const recipeMessage = recipeErrorMessage(raw);
       if (recipeMessage) return recipeMessage;
       // `SIN_PERMISO: no tenés permiso para X` → `No tenés permiso para X`
@@ -271,7 +279,9 @@ function purchaseErrorMessage(raw: string): string | null {
 
 /**
  * Recetas y producción: códigos de `save_recipe`, `register_production_batch`,
- * `void_production_batch` y del trigger `products_guard_recipe`. Varios traen
+ * `void_production_batch`, del trigger `products_guard_recipe` y de
+ * `apply_sale_recipe` (que corre dentro de `create_sale`: con la sobreventa
+ * apagada, un insumo que no alcanza aborta la venta). Varios traen
  * el nombre del producto en el detalle ("RECETA_CICLICA: Masa ya se usa…"):
  * esos se muestran con su detalle, sin el código, más una indicación de qué
  * hacer. Bloque aparte, como el de compras.
@@ -294,7 +304,11 @@ const RECIPE_ERRORS: [RegExp, string | ((detail: string) => string)][] = [
   [/^LOTE_CANTIDAD_INVALIDA\b/, "Indica cuánto produjiste o cuántas tandas hiciste (una de las dos, mayor que cero)."],
   [/^LOTE_SIN_INSUMOS\b/, "Con esa cantidad la receta no gasta ningún insumo. Revisa la cantidad del lote."],
   [/^LOTE_YA_ANULADO\b/, "Este lote ya estaba anulado. Actualiza la lista."],
-  [/^INSUMO_INSUFICIENTE\b/, (d) => `No alcanza el insumo: ${d}. Registra la compra o activa la venta sin stock en Ajustes.`],
+  // Llega del lote (`register_production_batch`) Y de la venta (`apply_sale_recipe`
+  // desde `create_sale`, 20261011100000): el detalle ya dice cuál de los dos
+  // ("…y la venta necesita 0.167" / "…y el lote necesita 2"), así que el
+  // remate sirve a ambos.
+  [/^INSUMO_INSUFICIENTE\b/, (d) => `No alcanza el insumo: ${d}. Registra la compra, ajusta su stock o activa la venta sin stock en Ajustes.`],
   [/^CANTIDAD_ENTERA: .* se produce\b/, (d) => `${d}.`],
 ];
 

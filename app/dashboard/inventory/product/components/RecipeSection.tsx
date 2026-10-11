@@ -7,7 +7,14 @@ import { Switch } from "@/components/ui/Switch";
 import { Select } from "@/components/ui/Select";
 import { IconButton } from "@/components/ui/Button";
 import { useFormatMoney } from "@/lib/useMoney";
-import { compatibleUnits, losesPrecision } from "@/lib/units";
+import {
+  compatibleUnits,
+  consumedQty,
+  contentLabel,
+  losesPrecision,
+  productUnitFactor,
+  type UnitHolder,
+} from "@/lib/units";
 import { productionUnitCost, recipeCost, recipeMargin, type IngredientInfo, type RecipeKind } from "@/lib/recipes";
 import {
   candidateLabel,
@@ -15,6 +22,7 @@ import {
   defaultLineUnit,
   editorLineIssues,
   editorToLines,
+  formatQty,
   ingredientCandidates,
   marginTone,
   parseQty,
@@ -23,11 +31,12 @@ import {
   type EditorLine,
 } from "@/lib/recipe-editor";
 import { toIngredientInfo } from "@/services/recipes.service";
-import { IngredientQuickModal } from "./IngredientQuickModal";
+import { IngredientQuickModal, type CreatedIngredient } from "./IngredientQuickModal";
 
 type RecipeProduct = CandidateProduct & {
   purchase_price?: number | null;
   units_per_package?: number | null;
+  allows_fractions?: boolean | null;
   stock_level: number;
 };
 
@@ -39,13 +48,30 @@ export interface RecipeDraft {
   yieldUnit: string;
 }
 
+/**
+ * Los productos del catálogo como insumos para costear (`recipeCost`) y
+ * planificar. Lo usan el editor y la ficha (para el "Costo según receta"), así
+ * que vive acá una sola vez: si cambia cómo se lee un insumo, cambia para los dos.
+ */
+export function buildIngredientsMap(products: readonly RecipeProduct[]): Map<string, IngredientInfo> {
+  const map = new Map<string, IngredientInfo>();
+  for (const p of products) {
+    map.set(p.id, toIngredientInfo({ ...p, unit: p.unit, tracks_stock: p.tracks_stock ?? true }));
+  }
+  return map;
+}
+
 interface RecipeSectionProps {
   /** De qué es la receta: un servicio solo puede tener receta de venta. */
   target: "product" | "service";
   /** El producto que se edita (se excluye de sus propios insumos). */
   selfId: string | null;
-  /** Unidad del producto (para el rendimiento de un lote). */
-  productUnit: string;
+  /**
+   * El producto que se edita como destino de conversión: su unidad y, si la
+   * declara, su presentación ("cada unidad trae 1 L"). Decide en qué unidades
+   * puede rendir un lote: una botella de jarabe de 1 L puede rendir "12 L".
+   */
+  product: UnitHolder;
   /** Precio de venta final, para el margen. */
   price: number;
   draft: RecipeDraft;
@@ -73,6 +99,20 @@ export function newEditorLine(partial: Partial<EditorLine> = {}): EditorLine {
   return { key: `l${Date.now()}-${lineSeq}`, ingredientId: "", qty: "", unit: "", ...partial };
 }
 
+/** "unidad" / "caja" / "kg": la unidad de stock como palabra, en singular. */
+function stockUnitWord(unit: string): string {
+  return unit === "Unidad" ? "unidad" : unitLabel(unit, 1);
+}
+
+/** "unidades" / "cajas" / "kg": la misma palabra, en plural. */
+function stockUnitWords(unit: string): string {
+  return unit === "Unidad" ? "unidades" : unitLabel(unit, 2);
+}
+
+function formatNumber(value: number, maximumFractionDigits = 2): string {
+  return value.toLocaleString("es-CO", { maximumFractionDigits });
+}
+
 /**
  * Editor de receta de la ficha del producto o servicio.
  *
@@ -81,13 +121,17 @@ export function newEditorLine(partial: Partial<EditorLine> = {}): EditorLine {
  * y, al lado, la ficha de costo: cuánto sale hacerlo y cuánto queda.
  *
  * La unidad se propone sola (g para lo que se compra por kg, ml para lo que se
- * compra por litro) y solo se ofrecen las que se pueden convertir: es
- * imposible armar "1 Caja de leche" contra un insumo en litros.
+ * compra por litro, ml para una bolsa que declara "trae 900 ml") y solo se
+ * ofrecen las que se pueden convertir: es imposible armar "1 Caja de leche"
+ * contra un insumo en litros.
+ *
+ * Va DENTRO de la tarjeta del formulario, después del precio y antes de la
+ * presentación: la receta es lo que explica el costo, así que se lee pegada a él.
  */
 export function RecipeSection({
   target,
   selfId,
-  productUnit,
+  product,
   price,
   draft,
   onChange,
@@ -102,13 +146,7 @@ export function RecipeSection({
   const [creatingFor, setCreatingFor] = useState<string | null>(null);
 
   const productById = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
-  const ingredientsMap = useMemo(() => {
-    const map = new Map<string, IngredientInfo>();
-    for (const p of products) {
-      map.set(p.id, toIngredientInfo({ ...p, unit: p.unit, tracks_stock: p.tracks_stock ?? true }));
-    }
-    return map;
-  }, [products]);
+  const ingredientsMap = useMemo(() => buildIngredientsMap(products), [products]);
 
   const usedIds = useMemo(() => new Set(draft.lines.map((l) => l.ingredientId).filter(Boolean)), [draft.lines]);
   const candidates = useMemo(
@@ -124,8 +162,12 @@ export function RecipeSection({
   const isProduction = target === "product" && draft.kind === "production";
 
   const yieldValue = parseQty(draft.yieldQty);
+  const yieldUnits = compatibleUnits(product);
+  // Si la unidad guardada dejó de convertirse (cambió la unidad o el contenido
+  // del producto), se cae a la del producto: es lo mismo que manda la ficha.
+  const yieldUnit = yieldUnits.includes(draft.yieldUnit) ? draft.yieldUnit : product.unit;
   const unitCost = isProduction && yieldValue
-    ? productionUnitCost(cost.total, yieldValue, draft.yieldUnit || productUnit, productUnit)
+    ? productionUnitCost(cost.total, yieldValue, yieldUnit, product)
     : null;
   const margin = !isProduction ? recipeMargin(price, cost.total) : null;
   const tone = marginTone(margin?.pct ?? null);
@@ -145,20 +187,22 @@ export function RecipeSection({
   const addLine = () => set({ lines: [...draft.lines, newEditorLine()] });
   const pickIngredient = (key: string, ingredientId: string) => {
     const ing = productById.get(ingredientId);
-    setLine(key, { ingredientId, unit: ing ? defaultLineUnit(ing.unit) : "" });
+    setLine(key, { ingredientId, unit: ing ? defaultLineUnit(ing) : "" });
   };
 
-  const onCreated = (productId: string, stockUnit: string) => {
-    // El insumo recién creado todavía no está en `products` de este render.
-    const unit = defaultLineUnit(stockUnit);
+  const onCreated = (created: CreatedIngredient) => {
+    // El insumo recién creado todavía no está en `products` de este render,
+    // así que la unidad se propone desde lo que devolvió el modal (incluido su
+    // contenido: una bolsa de 900 ml arranca en ml).
+    const unit = defaultLineUnit(created);
     const targetKey = creatingFor;
     setCreatingFor(null);
     // Reemplaza la línea vacía desde la que se abrió, o agrega una nueva.
     const existing = draft.lines.find((l) => l.key === targetKey && !l.ingredientId);
     if (existing) {
-      set({ lines: draft.lines.map((l) => (l.key === existing.key ? { ...l, ingredientId: productId, unit } : l)) });
+      set({ lines: draft.lines.map((l) => (l.key === existing.key ? { ...l, ingredientId: created.id, unit } : l)) });
     } else {
-      set({ lines: [...draft.lines, newEditorLine({ ingredientId: productId, unit })] });
+      set({ lines: [...draft.lines, newEditorLine({ ingredientId: created.id, unit })] });
     }
   };
 
@@ -167,7 +211,7 @@ export function RecipeSection({
   return (
     <section
       aria-labelledby="recipe-title"
-      className="bg-surface-container rounded-2xl sm:rounded-3xl border border-outline-variant/10 shadow-sm p-4 sm:p-8 space-y-5"
+      className="border-t border-outline-variant/10 pt-6 space-y-5"
     >
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-start gap-3 min-w-0">
@@ -175,16 +219,24 @@ export function RecipeSection({
             <UtensilsCrossed className="h-5 w-5" aria-hidden="true" />
           </span>
           <div className="min-w-0">
-            <h2 id="recipe-title" className="text-lg font-bold text-on-surface">Receta</h2>
-            <p id="recipe-help" className="text-sm text-on-surface-variant">
+            <h3 id="recipe-title" className="text-base font-bold text-on-surface">
+              {onlyProduction ? "¿Lo preparas tú?" : "Receta"}
+            </h3>
+            <p id="recipe-help" className="text-xs text-on-surface-variant mt-1">
               {target === "service"
                 ? "Lo que gasta cada vez que lo haces. Ej.: un tinte usa 60 ml de tinte y 30 ml de oxidante."
-                : "Los insumos que gasta este producto. El stock se descuenta de ellos, no del producto."}
+                : onlyProduction
+                  ? "Si lo haces por tandas (líquido de granizado, masa), anota sus insumos y cuánto rinde. Cada tanda la registras en Producción."
+                  : !draft.enabled
+                    ? "Enciéndela si este producto se hace con insumos: un latte gasta café y leche, un granizado gasta líquido y un vaso."
+                    : draft.kind === "production"
+                      ? "Lo preparas por tandas y queda en stock. Cada tanda descuenta los insumos de abajo y suma lo que rinde."
+                      : "Cada venta descuenta los insumos de abajo. El producto no lleva stock propio."}
             </p>
           </div>
         </div>
         <Switch
-          aria-label={`Este ${noun} usa insumos`}
+          aria-label={onlyProduction ? "Lo preparo por tandas" : `Este ${noun} usa insumos`}
           checked={draft.enabled}
           onCheckedChange={(on) =>
             set({ enabled: on, lines: on && draft.lines.length === 0 ? [newEditorLine()] : draft.lines })
@@ -226,7 +278,7 @@ export function RecipeSection({
                       name="recipe-kind"
                       value={opt.kind}
                       checked={active}
-                      onChange={() => set({ kind: opt.kind, yieldUnit: draft.yieldUnit || productUnit })}
+                      onChange={() => set({ kind: opt.kind, yieldUnit: draft.yieldUnit || product.unit })}
                       className="sr-only"
                     />
                     <span className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${active ? "bg-primary text-on-primary" : "bg-surface-container-high text-on-surface-variant"}`}>
@@ -258,16 +310,20 @@ export function RecipeSection({
                   className="w-32 bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-base sm:text-sm text-on-surface tabular-nums focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                 />
               </div>
-              <Select
-                aria-label="Unidad del rendimiento"
-                containerClassName="w-28"
-                value={draft.yieldUnit || productUnit}
-                onChange={(e) => set({ yieldUnit: e.target.value })}
-              >
-                {compatibleUnits(productUnit).map((u) => (
-                  <option key={u} value={u}>{u}</option>
-                ))}
-              </Select>
+              {yieldUnits.length > 1 ? (
+                <Select
+                  aria-label="Unidad del rendimiento"
+                  containerClassName="w-28"
+                  value={yieldUnit}
+                  onChange={(e) => set({ yieldUnit: e.target.value })}
+                >
+                  {yieldUnits.map((u) => (
+                    <option key={u} value={u}>{u}</option>
+                  ))}
+                </Select>
+              ) : (
+                <span className="pb-3 text-sm text-on-surface-variant">{unitLabel(product.unit, 2)}</span>
+              )}
               <p className="text-xs text-on-surface-variant basis-full">
                 Las cantidades de abajo son las de UN lote. Al registrar un lote en Producción
                 eliges cuántas tandas hiciste.
@@ -294,8 +350,9 @@ export function RecipeSection({
               const issue = issues[index];
               const qty = parseQty(line.qty);
               const lineCost = line.ingredientId ? costByIngredient.get(line.ingredientId) : undefined;
-              const precision = ing && qty ? losesPrecision(qty, line.unit || ing.unit, ing.unit) : false;
-              const units = ing ? compatibleUnits(ing.unit) : [];
+              const lineUnit = line.unit || ing?.unit || "";
+              const precision = ing && qty ? losesPrecision(qty, lineUnit, ing) : false;
+              const units = ing ? compatibleUnits(ing) : [];
               const qtyId = `recipe-qty-${line.key}`;
               return (
                 <li
@@ -362,7 +419,7 @@ export function RecipeSection({
                         value={line.qty}
                         disabled={!ing}
                         onChange={(e) => setLine(line.key, { qty: e.target.value })}
-                        placeholder={ing ? (line.unit === "g" || line.unit === "ml" ? "Ej. 20" : "Ej. 1") : "—"}
+                        placeholder={ing ? (lineUnit === "g" || lineUnit === "ml" ? "Ej. 20" : "Ej. 1") : "—"}
                         aria-invalid={issue === "missing-qty" && line.qty.trim() !== ""}
                         className="w-24 bg-surface-container-lowest border border-outline-variant/30 rounded-xl h-11 px-3 text-base sm:text-sm text-right text-on-surface tabular-nums focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:opacity-50"
                       />
@@ -370,7 +427,7 @@ export function RecipeSection({
                         <Select
                           aria-label="Unidad"
                           containerClassName="w-24"
-                          value={line.unit || ing?.unit || ""}
+                          value={lineUnit}
                           onChange={(e) => setLine(line.key, { unit: e.target.value })}
                         >
                           {units.map((u) => (
@@ -392,11 +449,10 @@ export function RecipeSection({
 
                   {(precision || (canSeeCosts && lineCost?.missingCost && qty)) && (
                     <div className="mt-2 space-y-1 text-xs">
-                      {precision && ing && (
+                      {precision && ing && qty && (
                         <p className="flex items-start gap-1.5 text-amber-600 dark:text-amber-400">
                           <TriangleAlert className="h-3.5 w-3.5 mt-px shrink-0" aria-hidden="true" />
-                          El stock de {ing.name} se lleva en {ing.unit} con 3 decimales y esta cantidad se
-                          redondea. Si lo manejas en {defaultLineUnit(ing.unit)}, el descuento es exacto.
+                          <PrecisionNote ing={ing} qty={qty} lineUnit={lineUnit} />
                         </p>
                       )}
                       {canSeeCosts && lineCost?.missingCost && qty && ing && (
@@ -445,7 +501,7 @@ export function RecipeSection({
               margin={margin}
               tone={tone}
               unitCost={unitCost}
-              productUnit={productUnit}
+              productUnit={product.unit}
               fmtMoney={fmtMoney}
             />
           )}
@@ -474,6 +530,40 @@ export function RecipeSection({
         />
       )}
     </section>
+  );
+}
+
+/**
+ * Aviso de que el redondeo del stock (3 decimales) deforma la cantidad de la
+ * línea. Dos lecturas distintas:
+ *
+ * - Insumo CON contenido (bolsa de 900 ml gastada en 5 ml): no hay unidad mejor
+ *   en la que llevar bolsas, así que se muestra en qué queda y a cuánto
+ *   equivale, para que la persona decida si le importa.
+ * - Insumo sin contenido (0,5 g de algo guardado en kg): la salida es guardar
+ *   el insumo en la unidad chica, y se dice cuál.
+ */
+function PrecisionNote({ ing, qty, lineUnit }: { ing: RecipeProduct; qty: number; lineUnit: string }) {
+  const withContent = contentLabel(ing) !== null;
+  if (withContent) {
+    const consumed = consumedQty(qty, lineUnit, ing) ?? 0;
+    const factor = productUnitFactor(lineUnit, ing);
+    const equivalent = factor ? consumed / factor : null;
+    const lineUnitText = unitLabel(lineUnit, qty);
+    return (
+      <span>
+        Se descuenta por milésimas de {stockUnitWord(ing.unit)}: {formatNumber(qty, 3)} {lineUnitText} quedan en{" "}
+        {formatQty(consumed, ing.unit)}
+        {equivalent !== null && ` (≈ ${formatNumber(equivalent)} ${lineUnitText})`}. Si cambia mucho, pon la
+        cantidad en {stockUnitWords(ing.unit)}.
+      </span>
+    );
+  }
+  return (
+    <span>
+      El stock de {ing.name} se lleva en {ing.unit} con 3 decimales y esta cantidad se redondea. Si lo
+      manejas en {defaultLineUnit(ing)}, el descuento es exacto.
+    </span>
   );
 }
 

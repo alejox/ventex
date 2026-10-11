@@ -6,10 +6,12 @@ import {
   defaultLineUnit,
   editorLineIssues,
   editorToLines,
+  findSameNameProduct,
   formatQty,
   ingredientCandidates,
   ingredientNeedsRestock,
   marginTone,
+  normalizeProductName,
   parseQty,
   recipeCostRows,
   sortRecipeRows,
@@ -155,4 +157,31 @@ test("recipeCostRows y sortRecipeRows", () => {
   assert.deepEqual(byMarginDesc, ["r1", "r2", "r3"]);
   const byName = sortRecipeRows(rows, "name", "asc").map((r) => r.id);
   assert.deepEqual(byName, ["r1", "r3", "r2"]);
+});
+
+test("defaultLineUnit con contenido propone la unidad chica del contenido", () => {
+  assert.equal(defaultLineUnit({ unit: "Unidad", content_qty: 900, content_unit: "ml" }), "ml");
+  assert.equal(defaultLineUnit({ unit: "Unidad", content_qty: 1, content_unit: "L" }), "ml");
+  assert.equal(defaultLineUnit({ unit: "Unidad", content_qty: 50, content_unit: "kg" }), "g");
+  assert.equal(defaultLineUnit({ unit: "Unidad" }), "Unidad");
+  assert.equal(defaultLineUnit({ unit: "kg" }), "g");
+});
+
+test("candidateLabel muestra el contenido de la presentación", () => {
+  assert.equal(
+    candidateLabel({ id: "b", name: "Leche", unit: "Unidad", stock_level: 10, content_qty: 900, content_unit: "ml" }),
+    "Leche · 10 u. en stock · 900 ml c/u",
+  );
+});
+
+test("findSameNameProduct ignora mayúsculas, tildes y espacios", () => {
+  const list = [
+    { id: "1", name: "Leche entera" },
+    { id: "2", name: "Café" },
+  ];
+  assert.equal(findSameNameProduct(" leche  ENTERA ", list)?.id, "1");
+  assert.equal(findSameNameProduct("cafe", list)?.id, "2");
+  assert.equal(findSameNameProduct("Leche", list), null);
+  assert.equal(findSameNameProduct("   ", list), null);
+  assert.equal(normalizeProductName("  Azúcar   Morena "), "azucar morena");
 });

@@ -59,3 +59,10 @@ test("6. La etiqueta dice contra qué mínimo se está comparando", () => {
   assert.equal(stockLabelOf(-2, 10), "Sobrevendido (-2)");
   assert.equal(stockLabelOf(50, 10), "50 en stock");
 });
+
+test("las etiquetas de stock usan coma decimal: 9,833 bolsas no se leen como nueve mil", () => {
+  assert.equal(stockLabelOf(9.833, 2), "9,833 en stock");
+  assert.equal(stockLabelOf(1.5, 2), "Stock bajo (1,5/2)");
+  assert.equal(stockLabelOf(-0.067, 0), "Sobrevendido (-0,067)");
+  assert.equal(stockLabelOf(1200, 10), "1.200 en stock");
+});

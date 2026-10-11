@@ -62,18 +62,31 @@ export function needsRestock(product: {
   return stockStatusOf(product.stock_level, product.minimum_stock) !== "optimal";
 }
 
+/**
+ * Una cantidad para LEER (no para un campo editable): coma decimal y hasta 3
+ * decimales, como se escribe en Colombia. Con las recetas el stock de una
+ * bolsa queda fraccionario por consumo (9,833 bolsas), y "9.833" se lee como
+ * nueve mil. `formatQty` sigue con punto porque alimenta campos editables.
+ */
+export function displayQty(quantity: number): string {
+  if (!Number.isFinite(quantity)) return "0";
+  return round3(quantity).toLocaleString("es-CO", { maximumFractionDigits: 3 });
+}
+
 export function stockLabelOf(level: number, minimumStock: number): string {
+  const lvl = displayQty(level);
+  const min = displayQty(minimumStock);
   switch (stockStatusOf(level, minimumStock)) {
     case "oversold":
-      return `Sobrevendido (${level})`;
+      return `Sobrevendido (${lvl})`;
     case "out":
       return "Agotado";
     case "low":
       // Contra qué mínimo se está comparando: "Stock bajo (7)" no dice si
       // faltan 3 unidades o 300.
-      return `Stock bajo (${level}/${minimumStock})`;
+      return `Stock bajo (${lvl}/${min})`;
     default:
-      return `${level} en stock`;
+      return `${lvl} en stock`;
   }
 }
 

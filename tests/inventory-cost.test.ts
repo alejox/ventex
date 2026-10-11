@@ -4,6 +4,7 @@ import {
   getUnitCost,
   calculateInventoryValue,
   calculateMargin,
+  contentPatch,
   handlePresentationModeChange,
   isServiceItem,
   SERVICE_UNIT,
@@ -20,11 +21,12 @@ test("1. Producto en modo Unidad (units_per_package = 1)", () => {
   const unitCost = getUnitCost(product);
   assert.equal(unitCost, 50, "El costo unitario en modo unidad debe ser 50");
 
-  // Margen con costo $50 y venta $75 en modo unidad
+  // Margen con costo $50 y venta $75 en modo unidad: sobre el PRECIO (25 de 75).
   const margin = calculateMargin(50, 75, "unit", "1");
   assert.notEqual(margin, null);
   assert.equal(margin!.costPerUnit, 50);
-  assert.equal(margin!.pct, 50, "El margen debe ser 50%");
+  assert.equal(margin!.profit, 25);
+  assert.equal(Math.round(margin!.pct * 10) / 10, 33.3, "El margen sobre el precio debe ser 33,3%");
 
   // Valor del inventario: 10 unidades * $50 = $500
   const totalValue = calculateInventoryValue([product]);
@@ -42,11 +44,12 @@ test("2. Producto en modo Caja con units_per_package > 1 (e.g. 10 unidades por c
   const unitCost = getUnitCost(product);
   assert.equal(unitCost, 10, "El costo unitario derivado debe ser 10");
 
-  // Margen con compra de caja $100 (10 u.), precio de venta unitario $15
+  // Margen con compra de caja $100 (10 u.), precio de venta unitario $15: 5 de 15.
   const margin = calculateMargin(100, 15, "package", "10");
   assert.notEqual(margin, null);
   assert.equal(margin!.costPerUnit, 10);
-  assert.equal(margin!.pct, 50, "El margen real por unidad debe ser 50%");
+  assert.equal(margin!.profit, 5);
+  assert.equal(Math.round(margin!.pct * 10) / 10, 33.3, "El margen real por unidad debe ser 33,3%");
 
   // Valor del inventario: 50 unidades * $10 (costo unitario real) = $500
   // NUNCA $100 * 50 = $5000 (que estaría inflado 10 veces)
@@ -81,7 +84,8 @@ test("4. Transición de presentación de Caja a Unidad y viceversa", () => {
   const marginAfterUnitToggle = calculateMargin(100, 15, "unit", transitionToUnit.units_per_package);
   assert.notEqual(marginAfterUnitToggle, null);
   assert.equal(marginAfterUnitToggle!.costPerUnit, 100);
-  assert.equal(marginAfterUnitToggle!.pct, -85, "El margen inmediatamente se recalcula a -85%");
+  assert.equal(marginAfterUnitToggle!.profit, -85);
+  assert.equal(Math.round(marginAfterUnitToggle!.pct * 10) / 10, -566.7, "Se pierde $85 de cada $15: el margen se recalcula al toque");
 
   // Transición de Unidad ("unit") a Caja ("package")
   const transitionToPackage = handlePresentationModeChange("package", "1");
@@ -91,4 +95,16 @@ test("4. Transición de presentación de Caja a Unidad y viceversa", () => {
     "Al pasar a Caja desde Unidad, units_per_package debe limpiarse para forzar confirmacion del usuario"
   );
   assert.equal(transitionToPackage.package_price, "");
+});
+
+test("5. contentPatch: 'cada unidad trae' solo vale en una unidad que no mide", () => {
+  assert.deepEqual(contentPatch({ unit: "Unidad", content_qty: "900", content_unit: "ml" }), { content_qty: 900, content_unit: "ml" });
+  assert.deepEqual(contentPatch({ unit: "Unidad", content_qty: "0,9", content_unit: "L" }), { content_qty: 0.9, content_unit: "L" });
+  // Un kg ya mide: el contenido sobra y va en null.
+  assert.deepEqual(contentPatch({ unit: "kg", content_qty: "900", content_unit: "g" }), { content_qty: null, content_unit: null });
+  // Sin cantidad, con cantidad inválida o con una unidad de contenido que no mide: null.
+  assert.deepEqual(contentPatch({ unit: "Unidad", content_qty: "", content_unit: "ml" }), { content_qty: null, content_unit: null });
+  assert.deepEqual(contentPatch({ unit: "Unidad", content_qty: "abc", content_unit: "ml" }), { content_qty: null, content_unit: null });
+  assert.deepEqual(contentPatch({ unit: "Unidad", content_qty: "12", content_unit: "Unidad" }), { content_qty: null, content_unit: null });
+  assert.deepEqual(contentPatch({ unit: "Caja" }), { content_qty: null, content_unit: null });
 });
