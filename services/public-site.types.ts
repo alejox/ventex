@@ -7,7 +7,13 @@
  * contract: if a field is not here, the public site must not need it.
  */
 
-import { instagramPostList, instagramSource, type InstagramSource } from "@/lib/instagram";
+import {
+  DEFAULT_INSTAGRAM_COUNT,
+  instagramCount,
+  instagramLayout,
+  type InstagramCount,
+  type InstagramLayout,
+} from "@/lib/instagram";
 
 export const SITE_TEMPLATES = [
   "rasm",
@@ -175,16 +181,14 @@ export interface LandingConfig {
    */
   catalog: { serviceCategoryIds: string[]; productCategoryIds: string[]; staffIds: string[] };
   /**
-   * Canonical Instagram post permalinks (see `lib/instagram.ts`), at most
-   * `MAX_INSTAGRAM_POSTS`. Rendered with Instagram's public embed; empty = the
-   * section renders nothing.
+   * How the Instagram section shows the connected account's cached posts
+   * (see `lib/instagram.ts`). The posts themselves are not part of the config:
+   * they come from the account (`PublicSite.instagramPosts`). Configs saved
+   * with the retired manual mode carry `instagramSource`/`instagramPosts`; the
+   * normalizer drops them.
    */
-  instagramPosts: string[];
-  /**
-   * `account` renders the connected account's cached posts instead of
-   * `instagramPosts` (see `lib/instagram.ts`). Defaults to `manual`.
-   */
-  instagramSource: InstagramSource;
+  instagramLayout: InstagramLayout;
+  instagramCount: InstagramCount;
 }
 
 const SECTION_DEFAULTS: Record<SiteSectionId, Omit<SiteSectionConfig, "id">> = {
@@ -246,8 +250,8 @@ export function defaultLandingConfig(template: SiteTemplate = "rasm"): LandingCo
     seo: { title: null, description: null, imageUrl: null },
     sections: SITE_SECTION_IDS.map((id) => ({ id, ...SECTION_DEFAULTS[id] })),
     catalog: { serviceCategoryIds: [], productCategoryIds: [], staffIds: [] },
-    instagramPosts: [],
-    instagramSource: "manual",
+    instagramLayout: "grid",
+    instagramCount: DEFAULT_INSTAGRAM_COUNT,
   };
 }
 
@@ -363,8 +367,8 @@ export function normalizeLandingConfig(value: unknown): LandingConfig {
     productCategoryIds: uuidList(catalog.productCategoryIds),
     staffIds: uuidList(catalog.staffIds),
   };
-  result.instagramPosts = instagramPostList(raw.instagramPosts);
-  result.instagramSource = instagramSource(raw.instagramSource);
+  result.instagramLayout = instagramLayout(raw.instagramLayout);
+  result.instagramCount = instagramCount(raw.instagramCount);
 
   const seen = new Set<SiteSectionId>();
   const sections = Array.isArray(raw.sections) ? raw.sections : [];
@@ -470,6 +474,11 @@ export interface PublicSite {
   staff: PublicStaff[];
   /** Frozen editorial snapshot used to render the public landing. */
   config: LandingConfig;
+  /**
+   * Cached permalinks of the connected Instagram account, filled server-side
+   * (`fetchPublicSite`) or by the editor preview; absent = no posts.
+   */
+  instagramPosts?: string[];
 }
 
 /**

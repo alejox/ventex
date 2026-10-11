@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { instagramPostUrl, MAX_INSTAGRAM_POSTS } from "../lib/instagram";
+import {
+  INSTAGRAM_COUNTS,
+  instagramPostList,
+  instagramPostUrl,
+  instagramShownPosts,
+  MAX_INSTAGRAM_POSTS,
+} from "../lib/instagram";
 import { defaultLandingConfig, normalizeLandingConfig } from "../services/public-site.types";
 
 test("instagramPostUrl canonicalizes post, reel and tv links", () => {
@@ -34,36 +40,67 @@ test("instagramPostUrl rejects anything that is not an Instagram post", () => {
   }
 });
 
-test("a site without instagram posts shows none", () => {
-  assert.deepEqual(defaultLandingConfig().instagramPosts, []);
-  assert.deepEqual(normalizeLandingConfig({}).instagramPosts, []);
-  assert.deepEqual(normalizeLandingConfig({ instagramPosts: "x" }).instagramPosts, []);
+test("instagramPostList keeps valid canonical links, drops junk and duplicates, caps at the limit", () => {
+  const raw = [
+    "https://www.instagram.com/p/A1/?igsh=1",
+    "instagram.com/p/A1",
+    "https://evil.com/p/X/",
+    42,
+    ...Array.from({ length: 10 }, (_, index) => `https://www.instagram.com/p/B${index}/`),
+  ];
+  const list = instagramPostList(raw);
+  assert.equal(MAX_INSTAGRAM_POSTS, 9);
+  assert.equal(list.length, 9);
+  assert.equal(list[0], "https://www.instagram.com/p/A1/");
+  assert.equal(list[8], "https://www.instagram.com/p/B7/");
+  assert.deepEqual(instagramPostList("x"), []);
 });
 
-test("instagram posts keep valid canonical links, drop junk and duplicates, cap at the limit", () => {
-  const { instagramPosts } = normalizeLandingConfig({
-    instagramPosts: [
-      "https://www.instagram.com/p/A1/?igsh=1",
-      "instagram.com/p/A1",
-      "https://evil.com/p/X/",
-      42,
-      "https://www.instagram.com/reel/A2/",
-      "https://www.instagram.com/p/A3/",
-      "https://www.instagram.com/p/A4/",
-      "https://www.instagram.com/p/A5/",
-      "https://www.instagram.com/p/A6/",
-      "https://www.instagram.com/p/A7/",
-    ],
+test("instagram layout defaults to a grid and only accepts the known layouts", () => {
+  assert.equal(defaultLandingConfig().instagramLayout, "grid");
+  assert.equal(normalizeLandingConfig({}).instagramLayout, "grid");
+  assert.equal(normalizeLandingConfig({ instagramLayout: "carousel" }).instagramLayout, "carousel");
+  assert.equal(normalizeLandingConfig({ instagramLayout: "grid" }).instagramLayout, "grid");
+  assert.equal(normalizeLandingConfig({ instagramLayout: "CAROUSEL" }).instagramLayout, "grid");
+  assert.equal(normalizeLandingConfig({ instagramLayout: 1 }).instagramLayout, "grid");
+});
+
+test("instagram count defaults to 6 and only accepts 3, 6 or 9", () => {
+  assert.deepEqual(INSTAGRAM_COUNTS, [3, 6, 9]);
+  assert.equal(defaultLandingConfig().instagramCount, 6);
+  assert.equal(normalizeLandingConfig({}).instagramCount, 6);
+  for (const count of [3, 6, 9]) {
+    assert.equal(normalizeLandingConfig({ instagramCount: count }).instagramCount, count);
+  }
+  for (const junk of [0, 4, 12, "9", null, Number.NaN]) {
+    assert.equal(normalizeLandingConfig({ instagramCount: junk }).instagramCount, 6, String(junk));
+  }
+});
+
+test("configs saved with the old manual mode still load and drop the manual keys", () => {
+  const config = normalizeLandingConfig({
+    instagramSource: "manual",
+    instagramPosts: ["https://www.instagram.com/p/A1/"],
   });
-  assert.equal(MAX_INSTAGRAM_POSTS, 6);
-  assert.deepEqual(instagramPosts, [
+  assert.equal("instagramSource" in config, false);
+  assert.equal("instagramPosts" in config, false);
+  assert.equal(config.instagramLayout, "grid");
+  assert.equal(config.instagramCount, 6);
+});
+
+test("instagramShownPosts re-validates the cached links and slices to the chosen count", () => {
+  const posts = [
     "https://www.instagram.com/p/A1/",
-    "https://www.instagram.com/reel/A2/",
-    "https://www.instagram.com/p/A3/",
-    "https://www.instagram.com/p/A4/",
-    "https://www.instagram.com/p/A5/",
-    "https://www.instagram.com/p/A6/",
+    "javascript:alert(1)",
+    ...Array.from({ length: 8 }, (_, index) => `https://www.instagram.com/p/B${index}/`),
+  ];
+  assert.deepEqual(instagramShownPosts(posts, 3), [
+    "https://www.instagram.com/p/A1/",
+    "https://www.instagram.com/p/B0/",
+    "https://www.instagram.com/p/B1/",
   ]);
+  assert.equal(instagramShownPosts(posts, 9).length, 9);
+  assert.deepEqual(instagramShownPosts([], 6), []);
 });
 
 test("existing configs get the instagram section appended", () => {
@@ -75,21 +112,4 @@ test("existing configs get the instagram section appended", () => {
   assert.ok(instagram);
   assert.equal(instagram.visible, true);
   assert.equal(instagram.title, "Síguenos en Instagram");
-});
-
-test("instagram source defaults to manual links and only accepts the two known values", () => {
-  assert.equal(defaultLandingConfig().instagramSource, "manual");
-  assert.equal(normalizeLandingConfig({}).instagramSource, "manual");
-  assert.equal(normalizeLandingConfig({ instagramSource: "account" }).instagramSource, "account");
-  assert.equal(normalizeLandingConfig({ instagramSource: "manual" }).instagramSource, "manual");
-  assert.equal(normalizeLandingConfig({ instagramSource: "ACCOUNT" }).instagramSource, "manual");
-  assert.equal(normalizeLandingConfig({ instagramSource: 1 }).instagramSource, "manual");
-});
-
-test("account mode keeps the manual links as a fallback", () => {
-  const config = normalizeLandingConfig({
-    instagramSource: "account",
-    instagramPosts: ["https://www.instagram.com/p/A1/"],
-  });
-  assert.deepEqual(config.instagramPosts, ["https://www.instagram.com/p/A1/"]);
 });

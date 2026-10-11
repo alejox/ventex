@@ -177,6 +177,9 @@ test("media response → canonical permalinks, order kept, junk skipped, capped"
       { id: "8", permalink: "https://www.instagram.com/p/A5/" },
       { id: "9", permalink: "https://www.instagram.com/p/A6/" },
       { id: "10", permalink: "https://www.instagram.com/p/A7/" },
+      { id: "11", permalink: "https://www.instagram.com/p/A8/" },
+      { id: "12", permalink: "https://www.instagram.com/p/A9/" },
+      { id: "13", permalink: "https://www.instagram.com/p/A10/" },
     ],
   });
   assert.deepEqual(permalinks, [
@@ -186,6 +189,9 @@ test("media response → canonical permalinks, order kept, junk skipped, capped"
     "https://www.instagram.com/p/A4/",
     "https://www.instagram.com/p/A5/",
     "https://www.instagram.com/p/A6/",
+    "https://www.instagram.com/p/A7/",
+    "https://www.instagram.com/p/A8/",
+    "https://www.instagram.com/p/A9/",
   ]);
 });
 

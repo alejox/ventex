@@ -27,13 +27,14 @@ export async function fetchPublicSite(slug: string): Promise<PublicSite | null> 
   if (!data || typeof data !== "object") return null;
   const raw = data as unknown as Record<string, unknown>;
   const config = normalizeLandingConfig(raw);
-  if (config.instagramSource === "account") {
-    config.instagramPosts = await fetchAccountPermalinks(supabase, slug);
-  }
+  // Only fetched when the section is on: a hidden section shows nothing.
+  const showsInstagram = config.sections.some((section) => section.id === "instagram" && section.visible);
+  const instagramPosts = showsInstagram ? await fetchAccountPermalinks(supabase, slug) : [];
   return {
     ...raw,
     timeFormat: raw.timeFormat === "24" ? "24" : "12",
     config,
+    instagramPosts,
   } as unknown as PublicSite;
 }
 

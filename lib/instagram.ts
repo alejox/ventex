@@ -1,26 +1,32 @@
 /**
- * Instagram posts on the public site: from whatever link the owner pastes to a
- * canonical permalink that Instagram's `embed.js` can render.
+ * Instagram posts on the public site: the connected account's cached posts
+ * (`/api/instagram/sync`), turned into canonical permalinks that Instagram's
+ * `embed.js` can render, plus the per-site layout options.
  *
- * SECURITY: the owner types this value and it ends up on a PUBLIC page (inside
+ * SECURITY: the permalinks end up on a PUBLIC page (inside
  * `data-instgrm-permalink`, which embed.js turns into an iframe). Nothing from
- * the raw input is echoed back: only a known kind and a shortcode restricted to
+ * the raw value is echoed back: only a known kind and a shortcode restricted to
  * `[A-Za-z0-9_-]` survive, and the URL is rebuilt from scratch.
  */
 
-/**
- * Where the site's Instagram posts come from: links the owner pasted
- * (`manual`) or the latest posts of the connected account (`account`, cached
- * server-side by `/api/instagram/sync`). The manual list is kept either way.
- */
-export type InstagramSource = "manual" | "account";
+/** How many posts are cached per account. Kept small: each one is a full iframe. */
+export const MAX_INSTAGRAM_POSTS = 9;
 
-export function instagramSource(value: unknown): InstagramSource {
-  return value === "account" ? "account" : "manual";
+/** How the section lays its cards out. */
+export type InstagramLayout = "grid" | "carousel";
+
+export function instagramLayout(value: unknown): InstagramLayout {
+  return value === "carousel" ? "carousel" : "grid";
 }
 
-/** How many posts a site can show. Kept small: each one is a full iframe. */
-export const MAX_INSTAGRAM_POSTS = 6;
+/** How many posts a site can choose to show. */
+export const INSTAGRAM_COUNTS = [3, 6, 9] as const;
+export type InstagramCount = (typeof INSTAGRAM_COUNTS)[number];
+export const DEFAULT_INSTAGRAM_COUNT: InstagramCount = 6;
+
+export function instagramCount(value: unknown): InstagramCount {
+  return INSTAGRAM_COUNTS.find((count) => count === value) ?? DEFAULT_INSTAGRAM_COUNT;
+}
 
 const INSTAGRAM_HOSTS = new Set(["instagram.com", "www.instagram.com"]);
 const POST_KINDS = new Set(["p", "reel", "tv"]);
@@ -66,4 +72,12 @@ export function instagramPostList(value: unknown): string[] {
     return url ? [url] : [];
   });
   return [...new Set(urls)].slice(0, MAX_INSTAGRAM_POSTS);
+}
+
+/**
+ * The posts a section renders: re-validated (the public RPC hands back the
+ * cached array as is) and sliced to the count the site chose.
+ */
+export function instagramShownPosts(posts: readonly string[], count: number): string[] {
+  return instagramPostList(posts).slice(0, count);
 }
