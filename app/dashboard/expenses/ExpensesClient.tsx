@@ -170,7 +170,7 @@ export function ExpensesClient() {
                  pudiera cambiar, el papel que se le entregó al colaborador y la
                  contabilidad dirían cosas distintas. Se anula la liquidación
                  —que reversa el gasto— o no se toca. */
-              <Link href="/dashboard/staff" className="text-primary text-xs font-semibold">
+              <Link href={`/dashboard/staff/comisiones?settlement=${item.commission_settlement_id}`} className="text-primary text-xs font-semibold">
                 Ver liquidación
               </Link>
             ) : (
@@ -187,7 +187,7 @@ export function ExpensesClient() {
                 className="text-xs text-on-surface-variant"
                 title="Viene de una liquidación de comisiones: se corrige anulándola en Personal"
               >
-                Desde Personal
+                Desde Comisiones
               </span>
             ) : item.cash_movement_id ? (
               <span
