@@ -6,8 +6,11 @@ import {
   instagramAppConfig,
 } from "@/services/instagram.server";
 import {
+  INSTAGRAM_RETURN_COOKIE,
   INSTAGRAM_STATE_COOKIE,
+  type InstagramConnectResult,
   cleanAuthorizationCode,
+  editorReturnPath,
   verifyOAuthState,
 } from "@/services/instagram-protocol";
 
@@ -21,17 +24,20 @@ export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams;
   const stateCookie = request.cookies.get(INSTAGRAM_STATE_COOKIE)?.value;
 
-  const back = (result: "connected" | "denied" | "error" | "forbidden" | "unconfigured") => {
-    const url = new URL("/dashboard/landing", request.nextUrl.origin);
-    url.searchParams.set("instagram", result);
-    const response = NextResponse.redirect(url);
-    response.cookies.set(INSTAGRAM_STATE_COOKIE, "", {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/api/instagram",
-      maxAge: 0,
-    });
+  const siteId = request.cookies.get(INSTAGRAM_RETURN_COOKIE)?.value;
+
+  const back = (result: InstagramConnectResult) => {
+    const response = NextResponse.redirect(new URL(editorReturnPath(result, siteId), request.nextUrl.origin));
+    // Single use: both cookies go away whatever the outcome.
+    for (const name of [INSTAGRAM_STATE_COOKIE, INSTAGRAM_RETURN_COOKIE]) {
+      response.cookies.set(name, "", {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/api/instagram",
+        maxAge: 0,
+      });
+    }
     return response;
   };
 

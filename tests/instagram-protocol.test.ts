@@ -7,6 +7,7 @@ import {
   verifyOAuthState,
   buildAuthorizeUrl,
   cleanAuthorizationCode,
+  editorReturnPath,
   expiresAtFrom,
   instagramRedirectUri,
   mediaPermalinks,
@@ -182,4 +183,12 @@ test("oauth state is random, url-safe and bound to the tenant", () => {
   assert.equal(verifyOAuthState(undefined, a, "tenant-1"), false);
   assert.equal(verifyOAuthState(cookie, null, "tenant-1"), false);
   assert.equal(verifyOAuthState(cookie, "", "tenant-1"), false);
+});
+
+test("the round trip returns to the editor of a real site id, or to the list", () => {
+  const id = "0f8fad5b-d9cb-469f-a165-70867728950e";
+  assert.equal(editorReturnPath("connected", id), `/dashboard/landing?site=${id}&tab=sections&instagram=connected`);
+  assert.equal(editorReturnPath("denied", null), "/dashboard/landing?instagram=denied");
+  assert.equal(editorReturnPath("error", "../../evil"), "/dashboard/landing?instagram=error");
+  assert.equal(editorReturnPath("error", `${id}&x=1`), "/dashboard/landing?instagram=error");
 });

@@ -8,6 +8,17 @@
  * `[A-Za-z0-9_-]` survive, and the URL is rebuilt from scratch.
  */
 
+/**
+ * Where the site's Instagram posts come from: links the owner pasted
+ * (`manual`) or the latest posts of the connected account (`account`, cached
+ * server-side by `/api/instagram/sync`). The manual list is kept either way.
+ */
+export type InstagramSource = "manual" | "account";
+
+export function instagramSource(value: unknown): InstagramSource {
+  return value === "account" ? "account" : "manual";
+}
+
 /** How many posts a site can show. Kept small: each one is a full iframe. */
 export const MAX_INSTAGRAM_POSTS = 6;
 

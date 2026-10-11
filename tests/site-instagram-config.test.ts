@@ -76,3 +76,20 @@ test("existing configs get the instagram section appended", () => {
   assert.equal(instagram.visible, true);
   assert.equal(instagram.title, "Síguenos en Instagram");
 });
+
+test("instagram source defaults to manual links and only accepts the two known values", () => {
+  assert.equal(defaultLandingConfig().instagramSource, "manual");
+  assert.equal(normalizeLandingConfig({}).instagramSource, "manual");
+  assert.equal(normalizeLandingConfig({ instagramSource: "account" }).instagramSource, "account");
+  assert.equal(normalizeLandingConfig({ instagramSource: "manual" }).instagramSource, "manual");
+  assert.equal(normalizeLandingConfig({ instagramSource: "ACCOUNT" }).instagramSource, "manual");
+  assert.equal(normalizeLandingConfig({ instagramSource: 1 }).instagramSource, "manual");
+});
+
+test("account mode keeps the manual links as a fallback", () => {
+  const config = normalizeLandingConfig({
+    instagramSource: "account",
+    instagramPosts: ["https://www.instagram.com/p/A1/"],
+  });
+  assert.deepEqual(config.instagramPosts, ["https://www.instagram.com/p/A1/"]);
+});

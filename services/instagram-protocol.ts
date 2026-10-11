@@ -200,3 +200,39 @@ export function verifyOAuthState(
   if (!cookie || !state || !tenantId) return false;
   return safeEqual(cookie, stateCookieValue(state, tenantId));
 }
+
+// ---------------------------------------------------------------------------
+// Back to the site editor
+// ---------------------------------------------------------------------------
+
+/** Remembers which site the owner was editing while they visit Instagram. */
+export const INSTAGRAM_RETURN_COOKIE = "ig_oauth_site";
+
+const SITE_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export type InstagramConnectResult =
+  | "connected"
+  | "denied"
+  | "error"
+  | "forbidden"
+  | "unconfigured";
+
+/** A site id only if it looks like one; anything else is dropped. */
+export function returnSiteId(value: string | null | undefined): string | null {
+  return value && SITE_ID_RE.test(value) ? value : null;
+}
+
+/**
+ * Where the OAuth round trip lands: the editor of the site the owner came from
+ * (Secciones tab, where the Instagram controls live), or the sites list.
+ */
+export function editorReturnPath(result: InstagramConnectResult, siteId: string | null | undefined): string {
+  const params = new URLSearchParams();
+  const site = returnSiteId(siteId);
+  if (site) {
+    params.set("site", site);
+    params.set("tab", "sections");
+  }
+  params.set("instagram", result);
+  return `/dashboard/landing?${params.toString()}`;
+}

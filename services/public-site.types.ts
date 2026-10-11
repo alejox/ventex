@@ -7,7 +7,7 @@
  * contract: if a field is not here, the public site must not need it.
  */
 
-import { instagramPostList } from "@/lib/instagram";
+import { instagramPostList, instagramSource, type InstagramSource } from "@/lib/instagram";
 
 export const SITE_TEMPLATES = [
   "rasm",
@@ -180,6 +180,11 @@ export interface LandingConfig {
    * section renders nothing.
    */
   instagramPosts: string[];
+  /**
+   * `account` renders the connected account's cached posts instead of
+   * `instagramPosts` (see `lib/instagram.ts`). Defaults to `manual`.
+   */
+  instagramSource: InstagramSource;
 }
 
 const SECTION_DEFAULTS: Record<SiteSectionId, Omit<SiteSectionConfig, "id">> = {
@@ -242,6 +247,7 @@ export function defaultLandingConfig(template: SiteTemplate = "rasm"): LandingCo
     sections: SITE_SECTION_IDS.map((id) => ({ id, ...SECTION_DEFAULTS[id] })),
     catalog: { serviceCategoryIds: [], productCategoryIds: [], staffIds: [] },
     instagramPosts: [],
+    instagramSource: "manual",
   };
 }
 
@@ -358,6 +364,7 @@ export function normalizeLandingConfig(value: unknown): LandingConfig {
     staffIds: uuidList(catalog.staffIds),
   };
   result.instagramPosts = instagramPostList(raw.instagramPosts);
+  result.instagramSource = instagramSource(raw.instagramSource);
 
   const seen = new Set<SiteSectionId>();
   const sections = Array.isArray(raw.sections) ? raw.sections : [];
