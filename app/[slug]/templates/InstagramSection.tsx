@@ -1,7 +1,7 @@
 "use client";
 
 import Script from "next/script";
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { IconButton } from "@/components/ui/Button";
 import { instagramShownPosts, type InstagramCount, type InstagramLayout } from "@/lib/instagram";
@@ -41,6 +41,18 @@ function Chevron({ direction }: { direction: "left" | "right" }) {
     </svg>
   );
 }
+
+/**
+ * One post. Memoized ON PURPOSE: React 19 rewrites `innerHTML` whenever the
+ * `dangerouslySetInnerHTML` object changes identity, and a fresh `{ __html }`
+ * per render would wipe the iframe embed.js already put here (the carousel
+ * re-renders on every scroll/resize to update its arrows). With stable props
+ * the card never re-renders, so React never touches the node again.
+ */
+const EmbedCard = memo(function EmbedCard({ permalink, className }: { permalink: string; className: string }) {
+  const html = useMemo(() => ({ __html: embedMarkup(permalink) }), [permalink]);
+  return <div className={className} dangerouslySetInnerHTML={html} />;
+});
 
 export function InstagramSection({
   posts,
@@ -90,7 +102,10 @@ export function InstagramSection({
     if (!carousel || !track) return;
     const update = () => {
       const max = track.scrollWidth - track.clientWidth;
-      setEdges({ atStart: track.scrollLeft <= 1, atEnd: track.scrollLeft >= max - 1 });
+      const atStart = track.scrollLeft <= 1;
+      const atEnd = track.scrollLeft >= max - 1;
+      // Same values → same object: no re-render on every scroll event.
+      setEdges((prev) => (prev.atStart === atStart && prev.atEnd === atEnd ? prev : { atStart, atEnd }));
     };
     const observer = new ResizeObserver(update);
     observer.observe(track);
@@ -128,11 +143,7 @@ export function InstagramSection({
           >
             {permalinks.map((permalink) => (
               // 340px: Instagram's iframe needs at least 326px to lay out.
-              <div
-                key={`${layout}-${permalink}`}
-                className="w-[340px] max-w-full shrink-0 snap-start"
-                dangerouslySetInnerHTML={{ __html: embedMarkup(permalink) }}
-              />
+              <EmbedCard key={`${layout}-${permalink}`} permalink={permalink} className="w-[340px] max-w-full shrink-0 snap-start" />
             ))}
           </div>
           <div className="mt-4 flex justify-end gap-2">
@@ -155,7 +166,7 @@ export function InstagramSection({
       ) : (
         <div className="mt-8 grid grid-cols-[repeat(auto-fill,minmax(min(100%,20rem),1fr))] items-start justify-items-center gap-6">
           {permalinks.map((permalink) => (
-            <div key={`${layout}-${permalink}`} className="w-full" dangerouslySetInnerHTML={{ __html: embedMarkup(permalink) }} />
+            <EmbedCard key={`${layout}-${permalink}`} permalink={permalink} className="w-full" />
           ))}
         </div>
       )}
