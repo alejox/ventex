@@ -4,6 +4,7 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import AppointmentModal from "../components/appointments/AppointmentModal";
 import type { Appointment } from "../services/appointments.service";
+import { currentAppointment } from "../lib/appointment-state";
 
 // tsx runs the repository's preserved JSX using React's classic runtime.
 Object.assign(globalThis, { React });
@@ -33,4 +34,25 @@ test("Confirmada muestra el cobro y las acciones secundarias sin repetir confirm
   assert.ok(html.includes(">Cobrar<"));
   assert.ok(html.includes("Cancelar cita"));
   assert.ok(!html.includes(">Confirmar reserva<"));
+});
+
+test("Una cita editada usa el servicio vivo del store y cobra por el POS", () => {
+  const original = { ...appointment, service_id: null, status: "pending" as const };
+  const live = { ...appointment, status: "confirmed" as const };
+  const resolved = currentAppointment(original, [live], null);
+  assert.equal(resolved?.service_id, "service");
+  assert.equal(resolved?.status, "confirmed");
+  const html = renderToStaticMarkup(<AppointmentModal open appointment={resolved} onClose={() => {}} />);
+  assert.ok(html.includes('href="/dashboard/pos?appointment=appointment"'));
+  assert.ok(html.includes("Reserva confirmada"));
+  assert.ok(html.includes("Crear cliente"));
+  assert.ok(html.includes("<dialog"));
+});
+
+test("Una cita enlazada ya cobrada prevalece sobre la lista y el prop viejos", () => {
+  const resolved = currentAppointment(appointment, [appointment], { ...appointment, status: "completed", sale_id: "sale" });
+  assert.equal(resolved?.sale_id, "sale");
+  const html = renderToStaticMarkup(<AppointmentModal open appointment={resolved} onClose={() => {}} />);
+  assert.ok(html.includes("Cita cobrada"));
+  assert.ok(!html.includes('/dashboard/pos?appointment='));
 });

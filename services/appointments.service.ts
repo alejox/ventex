@@ -239,6 +239,8 @@ export async function chargeAppointment(
     staffId: appt.staff_id,
     paymentMethod,
     discount: 0,
+    // Un reintento del cobro de ESTA cita debe devolver la misma venta.
+    clientSaleId: appt.id,
     items: [{ service_id: appt.service_id, quantity: 1 }],
   });
 

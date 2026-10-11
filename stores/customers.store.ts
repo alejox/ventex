@@ -10,6 +10,7 @@ interface CustomersState {
   submitting: boolean;
 
   fetchCustomers: () => Promise<void>;
+  fetchCustomer: (id: string) => Promise<Customer | null>;
   /**
    * Devuelve el cliente creado (no un booleano): StudentForm necesita su `id`
    * para crear al alumno sin volver a leer la lista, y así puede quedarse con
@@ -30,6 +31,17 @@ export const useCustomersStore = create<CustomersState>((set) => ({
   loading: true,
   error: null,
   submitting: false,
+
+  fetchCustomer: async (id) => {
+    try {
+      const customer = await customersService.fetchCustomer(id);
+      if (customer) set((s) => ({ customers: [...s.customers.filter((c) => c.id !== id), customer] }));
+      return customer;
+    } catch (e) {
+      set({ error: toMessage(e) });
+      return null;
+    }
+  },
 
   fetchCustomers: async () => {
     set({ loading: true, error: null });

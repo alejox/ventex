@@ -5,7 +5,8 @@ import Link from "next/link";
 import { useFinanceStore } from "@/stores/finance.store";
 import { useInventoryStore } from "@/stores/inventory.store";
 import { useProfile } from "@/components/ProfileProvider";
-import { visibleQuickActions, workerQuickActions } from "@/config/business";
+import { visibleQuickActions, workerQuickActions, visibleNavItems, workerNavItems } from "@/config/business";
+import { TodayOperations } from "@/components/appointments/TodayOperations";
 import { needsRestock } from "@/lib/stock";
 import { ExpenseModal } from "@/components/ExpenseModal";
 import { ExpensesByCategory } from "@/components/ExpensesByCategory";
@@ -128,6 +129,8 @@ export function DashboardHome({ canAddExpense = false }: { canAddExpense?: boole
     : visibleQuickActions(profile?.businessType ?? null, profile?.modules ?? null);
 
   const overviewBusy = loading || !overview;
+  const nav = profile?.isWorker ? workerNavItems(profile.workerPermissions ?? {}, profile.modules) : visibleNavItems(profile?.businessType ?? null, profile?.modules ?? null);
+  const hasCalendar = nav.some((item) => item.id === "calendar");
 
   return (
     <div className="flex flex-col gap-6 w-full animate-in fade-in duration-500">
@@ -155,6 +158,7 @@ export function DashboardHome({ canAddExpense = false }: { canAddExpense?: boole
 
       {/* Primeros pasos: solo mientras falten y no se haya ocultado. */}
       <GettingStarted />
+      {hasCalendar && <TodayOperations />}
 
       {/* Acciones Rápidas: qué se muestra lo decide config/business.ts según el
           tipo de negocio (o los permisos, si es trabajador). Acá solo vive la

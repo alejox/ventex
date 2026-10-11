@@ -31,3 +31,35 @@ test("El turno asigna al cajero, conserva elecciones explícitas y lo reutiliza 
   assert.equal(usePosStore.getState().defaultStaffId, null);
   useShiftsStore.setState({ currentShift: null });
 });
+
+test("Sin turno ni ficha de cajero se preselecciona la única persona; varias requieren elección", () => {
+  useShiftsStore.setState({ currentShift: null });
+  usePosStore.setState({ tabs: [], activeTabId: "", defaultStaffId: null,
+    executionContext: { authUserId: "owner", workspaceId: "workspace", membershipId: "membership", staffId: null },
+    staff: [{ id: "only", full_name: "Única persona" }],
+  });
+  usePosStore.getState().addTab();
+  usePosStore.getState().syncShiftStaff();
+  assert.equal(usePosStore.getState().tabs[0].staffId, "only");
+  usePosStore.getState().setStaff("explicit");
+  usePosStore.getState().syncShiftStaff();
+  assert.equal(usePosStore.getState().tabs[0].staffId, "explicit");
+  usePosStore.setState({ staff: [{ id: "only", full_name: "Uno" }, { id: "other", full_name: "Dos" }] });
+  usePosStore.getState().syncShiftStaff();
+  assert.equal(usePosStore.getState().defaultStaffId, null);
+});
+
+test("La cita y su clave de cobro pertenecen a la pestaña y se limpian al vaciar", () => {
+  usePosStore.setState({ tabs: [], activeTabId: "", defaultStaffId: null });
+  usePosStore.getState().addTab();
+  const firstId = usePosStore.getState().activeTabId;
+  usePosStore.getState().bindAppointment("appointment", "service");
+  usePosStore.getState().addTab();
+  assert.equal(usePosStore.getState().tabs.find((t) => t.id === firstId)?.appointmentId, "appointment");
+  assert.equal(usePosStore.getState().tabs.find((t) => t.id === firstId)?.checkoutId, "appointment");
+  assert.equal(usePosStore.getState().tabs.at(-1)?.appointmentId, null);
+  usePosStore.getState().setActiveTab(firstId);
+  usePosStore.getState().clearCart();
+  assert.equal(usePosStore.getState().tabs[0].appointmentId, null);
+  assert.equal(usePosStore.getState().tabs[0].checkoutId, null);
+});

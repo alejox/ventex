@@ -1,20 +1,21 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import Link from "next/link";
+import { Modal } from "@/components/ui/Modal";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { QuickCustomerModal } from "./QuickCustomerModal";
 import { toast } from "sonner";
 import { useAppointmentsStore } from "@/stores/appointments.store";
 import { useCustomersStore } from "@/stores/customers.store";
 import { useServicesStore } from "@/stores/services.store";
 import { useStaffStore } from "@/stores/staff.store";
 import { useSettingsStore } from "@/stores/settings.store";
-import { useShiftsStore } from "@/stores/shifts.store";
 import { useProfile } from "@/components/ProfileProvider";
-import { OpenShiftModal } from "@/components/shift/OpenShiftModal";
 import { Select } from "@/components/ui/Select";
 import { whatsappUrl, toWhatsappNumber } from "@/config/contact";
 import type {
   Appointment,
-  AppointmentPaymentMethod,
   NewAppointmentInput,
 } from "@/services/appointments.service";
 import { toISODate, formatDateOnly } from "@/lib/date";
@@ -22,6 +23,7 @@ import { formatAppointmentTime, type TimeFormat } from "@/lib/time";
 import { DateTimeField } from "./DateTimeField";
 import { conflictsFor, pickStaff, type BusyAppointment } from "@/lib/appointment-availability";
 import { useFormatMoney } from "@/lib/useMoney";
+import { currentAppointment } from "@/lib/appointment-state";
 
 /**
  * Mensaje de confirmación ya redactado para el cliente.
@@ -84,12 +86,6 @@ const addMinutes = (time: string, mins: number) => {
   return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
 };
 
-const PAYMENT_OPTIONS: { value: AppointmentPaymentMethod; label: string }[] = [
-  { value: "efectivo", label: "Efectivo" },
-  { value: "tarjeta", label: "Tarjeta" },
-  { value: "transferencia", label: "Transferencia" },
-];
-
 /** Estado inicial del formulario: la cita que se edita, o una nueva sembrada. */
 function buildInitialForm(
   appointment: Appointment | null | undefined,
@@ -147,10 +143,10 @@ function AppointmentModalBody({
   const addAppointment = useAppointmentsStore((s) => s.addAppointment);
   const updateAppointment = useAppointmentsStore((s) => s.updateAppointment);
   const updateStatus = useAppointmentsStore((s) => s.updateStatus);
-  const chargeAppointment = useAppointmentsStore((s) => s.chargeAppointment);
   const deleteAppointment = useAppointmentsStore((s) => s.deleteAppointment);
   const customers = useCustomersStore((s) => s.customers);
   const fetchCustomers = useCustomersStore((s) => s.fetchCustomers);
+  const fetchCustomer = useCustomersStore((s) => s.fetchCustomer);
   const services = useServicesStore((s) => s.services);
   const fetchServices = useServicesStore((s) => s.fetchServices);
   const staff = useStaffStore((s) => s.staff);
@@ -159,12 +155,6 @@ function AppointmentModalBody({
   const timeFormat = useSettingsStore((s) => s.settings?.time_format ?? "12");
   const isCarWash = profile?.businessType === "lavaautos";
   const isWorker = profile?.isWorker ?? false;
-  const acceptsCard = useSettingsStore((s) => s.settings?.accepts_card) ?? true;
-  const acceptsTransfer = useSettingsStore((s) => s.settings?.accepts_transfer) ?? true;
-  const fetchSettings = useSettingsStore((s) => s.fetchSettings);
-  const requireActiveShift = useSettingsStore((s) => s.loading || (s.settings?.require_active_shift ?? true));
-  const currentShift = useShiftsStore((s) => s.currentShift);
-  const fetchCurrentShift = useShiftsStore((s) => s.fetchCurrentShift);
 
   const [form, setForm] = useState<NewAppointmentInput>(() =>
     buildInitialForm(appointment, selectedDate, defaultStartTime),
@@ -174,12 +164,6 @@ function AppointmentModalBody({
   const [saving, setSaving] = useState(false);
   const busy = submitting || saving;
   const dirty = JSON.stringify(form) !== JSON.stringify(savedForm);
-  const dialogRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const previousFocus = document.activeElement as HTMLElement | null;
-    dialogRef.current?.querySelector<HTMLInputElement>("input")?.focus();
-    return () => { if (previousFocus?.isConnected) previousFocus.focus(); };
-  }, []);
   const [error, setError] = useState("");
   const isEditing = !!appointment;
 
@@ -194,12 +178,9 @@ function AppointmentModalBody({
    * igual, así que leer de él dejaba la píldora clavada en el estado viejo y
    * parecía que el clic no hacía nada.
    */
-  const liveStatus = useAppointmentsStore((s) =>
-    appointment
-      ? (s.appointments.find((a) => a.id === appointment.id)?.status
-        ?? (s.linkedAppointment?.id === appointment.id ? s.linkedAppointment.status : null) ?? appointment.status)
-      : null,
-  );
+  const liveAppointment = useAppointmentsStore((s) => currentAppointment(appointment, s.appointments, s.linkedAppointment));
+  const liveStatus = liveAppointment?.status ?? null;
+  const liveSaleId = liveAppointment?.sale_id ?? null;
 
   // Se resuelve contra el store y no contra el dato embebido en la cita para
   // que el teléfono siga al cliente que está elegido AHORA en el desplegable,
@@ -222,12 +203,13 @@ function AppointmentModalBody({
     if (staff.length === 0) fetchStaff();
   }, [customers.length, fetchCustomers, services.length, fetchServices, staff.length, fetchStaff]);
 
-  // Lo que hace falta para COBRAR desde acá: qué medios acepta el negocio y,
-  // para un empleado, si tiene la caja abierta (`create_sale` lo exige).
+  // Una lista no vacía puede ser anterior a una reserva pública. Refrescar el
+  // cliente elegido evita mostrar «sin teléfono» cuando todavía no está en caché.
   useEffect(() => {
-    fetchSettings();
-    if (isWorker) fetchCurrentShift();
-  }, [fetchSettings, isWorker, fetchCurrentShift]);
+    if (form.customer_id) void fetchCustomer(form.customer_id);
+  }, [form.customer_id, fetchCustomer]);
+  const [showNewCustomer, setShowNewCustomer] = useState(false);
+  const canUsePos = !isWorker || Boolean(profile?.workerPermissions?.pos);
 
   const generatedTitle = [
     services.find((service) => service.id === form.service_id)?.name || form.service_type,
@@ -287,17 +269,13 @@ function AppointmentModalBody({
   };
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [showChargeConfirm, setShowChargeConfirm] = useState(false);
   const [showCompleteConfirm, setShowCompleteConfirm] = useState(false);
-  const [showOpenShift, setShowOpenShift] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<AppointmentPaymentMethod>("efectivo");
-  const [chargeError, setChargeError] = useState("");
 
   const handleStatusChange = async (status: string) => {
     if (!appointment || status === liveStatus) return;
     // Completar una cita con servicio y sin venta la cierra sin plata ni
     // comisión: se pregunta antes, porque casi siempre lo que se quería era cobrar.
-    if (status === "completed" && appointment.service_id && !liveSaleId && !showCompleteConfirm) {
+    if (status === "completed" && liveAppointment?.service_id && !liveSaleId && !showCompleteConfirm) {
       setShowCompleteConfirm(true);
       return;
     }
@@ -311,48 +289,8 @@ function AppointmentModalBody({
     }
   };
 
-  const liveSaleId = useAppointmentsStore((s) =>
-    appointment
-      ? (s.appointments.find((a) => a.id === appointment.id)?.sale_id ?? appointment.sale_id ?? null)
-      : null,
-  );
-
-  const canCharge =
-    !!appointment &&
-    !!appointment.service_id &&
-    !liveSaleId &&
-    // Una cita completada SIN venta (alguien tocó "Marcar completada") sigue
-    // cobrable: si no, el servicio quedaba hecho y nunca se registraba la plata.
-    liveStatus !== "cancelled";
-
-  const chargedService = appointment?.service_id
-    ? services.find((s) => s.id === appointment.service_id) ?? null
-    : null;
-
-  const paymentOptions = PAYMENT_OPTIONS.filter(
-    (o) =>
-      o.value === "efectivo" ||
-      (o.value === "tarjeta" && acceptsCard) ||
-      (o.value === "transferencia" && acceptsTransfer),
-  );
-
-  /** Duración de lo que se está agendando, como la diría una persona. */
-
-  /**
-   * Abre el cobro. Un empleado sin turno abierto no puede cobrar (`create_sale`
-   * lo rechaza): antes el botón fallaba en silencio y la cita quedaba
-   * pendiente aunque el cliente ya hubiera pagado. Ahora se pide abrir la caja
-   * primero y el cobro sigue solo.
-   */
-  const startCharge = () => {
-    setChargeError("");
-    if (isWorker && requireActiveShift && !currentShift) {
-      setShowOpenShift(true);
-      return;
-    }
-    setShowChargeConfirm(true);
-  };
-
+  const canCharge = !!liveAppointment?.service_id && !liveSaleId && liveStatus !== "cancelled" && canUsePos;
+  const chargedService = services.find((s) => s.id === liveAppointment?.service_id) ?? null;
   const confirmPending = async () => {
     if (!appointment || busy) return;
     setSaving(true);
@@ -372,19 +310,6 @@ function AppointmentModalBody({
     }
   };
 
-  const confirmChargeAction = async () => {
-    if (!appointment) return;
-    setChargeError("");
-    const ok = await chargeAppointment(appointment, paymentMethod);
-    if (ok) {
-      setShowChargeConfirm(false);
-      toast.success("Cita cobrada. Quedó registrada la venta y la cita como completada.");
-      onClose();
-    } else {
-      setChargeError(useAppointmentsStore.getState().error ?? "No se pudo cobrar la cita.");
-    }
-  };
-
   const handleServiceChange = (id: string) => {
     const svc = activeServices.find((s) => s.id === id);
     setForm((f) => ({
@@ -397,53 +322,50 @@ function AppointmentModalBody({
     }));
   };
 
-  function handleDialogKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
-    if (event.defaultPrevented) return;
-    if (event.key === "Escape") {
-      event.preventDefault();
-      if (showDeleteConfirm) setShowDeleteConfirm(false);
-      else if (showCompleteConfirm) setShowCompleteConfirm(false);
-      else if (showChargeConfirm) setShowChargeConfirm(false);
-      else if (!busy) onClose();
-      return;
-    }
-    if (event.key !== "Tab") return;
-    const controls = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], summary, [tabindex="0"]') ?? []).filter((element) => element.offsetParent !== null);
-    const first = controls[0];
-    const last = controls[controls.length - 1];
-    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
-    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
-  }
-
   return (
-    <div ref={dialogRef} onKeyDown={handleDialogKeyDown} className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div role="dialog" aria-modal="true" aria-labelledby="appointment-modal-title" className="bg-surface-container rounded-t-3xl sm:rounded-3xl w-full sm:max-w-lg max-h-[90vh] border border-outline-variant/10 shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200 flex flex-col">
-        {/* Header */}
-        <div className="p-4 sm:p-6 border-b border-outline-variant/10 flex justify-between items-center bg-surface-container-low shrink-0">
-          <div className="min-w-0">
-            <div className="flex items-center gap-3">
-              <h2 id="appointment-modal-title" className="text-lg sm:text-xl font-bold text-on-surface">
-                {isEditing ? "Editar cita" : "Nueva cita"}
-              </h2>
-              {liveStatus && <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
-                {STATUS_OPTIONS.find((option) => option.value === liveStatus)?.label}
-              </span>}
+    <>
+      <Modal open onClose={() => { if (!busy) onClose(); }}
+        title={isEditing ? "Editar cita" : "Nueva cita"}
+        description={<>
+          {liveStatus && <span className="mr-2 font-semibold text-primary">{STATUS_OPTIONS.find((o) => o.value === liveStatus)?.label}</span>}
+          {generatedTitle || form.title || "Organiza la próxima visita"}
+          <span className="block mt-1 text-xs">{form.appointment_date && formatDateOnly(form.appointment_date)} · {formatAppointmentTime(form.start_time, timeFormat)}–{formatAppointmentTime(form.end_time, timeFormat)}</span>
+        </>}
+        bodyClassName="p-0"
+        footerClassName="border-t border-outline-variant/20 p-4 sm:px-6"
+        footer={<>
+          {isEditing && liveStatus === "confirmed" && !dirty && (
+            <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+              <span className="font-semibold text-primary" role="status">Reserva confirmada</span>
+              {customerWhatsapp ? <a href={whatsappUrl(confirmationMessage, customerWhatsapp)} target="_blank" rel="noopener noreferrer"
+                className="font-semibold text-primary underline underline-offset-4">Avisar por WhatsApp</a>
+                : <span className="text-xs text-on-surface-variant">Sin teléfono para avisar.</span>}
             </div>
-            <p className="mt-1 text-sm text-on-surface-variant truncate">{generatedTitle || form.title || "Organiza la próxima visita"}</p>
-            <p className="mt-1 text-xs text-on-surface-variant">{form.appointment_date && formatDateOnly(form.appointment_date)} · {formatAppointmentTime(form.start_time, timeFormat)}–{formatAppointmentTime(form.end_time, timeFormat)}</p>
+          )}
+          <div className="flex items-center justify-between gap-2">
+            {isEditing ? <details className="relative">
+              <summary className="cursor-pointer text-sm text-on-surface-variant">Más acciones</summary>
+              <div className="absolute bottom-full left-0 mb-3 w-52 rounded-xl border border-outline-variant/30 bg-surface-container-high p-2 shadow-xl flex flex-col">
+                {STATUS_OPTIONS.filter(option => option.value !== liveStatus && option.value !== "confirmed").map(option =>
+                  <button key={option.value} type="button" disabled={busy} onClick={() => void handleStatusChange(option.value)} className="text-left rounded-lg p-2 text-sm text-on-surface hover:bg-surface-container-highest">
+                    {option.value === "cancelled" ? "Cancelar cita" : option.value === "completed" ? "Marcar completada" : "Volver a pendiente"}
+                  </button>)}
+                <button type="button" disabled={busy} onClick={() => setShowDeleteConfirm(true)} className="text-left rounded-lg p-2 text-sm text-error-dim">Eliminar cita</button>
+              </div>
+            </details> : <button type="button" onClick={onClose} className="text-sm text-on-surface-variant">Volver</button>}
+            <div className="flex flex-wrap justify-end gap-2">
+              <button type="submit" form="appointment-edit-form" disabled={busy}
+                className={`rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-50 ${isEditing ? "border border-outline-variant/30 text-on-surface" : "bg-primary text-on-primary"}`}>
+                {busy ? "Guardando…" : isEditing ? "Guardar cambios" : "Crear cita"}
+              </button>
+              {liveStatus === "pending" ? <button type="button" disabled={busy} onClick={() => void confirmPending()} className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary disabled:opacity-50">Confirmar reserva</button>
+                : canCharge && <Link href={`/dashboard/pos?appointment=${liveAppointment?.id}`} aria-disabled={busy || dirty} onClick={(event) => { if (busy || dirty) event.preventDefault(); else onClose(); }} title={dirty ? "Guarda los cambios antes de cobrar" : undefined} className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary disabled:opacity-50">
+                  {chargedService ? `Cobrar ${fmtMoney(chargedService.price)}` : "Cobrar"}
+                </Link>}
+            </div>
           </div>
-          <button
-            disabled={busy}
-            onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors"
-            aria-label="Cerrar"
-          >
-            <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="20" height="20">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
+        </>}
+      >
         {isEditing && liveSaleId && (
           <div className="px-4 sm:px-6 py-3 border-b border-emerald-500/20 bg-emerald-500/10 shrink-0 text-sm font-semibold text-emerald-700 dark:text-emerald-400">
             Cita cobrada: la venta ya está registrada.
@@ -481,6 +403,8 @@ function AppointmentModalBody({
               ))}
             </Select>
 
+          <button type="button" onClick={() => setShowNewCustomer(true)} className="min-h-10 text-sm font-semibold text-primary">+ Crear cliente</button>
+
           {/*
             Contacto del cliente. Las citas que entran por el sitio web público
             llegan como "Pendiente" y hay que confirmarlas a mano, así que el
@@ -513,6 +437,7 @@ function AppointmentModalBody({
               onChange={(e) => handleServiceChange(e.target.value)}
             >
                 <option value="">Sin servicio</option>
+                {form.service_id && services.some((s) => s.id === form.service_id && s.status !== "active") && <option value={form.service_id} disabled>{services.find((s) => s.id === form.service_id)?.name} (archivado)</option>}
                 {activeServices.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name}
@@ -642,171 +567,12 @@ function AppointmentModalBody({
           </details>
           </fieldset>
         </form>
-        <div className="shrink-0 border-t border-outline-variant/20 bg-surface-container-lowest p-4 sm:px-6 space-y-3">
-          {isEditing && liveStatus === "confirmed" && !dirty && (
-            <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-              <span className="font-semibold text-primary" role="status">Reserva confirmada</span>
-              {customerWhatsapp ? <a href={whatsappUrl(confirmationMessage, customerWhatsapp)} target="_blank" rel="noopener noreferrer"
-                className="font-semibold text-primary underline underline-offset-4">Avisar por WhatsApp</a>
-                : <span className="text-xs text-on-surface-variant">Sin teléfono para avisar.</span>}
-            </div>
-          )}
-          <div className="flex items-center justify-between gap-2">
-            {isEditing ? <details className="relative">
-              <summary className="cursor-pointer text-sm text-on-surface-variant">Más acciones</summary>
-              <div className="absolute bottom-full left-0 mb-3 w-52 rounded-xl border border-outline-variant/30 bg-surface-container-high p-2 shadow-xl flex flex-col">
-                {STATUS_OPTIONS.filter(option => option.value !== liveStatus && option.value !== "confirmed").map(option =>
-                  <button key={option.value} type="button" disabled={busy} onClick={() => void handleStatusChange(option.value)} className="text-left rounded-lg p-2 text-sm text-on-surface hover:bg-surface-container-highest">
-                    {option.value === "cancelled" ? "Cancelar cita" : option.value === "completed" ? "Marcar completada" : "Volver a pendiente"}
-                  </button>)}
-                <button type="button" disabled={busy} onClick={() => setShowDeleteConfirm(true)} className="text-left rounded-lg p-2 text-sm text-error-dim">Eliminar cita</button>
-              </div>
-            </details> : <button type="button" onClick={onClose} className="text-sm text-on-surface-variant">Volver</button>}
-            <div className="flex flex-wrap justify-end gap-2">
-              <button type="submit" form="appointment-edit-form" disabled={busy}
-                className={`rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-50 ${isEditing ? "border border-outline-variant/30 text-on-surface" : "bg-primary text-on-primary"}`}>
-                {busy ? "Guardando…" : isEditing ? "Guardar cambios" : "Crear cita"}
-              </button>
-              {liveStatus === "pending" ? <button type="button" disabled={busy} onClick={() => void confirmPending()} className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary disabled:opacity-50">Confirmar reserva</button>
-                : canCharge && <button type="button" disabled={busy || dirty} onClick={startCharge} title={dirty ? "Guarda los cambios antes de cobrar" : undefined} className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary disabled:opacity-50">
-                  {chargedService ? `Cobrar ${fmtMoney(chargedService.price)}` : "Cobrar"}
-                </button>}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-surface-container rounded-3xl w-full max-w-sm border border-outline-variant/10 shadow-2xl p-6 text-center animate-in zoom-in-95 duration-200">
-            <h3 className="text-lg font-bold text-on-surface mb-2">Eliminar Cita</h3>
-            <p className="text-sm text-on-surface-variant mb-6">
-              ¿Estás seguro de eliminar esta cita? Esta acción no se puede deshacer.
-            </p>
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={() => setShowDeleteConfirm(false)}
-                className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold text-on-surface-variant hover:bg-surface-container-highest transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={confirmDeleteAction}
-                disabled={busy}
-                className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold bg-error-dim hover:bg-error text-white transition-colors disabled:opacity-50"
-              >
-                {submitting ? "Eliminando…" : "Eliminar"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showCompleteConfirm && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div role="alertdialog" aria-modal="true" aria-labelledby="complete-confirm-title" className="bg-surface-container rounded-3xl w-full max-w-sm border border-outline-variant/10 shadow-2xl p-6 text-center animate-in zoom-in-95 duration-200">
-            <h3 id="complete-confirm-title" className="text-lg font-bold text-on-surface mb-2">¿Completar sin cobrar?</h3>
-            <p className="text-sm text-on-surface-variant mb-6">
-              No se generará venta ni comisión. Si el cliente ya pagó, usa «Cobrar» en su lugar.
-            </p>
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={() => setShowCompleteConfirm(false)}
-                className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold text-on-surface-variant hover:bg-surface-container-highest transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleStatusChange("completed")}
-                disabled={busy}
-                className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold bg-surface-container-high text-on-surface hover:bg-surface-container-highest transition-colors disabled:opacity-50"
-              >
-                Completar sin cobrar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showChargeConfirm && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-surface-container rounded-3xl w-full max-w-sm border border-outline-variant/10 shadow-2xl p-6 text-center animate-in zoom-in-95 duration-200">
-            <h3 className="text-lg font-bold text-on-surface mb-1">Cobrar cita</h3>
-            <p className="text-sm text-on-surface-variant mb-4">
-              {chargedService?.name ?? appointment?.title}
-              {selectedCustomer ? ` · ${selectedCustomer.full_name}` : ""}
-            </p>
-            {chargedService && (
-              <p className="text-3xl font-bold text-on-surface tabular-nums mb-4">
-                {fmtMoney(chargedService.price)}
-              </p>
-            )}
-
-            <div className="mb-4 text-left">
-              <p className="text-[13px] font-semibold text-on-surface mb-1.5">¿Cómo paga?</p>
-              <div className="grid grid-cols-3 gap-2">
-                {paymentOptions.map((o) => (
-                  <button
-                    key={o.value}
-                    type="button"
-                    onClick={() => setPaymentMethod(o.value)}
-                    aria-pressed={paymentMethod === o.value}
-                    className={`rounded-xl border px-2 py-2.5 text-xs font-semibold transition-colors ${
-                      paymentMethod === o.value
-                        ? "border-primary bg-primary/10 text-primary"
-                        : "border-outline-variant/30 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high"
-                    }`}
-                  >
-                    {o.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <p className="text-xs text-on-surface-variant mb-4">
-              Se registra la venta y la cita queda como completada.
-            </p>
-
-            {chargeError && (
-              <div className="mb-4 rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim text-left">
-                {chargeError}
-              </div>
-            )}
-
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={() => setShowChargeConfirm(false)}
-                className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold text-on-surface-variant hover:bg-surface-container-highest transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={confirmChargeAction}
-                disabled={busy}
-                className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold bg-emerald-600 hover:bg-emerald-500 text-white transition-colors disabled:opacity-50"
-              >
-                {submitting ? "Cobrando…" : "Confirmar cobro"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showOpenShift && (
-        // Contenedor propio: el modal de turno usa z-50 y esta pantalla z-100.
-        <div className="relative z-[120]">
-          <OpenShiftModal
-            onClose={() => setShowOpenShift(false)}
-            onOpened={() => setShowChargeConfirm(true)}
-          />
-        </div>
-      )}
-    </div>
+      </Modal>
+      <ConfirmDialog open={showDeleteConfirm} title="Eliminar cita" description="Esta acción no se puede deshacer. Puedes cancelar la cita para conservar su historial."
+        tone="danger" confirmLabel="Eliminar" loading={busy} onCancel={() => setShowDeleteConfirm(false)} onConfirm={confirmDeleteAction} />
+      <ConfirmDialog open={showCompleteConfirm} title="¿Completar sin cobrar?" description="No se generará venta ni comisión. Si el cliente ya pagó, usa Cobrar."
+        confirmLabel="Completar sin cobrar" loading={busy} onCancel={() => setShowCompleteConfirm(false)} onConfirm={() => void handleStatusChange("completed")} />
+      <QuickCustomerModal open={showNewCustomer} onClose={() => setShowNewCustomer(false)} onCreated={(id) => { setForm((f) => ({ ...f, customer_id: id })); setShowNewCustomer(false); }} />
+    </>
   );
 }
