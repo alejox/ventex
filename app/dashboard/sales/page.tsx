@@ -170,7 +170,7 @@ function voidImpactLines(impact: SaleVoidImpact | null, formatMoney: MoneyFormat
   const lines: string[] = [];
   if (impact.cashRefund > 0) {
     lines.push(
-      `Devuelve ${formatMoney(impact.cashRefund)} en efectivo al cliente: sale de la caja de tu turno abierto (sin turno abierto no se puede anular).`,
+      `Devuelve ${formatMoney(impact.cashRefund)} en efectivo al cliente. Si sale de una caja con turno, necesitas un turno abierto. El dueño puede revertir ventas hechas fuera de turno sin afectar el arqueo de un empleado.`,
     );
   }
   if (impact.otherRefund > 0) {
