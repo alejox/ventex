@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   INSTAGRAM_SCOPE,
+  newOAuthState,
+  stateCookieValue,
+  verifyOAuthState,
   buildAuthorizeUrl,
   cleanAuthorizationCode,
   expiresAtFrom,
@@ -163,4 +166,20 @@ test("media response without a data array is an error, an empty one is not", () 
   assert.equal(mediaPermalinks(null), null);
   assert.equal(mediaPermalinks({ data: "x" }), null);
   assert.deepEqual(mediaPermalinks({ data: [] }), []);
+});
+
+test("oauth state is random, url-safe and bound to the tenant", () => {
+  const a = newOAuthState();
+  const b = newOAuthState();
+  assert.notEqual(a, b);
+  assert.match(a, /^[A-Za-z0-9_-]{43}$/);
+
+  const cookie = stateCookieValue(a, "tenant-1");
+  assert.equal(verifyOAuthState(cookie, a, "tenant-1"), true);
+  assert.equal(verifyOAuthState(cookie, b, "tenant-1"), false);
+  assert.equal(verifyOAuthState(cookie, a, "tenant-2"), false);
+  assert.equal(verifyOAuthState(cookie, `${a}x`, "tenant-1"), false);
+  assert.equal(verifyOAuthState(undefined, a, "tenant-1"), false);
+  assert.equal(verifyOAuthState(cookie, null, "tenant-1"), false);
+  assert.equal(verifyOAuthState(cookie, "", "tenant-1"), false);
 });

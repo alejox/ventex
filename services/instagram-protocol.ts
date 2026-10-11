@@ -1,3 +1,4 @@
+import { randomBytes, timingSafeEqual } from "crypto";
 import { MAX_INSTAGRAM_POSTS, instagramPostUrl } from "@/lib/instagram";
 
 /**
@@ -162,4 +163,40 @@ export function mediaPermalinks(body: unknown): string[] | null {
     return url ? [url] : [];
   });
   return [...new Set(urls)].slice(0, MAX_INSTAGRAM_POSTS);
+}
+
+// ---------------------------------------------------------------------------
+// OAuth state (CSRF) cookie
+// ---------------------------------------------------------------------------
+
+export const INSTAGRAM_STATE_COOKIE = "ig_oauth_state";
+/** Ten minutes: enough to log in to Instagram, short enough to not linger. */
+export const INSTAGRAM_STATE_MAX_AGE_SECONDS = 600;
+
+export function newOAuthState(): string {
+  return randomBytes(32).toString("base64url");
+}
+
+/**
+ * The cookie binds the state to the tenant that started the flow, so a code
+ * that comes back after a workspace switch cannot land on another business.
+ */
+export function stateCookieValue(state: string, tenantId: string): string {
+  return `${state}.${tenantId}`;
+}
+
+function safeEqual(a: string, b: string): boolean {
+  const left = Buffer.from(a);
+  const right = Buffer.from(b);
+  return left.length === right.length && timingSafeEqual(left, right);
+}
+
+/** Constant-time check of the `state` query param against the cookie. */
+export function verifyOAuthState(
+  cookie: string | null | undefined,
+  state: string | null | undefined,
+  tenantId: string,
+): boolean {
+  if (!cookie || !state || !tenantId) return false;
+  return safeEqual(cookie, stateCookieValue(state, tenantId));
 }
