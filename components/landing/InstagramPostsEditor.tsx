@@ -1,12 +1,18 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button, IconButton } from "@/components/ui/Button";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { IconTrash } from "@/app/assets/icons/DashboardIcons";
 import { instagramPostUrl, MAX_INSTAGRAM_POSTS, type InstagramSource } from "@/lib/instagram";
-import { INSTAGRAM_CONNECT_PATH } from "@/services/instagram.service";
+import {
+  INSTAGRAM_POPUP_CHANNEL,
+  INSTAGRAM_POPUP_FEATURES,
+  INSTAGRAM_POPUP_NAME,
+  instagramConnectHref,
+  readInstagramPopupMessage,
+} from "@/lib/instagram-popup";
 import { useInstagramStore } from "@/stores/instagram.store";
 
 const INPUT = "w-full rounded-lg border border-outline-variant/30 bg-surface-container px-3 py-2.5 text-sm text-on-surface outline-none focus:border-primary";
@@ -19,7 +25,10 @@ const RESULT_TOASTS: Record<string, { kind: "success" | "info" | "error"; text: 
   unconfigured: { kind: "error", text: "La conexión con Instagram todavía no está disponible. Mientras tanto, usa enlaces manuales." },
 };
 
-/** Toast for the `?instagram=` result of the OAuth round trip. Unknown values are ignored. */
+/**
+ * Toast for the result of the OAuth round trip (`?instagram=` in the same-tab
+ * fallback, or the popup's message). Unknown values are ignored.
+ */
 export function showInstagramResult(result: string) {
   const message = RESULT_TOASTS[result];
   if (!message) return;
@@ -85,6 +94,76 @@ function formatDate(iso: string | null): string | null {
   return date.toLocaleString("es-CO", { dateStyle: "medium", timeStyle: "short" });
 }
 
+/** How often to check whether the owner closed the popup by hand. */
+const POPUP_CLOSED_POLL_MS = 1000;
+
+/**
+ * "Conectar Instagram" in a popup so the owner never leaves the editor (and
+ * nothing unsaved is lost). The callback page reports the outcome by
+ * `postMessage` to this exact origin (plus a same-origin BroadcastChannel, in
+ * case Instagram severed `window.opener`). A blocked popup falls back to the
+ * same-tab flow, whose `?instagram=` result `LandingEditor` already handles.
+ */
+function useInstagramPopup(siteId: string | null) {
+  const fetchConnection = useInstagramStore((s) => s.fetchConnection);
+  const pollRef = useRef<number | null>(null);
+  const pendingRef = useRef(false);
+
+  const stopPolling = useCallback(() => {
+    if (pollRef.current !== null) window.clearInterval(pollRef.current);
+    pollRef.current = null;
+  }, []);
+
+  useEffect(() => {
+    const origin = window.location.origin;
+    function handle(eventOrigin: string, data: unknown) {
+      const result = readInstagramPopupMessage(eventOrigin, origin, data);
+      // Both channels may deliver the same outcome: act on the first one only.
+      if (!result || !pendingRef.current) return;
+      pendingRef.current = false;
+      stopPolling();
+      showInstagramResult(result);
+      void fetchConnection();
+    }
+    const onMessage = (event: MessageEvent) => handle(event.origin, event.data);
+    window.addEventListener("message", onMessage);
+    let channel: BroadcastChannel | null = null;
+    if (typeof BroadcastChannel !== "undefined") {
+      channel = new BroadcastChannel(INSTAGRAM_POPUP_CHANNEL);
+      // Same-origin by construction: a BroadcastChannel never crosses origins.
+      channel.onmessage = (event: MessageEvent) => handle(origin, event.data);
+    }
+    return () => {
+      window.removeEventListener("message", onMessage);
+      channel?.close();
+      stopPolling();
+    };
+  }, [fetchConnection, stopPolling]);
+
+  return useCallback(() => {
+    const popup = window.open(
+      instagramConnectHref(window.location.origin, siteId, true),
+      INSTAGRAM_POPUP_NAME,
+      INSTAGRAM_POPUP_FEATURES,
+    );
+    if (!popup) {
+      // Blocked: the classic same-tab round trip (the editor warns about unsaved changes).
+      window.location.assign(instagramConnectHref(window.location.origin, siteId, false));
+      return;
+    }
+    popup.focus();
+    pendingRef.current = true;
+    stopPolling();
+    pollRef.current = window.setInterval(() => {
+      if (!popup.closed) return;
+      // Closed by hand (or no message arrived): refresh once and stop. A late
+      // message still lands, since the listeners outlive the poll.
+      stopPolling();
+      void fetchConnection();
+    }, POPUP_CLOSED_POLL_MS);
+  }, [fetchConnection, siteId, stopPolling]);
+}
+
 function AccountPosts({ siteId }: { siteId: string | null }) {
   const connection = useInstagramStore((s) => s.connection);
   const loading = useInstagramStore((s) => s.loading);
@@ -92,12 +171,7 @@ function AccountPosts({ siteId }: { siteId: string | null }) {
   const loadError = useInstagramStore((s) => s.error);
   const disconnect = useInstagramStore((s) => s.disconnect);
   const { confirm, dialog } = useConfirm();
-
-  function connect() {
-    const url = new URL(INSTAGRAM_CONNECT_PATH, window.location.origin);
-    if (siteId) url.searchParams.set("site", siteId);
-    window.location.assign(url.toString());
-  }
+  const connect = useInstagramPopup(siteId);
 
   async function askDisconnect() {
     const ok = await confirm({
@@ -125,7 +199,7 @@ function AccountPosts({ siteId }: { siteId: string | null }) {
         <Button variant="secondary" onClick={connect}>
           Conectar Instagram
         </Button>
-        <p className="text-xs text-on-surface-variant">Guarda tus cambios antes de conectar: vas a salir un momento a Instagram.</p>
+        <p className="text-xs text-on-surface-variant">Se abre una ventana de Instagram; tu editor queda abierto aquí.</p>
         {loadError ? <p role="alert" className="text-xs font-semibold text-error">{loadError}</p> : null}
       </div>
     );

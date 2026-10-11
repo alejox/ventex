@@ -12,16 +12,26 @@ import {
   returnSiteId,
   stateCookieValue,
 } from "@/services/instagram-protocol";
+import { INSTAGRAM_POPUP_COOKIE, instagramPopupHtml, popupRequested } from "@/lib/instagram-popup";
 
 /**
  * Starts "Conectar Instagram": owner only. Sets a short-lived, httpOnly state
  * cookie (CSRF) and sends the browser to Instagram's consent screen. `?site=`
- * (the site being edited) is remembered so the callback returns to that editor.
+ * (the site being edited) is remembered so the callback returns to that editor;
+ * `?popup=1` is remembered so the callback answers the opener instead.
  */
 export async function GET(request: NextRequest) {
-  const siteId = returnSiteId(request.nextUrl.searchParams.get("site"));
-  const back = (result: InstagramConnectResult) =>
-    NextResponse.redirect(new URL(editorReturnPath(result, siteId), request.nextUrl.origin));
+  const params = request.nextUrl.searchParams;
+  const siteId = returnSiteId(params.get("site"));
+  const popup = popupRequested(params.get("popup"));
+  const back = (result: InstagramConnectResult) => {
+    const path = editorReturnPath(result, siteId);
+    if (!popup) return NextResponse.redirect(new URL(path, request.nextUrl.origin));
+    // Inside the popup: report to the editor and close, never load the editor here.
+    return new NextResponse(instagramPopupHtml({ result, origin: request.nextUrl.origin, editorPath: path }), {
+      headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" },
+    });
+  };
 
   const owner = await requireSelectedWorkspaceOwner();
   // Workers and workspace admins cannot connect: the account becomes the
@@ -45,5 +55,7 @@ export async function GET(request: NextRequest) {
   response.cookies.set(INSTAGRAM_STATE_COOKIE, stateCookieValue(state, owner.workspaceId), cookie);
   if (siteId) response.cookies.set(INSTAGRAM_RETURN_COOKIE, siteId, cookie);
   else response.cookies.delete({ name: INSTAGRAM_RETURN_COOKIE, path: "/api/instagram" });
+  if (popup) response.cookies.set(INSTAGRAM_POPUP_COOKIE, "1", cookie);
+  else response.cookies.delete({ name: INSTAGRAM_POPUP_COOKIE, path: "/api/instagram" });
   return response;
 }
