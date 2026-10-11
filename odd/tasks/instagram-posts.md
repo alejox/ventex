@@ -64,7 +64,12 @@ Strategy: `ask-on-risk`. Forecast ~250 authored lines (under the 400 budget): si
   - Review assessment (`676b5b2..422c11f`, committed-only, unrelated untracked excluded): risk `medium`, 1764 lines, `review_due: true` (`slice_budget_reached`). Native review PENDING: preflight STATUS asks for an `intended_untracked_selection` (the user's unrelated untracked files) and my submission was rejected as `invalid_request` (exact JSON shape unknown). Not retried blindly.
 
 - Migration `20261010120000_instagram_connections.sql` APPLIED to the remote project (user-approved, 2026-10-10) via MCP `apply_migration`. Live checks: `authenticated` cannot SELECT `access_token`/`ig_user_id` nor INSERT; `anon` cannot read the table or run `disconnect_instagram()`; `public_instagram_permalinks('no-existe')` → `{}`; RLS on. Security advisors only flag the intentional SECURITY DEFINER RPCs (same pattern as `public_site_by_slug`).
-- Meta app: Instagram App ID `1452775806251607`; only `instagram_business_basic` added; business login redirect `https://www.ventex.app/api/instagram/callback`; tester @ventex.app invited (pending acceptance). Prod `NEXT_PUBLIC_SITE_URL` must be `https://www.ventex.app` (apex 308-redirects to www).
+- Meta app: Instagram App ID `1452775806291607`; only `instagram_business_basic` added; business login redirect `https://www.ventex.app/api/instagram/callback`; tester @ventex.app invited (pending acceptance). Prod `NEXT_PUBLIC_SITE_URL` must be `https://www.ventex.app` (apex 308-redirects to www).
+
+- Popup connect (branch `feat/instagram-connect-popup` from `7293a43`), route: delegated writer. `b038650` `feat(instagram): connect the account in a popup without leaving the editor`. "Conectar Instagram" opens `/api/instagram/connect?popup=1` in a popup; the callback renders a no-store page that `postMessage`s the result to the exact site origin (plus a same-origin BroadcastChannel in case Instagram's COOP severs `window.opener`) and closes; the editor validates origin/type/result, toasts, and refreshes the status; a hand-closed popup refreshes once; a blocked popup falls back to the same-tab flow.
+  - RED: `npx tsx --test tests/instagram-popup.test.ts` failed (module `lib/instagram-popup` missing). GREEN: 8/8.
+  - Checks: `npm test` 865/865; `npx tsc --noEmit` clean; eslint on every touched file clean.
+  - Not checked: real popup round trip in a browser against Meta (whether Instagram's COOP severs the opener is unverified; the BroadcastChannel covers it either way).
 
 ## Next step
 Phase 2: user approves applying `20261010120000_instagram_connections.sql`, sets `INSTAGRAM_APP_ID`/`INSTAGRAM_APP_SECRET` and registers the redirect URI in Meta, then a tester account runs Conectar Instagram end to end.
