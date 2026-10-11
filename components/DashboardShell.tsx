@@ -53,6 +53,8 @@ import { HEADER_ICON_BUTTON } from "@/components/ui/HeaderIconButton";
 import { CommandPalette, NAV_KEYWORDS, type PaletteCommand } from "@/components/ui/CommandPalette";
 
 import { useBusinessSiteStore } from "@/stores/business-site.store";
+import { editingSiteIdFrom, siteLinksView, type SiteLinkSource } from "@/lib/site-links";
+import { SITE_URL } from "@/lib/site";
 import { useSettingsStore } from "@/stores/settings.store";
 
 type IconType = typeof IconHome;
@@ -211,9 +213,8 @@ export function DashboardShell({
     window.open(whatsappUrl(msg), "_blank");
   };
 
-  const site = useBusinessSiteStore((state) => state.site);
+  const sites = useBusinessSiteStore((state) => state.sites);
   const fetchSiteConfig = useBusinessSiteStore((state) => state.fetchConfig);
-  const siteSlug = site?.published ? site.slug : null;
 
   useEffect(() => {
     void fetchSiteConfig();
@@ -665,21 +666,14 @@ export function DashboardShell({
             {/* Solo cuando el sitio existe y está publicado. Antes se mostraba
                 siempre y, sin sitio, llevaba a Ajustes: un botón que dice "Ver
                 sitio web" y no muestra ningún sitio. Crearlo se ofrece desde
-                Configuración, que es donde corresponde. */}
-            {siteSlug && (
-              <a
-                href={`/${siteSlug}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 min-h-9 rounded-full bg-primary/10 text-primary-ink text-xs font-semibold hover:bg-primary/20 transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-ink"
-                title="Ver mi sitio público de reservas"
-              >
-                <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-3.5 h-3.5" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
-                <span>Ver sitio web</span>
-              </a>
-            )}
+                Configuración, que es donde corresponde.
+                Con varias páginas abre un menú: un solo enlace llevaba siempre
+                a la principal aunque estuvieras editando otra. */}
+            <SiteLinksControl
+              sites={sites}
+              pathname={pathname}
+              businessName={profile?.businessName?.trim() || "Mi página"}
+            />
             {/* En tablet el header no tiene el campo: queda este botón. En el
                 teléfono la paleta vive en el cajón, en "Acciones rápidas". */}
             <button
@@ -903,6 +897,170 @@ export function DashboardShell({
             </div>
             )}
           </aside>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const SITE_LINK_BUTTON =
+  "hidden sm:flex items-center gap-1.5 px-3 py-1.5 min-h-9 rounded-full bg-primary/10 text-primary-ink text-xs font-semibold hover:bg-primary/20 transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-ink";
+
+function ExternalLinkIcon() {
+  return (
+    <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="w-3.5 h-3.5" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+    </svg>
+  );
+}
+
+/**
+ * "Ver sitio web" del header. Sin página publicada no se muestra; con una sola
+ * es el enlace directo de siempre; con varias abre un menú con todas
+ * (`siteLinksView`). Los borradores se listan pero no son enlaces: su dirección
+ * pública todavía no muestra nada.
+ */
+function SiteLinksControl({
+  sites,
+  pathname,
+  businessName,
+}: {
+  sites: readonly SiteLinkSource[];
+  pathname: string;
+  businessName: string;
+}) {
+  const [open, setOpen] = useState(false);
+  // Se lee al abrir y no con useSearchParams: el shell envuelve todo el
+  // dashboard y no necesita re-renderizar por cada cambio de query.
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const view = useMemo(
+    () => siteLinksView(sites, { businessName, siteUrl: SITE_URL, editingSiteId: editingId }),
+    [sites, businessName, editingId],
+  );
+
+  useEffect(() => {
+    if (!open) return;
+    panelRef.current?.querySelector<HTMLElement>("a[href]")?.focus();
+    const onPointerDown = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+        buttonRef.current?.focus();
+        return;
+      }
+      if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+      const links = Array.from(panelRef.current?.querySelectorAll<HTMLElement>("a[href]") ?? []);
+      if (links.length === 0) return;
+      event.preventDefault();
+      const index = links.indexOf(document.activeElement as HTMLElement);
+      const step = event.key === "ArrowDown" ? 1 : -1;
+      links[(index + step + links.length) % links.length]?.focus();
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  if (view.kind === "none") return null;
+
+  if (view.kind === "single") {
+    return (
+      <a
+        href={view.link.href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={SITE_LINK_BUTTON}
+        title="Ver mi sitio público de reservas"
+      >
+        <ExternalLinkIcon />
+        <span>Ver sitio web</span>
+      </a>
+    );
+  }
+
+  const toggle = () => {
+    if (!open) setEditingId(editingSiteIdFrom(pathname, window.location.search));
+    setOpen((value) => !value);
+  };
+
+  return (
+    <div ref={rootRef} className="relative hidden sm:block shrink-0">
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={toggle}
+        aria-expanded={open}
+        aria-controls="site-links-panel"
+        className={SITE_LINK_BUTTON}
+        title="Elige qué página ver"
+      >
+        <ExternalLinkIcon />
+        <span>Ver sitio web</span>
+        <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className={`w-3 h-3 transition-transform motion-reduce:transition-none ${open ? "rotate-180" : ""}`} aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M6 9l6 6 6-6" />
+        </svg>
+      </button>
+      {open && (
+        <div
+          id="site-links-panel"
+          ref={panelRef}
+          role="region"
+          aria-label="Tus páginas web"
+          className="absolute right-0 top-full z-50 mt-2 w-72 max-w-[calc(100vw-2rem)] rounded-2xl border border-divider bg-surface-container-lowest p-2 shadow-2xl"
+        >
+          <p className="px-3 pb-1 pt-1.5 text-[11px] font-bold uppercase tracking-wide text-on-surface-variant">
+            Tus páginas
+          </p>
+          <ul className="space-y-0.5">
+            {view.links.map((link) => {
+              const body = (
+                <>
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span className="min-w-0 truncate font-semibold text-on-surface">{link.name}</span>
+                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold ${link.published ? "bg-emerald-500/15 text-emerald-600" : "bg-surface-container-high text-on-surface-variant"}`}>
+                      {link.published ? "Publicada" : "Borrador"}
+                    </span>
+                    {link.editing && (
+                      <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-bold text-primary-ink">
+                        Editando
+                      </span>
+                    )}
+                  </span>
+                  <span className="block truncate text-xs text-on-surface-variant">
+                    {link.published ? link.displayUrl : "Publícala para poder verla"}
+                  </span>
+                </>
+              );
+              return (
+                <li key={link.id}>
+                  {link.published ? (
+                    <a
+                      href={link.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => setOpen(false)}
+                      className="block rounded-xl px-3 py-2.5 text-left text-sm hover:bg-surface-container focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-ink"
+                    >
+                      {body}
+                      <span className="sr-only"> (se abre en una pestaña nueva)</span>
+                    </a>
+                  ) : (
+                    <div aria-disabled="true" className="block rounded-xl px-3 py-2.5 text-left text-sm opacity-70">
+                      {body}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
         </div>
       )}
     </div>
