@@ -6,6 +6,7 @@ import {
   instagramRedirectUri,
   mediaPermalinks,
   needsRefresh,
+  parseInstagramJson,
   parseLongLivedToken,
   parseProfile,
   parseShortLivedToken,
@@ -84,7 +85,7 @@ async function requestJson(
   }
   if (!response.ok) throw new InstagramSyncError(step, response.status);
   try {
-    return await response.json();
+    return parseInstagramJson(await response.text());
   } catch {
     throw new InstagramSyncError(step, response.status);
   }

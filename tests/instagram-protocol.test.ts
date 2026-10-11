@@ -12,10 +12,37 @@ import {
   instagramRedirectUri,
   mediaPermalinks,
   needsRefresh,
+  parseInstagramJson,
   parseLongLivedToken,
   parseProfile,
   parseShortLivedToken,
 } from "../services/instagram-protocol";
+
+// Instagram-scoped user IDs are 17 digits, beyond Number.MAX_SAFE_INTEGER, and
+// the code exchange returns them as bare JSON numbers.
+test("real-size numeric ids survive parsing without losing digits", () => {
+  const short = parseShortLivedToken(
+    parseInstagramJson('{"access_token":"tok","user_id":17841405822304914,"permissions":"instagram_business_basic"}'),
+  );
+  assert.deepEqual(short, { accessToken: "tok", userId: "17841405822304914" });
+
+  const wrapped = parseShortLivedToken(
+    parseInstagramJson('{"data":[{"access_token":"tok","user_id":17841405822304914}]}'),
+  );
+  assert.deepEqual(wrapped, { accessToken: "tok", userId: "17841405822304914" });
+
+  const profile = parseProfile(parseInstagramJson('{"user_id":17841405822304914,"username":"ventex.app","id":"9"}'));
+  assert.deepEqual(profile, { userId: "17841405822304914", username: "ventex.app" });
+});
+
+test("parseInstagramJson leaves strings, small numbers and other keys alone", () => {
+  assert.deepEqual(parseInstagramJson('{"user_id":"17841405822304914","expires_in":5183944,"note":"user_id: 17841405822304914"}'), {
+    user_id: "17841405822304914",
+    expires_in: 5183944,
+    note: "user_id: 17841405822304914",
+  });
+  assert.throws(() => parseInstagramJson("not json"));
+});
 
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;

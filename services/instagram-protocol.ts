@@ -61,6 +61,17 @@ function nonEmptyString(value: unknown): string | null {
 }
 
 /** Instagram ids are large integers; JSON may deliver them as number or string. */
+/**
+ * JSON.parse for Instagram responses. Instagram-scoped user IDs are 17 digits
+ * (beyond Number.MAX_SAFE_INTEGER) and some endpoints return them as bare JSON
+ * numbers, which JSON.parse silently rounds. Quote integer `user_id`/`id`
+ * values of 16+ digits before parsing so they survive as exact strings. The
+ * key must be a real (unescaped) JSON key, so text inside strings is untouched.
+ */
+export function parseInstagramJson(text: string): unknown {
+  return JSON.parse(text.replace(/(?<!\\)"(user_id|id)"(\s*:\s*)(\d{16,})(?=\s*[,}\]])/g, '"$1"$2"$3"'));
+}
+
 function idString(value: unknown): string | null {
   if (typeof value === "number" && Number.isSafeInteger(value) && value > 0) return String(value);
   if (typeof value === "string" && /^\d+$/.test(value)) return value;
