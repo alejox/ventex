@@ -21,6 +21,13 @@ Owners want their Instagram on their Ventex site. Meta retired the Basic Display
 - [x] T1 — Config + pure helper: `instagramPostUrl(raw)` (canonical permalink or null), `instagramPosts` in `LandingConfig` + default + normalizer (dedupe, cap 6), `instagram` section id + defaults. Tests first (`tests/site-instagram-config.test.ts`). Route: delegated (writer, together with T2).
 - [x] T2 — UI: editor input list in `components/landing/LandingEditor.tsx`; client `InstagramSection` (next/script `embed.js` + `window.instgrm.Embeds.process()`) rendered from `ConfigurableSections` in `app/[slug]/templates/SiteSections.tsx`; renders nothing when empty. Route: delegated (writer; 2+ non-trivial files).
 
+### Phase 2 — automatic feed via Instagram Login (user request 2026-10-10)
+The owner connects their Instagram professional account once (OAuth); new posts show up on the site automatically. Manual links stay as the fallback. The user is creating the Meta app (env `INSTAGRAM_APP_ID` / `INSTAGRAM_APP_SECRET`, redirect `${NEXT_PUBLIC_SITE_URL}/api/instagram/callback`); until Meta approves Advanced Access only tester accounts can connect.
+- [x] T3 — Pure protocol module `services/instagram-protocol.ts` (authorize URL, token/refresh response parsing, expiry math, needs-refresh rule, media response → permalinks) with tests first. Route: delegated writer.
+- [x] T4 — Migration `instagram_connections` (one row per tenant, `user_id default get_effective_user_id()`; token columns never readable by `authenticated`; owner reads status columns; public SECURITY DEFINER function returns only cached permalinks for a published site slug). File only — applying to the remote project waits for user approval. Route: delegated writer.
+- [x] T5 — Server routes: `/api/instagram/connect` (owner only, state cookie), `/api/instagram/callback` (verify state, code → short → long token, fetch profile + media, upsert with admin client), `/api/instagram/sync` (`CRON_SECRET`, refresh tokens + media), disconnect. Degrade with a clear message when env is missing. Route: delegated writer.
+- [x] T6 — UI + render: `LandingConfig.instagramSource: "manual" | "account"`, editor connect/disconnect + mode switch, public site and preview use cached account media when `account`. Route: delegated writer.
+
 ## Acceptance criteria
 - Pasting `https://www.instagram.com/p/ABC123/?igsh=xyz` saves `https://www.instagram.com/p/ABC123/`; invalid links are rejected with a visible message.
 - After publishing, the posts appear on `/[slug]` in the section's configured position; preview shows them too.
@@ -46,5 +53,15 @@ Strategy: `ask-on-risk`. Forecast ~250 authored lines (under the 400 budget): si
 
 - Browser check (2026-10-10, dev :3001, editor preview only — nothing saved or published): a profile link is rejected with the inline error; `…/p/BsOGulcndj-/?igsh=abc123` is stored as `instagram.com/p/BsOGulcndj-/`; the embed renders inside the preview iframe; no console errors; removing the post hides the section. Not checked: public `/[slug]` after publish (needs publishing the real site). UX nit: a single post sits left-aligned (grid `auto-fill`).
 
+- Phase 2 (T3–T6), route: delegated writer (one bounded writer for 2+ non-trivial files).
+  - T3 `fb7bc90` `feat(instagram): add pure instagram login protocol helpers`. RED: `npx tsx --test tests/instagram-protocol.test.ts` failed with `Cannot find module '../services/instagram-protocol'`. GREEN: 12/12 pass.
+  - T4 `9f4baa9` `feat(instagram): add instagram_connections table with token-safe grants`. Migration file only — **NOT applied** to the remote project (waits for user approval). Types added by hand to `utils/supabase/database.types.ts`; `npx tsc --noEmit` clean.
+  - T5 `87ab461` `feat(instagram): connect accounts via oauth and sync posts daily`. Adds OAuth state helpers (+1 test, written together with the code — no separate RED observed), `services/instagram.server.ts`, `/api/instagram/{connect,callback,sync}`, daily cron `0 9 * * *`, env vars. Sync exports GET (Vercel Cron uses GET) and POST.
+  - T6 `a673896` `feat(site): show posts from a connected instagram account`. RED: `npx tsx --test tests/site-instagram-config.test.ts` 6/7 (instagramSource test failing). GREEN: 7/7. Also adds the return-to-editor helper (+1 test) so the OAuth round trip lands on `?site=<id>&tab=sections`.
+  - Checks after T6: `npx tsx --test tests/instagram-protocol.test.ts` 14/14; `npm test` 596/596; `npx tsc --noEmit` clean; eslint on every touched file clean.
+  - Not checked: real OAuth round trip and media fetch against Meta (needs the Meta app, env vars and a tester account); migration grants on a live database.
+
 ## Next step
-Manual check in the browser: add a post in the editor (preview), publish, open `/[slug]`. Then decide on PR.
+Phase 2: user approves applying `20261010120000_instagram_connections.sql`, sets `INSTAGRAM_APP_ID`/`INSTAGRAM_APP_SECRET` and registers the redirect URI in Meta, then a tester account runs Conectar Instagram end to end.
+
+Phase 1 (earlier): Manual check in the browser: add a post in the editor (preview), publish, open `/[slug]`. Then decide on PR.
