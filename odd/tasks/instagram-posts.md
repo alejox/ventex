@@ -44,5 +44,7 @@ Strategy: `ask-on-risk`. Forecast ~250 authored lines (under the 400 budget): si
 
 - Review assessment (`676b5b2..e2b7237`, committed-only, unrelated untracked files excluded): risk `medium` (executable change), 387 lines, `review_due: false` (`under_budget`). Parent spot check: test file 5/5 pass; embed markup only interpolates the rebuilt permalink.
 
+- Browser check (2026-10-10, dev :3001, editor preview only — nothing saved or published): a profile link is rejected with the inline error; `…/p/BsOGulcndj-/?igsh=abc123` is stored as `instagram.com/p/BsOGulcndj-/`; the embed renders inside the preview iframe; no console errors; removing the post hides the section. Not checked: public `/[slug]` after publish (needs publishing the real site). UX nit: a single post sits left-aligned (grid `auto-fill`).
+
 ## Next step
 Manual check in the browser: add a post in the editor (preview), publish, open `/[slug]`. Then decide on PR.
