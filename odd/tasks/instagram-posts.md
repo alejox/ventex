@@ -63,6 +63,9 @@ Strategy: `ask-on-risk`. Forecast ~250 authored lines (under the 400 budget): si
   - Parent spot check: protocol + config tests 21/21; migration revokes all from anon/authenticated and grants only status columns.
   - Review assessment (`676b5b2..422c11f`, committed-only, unrelated untracked excluded): risk `medium`, 1764 lines, `review_due: true` (`slice_budget_reached`). Native review PENDING: preflight STATUS asks for an `intended_untracked_selection` (the user's unrelated untracked files) and my submission was rejected as `invalid_request` (exact JSON shape unknown). Not retried blindly.
 
+- Migration `20261010120000_instagram_connections.sql` APPLIED to the remote project (user-approved, 2026-10-10) via MCP `apply_migration`. Live checks: `authenticated` cannot SELECT `access_token`/`ig_user_id` nor INSERT; `anon` cannot read the table or run `disconnect_instagram()`; `public_instagram_permalinks('no-existe')` → `{}`; RLS on. Security advisors only flag the intentional SECURITY DEFINER RPCs (same pattern as `public_site_by_slug`).
+- Meta app: Instagram App ID `1452775806251607`; only `instagram_business_basic` added; business login redirect `https://www.ventex.app/api/instagram/callback`; tester @ventex.app invited (pending acceptance). Prod `NEXT_PUBLIC_SITE_URL` must be `https://www.ventex.app` (apex 308-redirects to www).
+
 ## Next step
 Phase 2: user approves applying `20261010120000_instagram_connections.sql`, sets `INSTAGRAM_APP_ID`/`INSTAGRAM_APP_SECRET` and registers the redirect URI in Meta, then a tester account runs Conectar Instagram end to end.
 
