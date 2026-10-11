@@ -16,6 +16,7 @@ import {
 import { CollectionError, CollectionLoading } from "@/components/CollectionState";
 import { notifySuccess, notifyError } from "@/lib/notifications";
 import { Select } from "@/components/ui/Select";
+import { Switch } from "@/components/ui/Switch";
 import { OffersManager } from "./OffersManager";
 import { LoyaltyManager } from "./LoyaltyManager";
 import type { MoneyFormatter } from "@/lib/money";
@@ -272,6 +273,18 @@ function HaircutPromosSection() {
       {error && <CollectionError message={error} onRetry={fetchAll} />}
       {dialog}
 
+      <section aria-label="Preparar la promoción" className="rounded-2xl border border-outline-variant/20 bg-surface-container-lowest p-5">
+        <h2 className="font-bold text-on-surface">Prepara tu promoción</h2>
+        <ol className="mt-3 space-y-2 text-sm text-on-surface-variant">
+          <li>1. Elige los servicios que cuentan: {serviceIds.length ? `${serviceIds.length} seleccionados` : "todavía no has elegido ninguno"}.</li>
+          <li>2. Define el premio: {milestones.some((m) => m.is_active) ? "tienes hitos activos" : "agrega un hito y su forma de entrega"}.</li>
+          <li>3. Revisa el mensaje, enciende el contador y guarda. WhatsApp lo envía una persona.</li>
+        </ol>
+        {milestones.filter((m) => m.is_active).sort((a, b) => a.threshold - b.threshold).slice(0, 1).map((m) => <p key={m.id} className="mt-3 rounded-xl bg-primary/10 p-3 text-sm text-on-surface">
+          Ejemplo: el cliente paga {m.threshold} {noun.plural}; al alcanzar el hito se le anuncia «{m.reward}» para su próxima visita. El canje se aplica explícitamente al cobrar.
+        </p>)}
+      </section>
+
       {/* 1. El interruptor */}
       <section className="bg-surface-container rounded-2xl border border-outline-variant/10 p-5 sm:p-6">
         <div className="flex items-start justify-between gap-4">
@@ -289,22 +302,7 @@ function HaircutPromosSection() {
               </p>
             )}
           </div>
-          <button
-            type="button"
-            onClick={() => setEnabled((v) => !v)}
-            role="switch"
-            aria-checked={enabled}
-            aria-labelledby="promo-enabled-label"
-            className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
-              enabled ? "bg-[#6063ee]" : "bg-outline-variant/30"
-            }`}
-          >
-            <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                enabled ? "translate-x-6" : "translate-x-1"
-              }`}
-            />
-          </button>
+          <Switch checked={enabled} onCheckedChange={setEnabled} aria-labelledby="promo-enabled-label" />
         </div>
       </section>
 

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useStaffStore } from "@/stores/staff.store";
 import type {
   CommissionPeriod,
@@ -66,6 +67,12 @@ function scopeOf(chip: ScopeChip): CommissionScope {
  * ruta por ser hija suya; los RPC lo revalidan igual en la base.
  */
 export default function CommissionsPage() {
+  return <Suspense fallback={<p role="status" className="p-6">Cargando comisiones…</p>}><CommissionsContent /></Suspense>;
+}
+
+function CommissionsContent() {
+  const router = useRouter();
+  const settlementId = useSearchParams().get("settlement");
   const fmtMoney = useFormatMoney();
   const staff = useStaffStore((s) => s.staff);
   const fetchStaff = useStaffStore((s) => s.fetchStaff);
@@ -85,6 +92,7 @@ export default function CommissionsPage() {
   const [settleFor, setSettleFor] = useState<{ member: StaffMember; period: CommissionPeriod } | null>(null);
   const [receiptFor, setReceiptFor] = useState<CommissionSettlement | null>(null);
   const [confirmVoid, setConfirmVoid] = useState<CommissionSettlement | null>(null);
+  const selectedReceipt = receiptFor ?? settlements.find((s) => s.id === settlementId) ?? null;
 
   useEffect(() => {
     fetchStaff();
@@ -355,7 +363,8 @@ export default function CommissionsPage() {
         />
       )}
 
-      {receiptFor && <CommissionReceiptModal settlement={receiptFor} onClose={() => setReceiptFor(null)} />}
+      {settlementId && !settlementsLoading && !selectedReceipt && <p role="alert" className="text-sm text-error">No se encontró la liquidación solicitada. Revisa el historial o vuelve a cargar.</p>}
+      {selectedReceipt && <CommissionReceiptModal settlement={selectedReceipt} onClose={() => { setReceiptFor(null); if (settlementId) router.replace("/dashboard/staff/comisiones", { scroll: false }); }} />}
 
       {confirmVoid && (
         <div className="fixed inset-0 z-[125] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">

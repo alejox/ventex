@@ -378,7 +378,7 @@ export default function CustomersPage() {
                     value={form.phone}
                     onChange={(e) => setForm({ ...form, phone: e.target.value })}
                     className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50"
-                    placeholder="+52 55 1234 5678"
+                    placeholder="+57 300 123 4567"
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -393,6 +393,8 @@ export default function CustomersPage() {
                 </div>
               </div>
 
+              <details open={Boolean(editingId)} className="space-y-4">
+                <summary className="cursor-pointer text-sm font-semibold text-on-surface-variant">Datos de facturación (opcionales)</summary>
               <div className="space-y-1.5">
                 <label className="text-[13px] font-semibold text-on-surface block">Documento</label>
                 <div className="flex gap-2">
@@ -414,7 +416,7 @@ export default function CustomersPage() {
                     placeholder="Número de documento"
                   />
                 </div>
-                <p className="text-xs text-on-surface-variant">Requerido para facturación.</p>
+                <p className="text-xs text-on-surface-variant">Puedes completarlo cuando el cliente solicite facturación.</p>
               </div>
 
               <div className="flex items-center justify-between p-3 sm:p-4 bg-surface-container-low rounded-xl border border-outline-variant/10">
@@ -437,6 +439,7 @@ export default function CustomersPage() {
                 </button>
               </div>
 
+              </details>
               <div className="pt-4 flex flex-col sm:flex-row gap-3 border-t border-outline-variant/10">
                 <button
                   type="button"
@@ -510,7 +513,7 @@ export default function CustomersPage() {
                       {detailCustomer.full_name}
                     </h2>
                     <p className="text-xs text-on-surface-variant">
-                      {detailCustomer.doc_type ? `${detailCustomer.doc_type} ${detailCustomer.identification}` : detailCustomer.identification ?? "Sin documento"}
+                      {detailCustomer.identification ? [detailCustomer.doc_type, detailCustomer.identification].filter(Boolean).join(" ") : "Sin documento"}
                     </p>
                   </div>
                 </div>
