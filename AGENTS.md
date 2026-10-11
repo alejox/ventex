@@ -195,6 +195,19 @@ Two products in one: the **Smart Checkout** (hosted payment) and the **ApiFy** R
 - **`/api/billing/recurring` is a documented NO-OP.** ePayco exposes no recurring charge without tokenizing a card (`POST /token/card` takes the raw PAN, expiry and CVC), which would add a PCI surface Ventex does not have. Since no order stores a reusable token, `sync_billing_schedule` leaves `billing_recurring` false everywhere, so there is nobody to charge. The route still **requires `CRON_SECRET`** and returns 503 without it — do **not** re-add an `x-vercel-cron` header bypass: that header is forgeable.
 - **Buying and renewing always go through the checkout — never WhatsApp.** WhatsApp is support-only (`Soporte` button + the "¿Dudas?" link under the landing prices). Don't reintroduce WhatsApp purchase CTAs on the plan cards. If ePayco is unconfigured, `/api/billing/subscribe` degrades with a 503 and a message pointing at WhatsApp; there is no client-side feature flag.
 
+# Instagram on the public site
+
+The `instagram` site section has two sources, chosen per site in `LandingConfig.instagramSource`:
+
+- **`manual`** (default): links the owner pastes, canonicalized by `instagramPostUrl` (`lib/instagram.ts`) and stored in `instagramPosts`. Needs no Meta app.
+- **`account`**: the owner connects an Instagram **professional** account (Business or Creator) once via Instagram API with Instagram Login (`instagram_business_basic`, read-only). The public site renders the connection's cached permalinks; the manual list is kept as a fallback for switching back.
+
+- **The token is never readable by a client.** `instagram_connections` (migration `20261010120000_instagram_connections.sql`) revokes everything from `anon`/`authenticated` and grants `authenticated` column-level SELECT on the status columns only — `access_token` and `ig_user_id` are not among them. All writes go through the service-role client in `/api/instagram/*`. Disconnect is the `disconnect_instagram()` RPC (`is_tenant_owner()`); the public site reads only `public_instagram_permalinks(slug)`, which returns permalinks for a PUBLISHED site and nothing else.
+- **OAuth**: `/api/instagram/connect` (real owner only, `requireSelectedWorkspaceOwner`) sets an httpOnly state cookie bound to the tenant; `/api/instagram/callback` verifies it in constant time, exchanges code → short-lived → long-lived token, reads profile + media, and upserts. Nothing is stored unless both tokens and the profile parsed (`services/instagram-protocol.ts` fails closed; tested in `tests/instagram-protocol.test.ts`). Errors carry a step name only — request URLs contain the token, so never log them.
+- **Cron refresh**: `/api/instagram/sync` (daily, `vercel.json`, same `CRON_SECRET` bearer guard as billing — no `x-vercel-cron` bypass) refreshes tokens at least 24h old that expire within 20 days, re-caches media, and writes `last_error` per account; one failing account never aborts the rest. An expired token cannot be refreshed: the owner reconnects.
+- **App Review caveat**: until Meta grants Advanced Access for `instagram_business_basic`, only accounts added as testers of the Meta app can connect. Env: `INSTAGRAM_APP_ID`, `INSTAGRAM_APP_SECRET`; the redirect URI registered in Meta must be exactly `${NEXT_PUBLIC_SITE_URL}/api/instagram/callback`.
+- The app works before the migration is applied: the public RPC missing (PGRST202/42883) renders an empty section and the editor shows "not connected".
+
 # Primitivas de UI (`components/ui/`)
 
 Para pantallas NUEVAS o al tocar una existente; no hace falta migrar todo de una vez.

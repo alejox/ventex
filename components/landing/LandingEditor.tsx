@@ -25,6 +25,8 @@ import { SOCIAL_NETWORKS, SOCIAL_META } from "@/lib/socialLinks";
 import { BrandIcon } from "@/app/assets/icons/BrandIcons";
 import { LandingPreview } from "@/components/landing/LandingPreview";
 import { LandingQr } from "@/components/landing/LandingQr";
+import { InstagramPostsEditor, showInstagramResult } from "@/components/landing/InstagramPostsEditor";
+import { useInstagramStore } from "@/stores/instagram.store";
 import { SITE_URL } from "@/lib/site";
 import { useUnsavedChangesGuard } from "@/lib/unsaved-changes";
 
@@ -63,13 +65,32 @@ export function LandingEditor({ siteId: initialSiteId, onSaved, onBack, initial,
   const [hours, setHours] = useState(initialHours);
   const [published, setPublishedLocal] = useState(initialPublished);
   const searchParams = useSearchParams();
-  const [activeTab, setActiveTab] = useState<EditorTab>(() => searchParams.get("tab") === "business" ? "business" : "design");
+  const [activeTab, setActiveTab] = useState<EditorTab>(() => {
+    const tab = searchParams.get("tab");
+    // `sections` is where the Instagram OAuth round trip lands.
+    return tab === "business" || tab === "sections" ? tab : "design";
+  });
+  const fetchInstagram = useInstagramStore((state) => state.fetchConnection);
   const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
   const [mobileMode, setMobileMode] = useState<"edit" | "preview">("edit");
   const [dirty, setDirty] = useState(false);
   useUnsavedChangesGuard(dirty);
   const previewConfig = useDeferredValue(form.draft_config);
   const savedSlug = storedSite?.slug ?? currentSlug;
+
+  // The preview needs the connection's cached posts whichever tab is open.
+  useEffect(() => { void fetchInstagram(); }, [fetchInstagram]);
+
+  // Result of "Conectar Instagram" (`?instagram=` from the OAuth callback):
+  // shown once, then dropped from the URL so a reload does not repeat it.
+  const instagramResult = searchParams.get("instagram");
+  useEffect(() => {
+    if (!instagramResult) return;
+    showInstagramResult(instagramResult);
+    const url = new URL(window.location.href);
+    url.searchParams.delete("instagram");
+    window.history.replaceState(window.history.state, "", url);
+  }, [instagramResult]);
 
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => {
@@ -178,7 +199,7 @@ export function LandingEditor({ siteId: initialSiteId, onSaved, onBack, initial,
           </nav>
           <div className="min-h-0 flex-1 overflow-y-auto p-5">
             {activeTab === "design" ? <DesignPanel config={form.draft_config} businessType={businessType} onChange={updateConfig} /> : null}
-            {activeTab === "sections" ? <SectionsPanel config={form.draft_config} onChange={updateConfig} /> : null}
+            {activeTab === "sections" ? <SectionsPanel config={form.draft_config} siteId={siteId} onChange={updateConfig} /> : null}
             {activeTab === "content" ? <ContentPanel config={form.draft_config} onChange={updateConfig} /> : null}
             {activeTab === "business" ? <BusinessPanel sharing={<LandingQr slug={savedSlug} label={form.site_name.trim() || businessName} saving={saving} onGenerate={saveDraft} published={published} changed={!!savedSlug && slugify(form.slug) !== savedSlug} />} form={form} hours={hours} onForm={updateForm} onHours={(next) => { setHours(next); setDirty(true); }} onConfig={updateConfig} /> : null}
             {activeTab === "seo" ? <SeoPanel config={form.draft_config} onChange={updateConfig} /> : null}
@@ -229,9 +250,9 @@ function DesignPanel({ config, businessType, onChange }: PanelProps & { business
   );
 }
 
-function SectionsPanel({ config, onChange }: PanelProps) {
+function SectionsPanel({ config, siteId, onChange }: PanelProps & { siteId: string | null }) {
   function move(index: number, direction: -1 | 1) { onChange((current) => { const sections = [...current.sections]; const target = index + direction; if (target < 0 || target >= sections.length) return current; [sections[index], sections[target]] = [sections[target], sections[index]]; return { ...current, sections }; }); }
-  return <div className="space-y-4"><PanelTitle title="Orden y visibilidad" text="La portada siempre permanece al inicio." />{config.sections.map((section, index) => <div key={section.id} className="rounded-xl border border-outline-variant/30 p-3"><div className="flex items-center gap-2"><input type="checkbox" checked={section.visible} onChange={(event) => onChange((current) => ({ ...current, sections: current.sections.map((item) => item.id === section.id ? { ...item, visible: event.target.checked } : item) }))} className="h-4 w-4 accent-[var(--primary)]" /><span className="flex-1 text-sm font-bold text-on-surface">{section.title}</span><button type="button" disabled={index === 0} onClick={() => move(index, -1)} className="rounded p-2 text-on-surface-variant disabled:opacity-20" aria-label={`Subir ${section.title}`}>↑</button><button type="button" disabled={index === config.sections.length - 1} onClick={() => move(index, 1)} className="rounded p-2 text-on-surface-variant disabled:opacity-20" aria-label={`Bajar ${section.title}`}>↓</button></div><div className="mt-3 grid gap-2"><input value={section.subtitle} onChange={(event) => updateSectionText(onChange, section.id, "subtitle", event.target.value)} className={INPUT} placeholder="Antetítulo" /><input value={section.title} onChange={(event) => updateSectionText(onChange, section.id, "title", event.target.value)} className={INPUT} placeholder="Título" /></div>{section.id === "services" || section.id === "products" || section.id === "team" ? <CatalogPicker config={config} onChange={onChange} sectionId={section.id} /> : null}</div>)}</div>;
+  return <div className="space-y-4"><PanelTitle title="Orden y visibilidad" text="La portada siempre permanece al inicio." />{config.sections.map((section, index) => <div key={section.id} className="rounded-xl border border-outline-variant/30 p-3"><div className="flex items-center gap-2"><input type="checkbox" checked={section.visible} onChange={(event) => onChange((current) => ({ ...current, sections: current.sections.map((item) => item.id === section.id ? { ...item, visible: event.target.checked } : item) }))} className="h-4 w-4 accent-[var(--primary)]" /><span className="flex-1 text-sm font-bold text-on-surface">{section.title}</span><button type="button" disabled={index === 0} onClick={() => move(index, -1)} className="rounded p-2 text-on-surface-variant disabled:opacity-20" aria-label={`Subir ${section.title}`}>↑</button><button type="button" disabled={index === config.sections.length - 1} onClick={() => move(index, 1)} className="rounded p-2 text-on-surface-variant disabled:opacity-20" aria-label={`Bajar ${section.title}`}>↓</button></div><div className="mt-3 grid gap-2"><input value={section.subtitle} onChange={(event) => updateSectionText(onChange, section.id, "subtitle", event.target.value)} className={INPUT} placeholder="Antetítulo" /><input value={section.title} onChange={(event) => updateSectionText(onChange, section.id, "title", event.target.value)} className={INPUT} placeholder="Título" /></div>{section.id === "services" || section.id === "products" || section.id === "team" ? <CatalogPicker config={config} onChange={onChange} sectionId={section.id} /> : null}{section.id === "instagram" ? <InstagramPostsEditor siteId={siteId} source={config.instagramSource} onSourceChange={(source) => onChange((current) => ({ ...current, instagramSource: source }))} posts={config.instagramPosts} onChange={(recipe) => onChange((current) => ({ ...current, instagramPosts: recipe(current.instagramPosts) }))} /> : null}</div>)}</div>;
 }
 
 function ContentPanel({ config, onChange }: PanelProps) {

@@ -7,6 +7,8 @@
  * contract: if a field is not here, the public site must not need it.
  */
 
+import { instagramPostList, instagramSource, type InstagramSource } from "@/lib/instagram";
+
 export const SITE_TEMPLATES = [
   "rasm",
   "fallspa",
@@ -100,6 +102,7 @@ export const SITE_SECTION_IDS = [
   "products",
   "team",
   "gallery",
+  "instagram",
   "booking",
   "hours",
   "contact",
@@ -171,6 +174,17 @@ export interface LandingConfig {
    * al publicar, igual que el resto.
    */
   catalog: { serviceCategoryIds: string[]; productCategoryIds: string[]; staffIds: string[] };
+  /**
+   * Canonical Instagram post permalinks (see `lib/instagram.ts`), at most
+   * `MAX_INSTAGRAM_POSTS`. Rendered with Instagram's public embed; empty = the
+   * section renders nothing.
+   */
+  instagramPosts: string[];
+  /**
+   * `account` renders the connected account's cached posts instead of
+   * `instagramPosts` (see `lib/instagram.ts`). Defaults to `manual`.
+   */
+  instagramSource: InstagramSource;
 }
 
 const SECTION_DEFAULTS: Record<SiteSectionId, Omit<SiteSectionConfig, "id">> = {
@@ -179,6 +193,7 @@ const SECTION_DEFAULTS: Record<SiteSectionId, Omit<SiteSectionConfig, "id">> = {
   products: { visible: true, title: "Productos", subtitle: "Para llevar" },
   team: { visible: true, title: "El equipo", subtitle: "Quienes te reciben" },
   gallery: { visible: true, title: "Nuestro espacio", subtitle: "Conócenos" },
+  instagram: { visible: true, title: "Síguenos en Instagram", subtitle: "Lo más reciente" },
   booking: { visible: true, title: "Reserva tu turno", subtitle: "Agenda online" },
   hours: { visible: true, title: "Horarios", subtitle: "Planifica tu visita" },
   contact: { visible: true, title: "Dónde estamos", subtitle: "Hablemos" },
@@ -231,6 +246,8 @@ export function defaultLandingConfig(template: SiteTemplate = "rasm"): LandingCo
     seo: { title: null, description: null, imageUrl: null },
     sections: SITE_SECTION_IDS.map((id) => ({ id, ...SECTION_DEFAULTS[id] })),
     catalog: { serviceCategoryIds: [], productCategoryIds: [], staffIds: [] },
+    instagramPosts: [],
+    instagramSource: "manual",
   };
 }
 
@@ -346,6 +363,8 @@ export function normalizeLandingConfig(value: unknown): LandingConfig {
     productCategoryIds: uuidList(catalog.productCategoryIds),
     staffIds: uuidList(catalog.staffIds),
   };
+  result.instagramPosts = instagramPostList(raw.instagramPosts);
+  result.instagramSource = instagramSource(raw.instagramSource);
 
   const seen = new Set<SiteSectionId>();
   const sections = Array.isArray(raw.sections) ? raw.sections : [];
