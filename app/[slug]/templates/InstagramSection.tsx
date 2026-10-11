@@ -43,6 +43,16 @@ function Chevron({ direction }: { direction: "left" | "right" }) {
 }
 
 /**
+ * Every card in a row gets the same height (the tallest post's) and draws its
+ * own frame: Instagram posts come in different aspect ratios, so the embeds are
+ * different heights. embed.js styles its iframe INLINE (border, radius, shadow,
+ * margin), hence the `!` overrides. White on purpose: the embed itself is white
+ * whatever the site palette is, and the leftover space must match it.
+ */
+const CARD_FRAME =
+  "overflow-hidden rounded-lg border border-black/10 bg-white [&_iframe]:m-0! [&_iframe]:rounded-none! [&_iframe]:border-0! [&_iframe]:shadow-none! [&_.instagram-media]:m-0!";
+
+/**
  * One post. Memoized ON PURPOSE: React 19 rewrites `innerHTML` whenever the
  * `dangerouslySetInnerHTML` object changes identity, and a fresh `{ __html }`
  * per render would wipe the iframe embed.js already put here (the carousel
@@ -139,11 +149,11 @@ export function InstagramSection({
             aria-roledescription="carrusel"
             aria-label="Publicaciones de Instagram"
             tabIndex={0}
-            className="flex snap-x snap-mandatory items-start gap-6 overflow-x-auto overscroll-x-contain pb-2 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--site-accent)]"
+            className="flex snap-x snap-mandatory items-stretch gap-6 overflow-x-auto overscroll-x-contain pb-2 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--site-accent)]"
           >
             {permalinks.map((permalink) => (
               // 340px: Instagram's iframe needs at least 326px to lay out.
-              <EmbedCard key={`${layout}-${permalink}`} permalink={permalink} className="w-[340px] max-w-full shrink-0 snap-start" />
+              <EmbedCard key={`${layout}-${permalink}`} permalink={permalink} className={`w-[340px] max-w-full shrink-0 snap-start ${CARD_FRAME}`} />
             ))}
           </div>
           <div className="mt-4 flex justify-end gap-2">
@@ -164,9 +174,9 @@ export function InstagramSection({
           </div>
         </div>
       ) : (
-        <div className="mt-8 grid grid-cols-[repeat(auto-fill,minmax(min(100%,20rem),1fr))] items-start justify-items-center gap-6">
+        <div className="mt-8 grid grid-cols-[repeat(auto-fill,minmax(min(100%,20rem),1fr))] items-stretch justify-items-center gap-6">
           {permalinks.map((permalink) => (
-            <EmbedCard key={`${layout}-${permalink}`} permalink={permalink} className="w-full" />
+            <EmbedCard key={`${layout}-${permalink}`} permalink={permalink} className={`w-full ${CARD_FRAME}`} />
           ))}
         </div>
       )}
