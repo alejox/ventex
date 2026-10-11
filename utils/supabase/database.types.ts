@@ -920,6 +920,48 @@ export type Database = {
           },
         ]
       }
+      instagram_connections: {
+        Row: {
+          access_token: string
+          created_at: string
+          ig_user_id: string
+          last_error: string | null
+          media_permalinks: string[]
+          media_synced_at: string | null
+          token_expires_at: string
+          token_refreshed_at: string
+          updated_at: string
+          user_id: string
+          username: string | null
+        }
+        Insert: {
+          access_token: string
+          created_at?: string
+          ig_user_id: string
+          last_error?: string | null
+          media_permalinks?: string[]
+          media_synced_at?: string | null
+          token_expires_at: string
+          token_refreshed_at?: string
+          updated_at?: string
+          user_id?: string
+          username?: string | null
+        }
+        Update: {
+          access_token?: string
+          created_at?: string
+          ig_user_id?: string
+          last_error?: string | null
+          media_permalinks?: string[]
+          media_synced_at?: string | null
+          token_expires_at?: string
+          token_refreshed_at?: string
+          updated_at?: string
+          user_id?: string
+          username?: string | null
+        }
+        Relationships: []
+      }
       inventory_movements: {
         Row: {
           created_at: string
@@ -3827,6 +3869,7 @@ export type Database = {
       current_tenant: { Args: never; Returns: string }
       current_user_profile: { Args: never; Returns: Json }
       deactivate_worker: { Args: { p_worker_id: string }; Returns: undefined }
+      disconnect_instagram: { Args: never; Returns: undefined }
       ensure_license_current: { Args: never; Returns: Json }
       finance_overview: {
         Args: {
@@ -3858,6 +3901,10 @@ export type Database = {
         Returns: string
       }
       own_site_preview: { Args: never; Returns: Json }
+      public_instagram_permalinks: {
+        Args: { p_slug: string }
+        Returns: string[]
+      }
       public_site_availability: {
         Args: {
           p_days?: number
