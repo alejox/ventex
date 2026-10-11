@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { flushSync } from "react-dom";
 import { toast } from "sonner";
 import { usePosStore } from "@/stores/pos.store";
@@ -90,6 +91,12 @@ const UNDO_CLEAR_MS = 5000;
 const PREMIO_OFFLINE_MSG = "Sin conexión no se puede canjear el premio. Quítalo antes de cobrar o espera a que vuelva la conexión.";
 
 export default function POSPage() {
+  return <Suspense fallback={<p role="status" className="p-6 text-on-surface-variant">Cargando punto de venta…</p>}><POSContent /></Suspense>;
+}
+
+function POSContent() {
+  const router = useRouter();
+  const requestedAppointment = useSearchParams().get("appointment");
   const fmtMoney = useFormatMoney();
   const catalog = usePosStore((s) => s.catalog);
   const customers = usePosStore((s) => s.customers);
@@ -170,7 +177,7 @@ export default function POSPage() {
    * la venta a la cita: el trigger de la base ya lo hace cuando la cita tiene
    * cliente, pero una cita sin cliente solo la conoce esta pantalla.
    */
-  const [citaEnCobro, setCitaEnCobro] = useState<{ id: string; forTab: string } | null>(null);
+  const bindAppointment = usePosStore((s) => s.bindAppointment);
 
   useEffect(() => {
     if (hasAppointments) fetchBillable(toISODate());
@@ -669,9 +676,9 @@ export default function POSPage() {
   };
 
   /** Cita de la franja que está cargada en ESTA pestaña. */
-  const citaActiva = citaEnCobro && citaEnCobro.forTab === activeTabId ? citaEnCobro.id : null;
+  const citaActiva = activeTab?.appointmentId ?? null;
 
-  const handlePickCita = (cita: BillableAppointment) => {
+  const handlePickCita = useCallback((cita: BillableAppointment) => {
     if (salesBlocked) { setIsOpenShiftOpen(true); return; }
     const item = catalog.find((c) => c.kind === "service" && c.id === cita.service_id);
     if (!item) {
@@ -682,7 +689,9 @@ export default function POSPage() {
       return;
     }
     // Volver a tocar la cita que ya está cargada solo abre el carrito.
-    if (citaActiva === cita.id) {
+    const existingTab = usePosStore.getState().tabs.find((tab) => tab.appointmentId === cita.id);
+    if (existingTab) {
+      usePosStore.getState().setActiveTab(existingTab.id);
       setIsCartOpen(true);
       return;
     }
@@ -692,9 +701,31 @@ export default function POSPage() {
     setCustomer(cita.customer_id);
     setStaff(cita.staff_id);
     addToCart(item);
-    setCitaEnCobro({ id: cita.id, forTab: usePosStore.getState().activeTabId });
+    bindAppointment(cita.id, cita.service_id);
     setIsCartOpen(true);
-  };
+  }, [salesBlocked, catalog, cart.length, addTab, setCustomer, setStaff, addToCart, bindAppointment]);
+
+  const fetchLinkedAppointment = useAppointmentsStore((s) => s.fetchLinkedAppointment);
+  useEffect(() => {
+    if (!requestedAppointment || loading || !hasAppointments || salesBlocked) return;
+    let stale = false;
+    void fetchLinkedAppointment(requestedAppointment).then((appointment) => {
+      if (stale) return;
+      if (!appointment || appointment.sale_id || appointment.status === "cancelled" || !appointment.service_id) {
+        notifyError("No se puede cargar la cita", "La cita ya fue cobrada, está cancelada o no tiene servicio. Revisa la agenda.");
+      } else {
+        handlePickCita({
+          id: appointment.id, start_time: appointment.start_time,
+          status: appointment.status === "pending" ? "pending" : "confirmed",
+          customer_id: appointment.customer_id, customer_name: appointment.customers?.full_name ?? null,
+          service_id: appointment.service_id, service_name: appointment.services?.name ?? appointment.title,
+          staff_id: appointment.staff_id, staff_name: appointment.staff?.full_name ?? null,
+        });
+      }
+      router.replace("/dashboard/pos", { scroll: false });
+    });
+    return () => { stale = true; };
+  }, [requestedAppointment, loading, hasAppointments, salesBlocked, fetchLinkedAppointment, handlePickCita, router]);
 
   /** true = la venta quedó (cobrada o encolada); false = NO se cobró. */
   const handleCheckout = async (): Promise<boolean> => {
@@ -806,11 +837,13 @@ export default function POSPage() {
     // al enviarse, el trigger se encarga de las que tienen cliente.
     if (hasAppointments) {
       if (outcome === "sold" && citaCobrada && saleId) {
-        void linkAppointmentSale(citaCobrada, saleId).then(() => fetchBillable(toISODate()));
+        void linkAppointmentSale(citaCobrada, saleId).then((linked) => {
+          if (!linked) notifyWarning("La venta sí quedó registrada", "No se pudo actualizar la cita. No vuelvas a cobrar; revisa la venta y la agenda.");
+          return fetchBillable(toISODate());
+        });
       } else {
         void fetchBillable(toISODate());
       }
-      if (citaCobrada) setCitaEnCobro(null);
     }
 
     // Sin toast de "venta realizada" (C24): el modal de éxito ya lo dice, y

@@ -487,7 +487,14 @@ export default function CatalogPage() {
 
       {/* Stats. La valorización del inventario es cifra financiera del negocio:
           solo el dueño, ni siquiera un empleado con `inventory_costs`. */}
-      <div className={`grid grid-cols-1 gap-6 ${canSeeInventoryValue ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
+      <details className="rounded-xl border border-outline-variant/20 p-3 md:hidden">
+        <summary className="cursor-pointer text-sm text-on-surface-variant md:hidden">Resumen del catálogo · {productCount + serviceCount} ítems · {kpis.lowStock} con stock bajo</summary>
+        <div className="mt-3 space-y-1 text-sm text-on-surface-variant">
+          <p>{productCount} productos · {serviceCount} servicios</p>
+          {canSeeInventoryValue && <p>Valor del inventario: {fmtMoney(calculateInventoryValue(products))}</p>}
+        </div>
+      </details>
+      <div className={`hidden gap-6 md:grid ${canSeeInventoryValue ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
         <div className="bg-surface-container rounded-2xl p-6 border border-outline-variant/10 shadow-sm flex justify-between items-center group hover:border-outline-variant/20 transition-colors">
           <div>
             <p className="text-on-surface-variant text-sm font-medium mb-1.5">Total en Cat&aacute;logo</p>

@@ -11,6 +11,7 @@ import {
   workerNavItems,
   workerQuickActions,
 } from "@/config/business";
+import { TodayOperations } from "@/components/appointments/TodayOperations";
 import { needsRestock } from "@/lib/stock";
 import { ExpenseModal } from "@/components/ExpenseModal";
 import { ExpensesByCategory } from "@/components/ExpensesByCategory";
@@ -197,6 +198,7 @@ export function DashboardHome({ canAddExpense = false }: { canAddExpense?: boole
   // entero es una venta, pero no un ticket.
   const ticket = todaySales ? averageTicket(todaySales.revenue, todaySales.ticketCount) : 0;
   const periodLabel = HOME_PERIODS.find((p) => p.id === period)?.label ?? "";
+  const hasCalendar = navIds.includes("calendar");
 
   return (
     <div className="flex flex-col gap-6 w-full animate-in fade-in duration-500">
@@ -224,6 +226,7 @@ export function DashboardHome({ canAddExpense = false }: { canAddExpense?: boole
 
       {/* Primeros pasos: solo mientras falten y no se haya ocultado. */}
       <GettingStarted />
+      {hasCalendar && <TodayOperations />}
 
       {/* F6: pendientes de hoy. Solo lo que aplica a esta persona y solo lo que
           no está en cero: si no hay nada, el bloque dice que está al día. */}

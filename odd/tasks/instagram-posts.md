@@ -71,6 +71,8 @@ Strategy: `ask-on-risk`. Forecast ~250 authored lines (under the 400 budget): si
   - Checks: `npm test` 865/865; `npx tsc --noEmit` clean; eslint on every touched file clean.
   - Not checked: real popup round trip in a browser against Meta (whether Instagram's COOP severs the opener is unverified; the BroadcastChannel covers it either way).
 
+- Delivered: merged into `origin/main` as `7293a43` (merge commit over `9127669`, done in a temp worktree so the user's uncommitted work stayed untouched). Only conflict: `utils/supabase/database.types.ts` (kept both `production_module_enabled` and `public_instagram_permalinks`). Post-merge checks: `npx tsc --noEmit` clean (after `next typegen`), `npm test` 857/857, eslint on feature files clean. Native review was NOT run (user chose to merge without it).
+
 ## Next step
 Phase 2: user approves applying `20261010120000_instagram_connections.sql`, sets `INSTAGRAM_APP_ID`/`INSTAGRAM_APP_SECRET` and registers the redirect URI in Meta, then a tester account runs Conectar Instagram end to end.
 

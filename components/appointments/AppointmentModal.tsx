@@ -1,21 +1,21 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import Link from "next/link";
+import { Modal } from "@/components/ui/Modal";
+import { QuickCustomerModal } from "./QuickCustomerModal";
 import { toast } from "sonner";
 import { useAppointmentsStore } from "@/stores/appointments.store";
 import { useCustomersStore } from "@/stores/customers.store";
 import { useServicesStore } from "@/stores/services.store";
 import { useStaffStore } from "@/stores/staff.store";
 import { useSettingsStore } from "@/stores/settings.store";
-import { useShiftsStore } from "@/stores/shifts.store";
 import { useProfile } from "@/components/ProfileProvider";
-import { OpenShiftModal } from "@/components/shift/OpenShiftModal";
 import { Select } from "@/components/ui/Select";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { whatsappUrl, toWhatsappNumber } from "@/config/contact";
 import type {
   Appointment,
-  AppointmentPaymentMethod,
   NewAppointmentInput,
 } from "@/services/appointments.service";
 import { toISODate, formatDateOnly } from "@/lib/date";
@@ -23,7 +23,7 @@ import { formatAppointmentTime, type TimeFormat } from "@/lib/time";
 import { DateTimeDialog, DateTimeField } from "./DateTimeField";
 import { conflictsFor, pickStaff, type BusyAppointment } from "@/lib/appointment-availability";
 import { useFormatMoney } from "@/lib/useMoney";
-import { Modal } from "@/components/ui/Modal";
+import { currentAppointment } from "@/lib/appointment-state";
 
 /**
  * Mensaje de confirmación ya redactado para el cliente.
@@ -86,12 +86,6 @@ const addMinutes = (time: string, mins: number) => {
   return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
 };
 
-const PAYMENT_OPTIONS: { value: AppointmentPaymentMethod; label: string }[] = [
-  { value: "efectivo", label: "Efectivo" },
-  { value: "tarjeta", label: "Tarjeta" },
-  { value: "transferencia", label: "Transferencia" },
-];
-
 /** Estado inicial del formulario: la cita que se edita, o una nueva sembrada. */
 function buildInitialForm(
   appointment: Appointment | null | undefined,
@@ -149,10 +143,10 @@ function AppointmentModalBody({
   const addAppointment = useAppointmentsStore((s) => s.addAppointment);
   const updateAppointment = useAppointmentsStore((s) => s.updateAppointment);
   const updateStatus = useAppointmentsStore((s) => s.updateStatus);
-  const chargeAppointment = useAppointmentsStore((s) => s.chargeAppointment);
   const deleteAppointment = useAppointmentsStore((s) => s.deleteAppointment);
   const customers = useCustomersStore((s) => s.customers);
   const fetchCustomers = useCustomersStore((s) => s.fetchCustomers);
+  const fetchCustomer = useCustomersStore((s) => s.fetchCustomer);
   const services = useServicesStore((s) => s.services);
   const fetchServices = useServicesStore((s) => s.fetchServices);
   const staff = useStaffStore((s) => s.staff);
@@ -161,12 +155,6 @@ function AppointmentModalBody({
   const timeFormat = useSettingsStore((s) => s.settings?.time_format ?? "12");
   const isCarWash = profile?.businessType === "lavaautos";
   const isWorker = profile?.isWorker ?? false;
-  const acceptsCard = useSettingsStore((s) => s.settings?.accepts_card) ?? true;
-  const acceptsTransfer = useSettingsStore((s) => s.settings?.accepts_transfer) ?? true;
-  const fetchSettings = useSettingsStore((s) => s.fetchSettings);
-  const requireActiveShift = useSettingsStore((s) => s.loading || (s.settings?.require_active_shift ?? true));
-  const currentShift = useShiftsStore((s) => s.currentShift);
-  const fetchCurrentShift = useShiftsStore((s) => s.fetchCurrentShift);
 
   const [form, setForm] = useState<NewAppointmentInput>(() =>
     buildInitialForm(appointment, selectedDate, defaultStartTime),
@@ -202,12 +190,9 @@ function AppointmentModalBody({
    * igual, así que leer de él dejaba la píldora clavada en el estado viejo y
    * parecía que el clic no hacía nada.
    */
-  const liveStatus = useAppointmentsStore((s) =>
-    appointment
-      ? (s.appointments.find((a) => a.id === appointment.id)?.status
-        ?? (s.linkedAppointment?.id === appointment.id ? s.linkedAppointment.status : null) ?? appointment.status)
-      : null,
-  );
+  const liveAppointment = useAppointmentsStore((s) => currentAppointment(appointment, s.appointments, s.linkedAppointment));
+  const liveStatus = liveAppointment?.status ?? null;
+  const liveSaleId = liveAppointment?.sale_id ?? null;
 
   // Se resuelve contra el store y no contra el dato embebido en la cita para
   // que el teléfono siga al cliente que está elegido AHORA en el desplegable,
@@ -230,12 +215,13 @@ function AppointmentModalBody({
     if (staff.length === 0) fetchStaff();
   }, [customers.length, fetchCustomers, services.length, fetchServices, staff.length, fetchStaff]);
 
-  // Lo que hace falta para COBRAR desde acá: qué medios acepta el negocio y,
-  // para un empleado, si tiene la caja abierta (`create_sale` lo exige).
+  // Una lista no vacía puede ser anterior a una reserva pública. Refrescar el
+  // cliente elegido evita mostrar «sin teléfono» cuando todavía no está en caché.
   useEffect(() => {
-    fetchSettings();
-    if (isWorker) fetchCurrentShift();
-  }, [fetchSettings, isWorker, fetchCurrentShift]);
+    if (form.customer_id) void fetchCustomer(form.customer_id);
+  }, [form.customer_id, fetchCustomer]);
+  const [showNewCustomer, setShowNewCustomer] = useState(false);
+  const canUsePos = !isWorker || Boolean(profile?.workerPermissions?.pos);
 
   const generatedTitle = [
     services.find((service) => service.id === form.service_id)?.name || form.service_type,
@@ -335,17 +321,13 @@ function AppointmentModalBody({
   };
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [showChargeConfirm, setShowChargeConfirm] = useState(false);
   const [showCompleteConfirm, setShowCompleteConfirm] = useState(false);
-  const [showOpenShift, setShowOpenShift] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<AppointmentPaymentMethod>("efectivo");
-  const [chargeError, setChargeError] = useState("");
 
   const handleStatusChange = async (status: string) => {
     if (!appointment || status === liveStatus) return;
     // Completar una cita con servicio y sin venta la cierra sin plata ni
     // comisión: se pregunta antes, porque casi siempre lo que se quería era cobrar.
-    if (status === "completed" && appointment.service_id && !liveSaleId && !showCompleteConfirm) {
+    if (status === "completed" && liveAppointment?.service_id && !liveSaleId && !showCompleteConfirm) {
       setShowCompleteConfirm(true);
       return;
     }
@@ -359,48 +341,8 @@ function AppointmentModalBody({
     }
   };
 
-  const liveSaleId = useAppointmentsStore((s) =>
-    appointment
-      ? (s.appointments.find((a) => a.id === appointment.id)?.sale_id ?? appointment.sale_id ?? null)
-      : null,
-  );
-
-  const canCharge =
-    !!appointment &&
-    !!appointment.service_id &&
-    !liveSaleId &&
-    // Una cita completada SIN venta (alguien tocó "Marcar completada") sigue
-    // cobrable: si no, el servicio quedaba hecho y nunca se registraba la plata.
-    liveStatus !== "cancelled";
-
-  const chargedService = appointment?.service_id
-    ? services.find((s) => s.id === appointment.service_id) ?? null
-    : null;
-
-  const paymentOptions = PAYMENT_OPTIONS.filter(
-    (o) =>
-      o.value === "efectivo" ||
-      (o.value === "tarjeta" && acceptsCard) ||
-      (o.value === "transferencia" && acceptsTransfer),
-  );
-
-  /** Duración de lo que se está agendando, como la diría una persona. */
-
-  /**
-   * Abre el cobro. Un empleado sin turno abierto no puede cobrar (`create_sale`
-   * lo rechaza): antes el botón fallaba en silencio y la cita quedaba
-   * pendiente aunque el cliente ya hubiera pagado. Ahora se pide abrir la caja
-   * primero y el cobro sigue solo.
-   */
-  const startCharge = () => {
-    setChargeError("");
-    if (isWorker && requireActiveShift && !currentShift) {
-      setShowOpenShift(true);
-      return;
-    }
-    setShowChargeConfirm(true);
-  };
-
+  const canCharge = !!liveAppointment?.service_id && !liveSaleId && liveStatus !== "cancelled" && canUsePos;
+  const chargedService = services.find((s) => s.id === liveAppointment?.service_id) ?? null;
   const confirmPending = async () => {
     if (!appointment || busy) return;
     setSaving(true);
@@ -417,19 +359,6 @@ function AppointmentModalBody({
     if (ok) {
       setShowDeleteConfirm(false);
       onClose();
-    }
-  };
-
-  const confirmChargeAction = async () => {
-    if (!appointment) return;
-    setChargeError("");
-    const ok = await chargeAppointment(appointment, paymentMethod);
-    if (ok) {
-      setShowChargeConfirm(false);
-      toast.success("Cita cobrada. Quedó registrada la venta y la cita como completada.");
-      onClose();
-    } else {
-      setChargeError(useAppointmentsStore.getState().error ?? "No se pudo cobrar la cita.");
     }
   };
 
@@ -499,9 +428,9 @@ function AppointmentModalBody({
                 {busy ? "Guardando…" : isEditing ? "Guardar cambios" : "Crear cita"}
               </button>
               {liveStatus === "pending" ? <button type="button" disabled={busy} onClick={() => void confirmPending()} className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary disabled:opacity-50">Confirmar reserva</button>
-                : canCharge && <button type="button" disabled={busy || dirty} onClick={startCharge} title={dirty ? "Guarda los cambios antes de cobrar" : undefined} className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary disabled:opacity-50">
+                : canCharge && <Link href={`/dashboard/pos?appointment=${liveAppointment?.id}`} aria-disabled={busy || dirty} onClick={(event) => { if (busy || dirty) event.preventDefault(); else onClose(); }} title={dirty ? "Guarda los cambios antes de cobrar" : undefined} className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary disabled:opacity-50">
                   {chargedService ? `Cobrar ${fmtMoney(chargedService.price)}` : "Cobrar"}
-                </button>}
+                </Link>}
             </div>
           </div>
         </div>
@@ -544,6 +473,8 @@ function AppointmentModalBody({
               ))}
             </Select>
 
+          <button type="button" onClick={() => setShowNewCustomer(true)} className="min-h-10 text-sm font-semibold text-primary">+ Crear cliente</button>
+
           {/*
             Contacto del cliente. Las citas que entran por el sitio web público
             llegan como "Pendiente" y hay que confirmarlas a mano, así que el
@@ -576,6 +507,7 @@ function AppointmentModalBody({
               onChange={(e) => handleServiceChange(e.target.value)}
             >
                 <option value="">Sin servicio</option>
+                {form.service_id && services.some((s) => s.id === form.service_id && s.status !== "active") && <option value={form.service_id} disabled>{services.find((s) => s.id === form.service_id)?.name} (archivado)</option>}
                 {activeServices.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name}
@@ -774,74 +706,6 @@ function AppointmentModalBody({
         </Modal>
       )}
 
-      {showChargeConfirm && (
-        <Modal
-          open
-          onClose={() => {
-            if (!busy) setShowChargeConfirm(false);
-          }}
-          title="Cobrar cita"
-          description={`${chargedService?.name ?? appointment?.title ?? ""}${selectedCustomer ? ` · ${selectedCustomer.full_name}` : ""}`}
-          size="sm"
-          className="text-center"
-        >
-            {chargedService && (
-              <p className="text-3xl font-bold text-on-surface tabular-nums mb-4">
-                {fmtMoney(chargedService.price)}
-              </p>
-            )}
-
-            <div className="mb-4 text-left">
-              <p className="text-[13px] font-semibold text-on-surface mb-1.5">¿Cómo paga?</p>
-              <div className="grid grid-cols-3 gap-2">
-                {paymentOptions.map((o) => (
-                  <button
-                    key={o.value}
-                    type="button"
-                    onClick={() => setPaymentMethod(o.value)}
-                    aria-pressed={paymentMethod === o.value}
-                    className={`rounded-xl border px-2 py-2.5 text-xs font-semibold transition-colors ${
-                      paymentMethod === o.value
-                        ? "border-primary bg-primary/10 text-primary"
-                        : "border-outline-variant/30 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high"
-                    }`}
-                  >
-                    {o.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <p className="text-xs text-on-surface-variant mb-4">
-              Se registra la venta y la cita queda como completada.
-            </p>
-
-            {chargeError && (
-              <div className="mb-4 rounded-xl bg-error-container/20 border border-error-container/30 px-4 py-3 text-sm text-error-dim text-left">
-                {chargeError}
-              </div>
-            )}
-
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={() => setShowChargeConfirm(false)}
-                className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold text-on-surface-variant hover:bg-surface-container-highest transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={confirmChargeAction}
-                disabled={busy}
-                className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold bg-emerald-600 hover:bg-emerald-500 text-white transition-colors disabled:opacity-50"
-              >
-                {submitting ? "Cobrando…" : "Confirmar cobro"}
-              </button>
-            </div>
-        </Modal>
-      )}
-
       {/*
         "Mover a…": el mismo selector de fecha y hora, controlado desde acá.
         Al pulsar «Listo» se guarda de una (ver `moveTo`).
@@ -858,12 +722,7 @@ function AppointmentModalBody({
         />
       ) : null}
 
-      {showOpenShift && (
-        <OpenShiftModal
-          onClose={() => setShowOpenShift(false)}
-          onOpened={() => setShowChargeConfirm(true)}
-        />
-      )}
+      <QuickCustomerModal open={showNewCustomer} onClose={() => setShowNewCustomer(false)} onCreated={(id) => { setForm((f) => ({ ...f, customer_id: id })); setShowNewCustomer(false); }} />
     {confirmDialog}
     </>
   );

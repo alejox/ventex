@@ -100,6 +100,13 @@ export async function fetchCustomers(): Promise<Customer[]> {
   return (data ?? []) as Customer[];
 }
 
+/** Actualiza también los clientes recién creados por una reserva pública. */
+export async function fetchCustomer(id: string): Promise<Customer | null> {
+  const { data, error } = await createClient().from("customers").select(SELECT).eq("id", id).maybeSingle();
+  if (error) throw error;
+  return data as Customer | null;
+}
+
 export async function fetchCustomerSales(customerId: string): Promise<CustomerSale[]> {
   const supabase = createClient();
   const { data, error } = await supabase

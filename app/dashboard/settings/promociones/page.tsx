@@ -16,6 +16,7 @@ import {
 import { CollectionError, CollectionLoading } from "@/components/CollectionState";
 import { notifySuccess, notifyError } from "@/lib/notifications";
 import { Select } from "@/components/ui/Select";
+import { Switch } from "@/components/ui/Switch";
 import { OffersManager } from "./OffersManager";
 import { LoyaltyManager } from "./LoyaltyManager";
 import type { MoneyFormatter } from "@/lib/money";
@@ -31,7 +32,6 @@ import {
   type PromoNoun,
 } from "@/config/promo-nouns";
 import { isPromoDraftDirty } from "./promo-draft";
-import { Switch } from "@/components/ui/Switch";
 
 /**
  * Configuración → Promociones.
@@ -272,6 +272,18 @@ function HaircutPromosSection() {
     <div className="flex flex-col gap-6 max-w-3xl">
       {error && <CollectionError message={error} onRetry={fetchAll} />}
       {dialog}
+
+      <section aria-label="Preparar la promoción" className="rounded-2xl border border-outline-variant/20 bg-surface-container-lowest p-5">
+        <h2 className="font-bold text-on-surface">Prepara tu promoción</h2>
+        <ol className="mt-3 space-y-2 text-sm text-on-surface-variant">
+          <li>1. Elige los servicios que cuentan: {serviceIds.length ? `${serviceIds.length} seleccionados` : "todavía no has elegido ninguno"}.</li>
+          <li>2. Define el premio: {milestones.some((m) => m.is_active) ? "tienes hitos activos" : "agrega un hito y su forma de entrega"}.</li>
+          <li>3. Revisa el mensaje, enciende el contador y guarda. WhatsApp lo envía una persona.</li>
+        </ol>
+        {milestones.filter((m) => m.is_active).sort((a, b) => a.threshold - b.threshold).slice(0, 1).map((m) => <p key={m.id} className="mt-3 rounded-xl bg-primary/10 p-3 text-sm text-on-surface">
+          Ejemplo: el cliente paga {m.threshold} {noun.plural}; al alcanzar el hito se le anuncia «{m.reward}» para su próxima visita. El canje se aplica explícitamente al cobrar.
+        </p>)}
+      </section>
 
       {/* 1. El interruptor */}
       <section className="bg-surface-container rounded-2xl border border-outline-variant/10 p-5 sm:p-6">

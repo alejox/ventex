@@ -11,6 +11,10 @@ import type {
 } from "@/services/appointments.service";
 
 interface AppointmentsState {
+  today: Appointment[];
+  todayLoading: boolean;
+  todayError: string | null;
+  fetchToday: (date: string) => Promise<void>;
   appointments: Appointment[];
   selectedDate: Date;
   loading: boolean;
@@ -59,8 +63,22 @@ interface AppointmentsState {
 
 let linkRequest = 0;
 let calendarRequest = 0;
+let todayRequest = 0;
 
 export const useAppointmentsStore = create<AppointmentsState>((set, get) => ({
+  today: [],
+  todayLoading: true,
+  todayError: null,
+  fetchToday: async (date) => {
+    const request = ++todayRequest;
+    set({ todayLoading: true, todayError: null });
+    try {
+      const today = await appointmentsService.fetchAppointments(date, date);
+      if (request === todayRequest) set({ today, todayLoading: false });
+    } catch (e) {
+      if (request === todayRequest) set({ todayError: toMessage(e), todayLoading: false });
+    }
+  },
   appointments: [],
   selectedDate: new Date(),
   loading: false,
@@ -166,7 +184,7 @@ export const useAppointmentsStore = create<AppointmentsState>((set, get) => ({
     try {
       const saleId = await appointmentsService.chargeAppointment(appointment, paymentMethod);
       set((s) => ({
-        linkedAppointment: s.linkedAppointment?.id === appointment.id ? { ...s.linkedAppointment, status: "completed" } : s.linkedAppointment,
+        linkedAppointment: s.linkedAppointment?.id === appointment.id ? { ...s.linkedAppointment, status: "completed", sale_id: saleId } : s.linkedAppointment,
         appointments: s.appointments.map((a) =>
           a.id === appointment.id ? { ...a, status: "completed", sale_id: saleId } : a,
         ),

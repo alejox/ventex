@@ -46,6 +46,9 @@ export interface DeliveryData {
 }
 
 export interface SaleTab {
+  /** La cita pertenece a esta venta, aunque se cambie de pestaña o pantalla. */
+  appointmentId?: string | null;
+  appointmentServiceId?: string | null;
   id: string;
   name: string;
   cart: CartLine[];
@@ -189,6 +192,7 @@ interface PosState {
   setLineKind: (key: string, unitKind: SaleUnitKind) => void;
   setCustomer: (customerId: string | null) => void;
   setStaff: (staffId: string | null) => void;
+  bindAppointment: (id: string, serviceId: string) => void;
   /**
    * `source` dice de qué canal viene el descuento, para separar lo MANUAL
    * (lo que a un trabajador le pide `pos_discount` en `create_sale`):
@@ -280,6 +284,8 @@ const createDefaultTab = (index: number, get?: () => PosState): SaleTab => {
     isDelivery: false,
     deliveryData: { personId: null, address: "", fee: 0, notes: "" },
     checkoutId: null,
+    appointmentId: null,
+    appointmentServiceId: null,
     removedOfferKeys: [],
     loyaltyApplied: null,
   };
@@ -312,6 +318,8 @@ export function resetTabForNextSale(
     isDelivery: false,
     deliveryData: { personId: null, address: "", fee: 0, notes: "" },
     checkoutId: null,
+    appointmentId: null,
+    appointmentServiceId: null,
     removedOfferKeys: [],
     loyaltyApplied: null,
   };
@@ -627,7 +635,7 @@ export const usePosStore = create<PosState>((set, get) => {
         shift.membership_id === context.membershipId &&
         state.staff.some((person) => person.id === context.staffId)
         ? context.staffId ?? null
-        : null;
+        : state.staff.length === 1 && !context?.staffId ? state.staff[0].id : null;
       if (state.defaultStaffId === responsible) return;
       set({
         defaultStaffId: responsible,
@@ -907,6 +915,10 @@ export const usePosStore = create<PosState>((set, get) => {
         }),
       })),
 
+    bindAppointment: (id, serviceId) => set((s) => ({
+      tabs: s.tabs.map((t) => t.id === s.activeTabId ? { ...t, appointmentId: id, appointmentServiceId: serviceId, checkoutId: id } : t),
+    })),
+
     /**
      * Descuento MANUAL sobre una línea (DiscountModal, o el premio de cortes
      * en salón). Limpia `offerId`/`offerName` si la línea traía una oferta
@@ -1144,6 +1156,11 @@ export const usePosStore = create<PosState>((set, get) => {
       const state = get();
       const activeTab = state.tabs.find((t) => t.id === state.activeTabId);
       if (!activeTab || activeTab.cart.length === 0) return "failed";
+      if (state.submitting) return "failed";
+      if (activeTab.appointmentId && !activeTab.cart.some((line) => line.item.kind === "service" && line.item.id === activeTab.appointmentServiceId)) {
+        set({ error: "Quitaste el servicio de la cita. Agrégalo de nuevo o vacía esta venta antes de cobrar otros ítems." });
+        return "failed";
+      }
       if (activeTab.loyaltyApplied && !loyaltyRedemptionMatches(activeTab.cart, activeTab.customerId, activeTab.loyaltyApplied)) {
         set({ error: "El carrito o cliente cambió después de aplicar puntos. Quita los puntos y vuelve a aplicarlos antes de cobrar." });
         return "failed";

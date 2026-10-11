@@ -514,6 +514,8 @@ export default function CustomersPage() {
                 </div>
               </div>
 
+              <details open={Boolean(editingId)} className="space-y-4">
+                <summary className="cursor-pointer text-sm font-semibold text-on-surface-variant">Datos de facturación (opcionales)</summary>
               <div className="space-y-1.5">
                 <label className="text-[13px] font-semibold text-on-surface block">Documento</label>
                 <div className="flex gap-2">
@@ -536,7 +538,7 @@ export default function CustomersPage() {
                     placeholder="Número de documento"
                   />
                 </div>
-                <p className="text-xs text-on-surface-variant">Requerido para facturación.</p>
+                <p className="text-xs text-on-surface-variant">Puedes completarlo cuando el cliente solicite facturación.</p>
               </div>
 
               {canManageCredit && (
@@ -567,6 +569,7 @@ export default function CustomersPage() {
               </>
               )}
 
+              </details>
               <div className="pt-4 flex flex-col sm:flex-row gap-3 border-t border-outline-variant/10">
                 <button
                   type="button"
@@ -674,7 +677,7 @@ export default function CustomersPage() {
           description={
             <>
               <span className="block text-xs">
-                {detailCustomer.doc_type ? `${detailCustomer.doc_type} ${detailCustomer.identification}` : detailCustomer.identification ?? "Sin documento"}
+                {detailCustomer.identification ? [detailCustomer.doc_type, detailCustomer.identification].filter(Boolean).join(" ") : "Sin documento"}
               </span>
               <span className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-on-surface-variant">
                 {detailCustomer.phone && <span>{detailCustomer.phone}</span>}
