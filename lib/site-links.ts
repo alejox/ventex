@@ -71,6 +71,28 @@ export function siteLinksView(
   return { kind: "menu", links };
 }
 
+/** What `/dashboard/landing` is showing: the list, an existing site, or a new one. */
+export type LandingMode = { kind: "list" } | { kind: "edit"; id: string } | { kind: "new" };
+
+/**
+ * The query string `/dashboard/landing` should carry for a mode, so reloading,
+ * sharing the link and the header's "Ver sitio web" menu all see the site being
+ * edited. Only the mode params (`site`, `new`) are replaced; everything else
+ * (`tab`, the one-shot `instagram` result the editor consumes itself) is kept
+ * while editing. The list drops `tab` too: on reload a leftover `?tab=` would
+ * reopen the first site's editor instead of the list.
+ * Returns "" or a string starting with "?".
+ */
+export function landingSearchFor(mode: LandingMode, currentSearch: string): string {
+  const params = new URLSearchParams(currentSearch);
+  for (const key of ["site", "new"]) params.delete(key);
+  if (mode.kind === "list") params.delete("tab");
+  if (mode.kind === "edit") params.set("site", mode.id);
+  if (mode.kind === "new") params.set("new", "1");
+  const query = params.toString();
+  return query ? `?${query}` : "";
+}
+
 /** The editor carries the site it edits as `?site=<id>` on `/dashboard/landing`. */
 export function editingSiteIdFrom(pathname: string, search: string): string | null {
   if (pathname !== "/dashboard/landing") return null;

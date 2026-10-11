@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { editingSiteIdFrom, siteLinksView } from "../lib/site-links";
+import { editingSiteIdFrom, landingSearchFor, siteLinksView } from "../lib/site-links";
 
 const site = (id: string, slug: string, published: boolean, site_name: string | null = null) => ({
   id,
@@ -65,4 +65,17 @@ test("editingSiteIdFrom only reads ?site= on the landing editor route", () => {
   assert.equal(editingSiteIdFrom("/dashboard/landing", "?new=1"), null);
   assert.equal(editingSiteIdFrom("/dashboard/sales", "?site=abc"), null);
   assert.equal(editingSiteIdFrom("/dashboard/landing", ""), null);
+});
+
+test("landingSearchFor writes the edited site so the header can find it", () => {
+  assert.equal(landingSearchFor({ kind: "edit", id: "abc" }, ""), "?site=abc");
+  // `tab` and the one-shot `instagram` result belong to the editor: kept.
+  assert.equal(landingSearchFor({ kind: "edit", id: "abc" }, "?tab=sections&instagram=connected"), "?tab=sections&instagram=connected&site=abc");
+  assert.equal(landingSearchFor({ kind: "list" }, "?site=abc"), "");
+  assert.equal(landingSearchFor({ kind: "list" }, "?site=abc&tab=sections"), "");
+  assert.equal(landingSearchFor({ kind: "new" }, "?site=abc"), "?new=1");
+  // Unrelated params are kept.
+  assert.equal(landingSearchFor({ kind: "edit", id: "b" }, "?site=a&utm=x"), "?utm=x&site=b");
+  // Round trip with the header reader.
+  assert.equal(editingSiteIdFrom("/dashboard/landing", landingSearchFor({ kind: "edit", id: "b" }, "")), "b");
 });

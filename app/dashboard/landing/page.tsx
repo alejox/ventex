@@ -11,6 +11,7 @@ import { LandingEditor } from "@/components/landing/LandingEditor";
 import { useProfile } from "@/components/ProfileProvider";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { SITE_URL } from "@/lib/site";
+import { landingSearchFor, type LandingMode } from "@/lib/site-links";
 import { DEFAULT_SITE_IMAGES } from "@/services/public-site.types";
 
 const MAX_SITES = 10;
@@ -42,7 +43,7 @@ function LandingContent() {
 }
 
 /** Qué se muestra: la lista, una página existente o una página nueva. */
-type Mode = { kind: "list" } | { kind: "edit"; id: string } | { kind: "new" };
+type Mode = LandingMode;
 
 /**
  * El modo vive en estado y no se deriva de la URL ni de `sites.length`: al
@@ -67,6 +68,15 @@ function LandingScreen() {
     if (searchParams.has("tab")) return { kind: "edit", id: sites[0].id };
     return { kind: "list" };
   });
+
+  // The URL mirrors the mode (it never drives it): reloading keeps you in the
+  // same editor and the header's "Ver sitio web" menu knows which site is open.
+  // `replaceState` syncs `useSearchParams` without a navigation or a remount.
+  useEffect(() => {
+    const search = landingSearchFor(mode, window.location.search);
+    if (search === window.location.search) return;
+    window.history.replaceState(null, "", `${window.location.pathname}${search}`);
+  }, [mode]);
 
   const businessName = settings?.business_profile?.businessName?.trim() || "Tu negocio";
   const current = mode.kind === "edit" ? sites.find((site) => site.id === mode.id) ?? null : null;
