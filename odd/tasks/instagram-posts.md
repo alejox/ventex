@@ -60,6 +60,8 @@ Strategy: `ask-on-risk`. Forecast ~250 authored lines (under the 400 budget): si
   - T6 `a673896` `feat(site): show posts from a connected instagram account`. RED: `npx tsx --test tests/site-instagram-config.test.ts` 6/7 (instagramSource test failing). GREEN: 7/7. Also adds the return-to-editor helper (+1 test) so the OAuth round trip lands on `?site=<id>&tab=sections`.
   - Checks after T6: `npx tsx --test tests/instagram-protocol.test.ts` 14/14; `npm test` 596/596; `npx tsc --noEmit` clean; eslint on every touched file clean.
   - Not checked: real OAuth round trip and media fetch against Meta (needs the Meta app, env vars and a tester account); migration grants on a live database.
+  - Parent spot check: protocol + config tests 21/21; migration revokes all from anon/authenticated and grants only status columns.
+  - Review assessment (`676b5b2..422c11f`, committed-only, unrelated untracked excluded): risk `medium`, 1764 lines, `review_due: true` (`slice_budget_reached`). Native review PENDING: preflight STATUS asks for an `intended_untracked_selection` (the user's unrelated untracked files) and my submission was rejected as `invalid_request` (exact JSON shape unknown). Not retried blindly.
 
 ## Next step
 Phase 2: user approves applying `20261010120000_instagram_connections.sql`, sets `INSTAGRAM_APP_ID`/`INSTAGRAM_APP_SECRET` and registers the redirect URI in Meta, then a tester account runs Conectar Instagram end to end.
