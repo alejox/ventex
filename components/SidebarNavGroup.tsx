@@ -163,6 +163,8 @@ export function SidebarNavGroup({
   onToggle,
   onNavigate,
   icons,
+  controlled = false,
+  idPrefix = "",
 }: {
   group: NavGroupModel;
   activeNavId: string | null;
@@ -170,6 +172,8 @@ export function SidebarNavGroup({
   onToggle: (id: string) => void;
   onNavigate?: () => void;
   icons: Record<string, IconType>;
+  controlled?: boolean;
+  idPrefix?: string;
 }) {
   const contieneActivo = group.items.some((it) => it.id === activeNavId);
   const plano = group.items.length <= 1 || !group.label;
@@ -179,7 +183,7 @@ export function SidebarNavGroup({
   // disparar un setState dentro de un effect.
   const cerradoPorUsuario = contieneActivo && cerradoPara === activeNavId;
 
-  const abierto = (contieneActivo && !cerradoPorUsuario) || open;
+  const abierto = controlled ? open : (contieneActivo && !cerradoPorUsuario) || open;
 
   if (plano) {
     return (
@@ -209,13 +213,17 @@ export function SidebarNavGroup({
   }
 
   const GroupIcon = NAV_GROUP_ICONS[group.id] ?? icons[group.items[0].id];
-  const panelId = `nav-grupo-${group.id}`;
+  const panelId = `${idPrefix ? `${idPrefix}-` : ""}nav-grupo-${group.id}`;
 
   return (
     <div>
       <button
         type="button"
         onClick={() => {
+          if (controlled) {
+            onToggle(group.id);
+            return;
+          }
           if (contieneActivo) {
             setCerradoPara((cerrado) => (cerrado === activeNavId ? null : activeNavId));
             // Si estaba persistido como abierto, quitamos esa preferencia para

@@ -42,6 +42,7 @@ import { ExpenseModal } from "@/components/ExpenseModal";
 import { useProfile } from "@/components/ProfileProvider";
 import { visibleNavItems, workerNavItems, groupNavItems, footerNavItems } from "@/config/business";
 import { SidebarNavGroup, useOpenNavGroups } from "@/components/SidebarNavGroup";
+import { DesktopHeaderActions, MobileDrawerContent, MobileSidebarNavigation } from "@/components/MobileDrawerTools";
 import { SidebarTooltip } from "@/components/ui/SidebarTooltip";
 import { Modal } from "@/components/ui/Modal";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
@@ -85,7 +86,7 @@ const COLLAPSED_ICON_BUTTON =
 const COLLAPSED_FOCUS_RING =
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-ink focus-visible:ring-offset-2 focus-visible:ring-offset-surface-container-lowest";
 
-/** Fila de "Acciones rápidas" del cajón móvil: mismo alto y aspecto que un ítem del menú. */
+/** Secondary drawer actions retain the existing touch targets and visual roles. */
 const QUICK_ACTION =
   "flex w-full items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-ink";
 
@@ -662,70 +663,61 @@ export function DashboardShell({
           </button>
 
           <div className="flex items-center gap-0.5 sm:gap-2 md:gap-3 ml-auto min-w-0">
-            <WorkspaceSwitcher />
-            {/* Solo cuando el sitio existe y está publicado. Antes se mostraba
-                siempre y, sin sitio, llevaba a Ajustes: un botón que dice "Ver
-                sitio web" y no muestra ningún sitio. Crearlo se ofrece desde
-                Configuración, que es donde corresponde.
-                Con varias páginas abre un menú: un solo enlace llevaba siempre
-                a la principal aunque estuvieras editando otra. */}
-            <SiteLinksControl
-              sites={sites}
-              pathname={pathname}
-              businessName={profile?.businessName?.trim() || "Mi página"}
-            />
-            {/* En tablet el header no tiene el campo: queda este botón. En el
-                teléfono la paleta vive en el cajón, en "Acciones rápidas". */}
-            <button
-              type="button"
-              onClick={() => setPaletteOpen(true)}
-              aria-label="Ir a una sección"
-              aria-haspopup="dialog"
-              title="Ir a una sección (Ctrl K)"
-              className={`hidden sm:inline-flex lg:hidden ${HEADER_ICON_BUTTON}`}
-            >
-              <IconSearch className="w-5 h-5" aria-hidden="true" />
-            </button>
-            {/* Registrar gasto es global: un gasto no pertenece a ninguna
-                pantalla, ocurre cuando ocurre. Estaba solo en el Panel, así que
-                había que navegar hasta ahí para anotarlo.
-                Solo el dueño: escribir gastos es suyo a nivel RLS. */}
-            {!isWorker && (
+            <DesktopHeaderActions>
+              <WorkspaceSwitcher />
+              {/* Solo cuando el sitio existe y está publicado. Antes se mostraba
+                  siempre y, sin sitio, llevaba a Ajustes: un botón que dice "Ver
+                  sitio web" y no muestra ningún sitio. Crearlo se ofrece desde
+                  Configuración, que es donde corresponde.
+                  Con varias páginas abre un menú: un solo enlace llevaba siempre
+                  a la principal aunque estuvieras editando otra. */}
+              <SiteLinksControl
+                sites={sites}
+                pathname={pathname}
+                businessName={profile?.businessName?.trim() || "Mi página"}
+              />
+              {/* Registrar gasto es global: un gasto no pertenece a ninguna
+                  pantalla, ocurre cuando ocurre. Estaba solo en el Panel, así que
+                  había que navegar hasta ahí para anotarlo.
+                  Solo el dueño: escribir gastos es suyo a nivel RLS. */}
+              {!isWorker && (
+                <button
+                  type="button"
+                  onClick={() => setExpenseOpen(true)}
+                  className={HEADER_ICON_BUTTON}
+                  title="Registrar gasto"
+                  aria-label="Registrar gasto"
+                >
+                  <IconWallet className="w-5 h-5" aria-hidden="true" />
+                </button>
+              )}
               <button
                 type="button"
-                onClick={() => setExpenseOpen(true)}
-                className={`hidden sm:inline-flex ${HEADER_ICON_BUTTON}`}
-                title="Registrar gasto"
-                aria-label="Registrar gasto"
+                onClick={() => setCalculatorOpen(true)}
+                aria-label="Calculadora"
+                className={HEADER_ICON_BUTTON}
+                title="Calculadora"
               >
-                <IconWallet className="w-5 h-5" aria-hidden="true" />
+                <CalculatorIcon />
               </button>
-            )}
-            <button
-              type="button"
-              onClick={() => setCalculatorOpen(true)}
-              aria-label="Calculadora"
-              className={`hidden md:inline-flex ${HEADER_ICON_BUTTON}`}
-              title="Calculadora"
-            >
-              <CalculatorIcon />
-            </button>
-            {/* En el teléfono no entra junto al avatar (desbordaba a 375px):
-                vive en "Acciones rápidas" del cajón. */}
-            <div className="hidden sm:block">
-              <ThemeToggle />
-            </div>
+              {/* Secondary actions move to the drawer below the desktop breakpoint. */}
+              <div>
+                <ThemeToggle />
+              </div>
+            </DesktopHeaderActions>
             <NotificationsBell />
-            <button
-              type="button"
-              onClick={handleHelpClick}
-              title="Ayuda y soporte"
-              aria-label="Ayuda y soporte"
-              className={`hidden sm:inline-flex ${HEADER_ICON_BUTTON}`}
-            >
-              <IconHelpCircle className="w-5 h-5" aria-hidden="true" />
-            </button>
-            <div className="w-px h-6 bg-divider hidden sm:block mx-1" aria-hidden="true"></div>
+            <DesktopHeaderActions>
+              <button
+                type="button"
+                onClick={handleHelpClick}
+                title="Ayuda y soporte"
+                aria-label="Ayuda y soporte"
+                className={HEADER_ICON_BUTTON}
+              >
+                <IconHelpCircle className="w-5 h-5" aria-hidden="true" />
+              </button>
+              <div className="w-px h-6 bg-divider hidden sm:block mx-1" aria-hidden="true"></div>
+            </DesktopHeaderActions>
             <ShellUserMenu name={userName} email={userEmail} showSettings={canSeeSettings} />
           </div>
         </header>
@@ -779,66 +771,34 @@ export function DashboardShell({
                 </Link>
                 <button type="button" onClick={() => setMobileMenuOpen(false)} aria-label="Cerrar menú" className={`-mr-2 text-xl ${HEADER_ICON_BUTTON}`}>×</button>
               </div>
-              {/* Acciones rápidas (A17): en el teléfono el header no tiene lugar
-                  para la paleta, el gasto ni la calculadora, y no existían en
-                  ninguna otra parte de la pantalla. */}
-              <section aria-labelledby="mobile-quick-actions" className="px-4 pt-4">
-                <h2 id="mobile-quick-actions" className="text-[11px] font-bold text-on-surface-variant uppercase tracking-[0.16em] mb-2 px-4">
-                  Acciones rápidas
-                </h2>
-                <div className="space-y-1">
-                  <button
-                    type="button"
-                    onClick={() => runFromDrawer(() => setPaletteOpen(true))}
-                    className={QUICK_ACTION}
-                  >
-                    <IconSearch className="w-5 h-5 shrink-0" aria-hidden="true" />
+              <MobileDrawerContent
+                context={<WorkspaceSwitcher />}
+                search={
+                  <button type="button" onClick={() => runFromDrawer(() => setPaletteOpen(true))} aria-haspopup="dialog" className="flex w-full items-center gap-3 rounded-full border border-outline-variant bg-surface-container px-4 py-2.5 text-left text-sm text-on-surface-variant focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-ink">
+                    <IconSearch className="w-4 h-4 shrink-0" aria-hidden="true" />
                     Ir a una sección…
                   </button>
-                  {!isWorker && (
-                    <button
-                      type="button"
-                      onClick={() => runFromDrawer(() => setExpenseOpen(true))}
-                      className={QUICK_ACTION}
-                    >
-                      <IconWallet className="w-5 h-5 shrink-0" aria-hidden="true" />
-                      Registrar gasto
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => runFromDrawer(() => setCalculatorOpen(true))}
-                    className={QUICK_ACTION}
-                  >
-                    <CalculatorIcon />
-                    Calculadora
+                }
+                navigation={<MobileSidebarNavigation key={activeNavId} groups={navGroups} activeNavId={activeNavId} icons={NAV_ICONS} onNavigate={() => setMobileMenuOpen(false)} />}
+                tools={<>
+                  {!isWorker && <button type="button" onClick={() => runFromDrawer(() => setExpenseOpen(true))} className={QUICK_ACTION}>
+                    <IconWallet className="w-5 h-5 shrink-0" aria-hidden="true" />Registrar gasto
+                  </button>}
+                  <button type="button" onClick={() => runFromDrawer(() => setCalculatorOpen(true))} className={QUICK_ACTION}>
+                    <CalculatorIcon />Calculadora
                   </button>
-                  <button type="button" onClick={toggleTheme} className={`sm:hidden ${QUICK_ACTION}`}>
+                  <button type="button" onClick={toggleTheme} className={QUICK_ACTION}>
                     <span className="w-5 h-5 shrink-0 text-center" aria-hidden="true">{theme === "dark" ? "☀" : "☾"}</span>
                     {theme === "dark" ? "Modo claro" : "Modo oscuro"}
                   </button>
-                </div>
-              </section>
-              <nav aria-label="Navegación principal" className="p-4 space-y-1">
-                <div className="text-[11px] font-bold text-on-surface-variant uppercase tracking-[0.16em] mb-2 px-4 mt-2">
-                  Menú Principal
-                </div>
-                {/* Mismos clústeres que en escritorio: si el menú del teléfono
-                    quedara plano, la agrupación sería una convención que solo
-                    existe en una de las dos pantallas. */}
-                {navGroups.map((group, i) => (
-                  <div key={group.id} className={i > 0 ? "mt-1" : ""}>
-                    <SidebarNavGroup
-                      group={group}
-                      activeNavId={activeNavId}
-                      open={abiertos.has(group.id)}
-                      onToggle={toggleNavGroup}
-                      onNavigate={() => setMobileMenuOpen(false)}
-                      icons={NAV_ICONS}
-                    />
+                  <button type="button" onClick={() => { handleHelpClick(); setMobileMenuOpen(false); }} className={QUICK_ACTION}>
+                    <IconHelpCircle className="w-5 h-5 shrink-0" aria-hidden="true" />Ayuda y soporte
+                  </button>
+                  <div className="col-span-2 pt-2">
+                    <SiteLinksControl sites={sites} pathname={pathname} businessName={profile?.businessName?.trim() || "Mi página"} mobile />
                   </div>
-                ))}
-              </nav>
+                </>}
+              />
             </div>
             {showAdminLinks && (
             <div className="p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] border-t border-divider space-y-1">
@@ -924,10 +884,12 @@ function SiteLinksControl({
   sites,
   pathname,
   businessName,
+  mobile = false,
 }: {
   sites: readonly SiteLinkSource[];
   pathname: string;
   businessName: string;
+  mobile?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   // Se lee al abrir y no con useSearchParams: el shell envuelve todo el
@@ -969,6 +931,9 @@ function SiteLinksControl({
     };
   }, [open]);
 
+  const panelId = mobile ? "mobile-site-links-panel" : "site-links-panel";
+  const buttonClass = mobile ? SITE_LINK_BUTTON.replace("hidden sm:flex", "flex") : SITE_LINK_BUTTON;
+
   if (view.kind === "none") return null;
 
   if (view.kind === "single") {
@@ -977,7 +942,7 @@ function SiteLinksControl({
         href={view.link.href}
         target="_blank"
         rel="noopener noreferrer"
-        className={SITE_LINK_BUTTON}
+        className={buttonClass}
         title="Ver mi sitio público de reservas"
       >
         <ExternalLinkIcon />
@@ -992,14 +957,14 @@ function SiteLinksControl({
   };
 
   return (
-    <div ref={rootRef} className="relative hidden sm:block shrink-0">
+    <div ref={rootRef} className={mobile ? "relative shrink-0" : "relative hidden sm:block shrink-0"}>
       <button
         ref={buttonRef}
         type="button"
         onClick={toggle}
         aria-expanded={open}
-        aria-controls="site-links-panel"
-        className={SITE_LINK_BUTTON}
+        aria-controls={panelId}
+        className={buttonClass}
         title="Elige qué página ver"
       >
         <ExternalLinkIcon />
@@ -1010,11 +975,11 @@ function SiteLinksControl({
       </button>
       {open && (
         <div
-          id="site-links-panel"
+          id={panelId}
           ref={panelRef}
           role="region"
           aria-label="Tus páginas web"
-          className="absolute right-0 top-full z-50 mt-2 w-72 max-w-[calc(100vw-2rem)] rounded-2xl border border-divider bg-surface-container-lowest p-2 shadow-2xl"
+          className={`${mobile ? "relative w-full" : "absolute right-0 top-full w-72 max-w-[calc(100vw-2rem)]"} z-50 mt-2 rounded-2xl border border-divider bg-surface-container-lowest p-2 shadow-2xl`}
         >
           <p className="px-3 pb-1 pt-1.5 text-[11px] font-bold uppercase tracking-wide text-on-surface-variant">
             Tus páginas
