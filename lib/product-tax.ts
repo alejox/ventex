@@ -31,3 +31,17 @@ export function priceMultipliers({
     selling: sellingTax === "Ninguno" ? 1 : 1 + rate,
   };
 }
+
+/** Business settings preserve the entered total; explicit tax selectors preserve base. */
+export function repricePair(
+  pair: { base: string; total: string },
+  multiplier: number,
+  preserveTotal: boolean,
+): { base: string; total: string } {
+  const source = preserveTotal ? pair.total : pair.base;
+  const value = parseFloat(source);
+  const converted = source === "" || !Number.isFinite(value)
+    ? ""
+    : String(Math.round((preserveTotal ? value / multiplier : value * multiplier) * 100) / 100);
+  return preserveTotal ? { base: converted, total: pair.total } : { base: pair.base, total: converted };
+}

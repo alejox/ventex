@@ -146,7 +146,7 @@ export function ProductPricingSection({
               {recipeCostCard}
             </div>
           ) : (
-            <div className="space-y-1.5 max-w-sm">
+            <div className="space-y-1.5">
               <label htmlFor="product-purchase-price" className="text-sm font-bold text-on-surface block">
                 {ingredientMode
                   ? `Costo por ${isPackage ? "caja" : "unidad"}`
@@ -164,7 +164,7 @@ export function ProductPricingSection({
           )}
 
           {!ingredientMode && (
-            <div className="space-y-1.5 max-w-sm">
+            <div className="space-y-1.5">
               <label htmlFor="product-selling-price" className="text-sm font-bold text-on-surface block">
                 Precio de venta por unidad
               </label>

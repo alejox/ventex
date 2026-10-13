@@ -1,8 +1,12 @@
+import type { ReactNode } from "react";
 import { MoneyInput } from "@/components/ui/MoneyInput";
 import { StockQuantityFields } from "@/components/StockQuantityFields";
 import { displayQty } from "@/lib/stock";
 
 interface ProductPresentationSectionProps {
+  /** Price fields depend on the presentation selected above them. */
+  pricing?: ReactNode;
+  recipe?: ReactNode;
   presentation: "unit" | "package";
   setPresentation: (v: "unit" | "package") => void;
   editId: string | null;
@@ -46,6 +50,8 @@ interface ProductPresentationSectionProps {
 }
 
 export function ProductPresentationSection({
+  pricing,
+  recipe,
   presentation,
   setPresentation,
   editId,
@@ -87,6 +93,70 @@ export function ProductPresentationSection({
           {ingredientMode ? "¿Este insumo se maneja suelto o por caja?" : "¿Este producto se maneja suelto o por caja?"}
         </p>
       </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 items-start">
+        <div className="flex gap-2 sm:gap-3 max-w-sm sm:pt-[26px]">
+          {(["unit", "package"] as const).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => setPresentation(mode)}
+              className={`flex-1 py-2.5 rounded-xl text-sm font-medium border transition-colors ${
+                presentation === mode
+                  ? "border-primary text-primary bg-primary/5"
+                  : "border-outline-variant/30 text-on-surface hover:bg-surface-container-low"
+              }`}
+            >
+              {mode === "unit" ? "Unidad" : "Caja"}
+            </button>
+          ))}
+        </div>
+
+        <div
+          aria-hidden={presentation !== "package"}
+          className={`space-y-1.5 ${presentation === "package" ? "" : "hidden sm:block invisible pointer-events-none"}`}
+        >
+          <label htmlFor="units-per-package" className="text-[13px] font-semibold text-on-surface block">
+            Unidades por caja
+          </label>
+          <input
+            id="units-per-package"
+            disabled={presentation !== "package"}
+            type="number"
+            min="1"
+            value={unitsPerPackage}
+            onChange={(e) => onUnitsPerPackageChange(e.target.value)}
+            className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-base sm:text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-on-surface-variant/50"
+            placeholder="Ej. 60"
+          />
+          {/* Define el EMPAQUE —cuánto trae una caja, para venderla y para
+              prorratear el costo—, no cuánta mercadería hay. Cuando sumaba al
+              stock, un producto con caja de 24 al que se le cargaban 23
+              unidades nacía con 47. */}
+          <p className="text-xs text-on-surface-variant">
+            Cuántas unidades trae una caja. Es la definición del empaque: no suma stock.
+          </p>
+        </div>
+      </div>
+
+      {pricing}
+
+      {presentation === "package" && !ingredientMode && (
+        <div className="space-y-1.5">
+          <label className="text-[13px] font-semibold text-on-surface block">
+            Precio de venta por caja <span className="text-on-surface-variant font-normal">(opcional)</span>
+          </label>
+          <MoneyInput
+            aria-label="Precio de venta por caja"
+            value={packagePrice}
+            onChange={onPackagePriceChange}
+            placeholder="Vacío = no se vende por caja"
+          />
+          {packageHint && <p className="text-xs text-on-surface-variant">{packageHint}</p>}
+        </div>
+      )}
+
+      {recipe}
 
       {/* Las dos excepciones del catálogo, juntas y explicadas.
           Nacen de las verduras: las papas llegan y una parte se pudre, así que
@@ -142,64 +212,6 @@ export function ProductPresentationSection({
           </label>
         )}
       </div>
-
-      <div className="flex gap-2 sm:gap-3 max-w-sm">
-        {(["unit", "package"] as const).map((mode) => (
-          <button
-            key={mode}
-            type="button"
-            onClick={() => setPresentation(mode)}
-            className={`flex-1 py-2.5 rounded-xl text-sm font-medium border transition-colors ${
-              presentation === mode
-                ? "border-primary text-primary bg-primary/5"
-                : "border-outline-variant/30 text-on-surface hover:bg-surface-container-low"
-            }`}
-          >
-            {mode === "unit" ? "Unidad" : "Caja"}
-          </button>
-        ))}
-      </div>
-
-      {presentation === "package" && (
-        <div className="space-y-4">
-          <div className="space-y-1.5 max-w-sm">
-            <label htmlFor="units-per-package" className="text-[13px] font-semibold text-on-surface block">
-              Unidades por caja
-            </label>
-            <input
-              id="units-per-package"
-              type="number"
-              min="1"
-              value={unitsPerPackage}
-              onChange={(e) => onUnitsPerPackageChange(e.target.value)}
-              className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-3 px-4 text-base sm:text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-on-surface-variant/50"
-              placeholder="Ej. 60"
-            />
-            {/* Define el EMPAQUE —cuánto trae una caja, para venderla y para
-                prorratear el costo—, no cuánta mercadería hay. Cuando sumaba al
-                stock, un producto con caja de 24 al que se le cargaban 23
-                unidades nacía con 47. */}
-            <p className="text-xs text-on-surface-variant">
-              Cuántas unidades trae una caja. Es la definición del empaque: no suma stock.
-            </p>
-          </div>
-
-          {!ingredientMode && (
-            <div className="space-y-1.5 max-w-sm">
-              <label className="text-[13px] font-semibold text-on-surface block">
-                Precio de venta por caja <span className="text-on-surface-variant font-normal">(opcional)</span>
-              </label>
-              <MoneyInput
-                aria-label="Precio de venta por caja"
-                value={packagePrice}
-                onChange={onPackagePriceChange}
-                placeholder="Vacío = no se vende por caja"
-              />
-              {packageHint && <p className="text-xs text-on-surface-variant">{packageHint}</p>}
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Cajas y unidades sueltas juntas, porque así llega la mercadería: "me
           entraron 2 cajas y 20 unidades". La línea del total es la que deja ver

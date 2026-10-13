@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { repricePair } from "./product-tax";
 
 export interface PricePair {
   /** Base imponible, sin IVA. */
@@ -29,17 +30,20 @@ export interface PricePairSetters {
  * reescribiría a mitad de camino ("5" -> base 4.2 -> total 5 -> "50"...) y el
  * campo pelearía contra el usuario.
  */
-export function usePricePair(multiplier: number): [PricePair, PricePairSetters] {
+export function usePricePair(multiplier: number, businessTaxKey?: string): [PricePair, PricePairSetters] {
   const [pair, setPair] = useState<PricePair>({ base: "", total: "" });
   const [lastMultiplier, setLastMultiplier] = useState(multiplier);
+
+  const [lastBusinessTaxKey, setLastBusinessTaxKey] = useState(businessTaxKey);
 
   // Cambió la tasa (o se apagó el IVA): el total se rehace desde la base.
   // Se ajusta DURANTE el render —patrón oficial de React para estado derivado
   // de una entrada que cambió— y no en un efecto, que agregaría un render extra
   // mostrando por un instante el total viejo con la tasa nueva.
-  if (lastMultiplier !== multiplier) {
+  if (lastMultiplier !== multiplier || lastBusinessTaxKey !== businessTaxKey) {
     setLastMultiplier(multiplier);
-    setPair((p) => ({ base: p.base, total: applyRate(p.base, multiplier) }));
+    setLastBusinessTaxKey(businessTaxKey);
+    setPair((p) => repricePair(p, multiplier, lastBusinessTaxKey !== businessTaxKey));
   }
 
   const setters: PricePairSetters = {

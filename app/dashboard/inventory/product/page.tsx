@@ -18,6 +18,8 @@ import { stockUnitsOf } from "@/lib/stock";
 import { useProfile } from "@/components/ProfileProvider";
 import { can } from "@/lib/permissions";
 import { useBusinessTax } from "@/lib/useBusinessTax";
+import { createCatalogSave, recipeKindToRemove } from "@/lib/product-form-save";
+import { createSubmitGuard } from "@/lib/submit-guard";
 import { priceMultipliers } from "@/lib/product-tax";
 import { useBarcodeLookup } from "@/lib/useBarcodeLookup";
 import { barcodeAutofill, suggestedName, type AutofillMemory } from "@/lib/autofill";
@@ -154,6 +156,7 @@ function ProductForm() {
   const saveRecipe = useRecipesStore((s) => s.saveRecipe);
   const [recipeDraft, setRecipeDraft] = useState<RecipeDraft>(EMPTY_RECIPE);
   const [recipeSeededFor, setRecipeSeededFor] = useState<string | null>(null);
+  const [attemptedRecipeKind, setAttemptedRecipeKind] = useState<"sale" | "production" | null>(null);
   const [recipeError, setRecipeError] = useState<string | null>(null);
   const { confirm: confirmRecipe, dialog: recipeDialog } = useConfirm();
 
@@ -187,6 +190,11 @@ function ProductForm() {
   const [imagePreview, setImagePreview] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [createdProductId, setCreatedProductId] = useState<string | null>(null);
+  const [createdServiceId, setCreatedServiceId] = useState<string | null>(null);
+  const submitGuard = useRef(createSubmitGuard());
+  const productSave = useRef(createCatalogSave<NewProductInput>());
+  const serviceSave = useRef(createCatalogSave<NewServiceInput>());
   /** Estado del formulario al terminar de cargar: base para saber si hay cambios. */
   const [baseline, setBaseline] = useState<string | null>(null);
   const { confirm: confirmLeave, dialog: leaveDialog } = useConfirm();
@@ -257,18 +265,8 @@ function ProductForm() {
    * recalculara desde la base en cada tecla, escribir "50000" en el total lo
    * reescribiría a mitad de camino y no se podría teclear.
    */
-  const [purchase, setPurchase] = usePricePair(purchaseMultiplier);
-  const [selling, setSelling] = usePricePair(sellingMultiplier);
-  // Si los ajustes llegan DESPUÉS de cargar el producto (entrada directa por
-  // URL), `includeTax` pasa del default `true` al real. `usePricePair` rehace el
-  // total desde la base, pero lo guardado es el TOTAL: se conserva ese número.
-  // Cambiar el selector de IVA a mano sigue rehaciendo el total, como siempre.
-  const [lastIncludeTax, setLastIncludeTax] = useState(includeTax);
-  if (lastIncludeTax !== includeTax) {
-    setLastIncludeTax(includeTax);
-    setPurchase.fromTotal(purchase.total);
-    setSelling.fromTotal(selling.total);
-  }
+  const [purchase, setPurchase] = usePricePair(purchaseMultiplier, `${includeTax}:${rawRate}`);
+  const [selling, setSelling] = usePricePair(sellingMultiplier, `${includeTax}:${rawRate}`);
   const purchasePriceTotal = purchase.total;
   const sellingPriceTotal = selling.total;
 
@@ -396,7 +394,7 @@ function ProductForm() {
   // precio no necesariamente puede cargar mercadería. El RPC lo revalida, pero
   // mostrar un campo que va a rebotar no es avisar, es hacer perder el tiempo.
   const canMoveStock = can(profile, "inventory_stock");
-  const currentStock = editingProduct?.stock_level ?? 0;
+  const currentStock = (editingProduct ?? products.find((product) => product.id === createdProductId))?.stock_level ?? 0;
   const entryUnits = noStock ? 0 : stockUnitsOf(
     presentation === "package" ? entryPackages : "",
     entryLoose,
@@ -567,9 +565,10 @@ function ProductForm() {
     const wantRecipe = recipeDraft.enabled && lines.length > 0;
     if (!wantRecipe) {
       // Apagar la receta de un servicio (la de un producto ya se borró antes).
-      if (isService && existingRecipe) {
+      if (isService && recipeKindToRemove(existingRecipe?.kind ?? null, attemptedRecipeKind, null)) {
         const removed = await saveRecipe({ ...target, kind: "sale", items: [] });
         if (!removed.ok) setRecipeError(removed.error);
+        else setAttemptedRecipeKind(null);
         return removed.ok;
       }
       return true;
@@ -588,6 +587,7 @@ function ProductForm() {
           ? compatibleUnits(productHolder).includes(recipeDraft.yieldUnit) ? recipeDraft.yieldUnit : form.unit
           : null,
     };
+    setAttemptedRecipeKind(kind);
     let result = await saveRecipe(input);
     if (!result.ok && result.needsStockClear) {
       const go = await confirmRecipe({
@@ -693,6 +693,7 @@ function ProductForm() {
 
     setFieldErrors({});
     setImageError(null);
+    if (!submitGuard.current.acquire()) return;
     setSaving(true);
     try {
       // Un servicio va a `services` y NADA MÁS. Antes esta misma función escribía
@@ -742,10 +743,9 @@ function ProductForm() {
           image_url: imagenServicio,
         };
 
-        const savedService = editServiceId
-          ? await updateService(editServiceId, serviceInput)
-          : await addService(serviceInput);
+        const savedService = await serviceSave.current.run(editServiceId, serviceInput, addService, updateService);
         if (!savedService) return;
+        if (!editServiceId) setCreatedServiceId(savedService);
         const serviceId = editServiceId ?? (typeof savedService === "string" ? savedService : null);
         if (serviceId && !(await persistRecipe({ serviceId }, recipeLines))) return;
         router.push(backTo);
@@ -755,20 +755,18 @@ function ProductForm() {
       // Pasar de receta de venta a otra cosa (sin receta, por lotes o "Solo
       // insumo") exige borrar la receta ANTES de tocar el stock propio: con la
       // receta de venta viva, la base no deja volver a encender el inventario.
-      if (
-        editId &&
-        productionOn &&
-        !recipeUnknown &&
-        existingRecipe &&
-        (!recipeDraft.enabled ||
-          (existingRecipe.kind === "sale" && !saleRecipeActive) ||
-          (existingRecipe.kind === "production" && !productionRecipeActive))
-      ) {
-        const removed = await saveRecipe({ productId: editId, kind: existingRecipe.kind, items: [] });
+      const productTargetId = editId ?? productSave.current.createdId;
+      const nextRecipeKind = !recipeDraft.enabled
+        ? null
+        : form.is_ingredient ? "production" : recipeDraft.kind;
+      const removeKind = recipeKindToRemove(existingRecipe?.kind ?? null, attemptedRecipeKind, nextRecipeKind);
+      if (productTargetId && productionOn && !recipeUnknown && removeKind) {
+        const removed = await saveRecipe({ productId: productTargetId, kind: removeKind, items: [] });
         if (!removed.ok) {
           setRecipeError(removed.error);
           return;
         }
+        setAttemptedRecipeKind(null);
       }
 
       const payload = {
@@ -797,11 +795,18 @@ function ProductForm() {
         package_price: presentation === "package" && !ingredientMode ? form.package_price : "",
       };
 
-      const ok = editId
-        ? await updateProduct(editId, payload, imageFile)
-        : await addProduct(payload, imageFile);
-      const saved = typeof ok === "string" || ok === true;
-      const productId = editId ?? (typeof ok === "string" ? ok : null);
+      const ok = await productSave.current.run(
+        editId, payload,
+        (input) => addProduct(input, imageFile),
+        (id, input) => updateProduct(id, input, imageFile),
+      );
+      const saved = typeof ok === "string";
+      if (saved && !editId) {
+        setCreatedProductId(ok);
+        const created = useInventoryStore.getState().products.find((product) => product.id === ok);
+        if (created) setForm((current) => ({ ...current, sku: current.sku || created.sku }));
+      }
+      const productId = typeof ok === "string" ? ok : null;
       if (saved && productId && !(await persistRecipe({ productId }, recipeLines))) return;
 
       // La entrada de stock va DESPUÉS de guardar el producto y por su propio RPC.
@@ -810,12 +815,12 @@ function ProductForm() {
       // la mercadería ya habría entrado y el comerciante reintentaría el guardado
       // sumándola de nuevo. Al revés, lo peor que pasa es que el producto quede
       // guardado y la entrada no: se ve el error y se vuelve a intentar solo eso.
-      if (saved && editId && entryUnits > 0) {
+      if (saved && productId && (editId || createdProductId) && entryUnits > 0) {
         // Cajas y sueltas viajan sumadas, en unidades: partirlo en dos llamadas
         // dejaría dos filas en el libro para un mismo ingreso, y la segunda podría
         // fallar con la primera ya aplicada.
         const moved = await addMovement({
-          product_id: editId,
+          product_id: productId,
           type: "in",
           quantity: entryUnits,
           unit_mode: "unit",
@@ -833,6 +838,7 @@ function ProductForm() {
       // Un solo lugar, para TODAS las salidas: cada `return` temprano y
       // cualquier excepción que no atrape un store. Repartirlo por rama es lo
       // que dejó el botón trabado en "Guardando…".
+      submitGuard.current.release();
       setSaving(false);
     }
   };
@@ -998,6 +1004,7 @@ function ProductForm() {
             <button
               key={t}
               type="button"
+              disabled={saving || !!createdProductId || !!createdServiceId}
               onClick={() => {
                 setItemType(t);
                 if (t === "Servicio" && !serviceFinalPrice) {
@@ -1050,7 +1057,7 @@ function ProductForm() {
           </div>
 
           {/* Name field & Category — 2 Column Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
             <div className="space-y-3">
               <div className="space-y-1.5">
                 <label htmlFor="product-name" className="text-[13px] font-semibold text-on-surface block">
@@ -1244,7 +1251,7 @@ function ProductForm() {
 
 
           {itemType === "Producto" && (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
               <div className="space-y-1.5">
                 <label htmlFor="product-sku" className="text-[13px] font-semibold text-on-surface block">
                   SKU <span className="text-on-surface-variant font-normal">(opcional)</span>
@@ -1259,7 +1266,7 @@ function ProductForm() {
                 />
               </div>
 
-              <div className="space-y-1.5 sm:col-span-2">
+              <div className="space-y-1.5">
                 <label htmlFor="advanced-product-barcode" className="text-[13px] font-semibold text-on-surface block">
                   Código de barras <span className="text-on-surface-variant font-normal">(opcional)</span>
                 </label>
@@ -1306,37 +1313,38 @@ function ProductForm() {
 
           {itemType === "Producto" ? (
             <>
-              <ProductPricingSection
-                purchase={{ base: purchase.base, total: purchase.total, fromBase: setPurchase.fromBase, fromTotal: setPurchase.fromTotal }}
-                selling={{ base: selling.base, total: selling.total, fromBase: (value) => {
-                  setSelling.fromBase(value);
-                  setFieldErrors((previous) => ({ ...previous, price: undefined }));
-                }, fromTotal: (value) => {
-                  setSelling.fromTotal(value);
-                  setFieldErrors((previous) => ({ ...previous, price: undefined }));
-                } }}
-                purchasePriceTax={purchasePriceTax}
-                setPurchasePriceTax={setPurchasePriceTax}
-                sellingPriceTax={sellingPriceTax}
-                setSellingPriceTax={setSellingPriceTax}
-                rawPercentLabel={rawPercentLabel}
-                percentLabel={percentLabel}
-                includeTax={includeTax}
-                margin={margin}
-                presentation={presentation}
-                unitsPerPackage={form.units_per_package ?? "1"}
-                sellingPriceError={fieldErrors.price}
-                sellingPriceRef={priceRef}
-                ingredientMode={ingredientMode}
-                recipeCost={recipeCostInfo}
-              />
-
-              {recipeSection}
-
               <ProductPresentationSection
+                pricing={(
+                  <ProductPricingSection
+                    purchase={{ base: purchase.base, total: purchase.total, fromBase: setPurchase.fromBase, fromTotal: setPurchase.fromTotal }}
+                    selling={{ base: selling.base, total: selling.total, fromBase: (value) => {
+                      setSelling.fromBase(value);
+                      setFieldErrors((previous) => ({ ...previous, price: undefined }));
+                    }, fromTotal: (value) => {
+                      setSelling.fromTotal(value);
+                      setFieldErrors((previous) => ({ ...previous, price: undefined }));
+                    } }}
+                    purchasePriceTax={purchasePriceTax}
+                    setPurchasePriceTax={setPurchasePriceTax}
+                    sellingPriceTax={sellingPriceTax}
+                    setSellingPriceTax={setSellingPriceTax}
+                    rawPercentLabel={rawPercentLabel}
+                    percentLabel={percentLabel}
+                    includeTax={includeTax}
+                    margin={margin}
+                    presentation={presentation}
+                    unitsPerPackage={form.units_per_package ?? "1"}
+                    sellingPriceError={fieldErrors.price}
+                    sellingPriceRef={priceRef}
+                    ingredientMode={ingredientMode}
+                    recipeCost={recipeCostInfo}
+                  />
+
+                )}
+                recipe={recipeSection}
                 presentation={presentation}
                 setPresentation={handlePresentationChange}
-                editId={editId}
+                editId={editId ?? createdProductId}
                 unitsPerPackage={form.units_per_package ?? "1"}
                 onUnitsPerPackageChange={(v) => setForm({ ...form, units_per_package: v })}
                 initialPackages={initialPackages}
@@ -1370,60 +1378,74 @@ function ProductForm() {
                   ? "Ingresa el precio que pagará el cliente. El IVA se discrimina sin cambiar ese total."
                   : "Ingresa el precio que pagará el cliente."}
               </p>
-              <div
-                className={
-                  includeTax
-                    ? "grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.85fr)] gap-6 items-start"
-                    : "grid grid-cols-1 gap-6 items-start"
-                }
-              >
+              <div className="grid grid-cols-1 gap-6 items-start">
                 {/* Sin IVA: precio y duración lado a lado desde `sm`. */}
-                <div className={includeTax ? "space-y-4" : "grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 items-start"}>
-                  <div className="flex items-end gap-3">
-                    <div className="space-y-1.5 flex-1 max-w-[280px]">
-                      <label htmlFor="service-price" className="text-[13px] font-semibold text-on-surface block">{includeTax ? "Precio final" : "Precio"}</label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-on-surface-variant">$</span>
-                        <input
-                          id="service-price"
-                          ref={priceRef}
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={serviceFinalPrice}
-                          onChange={(e) => { setServiceFinalPrice(e.target.value); setFieldErrors((p) => ({ ...p, price: undefined })); }}
-                          aria-invalid={!!fieldErrors.price}
-                          aria-describedby={fieldErrors.price ? "service-price-error" : undefined}
-                          className={`w-full bg-surface-container-lowest border rounded-xl py-3 pl-7 pr-4 text-sm text-on-surface focus:outline-none focus:ring-2 transition-all ${
-                            fieldErrors.price
-                              ? "border-error focus:border-error focus:ring-error/20"
-                              : "border-outline-variant/30 focus:border-primary focus:ring-primary/20"
-                          }`}
-                          placeholder="0.00"
-                          required
-                        />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 items-start">
+                  <div className="space-y-4">
+                    <div className="flex items-end gap-3">
+                      <div className="space-y-1.5 flex-1 min-w-0">
+                        <label htmlFor="service-price" className="text-[13px] font-semibold text-on-surface block">{includeTax ? "Precio final" : "Precio"}</label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-on-surface-variant">$</span>
+                          <input
+                            id="service-price"
+                            ref={priceRef}
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={serviceFinalPrice}
+                            onChange={(e) => { setServiceFinalPrice(e.target.value); setFieldErrors((p) => ({ ...p, price: undefined })); }}
+                            aria-invalid={!!fieldErrors.price}
+                            aria-describedby={fieldErrors.price ? "service-price-error" : undefined}
+                            className={`w-full bg-surface-container-lowest border rounded-xl py-3 pl-7 pr-4 text-sm text-on-surface focus:outline-none focus:ring-2 transition-all ${
+                              fieldErrors.price
+                                ? "border-error focus:border-error focus:ring-error/20"
+                                : "border-outline-variant/30 focus:border-primary focus:ring-primary/20"
+                            }`}
+                            placeholder="0.00"
+                            required
+                          />
+                        </div>
+                        {fieldErrors.price && (
+                          <p id="service-price-error" className="text-xs font-medium text-error">
+                            {fieldErrors.price}
+                          </p>
+                        )}
                       </div>
-                      {fieldErrors.price && (
-                        <p id="service-price-error" className="text-xs font-medium text-error">
-                          {fieldErrors.price}
-                        </p>
+                      {includeTax && taxRate > 0 && (
+                        <div className="space-y-1.5">
+                          <label className="text-[13px] font-semibold text-on-surface block">IVA</label>
+                          <Select
+                            value={sellingPriceTax}
+                            onChange={(e) => setSellingPriceTax(e.target.value)}
+                          >
+                            <option value="IVA">{percentLabel}</option>
+                            <option value="Ninguno">Ninguno</option>
+                          </Select>
+                        </div>
                       )}
                     </div>
-                    {includeTax && taxRate > 0 && (
-                      <div className="space-y-1.5">
-                        <label className="text-[13px] font-semibold text-on-surface block">IVA</label>
-                        <Select
-                          value={sellingPriceTax}
-                          onChange={(e) => setSellingPriceTax(e.target.value)}
-                        >
-                          <option value="IVA">{percentLabel}</option>
-                          <option value="Ninguno">Ninguno</option>
-                        </Select>
+                    {/* Sin IVA en el negocio no hay nada que desglosar: el precio es el total. */}
+                    {includeTax && (
+                      <div className="rounded-2xl border border-outline-variant/15 bg-surface-container-lowest px-5 py-4 text-sm">
+                        <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-on-surface-variant">Desglose del precio</p>
+                        <div className="flex items-center justify-between gap-4 text-on-surface-variant">
+                          <span>Precio antes de IVA</span>
+                          <span>{fmtMoney(serviceBaseValue)}</span>
+                        </div>
+                        <div className="mt-2 flex items-center justify-between gap-4 text-on-surface-variant">
+                          <span>IVA{taxRate > 0 && sellingPriceTax !== "Ninguno" ? ` (${percentLabel})` : ""}</span>
+                          <span>{fmtMoney(serviceTaxValue)}</span>
+                        </div>
+                        <div className="mt-3 flex items-center justify-between gap-4 border-t border-outline-variant/15 pt-3 font-bold text-on-surface">
+                          <span>Total a cobrar</span>
+                          <span>{fmtMoney(serviceFinalValue)}</span>
+                        </div>
                       </div>
                     )}
                   </div>
 
-                  <div className="space-y-1.5 max-w-[360px]">
+                  <div className="space-y-1.5 min-w-0">
                     <label htmlFor="service-duration" className="text-[13px] font-semibold text-on-surface block">Duración (minutos)</label>
                     {/* La conversión va PEGADA al número: se carga en minutos
                         porque es lo que suma la agenda, pero "90" no se lee
@@ -1474,7 +1496,7 @@ function ProductForm() {
                   {/* La descripción es lo que lee el cliente en el sitio público
                       antes de reservar. Un producto no la tiene: para eso está
                       la foto. */}
-                  <div className={includeTax ? "space-y-1.5" : "space-y-1.5 sm:col-span-2"}>
+                  <div className="space-y-1.5">
                     <label htmlFor="service-description" className="text-[13px] font-semibold text-on-surface block">
                       Descripción <span className="text-on-surface-variant font-normal">(opcional)</span>
                     </label>
@@ -1488,24 +1510,6 @@ function ProductForm() {
                     />
                   </div>
                 </div>
-                {/* Sin IVA en el negocio no hay nada que desglosar: el precio es el total. */}
-                {includeTax && (
-                <div className="rounded-2xl border border-outline-variant/15 bg-surface-container-lowest px-5 py-4 text-sm">
-                    <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-on-surface-variant">Desglose del precio</p>
-                    <div className="flex items-center justify-between gap-4 text-on-surface-variant">
-                      <span>Precio antes de IVA</span>
-                      <span>{fmtMoney(serviceBaseValue)}</span>
-                    </div>
-                    <div className="mt-2 flex items-center justify-between gap-4 text-on-surface-variant">
-                      <span>IVA{taxRate > 0 && sellingPriceTax !== "Ninguno" ? ` (${percentLabel})` : ""}</span>
-                      <span>{fmtMoney(serviceTaxValue)}</span>
-                    </div>
-                    <div className="mt-3 flex items-center justify-between gap-4 border-t border-outline-variant/15 pt-3 font-bold text-on-surface">
-                      <span>Total a cobrar</span>
-                      <span>{fmtMoney(serviceFinalValue)}</span>
-                    </div>
-                </div>
-                )}
               </div>
 
               <div className="mt-4 flex items-center justify-between p-3 sm:p-4 bg-surface-container-low rounded-xl border border-outline-variant/10">

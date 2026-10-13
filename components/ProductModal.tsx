@@ -11,6 +11,8 @@ import { PRODUCT_UNITS } from "@/lib/units";
 import type { OpenFactsProduct } from "@/services/openfacts.service";
 import { useBusinessTax } from "@/lib/useBusinessTax";
 import { usePricePair } from "@/lib/usePricePair";
+import { createSubmitGuard } from "@/lib/submit-guard";
+import { productImageUrl } from "@/lib/product-image";
 import { priceMultipliers } from "@/lib/product-tax";
 import { MoneyInput } from "@/components/ui/MoneyInput";
 import { Select } from "@/components/ui/Select";
@@ -72,6 +74,8 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
   const [name, setName] = useState("");
   const [barcode, setBarcode] = useState(initialBarcode ?? "");
   const [sku, setSku] = useState("");
+  const submitGuard = useRef(createSubmitGuard());
+  const [saving, setSaving] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState("");
@@ -150,50 +154,58 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
     purchaseTax: tax,
     sellingTax: tax,
   });
-  const [packagePrice, setPackagePrice] = usePricePair(purchaseMultiplier);
-  const [unitPrice, setUnitPrice] = usePricePair(taxMultiplier);
+  const [packagePrice, setPackagePrice] = usePricePair(purchaseMultiplier, `${includeTax}:${rawRate}`);
+  const [unitPrice, setUnitPrice] = usePricePair(taxMultiplier, `${includeTax}:${rawRate}`);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!submitGuard.current.acquire()) return;
+    setSaving(true);
     setSubmitError(null);
+    try {
+      const result = await addProduct(
+        {
+          name,
+          category_id: categoryId,
+          distributor_id: "",
+          sku,
+          barcode,
+          package_price: presentation === "package" ? packageSellingPrice : "",
+          unit,
+          purchase_price: packagePrice.total,
+          // Lo que se guarda es SIEMPRE el precio final de vitrina (IVA incluido).
+          price: unitPrice.total,
+          stock_level: String(initialStock),
+          image_url: productImageUrl(imagePreview, !!imageFile),
+          has_commission: false,
+          commission_type: "percentage",
+          commission_value: "",
+          units_per_package: presentation === "package" ? (unitsPerPackage || "1") : "1",
+        },
+        imageFile,
+      );
+      if (result) {
+        notifySuccess("¡Producto creado con éxito!", "El producto ya está disponible.");
+        onCreated?.(typeof result === "string" ? result : "", name);
+        onClose();
+        return;
+      }
 
-    const result = await addProduct(
-      {
-        name,
-        category_id: categoryId,
-        distributor_id: "",
-        sku,
-        barcode,
-        package_price: presentation === "package" ? packageSellingPrice : "",
-        unit,
-        purchase_price: packagePrice.total,
-        // Lo que se guarda es SIEMPRE el precio final de vitrina (IVA incluido).
-        price: unitPrice.total,
-        stock_level: String(initialStock),
-        image_url: "",
-        has_commission: false,
-        commission_type: "percentage",
-        commission_value: "",
-        units_per_package: presentation === "package" ? (unitsPerPackage || "1") : "1",
-      },
-      imageFile,
-    );
-    if (result) {
-      notifySuccess("¡Producto creado con éxito!", "El producto ya está disponible.");
-      onCreated?.(typeof result === "string" ? result : "", name);
-      onClose();
-      return;
+      // `addProduct` devuelve `false` y deja el motivo en el store. Sin esto el
+      // modal se quedaba mudo: ni mensaje ni cierre. Antes casi no pasaba porque
+      // el SKU siempre se autogeneraba (sin colisiones medidas); desde que se
+      // puede tipear, chocar con el índice único es un final normal y el usuario
+      // tiene que poder leerlo.
+      setSubmitError(
+        useInventoryStore.getState().error ??
+          "No se pudo crear. Revisa los datos e intenta de nuevo.",
+      );
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : "No se pudo crear. Revisa los datos e intenta de nuevo.");
+    } finally {
+      submitGuard.current.release();
+      setSaving(false);
     }
-
-    // `addProduct` devuelve `false` y deja el motivo en el store. Sin esto el
-    // modal se quedaba mudo: ni mensaje ni cierre. Antes casi no pasaba porque
-    // el SKU siempre se autogeneraba (sin colisiones medidas); desde que se
-    // puede tipear, chocar con el índice único es un final normal y el usuario
-    // tiene que poder leerlo.
-    setSubmitError(
-      useInventoryStore.getState().error ??
-        "No se pudo crear. Revisa los datos e intenta de nuevo.",
-    );
   };
 
   return (
@@ -207,7 +219,7 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
       className="max-h-[92dvh] sm:max-h-[88dvh]"
       bodyClassName=""
     >
-        <form onSubmit={handleSubmit} onKeyDown={(e) => { if (e.key === "Enter") e.preventDefault(); }} className="px-6 pb-6 space-y-6">
+        <form onSubmit={handleSubmit} onKeyDown={(e) => { if (e.key === "Enter") e.preventDefault(); }} className="px-6 pb-6 space-y-5">
           {/* Foto. `capture="environment"` hace que el celular abra la cámara
               trasera directo; en escritorio el mismo input abre el explorador. */}
           <label className="flex items-center gap-4 p-3 rounded-2xl border border-dashed border-outline-variant/40 cursor-pointer hover:bg-surface-container-low transition-colors">
@@ -243,7 +255,7 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
               />
           </label>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Nombre */}
             <div className="space-y-1.5">
               <label className="flex items-center gap-1 text-sm font-semibold text-on-surface">
@@ -257,48 +269,6 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
                 className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface uppercase focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
               />
             </div>
-
-            {/* Código de barras: se escanea con la cámara del celular o se
-                escribe (los lectores láser de mostrador teclean en el campo). */}
-              <div className="space-y-1.5">
-                <label htmlFor="product-barcode" className="flex items-center gap-1 text-sm font-semibold text-on-surface">
-                  Código de barras
-                  <span className="text-xs text-on-surface-variant font-normal">(opcional)</span>
-                </label>
-                <BarcodeField id="product-barcode" value={barcode} onChange={setBarcode} />
-                {searching && (
-                  <p className="text-xs text-on-surface-variant flex items-center gap-1.5 pt-1">
-                    <span className="inline-block w-3 h-3 border-2 border-on-surface-variant/30 border-t-on-surface-variant rounded-full animate-spin" />
-                    Buscando en Open Food Facts…
-                  </p>
-                )}
-                {!searching && lookedUp && (
-                  <p className="text-xs text-success flex items-center gap-1 pt-1">
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                    </svg>
-                    Info encontrada: {lookedUp.name}
-                  </p>
-                )}
-              </div>
-
-            {/* SKU: opcional PARA EL USUARIO. La columna es NOT NULL con índice
-                único por negocio, así que si el campo queda vacío el servicio
-                genera uno (`normalizeSku` → `generateSku`, formato PRD-XXXXX). */}
-              <div className="space-y-1.5">
-                <label htmlFor="quick-product-sku" className="flex items-center gap-1 text-sm font-semibold text-on-surface">
-                  SKU
-                  <span className="text-xs text-on-surface-variant font-normal">(opcional)</span>
-                </label>
-                <input
-                  id="quick-product-sku"
-                  type="text"
-                  value={sku}
-                  onChange={(e) => setSku(e.target.value)}
-                  placeholder="Se genera solo si lo dejas vacío"
-                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface uppercase placeholder:normal-case focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-                />
-              </div>
 
             {/* Categoría */}
             <div className="space-y-1.5">
@@ -332,6 +302,48 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
               </div>
             </div>
 
+            {/* SKU: opcional PARA EL USUARIO. La columna es NOT NULL con índice
+                único por negocio, así que si el campo queda vacío el servicio
+                genera uno (`normalizeSku` → `generateSku`, formato PRD-XXXXX). */}
+              <div className="space-y-1.5">
+                <label htmlFor="quick-product-sku" className="flex items-center gap-1 text-sm font-semibold text-on-surface">
+                  SKU
+                  <span className="text-xs text-on-surface-variant font-normal">(opcional)</span>
+                </label>
+                <input
+                  id="quick-product-sku"
+                  type="text"
+                  value={sku}
+                  onChange={(e) => setSku(e.target.value)}
+                  placeholder="Se genera solo si lo dejas vacío"
+                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-sm text-on-surface uppercase placeholder:normal-case focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                />
+              </div>
+
+            {/* Código de barras: se escanea con la cámara del celular o se
+                escribe (los lectores láser de mostrador teclean en el campo). */}
+              <div className="space-y-1.5">
+                <label htmlFor="product-barcode" className="flex items-center gap-1 text-sm font-semibold text-on-surface">
+                  Código de barras
+                  <span className="text-xs text-on-surface-variant font-normal">(opcional)</span>
+                </label>
+                <BarcodeField id="product-barcode" value={barcode} onChange={setBarcode} />
+                {searching && (
+                  <p className="text-xs text-on-surface-variant flex items-center gap-1.5 pt-1">
+                    <span className="inline-block w-3 h-3 border-2 border-on-surface-variant/30 border-t-on-surface-variant rounded-full animate-spin" />
+                    Buscando en Open Food Facts…
+                  </p>
+                )}
+                {!searching && lookedUp && (
+                  <p className="text-xs text-success flex items-center gap-1 pt-1">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                    Info encontrada: {lookedUp.name}
+                  </p>
+                )}
+              </div>
+
             {/* Unidad de medida */}
             <Select
               label="Unidad de medida"
@@ -359,46 +371,34 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
                 Presentación y stock inicial <span className="text-primary">*</span>
               </label>
 
-              <div className="flex gap-3">
-                {(["unit", "package"] as const).map((mode) => (
-                  <button
-                    key={mode}
-                    type="button"
-                    onClick={() => setPresentation(mode)}
-                    className={`flex-1 py-2 rounded-lg text-xs font-medium border transition-colors ${
-                      presentation === mode
-                        ? "border-primary text-primary bg-primary/5"
-                        : "border-outline-variant/30 text-on-surface-variant hover:bg-surface-container-low"
-                    }`}
-                  >
-                    {mode === "unit" ? "Unidad" : "Caja"}
-                  </button>
-                ))}
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label htmlFor="quick-quantity" className="text-[13px] font-semibold text-on-surface block">
-                    {presentation === "package" ? "Cajas que estás cargando" : "Unidades en stock"}
-                  </label>
-                  <input
-                    id="quick-quantity"
-                    type="number"
-                    min="0"
-                    value={quantity}
-                    onChange={(e) => setQuantity(e.target.value)}
-                    required
-                    className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-base sm:text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-                  />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
+                <div className="flex gap-3 sm:pt-[26px]">
+                  {(["unit", "package"] as const).map((mode) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => setPresentation(mode)}
+                      className={`flex-1 py-2 rounded-lg text-xs font-medium border transition-colors ${
+                        presentation === mode
+                          ? "border-primary text-primary bg-primary/5"
+                          : "border-outline-variant/30 text-on-surface-variant hover:bg-surface-container-low"
+                      }`}
+                    >
+                      {mode === "unit" ? "Unidad" : "Caja"}
+                    </button>
+                  ))}
                 </div>
 
-                {presentation === "package" && (
-                  <div className="space-y-1.5">
+                <div
+                  aria-hidden={presentation !== "package"}
+                  className={`space-y-1.5 ${presentation === "package" ? "" : "hidden sm:block invisible pointer-events-none"}`}
+                >
                     <label htmlFor="quick-units-per-package" className="text-[13px] font-semibold text-on-surface block">
                       Unidades por caja
                     </label>
                     <input
                       id="quick-units-per-package"
+                      disabled={presentation !== "package"}
                       type="number"
                       min="1"
                       value={unitsPerPackage}
@@ -406,18 +406,8 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
                       className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-base sm:text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
                       placeholder="Ej. 60"
                     />
-                  </div>
-                )}
+                </div>
               </div>
-
-              {presentation === "package" && (
-                <p className="text-sm text-on-surface">
-                  Stock inicial: <strong className="font-mono text-primary">{initialStock}</strong> unidades
-                  <span className="text-xs text-on-surface-variant font-normal">
-                    {" "}({quantity || "0"} × {unitsPerPackage || "1"})
-                  </span>
-                </p>
-              )}
           </div>
 
           {/* Sección de precios. Sin IVA en el negocio: compra y venta son un
@@ -447,7 +437,7 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
                 />
               </div>
               {presentation === "package" && (
-                <div className="space-y-1.5 sm:col-span-2 sm:max-w-[calc(50%-0.5rem)]">
+                <div className="space-y-1.5 sm:col-start-2">
                   <label htmlFor="package-price" className="flex items-center gap-1 text-sm font-semibold text-on-surface">
                     Precio de venta por caja de {unitsPerPackage || "1"}
                     <span className="text-on-surface-variant font-normal">(opcional)</span>
@@ -570,6 +560,35 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
             </div>
           )}
 
+          <div className="space-y-3">
+              <div className="grid grid-cols-1 gap-4">
+                <div className="space-y-1.5">
+                  <label htmlFor="quick-quantity" className="text-[13px] font-semibold text-on-surface block">
+                    {presentation === "package" ? "Cajas que estás cargando" : "Unidades en stock"}
+                  </label>
+                  <input
+                    id="quick-quantity"
+                    type="number"
+                    min="0"
+                    value={quantity}
+                    onChange={(e) => setQuantity(e.target.value)}
+                    required
+                    className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-3 text-base sm:text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                  />
+                </div>
+
+              </div>
+
+              {presentation === "package" && (
+                <p className="text-sm text-on-surface">
+                  Stock inicial: <strong className="font-mono text-primary">{initialStock}</strong> unidades
+                  <span className="text-xs text-on-surface-variant font-normal">
+                    {" "}({quantity || "0"} × {unitsPerPackage || "1"})
+                  </span>
+                </p>
+              )}
+          </div>
+
           {submitError && (
             <p
               role="alert"
@@ -583,6 +602,7 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
           <div className="pt-6 flex flex-col sm:flex-row justify-between gap-4 border-t border-outline-variant/10">
             <button
               type="button"
+              disabled={saving}
               onClick={() => {
                 onClose();
                 router.push("/dashboard/inventory/product");
@@ -594,6 +614,8 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
             </button>
             <button
               type="submit"
+              disabled={saving}
+              aria-busy={saving}
               className="px-8 py-3 rounded-xl bg-primary hover:bg-primary-dim text-white text-sm font-semibold transition-colors flex justify-center items-center"
             >
               Crear producto
