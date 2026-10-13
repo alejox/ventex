@@ -63,9 +63,9 @@ test("all six templates survive normalization and have editor copy", () => {
   }
 });
 
-test("barber templates are offered only to salons", () => {
-  assert.deepEqual(templatesFor("tienda"), ["rasm", "fallspa", "qutter"]);
-  assert.deepEqual(templatesFor("salon"), SITE_TEMPLATES);
+test("barber templates are offered only to salons, and tienda gets only store templates", () => {
+  assert.deepEqual(templatesFor("tienda"), ["mercado"]);
+  assert.deepEqual(templatesFor("salon"), SITE_TEMPLATES.filter((template) => template !== "mercado"));
 });
 
 test("the new salon designs are grouped by tab and offered only to salons", () => {
@@ -91,6 +91,6 @@ test("a saved salon design remains selectable after a business type change", () 
 test("a saved barber template remains selectable after a business type change", () => {
   assert.deepEqual(
     templatesFor("tienda", "barberia-artesanal"),
-    ["rasm", "fallspa", "qutter", "barberia-artesanal"],
+    ["barberia-artesanal", "mercado"],
   );
 });

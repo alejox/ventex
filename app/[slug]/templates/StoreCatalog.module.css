@@ -1,0 +1,516 @@
+/*
+ * Catálogo de tienda. Solo variables `--site-*`: lo mismo se ve bien dentro de
+ * cualquier plantilla, y Mercado lo afina con `.mercado` más abajo.
+ */
+
+.catalog {
+  --catalog-radius: var(--site-radius);
+}
+
+.toolbar {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  justify-content: space-between;
+  margin-top: 36px;
+}
+
+.tabs {
+  display: flex;
+  gap: 8px;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: thin;
+}
+
+.tab {
+  background: transparent;
+  border: 1px solid var(--site-border);
+  border-radius: 999px;
+  color: var(--site-text);
+  cursor: pointer;
+  flex: none;
+  font-size: 14px;
+  font-weight: 600;
+  min-height: 40px;
+  padding: 0 16px;
+  white-space: nowrap;
+}
+
+.tab[aria-pressed="true"] {
+  background: var(--site-accent);
+  border-color: var(--site-accent);
+  color: var(--site-on-accent);
+}
+
+.searchBox {
+  flex: 1 1 220px;
+  max-width: 360px;
+  min-width: 0;
+}
+
+.search {
+  background: var(--site-surface);
+  border: 1px solid var(--site-border);
+  border-radius: var(--catalog-radius);
+  color: var(--site-on-surface);
+  font: inherit;
+  font-size: 15px;
+  min-height: 44px;
+  padding: 0 14px;
+  width: 100%;
+}
+
+.search:focus-visible,
+.tab:focus-visible,
+.add:focus-visible,
+.stepBtn:focus-visible,
+.fab:focus-visible {
+  outline: 2px solid var(--site-accent);
+  outline-offset: 2px;
+}
+
+.grid {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  list-style: none;
+  margin: 32px 0 0;
+  padding: 0;
+}
+
+.card {
+  background: var(--site-surface);
+  border: 1px solid var(--site-on-surface-border);
+  border-radius: var(--catalog-radius);
+  color: var(--site-on-surface);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.media {
+  aspect-ratio: 1;
+  background: var(--site-surface-alt);
+  position: relative;
+}
+
+.photo { object-fit: cover; }
+
+.icon {
+  color: var(--site-on-surface-muted);
+  display: grid;
+  font-size: 32px;
+  height: 100%;
+  place-items: center;
+}
+
+.soldOut .media > :not(.badge) { opacity: .45; }
+
+.badge {
+  background: var(--site-text);
+  border-radius: 999px;
+  color: var(--site-bg);
+  font-size: 12px;
+  font-weight: 700;
+  left: 10px;
+  padding: 4px 10px;
+  position: absolute;
+  top: 10px;
+}
+
+.body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px;
+}
+
+.name {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.unit {
+  color: var(--site-on-surface-muted);
+  font-size: 12px;
+}
+
+.row {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: space-between;
+  margin-top: auto;
+  padding-top: 6px;
+}
+
+.price {
+  color: color-mix(in srgb, var(--site-accent) 62%, currentColor);
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.add,
+.stepBtn {
+  align-items: center;
+  background: var(--site-accent);
+  border: 0;
+  border-radius: 999px;
+  color: var(--site-on-accent);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 20px;
+  font-weight: 700;
+  height: 40px;
+  justify-content: center;
+  line-height: 1;
+  width: 40px;
+}
+
+.add:disabled,
+.stepBtn:disabled {
+  cursor: not-allowed;
+  opacity: .35;
+}
+
+.stepper {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+}
+
+.stepper .stepBtn {
+  height: 34px;
+  width: 34px;
+}
+
+.qty {
+  font-weight: 800;
+  min-width: 2ch;
+  text-align: center;
+}
+
+.empty {
+  border: 1px dashed var(--site-border);
+  border-radius: var(--catalog-radius);
+  color: var(--site-muted);
+  margin-top: 32px;
+  padding: 32px 20px;
+  text-align: center;
+}
+
+.linkBtn {
+  background: none;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  margin-top: 8px;
+  min-height: 40px;
+  text-decoration: underline;
+}
+
+/* Botón flotante del pedido. */
+.fab {
+  align-items: center;
+  background: var(--site-accent);
+  border: 0;
+  border-radius: 999px;
+  bottom: 18px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, .22);
+  color: var(--site-on-accent);
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 800;
+  gap: 10px;
+  max-width: calc(100vw - 32px);
+  min-height: 52px;
+  padding: 0 20px 0 8px;
+  position: fixed;
+  right: 16px;
+  z-index: 40;
+}
+
+.fabCount {
+  background: var(--site-on-accent);
+  border-radius: 999px;
+  color: var(--site-accent);
+  display: inline-grid;
+  font-size: 14px;
+  height: 36px;
+  min-width: 36px;
+  padding: 0 6px;
+  place-items: center;
+}
+
+/* Cajón del pedido: <dialog> nativo, a la derecha y a todo el alto. */
+.drawer {
+  background: var(--site-surface);
+  border: 0;
+  color: var(--site-on-surface);
+  font-family: var(--site-body-font);
+  height: 100dvh;
+  margin: 0 0 0 auto;
+  max-height: 100dvh;
+  max-width: min(440px, 100vw);
+  padding: 0;
+  width: 100%;
+}
+
+.drawer::backdrop { background: rgba(0, 0, 0, .45); }
+
+.drawerInner {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-height: 100%;
+  padding: 20px;
+}
+
+.drawerHead {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.drawerTitle {
+  font-family: var(--site-heading-font);
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.close,
+.remove {
+  background: none;
+  border: 0;
+  color: var(--site-on-surface-muted);
+  cursor: pointer;
+  font-size: 26px;
+  height: 40px;
+  line-height: 1;
+  width: 40px;
+}
+
+.lines {
+  display: flex;
+  flex-direction: column;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.line {
+  align-items: center;
+  border-bottom: 1px solid var(--site-on-surface-border);
+  display: flex;
+  gap: 10px;
+  padding: 12px 0;
+}
+
+.lineCopy {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.lineName {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.lineMeta {
+  color: var(--site-on-surface-muted);
+  font-size: 13px;
+}
+
+.drawerEmpty { color: var(--site-on-surface-muted); }
+
+.drawerFoot {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: auto;
+}
+
+.total {
+  align-items: baseline;
+  display: flex;
+  font-size: 18px;
+  justify-content: space-between;
+}
+
+.total strong { font-size: 22px; }
+
+.field {
+  display: flex;
+  flex-direction: column;
+  font-size: 13px;
+  font-weight: 600;
+  gap: 6px;
+}
+
+.field input,
+.field textarea {
+  background: var(--site-bg);
+  border: 1px solid var(--site-on-surface-border);
+  border-radius: var(--catalog-radius);
+  color: var(--site-text);
+  font: inherit;
+  font-size: 15px;
+  padding: 10px 12px;
+  resize: vertical;
+}
+
+.send {
+  align-items: center;
+  background: var(--site-accent);
+  border-radius: 999px;
+  color: var(--site-on-accent);
+  display: flex;
+  font-weight: 800;
+  justify-content: center;
+  min-height: 52px;
+  padding: 0 20px;
+  text-align: center;
+}
+
+/* --- Mercado: cabecera con buscador, tiras de categorías y cajas menta. --- */
+
+.mercado .tab {
+  background: var(--site-surface-alt);
+  border-color: transparent;
+}
+
+.mercado .tab[aria-pressed="true"] {
+  background: var(--site-accent);
+  color: var(--site-on-accent);
+}
+
+.mercado .grid { gap: 18px; }
+
+.mercado .card {
+  border: 0;
+  box-shadow: none;
+}
+
+.mercado .media {
+  background: var(--site-surface-alt);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.mercado .badge {
+  background: var(--mercado-amber, #ffac00);
+  color: #111111;
+  left: auto;
+  right: 8px;
+  top: 8px;
+}
+
+.mercado .body { padding: 12px 2px 4px; }
+
+.mercado .price {
+  color: var(--site-text);
+  font-size: 18px;
+}
+
+.mSection { padding-top: 56px; }
+
+.mHeader {
+  background: var(--site-bg);
+  border-bottom: 1px solid var(--site-border);
+  position: sticky;
+  top: 0;
+  z-index: 30;
+}
+
+.mHeaderInner {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+  margin: 0 auto;
+  max-width: var(--content-width, 1200px);
+  padding: 14px 32px;
+}
+
+.mSearch {
+  align-items: center;
+  border: 2px solid var(--site-accent);
+  border-radius: 999px;
+  display: flex;
+  flex: 1;
+  margin-left: auto;
+  max-width: 560px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.mSearch .search {
+  border: 0;
+  border-radius: 0;
+  min-height: 44px;
+}
+
+.mSearch .search:focus-visible { outline-offset: -2px; }
+
+.mSearchBtn,
+.mCart {
+  align-items: center;
+  background: var(--site-accent);
+  border: 0;
+  color: var(--site-on-accent);
+  cursor: pointer;
+  display: inline-flex;
+  flex: none;
+  height: 44px;
+  justify-content: center;
+  width: 52px;
+}
+
+.mCart {
+  border-radius: 999px;
+  position: relative;
+  width: 44px;
+}
+
+.mCartCount {
+  background: var(--mercado-amber, #ffac00);
+  border-radius: 999px;
+  color: #111111;
+  font-size: 11px;
+  font-weight: 800;
+  min-width: 20px;
+  padding: 2px 5px;
+  position: absolute;
+  right: -4px;
+  top: -4px;
+}
+
+@media (max-width: 1023px) {
+  .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 639px) {
+  .grid { gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .searchBox { max-width: none; }
+  .body { padding: 10px; }
+  .name { font-size: 14px; }
+  .mHeaderInner { flex-wrap: wrap; gap: 10px; padding: 10px 16px; }
+  .mSearch { flex-basis: 100%; margin-left: 0; max-width: none; order: 3; }
+  .mCart { margin-left: auto; }
+  .mSection { padding-top: 40px; }
+}

@@ -3,6 +3,7 @@ import { BarberArtesanalTemplate } from "./BarberArtesanalTemplate";
 import { BarberModernTemplate } from "./BarberModernTemplate";
 import { BarberUrbanaTemplate } from "./BarberUrbanaTemplate";
 import { FallspaTemplate } from "./FallspaTemplate";
+import { MercadoTemplate } from "./MercadoTemplate";
 import { QutterTemplate } from "./QutterTemplate";
 import { RasmTemplate } from "./RasmTemplate";
 import { SalonTemplate } from "./SalonTemplate";
@@ -14,6 +15,7 @@ export function SiteTemplateRenderer({ site, preview = false }: { site: PublicSi
     case "barberia": return <BarberModernTemplate site={site} preview={preview} />;
     case "barberia-artesanal": return <BarberArtesanalTemplate site={site} preview={preview} />;
     case "barberia-urbana": return <BarberUrbanaTemplate site={site} preview={preview} />;
+    case "mercado": return <MercadoTemplate site={site} preview={preview} />;
     case "luxia":
     case "lezar":
     case "zen": return <SalonTemplate site={site} preview={preview} variant={site.template} />;

@@ -50,3 +50,10 @@ test("tienda: respeta la plantilla pedida y devuelve una configuración independ
   first.config.sections[0].title = "Cambiado";
   assert.equal(second.config.sections[0].title, "Nuestros productos");
 });
+
+test("tienda: sin plantilla pedida arranca en Mercado; los demás rubros siguen en Rasm", () => {
+  assert.equal(siteDefaultsFor("tienda").config.template, "mercado");
+  for (const type of [null, undefined, "salon", "lavaautos", "servicios", "escuela"] as const) {
+    assert.equal(siteDefaultsFor(type).config.template, "rasm");
+  }
+});

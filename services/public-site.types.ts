@@ -19,6 +19,7 @@ export const SITE_TEMPLATES = [
   "luxia",
   "lezar",
   "zen",
+  "mercado",
 ] as const;
 export type SiteTemplate = (typeof SITE_TEMPLATES)[number];
 
@@ -40,12 +41,22 @@ const SALON_ONLY_TEMPLATES: SiteTemplate[] = [
   "zen",
 ];
 
-/** Pestañas del selector de diseño: barberías por un lado, salones y spa por otro. */
-export type TemplateGroup = "barberia" | "salon";
+/**
+ * Diseños de tienda: un catálogo con pedido por WhatsApp. Una tienda ve SOLO
+ * estos, y ningún otro rubro los ve (salvo quien ya tenga uno guardado).
+ */
+const TIENDA_TEMPLATES: SiteTemplate[] = ["mercado"];
+
+/**
+ * Pestañas del selector de diseño: barberías, salones y spa, y tiendas. Una
+ * tienda solo tiene la suya, así que el editor no muestra pestañas.
+ */
+export type TemplateGroup = "barberia" | "salon" | "tienda";
 
 export const TEMPLATE_GROUP_LABELS: Record<TemplateGroup, string> = {
   barberia: "Barberías",
   salon: "Salones",
+  tienda: "Tiendas",
 };
 
 export const TEMPLATE_GROUPS: Record<SiteTemplate, TemplateGroup> = {
@@ -58,6 +69,7 @@ export const TEMPLATE_GROUPS: Record<SiteTemplate, TemplateGroup> = {
   barberia: "barberia",
   "barberia-artesanal": "barberia",
   "barberia-urbana": "barberia",
+  mercado: "tienda",
 };
 
 export const TEMPLATE_LABELS: Record<SiteTemplate, string> = {
@@ -70,6 +82,7 @@ export const TEMPLATE_LABELS: Record<SiteTemplate, string> = {
   luxia: "Luxia",
   lezar: "Lezar",
   zen: "Zen",
+  mercado: "Mercado",
 };
 
 export const TEMPLATE_DESCRIPTIONS: Record<SiteTemplate, string> = {
@@ -82,18 +95,23 @@ export const TEMPLATE_DESCRIPTIONS: Record<SiteTemplate, string> = {
   luxia: "Coral suave y femenino, con titulares clásicos, para salones de belleza y spa.",
   lezar: "Arena y verde azulado con detalles dorados y letra manuscrita, para salones y estética.",
   zen: "Lavanda serena y redondeada, para spa, masajes y bienestar.",
+  mercado: "Fresco y verde, con buscador y categorías, para que tus clientes armen su pedido por WhatsApp.",
 };
 
+/**
+ * Qué diseños ofrece el editor. La plantilla guardada (`current`) siempre
+ * sigue en la lista: cambiar de rubro no puede cambiarle el diseño a nadie.
+ */
 export function templatesFor(
   businessType: string | null | undefined,
   current?: SiteTemplate,
 ): SiteTemplate[] {
-  return SITE_TEMPLATES.filter(
-    (template) =>
-      !SALON_ONLY_TEMPLATES.includes(template) ||
-      businessType === "salon" ||
-      template === current,
-  );
+  return SITE_TEMPLATES.filter((template) => {
+    if (template === current) return true;
+    if (businessType === "tienda") return TIENDA_TEMPLATES.includes(template);
+    if (TIENDA_TEMPLATES.includes(template)) return false;
+    return !SALON_ONLY_TEMPLATES.includes(template) || businessType === "salon";
+  });
 }
 
 export const SITE_SECTION_IDS = [
@@ -221,6 +239,9 @@ export const DEFAULT_SITE_IMAGES: Record<SiteTemplate, string> = {
   luxia: "/site-templates/fallspa-hero.webp",
   lezar: "/site-templates/rasm-hero.webp",
   zen: "/site-templates/fallspa-hero.webp",
+  // Mercado no trae foto de portada: sus paneles son CSS y la foto, opcional,
+  // la sube el negocio. Vacío = sin foto.
+  mercado: "",
 };
 
 export const DEFAULT_SITE_DETAIL_IMAGES = {
@@ -274,14 +295,15 @@ export interface SiteDefaults {
 
 /**
  * Valores iniciales de un sitio NUEVO según el rubro. Solo `tienda` se aparta
- * de los de siempre; cualquier otro tipo (o ninguno) recibe exactamente
+ * de los de siempre (y arranca en Mercado si no se pide otra plantilla);
+ * cualquier otro tipo (o ninguno) recibe exactamente
  * `defaultLandingConfig(template)` con reservas encendidas.
  */
 export function siteDefaultsFor(
   businessType: BusinessType | null | undefined,
-  template: SiteTemplate = "rasm",
+  template?: SiteTemplate,
 ): SiteDefaults {
-  const config = defaultLandingConfig(template);
+  const config = defaultLandingConfig(template ?? (businessType === "tienda" ? "mercado" : "rasm"));
   if (businessType !== "tienda") return { bookingEnabled: true, config };
   const byId = new Map(config.sections.map((section) => [section.id, section]));
   config.sections = TIENDA_SECTION_ORDER.map((id) => {
@@ -462,7 +484,7 @@ export interface PublicService {
   imageUrl: string | null;
 }
 
-interface PublicProduct {
+export interface PublicProduct {
   id: string;
   name: string;
   price: number;

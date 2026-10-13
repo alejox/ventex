@@ -11,9 +11,10 @@ import { socialLinksOf } from "@/lib/socialLinks";
 import { BrandIcon } from "@/app/assets/icons/BrandIcons";
 import { BookServiceLink } from "../BookServiceLink";
 import { BookingWidget } from "../BookingWidget";
+import { StoreCatalog } from "./StoreCatalog";
 import { formatCOP, whatsappHref } from "./theme";
 
-function SectionHeading({ section }: { section: SiteSectionConfig }) {
+export function SectionHeading({ section }: { section: SiteSectionConfig }) {
   return (
     <div className="site-section-heading">
       <p className="site-section-kicker">
@@ -87,6 +88,8 @@ function AboutSection({ site, section }: SectionProps) {
 
 function ProductsSection({ site, section }: SectionProps) {
   if (!site.products.length) return null;
+  // Una tienda vende desde su catálogo: filtros, buscador y pedido por WhatsApp.
+  if (site.businessType === "tienda") return <StoreCatalog site={site} heading={<SectionHeading section={section} />} />;
   return (
     <section id="productos" className="site-section site-products-section site-reveal">
       <SectionHeading section={section} />

@@ -227,6 +227,26 @@ export const SITE_PALETTES: Record<SiteTemplate, SitePalette> = {
     "--site-body-font": "'Josefin Sans', var(--font-plus-jakarta-sans), Arial, sans-serif",
     "--site-shadow": "0 22px 60px rgba(142, 63, 184, 0.16)",
   },
+  // Tienda. Inspirada en el lenguaje de los temas de supermercado (verde de
+  // marca, ámbar para lo urgente, cajas de producto menta). Las tipografías
+  // las publica `MercadoTemplate` con `next/font`; acá van con respaldo.
+  mercado: {
+    "--site-bg": "#ffffff",
+    "--site-surface": "#ffffff",
+    "--site-surface-alt": "#eef8f1",
+    "--site-text": "#111111",
+    "--site-muted": "#6a6a6a",
+    "--site-on-surface": "#111111",
+    "--site-on-surface-muted": "#6a6a6a",
+    "--site-on-surface-border": "#e3ece6",
+    "--site-accent": "#269c53",
+    "--site-on-accent": "#ffffff",
+    "--site-border": "#e3ece6",
+    "--site-radius": "10px",
+    "--site-heading-font": "var(--font-mercado-heading), Quicksand, 'Avenir Next', Arial, sans-serif",
+    "--site-body-font": "var(--font-mercado-body), Lato, var(--font-plus-jakarta-sans), Arial, sans-serif",
+    "--site-shadow": "0 14px 36px rgba(17, 17, 17, 0.08)",
+  },
 };
 
 export function paletteFor(config: LandingConfig): SitePalette {

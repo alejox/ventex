@@ -142,14 +142,17 @@ function LandingScreen() {
           return (
             <li key={site.id} className="flex min-w-0 flex-col overflow-hidden rounded-2xl border border-outline-variant/20 bg-surface-container">
               <div className="relative aspect-video bg-surface-container-high">
-                <Image
-                  src={site.draft_config.hero.imageUrl || DEFAULT_SITE_IMAGES[site.draft_config.template]}
-                  alt={`Portada de ${name}`}
-                  fill
-                  sizes="(max-width: 639px) 100vw, 384px"
-                  unoptimized
-                  className="object-cover"
-                />
+                {/* Mercado no trae portada de muestra: sin foto queda el fondo. */}
+                {site.draft_config.hero.imageUrl || DEFAULT_SITE_IMAGES[site.draft_config.template] ? (
+                  <Image
+                    src={site.draft_config.hero.imageUrl || DEFAULT_SITE_IMAGES[site.draft_config.template]}
+                    alt={`Portada de ${name}`}
+                    fill
+                    sizes="(max-width: 639px) 100vw, 384px"
+                    unoptimized
+                    className="object-cover"
+                  />
+                ) : null}
               </div>
               <div className="min-w-0 flex-1 p-4">
                 <div className="flex flex-wrap items-center gap-2">

@@ -37,7 +37,7 @@ const TABS: { id: EditorTab; label: string }[] = [
   { id: "business", label: "Negocio" },
   { id: "seo", label: "SEO" },
 ];
-const DEFAULT_COLORS = { rasm: "#a96550", fallspa: "#a87696", qutter: "#d5a928", barberia: "#c5a572", "barberia-artesanal": "#552d25", "barberia-urbana": "#538167", luxia: "#f08b78", lezar: "#5b7c84", zen: "#8e3fb8" };
+const DEFAULT_COLORS = { rasm: "#a96550", fallspa: "#a87696", qutter: "#d5a928", barberia: "#c5a572", "barberia-artesanal": "#552d25", "barberia-urbana": "#538167", luxia: "#f08b78", lezar: "#5b7c84", zen: "#8e3fb8", mercado: "#269c53" };
 
 export function LandingEditor({ siteId: initialSiteId, onSaved, onBack, initial, initialHours, initialPublished, currentSlug, businessName, businessType, logoUrl }: {
   /** Página que se edita; sin id es una página nueva que todavía no se guardó. */
@@ -195,7 +195,7 @@ export function LandingEditor({ siteId: initialSiteId, onSaved, onBack, initial,
             <button type="button" onClick={() => setDevice("mobile")} className={`rounded-lg px-3 py-1.5 text-xs font-bold ${device === "mobile" ? "bg-primary text-on-primary" : "text-on-surface-variant"}`}>Móvil</button>
           </div>
           <div className="min-h-0 flex-1">
-            <LandingPreview config={previewConfig} hours={hours} businessName={form.site_name.trim() || businessName} logoUrl={logoUrl} bookingEnabled={form.booking_enabled} device={device} />
+            <LandingPreview config={previewConfig} hours={hours} businessName={form.site_name.trim() || businessName} businessType={businessType} logoUrl={logoUrl} bookingEnabled={form.booking_enabled} device={device} />
           </div>
         </main>
       </div>
