@@ -421,7 +421,15 @@ interface PublicProduct {
   imageUrl: string | null;
   icon: string | null;
   unit: string | null;
+  /** Null when the product has no category. */
+  categoryId: string | null;
   inStock: boolean;
+}
+
+/** A category with at least one product visible on the site (tienda catalog tabs). */
+export interface PublicCategory {
+  id: string;
+  name: string;
 }
 
 export interface PublicStaff {
@@ -462,6 +470,7 @@ export interface PublicSite {
   hours: PublicHour[];
   services: PublicService[];
   products: PublicProduct[];
+  categories: PublicCategory[];
   staff: PublicStaff[];
   /** Frozen editorial snapshot used to render the public landing. */
   config: LandingConfig;

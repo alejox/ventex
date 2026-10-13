@@ -47,9 +47,10 @@ export function LandingPreview({
     hours: hours.map((hour) => ({ weekday: hour.weekday, isOpen: hour.is_open, opensAt: hour.opens_at, closesAt: hour.closes_at })),
     services: SAMPLE_SERVICES,
     products: [
-      { id: "product-1", name: "Producto recomendado", price: 35000, imageUrl: null, icon: "✦", unit: "Unidad", inStock: true },
-      { id: "product-2", name: "Cuidado en casa", price: 52000, imageUrl: null, icon: "✦", unit: "Unidad", inStock: true },
+      { id: "product-1", name: "Producto recomendado", price: 35000, imageUrl: null, icon: "✦", unit: "Unidad", categoryId: null, inStock: true },
+      { id: "product-2", name: "Cuidado en casa", price: 52000, imageUrl: null, icon: "✦", unit: "Unidad", categoryId: null, inStock: true },
     ],
+    categories: [],
     staff: [
       { id: "staff-1", fullName: "Andrea", role: "Especialista", photoUrl: null },
       { id: "staff-2", fullName: "Camilo", role: "Profesional", photoUrl: null },

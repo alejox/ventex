@@ -29,6 +29,7 @@ export async function fetchPublicSite(slug: string): Promise<PublicSite | null> 
   return {
     ...raw,
     timeFormat: raw.timeFormat === "24" ? "24" : "12",
+    categories: Array.isArray(raw.categories) ? raw.categories : [],
     config,
   } as unknown as PublicSite;
 }
