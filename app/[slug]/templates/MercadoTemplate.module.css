@@ -146,7 +146,10 @@
   background: var(--site-accent);
   border-radius: 999px;
   color: var(--site-on-accent);
-  display: inline-flex;
+  /* flex + fit-content, no inline-flex: inline quedaba en el mismo renglón que
+     el estado ("Cerrado ahora") y lo tapaba. */
+  display: flex;
+  width: fit-content;
   font-weight: 800;
   margin-top: 22px;
   min-height: 48px;

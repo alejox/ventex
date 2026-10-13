@@ -89,7 +89,7 @@ export function OrganicoTemplate({ site, preview = false }: { site: PublicSite; 
 
       {showCatalog ? (
         <div className={styles.catalogBand}>
-          <StoreCatalog site={site} variant="organico" heading={products ? <SectionHeading section={products} /> : null} />
+          <StoreCatalog site={site} variant="organico" heading={products ? <SectionHeading key="heading" section={products} /> : null} />
         </div>
       ) : null}
 

@@ -38,8 +38,11 @@ export function MercadoTemplate({ site, preview = false }: { site: PublicSite; p
   };
   const socials = socialLinksOf(site);
 
+  // Las piezas que se le pasan a StoreCatalog (componente de cliente) llevan
+  // `key`: al cruzar la frontera servidor→cliente React las valida como hijos
+  // de una lista y, sin key, avisa en desarrollo.
   const topBar = site.whatsapp || site.address ? (
-    <div className={styles.topBar}>
+    <div key="top-bar" className={styles.topBar}>
       <div className={styles.topBarInner}>
         {site.address ? <span className={styles.topBarItem}>{site.address}</span> : <span />}
         {site.whatsapp ? (
@@ -53,7 +56,7 @@ export function MercadoTemplate({ site, preview = false }: { site: PublicSite; p
   ) : null;
 
   const brand = (
-    <a href="#inicio" className={styles.brand}>
+    <a key="brand" href="#inicio" className={styles.brand}>
       {site.logoUrl ? (
         <Image src={site.logoUrl} unoptimized={esImagenAjena(site.logoUrl)} alt="" width={44} height={44} className={styles.logo} />
       ) : (
@@ -64,7 +67,7 @@ export function MercadoTemplate({ site, preview = false }: { site: PublicSite; p
   );
 
   const heroBlock = (
-    <section className={styles.hero} aria-label="Portada">
+    <section key="hero" className={styles.hero} aria-label="Portada">
       <div className={`${styles.mainPanel} site-enter`}>
         <div className={styles.mainCopy}>
           <span className={styles.eyebrow}>{hero.eyebrow}</span>
@@ -109,7 +112,7 @@ export function MercadoTemplate({ site, preview = false }: { site: PublicSite; p
         topBar={topBar}
         brand={brand}
         hero={heroBlock}
-        heading={products ? <SectionHeading section={products} /> : null}
+        heading={products ? <SectionHeading key="heading" section={products} /> : null}
       />
       <ConfigurableSections site={rest} preview={preview} />
       <footer className={styles.footer}>
