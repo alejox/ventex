@@ -73,6 +73,8 @@ Improve the full product form, Service tab and quick-add layout without changing
 - Final browser checks, independent verifier and full-suite rerun remain parent-owned; no commit or remote changes.
 
 ## Next step
+Work-unit commit: `930bfa6` — `fix(inventory): stabilize product forms and save retries`. Includes T1/T3/T4 implementation and regression tests. Prior no-IVA commit `b0740cf` is included in the authorized main delivery. Full tests 930/930, typecheck/lint/build/diff checks passed. T2 remains partial only for disclosed visual scenarios.
+
 Final independent verification: 930 full unit tests passed, 0 failed/skipped; typecheck, scoped lint and parent diff check passed. Plain npm test stalled resolving npx; exact cached underlying runner completed with authorization. Recipe success/refetch failure cleanup finding corrected and independently verified. No confirmed code blocker remains.
 
 Final local browser: fresh Caja -> Unidad -> Caja screenshots now match accessibility state. Main purchase/sale prices retain identical screen position; tabs align with the units-per-box input; SKU/barcode equal widths visible. Optional box-sale field appears below main prices. Mobile, quick-add, editing and tax-enabled visual checks remain pending. No data saved.
