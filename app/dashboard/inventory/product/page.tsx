@@ -19,7 +19,7 @@ import { useProfile } from "@/components/ProfileProvider";
 import { can } from "@/lib/permissions";
 import { useBusinessTax } from "@/lib/useBusinessTax";
 import { useBarcodeLookup } from "@/lib/useBarcodeLookup";
-import { canAutofill } from "@/lib/autofill";
+import { barcodeAutofill, type AutofillMemory } from "@/lib/autofill";
 import { formatDuration } from "@/lib/duration";
 import type { OpenFactsProduct } from "@/services/openfacts.service";
 import { ProductImageUpload } from "./components/ProductImageUpload";
@@ -85,23 +85,6 @@ function commissionError(hasCommission: boolean, type: string, raw: string): str
   if (!Number.isFinite(value) || value < 0) return "La comisión no puede ser negativa.";
   if (type !== "fixed" && value > 100) return "Un porcentaje de comisión no puede pasar de 100 %.";
   return undefined;
-}
-
-const UNIT_MAP: Record<string, string> = {
-  ml: "ml", cl: "ml", l: "L", dl: "L",
-  g: "g", kg: "kg", lb: "lb", oz: "g",
-  m: "m", cm: "cm",
-  unidad: "Unidad", un: "Unidad", docena: "Docena",
-  pack: "Pack", caja: "Caja",
-};
-
-function parseQuantityUnit(raw: string): string | undefined {
-  const lower = raw.toLowerCase().trim();
-  const parts = lower.split(/\s+/);
-  for (const p of parts) {
-    const match = UNIT_MAP[p];
-    if (match) return match;
-  }
 }
 
 /**
@@ -841,51 +824,33 @@ function ProductForm() {
    * Sin esta memoria, un campo lleno por un escaneo previo es indistinguible de
    * uno tipeado, y escanear un segundo código no cambiaba nada.
    */
-  const autoFilledRef = useRef<{ name?: string; unit?: string; image?: string }>({});
+  const autoFilledRef = useRef<AutofillMemory>({});
 
   const handleBarcodeFound = useCallback(
     (product: OpenFactsProduct) => {
-      if (editingProduct) return;
-      const auto = autoFilledRef.current;
+      // Foto FIJA de la memoria: el updater de abajo puede correr dos veces
+      // (modo estricto) y tiene que dar lo mismo las dos. Ver `barcodeAutofill`.
+      const memory = { ...autoFilledRef.current };
+      const editing = Boolean(editingProduct);
 
       setForm((prev) => {
-        const next = { ...prev };
-
-        if (product.name && canAutofill(prev.name, auto.name)) {
-          next.name = product.name;
-          auto.name = product.name;
+        const { patch, auto } = barcodeAutofill(prev, product, memory, { editing });
+        autoFilledRef.current = auto;
+        const next = { ...prev, ...patch };
+        // Una unidad que mide no tiene contenido ("cada unidad trae").
+        if (patch.unit && isMeasureUnit(patch.unit)) {
+          next.content_qty = EMPTY_CONTENT.content_qty;
+          next.content_unit = EMPTY_CONTENT.content_unit;
         }
-
-        if (product.quantity) {
-          const u = parseQuantityUnit(product.quantity);
-          // "Unidad" es el valor por defecto del formulario, así que cuenta como
-          // vacío: nadie lo eligió, vino puesto.
-          if (u && (prev.unit === "Unidad" || canAutofill(prev.unit, auto.unit))) {
-            next.unit = u;
-            auto.unit = u;
-            // Una unidad que mide no tiene contenido ("cada unidad trae").
-            if (isMeasureUnit(u)) {
-              next.content_qty = EMPTY_CONTENT.content_qty;
-              next.content_unit = EMPTY_CONTENT.content_unit;
-            }
-          }
-        }
-
-        if (product.imageUrl && canAutofill(prev.image_url, auto.image)) {
-          next.image_url = product.imageUrl;
-          auto.image = product.imageUrl;
-        }
-
         return next;
       });
 
       // La vista previa sigue a la imagen: si la de este producto entró, la que
       // se muestra tiene que ser esa y no la del código anterior.
-      if (product.imageUrl && auto.image === product.imageUrl) {
-        setImagePreview(product.imageUrl);
-      }
+      const { patch } = barcodeAutofill(form, product, memory, { editing });
+      if (patch.image_url) setImagePreview(patch.image_url);
     },
-    [editingProduct],
+    [editingProduct, form],
   );
 
   const { searching, product: lookedUp } = useBarcodeLookup(

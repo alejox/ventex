@@ -32,3 +32,84 @@ export function canAutofill(
   if (lastAuto == null) return false;
   return value === lastAuto.trim();
 }
+
+const UNIT_MAP: Record<string, string> = {
+  ml: "ml", cl: "ml", l: "L", dl: "L",
+  g: "g", kg: "kg", lb: "lb", oz: "g",
+  m: "m", cm: "cm",
+  unidad: "Unidad", un: "Unidad", docena: "Docena",
+  pack: "Pack", caja: "Caja",
+};
+
+/** "500 g" → "g": la unidad del formulario a partir del contenido de Open Facts. */
+export function parseQuantityUnit(raw: string): string | undefined {
+  const parts = raw.toLowerCase().trim().split(/\s+/);
+  for (const part of parts) {
+    const match = UNIT_MAP[part];
+    if (match) return match;
+  }
+}
+
+/** Lo último que autocompletamos: lo que se puede pisar sin borrar lo de la persona. */
+export interface AutofillMemory {
+  name?: string;
+  unit?: string;
+  image?: string;
+}
+
+interface AutofillFields {
+  name: string;
+  unit: string;
+  image_url: string;
+}
+
+interface ScannedProduct {
+  name: string;
+  quantity?: string;
+  imageUrl?: string;
+}
+
+/**
+ * Qué cambia en la ficha cuando el código de barras encuentra un producto.
+ *
+ * PURA a propósito: recibe una FOTO de la memoria y devuelve la nueva. Antes la
+ * memoria se mutaba dentro del `setForm(prev => …)`, y React en modo estricto
+ * corre ese updater dos veces: la primera marcaba el nombre nuevo como "nuestro"
+ * y la segunda ya no reconocía el viejo, así que cambiar de código dejaba la
+ * ficha con el producto anterior.
+ *
+ * Al EDITAR un producto guardado solo se llenan campos vacíos (o los que
+ * llenamos nosotros en esta misma edición) y la unidad no se toca nunca:
+ * pasar de "Unidad" a "g" convertiría 10 unidades de stock en 10 gramos.
+ */
+export function barcodeAutofill(
+  form: AutofillFields,
+  product: ScannedProduct,
+  memory: AutofillMemory,
+  { editing }: { editing: boolean },
+): { patch: Partial<AutofillFields>; auto: AutofillMemory } {
+  const patch: Partial<AutofillFields> = {};
+  const auto: AutofillMemory = { ...memory };
+
+  if (product.name && canAutofill(form.name, memory.name)) {
+    patch.name = product.name;
+    auto.name = product.name;
+  }
+
+  if (!editing && product.quantity) {
+    const unit = parseQuantityUnit(product.quantity);
+    // "Unidad" es el valor por defecto del formulario, así que cuenta como
+    // vacío: nadie lo eligió, vino puesto.
+    if (unit && (form.unit === "Unidad" || canAutofill(form.unit, memory.unit))) {
+      patch.unit = unit;
+      auto.unit = unit;
+    }
+  }
+
+  if (product.imageUrl && canAutofill(form.image_url, memory.image)) {
+    patch.image_url = product.imageUrl;
+    auto.image = product.imageUrl;
+  }
+
+  return { patch, auto };
+}

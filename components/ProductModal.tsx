@@ -116,10 +116,15 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
 
   const handleBarcodeFound = useCallback(
     (product: OpenFactsProduct) => {
+      // Foto FIJA de la memoria: cada updater de abajo puede correr dos veces
+      // (modo estricto). Decidir contra la memoria viva hacía que la segunda
+      // corrida ya no reconociera lo que autocompletamos, y cambiar de código
+      // dejaba la ficha con el producto anterior. Ver `barcodeAutofill`.
+      const memory = { ...autoFilledRef.current };
       const auto = autoFilledRef.current;
 
       setName((prev) => {
-        if (!product.name || !canAutofill(prev, auto.name)) return prev;
+        if (!product.name || !canAutofill(prev, memory.name)) return prev;
         auto.name = product.name;
         return product.name;
       });
@@ -129,7 +134,7 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
         if (u) {
           setUnit((prev) => {
             // "Unidad" es el default del formulario: nadie lo eligió.
-            if (prev !== "Unidad" && !canAutofill(prev, auto.unit)) return prev;
+            if (prev !== "Unidad" && !canAutofill(prev, memory.unit)) return prev;
             auto.unit = u;
             return u;
           });
@@ -140,7 +145,7 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
       if (imageUrl) {
         setImagePreview((prev) => {
           // Si eligió una imagen a mano, `prev` es un blob suyo y no se toca.
-          if (!canAutofill(prev, auto.image)) return prev;
+          if (!canAutofill(prev, memory.image)) return prev;
           auto.image = imageUrl;
           return imageUrl;
         });
