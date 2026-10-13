@@ -602,3 +602,25 @@ export interface BookingResult {
   staff?: string | null;
   whatsapp: string | null;
 }
+
+/**
+ * Turns the `public_site_by_slug` payload into a `PublicSite`.
+ *
+ * The RPC merges `published_config` with top-level fields, and one of them —
+ * `about`, the plain description string — collides with `config.about`
+ * (title, description, image). Normalizing the merged object dropped the whole
+ * "Nuestra esencia" section on every published site. The untouched snapshot
+ * now travels in `config` (since `20261013040000`); older payloads without it
+ * fall back to the merged object.
+ */
+export function publicSiteFromRpc(raw: Record<string, unknown>): PublicSite {
+  const snapshot = raw.config && typeof raw.config === "object" && !Array.isArray(raw.config)
+    ? raw.config as Record<string, unknown>
+    : raw;
+  return {
+    ...raw,
+    timeFormat: raw.timeFormat === "24" ? "24" : "12",
+    categories: Array.isArray(raw.categories) ? raw.categories : [],
+    config: normalizeLandingConfig(snapshot),
+  } as unknown as PublicSite;
+}

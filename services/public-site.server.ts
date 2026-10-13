@@ -1,6 +1,6 @@
 import "server-only";
 import { createClient } from "@/utils/supabase/server";
-import { normalizeLandingConfig } from "@/services/public-site.types";
+import { normalizeLandingConfig, publicSiteFromRpc } from "@/services/public-site.types";
 import type { PublicSite } from "@/services/public-site.types";
 
 /**
@@ -24,14 +24,7 @@ export async function fetchPublicSite(slug: string): Promise<PublicSite | null> 
 
   if (error) throw error;
   if (!data || typeof data !== "object") return null;
-  const raw = data as unknown as Record<string, unknown>;
-  const config = normalizeLandingConfig(raw);
-  return {
-    ...raw,
-    timeFormat: raw.timeFormat === "24" ? "24" : "12",
-    categories: Array.isArray(raw.categories) ? raw.categories : [],
-    config,
-  } as unknown as PublicSite;
+  return publicSiteFromRpc(data as unknown as Record<string, unknown>);
 }
 
 /**
