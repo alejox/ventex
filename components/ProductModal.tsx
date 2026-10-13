@@ -11,6 +11,7 @@ import { PRODUCT_UNITS } from "@/lib/units";
 import type { OpenFactsProduct } from "@/services/openfacts.service";
 import { useBusinessTax } from "@/lib/useBusinessTax";
 import { usePricePair } from "@/lib/usePricePair";
+import { priceMultipliers } from "@/lib/product-tax";
 import { MoneyInput } from "@/components/ui/MoneyInput";
 import { Select } from "@/components/ui/Select";
 import { notifySuccess } from "@/lib/notifications";
@@ -141,8 +142,14 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
   const { product: lookedUp, searching } = useBarcodeLookup(barcode, handleBarcodeFound);
 
   // Base y total, editables por los dos lados: escribir uno recalcula el otro.
-  const purchaseMultiplier = tax === "Ninguno" ? 1 : 1 + rawRate;
-  const taxMultiplier = tax === "Ninguno" ? 1 : 1 + taxRate;
+  // Sin IVA en el negocio, los precios se guardan tal cual se escriben.
+  const { purchase: purchaseMultiplier, selling: taxMultiplier } = priceMultipliers({
+    includeTax,
+    rate: taxRate,
+    rawRate,
+    purchaseTax: tax,
+    sellingTax: tax,
+  });
   const [packagePrice, setPackagePrice] = usePricePair(purchaseMultiplier);
   const [unitPrice, setUnitPrice] = usePricePair(taxMultiplier);
 
@@ -413,7 +420,48 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
               )}
           </div>
 
-          {/* Sección de precios */}
+          {/* Sección de precios. Sin IVA en el negocio: compra y venta son un
+              campo cada uno, lado a lado desde `sm`, sin base ni selector. */}
+          {!includeTax ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-4">
+              <div className="space-y-1.5">
+                <label htmlFor="quick-purchase-price" className="flex items-center gap-1 text-sm font-semibold text-on-surface">
+                  Precio de compra{presentation === "package" ? " por caja" : ""} <span className="text-primary">*</span>
+                </label>
+                <MoneyInput
+                  id="quick-purchase-price"
+                  value={packagePrice.total}
+                  onChange={setPackagePrice.fromTotal}
+                  required
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label htmlFor="quick-selling-price" className="flex items-center gap-1 text-sm font-semibold text-on-surface">
+                  Precio de venta por unidad <span className="text-primary">*</span>
+                </label>
+                <MoneyInput
+                  id="quick-selling-price"
+                  value={unitPrice.total}
+                  onChange={setUnitPrice.fromTotal}
+                  required
+                />
+              </div>
+              {presentation === "package" && (
+                <div className="space-y-1.5 sm:col-span-2 sm:max-w-[calc(50%-0.5rem)]">
+                  <label htmlFor="package-price" className="flex items-center gap-1 text-sm font-semibold text-on-surface">
+                    Precio de venta por caja de {unitsPerPackage || "1"}
+                    <span className="text-on-surface-variant font-normal">(opcional)</span>
+                  </label>
+                  <MoneyInput
+                    id="package-price"
+                    value={packageSellingPrice}
+                    onChange={setPackageSellingPrice}
+                    placeholder="Vacío = no se vende por caja"
+                  />
+                </div>
+              )}
+            </div>
+          ) : (
           <div className="space-y-4">
               <div>
                 <h3 className="text-sm font-bold text-on-surface">Precio del paquete (compra)</h3>
@@ -520,6 +568,7 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
                 )}
               </div>
             </div>
+          )}
 
           {submitError && (
             <p

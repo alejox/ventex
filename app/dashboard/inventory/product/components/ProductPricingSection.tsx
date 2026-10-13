@@ -91,6 +91,105 @@ export function ProductPricingSection({
     ? recipeCost.pending ? null : calculateMargin(recipeCost.total, selling.total, "unit", "1")
     : margin;
 
+  // Con receta: el costo es la tarjeta de la receta, sin IVA que pagar ni mostrar.
+  const recipeCostCard = recipeCost && (
+    <div className="rounded-2xl border border-outline-variant/15 bg-surface-container-low/60 px-5 py-4">
+      {recipeCost.pending ? (
+        <p className="text-sm text-on-surface-variant">{recipeCost.pending}</p>
+      ) : (
+        <>
+          <p className="text-xs text-on-surface-variant">Costo por unidad</p>
+          <p className="text-2xl font-bold text-on-surface tabular-nums">
+            {fmtMoney(recipeCost.total)}
+            {recipeCost.incomplete && <span className="text-on-surface-variant text-base font-semibold"> +</span>}
+          </p>
+          {recipeCost.incomplete && (
+            <p className="mt-1 text-xs text-on-surface-variant">
+              Algún insumo no tiene costo: el real es mayor.
+            </p>
+          )}
+        </>
+      )}
+    </div>
+  );
+
+  const marginHint = effectiveMargin && (
+    <p className={`text-xs font-medium ${effectiveMargin.pct < 0 ? "text-error" : "text-on-surface-variant"}`}>
+      Margen: <strong className="font-mono">{effectiveMargin.pct.toFixed(1)}%</strong> · te quedan{" "}
+      <span className="font-mono">{fmtMoney(effectiveMargin.profit)}</span> por unidad (costo{" "}
+      <span className="font-mono">{fmtMoney(effectiveMargin.costPerUnit)}</span>)
+      {effectiveMargin.pct < 0 ? " — estás vendiendo a pérdida." : ""}
+    </p>
+  );
+
+  const derivedCostHint = purchaseTotal > 0 && (
+    <p className="text-xs font-medium text-on-surface-variant/90 pt-0.5">
+      💡 Costo unitario derivado:{" "}
+      <strong className="font-mono text-on-surface">{fmtMoney(derivedUnitCost)}</strong> por unidad
+      {isPackage && unitsCount > 1 && (
+        <span className="text-on-surface-variant/70 font-normal">
+          {" "}({fmtMoney(purchaseTotal)} ÷ {unitsCount} u.)
+        </span>
+      )}
+    </p>
+  );
+
+  // Negocio sin IVA: sin base, sin selector y sin total que emparejar. Compra y
+  // venta son UN campo cada uno, lado a lado desde `sm` en una sola sección.
+  if (!includeTax) {
+    return (
+      <div className="border-t border-outline-variant/10 pt-6">
+        <div className={`grid grid-cols-1 gap-x-6 gap-y-5 ${ingredientMode ? "" : "sm:grid-cols-2"}`}>
+          {recipeCost ? (
+            <div className="space-y-1.5">
+              <h3 className="text-sm font-bold text-on-surface">Costo según receta</h3>
+              {recipeCostCard}
+            </div>
+          ) : (
+            <div className="space-y-1.5 max-w-sm">
+              <label htmlFor="product-purchase-price" className="text-sm font-bold text-on-surface block">
+                {ingredientMode
+                  ? `Costo por ${isPackage ? "caja" : "unidad"}`
+                  : isPackage
+                    ? `Precio de compra por caja${unitsCount > 1 ? ` (${unitsCount} u.)` : ""}`
+                    : "Precio de compra por unidad"}
+              </label>
+              <MoneyInput
+                id="product-purchase-price"
+                value={purchase.total}
+                onChange={purchase.fromTotal}
+              />
+              {derivedCostHint}
+            </div>
+          )}
+
+          {!ingredientMode && (
+            <div className="space-y-1.5 max-w-sm">
+              <label htmlFor="product-selling-price" className="text-sm font-bold text-on-surface block">
+                Precio de venta por unidad
+              </label>
+              <MoneyInput
+                id="product-selling-price"
+                ref={sellingPriceRef}
+                aria-invalid={!!sellingPriceError}
+                aria-describedby={sellingPriceError ? "product-selling-price-error" : undefined}
+                value={selling.total}
+                onChange={selling.fromTotal}
+                required
+              />
+              {sellingPriceError && (
+                <p id="product-selling-price-error" className="text-xs font-medium text-error" role="alert">
+                  {sellingPriceError}
+                </p>
+              )}
+              {marginHint}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
       {recipeCost ? (
@@ -103,24 +202,7 @@ export function ProductPricingSection({
                 : "Lo que cuestan los insumos de una unidad vendida. Cambia la receta y cambia el costo."}
             </p>
           </div>
-          <div className="rounded-2xl border border-outline-variant/15 bg-surface-container-low/60 px-5 py-4">
-            {recipeCost.pending ? (
-              <p className="text-sm text-on-surface-variant">{recipeCost.pending}</p>
-            ) : (
-              <>
-                <p className="text-xs text-on-surface-variant">Costo por unidad</p>
-                <p className="text-2xl font-bold text-on-surface tabular-nums">
-                  {fmtMoney(recipeCost.total)}
-                  {recipeCost.incomplete && <span className="text-on-surface-variant text-base font-semibold"> +</span>}
-                </p>
-                {recipeCost.incomplete && (
-                  <p className="mt-1 text-xs text-on-surface-variant">
-                    Algún insumo no tiene costo: el real es mayor.
-                  </p>
-                )}
-              </>
-            )}
-          </div>
+          {recipeCostCard}
         </div>
       ) : (
         <div className="border-t border-outline-variant/10 pt-6 space-y-6">

@@ -18,6 +18,7 @@ import { stockUnitsOf } from "@/lib/stock";
 import { useProfile } from "@/components/ProfileProvider";
 import { can } from "@/lib/permissions";
 import { useBusinessTax } from "@/lib/useBusinessTax";
+import { priceMultipliers } from "@/lib/product-tax";
 import { useBarcodeLookup } from "@/lib/useBarcodeLookup";
 import { barcodeAutofill, suggestedName, type AutofillMemory } from "@/lib/autofill";
 import { Button } from "@/components/ui/Button";
@@ -237,9 +238,15 @@ function ProductForm() {
   // de IVA igual se lo paga al proveedor (`rawRate`), pero no lo cobra en sus
   // propios precios (`rate`, que en ese caso vale 0).
   const { rate: taxRate, rawRate, includeTax, percentLabel, rawPercentLabel } = useBusinessTax();
-  const purchaseMultiplier = purchasePriceTax === "Ninguno" ? 1 : 1 + rawRate;
-  const sellingMultiplier = sellingPriceTax === "Ninguno" ? 1 : 1 + taxRate;
-  const serviceMultiplier = sellingPriceTax === "Ninguno" ? 1 : 1 + taxRate;
+  // Sin IVA en el negocio no hay IVA en la ficha: lo que se escribe es el precio.
+  const { purchase: purchaseMultiplier, selling: sellingMultiplier } = priceMultipliers({
+    includeTax,
+    rate: taxRate,
+    rawRate,
+    purchaseTax: purchasePriceTax,
+    sellingTax: sellingPriceTax,
+  });
+  const serviceMultiplier = sellingMultiplier;
   const serviceFinalValue = parseFloat(serviceFinalPrice || "0");
   const serviceBaseValue = serviceFinalValue > 0 ? serviceFinalValue / serviceMultiplier : 0;
   const serviceTaxValue = Math.max(serviceFinalValue - serviceBaseValue, 0);
@@ -252,6 +259,16 @@ function ProductForm() {
    */
   const [purchase, setPurchase] = usePricePair(purchaseMultiplier);
   const [selling, setSelling] = usePricePair(sellingMultiplier);
+  // Si los ajustes llegan DESPUÉS de cargar el producto (entrada directa por
+  // URL), `includeTax` pasa del default `true` al real. `usePricePair` rehace el
+  // total desde la base, pero lo guardado es el TOTAL: se conserva ese número.
+  // Cambiar el selector de IVA a mano sigue rehaciendo el total, como siempre.
+  const [lastIncludeTax, setLastIncludeTax] = useState(includeTax);
+  if (lastIncludeTax !== includeTax) {
+    setLastIncludeTax(includeTax);
+    setPurchase.fromTotal(purchase.total);
+    setSelling.fromTotal(selling.total);
+  }
   const purchasePriceTotal = purchase.total;
   const sellingPriceTotal = selling.total;
 
@@ -1349,13 +1366,22 @@ function ProductForm() {
             <div className="pt-2">
               <h3 className="text-sm font-bold text-on-surface mb-2">Precio del servicio</h3>
               <p className="text-xs text-on-surface-variant mb-3">
-                Ingresa el precio que pagará el cliente. El IVA se discrimina sin cambiar ese total.
+                {includeTax
+                  ? "Ingresa el precio que pagará el cliente. El IVA se discrimina sin cambiar ese total."
+                  : "Ingresa el precio que pagará el cliente."}
               </p>
-              <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.85fr)] gap-6 items-start">
-                <div className="space-y-4">
+              <div
+                className={
+                  includeTax
+                    ? "grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.85fr)] gap-6 items-start"
+                    : "grid grid-cols-1 gap-6 items-start"
+                }
+              >
+                {/* Sin IVA: precio y duración lado a lado desde `sm`. */}
+                <div className={includeTax ? "space-y-4" : "grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 items-start"}>
                   <div className="flex items-end gap-3">
                     <div className="space-y-1.5 flex-1 max-w-[280px]">
-                      <label htmlFor="service-price" className="text-[13px] font-semibold text-on-surface block">Precio final</label>
+                      <label htmlFor="service-price" className="text-[13px] font-semibold text-on-surface block">{includeTax ? "Precio final" : "Precio"}</label>
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-on-surface-variant">$</span>
                         <input
@@ -1383,7 +1409,7 @@ function ProductForm() {
                         </p>
                       )}
                     </div>
-                    {taxRate > 0 && (
+                    {includeTax && taxRate > 0 && (
                       <div className="space-y-1.5">
                         <label className="text-[13px] font-semibold text-on-surface block">IVA</label>
                         <Select
@@ -1448,7 +1474,7 @@ function ProductForm() {
                   {/* La descripción es lo que lee el cliente en el sitio público
                       antes de reservar. Un producto no la tiene: para eso está
                       la foto. */}
-                  <div className="space-y-1.5">
+                  <div className={includeTax ? "space-y-1.5" : "space-y-1.5 sm:col-span-2"}>
                     <label htmlFor="service-description" className="text-[13px] font-semibold text-on-surface block">
                       Descripción <span className="text-on-surface-variant font-normal">(opcional)</span>
                     </label>
@@ -1462,6 +1488,8 @@ function ProductForm() {
                     />
                   </div>
                 </div>
+                {/* Sin IVA en el negocio no hay nada que desglosar: el precio es el total. */}
+                {includeTax && (
                 <div className="rounded-2xl border border-outline-variant/15 bg-surface-container-lowest px-5 py-4 text-sm">
                     <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-on-surface-variant">Desglose del precio</p>
                     <div className="flex items-center justify-between gap-4 text-on-surface-variant">
@@ -1477,6 +1505,7 @@ function ProductForm() {
                       <span>{fmtMoney(serviceFinalValue)}</span>
                     </div>
                 </div>
+                )}
               </div>
 
               <div className="mt-4 flex items-center justify-between p-3 sm:p-4 bg-surface-container-low rounded-xl border border-outline-variant/10">
