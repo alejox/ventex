@@ -113,3 +113,17 @@ export function barcodeAutofill(
 
   return { patch, auto };
 }
+
+/**
+ * El nombre que el código de barras propone, o null si no hay nada que ofrecer.
+ *
+ * Al editar, el autocompletado no pisa un nombre guardado: un escaneo por error
+ * en el mostrador cambiaría en silencio el nombre que ya sale en ventas y
+ * reportes. En vez de pisarlo, la ficha ofrece "Usar «X» como nombre" — este es
+ * el criterio de cuándo mostrar esa oferta.
+ */
+export function suggestedName(current: string | null | undefined, found: string | null | undefined): string | null {
+  const name = (found ?? "").trim();
+  if (!name) return null;
+  return name.toLocaleLowerCase("es") === (current ?? "").trim().toLocaleLowerCase("es") ? null : name;
+}

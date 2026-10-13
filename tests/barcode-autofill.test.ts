@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { barcodeAutofill, parseQuantityUnit } from "../lib/autofill";
+import { barcodeAutofill, parseQuantityUnit, suggestedName } from "../lib/autofill";
 
 const arroz = { name: "arroz roa", quantity: "500 g", imageUrl: "https://img/arroz.jpg" };
 const cafe = { name: "café sello rojo", quantity: "250 g", imageUrl: "https://img/cafe.jpg" };
@@ -63,4 +63,14 @@ test("quantity text maps to a unit", () => {
   assert.equal(parseQuantityUnit("1 L"), "L");
   assert.equal(parseQuantityUnit("12 oz"), "g");
   assert.equal(parseQuantityUnit("mucho"), undefined);
+});
+
+test("offers the scanned name only when it differs from the current one", () => {
+  assert.equal(suggestedName("Arroz", "Mango"), "Mango");
+  assert.equal(suggestedName("", "Mango"), "Mango");
+  assert.equal(suggestedName("Mango", "Mango"), null);
+  assert.equal(suggestedName(" mango ", "Mango"), null);
+  assert.equal(suggestedName("Arroz", ""), null);
+  assert.equal(suggestedName("Arroz", "   "), null);
+  assert.equal(suggestedName("Arroz", " Mango "), "Mango");
 });

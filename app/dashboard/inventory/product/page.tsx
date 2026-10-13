@@ -19,7 +19,8 @@ import { useProfile } from "@/components/ProfileProvider";
 import { can } from "@/lib/permissions";
 import { useBusinessTax } from "@/lib/useBusinessTax";
 import { useBarcodeLookup } from "@/lib/useBarcodeLookup";
-import { barcodeAutofill, type AutofillMemory } from "@/lib/autofill";
+import { barcodeAutofill, suggestedName, type AutofillMemory } from "@/lib/autofill";
+import { Button } from "@/components/ui/Button";
 import { formatDuration } from "@/lib/duration";
 import type { OpenFactsProduct } from "@/services/openfacts.service";
 import { ProductImageUpload } from "./components/ProductImageUpload";
@@ -1275,6 +1276,24 @@ function ProductForm() {
                     Info encontrada: {lookedUp.name}
                   </p>
                 )}
+                {!searching && lookedUp && suggestedName(form.name, lookedUp.name) ? (
+                  // El autocompletado no pisa un nombre guardado o escrito a mano;
+                  // cambiarlo es una decisión explícita, a un clic.
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => {
+                      const name = suggestedName(form.name, lookedUp.name);
+                      if (!name) return;
+                      // Queda como "nuestro": el siguiente escaneo lo puede reemplazar.
+                      autoFilledRef.current = { ...autoFilledRef.current, name };
+                      setForm((prev) => ({ ...prev, name }));
+                      setFieldErrors((prev) => ({ ...prev, name: undefined }));
+                    }}
+                  >
+                    Usar «{suggestedName(form.name, lookedUp.name)}» como nombre
+                  </Button>
+                ) : null}
               </div>
             </div>
           )}
