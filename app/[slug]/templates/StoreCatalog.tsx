@@ -93,8 +93,10 @@ export interface StoreCatalogProps {
    * `default`: la sección de productos dentro de cualquier plantilla.
    * `mercado`: además arma la cabecera con el buscador, porque ese buscador y
    * el del catálogo son el mismo estado.
+   * `organico`: la misma sección que `default` (buscador dentro del catálogo),
+   * con pestañas en píldora centradas y tarjetas crema muy redondeadas.
    */
-  variant?: "mercado" | "default";
+  variant?: "mercado" | "organico" | "default";
   /** Título de la sección (lo arma el servidor). */
   heading?: ReactNode;
   /** Solo `mercado`: piezas del servidor alrededor del buscador. */
@@ -282,7 +284,7 @@ export function StoreCatalog({ site, variant = "default", heading, topBar, brand
 
   if (!isMercado) {
     return (
-      <section id="productos" ref={sectionRef} className={`site-section site-products-section site-reveal ${styles.catalog}`}>
+      <section id="productos" ref={sectionRef} className={`site-section site-products-section site-reveal ${styles.catalog} ${variant === "organico" ? styles.organico : ""}`}>
         {heading}
         <div className={styles.toolbar}>
           {tabs}

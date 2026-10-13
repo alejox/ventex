@@ -247,6 +247,25 @@ export const SITE_PALETTES: Record<SiteTemplate, SitePalette> = {
     "--site-body-font": "var(--font-mercado-body), Lato, var(--font-plus-jakarta-sans), Arial, sans-serif",
     "--site-shadow": "0 14px 36px rgba(17, 17, 17, 0.08)",
   },
+  // Tienda natural: crema cálida, naranja de marca y verde de apoyo, tarjetas
+  // muy redondeadas. Itim + Outfit las publica `OrganicoTemplate`.
+  organico: {
+    "--site-bg": "#f7f6f1",
+    "--site-surface": "#ffffff",
+    "--site-surface-alt": "#f3f1ea",
+    "--site-text": "#232323",
+    "--site-muted": "#5e5b53",
+    "--site-on-surface": "#232323",
+    "--site-on-surface-muted": "#5e5b53",
+    "--site-on-surface-border": "#ebe7da",
+    "--site-accent": "#f78914",
+    "--site-on-accent": "#ffffff",
+    "--site-border": "#e6e1d2",
+    "--site-radius": "25px",
+    "--site-heading-font": "var(--font-organico-heading), Itim, 'Comic Neue', Arial, sans-serif",
+    "--site-body-font": "var(--font-organico-body), Outfit, var(--font-plus-jakarta-sans), Arial, sans-serif",
+    "--site-shadow": "0 18px 40px rgba(35, 35, 35, 0.08)",
+  },
 };
 
 export function paletteFor(config: LandingConfig): SitePalette {

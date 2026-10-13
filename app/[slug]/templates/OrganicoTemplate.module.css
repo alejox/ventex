@@ -1,0 +1,327 @@
+/*
+ * Orgánico. Los colores de marca salen de la paleta (`--site-*`, así el color
+ * principal del dueño manda); el verde de apoyo es propio de la plantilla y
+ * las formas de la portada son CSS puro.
+ */
+
+.root {
+  --organico-green: #8ac224;
+  --organico-cream: #f3f1ea;
+  --organico-footer: #232323;
+  font-size: 16px;
+}
+
+.root :global(.site-section-kicker) {
+  color: var(--organico-green);
+  font-family: var(--site-heading-font);
+  font-size: 18px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.root :global(.site-section-title) {
+  font-family: var(--site-heading-font);
+  font-size: clamp(30px, 4.4vw, 48px);
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+/* Cabecera clara y pegajosa. */
+.header {
+  background: color-mix(in srgb, var(--site-bg) 92%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--site-border);
+  position: sticky;
+  top: 0;
+  z-index: 30;
+}
+
+.headerInner {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  margin: 0 auto;
+  max-width: var(--content-width);
+  padding: 14px 32px;
+}
+
+.brand {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  min-width: 0;
+}
+
+.logo {
+  border-radius: 999px;
+  height: 44px;
+  object-fit: cover;
+  width: 44px;
+}
+
+.mark {
+  align-items: center;
+  background: var(--site-accent);
+  border-radius: 999px;
+  color: var(--site-on-accent);
+  display: inline-flex;
+  flex: none;
+  font-family: var(--site-heading-font);
+  font-size: 22px;
+  height: 44px;
+  justify-content: center;
+  width: 44px;
+}
+
+.brandName {
+  font-family: var(--site-heading-font);
+  font-size: 22px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.headerCta {
+  align-items: center;
+  background: var(--organico-green);
+  border-radius: 999px;
+  color: #ffffff;
+  display: inline-flex;
+  flex: none;
+  font-weight: 700;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 18px;
+}
+
+/* Portada crema con formas decorativas. */
+.hero {
+  background: var(--organico-cream);
+  overflow: hidden;
+  position: relative;
+}
+
+.heroInner {
+  align-items: center;
+  display: grid;
+  gap: 40px;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr);
+  margin: 0 auto;
+  max-width: var(--content-width);
+  min-height: 440px;
+  padding: 72px 32px 96px;
+  position: relative;
+  z-index: 1;
+}
+
+.shape {
+  border-radius: 999px;
+  pointer-events: none;
+  position: absolute;
+}
+
+.shapeOrange {
+  background: color-mix(in srgb, var(--site-accent) 22%, transparent);
+  height: 340px;
+  right: -90px;
+  top: -110px;
+  width: 340px;
+}
+
+.shapeGreen {
+  background: color-mix(in srgb, var(--organico-green) 26%, transparent);
+  bottom: -70px;
+  height: 200px;
+  left: -60px;
+  width: 200px;
+}
+
+.shapeDots {
+  background-image: radial-gradient(color-mix(in srgb, var(--site-accent) 55%, transparent) 2px, transparent 2.5px);
+  background-size: 16px 16px;
+  border-radius: 0;
+  height: 96px;
+  left: 46%;
+  top: 36px;
+  width: 112px;
+}
+
+.heroCopy { min-width: 0; }
+
+.eyebrow {
+  background: color-mix(in srgb, var(--organico-green) 18%, #ffffff);
+  border-radius: 999px;
+  color: color-mix(in srgb, var(--organico-green) 55%, #1f2a0a);
+  display: inline-block;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 6px 14px;
+}
+
+.title {
+  font-family: var(--site-heading-font);
+  font-size: clamp(36px, 6vw, 64px);
+  font-weight: 400;
+  line-height: 1.08;
+  margin-top: 16px;
+  overflow-wrap: anywhere;
+}
+
+.description {
+  color: var(--site-muted);
+  font-size: 18px;
+  line-height: 1.6;
+  margin-top: 16px;
+  max-width: 520px;
+}
+
+.status {
+  color: var(--site-muted);
+  margin-top: 14px;
+}
+
+.actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px 18px;
+  margin-top: 26px;
+}
+
+.cta {
+  align-items: center;
+  background: var(--site-accent);
+  border-radius: 999px;
+  box-shadow: 0 12px 26px color-mix(in srgb, var(--site-accent) 30%, transparent);
+  color: var(--site-on-accent);
+  display: inline-flex;
+  font-weight: 700;
+  min-height: 52px;
+  padding: 0 30px;
+}
+
+.cta:focus-visible,
+.headerCta:focus-visible {
+  outline: 2px solid var(--site-text);
+  outline-offset: 3px;
+}
+
+.hint {
+  color: var(--site-muted);
+  font-size: 14px;
+}
+
+.heroImage {
+  aspect-ratio: 1;
+  border: 10px solid #ffffff;
+  border-radius: 46% 54% 50% 50% / 52% 46% 54% 48%;
+  box-shadow: var(--site-shadow);
+  justify-self: center;
+  overflow: hidden;
+  position: relative;
+  width: min(100%, 420px);
+}
+
+.photo { object-fit: cover; }
+
+/* El catálogo sube sobre la portada en una franja clara redondeada. */
+.catalogBand {
+  background: var(--site-surface);
+  border-radius: 40px 40px 0 0;
+  margin-top: -40px;
+  position: relative;
+  z-index: 2;
+}
+
+.catalogBand :global(.site-section) { padding-top: 72px; }
+
+/* Pie oscuro. */
+.footer {
+  background: var(--organico-footer);
+  border-radius: 40px 40px 0 0;
+  color: #dcdad2;
+  margin-top: 40px;
+}
+
+.footerInner {
+  align-items: flex-start;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  justify-content: space-between;
+  margin: 0 auto;
+  max-width: var(--content-width);
+  padding: 52px 32px 28px;
+}
+
+.footerName {
+  color: #ffffff;
+  font-family: var(--site-heading-font);
+  font-size: 24px;
+}
+
+.footerMuted {
+  color: #a9a69c;
+  margin-top: 6px;
+}
+
+.footerLinks {
+  display: flex;
+  gap: 10px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.footerLinks a {
+  align-items: center;
+  background: #2f2f2f;
+  border-radius: 999px;
+  display: inline-flex;
+  height: 40px;
+  justify-content: center;
+  width: 40px;
+}
+
+.footerBottom {
+  border-top: 1px solid #353535;
+  color: #a9a69c;
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 12px;
+  gap: 8px;
+  justify-content: space-between;
+  margin: 0 auto;
+  max-width: var(--content-width);
+  padding: 18px 32px 28px;
+}
+
+@media (max-width: 900px) {
+  .heroInner { grid-template-columns: 1fr; min-height: 0; padding: 48px 32px 80px; }
+  .heroImage { width: min(100%, 340px); }
+  .shapeDots { display: none; }
+}
+
+@media (max-width: 639px) {
+  .headerInner { gap: 10px; padding: 10px 16px; }
+  .brandName { font-size: 19px; }
+  .headerCta { padding: 0; width: 44px; justify-content: center; }
+  .headerCtaText {
+    clip: rect(0 0 0 0);
+    height: 1px;
+    overflow: hidden;
+    position: absolute;
+    white-space: nowrap;
+    width: 1px;
+  }
+  .heroInner { gap: 28px; padding: 36px 16px 72px; }
+  .shapeOrange { height: 220px; right: -110px; top: -90px; width: 220px; }
+  .shapeGreen { height: 140px; width: 140px; }
+  .description { font-size: 16px; }
+  .catalogBand { border-radius: 28px 28px 0 0; }
+  .catalogBand :global(.site-section) { padding-top: 48px; }
+  .footer { border-radius: 28px 28px 0 0; }
+  .footerInner, .footerBottom { padding-left: 16px; padding-right: 16px; }
+}

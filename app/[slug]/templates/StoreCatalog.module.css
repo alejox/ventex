@@ -500,6 +500,104 @@
   top: -4px;
 }
 
+/* --- Orgánico: buscador arriba, píldoras centradas y tarjetas crema. --- */
+
+.organico :global(.site-section-heading) {
+  margin-inline: auto;
+  text-align: center;
+}
+
+.organico .toolbar {
+  flex-direction: column;
+  gap: 18px;
+  justify-content: flex-start;
+}
+
+.organico .searchBox {
+  flex: none;
+  max-width: 420px;
+  order: -1;
+  width: 100%;
+}
+
+.organico .search {
+  background: var(--site-surface-alt);
+  border-radius: 999px;
+  padding: 0 20px;
+}
+
+/* Centradas mientras caben; si no, se desplazan sin cortar la primera. */
+.organico .tabs {
+  gap: 10px;
+  margin-inline: auto;
+  width: fit-content;
+}
+
+.organico .tab {
+  background: var(--site-surface);
+  border-color: var(--site-border);
+  font-family: var(--site-heading-font);
+  font-size: 16px;
+  font-weight: 400;
+  min-height: 42px;
+  padding: 0 20px;
+}
+
+.organico .tab[aria-pressed="true"] {
+  background: var(--site-accent);
+  border-color: var(--site-accent);
+  color: var(--site-on-accent);
+}
+
+.organico .grid { gap: 24px; }
+
+.organico .card {
+  background: var(--site-surface-alt);
+  border: 0;
+  padding: 12px;
+  transition: box-shadow .2s ease, transform .2s ease;
+}
+
+.organico .card:hover {
+  box-shadow: var(--site-shadow);
+  transform: translateY(-2px);
+}
+
+.organico .media {
+  background: var(--site-surface);
+  border-radius: 20px;
+  overflow: hidden;
+}
+
+.organico .badge {
+  background: var(--organico-green, var(--site-accent));
+  color: #ffffff;
+}
+
+.organico .body { padding: 14px 6px 4px; }
+
+.organico .name {
+  font-family: var(--site-heading-font);
+  font-size: 18px;
+  font-weight: 400;
+}
+
+.organico .price {
+  color: var(--site-accent);
+  font-size: 18px;
+}
+
+.organico .add,
+.organico .stepBtn {
+  background: var(--organico-green, var(--site-accent));
+  color: #ffffff;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .organico .card { transition: none; }
+  .organico .card:hover { transform: none; }
+}
+
 @media (max-width: 1023px) {
   .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
@@ -513,4 +611,9 @@
   .mSearch { flex-basis: 100%; margin-left: 0; max-width: none; order: 3; }
   .mCart { margin-left: auto; }
   .mSection { padding-top: 40px; }
+  .organico .grid { gap: 12px; }
+  .organico .card { padding: 8px; }
+  .organico .media { border-radius: 18px; }
+  .organico .body { padding: 10px 4px 2px; }
+  .organico .name { font-size: 16px; }
 }

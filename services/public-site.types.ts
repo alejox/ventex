@@ -20,6 +20,7 @@ export const SITE_TEMPLATES = [
   "lezar",
   "zen",
   "mercado",
+  "organico",
 ] as const;
 export type SiteTemplate = (typeof SITE_TEMPLATES)[number];
 
@@ -45,7 +46,7 @@ const SALON_ONLY_TEMPLATES: SiteTemplate[] = [
  * Diseños de tienda: un catálogo con pedido por WhatsApp. Una tienda ve SOLO
  * estos, y ningún otro rubro los ve (salvo quien ya tenga uno guardado).
  */
-const TIENDA_TEMPLATES: SiteTemplate[] = ["mercado"];
+const TIENDA_TEMPLATES: SiteTemplate[] = ["mercado", "organico"];
 
 /**
  * Pestañas del selector de diseño: barberías, salones y spa, y tiendas. Una
@@ -70,6 +71,7 @@ export const TEMPLATE_GROUPS: Record<SiteTemplate, TemplateGroup> = {
   "barberia-artesanal": "barberia",
   "barberia-urbana": "barberia",
   mercado: "tienda",
+  organico: "tienda",
 };
 
 export const TEMPLATE_LABELS: Record<SiteTemplate, string> = {
@@ -83,6 +85,7 @@ export const TEMPLATE_LABELS: Record<SiteTemplate, string> = {
   lezar: "Lezar",
   zen: "Zen",
   mercado: "Mercado",
+  organico: "Orgánico",
 };
 
 export const TEMPLATE_DESCRIPTIONS: Record<SiteTemplate, string> = {
@@ -96,6 +99,7 @@ export const TEMPLATE_DESCRIPTIONS: Record<SiteTemplate, string> = {
   lezar: "Arena y verde azulado con detalles dorados y letra manuscrita, para salones y estética.",
   zen: "Lavanda serena y redondeada, para spa, masajes y bienestar.",
   mercado: "Fresco y verde, con buscador y categorías, para que tus clientes armen su pedido por WhatsApp.",
+  organico: "Cálido y cercano, en tonos crema con naranja y verde, para tiendas naturales, mercados y panaderías.",
 };
 
 /**
@@ -242,6 +246,8 @@ export const DEFAULT_SITE_IMAGES: Record<SiteTemplate, string> = {
   // Mercado no trae foto de portada: sus paneles son CSS y la foto, opcional,
   // la sube el negocio. Vacío = sin foto.
   mercado: "",
+  // Orgánico tampoco: sus formas decorativas son CSS.
+  organico: "",
 };
 
 export const DEFAULT_SITE_DETAIL_IMAGES = {
