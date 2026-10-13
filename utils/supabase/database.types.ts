@@ -4275,7 +4275,6 @@ export type Database = {
         Args: { p_staff_id: string }
         Returns: string
       }
-      own_site_preview: { Args: never; Returns: Json }
       product_unit_factor: {
         Args: {
           p_content_qty: number
@@ -4639,7 +4638,6 @@ export type Database = {
         Args: { p_config: Json; p_key: string }
         Returns: string[]
       }
-      site_public_projection: { Args: { p_user_id: string }; Returns: Json }
       staff_can: { Args: { section: string }; Returns: boolean }
       staff_can_action: {
         Args: { action?: string; section: string }

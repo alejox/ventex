@@ -58,3 +58,6 @@ next-env.d.ts
 .aider*
 /.codegraph/
 /supabase/.temp/
+
+# Purchased website templates used only as visual reference (licensed; never commit)
+/public/webs/
