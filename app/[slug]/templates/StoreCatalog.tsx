@@ -95,19 +95,24 @@ export interface StoreCatalogProps {
    * el del catálogo son el mismo estado.
    * `organico`: la misma sección que `default` (buscador dentro del catálogo),
    * con pestañas en píldora centradas y tarjetas crema muy redondeadas.
+   * `despensa`: como `mercado` arma la cabecera con el buscador, y además una
+   * barra oscura de categorías y una columna lateral de categorías junto a la
+   * grilla; las tarjetas llevan un botón "Agregar" a todo el ancho.
    */
-  variant?: "mercado" | "organico" | "default";
+  variant?: "mercado" | "organico" | "despensa" | "default";
   /** Título de la sección (lo arma el servidor). */
   heading?: ReactNode;
-  /** Solo `mercado`: piezas del servidor alrededor del buscador. */
+  /** Solo `mercado`/`despensa`: piezas del servidor alrededor del buscador. */
   topBar?: ReactNode;
   brand?: ReactNode;
   hero?: ReactNode;
-  /** Solo `mercado`: false = la sección de productos está oculta o vacía. */
+  /** Solo `despensa`: lo que va a la derecha de la barra de categorías. */
+  navEnd?: ReactNode;
+  /** Solo `mercado`/`despensa`: false = la sección de productos está oculta o vacía. */
   showCatalog?: boolean;
 }
 
-export function StoreCatalog({ site, variant = "default", heading, topBar, brand, hero, showCatalog = true }: StoreCatalogProps) {
+export function StoreCatalog({ site, variant = "default", heading, topBar, brand, hero, navEnd, showCatalog = true }: StoreCatalogProps) {
   const slug = site.slug;
   const products = site.products;
   const [categoryId, setCategoryId] = useState<string | null>(null);
@@ -141,6 +146,8 @@ export function StoreCatalog({ site, variant = "default", heading, topBar, brand
   const openOrder = () => dialogRef.current?.showModal();
   const closeOrder = () => dialogRef.current?.close();
   const isMercado = variant === "mercado";
+  const isDespensa = variant === "despensa";
+  const goToCatalog = () => sectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
 
   const search = (
     <input
@@ -205,7 +212,7 @@ export function StoreCatalog({ site, variant = "default", heading, topBar, brand
                       disabled={!product.inStock}
                       onClick={() => update((current) => addToOrder(current, product))}
                     >
-                      +
+                      {isDespensa ? (product.inStock ? <><span aria-hidden="true">+</span> Agregar</> : "Agotado") : "+"}
                     </button>
                   )
                 ) : null}
@@ -282,6 +289,85 @@ export function StoreCatalog({ site, variant = "default", heading, topBar, brand
     </>
   ) : null;
 
+  const headerSearch = showCatalog ? (
+    <form
+      role="search"
+      className={styles.mSearch}
+      onSubmit={(event) => {
+        event.preventDefault();
+        goToCatalog();
+      }}
+    >
+      {search}
+      <button type="submit" className={styles.mSearchBtn} aria-label="Buscar">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" strokeWidth="2" /><path d="m20 20-3.5-3.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
+      </button>
+    </form>
+  ) : null;
+
+  const cartButton = showCatalog && canOrder ? (
+    <button type="button" className={styles.mCart} onClick={openOrder} aria-label={`Ver tu pedido: ${units(count)}`}>
+      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M3 4h2l2.4 11.2a1 1 0 0 0 1 .8h9.2a1 1 0 0 0 1-.8L20 8H6.2" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /><circle cx="9" cy="20" r="1.4" fill="currentColor" /><circle cx="17" cy="20" r="1.4" fill="currentColor" /></svg>
+      {count ? <span className={styles.mCartCount} aria-hidden="true">{count}</span> : null}
+    </button>
+  ) : null;
+
+  if (isDespensa) {
+    // Barra oscura: atajos a las categorías. Elegir una filtra y baja al catálogo.
+    const navLinks = showCatalog && site.categories.length ? (
+      <div className={styles.dNavLinks} role="group" aria-label="Atajos de categorías">
+        {[{ id: null, name: "Todas las categorías" }, ...site.categories].map((category) => (
+          <button
+            key={category.id ?? "todas"}
+            type="button"
+            aria-pressed={categoryId === category.id}
+            className={styles.dNavLink}
+            onClick={() => { setCategoryId(category.id); goToCatalog(); }}
+          >
+            {category.name}
+          </button>
+        ))}
+      </div>
+    ) : null;
+
+    return (
+      <div className={`${styles.catalog} ${styles.despensa}`}>
+        {topBar}
+        <header id="inicio" className={styles.mHeader}>
+          <div className={styles.mHeaderInner}>
+            {brand}
+            {headerSearch}
+            {cartButton}
+          </div>
+        </header>
+        {navLinks || navEnd ? (
+          <nav className={styles.dNav} aria-label="Categorías">
+            <div className={styles.dNavInner}>
+              {navLinks ?? <span />}
+              {navEnd}
+            </div>
+          </nav>
+        ) : null}
+        {hero}
+        {showCatalog ? (
+          <section id="productos" ref={sectionRef} className={`site-section site-products-section ${styles.mSection}`}>
+            {heading}
+            <div className={`${styles.dLayout} ${tabs ? "" : styles.dLayoutFull}`}>
+              {tabs ? (
+                <aside className={styles.dAside}>
+                  <p className={styles.dAsideTitle}>Categorías</p>
+                  {tabs}
+                </aside>
+              ) : null}
+              <div className={styles.dMain}>{grid}</div>
+            </div>
+          </section>
+        ) : null}
+        {showCatalog ? orderUi : null}
+      </div>
+    );
+  }
+
   if (!isMercado) {
     return (
       <section id="productos" ref={sectionRef} className={`site-section site-products-section site-reveal ${styles.catalog} ${variant === "organico" ? styles.organico : ""}`}>
@@ -302,27 +388,8 @@ export function StoreCatalog({ site, variant = "default", heading, topBar, brand
       <header id="inicio" className={styles.mHeader}>
         <div className={styles.mHeaderInner}>
           {brand}
-          {showCatalog ? (
-            <form
-              role="search"
-              className={styles.mSearch}
-              onSubmit={(event) => {
-                event.preventDefault();
-                sectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-              }}
-            >
-              {search}
-              <button type="submit" className={styles.mSearchBtn} aria-label="Buscar">
-                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" strokeWidth="2" /><path d="m20 20-3.5-3.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
-              </button>
-            </form>
-          ) : null}
-          {showCatalog && canOrder ? (
-            <button type="button" className={styles.mCart} onClick={openOrder} aria-label={`Ver tu pedido: ${units(count)}`}>
-              <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M3 4h2l2.4 11.2a1 1 0 0 0 1 .8h9.2a1 1 0 0 0 1-.8L20 8H6.2" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /><circle cx="9" cy="20" r="1.4" fill="currentColor" /><circle cx="17" cy="20" r="1.4" fill="currentColor" /></svg>
-              {count ? <span className={styles.mCartCount} aria-hidden="true">{count}</span> : null}
-            </button>
-          ) : null}
+          {headerSearch}
+          {cartButton}
         </div>
       </header>
       {hero}

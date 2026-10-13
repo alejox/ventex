@@ -2,6 +2,7 @@ import type { PublicSite } from "@/services/public-site.types";
 import { BarberArtesanalTemplate } from "./BarberArtesanalTemplate";
 import { BarberModernTemplate } from "./BarberModernTemplate";
 import { BarberUrbanaTemplate } from "./BarberUrbanaTemplate";
+import { DespensaTemplate } from "./DespensaTemplate";
 import { FallspaTemplate } from "./FallspaTemplate";
 import { MercadoTemplate } from "./MercadoTemplate";
 import { OrganicoTemplate } from "./OrganicoTemplate";
@@ -18,6 +19,7 @@ export function SiteTemplateRenderer({ site, preview = false }: { site: PublicSi
     case "barberia-urbana": return <BarberUrbanaTemplate site={site} preview={preview} />;
     case "mercado": return <MercadoTemplate site={site} preview={preview} />;
     case "organico": return <OrganicoTemplate site={site} preview={preview} />;
+    case "despensa": return <DespensaTemplate site={site} preview={preview} />;
     case "luxia":
     case "lezar":
     case "zen": return <SalonTemplate site={site} preview={preview} variant={site.template} />;

@@ -38,7 +38,7 @@ const TABS: { id: EditorTab; label: string }[] = [
   { id: "business", label: "Negocio" },
   { id: "seo", label: "SEO" },
 ];
-const DEFAULT_COLORS = { rasm: "#a96550", fallspa: "#a87696", qutter: "#d5a928", barberia: "#c5a572", "barberia-artesanal": "#552d25", "barberia-urbana": "#538167", luxia: "#f08b78", lezar: "#5b7c84", zen: "#8e3fb8", mercado: "#269c53", organico: "#f78914" };
+const DEFAULT_COLORS = { rasm: "#a96550", fallspa: "#a87696", qutter: "#d5a928", barberia: "#c5a572", "barberia-artesanal": "#552d25", "barberia-urbana": "#538167", luxia: "#f08b78", lezar: "#5b7c84", zen: "#8e3fb8", mercado: "#269c53", organico: "#f78914", despensa: "#629d23" };
 
 export function LandingEditor({ siteId: initialSiteId, onSaved, onBack, initial, initialHours, initialPublished, currentSlug, businessName, businessType, logoUrl }: {
   /** Página que se edita; sin id es una página nueva que todavía no se guardó. */

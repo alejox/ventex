@@ -21,6 +21,7 @@ export const SITE_TEMPLATES = [
   "zen",
   "mercado",
   "organico",
+  "despensa",
 ] as const;
 export type SiteTemplate = (typeof SITE_TEMPLATES)[number];
 
@@ -46,7 +47,7 @@ const SALON_ONLY_TEMPLATES: SiteTemplate[] = [
  * Diseños de tienda: un catálogo con pedido por WhatsApp. Una tienda ve SOLO
  * estos, y ningún otro rubro los ve (salvo quien ya tenga uno guardado).
  */
-const TIENDA_TEMPLATES: SiteTemplate[] = ["mercado", "organico"];
+const TIENDA_TEMPLATES: SiteTemplate[] = ["mercado", "organico", "despensa"];
 
 /**
  * Pestañas del selector de diseño: barberías, salones y spa, y tiendas. Una
@@ -72,6 +73,7 @@ export const TEMPLATE_GROUPS: Record<SiteTemplate, TemplateGroup> = {
   "barberia-urbana": "barberia",
   mercado: "tienda",
   organico: "tienda",
+  despensa: "tienda",
 };
 
 export const TEMPLATE_LABELS: Record<SiteTemplate, string> = {
@@ -86,6 +88,7 @@ export const TEMPLATE_LABELS: Record<SiteTemplate, string> = {
   zen: "Zen",
   mercado: "Mercado",
   organico: "Orgánico",
+  despensa: "Despensa",
 };
 
 export const TEMPLATE_DESCRIPTIONS: Record<SiteTemplate, string> = {
@@ -100,6 +103,7 @@ export const TEMPLATE_DESCRIPTIONS: Record<SiteTemplate, string> = {
   zen: "Lavanda serena y redondeada, para spa, masajes y bienestar.",
   mercado: "Fresco y verde, con buscador y categorías, para que tus clientes armen su pedido por WhatsApp.",
   organico: "Cálido y cercano, en tonos crema con naranja y verde, para tiendas naturales, mercados y panaderías.",
+  despensa: "Denso y ordenado, con categorías a la vista, para supermercados, minimercados y tiendas de barrio con mucho surtido.",
 };
 
 /**
@@ -248,6 +252,8 @@ export const DEFAULT_SITE_IMAGES: Record<SiteTemplate, string> = {
   mercado: "",
   // Orgánico tampoco: sus formas decorativas son CSS.
   organico: "",
+  // Despensa tampoco: su portada es una banda de color.
+  despensa: "",
 };
 
 export const DEFAULT_SITE_DETAIL_IMAGES = {

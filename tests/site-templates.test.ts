@@ -34,17 +34,29 @@ test("orgánico está registrada, en el grupo Tiendas, sin foto con licencia y c
   assert.equal(normalizeLandingConfig({ template: "organico" }).template, "organico");
 });
 
+test("despensa está registrada después de orgánico, en el grupo Tiendas, sin foto con licencia y con copia", () => {
+  assert.ok(SITE_TEMPLATES.includes("despensa"));
+  assert.equal(SITE_TEMPLATES.indexOf("despensa"), SITE_TEMPLATES.indexOf("organico") + 1);
+  assert.equal(TEMPLATE_GROUPS.despensa, "tienda");
+  assert.equal(TEMPLATE_LABELS.despensa, "Despensa");
+  assert.ok(TEMPLATE_DESCRIPTIONS.despensa);
+  assert.equal(DEFAULT_SITE_IMAGES.despensa, "");
+  assert.equal(normalizeLandingConfig({ template: "despensa" }).template, "despensa");
+});
+
 test("tienda ve SOLO las plantillas de tienda", () => {
   const offered = templatesFor("tienda");
-  assert.deepEqual(offered, ["mercado", "organico"]);
+  assert.deepEqual(offered, ["mercado", "organico", "despensa"]);
   for (const template of offered) assert.equal(TEMPLATE_GROUPS[template], "tienda");
 });
 
 test("una tienda con una plantilla vieja la conserva en la lista", () => {
-  assert.deepEqual(templatesFor("tienda", "rasm"), ["rasm", "mercado", "organico"]);
-  assert.deepEqual(templatesFor("tienda", "barberia-artesanal"), ["barberia-artesanal", "mercado", "organico"]);
-  assert.deepEqual(templatesFor("tienda", "mercado"), ["mercado", "organico"]);
-  assert.deepEqual(templatesFor("tienda", "organico"), ["mercado", "organico"]);
+  const STORE = ["mercado", "organico", "despensa"];
+  assert.deepEqual(templatesFor("tienda", "rasm"), ["rasm", ...STORE]);
+  assert.deepEqual(templatesFor("tienda", "barberia-artesanal"), ["barberia-artesanal", ...STORE]);
+  assert.deepEqual(templatesFor("tienda", "mercado"), STORE);
+  assert.deepEqual(templatesFor("tienda", "organico"), STORE);
+  assert.deepEqual(templatesFor("tienda", "despensa"), STORE);
 });
 
 test("los demás rubros ven exactamente lo de antes, sin plantillas de tienda", () => {
@@ -59,4 +71,5 @@ test("un negocio que dejó de ser tienda conserva su plantilla de tienda guardad
   assert.deepEqual(templatesFor("salon", "mercado"), [...SALON, "mercado"]);
   assert.deepEqual(templatesFor("salon", "organico"), [...SALON, "organico"]);
   assert.deepEqual(templatesFor("servicios", "organico"), [...LEGACY, "organico"]);
+  assert.deepEqual(templatesFor("salon", "despensa"), [...SALON, "despensa"]);
 });

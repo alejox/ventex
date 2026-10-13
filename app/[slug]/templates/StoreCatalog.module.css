@@ -617,3 +617,250 @@
   .organico .body { padding: 10px 4px 2px; }
   .organico .name { font-size: 16px; }
 }
+
+/* --- Despensa: supermercado denso. Barra oscura de categorías, columna
+   lateral en escritorio y tarjetas con borde fino y "Agregar" a todo el ancho. --- */
+
+.despensa .mHeader { border-bottom: 0; }
+
+.despensa .mSearch {
+  border: 1px solid var(--site-border);
+  border-radius: 6px;
+  max-width: 640px;
+}
+
+.despensa .mSearch .search { background: var(--site-surface-alt); }
+
+.despensa .mSearchBtn { border-radius: 0; }
+
+.despensa .mCart { border-radius: 6px; }
+
+.despensa .mCartCount,
+.despensa .badge {
+  background: var(--despensa-orange, #ff8f3c);
+  color: #ffffff;
+}
+
+.dNav {
+  background: var(--despensa-dark, #1f1f25);
+  color: #ffffff;
+}
+
+.dNavInner {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  margin: 0 auto;
+  max-width: var(--content-width, 1200px);
+  min-height: 50px;
+  padding: 0 32px;
+}
+
+.dNavLinks {
+  display: flex;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.dNavLink {
+  background: none;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  color: rgba(255, 255, 255, .82);
+  cursor: pointer;
+  flex: none;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  min-height: 50px;
+  padding: 0 14px;
+  white-space: nowrap;
+}
+
+.dNavLink:first-child {
+  background: var(--site-accent);
+  color: var(--site-on-accent);
+}
+
+.dNavLink[aria-pressed="true"] {
+  border-bottom-color: var(--site-accent);
+  color: #ffffff;
+}
+
+.dNavLink:first-child[aria-pressed="true"] { border-bottom-color: transparent; }
+
+.dNavLink:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: -4px;
+}
+
+.dLayout {
+  align-items: start;
+  display: grid;
+  gap: 28px;
+  grid-template-columns: 240px minmax(0, 1fr);
+  margin-top: 28px;
+}
+
+.dLayoutFull { grid-template-columns: minmax(0, 1fr); }
+
+.dMain { min-width: 0; }
+
+.dAside {
+  border: 1px solid var(--site-border);
+  border-radius: 6px;
+  min-width: 0;
+  padding: 16px;
+  position: sticky;
+  top: 96px;
+}
+
+.dAsideTitle {
+  border-bottom: 1px solid var(--site-border);
+  color: var(--site-text);
+  font-family: var(--site-heading-font);
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  padding-bottom: 10px;
+}
+
+/* En escritorio las pestañas son una lista vertical. */
+.despensa .dAside .tabs {
+  flex-direction: column;
+  gap: 2px;
+  overflow: visible;
+  padding: 0;
+}
+
+.despensa .dAside .tab {
+  border: 0;
+  border-radius: 4px;
+  color: var(--site-muted);
+  font-size: 15px;
+  font-weight: 500;
+  justify-content: flex-start;
+  padding: 0 10px;
+  text-align: left;
+  white-space: normal;
+}
+
+.despensa .dAside .tab:hover { color: var(--site-accent); }
+
+.despensa .dAside .tab[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--site-accent) 12%, #ffffff);
+  color: var(--site-accent);
+  font-weight: 700;
+}
+
+.despensa .grid {
+  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  margin-top: 0;
+}
+
+.despensa .card {
+  border: 1px solid var(--site-border);
+  border-radius: 6px;
+  transition: border-color .2s ease, box-shadow .2s ease;
+}
+
+.despensa .card:hover {
+  border-color: color-mix(in srgb, var(--site-accent) 45%, var(--site-border));
+  box-shadow: var(--site-shadow);
+}
+
+.despensa .media {
+  background: var(--site-surface-alt);
+  margin: 10px 10px 0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.despensa .badge {
+  border-radius: 4px;
+  left: 8px;
+  top: 8px;
+}
+
+.despensa .body { padding: 12px; }
+
+.despensa .name {
+  font-family: var(--site-heading-font);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.despensa .row {
+  align-items: stretch;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.despensa .price {
+  color: var(--site-text);
+  font-family: var(--site-heading-font);
+  font-size: 19px;
+  font-weight: 700;
+}
+
+.despensa .row > .add {
+  border-radius: 6px;
+  font-size: 15px;
+  gap: 6px;
+  width: 100%;
+}
+
+.despensa .row > .add:disabled {
+  background: var(--site-surface-alt);
+  color: var(--site-muted);
+  opacity: 1;
+}
+
+.despensa .row > .stepper {
+  border: 1px solid var(--site-accent);
+  border-radius: 6px;
+  display: flex;
+  justify-content: space-between;
+  padding: 2px;
+}
+
+.despensa .stepper .stepBtn { border-radius: 4px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .despensa .card { transition: none; }
+}
+
+/* Celular y tableta: la columna lateral pasa a ser una fila desplazable. */
+@media (max-width: 1023px) {
+  .dLayout { gap: 18px; grid-template-columns: minmax(0, 1fr); }
+  .dAside { border: 0; padding: 0; position: static; }
+  .dAsideTitle { display: none; }
+  .despensa .dAside .tabs {
+    flex-direction: row;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+  .despensa .dAside .tab {
+    border: 1px solid var(--site-border);
+    white-space: nowrap;
+  }
+  .despensa .dAside .tab[aria-pressed="true"] {
+    background: var(--site-accent);
+    border-color: var(--site-accent);
+    color: var(--site-on-accent);
+  }
+}
+
+@media (max-width: 639px) {
+  .dNavInner { padding: 0 0 0 16px; gap: 8px; }
+  .dNavLink { font-size: 14px; padding: 0 12px; }
+  .despensa .grid { gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .despensa .media { margin: 8px 8px 0; }
+  .despensa .body { padding: 10px; }
+  .despensa .name { font-size: 15px; }
+  .despensa .price { font-size: 17px; }
+}

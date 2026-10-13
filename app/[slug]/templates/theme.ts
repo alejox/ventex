@@ -266,6 +266,25 @@ export const SITE_PALETTES: Record<SiteTemplate, SitePalette> = {
     "--site-body-font": "var(--font-organico-body), Outfit, var(--font-plus-jakarta-sans), Arial, sans-serif",
     "--site-shadow": "0 18px 40px rgba(35, 35, 35, 0.08)",
   },
+  // Supermercado denso: verde de marca, barra y pie casi negros, naranja para
+  // lo agotado y bordes finos. Barlow la publica `DespensaTemplate`.
+  despensa: {
+    "--site-bg": "#ffffff",
+    "--site-surface": "#ffffff",
+    "--site-surface-alt": "#f3f4f1",
+    "--site-text": "#2c3c28",
+    "--site-muted": "#6e777d",
+    "--site-on-surface": "#2c3c28",
+    "--site-on-surface-muted": "#6e777d",
+    "--site-on-surface-border": "#e8e8e8",
+    "--site-accent": "#629d23",
+    "--site-on-accent": "#ffffff",
+    "--site-border": "#e8e8e8",
+    "--site-radius": "6px",
+    "--site-heading-font": "var(--font-despensa), Barlow, 'Avenir Next', Arial, sans-serif",
+    "--site-body-font": "var(--font-despensa), Barlow, var(--font-plus-jakarta-sans), Arial, sans-serif",
+    "--site-shadow": "0 10px 28px rgba(31, 31, 37, 0.08)",
+  },
 };
 
 export function paletteFor(config: LandingConfig): SitePalette {
