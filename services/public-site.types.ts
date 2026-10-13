@@ -1,3 +1,5 @@
+import type { BusinessType } from "@/config/business";
+
 /**
  * Shape of the public micro-site payload.
  *
@@ -245,6 +247,52 @@ export function defaultLandingConfig(template: SiteTemplate = "rasm"): LandingCo
     catalog: { serviceCategoryIds: [], productCategoryIds: [], staffIds: [] },
     teamPhotoSize: "small",
   };
+}
+
+/**
+ * Lo que una TIENDA cambia de los valores por defecto. Su sitio es un catálogo
+ * con pedidos por WhatsApp, no un sitio de reservas: los productos van primero
+ * y servicios, equipo y reservas quedan ocultos (no borrados — el dueño puede
+ * encenderlos). Horarios sigue visible: una tienda también abre y cierra.
+ */
+const TIENDA_SECTION_ORDER: SiteSectionId[] = [
+  "products",
+  "about",
+  "gallery",
+  "hours",
+  "contact",
+  "services",
+  "team",
+  "booking",
+];
+const TIENDA_HIDDEN_SECTIONS: SiteSectionId[] = ["services", "team", "booking"];
+
+export interface SiteDefaults {
+  bookingEnabled: boolean;
+  config: LandingConfig;
+}
+
+/**
+ * Valores iniciales de un sitio NUEVO según el rubro. Solo `tienda` se aparta
+ * de los de siempre; cualquier otro tipo (o ninguno) recibe exactamente
+ * `defaultLandingConfig(template)` con reservas encendidas.
+ */
+export function siteDefaultsFor(
+  businessType: BusinessType | null | undefined,
+  template: SiteTemplate = "rasm",
+): SiteDefaults {
+  const config = defaultLandingConfig(template);
+  if (businessType !== "tienda") return { bookingEnabled: true, config };
+  const byId = new Map(config.sections.map((section) => [section.id, section]));
+  config.sections = TIENDA_SECTION_ORDER.map((id) => {
+    const section = byId.get(id)!;
+    return { ...section, visible: !TIENDA_HIDDEN_SECTIONS.includes(id) };
+  });
+  const products = config.sections[0];
+  products.title = "Nuestros productos";
+  products.subtitle = "Haz tu pedido por WhatsApp";
+  config.hero.eyebrow = "Bienvenido";
+  return { bookingEnabled: false, config };
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

@@ -84,7 +84,7 @@ function LandingScreen() {
   if (mode.kind === "new" || current) {
     const initial = current
       ? toSiteInput(current)
-      : { ...emptySiteInput(), slug: sites.length === 0 ? slugify(businessName) : "" };
+      : { ...emptySiteInput(businessType), slug: sites.length === 0 ? slugify(businessName) : "" };
     return (
       <LandingEditor
         // Misma `key` antes y después del primer guardado: es la misma edición.

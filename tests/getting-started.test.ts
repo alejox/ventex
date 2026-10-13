@@ -17,11 +17,16 @@ const NOTHING: GettingStartedFacts = {
 
 const ids = (steps: { id: string }[]) => steps.map((s) => s.id);
 
-test("tienda: producto, datos del negocio y primera venta — sin personal ni sitio", () => {
+test("tienda: producto, datos del negocio, catálogo web y primera venta — sin personal", () => {
   const steps = gettingStartedSteps("tienda", null, NOTHING);
-  assert.deepEqual(ids(steps), ["catalog", "business", "first-sale"]);
+  assert.deepEqual(ids(steps), ["catalog", "business", "site", "first-sale"]);
   assert.equal(steps[0].href, "/dashboard/inventory/product");
   assert.match(steps[0].label, /producto/);
+  const site = steps.find((s) => s.id === "site");
+  assert.equal(site?.href, "/dashboard/landing");
+  assert.match(site?.label ?? "", /catálogo/);
+  assert.match(site?.hint ?? "", /WhatsApp/);
+  assert.doesNotMatch(`${site?.label} ${site?.hint}`, /reserv/i);
 });
 
 test("salón: servicio, personal, datos, sitio de reservas y primera venta", () => {
@@ -77,9 +82,11 @@ test("todo hecho: el checklist se da por completo", () => {
     hasSale: true,
   };
   assert.equal(allGettingStartedDone(gettingStartedSteps("salon", null, all)), true);
-  // La tienda no necesita personal ni sitio para terminar.
+  // La tienda no necesita personal para terminar, pero sí publicar su catálogo.
+  const tiendaSinPersonal = { ...NOTHING, hasProduct: true, businessConfigured: true, hasSale: true };
+  assert.equal(allGettingStartedDone(gettingStartedSteps("tienda", null, tiendaSinPersonal)), false);
   assert.equal(
-    allGettingStartedDone(gettingStartedSteps("tienda", null, { ...NOTHING, hasProduct: true, businessConfigured: true, hasSale: true })),
+    allGettingStartedDone(gettingStartedSteps("tienda", null, { ...tiendaSinPersonal, sitePublished: true })),
     true,
   );
 });

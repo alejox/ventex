@@ -514,9 +514,9 @@ export const QUICK_ACTIONS: QuickAction[] = [
 // liquidarle. Liquidar es acto del DUEÑO —el RPC revalida `is_tenant_owner()`—
 // y por eso no figura como permiso de trabajador: un empleado nunca ve el ítem,
 // porque `workerNavItems` solo muestra lo que sus permisos nombran.
-// `landing` NO es universal: es el editor del sitio público de reservas, y una
-// tienda general no agenda citas ni tiene nada que reservar. Vive en
-// `BASE_NAV_BY_TYPE` para salón, lavaautos, servicios y escuela.
+// `landing` NO es universal: es el editor del sitio público, y QUÉ sitio es
+// depende del rubro (de reservas, de matrículas o catálogo de tienda). Vive en
+// `BASE_NAV_BY_TYPE` para cada rubro que lo usa.
 const UNIVERSAL_NAV_IDS = ["panel", "pos", "sales", "expenses", "reports", "credits", "customers", "staff", "commissions", "subscription"];
 
 /** Menú base por tipo de negocio (además de las universales). */
@@ -537,13 +537,13 @@ const UNIVERSAL_NAV_IDS = ["panel", "pos", "sales", "expenses", "reports", "cred
 // y el rubro terminaba con Compras y Proveedores pero sin la pantalla que los
 // alimenta.
 //
-// `landing` sale de acá para salón, lavaautos, servicios y escuela: los cuatro
-// atienden con cita/turno y les sirve un sitio público de reservas. Tienda NO
-// lo lleva —vende de mostrador, no agenda nada que reservar— y es el único
-// rubro que queda sin esta entrada.
+// `landing` sale de acá para todos los rubros. Salón, lavaautos y servicios
+// atienden con cita/turno y les sirve un sitio público de reservas. La tienda
+// no agenda nada: su sitio es un CATÁLOGO de productos donde el visitante arma
+// su pedido y lo manda por WhatsApp, sin reservas (ver `siteDefaultsFor`).
 const BASE_NAV_BY_TYPE: Record<BusinessType, string[]> = {
   salon: ["calendar", "landing"],
-  tienda: ["inventory", "categories", "distributors", "purchases", "pedidos"],
+  tienda: ["inventory", "categories", "distributors", "purchases", "pedidos", "landing"],
   lavaautos: ["calendar", "landing"],
   servicios: ["calendar", "landing"],
   // Sin base de calendario: agenda en Académico. `landing` sí aplica — una

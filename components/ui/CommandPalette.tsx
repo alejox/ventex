@@ -79,7 +79,7 @@ export const NAV_KEYWORDS: Record<string, string[]> = {
   staff: ["personal", "empleados", "equipo", "trabajadores"],
   commissions: ["comisiones", "liquidar"],
   subscription: ["plan", "suscripcion", "pago"],
-  landing: ["sitio web", "pagina", "reservas en linea"],
+  landing: ["sitio web", "pagina", "reservas en linea", "catalogo", "tienda en linea", "pedidos whatsapp"],
   settings: ["ajustes", "configuracion", "negocio", "impuestos"],
 };
 

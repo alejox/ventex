@@ -2,9 +2,10 @@ import { createClient } from "@/utils/supabase/client";
 import { getSelectedWorkspaceId } from "@/services/workspace.service";
 import type { Json } from "@/utils/supabase/database.types";
 import {
-  defaultLandingConfig,
   normalizeLandingConfig,
+  siteDefaultsFor,
 } from "@/services/public-site.types";
+import type { BusinessType } from "@/config/business";
 import type { LandingConfig } from "@/services/public-site.types";
 
 export interface BusinessSite {
@@ -57,14 +58,16 @@ export function defaultHours(): BusinessHour[] {
   }));
 }
 
-export function emptySiteInput(): SiteInput {
+/** Formulario de un sitio nuevo; los valores dependen del rubro (ver `siteDefaultsFor`). */
+export function emptySiteInput(businessType?: BusinessType | null): SiteInput {
+  const defaults = siteDefaultsFor(businessType);
   return {
     slug: "",
     site_name: "",
-    booking_enabled: true,
+    booking_enabled: defaults.bookingEnabled,
     timezone: "America/Bogota",
     slot_interval_minutes: 30,
-    draft_config: defaultLandingConfig(),
+    draft_config: defaults.config,
   };
 }
 

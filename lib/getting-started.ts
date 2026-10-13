@@ -120,13 +120,15 @@ export function gettingStartedSteps(
   });
 
   if (visibleNavItems(businessType, modules).some((item) => item.id === "landing")) {
+    const siteCopy =
+      businessType === "escuela"
+        ? { label: "Publica tu sitio web", hint: "Una página pública para que las familias te encuentren." }
+        : businessType === "tienda"
+          ? { label: "Publica tu catálogo en línea", hint: "Tus clientes ven tus productos y te hacen el pedido por WhatsApp." }
+          : { label: "Publica tu sitio de reservas", hint: "Tus clientes reservan solos, a cualquier hora." };
     steps.push({
       id: "site",
-      label: businessType === "escuela" ? "Publica tu sitio web" : "Publica tu sitio de reservas",
-      hint:
-        businessType === "escuela"
-          ? "Una página pública para que las familias te encuentren."
-          : "Tus clientes reservan solos, a cualquier hora.",
+      ...siteCopy,
       href: "/dashboard/landing",
       done: facts.sitePublished,
     });
