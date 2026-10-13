@@ -112,6 +112,18 @@ Fase 2 de las promociones de tienda (la fase 1 es "Ofertas de tienda", arriba). 
 - **Ajustes → Promociones (rama `tienda`) tiene DOS gestores, no uno.** `OffersManager` (fase 1) y `LoyaltyManager` (fase 2, `enabled`/pesos-por-punto/valor-por-punto/mínimo para canjear) se muestran juntos, en ese orden. Mismo split de permisos que el resto: escribe el dueño, `settings` se crea perezosa (leer-e-insertar-o-actualizar, igual que `savePromoConfig`).
 - **Clientes muestra saldo + historial, bajo demanda.** La ficha de un cliente (tienda con puntos activos) trae el saldo siempre, pero el historial del ledger se pide recién cuando el dueño toca "Ver movimientos" — una consulta más por cada apertura de ficha, en un negocio que ni siquiera es `tienda` la mayoría de las veces, no se justifica.
 
+# Sitio web de tienda: catálogo con pedido por WhatsApp
+
+`tienda` tiene "Página web" (`BASE_NAV_BY_TYPE.tienda` incluye `landing`), pero no es un sitio de reservas: es un catálogo donde el visitante arma un pedido y lo manda por WhatsApp. Plan y evidencia: `odd/tasks/tienda-website.md`.
+
+- **No hay e-commerce, a propósito.** Ni carrito persistido en la base, ni checkout, ni pago, ni reserva de stock: el pedido existe SOLO en el mensaje y lo confirma una persona del otro lado. Cobrar en línea a clientes de un negocio sería otra integración de pagos (hoy ePayco solo cobra la suscripción de Ventex) con stock, devoluciones y legal; se descartó por eso.
+- **Lógica pura, testeada**: `lib/site-order.ts` (líneas con cantidad ENTERA topada en `MAX_LINE_QTY`, total en centavos, `buildOrderMessage`, `orderWhatsappLink`) y `lib/store-catalog.ts` (`filterCatalog` sin tildes ni mayúsculas, disponibles primero; `restoreOrder` rearma un pedido guardado contra el catálogo de HOY: precio y nombre actuales, fuera lo agotado o borrado).
+- **El enlace sale de `lib/whatsapp.ts`**, puro. `services/promos.service.ts` lo reexporta; el sitio público NO importa ese servicio porque trae el cliente de Supabase. Sin un WhatsApp usable el catálogo se ve igual pero se esconde todo control de pedido, y el editor lo avisa en el panel Negocio.
+- **`StoreCatalog`** (`app/[slug]/templates/StoreCatalog.tsx`, cliente) es el catálogo de TODO sitio de tienda: `ProductsSection` lo usa cuando `businessType === "tienda"`, así que una tienda con plantilla vieja también lo tiene. El pedido se guarda en `localStorage` (`ventex:pedido:<slug>`) vía `useSyncExternalStore` con snapshot de servidor vacío: sin desfase de hidratación. Nombre y nota no se guardan.
+- **Plantillas de tienda**: `mercado` (por defecto) y `organico`, grupo "Tiendas". `templatesFor("tienda")` ofrece SOLO esas (más la guardada, si el sitio ya usaba otra); el resto de rubros nunca las ve. Una plantilla de tienda nueva va en `SITE_TEMPLATES` Y en `TIENDA_TEMPLATES`. Las de `public/webs/` son compras con licencia: se usaron como referencia visual, sin copiar código ni imágenes — no las commitees.
+- **Defaults** (`siteDefaultsFor`): sin reservas, productos primero, servicios/equipo/reservas ocultos. Solo aplican a sitios NUEVOS; `normalizeLandingConfig` respeta lo guardado.
+- **`public_site_by_slug` trae `categoryId` por producto y `categories`** (solo las que tienen productos visibles), y desde `20261013010000` excluye `is_ingredient` y no marca agotado lo que no controla stock (antes solo lo hacía `site_public_projection`, que ya no usa nadie).
+
 # Comisiones: el estado vive en la LÍNEA de venta
 
 `sale_items.commission_amount` es el monto congelado al vender; `sale_items.commission_settlement_id` dice si ya se pagó. No hay total "pendiente" guardado en ninguna parte — se deriva sumando las líneas sin liquidación, y eso es lo que impide que el número y el detalle se contradigan.
