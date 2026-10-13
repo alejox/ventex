@@ -39,7 +39,7 @@ import { RecipeSection, buildIngredientsMap, newEditorLine, type RecipeDraft } f
 import { editorLineIssues, editorToLines, parseQty, unitLabel } from "@/lib/recipe-editor";
 import { productionUnitCost, recipeCost } from "@/lib/recipes";
 import type { RecipeCostInfo } from "./components/ProductPricingSection";
-import { MEASURE_UNITS, compatibleUnits, isMeasureUnit } from "@/lib/units";
+import { MEASURE_UNITS, PRODUCT_UNITS, compatibleUnits, isMeasureUnit } from "@/lib/units";
 import type { Recipe } from "@/services/recipes.service";
 
 /** Receta en blanco: apagada, de venta. */
@@ -1158,18 +1158,7 @@ function ProductForm() {
                   setFieldErrors((p) => ({ ...p, content: undefined }));
                 }}
               >
-                <option value="Unidad">Unidad</option>
-                <option value="kg">kg</option>
-                <option value="g">g</option>
-                <option value="lb">lb</option>
-                <option value="L">L</option>
-                <option value="ml">ml</option>
-                <option value="m">m</option>
-                <option value="cm">cm</option>
-                <option value="Par">Par</option>
-                <option value="Docena">Docena</option>
-                <option value="Caja">Caja</option>
-                <option value="Pack">Pack</option>
+                {PRODUCT_UNITS.map((unit) => <option key={unit} value={unit}>{unit}</option>)}
               </Select>
 
               {/* Presentación: "cada bolsa trae 900 ml". Solo con el módulo de

@@ -6,7 +6,8 @@ import { useInventoryStore } from "@/stores/inventory.store";
 import { CategoryQuickModal } from "@/components/CategoryQuickModal";
 import { BarcodeField } from "@/components/BarcodeField";
 import { useBarcodeLookup } from "@/lib/useBarcodeLookup";
-import { canAutofill } from "@/lib/autofill";
+import { canAutofill, parseQuantityUnit } from "@/lib/autofill";
+import { PRODUCT_UNITS } from "@/lib/units";
 import type { OpenFactsProduct } from "@/services/openfacts.service";
 import { useBusinessTax } from "@/lib/useBusinessTax";
 import { usePricePair } from "@/lib/usePricePair";
@@ -51,23 +52,6 @@ function IconExternalLink(props: React.SVGProps<SVGSVGElement>) {
       <line x1="10" y1="14" x2="21" y2="3" />
     </svg>
   );
-}
-
-const UNIT_MAP: Record<string, string> = {
-  ml: "ml", cl: "ml", l: "L", dl: "L",
-  g: "g", kg: "Kg", lb: "lb", oz: "g",
-  m: "m", cm: "cm",
-  unidad: "Unidad", un: "Unidad", docena: "Docena",
-  pack: "Pack", caja: "Caja",
-};
-
-function parseQuantityUnit(raw: string): string | undefined {
-  const lower = raw.toLowerCase().trim();
-  const parts = lower.split(/\s+/);
-  for (const p of parts) {
-    const match = UNIT_MAP[p];
-    if (match) return match;
-  }
 }
 
 export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModalProps) {
@@ -347,9 +331,7 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
               value={unit}
               onChange={(e) => setUnit(e.target.value)}
             >
-              <option value="Unidad">Unidad</option>
-              <option value="Kg">Kg</option>
-              <option value="Litro">Litro</option>
+              {PRODUCT_UNITS.map((option) => <option key={option} value={option}>{option}</option>)}
             </Select>
 
             {/* Bodega */}

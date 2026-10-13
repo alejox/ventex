@@ -41,6 +41,14 @@ const UNITS_BY_DIMENSION: Record<Dimension, string[]> = {
 /** Unidades que MIDEN (espejo de `public.is_measure_unit`): las que admiten fracción. */
 export const MEASURE_UNITS: readonly string[] = ["g", "kg", "lb", "ml", "L", "cm", "m"];
 
+/**
+ * Las unidades que se pueden elegir para un producto, en el orden del selector.
+ * Una sola lista para la ficha completa y el alta rápida: el alta rápida tenía
+ * la suya con "Kg" y "Litro", que no son unidades de medida, y esos productos
+ * no se podían vender en fracciones ni convertir en recetas.
+ */
+export const PRODUCT_UNITS: readonly string[] = ["Unidad", "kg", "g", "lb", "L", "ml", "m", "cm", "Par", "Docena", "Caja", "Pack"];
+
 export function isMeasureUnit(unit: string | null | undefined): boolean {
   return !!unit && Object.prototype.hasOwnProperty.call(UNIT_BASE, unit);
 }
