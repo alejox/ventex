@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 
 /**
  * Estado de conectividad del navegador, reactivo.
  *
- * Lee `navigator.onLine` en el inicializador del estado (no en un efecto): en
- * SSR, donde `navigator` no existe, arranca en `true` para no bloquear un
- * control sin necesidad antes de que el navegador real conteste.
+ * Usa `useSyncExternalStore` con un snapshot de servidor fijo en `true`: React
+ * hidrata con ese valor y recién después pasa al real del navegador, así que
+ * el HTML del servidor y el primer render del cliente siempre coinciden — aun
+ * cuando el POS se abre de verdad sin conexión.
  *
  * Se usa para gatear el canje de puntos de fidelización en el POS (ver
  * `app/dashboard/pos/page.tsx`): a diferencia de una venta, que se encola y se
@@ -16,25 +17,31 @@ import { useEffect, useState } from "react";
  * diferido, que es justo lo que la fase 2 de puntos decidió no hacer.
  */
 export function useOnlineStatus(): boolean {
-  // Inicializador perezoso, no un `setState` en el cuerpo del efecto: leer
-  // `navigator.onLine` ahí violaría `react-hooks/set-state-in-effect` (el
-  // efecto de abajo es solo para SUSCRIBIRSE a los eventos, no para fijar el
-  // valor inicial). `typeof navigator === "undefined"` cubre el render de
-  // servidor, donde no existe.
-  const [online, setOnline] = useState<boolean>(() =>
-    typeof navigator === "undefined" ? true : navigator.onLine,
-  );
+  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+}
 
-  useEffect(() => {
-    const marcarOnline = () => setOnline(true);
-    const marcarOffline = () => setOnline(false);
-    window.addEventListener("online", marcarOnline);
-    window.addEventListener("offline", marcarOffline);
-    return () => {
-      window.removeEventListener("online", marcarOnline);
-      window.removeEventListener("offline", marcarOffline);
-    };
-  }, []);
+/**
+ * Solo un `onLine === false` explícito es "sin conexión". Node >= 21 expone un
+ * `navigator` global SIN `onLine`: leerlo como falsy pintaba el aviso de
+ * "Sin conexión" en el HTML del servidor y rompía la hidratación del POS.
+ */
+export function onlineFrom(nav: { onLine?: boolean } | undefined): boolean {
+  return nav?.onLine !== false;
+}
 
-  return online;
+function subscribe(onChange: () => void): () => void {
+  window.addEventListener("online", onChange);
+  window.addEventListener("offline", onChange);
+  return () => {
+    window.removeEventListener("online", onChange);
+    window.removeEventListener("offline", onChange);
+  };
+}
+
+function getSnapshot(): boolean {
+  return onlineFrom(typeof navigator === "undefined" ? undefined : navigator);
+}
+
+function getServerSnapshot(): boolean {
+  return true;
 }
