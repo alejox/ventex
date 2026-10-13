@@ -78,8 +78,7 @@ export type LandingMode = { kind: "list" } | { kind: "edit"; id: string } | { ki
  * The query string `/dashboard/landing` should carry for a mode, so reloading,
  * sharing the link and the header's "Ver sitio web" menu all see the site being
  * edited. Only the mode params (`site`, `new`) are replaced; everything else
- * (`tab`, the one-shot `instagram` result the editor consumes itself) is kept
- * while editing. The list drops `tab` too: on reload a leftover `?tab=` would
+ * (e.g. `tab`) is kept while editing. The list drops `tab` too: on reload a leftover `?tab=` would
  * reopen the first site's editor instead of the list.
  * Returns "" or a string starting with "?".
  */

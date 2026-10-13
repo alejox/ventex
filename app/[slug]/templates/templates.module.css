@@ -444,6 +444,7 @@
 .template :global(.site-team-grid) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .template :global(.site-team-card) { border-bottom: 1px solid var(--site-border); padding: 28px 0; }
 .template :global(.site-team-avatar) { align-items: center; background: var(--site-accent); color: var(--site-on-accent); display: flex; font-size: 24px; font-weight: 800; height: 72px; justify-content: center; overflow: hidden; position: relative; width: 72px; }
+.template :global(.site-team-grid-large .site-team-avatar) { aspect-ratio: 4 / 5; font-size: 64px; height: auto; width: 100%; }
 .template :global(.site-gallery-grid) { display: grid; gap: 12px; grid-template-columns: repeat(4, 1fr); margin-top: 54px; }
 .template :global(.site-gallery-image) { aspect-ratio: 1; position: relative; }
 .template :global(.site-gallery-image img) { object-fit: cover; }

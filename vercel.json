@@ -3,10 +3,6 @@
     {
       "path": "/api/billing/recurring",
       "schedule": "0 12 * * *"
-    },
-    {
-      "path": "/api/instagram/sync",
-      "schedule": "0 9 * * *"
     }
   ]
 }

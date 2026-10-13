@@ -69,8 +69,8 @@ test("editingSiteIdFrom only reads ?site= on the landing editor route", () => {
 
 test("landingSearchFor writes the edited site so the header can find it", () => {
   assert.equal(landingSearchFor({ kind: "edit", id: "abc" }, ""), "?site=abc");
-  // `tab` and the one-shot `instagram` result belong to the editor: kept.
-  assert.equal(landingSearchFor({ kind: "edit", id: "abc" }, "?tab=sections&instagram=connected"), "?tab=sections&instagram=connected&site=abc");
+  // `tab` belongs to the editor: kept.
+  assert.equal(landingSearchFor({ kind: "edit", id: "abc" }, "?tab=sections"), "?tab=sections&site=abc");
   assert.equal(landingSearchFor({ kind: "list" }, "?site=abc"), "");
   assert.equal(landingSearchFor({ kind: "list" }, "?site=abc&tab=sections"), "");
   assert.equal(landingSearchFor({ kind: "new" }, "?site=abc"), "?new=1");

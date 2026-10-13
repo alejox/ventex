@@ -2,7 +2,6 @@ import "server-only";
 import { createClient } from "@/utils/supabase/server";
 import { normalizeLandingConfig } from "@/services/public-site.types";
 import type { PublicSite } from "@/services/public-site.types";
-import { instagramPostList } from "@/lib/instagram";
 
 /**
  * Reads a published micro-site by slug, server-side, for an anonymous visitor.
@@ -27,37 +26,11 @@ export async function fetchPublicSite(slug: string): Promise<PublicSite | null> 
   if (!data || typeof data !== "object") return null;
   const raw = data as unknown as Record<string, unknown>;
   const config = normalizeLandingConfig(raw);
-  // Only fetched when the section is on: a hidden section shows nothing.
-  const showsInstagram = config.sections.some((section) => section.id === "instagram" && section.visible);
-  const instagramPosts = showsInstagram ? await fetchAccountPermalinks(supabase, slug) : [];
   return {
     ...raw,
     timeFormat: raw.timeFormat === "24" ? "24" : "12",
     config,
-    instagramPosts,
   } as unknown as PublicSite;
-}
-
-/**
- * Cached posts of the connected Instagram account (`/api/instagram/sync`).
- *
- * Never breaks the page: the section is decoration. A missing function
- * (migration not applied yet: PGRST202 / 42883) or any other error renders an
- * empty section, which `InstagramSection` already hides. Each link is
- * re-validated because it ends up inside embed markup.
- */
-async function fetchAccountPermalinks(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  slug: string,
-): Promise<string[]> {
-  const { data, error } = await supabase.rpc("public_instagram_permalinks", { p_slug: slug });
-  if (error) {
-    if (error.code !== "PGRST202" && error.code !== "42883") {
-      console.warn("[instagram] public permalinks unavailable:", error.code);
-    }
-    return [];
-  }
-  return instagramPostList(data);
 }
 
 /**

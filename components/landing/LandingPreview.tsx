@@ -5,7 +5,6 @@ import type { LandingConfig, PublicSite } from "@/services/public-site.types";
 import { SiteTemplateRenderer } from "@/app/[slug]/templates/registry";
 import { PreviewFrame } from "./PreviewFrame";
 import { useSettingsStore } from "@/stores/settings.store";
-import { useInstagramStore } from "@/stores/instagram.store";
 import { useEffect } from "react";
 
 const SAMPLE_SERVICES = [
@@ -32,9 +31,6 @@ export function LandingPreview({
   const timeFormat = useSettingsStore((s) => s.settings?.time_format ?? "12");
   const fetchSettings = useSettingsStore((s) => s.fetchSettings);
   useEffect(() => { void fetchSettings(); }, [fetchSettings]);
-  // Previews what the public site will show: the connection's cached posts
-  // (the editor loads them).
-  const accountPosts = useInstagramStore((s) => s.connection?.mediaPermalinks);
   const site: PublicSite = {
     timeFormat,
     slug: "vista-previa",
@@ -59,7 +55,6 @@ export function LandingPreview({
       { id: "staff-2", fullName: "Camilo", role: "Profesional", photoUrl: null },
     ],
     config,
-    instagramPosts: accountPosts ?? [],
   };
   const width = device === "mobile" ? 390 : 1280;
   const scale = device === "mobile" ? 0.82 : 0.56;

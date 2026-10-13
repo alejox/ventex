@@ -7,14 +7,6 @@
  * contract: if a field is not here, the public site must not need it.
  */
 
-import {
-  DEFAULT_INSTAGRAM_COUNT,
-  instagramCount,
-  instagramLayout,
-  type InstagramCount,
-  type InstagramLayout,
-} from "@/lib/instagram";
-
 export const SITE_TEMPLATES = [
   "rasm",
   "fallspa",
@@ -108,7 +100,6 @@ export const SITE_SECTION_IDS = [
   "products",
   "team",
   "gallery",
-  "instagram",
   "booking",
   "hours",
   "contact",
@@ -181,14 +172,17 @@ export interface LandingConfig {
    */
   catalog: { serviceCategoryIds: string[]; productCategoryIds: string[]; staffIds: string[] };
   /**
-   * How the Instagram section shows the connected account's cached posts
-   * (see `lib/instagram.ts`). The posts themselves are not part of the config:
-   * they come from the account (`PublicSite.instagramPosts`). Configs saved
-   * with the retired manual mode carry `instagramSource`/`instagramPosts`; the
-   * normalizer drops them.
+   * How big the staff photos are in the team section, for every member at
+   * once: `small` is the round avatar next to the name, `large` puts a big
+   * portrait above it.
    */
-  instagramLayout: InstagramLayout;
-  instagramCount: InstagramCount;
+  teamPhotoSize: TeamPhotoSize;
+}
+
+export type TeamPhotoSize = "small" | "large";
+
+export function teamPhotoSize(value: unknown): TeamPhotoSize {
+  return value === "large" ? "large" : "small";
 }
 
 const SECTION_DEFAULTS: Record<SiteSectionId, Omit<SiteSectionConfig, "id">> = {
@@ -197,7 +191,6 @@ const SECTION_DEFAULTS: Record<SiteSectionId, Omit<SiteSectionConfig, "id">> = {
   products: { visible: true, title: "Productos", subtitle: "Para llevar" },
   team: { visible: true, title: "El equipo", subtitle: "Quienes te reciben" },
   gallery: { visible: true, title: "Nuestro espacio", subtitle: "Conócenos" },
-  instagram: { visible: true, title: "Síguenos en Instagram", subtitle: "Lo más reciente" },
   booking: { visible: true, title: "Reserva tu turno", subtitle: "Agenda online" },
   hours: { visible: true, title: "Horarios", subtitle: "Planifica tu visita" },
   contact: { visible: true, title: "Dónde estamos", subtitle: "Hablemos" },
@@ -250,8 +243,7 @@ export function defaultLandingConfig(template: SiteTemplate = "rasm"): LandingCo
     seo: { title: null, description: null, imageUrl: null },
     sections: SITE_SECTION_IDS.map((id) => ({ id, ...SECTION_DEFAULTS[id] })),
     catalog: { serviceCategoryIds: [], productCategoryIds: [], staffIds: [] },
-    instagramLayout: "grid",
-    instagramCount: DEFAULT_INSTAGRAM_COUNT,
+    teamPhotoSize: "small",
   };
 }
 
@@ -367,8 +359,7 @@ export function normalizeLandingConfig(value: unknown): LandingConfig {
     productCategoryIds: uuidList(catalog.productCategoryIds),
     staffIds: uuidList(catalog.staffIds),
   };
-  result.instagramLayout = instagramLayout(raw.instagramLayout);
-  result.instagramCount = instagramCount(raw.instagramCount);
+  result.teamPhotoSize = teamPhotoSize(raw.teamPhotoSize);
 
   const seen = new Set<SiteSectionId>();
   const sections = Array.isArray(raw.sections) ? raw.sections : [];
@@ -474,11 +465,6 @@ export interface PublicSite {
   staff: PublicStaff[];
   /** Frozen editorial snapshot used to render the public landing. */
   config: LandingConfig;
-  /**
-   * Cached permalinks of the connected Instagram account, filled server-side
-   * (`fetchPublicSite`) or by the editor preview; absent = no posts.
-   */
-  instagramPosts?: string[];
 }
 
 /**

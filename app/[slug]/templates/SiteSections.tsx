@@ -11,7 +11,6 @@ import { socialLinksOf } from "@/lib/socialLinks";
 import { BrandIcon } from "@/app/assets/icons/BrandIcons";
 import { BookServiceLink } from "../BookServiceLink";
 import { BookingWidget } from "../BookingWidget";
-import { InstagramSection } from "./InstagramSection";
 import { formatCOP, whatsappHref } from "./theme";
 
 function SectionHeading({ section }: { section: SiteSectionConfig }) {
@@ -107,14 +106,15 @@ function ProductsSection({ site, section }: SectionProps) {
 
 function TeamSection({ site, section }: SectionProps) {
   if (!site.staff.length) return null;
+  const large = site.config.teamPhotoSize === "large";
   return (
     <section id="equipo" className="site-section site-team-section site-reveal">
       <SectionHeading section={section} />
-      <ul className="site-grid site-team-grid">
+      <ul className={`site-grid site-team-grid${large ? " site-team-grid-large" : ""}`}>
         {site.staff.map((member) => (
-          <li key={member.id} className="site-card site-team-card flex items-center gap-4">
+          <li key={member.id} className={`site-card site-team-card flex gap-4 ${large ? "flex-col" : "items-center"}`}>
             <span className="site-team-avatar shrink-0" aria-hidden="true">
-              {member.photoUrl ? <Image src={member.photoUrl} alt="" fill sizes="72px" className="object-cover" /> : member.fullName.slice(0, 1).toUpperCase()}
+              {member.photoUrl ? <Image src={member.photoUrl} alt="" fill sizes={large ? "(max-width: 768px) 100vw, 33vw" : "72px"} className="object-cover" /> : member.fullName.slice(0, 1).toUpperCase()}
             </span>
             <span><strong className="block text-[var(--site-text)]">{member.fullName}</strong>{member.role ? <span className="mt-1 block text-xs text-[var(--site-muted)]">{member.role}</span> : null}</span>
           </li>
@@ -202,7 +202,6 @@ export function ConfigurableSections({ site, preview = false }: { site: PublicSi
       case "products": return <ProductsSection key={section.id} site={site} section={section} />;
       case "team": return <TeamSection key={section.id} site={site} section={section} />;
       case "gallery": return <GallerySection key={section.id} site={site} section={section} />;
-      case "instagram": return <InstagramSection key={section.id} posts={site.instagramPosts ?? []} layout={site.config.instagramLayout} count={site.config.instagramCount} preview={preview} heading={<SectionHeading section={section} />} />;
       case "booking": return <BookingSection key={section.id} site={site} section={section} preview={preview} />;
       case "hours": return <HoursSection key={section.id} site={site} section={section} />;
       case "contact": return <ContactSection key={section.id} site={site} section={section} />;
