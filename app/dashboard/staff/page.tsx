@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { IconUserBadge, IconPlus } from "@/app/assets/icons/DashboardIcons";
@@ -92,6 +92,12 @@ export default function StaffPage() {
   const fetchSchoolSettings = useSchoolStore((s) => s.fetchSettings);
 
   const [modalOpen, setModalOpen] = useState(false);
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const photoUploadingRef = useRef(false);
+  const handlePhotoUploading = (uploading: boolean) => {
+    photoUploadingRef.current = uploading;
+    setPhotoUploading(uploading);
+  };
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<NewStaffInput>(EMPTY_STAFF);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -271,6 +277,7 @@ export default function StaffPage() {
   };
 
   const handleClose = () => {
+    if (photoUploadingRef.current) return;
     setModalOpen(false);
     setEditingId(null);
     setForm(EMPTY_STAFF);
@@ -285,7 +292,7 @@ export default function StaffPage() {
 
   /** Escape, la X, el fondo o "Cancelar": con cambios sin guardar, se pregunta. */
   const requestCloseStaff = async () => {
-    if (submitting) return;
+    if (submitting || photoUploadingRef.current) return;
     if (staffFormDirty) {
       const discard = await confirm({
         title: "¿Descartar los cambios?",
@@ -301,6 +308,7 @@ export default function StaffPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting || photoUploadingRef.current) return;
     if (teacherEnabled && specialties.length === 0) {
       setSpecialtiesRequired(true);
       return;
@@ -691,6 +699,9 @@ export default function StaffPage() {
         <Modal
           open
           onClose={() => void requestCloseStaff()}
+          dismissible={!photoUploading && !submitting}
+          closeOnEscape={!photoUploading && !submitting}
+          showCloseButton={!photoUploading && !submitting}
           title={editingId ? "Editar Personal" : "Nuevo Personal"}
           placement="sheet"
           bodyClassName="border-t border-outline-variant/10"
@@ -704,6 +715,8 @@ export default function StaffPage() {
               )}
 
               <StaffPhotoField
+                disabled={submitting}
+                onUploadingChange={handlePhotoUploading}
                 value={form.photo_url}
                 nombre={form.full_name}
                 onChange={(url) => setForm((f) => ({ ...f, photo_url: url }))}
@@ -869,7 +882,12 @@ export default function StaffPage() {
                 {editingId && (
                   <button
                     type="button"
-                    onClick={() => { setConfirmDelete(editingId); handleClose(); }}
+                    onClick={() => {
+                      if (submitting || photoUploadingRef.current) return;
+                      setConfirmDelete(editingId);
+                      handleClose();
+                    }}
+                    disabled={submitting || photoUploading}
                     className="px-4 py-2.5 rounded-xl text-sm font-semibold text-error-dim hover:text-error hover:bg-error-container/10 transition-colors flex items-center justify-center gap-2"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -882,13 +900,14 @@ export default function StaffPage() {
                   <button
                     type="button"
                     onClick={() => void requestCloseStaff()}
+                    disabled={submitting || photoUploading}
                     className="flex-1 px-5 py-2.5 rounded-xl text-sm font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-colors"
                   >
                     Cancelar
                   </button>
                   <button
                     type="submit"
-                    disabled={submitting}
+                    disabled={submitting || photoUploading}
                     className="flex-1 px-5 py-2.5 rounded-xl text-sm font-semibold bg-primary hover:bg-primary-dim text-on-primary shadow-[0_0_15px_rgba(96,99,238,0.2)] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {submitting ? "Guardando…" : editingId ? "Guardar Cambios" : "Añadir al Equipo"}

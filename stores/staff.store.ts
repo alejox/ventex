@@ -89,6 +89,7 @@ interface StaffState {
    * releer `staff` a ciegas para encontrarlo.
    */
   addStaff: (input: NewStaffInput) => Promise<StaffMember | null>;
+  uploadPhoto: (file: File) => Promise<string>;
   updateStaff: (id: string, input: NewStaffInput) => Promise<boolean>;
   deleteStaff: (id: string) => Promise<boolean>;
 
@@ -111,6 +112,7 @@ export const useStaffStore = create<StaffState>((set, get) => ({
   loading: true,
   error: null,
   submitting: false,
+  uploadPhoto: (file) => staffService.uploadStaffPhoto(file),
   accounts: [],
   accountsLoading: false,
   commissions: [],
