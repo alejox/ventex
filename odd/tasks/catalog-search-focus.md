@@ -17,7 +17,7 @@ Products and services share a search field that is ready for typing on catalog e
   - Allowed source surfaces: app/dashboard/inventory/page.tsx; lib/useCatalogSearchFocus.ts; tests/catalog-search-focus.test.ts.
   - Acceptance: products/services/new tab entry focused; return focus on window focus/visibility/pageshow; active editors and modal focus preserved; search text unchanged; listeners/animation frames cleaned up on unmount; no offscreen focus while hidden.
   - Checks: deterministic meaningful focus policy/lifecycle tests RED → GREEN where runnable; focused lint; standalone typecheck; full npm test; isolated real-hook or page browser checks with real events and dialogs, including mobile policy.
-  - Commit: follows completed task record, exact identity added after commit.
+  - Commit: `20377e7` — feat(catalog): focus search on entry and window return.
   - Risk: unassessable/high (untracked inventory); independent verifier and targeted correction validation completed. Native review disabled/unmanaged.
 
 ## Progress
@@ -33,4 +33,4 @@ Observed verification:
 - Rollback boundary: inventory search ref, focus hook and regression tests; POS untouched.
 
 ## Next step
-Commit locally on feat/catalog-search-focus. No push authorized by this new request.
+Committed locally on feat/catalog-search-focus. No push performed or authorized by this new request.
