@@ -31,9 +31,9 @@
 }
 
 .logo {
-  border-radius: 6px;
+  flex-shrink: 0;
   height: 44px;
-  object-fit: cover;
+  object-fit: contain;
   width: 44px;
 }
 

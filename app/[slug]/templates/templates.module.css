@@ -28,6 +28,7 @@
 }
 
 .logo {
+  flex-shrink: 0;
   height: 48px;
   object-fit: contain;
   width: 48px;

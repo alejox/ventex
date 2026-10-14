@@ -51,6 +51,7 @@
   overflow: hidden; text-overflow: ellipsis; max-width: 320px;
 }
 .brand svg { color: var(--site-accent); flex-shrink: 0; }
+.brand img { flex-shrink: 0; height: 36px; object-fit: contain; width: 36px; }
 .navLinks { display: flex; flex-wrap: wrap; gap: 26px; font-size: 11px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; }
 .navLinks a { color: var(--site-muted); padding: 12px 0; }
 .navLinks a:hover { color: var(--site-accent); }

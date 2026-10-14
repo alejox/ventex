@@ -35,7 +35,7 @@
 .nav { display: flex; align-items: center; justify-content: space-between; gap: 28px; min-height: 102px; border-bottom: 1px solid rgb(244 240 231 / 14%); }
 .brand { display: flex; align-items: center; gap: 12px; font-family: var(--site-heading-font); font-size: 23px; line-height: 1.15; max-width: 330px; }
 .brand svg { color: var(--site-accent); flex-shrink: 0; }
-.logo { object-fit: contain; }
+.logo { flex-shrink: 0; height: 42px; object-fit: contain; width: 42px; }
 /* Las etiquetas chicas de esta plantilla son todas 10px en versalitas con
    interletrado (eyebrow, botones, pie del hero). Los enlaces del menú eran
    lo único en 11px y caja normal, y esa sola excepción es la que hacía ver
