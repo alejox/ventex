@@ -59,6 +59,8 @@ export const metadata: Metadata = {
 };
 
 /** Abiertos al registro primero; los que vienen después, al final (B7). */
+const SIGNUP_VIDEO_URL = "https://media.ventex.app/01-intro-ventex.mp4";
+
 const isOpen = (id: BusinessType) => REGISTRABLE_BUSINESS_TYPES.includes(id);
 const byAvailability = (a: { id: BusinessType }, b: { id: BusinessType }) =>
   Number(isOpen(b.id)) - Number(isOpen(a.id));
@@ -623,6 +625,38 @@ export default async function LandingPage() {
               <p className="text-on-surface-variant mt-2">{s.desc}</p>
             </div>
           ))}
+        </div>
+
+        {/* El video pesa ~87 MB: `preload="none"` hace que solo se descargue
+            cuando alguien le da play, y el póster ocupa su lugar mientras tanto. */}
+        <div className="mt-16 max-w-4xl mx-auto text-center">
+          <h3 className="text-2xl sm:text-3xl font-black tracking-tight text-on-surface">
+            Mira cómo crear tu cuenta
+          </h3>
+          <p className="text-on-surface-variant mt-3">
+            Del registro a tu panel en poco más de un minuto.
+          </p>
+          {/* El redondeo va en el contenedor y no en el <video>: Chrome pinta el
+              video en su propia capa y, al reproducir, ignora el border-radius
+              del elemento y deja una esquina cortada. `isolate` + overflow
+              fuerzan el recorte sobre esa capa. */}
+          <div className="mt-8 isolate overflow-hidden rounded-3xl border border-outline-variant/10 bg-black shadow-2xl shadow-primary/10">
+            <video
+              className="block w-full aspect-video"
+              src={SIGNUP_VIDEO_URL}
+              poster="/landing/registro-video-poster.webp"
+              controls
+              playsInline
+              preload="none"
+              aria-label="Video: cómo crear tu cuenta en Ventex"
+            />
+          </div>
+          <Link
+            href="/register"
+            className="mt-8 inline-block px-7 py-3.5 rounded-2xl bg-primary text-on-primary font-bold shadow-lg shadow-primary/25 hover:bg-primary-dim transition-colors"
+          >
+            Crear mi cuenta gratis →
+          </Link>
         </div>
       </section>
 
