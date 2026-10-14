@@ -13,6 +13,7 @@ import {
 import { notifySuccess } from "@/lib/notifications";
 import { validateBusinessLogoFile, type BusinessLogoFileError } from "@/lib/business-logo";
 import { Select } from "@/components/ui/Select";
+import { CitySelect } from "@/components/CitySelect";
 
 function CameraIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -258,7 +259,7 @@ function BusinessProfileForm({ settings }: { settings: Settings }) {
                   <input type="text" value={form.address ?? ""} onChange={(e) => update("address", e.target.value)} placeholder="Calle 10 # 5-20" className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface" />
                 </Field>
                 <Field label="Municipio / Departamento">
-                  <input type="text" value={form.municipality ?? ""} onChange={(e) => update("municipality", e.target.value)} placeholder="Bogotá D.C." className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface" />
+                  <CitySelect value={form.municipality ?? ""} onChange={(municipality) => update("municipality", municipality)} aria-label="Municipio / Departamento" className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface" />
                 </Field>
               </div>
 
