@@ -27,6 +27,7 @@ export function SettingsTabs() {
   const tabs = [
     { name: "General", href: "/dashboard/settings" },
     { name: "Datos de tu negocio", href: "/dashboard/settings/business" },
+    { name: "Métodos de pago", href: "/dashboard/settings/pagos" },
     ...(showPromos ? [{ name: "Promociones", href: "/dashboard/settings/promociones" }] : []),
   ];
 

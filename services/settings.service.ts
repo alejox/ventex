@@ -51,6 +51,11 @@ export interface Settings {
   transfer_methods_enabled: string[];
   /** Medios de tarjeta habilitados (Bold, Credibanco, Redeban…). */
   card_methods_enabled: string[];
+  /**
+   * Cuándo se guardó por última vez Ajustes → Métodos de pago. `null` = nunca:
+   * el paso de "Primeros pasos" sigue pendiente aunque se cobre solo en efectivo.
+   */
+  payment_methods_configured_at: string | null;
   business_profile: BusinessProfile;
 }
 
@@ -82,6 +87,7 @@ const DEFAULTS: Settings = {
   currency: "COP",
   transfer_methods_enabled: ["nequi", "daviplata", "bancolombia"],
   card_methods_enabled: ["bold", "credibanco", "redeban"],
+  payment_methods_configured_at: null,
   business_profile: {},
 };
 
@@ -146,6 +152,8 @@ export function mapSettings(raw: Record<string, unknown>): Settings {
     transfer_methods_enabled:
       (raw.transfer_methods_enabled as string[]) ?? DEFAULTS.transfer_methods_enabled,
     card_methods_enabled: (raw.card_methods_enabled as string[]) ?? DEFAULTS.card_methods_enabled,
+    // `?? null`: antes de la migración la columna no existe y `select *` no la trae.
+    payment_methods_configured_at: (raw.payment_methods_configured_at as string | null) ?? null,
     business_profile: (raw.business_profile ?? {}) as BusinessProfile,
   };
 }
@@ -278,6 +286,43 @@ export async function saveOwnerUsesShifts(enabled: boolean): Promise<Settings> {
   const query = existing
     ? supabase.from("settings").update({ owner_uses_shifts: enabled }).eq("id", existing.id)
     : supabase.from("settings").insert({ owner_uses_shifts: enabled });
+  const { data, error } = await query.select(SETTINGS_SELECT).single();
+  if (error) throw error;
+  return mapSettings(data as Record<string, unknown>);
+}
+
+/** Lo que posee Ajustes → Métodos de pago: ni más ni menos. */
+export interface PaymentMethodsInput {
+  accepts_transfer: boolean;
+  transfer_methods_enabled: string[];
+  accepts_card: boolean;
+  card_methods_enabled: string[];
+}
+
+/**
+ * Guarda los medios de pago y estampa `payment_methods_configured_at`: guardar
+ * la sección, aunque sea para dejar solo efectivo, completa el paso de
+ * "Primeros pasos". Manda SOLO los campos de la sección (no pisa moneda, IVA
+ * ni nada que otra pantalla tenga sin guardar). `settings` es perezosa: se lee
+ * y se actualiza o se inserta.
+ *
+ * Antes de aplicar la migración PostgREST rechaza la columna desconocida y la
+ * sentencia entera falla: se muestra el error y no se escribe nada a medias.
+ */
+export async function savePaymentMethods(input: PaymentMethodsInput): Promise<Settings> {
+  const supabase = createClient();
+  const { data: existing, error: readError } = await supabase.from("settings").select("id").maybeSingle();
+  if (readError) throw readError;
+  const payload = {
+    accepts_transfer: input.accepts_transfer,
+    transfer_methods_enabled: input.transfer_methods_enabled,
+    accepts_card: input.accepts_card,
+    card_methods_enabled: input.card_methods_enabled,
+    payment_methods_configured_at: new Date().toISOString(),
+  };
+  const query = existing
+    ? supabase.from("settings").update(payload).eq("id", existing.id)
+    : supabase.from("settings").insert(payload);
   const { data, error } = await query.select(SETTINGS_SELECT).single();
   if (error) throw error;
   return mapSettings(data as Record<string, unknown>);

@@ -17,8 +17,6 @@ import {
 import { cleanModulesForType, modulesForSwitch, navChangeOnSwitch } from "@/lib/business-change";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import type { Settings } from "@/services/settings.service";
-import { COLOMBIA_TRANSFER_METHODS, DEFAULT_TRANSFER_METHODS } from "@/config/transferMethods";
-import { COLOMBIA_CARD_METHODS, DEFAULT_CARD_METHODS } from "@/config/cardMethods";
 import { Select } from "@/components/ui/Select";
 import { CashDrawerCard } from "./CashDrawerCard";
 import { formatAppointmentTime, type TimeFormat } from "@/lib/time";
@@ -295,43 +293,18 @@ function SettingsForm({ settings }: { settings: Settings }) {
   const [allowOversell, setAllowOversell] = useState(settings.allow_oversell);
   const [currency, setCurrency] = useState(settings.currency);
   const [timeFormat, setTimeFormat] = useState<TimeFormat>(settings.time_format);
-  const [transferMethods, setTransferMethods] = useState<string[]>(
-    () => settings.transfer_methods_enabled ?? DEFAULT_TRANSFER_METHODS
-  );
-  const [acceptsTransfer, setAcceptsTransfer] = useState(settings.accepts_transfer);
-  const [acceptsCard, setAcceptsCard] = useState(settings.accepts_card);
-  const [cardMethods, setCardMethods] = useState<string[]>(
-    () => settings.card_methods_enabled ?? DEFAULT_CARD_METHODS
-  );
   const [saved, setSaved] = useState(false);
-
-  const toggleTransferMethod = (id: string) => {
-    setSaved(false);
-    setTransferMethods((prev) =>
-      prev.includes(id) ? prev.filter((m) => m !== id) : [...prev, id]
-    );
-  };
-
-  const toggleCardMethod = (id: string) => {
-    setSaved(false);
-    setCardMethods((prev) =>
-      prev.includes(id) ? prev.filter((m) => m !== id) : [...prev, id]
-    );
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaved(false);
-    // Sin `tax_rate`/`include_tax`: el IVA se guarda solo desde Datos de tu
-    // negocio, y mandarlos acá pisaría ese cambio con valores viejos.
+    // Sin `tax_rate`/`include_tax` ni medios de pago: el IVA se guarda solo
+    // desde Datos de tu negocio y los medios desde Métodos de pago; mandarlos
+    // acá pisaría esos cambios con valores viejos.
     const ok = await saveSettings({
       allow_oversell: allowOversell,
       currency,
       time_format: timeFormat,
-      transfer_methods_enabled: transferMethods,
-      accepts_transfer: acceptsTransfer,
-      accepts_card: acceptsCard,
-      card_methods_enabled: cardMethods,
     });
     if (ok) setSaved(true);
   };
@@ -363,6 +336,10 @@ function SettingsForm({ settings }: { settings: Settings }) {
         El IVA se configura en{" "}
         <Link href="/dashboard/settings/business" className="font-semibold text-primary hover:underline">
           Datos de tu negocio
+        </Link>
+        {" "}y la transferencia y el datáfono, en{" "}
+        <Link href="/dashboard/settings/pagos" className="font-semibold text-primary hover:underline">
+          Métodos de pago
         </Link>
         .
       </p>
@@ -447,158 +424,6 @@ function SettingsForm({ settings }: { settings: Settings }) {
           </option>
         ))}
       </Select>
-
-      <ToggleSetting
-        title="Cobrar por transferencia"
-        description={
-          acceptsTransfer ? (
-            <>
-              El punto de venta ofrece «Transferencia» como forma de pago. Apágalo si tu negocio solo
-              recibe efectivo: la opción desaparece del cobro.
-            </>
-          ) : (
-            <>
-              «Transferencia» <strong className="text-on-surface">no aparece</strong> entre las formas
-              de pago. Las ventas ya cobradas por transferencia siguen intactas en el historial.
-            </>
-          )
-        }
-        checked={acceptsTransfer}
-        onChange={(v) => {
-          setAcceptsTransfer(v);
-          setSaved(false);
-        }}
-      />
-
-      {acceptsTransfer && (
-      <div className="pt-4 border-t border-outline-variant/10 space-y-4">
-        <div>
-          <h3 className="text-sm font-bold text-on-surface mb-1">Medios de transferencia (Colombia)</h3>
-          <p className="text-xs text-on-surface-variant">
-            Selecciona los canales que usas. Si no marcas ninguno, el POS no pregunta por cuál
-            entró la plata — es lo normal cuando el negocio tiene una sola cuenta.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {COLOMBIA_TRANSFER_METHODS.map((m) => {
-            const isEnabled = transferMethods.includes(m.id);
-            return (
-              <button
-                key={m.id}
-                type="button"
-                onClick={() => toggleTransferMethod(m.id)}
-                className={`p-3.5 rounded-2xl border text-left flex items-center justify-between gap-3 transition-all ${
-                  isEnabled
-                    ? "bg-primary/5 border-primary/40 shadow-sm"
-                    : "bg-surface-container-low border-outline-variant/15 opacity-60 hover:opacity-100"
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 ${m.bgColor} ${m.borderColor} border`}
-                    style={{ color: m.color }}
-                  >
-                    {m.shortName.substring(0, 2).toUpperCase()}
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold text-on-surface">{m.name}</p>
-                  </div>
-                </div>
-
-                <span
-                  className={`w-10 h-5 rounded-full relative transition-colors ${
-                    isEnabled ? "bg-primary" : "bg-surface-container-highest border border-outline-variant/20"
-                  }`}
-                >
-                  <span
-                    className={`absolute top-[2px] w-4 h-4 bg-white rounded-full shadow-sm transition-all ${
-                      isEnabled ? "left-[22px]" : "left-[2px]"
-                    }`}
-                  ></span>
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-      )}
-
-      <ToggleSetting
-        title="Cobrar con datáfono"
-        description={
-          acceptsCard ? (
-            <>
-              El punto de venta ofrece «Datáfono» como forma de pago. Apágalo si tu negocio solo
-              recibe efectivo y transferencias: la opción desaparece del cobro.
-            </>
-          ) : (
-            <>
-              «Datáfono» <strong className="text-on-surface">no aparece</strong> entre las formas de
-              pago. Las ventas ya cobradas con tarjeta siguen intactas en el historial.
-            </>
-          )
-        }
-        checked={acceptsCard}
-        onChange={(v) => {
-          setAcceptsCard(v);
-          setSaved(false);
-        }}
-      />
-
-      {acceptsCard && (
-      <div className="pt-4 border-t border-outline-variant/10 space-y-4">
-        <div>
-          <h3 className="text-sm font-bold text-on-surface mb-1">Medios de tarjeta (Colombia)</h3>
-          <p className="text-xs text-on-surface-variant">
-            Selecciona los datáfonos que usas. Si no marcas ninguno, el POS no pregunta cuál se
-            usó — es lo normal cuando el negocio tiene uno solo.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {COLOMBIA_CARD_METHODS.map((m) => {
-            const isEnabled = cardMethods.includes(m.id);
-            return (
-              <button
-                key={m.id}
-                type="button"
-                onClick={() => toggleCardMethod(m.id)}
-                className={`p-3.5 rounded-2xl border text-left flex items-center justify-between gap-3 transition-all ${
-                  isEnabled
-                    ? "bg-primary/5 border-primary/40 shadow-sm"
-                    : "bg-surface-container-low border-outline-variant/15 opacity-60 hover:opacity-100"
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 ${m.bgColor} ${m.borderColor} border`}
-                    style={{ color: m.color }}
-                  >
-                    {m.shortName.substring(0, 2).toUpperCase()}
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold text-on-surface">{m.name}</p>
-                  </div>
-                </div>
-
-                <span
-                  className={`w-10 h-5 rounded-full relative transition-colors ${
-                    isEnabled ? "bg-primary" : "bg-surface-container-highest border border-outline-variant/20"
-                  }`}
-                >
-                  <span
-                    className={`absolute top-[2px] w-4 h-4 bg-white rounded-full shadow-sm transition-all ${
-                      isEnabled ? "left-[22px]" : "left-[2px]"
-                    }`}
-                  ></span>
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-      )}
 
       <div className="flex items-center justify-between gap-4 pt-6 mt-4 border-t border-outline-variant/10">
         <span className={`text-sm font-medium text-success transition-opacity ${saved ? "opacity-100" : "opacity-0"}`}>

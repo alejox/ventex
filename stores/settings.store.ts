@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { toMessage } from "@/lib/errors";
 import * as settingsService from "@/services/settings.service";
-import type { Settings, SettingsInput } from "@/services/settings.service";
+import type { PaymentMethodsInput, Settings, SettingsInput } from "@/services/settings.service";
 
 interface SettingsState {
   settings: Settings | null;
@@ -21,6 +21,8 @@ interface SettingsState {
   saveShiftRequirement: (enabled: boolean) => Promise<boolean>;
   /** Si el dueño/administrador trabaja con caja. Devuelve true si se guardó. */
   saveOwnerUsesShifts: (enabled: boolean) => Promise<boolean>;
+  /** Ajustes → Métodos de pago. Devuelve true si se guardó. */
+  savePaymentMethods: (input: PaymentMethodsInput) => Promise<boolean>;
 
   /** Sube el logo y devuelve su URL pública (o null si falla). */
   uploadLogo: (file: File) => Promise<string | null>;
@@ -77,6 +79,18 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     set({ submitting: true, error: null });
     try {
       const settings = await settingsService.saveOwnerUsesShifts(enabled);
+      set({ settings, submitting: false });
+      return true;
+    } catch (error) {
+      set({ error: toMessage(error), submitting: false });
+      return false;
+    }
+  },
+
+  savePaymentMethods: async (input) => {
+    set({ submitting: true, error: null });
+    try {
+      const settings = await settingsService.savePaymentMethods(input);
       set({ settings, submitting: false });
       return true;
     } catch (error) {
