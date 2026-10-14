@@ -36,6 +36,9 @@ export function GoogleButton({
       provider: "google",
       options: {
         redirectTo: `${window.location.origin}/auth/confirm?next=${encodeURIComponent(next)}`,
+        // Sin esto Google entra con la última cuenta usada en el navegador y
+        // no deja elegir otra: registrarse con una cuenta nueva era imposible.
+        queryParams: { prompt: "select_account" },
       },
     });
 
