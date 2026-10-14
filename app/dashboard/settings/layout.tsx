@@ -17,8 +17,8 @@ export default async function SettingsLayout({ children }: { children: React.Rea
   if (profile?.isWorker && !profile?.workerPermissions?.settings) redirect("/dashboard");
 
   return (
-    <div className="w-full max-w-4xl mx-auto pb-20 animate-in fade-in duration-300">
-      <div className="flex items-center gap-3 mb-6">
+    <div className="w-full max-w-4xl mx-auto pb-20 print:pb-0 print:max-w-none animate-in fade-in duration-300">
+      <div className="print:hidden flex items-center gap-3 mb-6">
         <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
           <IconSettings className="w-5 h-5" />
         </div>
@@ -28,7 +28,7 @@ export default async function SettingsLayout({ children }: { children: React.Rea
         </div>
       </div>
 
-      <div className="border-b border-outline-variant/20 mb-8">
+      <div className="print:hidden border-b border-outline-variant/20 mb-8">
         <SettingsTabs />
       </div>
 

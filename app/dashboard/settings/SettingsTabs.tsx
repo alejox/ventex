@@ -28,6 +28,7 @@ export function SettingsTabs() {
     { name: "General", href: "/dashboard/settings" },
     { name: "Datos de tu negocio", href: "/dashboard/settings/business" },
     { name: "Negocio y módulos", href: "/dashboard/settings/modulos" },
+    { name: "Impresión", href: "/dashboard/settings/impresion" },
     { name: "Métodos de pago", href: "/dashboard/settings/pagos" },
     ...(showPromos ? [{ name: "Promociones", href: "/dashboard/settings/promociones" }] : []),
   ];

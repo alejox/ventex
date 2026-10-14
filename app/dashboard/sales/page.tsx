@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { IconShoppingCart, IconWallet, IconTrendingUp, IconSearch } from "@/app/assets/icons/DashboardIcons";
+import { usePrintSettingsStore } from "@/stores/print-settings.store";
+import { normalizeReceiptSettings } from "@/lib/receipt-settings";
 import { useSettingsStore } from "@/stores/settings.store";
 import { useSalesStore } from "@/stores/sales.store";
 import {
@@ -230,6 +232,9 @@ export default function SalesPage() {
   const setPage = useSalesStore((s) => s.setPage);
   const customerQuery = useSalesStore((s) => s.customerQuery);
   const setCustomerQuery = useSalesStore((s) => s.setCustomerQuery);
+  const paperWidth = usePrintSettingsStore((s) => s.paperWidth);
+  const initPrintSettings = usePrintSettingsStore((s) => s.init);
+  useEffect(() => { initPrintSettings(); }, [initPrintSettings]);
   const settings = useSettingsStore((s) => s.settings);
   const fetchSettings = useSettingsStore((s) => s.fetchSettings);
   const transferMethodsEnabled = settings?.transfer_methods_enabled;
@@ -913,7 +918,7 @@ export default function SalesPage() {
         </Modal>
       )}
     </div>
-    <PosReceipt data={receipt} />
+    <PosReceipt data={receipt} settings={normalizeReceiptSettings(settings?.business_profile.receiptSettings)} paperWidth={paperWidth} />
     </>
   );
 }

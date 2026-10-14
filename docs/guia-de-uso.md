@@ -45,7 +45,7 @@ Esta guía te lleva paso a paso desde que creas tu cuenta hasta tu operación di
 
 ## 2. Configura tu negocio
 
-Ve a **Configuración** en el menú lateral. Tiene estas pestañas: General, Datos de tu negocio, Métodos de pago y, según tu negocio, Promociones.
+Ve a **Configuración** en el menú lateral. Tiene estas pestañas: General, Datos de tu negocio, Negocio y módulos, Impresión, Métodos de pago y, según tu negocio, Promociones.
 
 ### Datos de tu negocio
 
@@ -65,6 +65,15 @@ Ve a **Configuración** en el menú lateral. Tiene estas pestañas: General, Dat
 | Negocio y módulos | Cambia tu tipo de negocio o activa módulos (por ejemplo, Producción) | Según tu tipo |
 
 Toca **"Guardar Cambios"** al final. La opción "Exigir turno activo" se guarda sola al cambiarla; las demás necesitan este botón.
+
+### Impresión
+
+1. Abre **Configuración → Impresión**. Activa los datos que deseas mostrar y escribe un encabezado o pie opcional (hasta 300 caracteres, solo texto). La vista previa cambia al editar.
+2. Toca **Guardar** para usar el diseño en todas las terminales del negocio; **Cancelar** recupera el diseño guardado. Los importes, impuestos y avisos fiscales no se pueden ocultar.
+3. Elige **58 mm** u **80 mm** para esta terminal. El ancho se guarda inmediatamente solo en este navegador, no en el negocio.
+4. Toca **Imprimir prueba** y selecciona la impresora en el diálogo del navegador o sistema operativo. La prueba está marcada como ejemplo y no registra una venta. Usa el mismo tamaño de papel en el controlador y desactiva encabezados/pies del navegador si aparecen.
+
+El cajón monedero se configura al final de esta pestaña. Conectarlo o probarlo requiere tocar sus botones; el sitio no elige una impresora ni imprime silenciosamente. Si el navegador bloquea el almacenamiento, el ancho funciona durante la sesión, pero tendrás que elegirlo de nuevo al volver.
 
 ### Métodos de pago
 

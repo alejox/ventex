@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ReceiptContent, PosReceipt } from "../components/PosReceipt";
-import { DEFAULT_RECEIPT_SETTINGS, normalizeReceiptSettings, normalizePaperWidth, RECEIPT_TEXT_MAX_LENGTH } from "../lib/receipt-settings";
+import { buildSampleReceipt, DEFAULT_RECEIPT_SETTINGS, normalizeReceiptSettings, normalizePaperWidth, RECEIPT_TEXT_MAX_LENGTH } from "../lib/receipt-settings";
 import { saveReceiptSettings, saveSettings } from "../services/settings.service";
 import type { ReceiptData } from "../lib/receipt";
 import type { createClient } from "../utils/supabase/client";
@@ -99,4 +99,21 @@ test("ordinary settings save cannot create receipt preferences and read failure 
   db.failRead();
   await assert.rejects(saveReceiptSettings(DEFAULT_RECEIPT_SETTINGS, db.client), /Read failed/);
   assert.equal(db.writes.length, 1);
+});
+
+
+test("sample receipt is synthetic, visibly labelled and retains fiscal information", () => {
+  const date = new Date("2026-10-14T15:00:00Z");
+  const sample = buildSampleReceipt({ businessName: "Example" }, date, true);
+  assert.equal(sample.saleId, "EJEMPLO-001");
+  assert.equal(sample.saleNumber, null);
+  assert.equal(sample.date, date);
+  assert.equal(sample.totals.subtotal + sample.totals.taxAmount, sample.totals.total);
+  const html = renderToStaticMarkup(<PosReceipt data={sample} sample />);
+  assert.match(html, /EJEMPLO \/ IMPRESIÓN DE PRUEBA/);
+  assert.match(html, /EJEMPLO-001/);
+  assert.match(html, /Pre-factura/);
+  assert.match(html, /Sin valor fiscal/);
+  assert.doesNotMatch(renderToStaticMarkup(<PosReceipt data={receipt} />), /IMPRESIÓN DE PRUEBA/);
+  assert.equal(buildSampleReceipt({}, date, false).totals.taxAmount, 0);
 });

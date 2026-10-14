@@ -11,10 +11,11 @@ interface Props {
   data: ReceiptData | null;
   settings?: ReceiptSettings;
   paperWidth?: PaperWidth;
+  sample?: boolean;
 }
 
 /** Print-only wrapper; preview uses ReceiptContent without print-page side effects. */
-export function PosReceipt({ data, settings, paperWidth }: Props) {
+export function PosReceipt({ data, settings, paperWidth, sample }: Props) {
   const width = normalizePaperWidth(paperWidth);
   return (
     <>
@@ -26,7 +27,7 @@ export function PosReceipt({ data, settings, paperWidth }: Props) {
         }
       `}</style>
       <div className="hidden print:block">
-        {data && <ReceiptContent data={data} settings={settings} paperWidth={width} />}
+        {data && <ReceiptContent data={data} settings={settings} paperWidth={width} sample={sample} />}
       </div>
     </>
   );
@@ -36,15 +37,17 @@ interface ContentProps {
   data: ReceiptData;
   settings?: ReceiptSettings;
   paperWidth?: PaperWidth;
+  sample?: boolean;
 }
 
 /** Visible receipt shared by the settings preview and every print path. */
-export function ReceiptContent({ data, settings, paperWidth }: ContentProps) {
+export function ReceiptContent({ data, settings, paperWidth, sample }: ContentProps) {
   const fmtMoney = useFormatMoney();
   const isExempt = data.totals.exemptionDiscount > 0;
   const appearance = normalizeReceiptSettings(settings);
   return (
     <div style={{ width: normalizePaperWidth(paperWidth) }} className="max-w-full text-black bg-white font-mono text-sm mx-auto p-4 leading-tight break-words">
+            {sample && <p className="text-center font-bold mb-4">EJEMPLO / IMPRESIÓN DE PRUEBA<br />EJEMPLO-001 — No registra una venta</p>}
             {appearance.headerText && <p className="text-center whitespace-pre-wrap break-words mb-4">{appearance.headerText}</p>}
             {/* Header */}
             <div className="text-center space-y-1 mb-4">

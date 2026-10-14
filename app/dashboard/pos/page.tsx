@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { flushSync } from "react-dom";
 import { toast } from "sonner";
 import { usePosStore } from "@/stores/pos.store";
+import { usePrintSettingsStore } from "@/stores/print-settings.store";
+import { normalizeReceiptSettings } from "@/lib/receipt-settings";
 import { useSettingsStore } from "@/stores/settings.store";
 import { useShiftsStore } from "@/stores/shifts.store";
 import { useProfile } from "@/components/ProfileProvider";
@@ -131,6 +133,9 @@ function POSContent() {
   const undoClearCart = usePosStore((s) => s.undoClearCart);
   const fetchSaleReceipt = usePosStore((s) => s.fetchSaleReceipt);
 
+  const paperWidth = usePrintSettingsStore((s) => s.paperWidth);
+  const initPrintSettings = usePrintSettingsStore((s) => s.init);
+  useEffect(() => { initPrintSettings(); }, [initPrintSettings]);
   const businessProfile = useSettingsStore((s) => s.settings?.business_profile);
   const fetchSettings = useSettingsStore((s) => s.fetchSettings);
   const transferMethodsEnabled = useSettingsStore((s) => s.settings?.transfer_methods_enabled);
@@ -1661,7 +1666,7 @@ function POSContent() {
           seguir hasta que suban de plan, así que se corta con un modal. */}
       {planLimitHit && <PlanLimitModal onClose={clearPlanLimit} />}
 
-      <PosReceipt data={receiptToPrint} />
+      <PosReceipt data={receiptToPrint} settings={normalizeReceiptSettings(businessProfile?.receiptSettings)} paperWidth={paperWidth} />
     </>
   );
 }
