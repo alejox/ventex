@@ -640,8 +640,9 @@ export interface NavGroup {
  *    cartera de clientes, y se buscan en momentos distintos del día.
  *  - **Créditos se mudó de Finanzas a Clientes.** La pregunta que contesta es
  *    "¿quién me debe?", y se la hace uno con el cliente parado enfrente, no
- *    cerrando el mes. Es donde lo ponen Square y Loyverse. De paso Finanzas
- *    queda con Gastos solo y se dibuja plano, que es un encabezado menos.
+ *    cerrando el mes. Es donde lo ponen Square y Loyverse.
+ *  - POS is a direct primary action after Panel; sales history belongs first
+ *    in Finance, before expenses and reports.
  *
  * Vehículos va con Clientes (es el historial por placa de un cliente, no una
  * herramienta aparte) y Facturación va con Ventas (facturar es cobrarle al
@@ -649,13 +650,14 @@ export interface NavGroup {
  */
 const NAV_GROUP_ORDER: { id: string; label: string | null; itemIds: string[] }[] = [
   { id: "inicio", label: null, itemIds: ["panel"] },
-  { id: "ventas", label: "Ventas", itemIds: ["pos", "sales", "billing"] },
+  { id: "pos", label: null, itemIds: ["pos"] },
+  { id: "ventas", label: "Ventas", itemIds: ["billing"] },
   { id: "agenda", label: "Agenda", itemIds: ["calendar"] },
   { id: "clientes", label: "Clientes", itemIds: ["customers", "credits", "promociones", "vehicles"] },
   // El ciclo completo del inventario, en el orden en que se vive: qué vendo →
   // qué me falta → a quién se lo pido → qué me llegó.
   { id: "inventario", label: "Inventario", itemIds: ["inventory", "production", "pedidos", "distributors", "purchases"] },
-  { id: "finanzas", label: "Finanzas", itemIds: ["expenses", "reports"] },
+  { id: "finanzas", label: "Finanzas", itemIds: ["sales", "expenses", "reports"] },
   { id: "equipo", label: "Equipo", itemIds: ["staff", "commissions", "haircuts"] },
   // Académico es OPT-IN: el grupo entero desaparece cuando el módulo está apagado
   // (visibleNavItems lo filtra por módulo y workerNavItems por permiso + módulo).
