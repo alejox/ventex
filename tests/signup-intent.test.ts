@@ -57,10 +57,10 @@ test("plan y meses solo aceptan valores inofensivos", () => {
   assert.equal(sanitizeMonths("abc"), null);
 });
 
-test("afterOnboardingPath: con plan va al checkout de la landing; sin plan, al POS", () => {
-  assert.equal(afterOnboardingPath(null, null), "/dashboard/pos");
+test("afterOnboardingPath: con plan va al checkout de la landing; sin plan, al Panel", () => {
+  assert.equal(afterOnboardingPath(null, null), "/dashboard");
   assert.equal(afterOnboardingPath("oro", 3), "/?plan=oro&meses=3#precios");
-  assert.equal(afterOnboardingPath("//evil.com", 1), "/dashboard/pos");
+  assert.equal(afterOnboardingPath("//evil.com", 1), "/dashboard");
 });
 
 test("celular colombiano: 10 dígitos empezando en 3, con o sin +57", () => {

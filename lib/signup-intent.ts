@@ -116,11 +116,12 @@ export function onboardingPath(intent: Partial<SignupIntent>): string {
 /**
  * Destino al terminar el onboarding. Con un plan de pago elegido va a los precios
  * de la landing, que con sesión abre el checkout de ESE plan solo; sin plan, al
- * punto de venta como siempre.
+ * Panel: ahí vive "Primeros pasos", y un negocio recién creado no tiene catálogo
+ * que vender en el POS.
  */
 export function afterOnboardingPath(plan: string | null, months: number | null): string {
   const safePlan = sanitizePlanId(plan);
-  if (!safePlan) return "/dashboard/pos";
+  if (!safePlan) return "/dashboard";
   const params = new URLSearchParams({ plan: safePlan });
   const safeMonths = sanitizeMonths(months);
   if (safeMonths) params.set("meses", String(safeMonths));
