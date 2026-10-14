@@ -10,7 +10,7 @@ import {
   withInvoiceIncome,
 } from "@/services/reports.service";
 import { resolveExpenseRange } from "@/services/expenses.service";
-import { salesExportColumns, localDateTime, type SaleListItem } from "@/services/sales.service";
+import { salesExportColumns, salesTaxColumnVisible, localDateTime, type SaleListItem } from "@/services/sales.service";
 
 const NOW = new Date(2026, 9, 6, 12); // 6 oct 2026
 
@@ -101,4 +101,16 @@ test("salesExportColumns: con ítem filtrado suma sus dos columnas", () => {
   ]);
   assert.equal(base[2].value(sale), "De paso");
   assert.match(localDateTime(sale.created_at), /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/);
+});
+
+test("salesExportColumns: sin IVA y sin impuesto en las ventas no hay columna Impuesto", () => {
+  const rows = [{ tax_amount: 0 }, { tax_amount: 0 }] as SaleListItem[];
+  assert.equal(salesTaxColumnVisible(false, rows), false);
+  // Una venta vieja que sí cobró IVA lo sigue exportando.
+  assert.equal(salesTaxColumnVisible(false, [...rows, { tax_amount: 1900 } as SaleListItem]), true);
+  assert.equal(salesTaxColumnVisible(true, rows), true);
+  const sinColumna = salesExportColumns(() => "Efectivo", undefined, false);
+  assert.equal(sinColumna.length, 9);
+  assert.ok(!sinColumna.some((c) => c.header === "Impuesto"));
+  assert.ok(salesExportColumns(() => "Efectivo").some((c) => c.header === "Impuesto"));
 });

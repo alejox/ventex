@@ -6,6 +6,7 @@ import { useBillingStore } from "@/stores/billing.store";
 import { useCustomersStore } from "@/stores/customers.store";
 import { useServicesStore } from "@/stores/services.store";
 import { useSettingsStore } from "@/stores/settings.store";
+import { useBusinessTax } from "@/lib/useBusinessTax";
 import { useProfile } from "@/components/ProfileProvider";
 import type { Invoice, InvoiceItem, InvoiceLineInput, NewInvoiceInput } from "@/services/billing.service";
 import { DataTable, type DataColumn } from "@/components/DataTable";
@@ -22,6 +23,7 @@ import {
   filterInvoices,
   invoiceDue,
   invoiceExportColumns,
+  invoiceTaxColumnVisible,
   receivableSummary,
   type InvoiceFilter,
 } from "./invoice-view";
@@ -160,6 +162,7 @@ export default function BillingPage() {
   const services = useServicesStore((s) => s.services);
   const fetchServices = useServicesStore((s) => s.fetchServices);
   const businessProfile = useSettingsStore((s) => s.settings?.business_profile);
+  const { includeTax } = useBusinessTax();
   const fetchSettings = useSettingsStore((s) => s.fetchSettings);
   const profile = useProfile();
 
@@ -205,6 +208,7 @@ export default function BillingPage() {
     const tax = taxable * rate;
     return { subtotal, discount, tax, total: taxable + tax };
   }, [form.items, form.discount_amount, form.tax_rate]);
+  const showTaxField = includeTax || (parseFloat(form.tax_rate) || 0) > 0;
 
   const openCreate = useCallback(() => {
     setForm(newEmptyInvoice());
@@ -223,7 +227,7 @@ export default function BillingPage() {
 
   /** Exporta lo que la tabla muestra: mismo chip y misma búsqueda. */
   const exportAs = async (kind: "csv" | "xlsx") => {
-    const cols = invoiceExportColumns(todayDay);
+    const cols = invoiceExportColumns(todayDay, invoiceTaxColumnVisible(includeTax, visible));
     const name = exportFilename(filter === "all" ? "facturacion" : `facturacion ${filter}`, kind, {}, todayDay);
     if (kind === "csv") {
       downloadCsv(name, cols, visible);
@@ -615,8 +619,10 @@ export default function BillingPage() {
                 </button>
               </div>
 
-              {/* Descuento + impuesto */}
-              <div className="grid grid-cols-2 gap-4">
+              {/* Descuento + impuesto. Sin IVA en el negocio el impuesto no se
+                  ofrece (un documento nuevo sale con 0); si viene de una
+                  cotización que sí lo llevaba, se sigue mostrando. */}
+              <div className={`grid gap-4 ${showTaxField ? "grid-cols-2" : "grid-cols-1"}`}>
                 <div className="space-y-1.5">
                   <label htmlFor="invoice-discount" className="text-[13px] font-semibold text-on-surface block">Descuento</label>
                   <MoneyInput
@@ -625,7 +631,7 @@ export default function BillingPage() {
                     onChange={(raw) => setForm({ ...form, discount_amount: raw || "0" })}
                   />
                 </div>
-                <div className="space-y-1.5">
+                {showTaxField && <div className="space-y-1.5">
                   <label className="text-[13px] font-semibold text-on-surface block">Impuesto (%)</label>
                   <input
                     type="number"
@@ -636,7 +642,7 @@ export default function BillingPage() {
                     className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
                     placeholder="0"
                   />
-                </div>
+                </div>}
               </div>
 
               {/* Totales */}

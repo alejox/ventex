@@ -68,6 +68,20 @@ export const CUSTOMER_IMPORT: ImportEntity<CustomerImportRecord> = {
   keyLabels: { doc: "documento" },
 };
 
+/**
+ * La entidad de importación según el IVA del negocio. Sin IVA la exención no
+ * existe: la plantilla no trae la columna y, si un archivo viejo la trae, queda
+ * como columna ignorada (`tax_exempt` sale null y no toca lo guardado).
+ */
+const CUSTOMER_IMPORT_SIN_IVA: ImportEntity<CustomerImportRecord> = {
+  ...CUSTOMER_IMPORT,
+  columns: CUSTOMER_IMPORT.columns.filter((c) => c.key !== "tax_exempt"),
+};
+
+export function customerImportFor(includeTax: boolean): ImportEntity<CustomerImportRecord> {
+  return includeTax ? CUSTOMER_IMPORT : CUSTOMER_IMPORT_SIN_IVA;
+}
+
 export function existingCustomerKeys(customers: { id: string; identification: string | null }[]): Map<string, string> {
   const map = new Map<string, string>();
   for (const c of customers) {

@@ -7,6 +7,7 @@ import { Select } from "@/components/ui/Select";
 import { MoneyInput } from "@/components/ui/MoneyInput";
 import { useInventoryStore } from "@/stores/inventory.store";
 import { useFormatMoney } from "@/lib/useMoney";
+import { useBusinessTax } from "@/lib/useBusinessTax";
 import { findSameNameProduct, formatQty, parseQty, unitLabel } from "@/lib/recipe-editor";
 import { MEASURE_UNITS, contentLabel, convertQty, isMeasureUnit } from "@/lib/units";
 import type { Product } from "@/services/inventory.service";
@@ -89,6 +90,8 @@ function round3(value: number): number {
 export function IngredientQuickModal({ initialName = "", canSetCost, onClose, onCreated }: IngredientQuickModalProps) {
   const products = useInventoryStore((s) => s.products);
   const fmtMoney = useFormatMoney();
+  // Sin IVA en el negocio la ayuda no lo menciona.
+  const { includeTax } = useBusinessTax();
   const addProduct = useInventoryStore((s) => s.addProduct);
   const fetchInventory = useInventoryStore((s) => s.fetchInventory);
 
@@ -332,7 +335,7 @@ export function IngredientQuickModal({ initialName = "", canSetCost, onClose, on
                 {contentText && <span className="font-normal text-on-surface-variant"> ({one} de {contentText})</span>}
               </label>
               <MoneyInput id="ingredient-cost" value={cost} onChange={setCost} placeholder="0" aria-describedby="ingredient-cost-hint" />
-              <p id="ingredient-cost-hint" className="text-xs text-on-surface-variant">Lo que pagas por cada {singular}, con IVA.</p>
+              <p id="ingredient-cost-hint" className="text-xs text-on-surface-variant">Lo que pagas por cada {singular}{includeTax ? ", con IVA" : ""}.</p>
             </div>
           )}
           <div className="space-y-1.5">

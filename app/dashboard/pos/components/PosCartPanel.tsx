@@ -328,7 +328,7 @@ export function PosCartPanel({
                     <option key={c.id} value={c.id}>
                       {c.full_name}
                       {c.identification ? ` · ${c.doc_type ?? ""} ${c.identification}`.replace(/\s+/g, " ") : ""}
-                      {c.tax_exempt ? " (exento)" : ""}
+                      {includeTax && c.tax_exempt ? " (exento)" : ""}
                     </option>
                   ))}
                 </Select>
@@ -713,7 +713,9 @@ export function PosCartPanel({
 
           {cart.length > 0 && showDetail && (
             <div id="pos-cart-detail" className="space-y-1.5 mb-3 bg-surface-container px-4 py-3 rounded-2xl border border-outline-variant/10">
-              {isTaxExempt ? (
+              {/* `includeTax` va primero: sin IVA en el negocio no existe la
+                  exención, y un cliente marcado exento no muestra nada de IVA. */}
+              {includeTax && isTaxExempt ? (
                 <>
                   <div className="flex justify-between text-sm text-on-surface-variant">
                     <span>Precio original</span>

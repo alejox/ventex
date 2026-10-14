@@ -18,6 +18,7 @@ const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
 export function SaleConfigModal({ onClose }: SaleConfigModalProps) {
   const staff = usePosStore((s) => s.staff);
   const customers = usePosStore((s) => s.customers);
+  const includeTax = usePosStore((s) => s.includeTax);
   const defaultPaymentMethod = usePosStore((s) => s.defaultPaymentMethod);
   const setDefaultPaymentMethod = usePosStore((s) => s.setDefaultPaymentMethod);
   const defaultStaffId = usePosStore((s) => s.defaultStaffId);
@@ -68,7 +69,7 @@ export function SaleConfigModal({ onClose }: SaleConfigModalProps) {
               {customers.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.full_name}
-                  {c.tax_exempt ? " (exento)" : ""}
+                  {includeTax && c.tax_exempt ? " (exento)" : ""}
                 </option>
               ))}
             </Select>

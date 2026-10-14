@@ -66,10 +66,12 @@ export function customersExportRows(
     tax_exempt: boolean | null;
     credit_balance: number;
   }[],
+  /** Sin IVA en el negocio no se exporta la columna de exención. */
+  includeTax = true,
 ): unknown[][] {
   const header = [
     C("full_name"), C("doc_type"), C("identification"), C("phone"), C("email"),
-    C("credit_limit"), C("tax_exempt"), "Saldo por cobrar",
+    C("credit_limit"), ...(includeTax ? [C("tax_exempt")] : []), "Saldo por cobrar",
   ];
   return [
     header,
@@ -80,7 +82,7 @@ export function customersExportRows(
       c.phone ?? "",
       c.email ?? "",
       c.credit_limit ?? "",
-      c.tax_exempt ? "Sí" : "No",
+      ...(includeTax ? [c.tax_exempt ? "Sí" : "No"] : []),
       c.credit_balance ?? 0,
     ]),
   ];

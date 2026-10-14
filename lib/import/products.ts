@@ -134,7 +134,7 @@ export const PRODUCT_IMPORT: ImportEntity<ProductImportRecord> = {
   noun: "productos",
   columns: [
     { key: "name", label: "Nombre", required: true, aliases: ["producto", "nombre del producto", "descripcion", "item", "ítem"], example: "Gaseosa 400 ml", help: "Se guarda tal como lo escribas." },
-    { key: "price", label: "Precio de venta", required: true, aliases: ["precio", "precio venta", "pvp", "valor"], example: "3500", help: "Precio final con IVA incluido. Acepta 3500, 3.500 o $ 3.500." },
+    { key: "price", label: "Precio de venta", required: true, aliases: ["precio", "precio venta", "pvp", "valor"], example: "3500", help: "Precio final, el que paga el cliente. Acepta 3500, 3.500 o $ 3.500." },
     { key: "sku", label: "SKU", aliases: ["referencia", "ref", "codigo interno", "código interno"], example: "GAS-400", help: "Opcional. Si ya existe un producto con ese SKU, se actualiza o se omite (lo eliges al importar)." },
     { key: "barcode", label: "Código de barras", aliases: ["codigo", "código", "ean", "upc", "codigo de barra"], example: "7702004001234", help: "Opcional. Formatea la columna como Texto para que Excel no lo convierta." },
     { key: "category", label: "Categoría", aliases: ["categoria"], example: "Bebidas", help: "Opcional. Si no existe, se crea." },

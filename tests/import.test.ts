@@ -4,7 +4,7 @@ import { parseCsv, detectDelimiter, toCsv, csvCell } from "../lib/import/csv";
 import { parseNumberCO, parseYesNo, parsePhone, parseEmail, documentKey, normalizeHeader } from "../lib/import/values";
 import { buildPreview, mapHeaders, runInBatches, errorMessage } from "../lib/import/core";
 import { PRODUCT_IMPORT, existingProductKeys, annotateProductPreview, parseUnit } from "../lib/import/products";
-import { CUSTOMER_IMPORT, existingCustomerKeys } from "../lib/import/customers";
+import { CUSTOMER_IMPORT, customerImportFor, existingCustomerKeys } from "../lib/import/customers";
 import { DISTRIBUTOR_IMPORT, splitNit } from "../lib/import/distributors";
 import { parseDocType, docTypeOptionsFor } from "../lib/import/doc-types";
 import { customersExportRows, exportFileName } from "../lib/import/export";
@@ -245,4 +245,34 @@ test("el export de clientes usa los encabezados de la plantilla (ida y vuelta)",
   assert.equal(preview.rows[0].action, "create");
   assert.equal(preview.rows[0].record?.credit_limit, 5000);
   assert.equal(exportFileName("clientes", "csv", new Date(2026, 9, 6)), "clientes-2026-10-06.csv");
+});
+
+test("sin IVA en el negocio la plantilla y el export de clientes no traen la columna de exención", () => {
+  const sinIva = customerImportFor(false);
+  assert.ok(!sinIva.columns.some((c) => c.key === "tax_exempt"));
+  assert.ok(!JSON.stringify(sinIva.columns).includes("IVA"));
+  assert.equal(customerImportFor(true), CUSTOMER_IMPORT);
+
+  const customer = { full_name: "Ana", doc_type: "CC", identification: "1", phone: null, email: null, credit_limit: null, tax_exempt: true, credit_balance: 0 };
+  const rows = customersExportRows([customer], false);
+  assert.ok(!rows[0].some((h) => String(h).includes("IVA")));
+  assert.equal(rows[0].length, rows[1].length);
+  assert.ok(customersExportRows([customer])[0].includes("Exento de IVA"));
+
+  // Un archivo viejo que todavía trae la columna se importa igual: se ignora
+  // y no toca la exención guardada.
+  const preview = buildPreview(
+    [["Nombre", "Exento de IVA"], ["Ana", "Sí"]],
+    sinIva,
+    new Map(),
+    "update",
+  );
+  assert.equal(preview.rows[0].action, "create");
+  assert.equal(preview.rows[0].record?.tax_exempt, null);
+  assert.deepEqual(preview.unknownColumns, ["Exento de IVA"]);
+});
+
+test("la ayuda del precio del producto no habla de IVA", () => {
+  const price = PRODUCT_IMPORT.columns.find((c) => c.key === "price");
+  assert.doesNotMatch(price?.help ?? "", /IVA/);
 });

@@ -1,6 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  invoiceExportColumns,
+  invoiceTaxColumnVisible,
   filterCounts,
   filterFromParam,
   filterInvoices,
@@ -83,4 +85,15 @@ test("filterCounts y filterFromParam", () => {
   assert.equal(filterFromParam("vencidas"), "overdue");
   assert.equal(filterFromParam("cualquiera"), null);
   assert.equal(filterFromParam(null), null);
+});
+
+test("exportación de facturas: sin IVA y sin impuesto en las filas no hay columna Impuesto", () => {
+  const sinIva = [inv({ tax_amount: 0 }), inv({ tax_amount: 0 })];
+  assert.equal(invoiceTaxColumnVisible(false, sinIva), false);
+  // Una factura vieja que sí llevó impuesto lo sigue mostrando.
+  assert.equal(invoiceTaxColumnVisible(false, [...sinIva, inv({ tax_amount: 1900 })]), true);
+  assert.equal(invoiceTaxColumnVisible(true, sinIva), true);
+  const headers = (show: boolean) => invoiceExportColumns(TODAY, show).map((c) => c.header);
+  assert.ok(headers(true).includes("Impuesto"));
+  assert.ok(!headers(false).includes("Impuesto"));
 });

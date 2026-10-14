@@ -24,7 +24,7 @@ import { MoneyInput } from "@/components/ui/MoneyInput";
 import { Switch } from "@/components/ui/Switch";
 import { useTableUrlState, useUrlParams } from "@/lib/useUrlState";
 import { ImportWizard } from "@/lib/import/ImportWizard";
-import { CUSTOMER_IMPORT, existingCustomerKeys } from "@/lib/import/customers";
+import { customerImportFor, existingCustomerKeys } from "@/lib/import/customers";
 import { customersExportRows, exportFileName } from "@/lib/import/export";
 import { downloadCsv } from "@/lib/import/spreadsheet";
 import { docTypeOptionsFor, PHONE_PLACEHOLDER } from "@/lib/import/doc-types";
@@ -111,6 +111,10 @@ export default function CustomersPage() {
   const canManageCredit = Boolean(profile && !profile.isWorker);
   const settings = useSettingsStore((s) => s.settings);
   const fetchSettings = useSettingsStore((s) => s.fetchSettings);
+  // Sin IVA en el negocio la exención no existe: no se muestra en la lista, el
+  // formulario ni la ficha. El valor guardado no se toca (el formulario lo
+  // conserva tal cual), por si el negocio vuelve a cobrar IVA.
+  const includeTax = settings?.include_tax ?? true;
   const [paymentCustomer, setPaymentCustomer] = useState<Customer | null>(null);
   const [customerSales, setCustomerSales] = useState<CustomerSale[]>([]);
   const [salesLoading, setSalesLoading] = useState(false);
@@ -248,7 +252,7 @@ export default function CustomersPage() {
   const visibleCustomers = filterCustomersByDebt(customers, onlyWithDebt);
 
   const exportCsv = () => {
-    downloadCsv(exportFileName("clientes"), customersExportRows(visibleCustomers));
+    downloadCsv(exportFileName("clientes"), customersExportRows(visibleCustomers, includeTax));
   };
 
   const handleDetailEdit = (c: Customer) => {
@@ -306,9 +310,9 @@ export default function CustomersPage() {
           <span className="text-on-surface-variant">{fmtMoney(0)}</span>
         ),
     },
-    {
+    ...(includeTax ? [{
       header: "Impuestos",
-      align: "center",
+      align: "center" as const,
       mobile: "badge",
       cell: (c) =>
         c.tax_exempt ? (
@@ -320,7 +324,7 @@ export default function CustomersPage() {
             Aplica IVA
           </span>
         ),
-    },
+    } satisfies DataColumn<Customer>] : []),
     {
       header: "",
       align: "right",
@@ -558,14 +562,14 @@ export default function CustomersPage() {
                   Hasta cuánto le puedes fiar. Déjalo vacío si no tiene cupo definido.
                 </p>
               </div>
-              <div className="p-3 sm:p-4 bg-surface-container-low rounded-xl border border-outline-variant/10">
+              {includeTax && <div className="p-3 sm:p-4 bg-surface-container-low rounded-xl border border-outline-variant/10">
                 <Switch
                   checked={form.tax_exempt}
                   onCheckedChange={(v) => setForm({ ...form, tax_exempt: v })}
                   label="Cliente exento de impuestos"
                   description="No aplicar IVA a las compras de este cliente."
                 />
-              </div>
+              </div>}
               </>
               )}
 
@@ -655,7 +659,7 @@ export default function CustomersPage() {
         open={importOpen}
         onClose={() => setImportOpen(false)}
         title="clientes"
-        entity={CUSTOMER_IMPORT}
+        entity={customerImportFor(includeTax)}
         existing={existingKeys}
         templateFileName="plantilla-clientes.xlsx"
         previewKeys={["full_name", "identification", "phone"]}
@@ -682,9 +686,11 @@ export default function CustomersPage() {
               <span className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-on-surface-variant">
                 {detailCustomer.phone && <span>{detailCustomer.phone}</span>}
                 {detailCustomer.email && <span>{detailCustomer.email}</span>}
-                <span className={detailCustomer.tax_exempt ? "text-warning font-semibold" : ""}>
-                  {detailCustomer.tax_exempt ? "Exento de IVA" : "Aplica IVA"}
-                </span>
+                {includeTax && (
+                  <span className={detailCustomer.tax_exempt ? "text-warning font-semibold" : ""}>
+                    {detailCustomer.tax_exempt ? "Exento de IVA" : "Aplica IVA"}
+                  </span>
+                )}
               </span>
             </>
           }

@@ -48,13 +48,16 @@ A business that is not responsible for IVA printed receipts and screens with IVA
 - [x] **T1 Getting started order.** "Configura los datos del negocio y el IVA" comes first for every business type, before the catalog.
   - Route: inline (one file plus its test).
   - Tests: `tests/getting-started.test.ts`. RED was 3 order failures; GREEN is 942/942.
-- [ ] **T2 Single IVA control.**
+- [x] **T2 Single IVA control.**
   - Datos de tu negocio owns the regime and the rate, and saves `include_tax`, `tax_rate` and `taxResponsibility` together.
   - Ajustes → General drops "Desglosar IVA" and "Tasa de IVA".
   - The POS `SaleConfigModal` drops its "Desglosar IVA" switch, and the now-unused POS writer is removed.
   - The receipt "Régimen" line derives from `include_tax`. With IVA off it prints no IVA wording.
   - Route: delegated writer (2+ non-trivial files).
-- [ ] **T3 Hide IVA on sales-side surfaces** when `include_tax = false`:
+  - Tests: `tests/tax-regime.test.ts` (new: regime from `include_tax`, save mapping) and two receipt cases in `tests/receipt.test.tsx`. RED: 5 failures (missing helpers, stale profile text on the receipt). GREEN: 947/947.
+  - Notes: the regime moved out of the DIAN accordion into its own "IVA" card; `SettingsInput.tax_rate`/`include_tax` are now optional, so General and other callers no longer overwrite them; `updateIncludeTax` and the POS `setIncludeTax` were removed.
+  - Commit: `fedcb6f`.
+- [x] **T3 Hide IVA on sales-side surfaces** when `include_tax = false`:
   - POS exempt branch (check `includeTax` first) and the "(exento)" tags.
   - Sale detail "Impuesto" (show only if `includeTax || tax_amount > 0`).
   - Sales export and invoice export "Impuesto" columns.
@@ -63,6 +66,9 @@ A business that is not responsible for IVA printed receipts and screens with IVA
   - Import help/columns that mention IVA.
   - `IngredientQuickModal` copy.
   - Route: delegated writer.
+  - Tests: `tests/pos-cart-iva-off.test.tsx` (new), plus cases in `tests/reports.test.ts`, `tests/billing-view.test.ts` and `tests/import.test.ts`. RED: 2 POS + 2 export + 2 import failures. GREEN: 953/953.
+  - Exception: billing form, customers screen, sale detail, `SaleConfigModal` tags and `IngredientQuickModal` copy are UI-only gating with no runnable RED (the POS store renders its initial state under SSR); checked by `tsc` and lint.
+  - Notes: the product import price help is now neutral ("Precio final, el que paga el cliente") because `PRODUCT_IMPORT` is a constant used by the inventory page; a customer file that still has "Exento de IVA" imports with that column ignored and `tax_exempt` untouched.
 - [ ] **T4 Copy and docs.**
   - The getting-started step copy matches where IVA now lives.
   - `docs/guia-de-uso.md` describes the single control.
@@ -84,6 +90,8 @@ A business that is not responsible for IVA printed receipts and screens with IVA
 ## Progress
 
 - 2026-10-14: T1 done on branch `feat/iva-off`, commit `5634bff`.
+- 2026-10-14: T2 done, commit `fedcb6f`.
+- 2026-10-14: T3 done (commit recorded with T4).
 
 ## Next step
 

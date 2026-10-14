@@ -138,8 +138,19 @@ export function filterCounts(list: Invoice[], today: string): Record<InvoiceFilt
 const TYPE_LABEL: Record<string, string> = { factura: "Factura", cotizacion: "Cotización" };
 const STATUS_LABEL: Record<string, string> = { pending: "Pendiente", paid: "Pagada", cancelled: "Cancelada" };
 
+/**
+ * Si la exportación lleva "Impuesto": siempre con IVA y, sin IVA, solo si algún
+ * documento exportado lo llevó (uno viejo con impuesto no lo pierde).
+ */
+export function invoiceTaxColumnVisible(
+  includeTax: boolean,
+  invoices: readonly Pick<Invoice, "tax_amount">[],
+): boolean {
+  return includeTax || invoices.some((i) => Number(i.tax_amount) > 0);
+}
+
 /** Columnas de la exportación: lo mismo que la tabla, con el vencimiento en días. */
-export function invoiceExportColumns(today: string): ExportColumn<Invoice>[] {
+export function invoiceExportColumns(today: string, showTax = true): ExportColumn<Invoice>[] {
   return [
     { header: "Tipo", value: (i) => TYPE_LABEL[i.type] ?? i.type, width: 12 },
     { header: "N.º", value: (i) => i.invoice_number, width: 8 },
@@ -155,7 +166,9 @@ export function invoiceExportColumns(today: string): ExportColumn<Invoice>[] {
     { header: "Días vencida", value: (i) => { const d = invoiceDue(i, today); return d.overdue ? -(d.days ?? 0) : null; }, width: 12 },
     { header: "Subtotal", value: (i) => i.subtotal, width: 14, numFmt: MONEY_NUM_FMT },
     { header: "Descuento", value: (i) => i.discount_amount, width: 12, numFmt: MONEY_NUM_FMT },
-    { header: "Impuesto", value: (i) => i.tax_amount, width: 12, numFmt: MONEY_NUM_FMT },
+    ...(showTax
+      ? [{ header: "Impuesto", value: (i: Invoice) => i.tax_amount, width: 12, numFmt: MONEY_NUM_FMT }]
+      : []),
     { header: "Total", value: (i) => i.total, width: 14, numFmt: MONEY_NUM_FMT },
   ];
 }

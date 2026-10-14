@@ -757,6 +757,7 @@ const SALE_STATUS_LABELS: Record<string, string> = {
 export function salesExportColumns(
   paymentLabel: (sale: SaleListItem) => string,
   itemName?: string,
+  showTax = true,
 ): ExportColumn<SaleListItem>[] {
   const cols: ExportColumn<SaleListItem>[] = [
     { header: "N.º", value: (s) => s.sale_number, width: 8 },
@@ -769,7 +770,9 @@ export function salesExportColumns(
     { header: "Artículos", value: (s) => s.item_count, width: 10 },
     { header: "Subtotal", value: (s) => s.subtotal, width: 14, numFmt: MONEY_NUM_FMT },
     { header: "Descuento", value: (s) => s.discount_amount, width: 13, numFmt: MONEY_NUM_FMT },
-    { header: "Impuesto", value: (s) => s.tax_amount, width: 13, numFmt: MONEY_NUM_FMT },
+    ...(showTax
+      ? [{ header: "Impuesto", value: (s: SaleListItem) => s.tax_amount, width: 13, numFmt: MONEY_NUM_FMT }]
+      : []),
     { header: "Total", value: (s) => s.total, width: 14, numFmt: MONEY_NUM_FMT },
   ];
   if (itemName) {
@@ -779,6 +782,18 @@ export function salesExportColumns(
     );
   }
   return cols;
+}
+
+/**
+ * Si la exportación lleva la columna "Impuesto": siempre que el negocio cobre
+ * IVA y, sin IVA, solo si alguna venta exportada lo cobró de verdad (una venta
+ * vieja con IVA no puede perderlo en el archivo).
+ */
+export function salesTaxColumnVisible(
+  includeTax: boolean,
+  rows: readonly Pick<SaleListItem, "tax_amount">[],
+): boolean {
+  return includeTax || rows.some((r) => Number(r.tax_amount) > 0);
 }
 
 /** "2026-10-06 19:45" en hora local: ordena bien como texto y Excel lo entiende. */

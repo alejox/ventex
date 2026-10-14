@@ -9,6 +9,7 @@ import {
   SALES_PAGE_SIZE,
   resolvePeriod,
   salesExportColumns,
+  salesTaxColumnVisible,
   fetchItemFilterOptions,
   hasItemFilter,
   itemFilterFromOption,
@@ -386,6 +387,7 @@ export default function SalesPage() {
       const cols = salesExportColumns(
         (s) => paymentLabelOf(s.payment_method, s.transfer_method, s.card_method),
         filtrandoItem ? nombreDelItem || "el ítem" : undefined,
+        salesTaxColumnVisible(settings?.include_tax ?? true, rows),
       );
       const range = resolvePeriod(period, customFrom, customTo);
       const name = exportFilename(
@@ -794,10 +796,14 @@ export default function SalesPage() {
                       <span className="text-success font-medium">-{fmtMoney(detail.discount_amount)}</span>
                     </div>
                   )}
-                  <div className="flex justify-between text-sm">
-                    <span className="text-on-surface-variant">Impuesto ({Math.round(detail.tax_rate * 100)}%)</span>
-                    <span className="text-on-surface font-medium">{fmtMoney(detail.tax_amount)}</span>
-                  </div>
+                  {/* Sin IVA en el negocio no se habla de impuesto, salvo que esta
+                      venta (vieja) lo haya cobrado de verdad. */}
+                  {((settings?.include_tax ?? true) || Number(detail.tax_amount) > 0) && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-on-surface-variant">Impuesto ({Math.round(detail.tax_rate * 100)}%)</span>
+                      <span className="text-on-surface font-medium">{fmtMoney(detail.tax_amount)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between items-center pt-3 border-t border-outline-variant/10">
                     <span className="text-base font-bold text-on-surface">Total</span>
                     <span className="text-2xl font-black text-primary-ink">{fmtMoney(detail.total)}</span>
