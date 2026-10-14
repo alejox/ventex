@@ -71,6 +71,24 @@ const SHIFT_SELECT =
   "id, worker_id, opened_at, closed_at, opening_cash, closing_cash, expected_cash, difference, sales_total, sales_count, withdrawals_total, totals_by_method, cash_sales, cash_abonos, movements_by_kind, notes, status";
 
 /**
+ * Nombre de quien abrió el turno (`shifts.worker_id` = su auth uid). Los
+ * trabajadores y administradores con cuenta salen de la lista de accesos; el
+ * dueño no está en esa lista, así que su caja (`settings.owner_uses_shifts`) se
+ * reconoce porque su uid ES el id del negocio.
+ */
+export function shiftHolderName(
+  workerId: string,
+  workers: ReadonlyArray<{ id: string; full_name: string | null }>,
+  viewer: { id: string; workspaceId: string | null; fullName: string } | null,
+): string {
+  const member = workers.find((w) => w.id === workerId)?.full_name;
+  if (member) return member;
+  if (viewer && viewer.id === workerId) return viewer.fullName;
+  if (viewer && viewer.workspaceId === workerId) return "Dueño del negocio";
+  return "Empleado";
+}
+
+/**
  * El servidor exige justificar todo cierre descuadrado. Se marca con un código
  * para que la UI pueda pedir la nota en vez de mostrar el error crudo.
  */

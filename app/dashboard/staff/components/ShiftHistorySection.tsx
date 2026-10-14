@@ -5,7 +5,8 @@ import { useShiftsStore } from "@/stores/shifts.store";
 import type { WorkerMember } from "@/services/worker.service";
 import { CloseShiftModal } from "@/components/shift/CloseShiftModal";
 import { DataTable, type DataColumn } from "@/components/DataTable";
-import type { Shift } from "@/services/shifts.service";
+import { shiftHolderName, type Shift } from "@/services/shifts.service";
+import { useProfile } from "@/components/ProfileProvider";
 import { useFormatMoney } from "@/lib/useMoney";
 
 const shiftDate = (iso: string) =>
@@ -49,6 +50,7 @@ function ShiftStatusBadge({ difference, notes }: { difference: number | null; no
 
 export function ShiftHistorySection({ workers }: { workers: WorkerMember[] }) {
   const fmtMoney = useFormatMoney();
+  const profile = useProfile();
   const shifts = useShiftsStore((s) => s.shifts);
   const loading = useShiftsStore((s) => s.loading);
   const fetchShifts = useShiftsStore((s) => s.fetchShifts);
@@ -59,12 +61,11 @@ export function ShiftHistorySection({ workers }: { workers: WorkerMember[] }) {
     fetchShifts();
   }, [fetchShifts]);
 
-  const workerName = (workerId: string) =>
-    workers.find((w) => w.id === workerId)?.full_name ?? "Empleado";
+  const workerName = (workerId: string) => shiftHolderName(workerId, workers, profile ?? null);
 
   const shiftColumns: DataColumn<Shift>[] = [
     {
-      header: "Empleado",
+      header: "Persona",
       mobile: "title",
       className: "font-semibold text-on-surface",
       cell: (s) => (

@@ -15,6 +15,7 @@ import { catalogOptions, catalogLabel } from "@/services/school-settings.service
 import { Select } from "@/components/ui/Select";
 import { ConfirmDialog, useConfirm } from "@/components/ui/ConfirmDialog";
 import { useProfile } from "@/components/ProfileProvider";
+import { useSettingsStore } from "@/stores/settings.store";
 import { staffRolesForType, effectiveModules, permissionSummary } from "@/config/business";
 import { useApplicablePermissions } from "./components/PermissionToggles";
 import { mergeTeam, hasStaffRecord } from "@/lib/team";
@@ -109,6 +110,8 @@ export default function StaffPage() {
   const [permsFor, setPermsFor] = useState<string | null>(null);
 
   const profile = useProfile();
+  /** Con caja de dueño/admin activada hay turnos que ver aunque no haya trabajadores. */
+  const ownerUsesShifts = useSettingsStore((s) => s.settings?.owner_uses_shifts ?? false);
   /** Solo los rubros con agenda tienen reserva online donde mostrar a alguien. */
   const hasBooking = Boolean(profile?.modules?.appointments);
   const roleOptions = staffRolesForType(profile?.businessType ?? null);
@@ -896,8 +899,11 @@ export default function StaffPage() {
         </Modal>
       )}
 
-      {/* Turnos de caja: solo tiene sentido para quien sí entra al sistema. */}
-      {accounts.length > 0 && <ShiftHistorySection workers={accounts} />}
+      {/*
+        Turnos de caja: solo tiene sentido para quien sí entra al sistema, o
+        cuando el dueño/admin trabaja con su propia caja.
+      */}
+      {(accounts.length > 0 || ownerUsesShifts) && <ShiftHistorySection workers={accounts} />}
 
       {grantMember && (
         <GrantAccessModal member={grantMember} onClose={() => setGrantFor(null)} />
