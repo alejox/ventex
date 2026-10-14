@@ -26,7 +26,7 @@ Use “Configuración” for the settings destination and section heading. Allow
   - Source surfaces: MercadoTemplate.module.css, DespensaTemplate.module.css, OrganicoTemplate.module.css, templates.module.css, BarberModernTemplate.module.css, BarberArtesanalTemplate.module.css, BarberUrbanaTemplate.module.css under app/[slug]/templates; tests/site-logo-fit.test.ts.
   - Checks: deterministic CSS regression RED → GREEN, isolated Chromium wide/tall/square desktop/mobile checks with actual CSS; npm test; standalone typecheck; git diff --check.
   - Forecast: under 150 additional authored lines; total feature forecast remains under 400. Delivery ask-on-risk unchanged.
-  - Commit: completed work unit follows this record; identity recorded below after commit.
+  - Commit: `4cf5cc3` — fix(site): preserve complete logo proportions across templates.
   - Risk assessment: unassessable/high (untracked inventory); independent verifier completed. RDD disabled/unmanaged.
   - Verification: focused regression RED on cover before change, GREEN 1/1; npm test 976/976; standalone typecheck and diff-check passed. Independent actual-CSS Chromium harness: 42 cases (seven CSS families × wide/tall/square × desktop/mobile). Parent repeated harness successfully.
   - Limitations: isolated minimal brand markup, not full Next.js header screenshots or long-name pressure. No production build. Public and preview use same renderer.
