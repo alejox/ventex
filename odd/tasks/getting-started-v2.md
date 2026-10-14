@@ -64,8 +64,9 @@ Order and visibility:
 - [x] **T2 Getting started v2.** New facts, order, optional site step, UI tag and progress; tests.
   - Route: delegated. RED observed first (`tests/getting-started.test.ts`: 10 fail / 3 pass), then GREEN (13/13).
   - Visibility from `visibleNavItems` (`distributors`, `staff`, `landing`); `STAFF_TYPES` removed. Supplier step links to `/dashboard/distributors?new=1`, now handled by `OpenOnNewParam` on that page. The facts query reads `settings` with `*` so the missing column (pre-migration) never fails the query.
-  - Evidence: `npx tsc --noEmit` clean; eslint on touched files clean; `npm test` 972/972.
-- [ ] **T3 Docs.** Guide sections 2 and 3 plus the new section.
+  - Commit `56a11a0`. Evidence: `npx tsc --noEmit` clean; eslint on touched files clean; `npm test` 972/972.
+- [x] **T3 Docs.** Guide sections 2 and 3 plus the new section.
+  - Route: delegated. Passive docs: structural readback only (no runnable RED). `docs/guia-de-uso.md`: "Primeros pasos" order in section 1, tab list in section 2, transfer/datáfono row moved out of General into a new "Métodos de pago" subsection.
 
 ## Acceptance criteria
 
@@ -81,4 +82,4 @@ Order and visibility:
 
 ## Next step
 
-T1–T3 through one delegated writer. The parent reviews and applies the migration.
+The parent reviews and applies `20261014110000_settings_payment_methods_configured_at.sql`; until then, saving Métodos de pago fails with a PostgREST unknown-column error (nothing is written).

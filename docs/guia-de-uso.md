@@ -31,11 +31,21 @@ Esta guía te lleva paso a paso desde que creas tu cuenta hasta tu operación di
    - El **nombre de tu negocio**, tu nombre y tu teléfono.
 5. Toca "Entrar a mi negocio". Si elegiste un plan antes de registrarte, verás "Continuar al pago".
 
-> Llegas al **Panel**, donde está la lista "Primeros pasos" con todo lo que falta por configurar. Antes de vender, te recomendamos completar los pasos 2 y 3 de esta guía.
+> Llegas al **Panel**, donde está la lista "Primeros pasos" con todo lo que falta por configurar, en el orden en que conviene hacerlo:
+>
+> 1. Datos del negocio e IVA.
+> 2. Tu primer proveedor (si tu negocio tiene Proveedores en el menú).
+> 3. Tu primer producto, servicio o plan de clases.
+> 4. Tus métodos de pago.
+> 5. Tu personal (en escuela, tus profesores).
+> 6. Tu primera venta.
+> 7. Tu página web, que es **opcional**: no cuenta para completar la lista.
+>
+> Antes de vender, te recomendamos completar los pasos 2 y 3 de esta guía.
 
 ## 2. Configura tu negocio
 
-Ve a **Configuración** en el menú lateral. Tiene tres pestañas.
+Ve a **Configuración** en el menú lateral. Tiene estas pestañas: General, Datos de tu negocio, Métodos de pago y, según tu negocio, Promociones.
 
 ### Datos de tu negocio
 
@@ -52,10 +62,18 @@ Ve a **Configuración** en el menú lateral. Tiene tres pestañas.
 | Permitir vender sin stock | Deja vender aunque el inventario esté en cero | Activado |
 | Exigir turno activo para facturar | Tus trabajadores deben abrir caja antes de cobrar | Desactivado |
 | Moneda | Moneda en la que se muestran los montos | COP |
-| Cobrar por transferencia / con datáfono | Habilita esos medios de pago en el POS | — |
 | Negocio y módulos | Cambia tu tipo de negocio o activa módulos (por ejemplo, Producción) | Según tu tipo |
 
 Toca **"Guardar Cambios"** al final. La opción "Exigir turno activo" se guarda sola al cambiarla; las demás necesitan este botón.
+
+### Métodos de pago
+
+El efectivo siempre está disponible. Aquí eliges qué más ofrece el POS al cobrar:
+
+- **Cobrar por transferencia**: muestra "Transferencia" en el cobro. Marca los medios que usas (Nequi, Daviplata, Bancolombia…); si no marcas ninguno, el POS no pregunta por cuál entró la plata.
+- **Cobrar con datáfono**: muestra "Datáfono" en el cobro. Marca los datáfonos que usas; si no marcas ninguno, el POS no pregunta cuál se usó.
+
+Toca **"Guardar"**. Aunque solo cobres en efectivo, guarda una vez: así queda listo el paso "Configura tus métodos de pago" de "Primeros pasos".
 
 ### Promociones
 
