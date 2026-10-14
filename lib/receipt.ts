@@ -55,7 +55,6 @@ export interface ReceiptBusiness {
   logoUrl?: string | null;
   municipality?: string | null;
   phone?: string | null;
-  taxResponsibility?: string | null;
 }
 
 export interface ReceiptData extends ReceiptBusiness {

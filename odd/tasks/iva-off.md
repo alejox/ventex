@@ -83,7 +83,7 @@ A business that is not responsible for IVA printed receipts and screens with IVA
 
 ## Progress
 
-- 2026-10-14: T1 done on branch `feat/iva-off` (the commit is recorded below once made).
+- 2026-10-14: T1 done on branch `feat/iva-off`, commit `5634bff`.
 
 ## Next step
 

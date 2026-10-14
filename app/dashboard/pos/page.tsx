@@ -803,7 +803,6 @@ function POSContent() {
           logoUrl: businessProfile?.logoUrl ?? null,
           municipality: businessProfile?.municipality ?? null,
           phone: businessProfile?.phone ?? null,
-          taxResponsibility: businessProfile?.taxResponsibility ?? null,
         },
         includeTax,
         date: new Date(),
@@ -1014,7 +1013,6 @@ function POSContent() {
               logoUrl: businessProfile?.logoUrl ?? null,
               municipality: businessProfile?.municipality ?? null,
               phone: businessProfile?.phone ?? null,
-              taxResponsibility: businessProfile?.taxResponsibility ?? null,
             },
           }),
         );

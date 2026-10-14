@@ -1,7 +1,6 @@
 import { create } from "zustand";
 import { toMessage, isNetworkError, isBusinessRejection } from "@/lib/errors";
 import * as posService from "@/services/pos.service";
-import * as settingsService from "@/services/settings.service";
 import * as deliveryService from "@/services/delivery.service";
 import * as offlineQueue from "@/services/offline-queue.service";
 import * as offersService from "@/services/offers.service";
@@ -137,10 +136,11 @@ interface PosState {
   clearPlanLimit: () => void;
 
   // Configuración
-  /** Del negocio (`settings.include_tax`). Persiste: no es por venta. */
+  /**
+   * Del negocio (`settings.include_tax`). Solo se LEE: el régimen de IVA se
+   * configura en Ajustes → Datos de tu negocio, nunca desde el POS.
+   */
   includeTax: boolean;
-  /** Devuelve false si la RLS rechazó la escritura (empleado sin permiso). */
-  setIncludeTax: (val: boolean) => Promise<boolean>;
   /** Del negocio (`settings.allow_oversell`). false = no se cobra sin stock. */
   allowOversell: boolean;
   /**
@@ -530,27 +530,6 @@ export const usePosStore = create<PosState>((set, get) => {
     planLimitHit: false,
 
     includeTax: true,
-    /**
-     * Antes esto solo tocaba memoria: apagabas el IVA, recargabas y volvía a
-     * estar encendido, porque `init()` relee `settings.include_tax` del
-     * backend. Ahora escribe la columna y el POS refleja lo persistido.
-     *
-     * La actualización es optimista —el toggle tiene que responder al toque—
-     * y se revierte si la RLS rechaza la escritura o si falla la red.
-     */
-    setIncludeTax: async (val) => {
-      const previous = get().includeTax;
-      if (previous === val) return true;
-      set({ includeTax: val });
-      try {
-        const ok = await settingsService.updateIncludeTax(val);
-        if (!ok) set({ includeTax: previous });
-        return ok;
-      } catch {
-        set({ includeTax: previous });
-        return false;
-      }
-    },
     allowOversell: true,
     refreshPosConfig: async () => {
       try {
@@ -585,8 +564,8 @@ export const usePosStore = create<PosState>((set, get) => {
           offersService.fetchActiveOffers().catch(() => []),
         ]);
         // Desglose de IVA y sobreventa son política del negocio y viven en
-        // `settings`. El toggle del POS escribe `include_tax` (ver
-        // `setIncludeTax`); `allowOversell` solo se configura en Ajustes.
+        // `settings` y el POS solo los lee: el IVA se configura en Datos de tu
+        // negocio y `allowOversell` en Ajustes.
         const { taxRate, includeTax, allowOversell } = config;
         const state = get();
         const heldKey = heldTabsKey(executionContext);

@@ -2,7 +2,14 @@
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useSettingsStore } from "@/stores/settings.store";
-import type { BusinessProfile, Settings } from "@/services/settings.service";
+import {
+  TAX_REGIME_LABEL,
+  taxRegimeOf,
+  taxSettingsForRegime,
+  type BusinessProfile,
+  type Settings,
+  type TaxRegime,
+} from "@/services/settings.service";
 import { notifySuccess } from "@/lib/notifications";
 import { Select } from "@/components/ui/Select";
 
@@ -51,6 +58,10 @@ function BusinessProfileForm({ settings }: { settings: Settings }) {
   const uploadLogo = useSettingsStore((s) => s.uploadLogo);
 
   const [form, setForm] = useState<BusinessProfile>(() => settings.business_profile ?? {});
+  // El régimen se siembra desde `include_tax`, no desde `taxResponsibility`:
+  // si los dos quedaron desfasados, se muestra lo que de verdad se cobra.
+  const [regime, setRegime] = useState<TaxRegime>(() => taxRegimeOf(settings.include_tax));
+  const [taxPercent, setTaxPercent] = useState(() => String(+(settings.tax_rate * 100).toFixed(2)));
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [logoError, setLogoError] = useState<string | null>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
@@ -86,17 +97,21 @@ function BusinessProfileForm({ settings }: { settings: Settings }) {
   /** Descarta lo editado: vuelve a lo último guardado. */
   const handleCancel = () => {
     setForm(settings.business_profile ?? {});
+    setRegime(taxRegimeOf(settings.include_tax));
+    setTaxPercent(String(+(settings.tax_rate * 100).toFixed(2)));
     setLogoError(null);
   };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    // IVA y régimen van en el MISMO guardado: no pueden volver a contradecirse.
+    const tax = taxSettingsForRegime(regime, taxPercent, settings.tax_rate);
     const ok = await saveSettings({
-      tax_rate: settings.tax_rate,
-      include_tax: settings.include_tax,
+      tax_rate: tax.tax_rate,
+      include_tax: tax.include_tax,
       allow_oversell: settings.allow_oversell,
       currency: settings.currency,
-      business_profile: form,
+      business_profile: { ...form, taxResponsibility: tax.taxResponsibility },
     });
     if (ok) {
       notifySuccess("Ajustes guardados", "Los datos de tu negocio se actualizaron correctamente.");
@@ -244,19 +259,8 @@ function BusinessProfileForm({ settings }: { settings: Settings }) {
                     </Field>
                   </div>
 
-                  {/* Tax Responsibility & Postal Code Row */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div>
-                      <Select
-                        label="Responsabilidad tributaria"
-                        value={form.taxResponsibility ?? ""}
-                        onChange={(e) => update("taxResponsibility", e.target.value)}
-                      >
-                        <option value="">Seleccionar</option>
-                        <option value="Responsable de IVA">Responsable de IVA</option>
-                        <option value="No responsable de IVA">No responsable de IVA</option>
-                      </Select>
-                    </div>
+                  {/* Postal Code & Website Row */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <Field label="Código postal">
                       <input type="text" value={form.postalCode ?? ""} onChange={(e) => update("postalCode", e.target.value)} className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface" />
                     </Field>
@@ -267,6 +271,50 @@ function BusinessProfileForm({ settings }: { settings: Settings }) {
                 </div>
               </details>
             </div>
+          </div>
+        </div>
+
+        {/* Card: IVA. Es el ÚNICO control del IVA del negocio: escribe
+            `settings.include_tax` (lo que mira el cobro) y la tasa. */}
+        <div className="bg-surface-container-lowest rounded-3xl overflow-hidden shadow-sm border border-outline-variant/10">
+          <div className="p-6 md:p-8">
+            <h2 className="text-lg font-bold text-on-surface">IVA</h2>
+            <p className="text-sm text-on-surface-variant mt-1">
+              Elige si tu negocio cobra IVA. Si no eres responsable, el IVA no aparece en el punto de venta, los recibos ni los reportes.
+            </p>
+          </div>
+
+          <hr className="border-outline-variant/10" />
+
+          <div className="p-6 md:p-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Select
+              label="Responsabilidad tributaria"
+              value={regime}
+              onChange={(e) => setRegime(e.target.value as TaxRegime)}
+            >
+              <option value="responsable">{TAX_REGIME_LABEL.responsable}</option>
+              <option value="no_responsable">{TAX_REGIME_LABEL.no_responsable}</option>
+            </Select>
+            {regime === "responsable" && (
+              <Field label="Tasa de IVA (%)" required>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="100"
+                  required
+                  value={taxPercent}
+                  onChange={(e) => setTaxPercent(e.target.value)}
+                  placeholder="19"
+                  className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface"
+                />
+              </Field>
+            )}
+            {regime === "responsable" && (
+              <p className="sm:col-span-2 text-xs text-on-surface-variant">
+                Los precios de tu catálogo ya incluyen el IVA: esta tasa se usa para extraerlo del precio y mostrarlo desglosado. Los clientes marcados como exentos pagan solo la base.
+              </p>
+            )}
           </div>
         </div>
 

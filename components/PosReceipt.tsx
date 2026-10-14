@@ -61,10 +61,13 @@ export function PosReceipt({ data }: Props) {
                   <span className="font-bold">Tel&eacute;fono:</span> {data.phone}
                 </p>
               )}
-              <p>
-                <span className="font-bold">R&eacute;gimen:</span>{" "}
-                {data.taxResponsibility || (data.includeTax ? "Responsable de IVA" : "No responsable de IVA")}
-              </p>
+              {/* El régimen sale de `include_tax` (el de la venta): sin IVA no se
+                  imprime nada sobre IVA, ni siquiera "No responsable". */}
+              {data.includeTax && (
+                <p>
+                  <span className="font-bold">R&eacute;gimen:</span> Responsable de IVA
+                </p>
+              )}
             </div>
 
             <div className="text-center space-y-1 mb-4">

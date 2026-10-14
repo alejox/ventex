@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSettingsStore } from "@/stores/settings.store";
 import { useProfileStore } from "@/stores/profile.store";
@@ -287,8 +288,6 @@ function SettingsForm({ settings }: { settings: Settings }) {
   const submitting = useSettingsStore((s) => s.submitting);
   const error = useSettingsStore((s) => s.error);
 
-  const [taxPercent, setTaxPercent] = useState(() => String(+(settings.tax_rate * 100).toFixed(2)));
-  const [includeTax, setIncludeTax] = useState(settings.include_tax);
   const [allowOversell, setAllowOversell] = useState(settings.allow_oversell);
   const [currency, setCurrency] = useState(settings.currency);
   const [timeFormat, setTimeFormat] = useState<TimeFormat>(settings.time_format);
@@ -319,11 +318,9 @@ function SettingsForm({ settings }: { settings: Settings }) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaved(false);
-    const pct = parseFloat(taxPercent);
-    const rate = Number.isFinite(pct) ? Math.min(Math.max(pct, 0), 100) / 100 : 0;
+    // Sin `tax_rate`/`include_tax`: el IVA se guarda solo desde Datos de tu
+    // negocio, y mandarlos acá pisaría ese cambio con valores viejos.
     const ok = await saveSettings({
-      tax_rate: Math.round(rate * 10000) / 10000,
-      include_tax: includeTax,
       allow_oversell: allowOversell,
       currency,
       time_format: timeFormat,
@@ -358,42 +355,13 @@ function SettingsForm({ settings }: { settings: Settings }) {
         </p>
       </div>
 
-      <ToggleSetting
-        title="Desglosar IVA"
-        description="Actívalo si tu negocio es responsable de IVA. El precio que pagas en caja es el mismo en ambos casos: esto solo decide si la venta y el recibo separan la base y el IVA."
-        checked={includeTax}
-        onChange={(v) => {
-          setIncludeTax(v);
-          setSaved(false);
-        }}
-      />
-
-      {includeTax && (
-        <div>
-          <label className="block text-sm font-semibold text-on-surface mb-2">Tasa de IVA (%)</label>
-          <div className="relative">
-            <input
-              type="number"
-              step="0.01"
-              min="0"
-              max="100"
-              required
-              value={taxPercent}
-              onChange={(e) => {
-                setTaxPercent(e.target.value);
-                setSaved(false);
-              }}
-              placeholder="19"
-              className="w-full px-4 py-3 pr-10 bg-surface-container-low border border-outline-variant/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 text-on-surface placeholder:text-on-surface-variant/50 transition-shadow"
-            />
-            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant text-sm">%</span>
-          </div>
-          <p className="text-xs text-on-surface-variant mt-2">
-            Los precios de tu catálogo ya incluyen el IVA: esta tasa se usa para extraerlo del
-            precio y mostrarlo desglosado. Los clientes marcados como exentos pagan solo la base.
-          </p>
-        </div>
-      )}
+      <p className="text-sm text-on-surface-variant">
+        El IVA se configura en{" "}
+        <Link href="/dashboard/settings/business" className="font-semibold text-primary hover:underline">
+          Datos de tu negocio
+        </Link>
+        .
+      </p>
 
       {canManageShiftRequirement && <div className="space-y-2"><ToggleSetting
         title="Exigir turno activo para facturar"

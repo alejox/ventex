@@ -51,8 +51,9 @@ export interface Settings {
 
 export interface SettingsInput {
   time_format?: TimeFormat;
-  tax_rate: number;
-  include_tax: boolean;
+  /** Solo los manda Datos de tu negocio (régimen de IVA); el resto no los pisa. */
+  tax_rate?: number;
+  include_tax?: boolean;
   allow_oversell: boolean;
   require_active_shift?: boolean;
   accepts_card?: boolean;
@@ -155,46 +156,42 @@ export async function fetchSettings(): Promise<Settings> {
   return mapSettings(data as Record<string, unknown>);
 }
 
+// ---- Régimen de IVA: el ÚNICO control del IVA del negocio ----
+//
+// `settings.include_tax` es la fuente de verdad (es lo que mira `create_sale`).
+// `business_profile.taxResponsibility` solo se guarda en espejo, en el mismo
+// guardado, para que nunca vuelva a contradecir lo que de verdad se cobra.
+
+export type TaxRegime = "responsable" | "no_responsable";
+
+export const TAX_REGIME_LABEL: Record<TaxRegime, string> = {
+  responsable: "Responsable de IVA",
+  no_responsable: "No responsable de IVA",
+};
+
+/** Régimen a mostrar: sale de `include_tax`, nunca del texto del perfil. */
+export function taxRegimeOf(includeTax: boolean): TaxRegime {
+  return includeTax ? "responsable" : "no_responsable";
+}
+
 /**
- * Persiste solo el desglose de IVA.
- *
- * Vive aparte de `saveSettings` porque el POS únicamente conoce este campo:
- * mandar el objeto completo pisaría la tasa, la moneda o el perfil del negocio
- * que el dueño haya cambiado desde otra pestaña.
- *
- * La RLS de `settings` solo deja escribir al dueño o al empleado con el permiso
- * `settings`, así que un empleado sin permiso recibe 0 filas afectadas. Eso NO
- * es un error de red: se devuelve `false` para que el llamador revierta.
+ * Lo que se guarda al elegir un régimen. Con "No responsable" la tasa
+ * guardada no se toca (no se usa mientras el IVA esté apagado, y queda lista
+ * si el negocio vuelve a ser responsable).
  */
-export async function updateIncludeTax(includeTax: boolean): Promise<boolean> {
-  const supabase = createClient();
-  const { data: existing, error: readErr } = await supabase
-    .from("settings")
-    .select("id")
-    .maybeSingle();
-  if (readErr) throw readErr;
-
-  if (existing?.id) {
-    const { data, error } = await supabase
-      .from("settings")
-      .update({ include_tax: includeTax })
-      .eq("id", existing.id)
-      .select("id");
-    if (error) throw error;
-    return (data?.length ?? 0) > 0;
+export function taxSettingsForRegime(
+  regime: TaxRegime,
+  percentText: string,
+  currentRate: number,
+): { include_tax: boolean; tax_rate: number; taxResponsibility: string } {
+  if (regime === "no_responsable") {
+    return { include_tax: false, tax_rate: currentRate, taxResponsibility: TAX_REGIME_LABEL.no_responsable };
   }
-
-  const { data, error } = await supabase
-    .from("settings")
-    .insert({
-      tax_rate: DEFAULTS.tax_rate,
-      include_tax: includeTax,
-      allow_oversell: DEFAULTS.allow_oversell,
-      currency: DEFAULTS.currency,
-    })
-    .select("id");
-  if (error) throw error;
-  return (data?.length ?? 0) > 0;
+  const pct = parseFloat(percentText);
+  const rate = Number.isFinite(pct)
+    ? Math.round((Math.min(Math.max(pct, 0), 100) / 100) * 10000) / 10000
+    : currentRate;
+  return { include_tax: true, tax_rate: rate, taxResponsibility: TAX_REGIME_LABEL.responsable };
 }
 
 /** Crea o actualiza la (única) fila de ajustes del usuario. */
@@ -210,8 +207,8 @@ export async function saveSettings(input: SettingsInput): Promise<Settings> {
   // la pantalla de ajustes manda todo, pero otros llamadores mandan un subconjunto
   // y no tienen por qué pisar listas que no editaron.
   const payload = {
-    tax_rate: input.tax_rate,
-    include_tax: input.include_tax,
+    ...(input.tax_rate !== undefined ? { tax_rate: input.tax_rate } : {}),
+    ...(input.include_tax !== undefined ? { include_tax: input.include_tax } : {}),
     allow_oversell: input.allow_oversell,
     ...(input.require_active_shift !== undefined ? { require_active_shift: input.require_active_shift } : {}),
     ...(input.accepts_card !== undefined ? { accepts_card: input.accepts_card } : {}),

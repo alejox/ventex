@@ -283,3 +283,44 @@ test("una venta encolada sin conexión no inventa número", () => {
   assert.doesNotMatch(html, /Venta N\.º/);
   assert.match(html, /Pendiente de env/);
 });
+
+test("sin IVA en el negocio el recibo no imprime régimen ni nada de IVA (aunque el perfil diga lo contrario)", () => {
+  const cart: CartLine[] = [{ item, quantity: 1 }];
+  const data = buildReceiptFromCart({
+    ...base,
+    // Un perfil viejo que quedó desfasado de `include_tax` no manda.
+    business: { businessName: "Tienda Uno", taxResponsibility: "Responsable de IVA" } as typeof base.business,
+    includeTax: false,
+    cart,
+    totals: computeTotals(cart, 0.19, false, false),
+    paymentMethod: "efectivo",
+    splits: [],
+    tendered: null,
+    change: 0,
+    cashier: null,
+    seller: null,
+  });
+  const html = renderToStaticMarkup(<PosReceipt data={data} />);
+  assert.doesNotMatch(html, /IVA/);
+  assert.doesNotMatch(html, /gimen/);
+});
+
+test("con IVA el recibo dice Responsable de IVA, sin importar el perfil", () => {
+  const cart: CartLine[] = [{ item, quantity: 1 }];
+  const data = buildReceiptFromCart({
+    ...base,
+    business: { businessName: "Tienda Uno", taxResponsibility: "No responsable de IVA" } as typeof base.business,
+    includeTax: true,
+    cart,
+    totals: computeTotals(cart, 0.19, false, true),
+    paymentMethod: "efectivo",
+    splits: [],
+    tendered: null,
+    change: 0,
+    cashier: null,
+    seller: null,
+  });
+  const html = renderToStaticMarkup(<PosReceipt data={data} />);
+  assert.match(html, /Régimen:<\/span> Responsable de IVA/);
+  assert.doesNotMatch(html, /No responsable/);
+});
