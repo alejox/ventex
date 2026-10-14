@@ -21,6 +21,13 @@ import { SavedOrders } from "./SavedOrders";
 import { Select } from "@/components/ui/Select";
 import { Pagination } from "@/components/Pagination";
 
+/**
+ * Fotos que se piden sin lazy loading: las primeras filas, las que se ven sin
+ * hacer scroll. Una de ellas suele ser el LCP; pasarlas todas a eager
+ * descargaría la lista entera de una.
+ */
+const EAGER_IMAGE_COUNT = 8;
+
 function IconZap(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" width="20" height="20" {...props}>
@@ -513,7 +520,7 @@ export function PedidosClient({
                   </td>
                 </tr>
               ) : (
-                paginatedItems.map((item) => {
+                paginatedItems.map((item, index) => {
                   const qty = quantities[item.productId] ?? item.suggestedQuantity;
                   const ratio = item.currentStock / item.minimumStock;
                   const isOut = ratio === 0;
@@ -534,6 +541,7 @@ export function PedidosClient({
                                 fill
                                 sizes="44px"
                                 unoptimized
+                                loading={index < EAGER_IMAGE_COUNT ? "eager" : "lazy"}
                                 className="object-cover"
                               />
                             ) : (

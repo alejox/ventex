@@ -57,6 +57,13 @@ import { IngredientQuickModal } from "./product/components/IngredientQuickModal"
  * Vistas del catálogo que solo existen con "Recetas y producción". `?filtro=`
  * es el alias que usan los enlaces de afuera (avisos, Panel).
  */
+/**
+ * Fotos que se piden sin lazy loading: las primeras filas, las que se ven sin
+ * hacer scroll. Una de ellas suele ser el LCP; pasarlas todas a eager
+ * descargaría la lista entera de una.
+ */
+const EAGER_IMAGE_COUNT = 8;
+
 const RECIPE_VIEWS = [
   { id: "", label: "Todo" },
   { id: "insumos", label: "Insumos" },
@@ -720,7 +727,7 @@ export default function CatalogPage() {
               )}
             </li>
           ) : (
-            paginatedRows.map((row) => {
+            paginatedRows.map((row, index) => {
               const isService = row.kind === "service";
               const archived = isArchivedRow(row);
               const packaging = packagingOf(row);
@@ -740,7 +747,7 @@ export default function CatalogPage() {
                   <div className="flex items-start gap-3">
                       <div className="relative w-11 h-11 shrink-0 rounded-xl bg-surface-container-lowest border border-outline-variant/10 flex items-center justify-center text-on-surface-variant/30 overflow-hidden">
                         {row.imageUrl ? (
-                          <Image src={row.imageUrl} alt="" fill sizes="44px" unoptimized className="object-cover" />
+                          <Image src={row.imageUrl} alt="" fill sizes="44px" unoptimized loading={index < EAGER_IMAGE_COUNT ? "eager" : "lazy"} className="object-cover" />
                         ) : isService ? (
                           <IconScissors className="w-5 h-5 text-[#8b5cf6]" />
                         ) : (
@@ -875,7 +882,7 @@ export default function CatalogPage() {
                   </td>
                 </tr>
               ) : (
-                paginatedRows.map((row) => {
+                paginatedRows.map((row, index) => {
                   const stockStatus = row.kind === "product" && tracksStock(row.product)
                     ? stockStatusOf(row.product.stock_level, row.product.minimum_stock)
                     : null;
@@ -894,6 +901,7 @@ export default function CatalogPage() {
                                   fill
                                   sizes="40px"
                                   unoptimized
+                                  loading={index < EAGER_IMAGE_COUNT ? "eager" : "lazy"}
                                   className="object-cover"
                                 />
                               ) : row.kind === "service" ? (

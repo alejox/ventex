@@ -6,6 +6,13 @@ import { Select } from "@/components/ui/Select";
 import { needsRestock, stockStatusOf, STOCK_CHIP, STOCK_DOT } from "@/lib/stock";
 import { Modal } from "@/components/ui/Modal";
 
+/**
+ * Fotos que se piden sin lazy loading: las primeras filas, las que se ven sin
+ * hacer scroll. Una de ellas suele ser el LCP; pasarlas todas a eager
+ * descargaría la lista entera de una.
+ */
+const EAGER_IMAGE_COUNT = 8;
+
 interface ProductItem {
   id: string;
   name: string;
@@ -113,7 +120,7 @@ export function ProductBrowser({ products, categories, addedIds, onAdd, onClose 
             </div>
           ) : (
             <div className="space-y-2">
-              {filtered.map((p) => {
+              {filtered.map((p, index) => {
                 const added = addedIds.has(p.id);
                 const status = stockStatusOf(p.stock_level, p.minimum_stock);
                 const badgeClass = `${STOCK_CHIP[status]} border`;
@@ -129,7 +136,7 @@ export function ProductBrowser({ products, categories, addedIds, onAdd, onClose 
                   >
                     <div className="relative w-12 h-12 rounded-xl bg-surface-container border border-outline-variant/10 flex items-center justify-center overflow-hidden shrink-0">
                       {p.image_url ? (
-                        <Image src={p.image_url} alt={p.name} fill sizes="48px" unoptimized className="object-cover" />
+                        <Image src={p.image_url} alt={p.name} fill sizes="48px" unoptimized loading={index < EAGER_IMAGE_COUNT ? "eager" : "lazy"} className="object-cover" />
                       ) : (
                         <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="w-5 h-5 text-on-surface-variant/30">
                           <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
