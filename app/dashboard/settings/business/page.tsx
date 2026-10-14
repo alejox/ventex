@@ -11,6 +11,7 @@ import {
   type TaxRegime,
 } from "@/services/settings.service";
 import { notifySuccess } from "@/lib/notifications";
+import { validateBusinessLogoFile, type BusinessLogoFileError } from "@/lib/business-logo";
 import { Select } from "@/components/ui/Select";
 
 function CameraIcon(props: React.SVGProps<SVGSVGElement>) {
@@ -31,6 +32,12 @@ function Field({ label, required, children, className = "" }: { label: string; r
       {children}
     </div>
   );
+}
+
+function logoValidationMessage(error: BusinessLogoFileError): string {
+  if (error === "too_large") return "El logo no puede superar los 2 MB.";
+  if (error === "empty") return "El archivo del logo está vacío.";
+  return "El archivo debe ser una imagen PNG, JPG, WEBP, GIF o SVG.";
 }
 
 export default function BusinessSettingsPage() {
@@ -64,39 +71,80 @@ function BusinessProfileForm({ settings }: { settings: Settings }) {
   const [taxPercent, setTaxPercent] = useState(() => String(+(settings.tax_rate * 100).toFixed(2)));
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [logoError, setLogoError] = useState<string | null>(null);
+  const [logoPreviewUrl, setLogoPreviewUrl] = useState(() => settings.business_profile?.logoUrl ?? "");
+  const [logoDragActive, setLogoDragActive] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
+  const uploadingLogoRef = useRef(false);
+  const logoObjectUrlRef = useRef<string | null>(null);
+
+  useEffect(() => () => {
+    if (logoObjectUrlRef.current) URL.revokeObjectURL(logoObjectUrlRef.current);
+  }, []);
 
   const update = useCallback(<K extends keyof BusinessProfile>(key: K, value: BusinessProfile[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
   }, []);
 
-  const handleLogoChange = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      e.target.value = ""; // permite re-seleccionar el mismo archivo
-      if (!file) return;
+  const processLogoFile = useCallback(async (file: File) => {
+    if (uploadingLogoRef.current) return;
 
-      if (file.size > 2 * 1024 * 1024) {
-        setLogoError("El logo no puede superar los 2 MB.");
-        return;
-      }
+    const validationError: BusinessLogoFileError | null = validateBusinessLogoFile(file);
+    if (validationError) {
+      setLogoError(logoValidationMessage(validationError));
+      return;
+    }
 
-      setLogoError(null);
-      setUploadingLogo(true);
-      const url = await uploadLogo(file);
-      setUploadingLogo(false);
-      if (url) {
-        setForm((prev) => ({ ...prev, logoUrl: url }));
+    const previousPreviewUrl = form.logoUrl ?? "";
+    const previewUrl = URL.createObjectURL(file);
+    if (logoObjectUrlRef.current) URL.revokeObjectURL(logoObjectUrlRef.current);
+    logoObjectUrlRef.current = previewUrl;
+    setLogoPreviewUrl(previewUrl);
+    setLogoError(null);
+    uploadingLogoRef.current = true;
+    setUploadingLogo(true);
+
+    try {
+      const uploadedUrl = await uploadLogo(file);
+      if (uploadedUrl) {
+        setForm((prev) => ({ ...prev, logoUrl: uploadedUrl }));
+        setLogoPreviewUrl(uploadedUrl);
+        URL.revokeObjectURL(previewUrl);
+        logoObjectUrlRef.current = null;
       } else {
+        setLogoPreviewUrl(previousPreviewUrl);
+        URL.revokeObjectURL(previewUrl);
+        logoObjectUrlRef.current = null;
         setLogoError("No se pudo subir el logo. Inténtalo de nuevo.");
       }
-    },
-    [uploadLogo],
-  );
+    } catch {
+      setLogoPreviewUrl(previousPreviewUrl);
+      URL.revokeObjectURL(previewUrl);
+      logoObjectUrlRef.current = null;
+      setLogoError("No se pudo subir el logo. Inténtalo de nuevo.");
+    } finally {
+      uploadingLogoRef.current = false;
+      setUploadingLogo(false);
+    }
+  }, [form.logoUrl, uploadLogo]);
+
+  const handleLogoChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // permite re-seleccionar el mismo archivo
+    if (file) void processLogoFile(file);
+  }, [processLogoFile]);
+
+  const handleLogoDrop = useCallback((e: React.DragEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    setLogoDragActive(false);
+    const file = e.dataTransfer.files[0];
+    if (file) void processLogoFile(file);
+  }, [processLogoFile]);
 
   /** Descarta lo editado: vuelve a lo último guardado. */
   const handleCancel = () => {
+    if (uploadingLogoRef.current) return;
     setForm(settings.business_profile ?? {});
+    setLogoPreviewUrl(settings.business_profile?.logoUrl ?? "");
     setRegime(taxRegimeOf(settings.include_tax));
     setTaxPercent(String(+(settings.tax_rate * 100).toFixed(2)));
     setLogoError(null);
@@ -104,6 +152,7 @@ function BusinessProfileForm({ settings }: { settings: Settings }) {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (uploadingLogoRef.current) return;
     // IVA y régimen van en el MISMO guardado: no pueden volver a contradecirse.
     const tax = taxSettingsForRegime(regime, taxPercent, settings.tax_rate);
     const ok = await saveSettings({
@@ -138,41 +187,52 @@ function BusinessProfileForm({ settings }: { settings: Settings }) {
           <div className="p-6 md:p-8 space-y-8">
             {/* Logo Upload Section */}
             <div className="flex flex-col md:flex-row items-center gap-8">
-              <div className="relative">
-                <div className="w-64 h-32 rounded-xl border-2 border-primary overflow-hidden bg-surface-container flex items-center justify-center">
-                  {uploadingLogo ? (
-                    <div className="text-on-surface-variant font-medium text-sm">Subiendo…</div>
-                  ) : form.logoUrl ? (
-                    // Preview de 256x128 de un logo recién subido a Storage.
-                    // `next/image` exigiría declarar el host de Supabase en
-                    // remotePatterns para optimizar una miniatura que se ve una
-                    // vez: no compensa el acoplamiento.
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={form.logoUrl} alt="Logo" className="w-full h-full object-contain" />
-                  ) : (
-                    <div className="text-on-surface-variant font-medium">Logo</div>
-                  )}
-                </div>
+              <div className="relative w-full md:w-64">
                 <input
                   ref={logoInputRef}
                   type="file"
                   accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
                   className="hidden"
                   onChange={handleLogoChange}
+                  aria-label="Seleccionar archivo de logo"
                 />
+                <button
+                  type="button"
+                  onClick={() => logoInputRef.current?.click()}
+                  onDragEnter={(e) => { e.preventDefault(); if (!uploadingLogo) setLogoDragActive(true); }}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDragLeave={(e) => { e.preventDefault(); setLogoDragActive(false); }}
+                  onDrop={handleLogoDrop}
+                  disabled={uploadingLogo}
+                  aria-describedby="business-logo-help"
+                  className={`w-full h-40 rounded-xl border-2 border-dashed overflow-hidden bg-surface-container flex flex-col items-center justify-center gap-2 transition-colors disabled:cursor-wait disabled:opacity-70 ${logoDragActive ? "border-primary bg-primary/5" : "border-outline-variant hover:border-primary"}`}
+                >
+                  {logoPreviewUrl ? (
+                    // `next/image` exige declarar el host de Supabase para esta miniatura puntual.
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={logoPreviewUrl} alt="Vista previa del logo" className="w-full h-full object-contain" />
+                  ) : (
+                    <>
+                      <CameraIcon className="w-6 h-6 text-primary" aria-hidden="true" />
+                      <span className="text-sm font-semibold text-on-surface">Arrastra tu logo aquí</span>
+                      <span className="text-xs text-on-surface-variant">o haz clic para seleccionarlo</span>
+                    </>
+                  )}
+                </button>
                 <button
                   type="button"
                   onClick={() => logoInputRef.current?.click()}
                   disabled={uploadingLogo}
                   className="absolute -bottom-3 -right-3 w-10 h-10 bg-surface-container-lowest border border-outline-variant/20 rounded-full flex items-center justify-center text-on-surface shadow-sm hover:bg-surface-container transition-colors disabled:opacity-50"
-                  aria-label="Subir logo"
+                  aria-label="Cambiar logo"
                 >
                   <CameraIcon className="w-5 h-5" />
                 </button>
               </div>
               <div className="flex-1">
                 <p className="text-sm font-semibold text-on-surface">Se mostrará en la parte superior de tus facturas de venta.</p>
-                <p className="text-sm text-on-surface-variant mt-1">Sube una imagen PNG, JPG, WEBP o SVG de hasta 2 MB. Recuerda pulsar <span className="font-semibold">Guardar</span> para conservar los cambios.</p>
+                <p id="business-logo-help" className="text-sm text-on-surface-variant mt-1">Sube una imagen PNG, JPG, WEBP, GIF o SVG de hasta 2 MB. Recuerda pulsar <span className="font-semibold">Guardar</span> para conservar los cambios.</p>
+                {uploadingLogo && <p className="text-sm text-on-surface-variant mt-1" role="status">Subiendo logo…</p>}
                 {logoError && <p className="text-sm text-error mt-1">{logoError}</p>}
               </div>
             </div>
@@ -332,11 +392,11 @@ function BusinessProfileForm({ settings }: { settings: Settings }) {
           <button
             type="button"
             onClick={handleCancel}
-            disabled={submitting}
+            disabled={submitting || uploadingLogo}
             className="flex-1 sm:flex-none px-6 py-2.5 rounded-xl border border-outline-variant/20 text-on-surface font-semibold hover:bg-surface-container-low transition-colors disabled:opacity-50">
             Cancelar
           </button>
-          <button type="submit" disabled={submitting} className="flex-1 sm:flex-none px-6 py-2.5 rounded-xl bg-primary text-white font-semibold hover:bg-primary-dim transition-colors disabled:opacity-50">
+          <button type="submit" disabled={submitting || uploadingLogo} className="flex-1 sm:flex-none px-6 py-2.5 rounded-xl bg-primary text-white font-semibold hover:bg-primary-dim transition-colors disabled:opacity-50">
             {submitting ? "Guardando..." : "Guardar"}
           </button>
         </div>

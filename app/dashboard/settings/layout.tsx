@@ -23,7 +23,7 @@ export default async function SettingsLayout({ children }: { children: React.Rea
           <IconSettings className="w-5 h-5" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-on-surface">Ajustes</h1>
+          <h1 className="text-2xl font-bold text-on-surface">Configuración</h1>
           <p className="text-sm text-on-surface-variant">Configuración general de tu cuenta.</p>
         </div>
       </div>
