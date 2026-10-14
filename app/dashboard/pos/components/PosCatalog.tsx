@@ -44,6 +44,13 @@ function serviceTag(item: CatalogItem): string {
  * NO MEZCLAR con variantes de ventana (`lg:`, `xl:`) para las columnas: se
  * pisarían con estas según el orden en que Tailwind las emita.
  */
+/**
+ * Fotos que se piden sin lazy loading: las que se ven sin hacer scroll (dos
+ * filas del grid más ancho, 6 columnas). Una de ellas es el LCP de la pantalla;
+ * pasarlas todas a eager descargaría el catálogo entero de una.
+ */
+const EAGER_IMAGE_COUNT = 12;
+
 const CATALOG_GRID_COLS =
   "grid gap-3 xl:gap-4 grid-cols-2 " +
   "@min-[420px]:grid-cols-3 @min-[760px]:grid-cols-4 " +
@@ -585,6 +592,7 @@ export function PosCatalog({
                             width={160}
                             height={160}
                             unoptimized
+                            loading={index < EAGER_IMAGE_COUNT ? "eager" : "lazy"}
                             className="w-full h-full object-cover"
                           />
                         ) : (
@@ -659,6 +667,7 @@ export function PosCatalog({
                             width={36}
                             height={36}
                             unoptimized
+                            loading={index < EAGER_IMAGE_COUNT ? "eager" : "lazy"}
                             className="w-full h-full object-cover"
                           />
                         ) : (
