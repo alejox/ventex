@@ -17,7 +17,7 @@ Move the existing Negocio y módulos card out of General into its own Configurac
   - Source surfaces: app/dashboard/settings/page.tsx; app/dashboard/settings/SettingsTabs.tsx; app/dashboard/settings/modulos/page.tsx.
   - Acceptance: new tab active only at exact modules route; card absent General and present on new route; module/type confirmation/save unchanged; inherited worker authorization preserved; no device setup card reintroduced.
   - Verification: relocation without new domain logic, so existing deterministic business tests plus actual component/tab browser checks replace artificial source-only RED. Observe missing-tab/route behavior before change where practical; focused lint, typecheck, full tests, production build.
-  - Commit: follows this completed record; exact identity added after commit.
+  - Commit: `6aa4c0b` — refactor(settings): give business modules a dedicated tab.
   - Risk: high/unassessable due to new route inventory; independent verification passed. Native review disabled/unmanaged.
 
 ## Progress
@@ -34,4 +34,4 @@ Observed checks:
 - Rollback boundary: the three source files; no database/store/service changes.
 
 ## Next step
-Commit local work unit; no push authorized. Related local POS navigation and hardware-removal work already committed.
+Committed locally on feat/catalog-search-focus; no push performed. Related local POS navigation and hardware-removal work already committed.
