@@ -3,9 +3,11 @@ import { getSelectedWorkspaceId } from "@/services/workspace.service";
 import type { Json } from "@/utils/supabase/database.types";
 import { toWebp, verificarPeso } from "@/lib/image";
 import type { TimeFormat } from "@/lib/time";
+import { normalizeReceiptSettings, type ReceiptSettings } from "@/lib/receipt-settings";
 
 // ---- Tipos del dominio de ajustes (config por cuenta) ----
 export interface BusinessProfile {
+  receiptSettings?: ReceiptSettings;
   timeFormat?: TimeFormat;
   logoUrl?: string;
   personType?: "natural" | "juridica";
@@ -211,13 +213,16 @@ export function taxSettingsForRegime(
 }
 
 /** Crea o actualiza la (única) fila de ajustes del usuario. */
-export async function saveSettings(input: SettingsInput): Promise<Settings> {
-  const supabase = createClient();
+export async function saveSettings(input: SettingsInput, supabase = createClient()): Promise<Settings> {
   const { data: existing, error: readErr } = await supabase
     .from("settings")
     .select("id, business_profile")
     .maybeSingle();
   if (readErr) throw readErr;
+
+  // Appearance is owned by saveReceiptSettings, never by a stale business form.
+  const { receiptSettings: _receiptSettings, ...businessProfile } = input.business_profile ?? {};
+  void _receiptSettings;
 
   // Los medios (transferencia y tarjeta) solo viajan si el llamador los trae:
   // la pantalla de ajustes manda todo, pero otros llamadores mandan un subconjunto
@@ -235,7 +240,7 @@ export async function saveSettings(input: SettingsInput): Promise<Settings> {
     ...(input.business_profile || input.time_format ? {
       business_profile: {
         ...((existing?.business_profile ?? {}) as BusinessProfile),
-        ...input.business_profile,
+        ...businessProfile,
         ...(input.time_format ? { timeFormat: input.time_format } : {}),
       } as Json,
     } : {}),
@@ -321,6 +326,27 @@ export async function savePaymentMethods(input: PaymentMethodsInput): Promise<Se
     payment_methods_configured_at: new Date().toISOString(),
   };
   const query = existing
+    ? supabase.from("settings").update(payload).eq("id", existing.id)
+    : supabase.from("settings").insert(payload);
+  const { data, error } = await query.select(SETTINGS_SELECT).single();
+  if (error) throw error;
+  return mapSettings(data as Record<string, unknown>);
+}
+
+/** Save appearance only, preserving the latest profile and every unrelated setting. */
+export async function saveReceiptSettings(input: ReceiptSettings, supabase = createClient()): Promise<Settings> {
+  const { data: existing, error: readError } = await supabase
+    .from("settings")
+    .select("id, business_profile")
+    .maybeSingle();
+  if (readError) throw readError;
+  const payload = {
+    business_profile: {
+      ...((existing?.business_profile ?? {}) as BusinessProfile),
+      receiptSettings: { ...normalizeReceiptSettings(input) },
+    } as Json,
+  };
+  const query = existing?.id
     ? supabase.from("settings").update(payload).eq("id", existing.id)
     : supabase.from("settings").insert(payload);
   const { data, error } = await query.select(SETTINGS_SELECT).single();

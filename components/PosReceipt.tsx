@@ -3,47 +3,52 @@
 import React from "react";
 import { useFormatMoney } from "@/lib/useMoney";
 import type { ReceiptData } from "@/lib/receipt";
+import { normalizeReceiptSettings, normalizePaperWidth, type ReceiptSettings, type PaperWidth } from "@/lib/receipt-settings";
 
-// Los datos se arman con `buildReceiptFromCart` / `buildReceiptFromSale`
-// (`lib/receipt.ts`): este componente solo dibuja.
 export type { ReceiptData } from "@/lib/receipt";
 
 interface Props {
   data: ReceiptData | null;
+  settings?: ReceiptSettings;
+  paperWidth?: PaperWidth;
 }
 
-export function PosReceipt({ data }: Props) {
-  // Solo el cliente exento tiene rebaja por exención.
-  const fmtMoney = useFormatMoney();
-  const isExempt = (data?.totals.exemptionDiscount ?? 0) > 0;
-
+/** Print-only wrapper; preview uses ReceiptContent without print-page side effects. */
+export function PosReceipt({ data, settings, paperWidth }: Props) {
+  const width = normalizePaperWidth(paperWidth);
   return (
     <>
-      <style
-        dangerouslySetInnerHTML={{
-          __html: `
-          @media print {
-            @page {
-              margin: 0;
-              size: 80mm 297mm;
-            }
-            body {
-              margin: 0;
-              padding: 0;
-            }
-            [data-sonner-toaster] {
-              display: none !important;
-            }
-          }
-        `,
-        }}
-      />
-      <div className="hidden print:block w-[80mm] max-w-full text-black bg-white font-mono text-sm mx-auto p-4 leading-tight">
-        {data && (
-          <>
+      <style>{`
+        @media print {
+          @page { margin: 0; size: ${width} 297mm; }
+          body { margin: 0; padding: 0; }
+          [data-sonner-toaster] { display: none !important; }
+        }
+      `}</style>
+      <div className="hidden print:block">
+        {data && <ReceiptContent data={data} settings={settings} paperWidth={width} />}
+      </div>
+    </>
+  );
+}
+
+interface ContentProps {
+  data: ReceiptData;
+  settings?: ReceiptSettings;
+  paperWidth?: PaperWidth;
+}
+
+/** Visible receipt shared by the settings preview and every print path. */
+export function ReceiptContent({ data, settings, paperWidth }: ContentProps) {
+  const fmtMoney = useFormatMoney();
+  const isExempt = data.totals.exemptionDiscount > 0;
+  const appearance = normalizeReceiptSettings(settings);
+  return (
+    <div style={{ width: normalizePaperWidth(paperWidth) }} className="max-w-full text-black bg-white font-mono text-sm mx-auto p-4 leading-tight break-words">
+            {appearance.headerText && <p className="text-center whitespace-pre-wrap break-words mb-4">{appearance.headerText}</p>}
             {/* Header */}
             <div className="text-center space-y-1 mb-4">
-              {data.logoUrl && (
+              {appearance.showLogo && data.logoUrl && (
                 // El recibo se imprime: `next/image` haría lazy loading y
                 // serviría un placeholder, que en una impresión térmica sale
                 // vacío. Acá se quiere el archivo tal cual y ya cargado.
@@ -51,12 +56,12 @@ export function PosReceipt({ data }: Props) {
                 <img
                   src={data.logoUrl}
                   alt="Logo"
-                  className="mx-auto mb-2 max-h-20 w-auto object-contain"
+                  className="mx-auto mb-2 max-h-20 max-w-full w-auto object-contain"
                 />
               )}
-              <h1 className="font-bold text-xl">{data.businessName || "Mi Negocio"}</h1>
-              {data.municipality && <p>{data.municipality}</p>}
-              {data.phone && (
+              {appearance.showBusiness && <h1 className="font-bold text-xl break-words">{data.businessName || "Mi Negocio"}</h1>}
+              {appearance.showContact && data.municipality && <p>{data.municipality}</p>}
+              {appearance.showContact && data.phone && (
                 <p>
                   <span className="font-bold">Tel&eacute;fono:</span> {data.phone}
                 </p>
@@ -82,8 +87,8 @@ export function PosReceipt({ data }: Props) {
 
             {/* Cliente */}
             <div className="space-y-1 mb-4">
-              <h2 className="font-bold text-lg">{data.customer?.full_name ?? "Consumidor final"}</h2>
-              {data.customer?.doc_type && data.customer?.identification && (
+              {appearance.showCustomer && <h2 className="font-bold text-lg">{data.customer?.full_name ?? "Consumidor final"}</h2>}
+              {appearance.showCustomer && data.customer?.doc_type && data.customer?.identification && (
                 <p>
                   {data.customer.doc_type} {data.customer.identification}
                 </p>
@@ -97,12 +102,12 @@ export function PosReceipt({ data }: Props) {
                   minute: "2-digit",
                 })}
               </p>
-              {data.cashier && (
+              {appearance.showCashier && data.cashier && (
                 <p className="text-xs">
                   <span className="font-bold">Cajero:</span> {data.cashier}
                 </p>
               )}
-              {data.seller && (
+              {appearance.showSeller && data.seller && (
                 <p className="text-xs">
                   <span className="font-bold">Atendido por:</span> {data.seller}
                 </p>
@@ -246,11 +251,9 @@ export function PosReceipt({ data }: Props) {
             <hr className="border-t border-black mb-4" />
 
             <div className="text-center text-xs space-y-1">
+              {appearance.footerText && <p className="whitespace-pre-wrap break-words">{appearance.footerText}</p>}
               <p>Devtecia - ventex.app</p>
             </div>
-          </>
-        )}
-      </div>
-    </>
+    </div>
   );
 }

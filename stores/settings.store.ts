@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { ReceiptSettings } from "@/lib/receipt-settings";
 import { toMessage } from "@/lib/errors";
 import * as settingsService from "@/services/settings.service";
 import type { PaymentMethodsInput, Settings, SettingsInput } from "@/services/settings.service";
@@ -18,6 +19,7 @@ interface SettingsState {
   ensureSettings: () => Promise<void>;
   /** Devuelve true si se guardó correctamente. */
   saveSettings: (input: SettingsInput) => Promise<boolean>;
+  saveReceiptSettings: (input: ReceiptSettings) => Promise<boolean>;
   saveShiftRequirement: (enabled: boolean) => Promise<boolean>;
   /** Si el dueño/administrador trabaja con caja. Devuelve true si se guardó. */
   saveOwnerUsesShifts: (enabled: boolean) => Promise<boolean>;
@@ -59,6 +61,18 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       return true;
     } catch (e) {
       set({ error: toMessage(e), submitting: false });
+      return false;
+    }
+  },
+
+  saveReceiptSettings: async (input) => {
+    set({ submitting: true, error: null });
+    try {
+      const settings = await settingsService.saveReceiptSettings(input);
+      set({ settings, submitting: false });
+      return true;
+    } catch (error) {
+      set({ error: toMessage(error), submitting: false });
       return false;
     }
   },

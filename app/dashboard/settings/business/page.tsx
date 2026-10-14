@@ -156,12 +156,15 @@ function BusinessProfileForm({ settings }: { settings: Settings }) {
     if (uploadingLogoRef.current) return;
     // IVA y régimen van en el MISMO guardado: no pueden volver a contradecirse.
     const tax = taxSettingsForRegime(regime, taxPercent, settings.tax_rate);
+    // Printing preferences belong to their own editor, not this form snapshot.
+    const { receiptSettings: _receiptSettings, ...businessProfile } = form;
+    void _receiptSettings;
     const ok = await saveSettings({
       tax_rate: tax.tax_rate,
       include_tax: tax.include_tax,
       allow_oversell: settings.allow_oversell,
       currency: settings.currency,
-      business_profile: { ...form, taxResponsibility: tax.taxResponsibility },
+      business_profile: { ...businessProfile, taxResponsibility: tax.taxResponsibility },
     });
     if (ok) {
       notifySuccess("Ajustes guardados", "Los datos de tu negocio se actualizaron correctamente.");
