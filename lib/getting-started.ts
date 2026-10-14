@@ -147,3 +147,50 @@ export function gettingStartedSteps(
 
 export const allGettingStartedDone = (steps: GettingStartedStep[]): boolean =>
   steps.length > 0 && steps.every((s) => s.done);
+
+/* ── A dónde aterriza alguien después de iniciar sesión ─────────────────── */
+
+/** Destino por defecto de todo login: decide entre POS y Panel (`app/dashboard/inicio/route.ts`). */
+export const LANDING_PATH = "/dashboard/inicio";
+export const POS_PATH = "/dashboard/pos";
+export const PANEL_PATH = "/dashboard";
+
+/** Lo mínimo para decidir el aterrizaje: los dos pasos sin los que no se cobra. */
+export type LandingFacts = Pick<GettingStartedFacts, "businessConfigured" | "hasProduct" | "hasService">;
+
+/** Quién inició sesión, en lo que importa para elegir a dónde va. */
+export interface LandingProfile {
+  isWorker: boolean;
+  businessType: BusinessType | null;
+}
+
+/**
+ * El negocio ya puede vender: tiene los datos (IVA o identificación) y al
+ * menos un ítem en el catálogo, producto o servicio — la misma regla que los
+ * pasos "business" y "catalog" del checklist.
+ */
+export const isBusinessReady = (facts: LandingFacts): boolean =>
+  facts.businessConfigured && (facts.hasProduct || facts.hasService);
+
+/** Solo el dueño con rubro elegido necesita mirar la base para decidir. */
+export const needsLandingFacts = (profile: LandingProfile): boolean =>
+  !profile.isWorker && profile.businessType !== null;
+
+/**
+ * Una sola regla para el login con correo y con Google:
+ *
+ *  - Trabajador → POS (lo suyo es cobrar; el checklist es del dueño).
+ *  - Dueño sin rubro (onboarding a medias) → Panel, donde está el onboarding.
+ *  - Dueño con el negocio listo → POS.
+ *  - Dueño al que le falta algo → Panel, que muestra "Primeros pasos".
+ *
+ * `facts` en `null` = no se pudieron consultar: cuenta como listo (POS). Mismo
+ * criterio que `fetchGettingStartedFacts`: un error nunca puede dejar a un
+ * dueño atrapado en el Panel.
+ */
+export function landingPathFor(profile: LandingProfile, facts: LandingFacts | null): string {
+  if (profile.isWorker) return POS_PATH;
+  if (!profile.businessType) return PANEL_PATH;
+  if (!facts) return POS_PATH;
+  return isBusinessReady(facts) ? POS_PATH : PANEL_PATH;
+}

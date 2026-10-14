@@ -6,6 +6,7 @@ import { createClient } from "@/utils/supabase/server";
 import { authMessage } from "@/lib/errors";
 import { REGISTRABLE_BUSINESS_TYPES, type BusinessType, type Modules } from "@/config/business";
 import { isSafeNext } from "@/lib/safe-next";
+import { LANDING_PATH } from "@/lib/getting-started";
 import { onboardingPath, sanitizeMonths, sanitizePlanId } from "@/lib/signup-intent";
 
 /**
@@ -40,8 +41,11 @@ export async function login(
   //
   // `isSafeNext` no es opcional: este valor viene de la URL y redirigir a ciegas
   // a donde diga un parámetro es un redirect abierto.
+  //
+  // Sin destino explícito decide `/dashboard/inicio` (POS o Panel según el
+  // negocio): la misma regla que el login con Google vía `/auth/confirm`.
   const next = String(formData.get("next") ?? "");
-  redirect(isSafeNext(next) ? next : "/dashboard/pos");
+  redirect(isSafeNext(next) ? next : LANDING_PATH);
 }
 
 export type SignupState = {

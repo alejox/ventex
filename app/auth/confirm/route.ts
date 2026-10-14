@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { type NextRequest, NextResponse } from "next/server";
 import type { Database } from "@/utils/supabase/database.types";
+import { LANDING_PATH } from "@/lib/getting-started";
 
 /**
  * Punto de entrada de los enlaces que Supabase manda por correo.
@@ -53,7 +54,8 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get("code");
   const rawType = searchParams.get("type");
   const type = rawType && EMAIL_OTP_TYPES.has(rawType) ? (rawType as EmailOtpType) : null;
-  const next = safeNext(searchParams.get("next"), "/dashboard/pos");
+  // Sin `next`, el aterrizaje lo decide `/dashboard/inicio` (POS o Panel).
+  const next = safeNext(searchParams.get("next"), LANDING_PATH);
 
   /**
    * Sólo las invitaciones de EMPLEADO van a `/access-disabled` cuando el enlace
