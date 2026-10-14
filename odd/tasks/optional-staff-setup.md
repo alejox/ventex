@@ -20,7 +20,7 @@ Owners can skip adding staff without blocking getting-started completion, and ex
   - Source surfaces: lib/getting-started.ts; components/onboarding/GettingStarted.tsx; tests/getting-started.test.ts; docs/guia-de-uso.md.
   - Acceptance: staff optional and ignored in required counts; owner may mark/unmark without navigating; existing staff auto-completes and cannot be manually undone; checkbox not nested in link; browser storage keyed by existing membership scope, no cross-scope leakage; storage exceptions fail gracefully.
   - Tests: meaningful pure logic RED → GREEN, full unit suite, focused lint, standalone typecheck; isolated real-component browser check of mark/unmark/reload/scope/auto-done/progress/keyboard and storage failure where feasible.
-  - Commit: follows this completed task record; exact identity recorded after commit.
+  - Commit: `c057ef2` — feat(onboarding): make staff setup optional with manual completion.
   - Risk assessment: high/unassessable due to untracked task inventory; independent verification completed; native review remains disabled/unmanaged.
 
 ## Progress
@@ -35,4 +35,4 @@ Observed checks:
 - Rollback boundary: getting-started domain/component/test and guide note, no database changes.
 
 ## Next step
-Commit completed work unit locally. No push or merge authorized.
+Work unit committed locally on `feat/settings-logo-drop`. No push or merge performed. Existing uncommitted CitySelect and .atl changes remain preserved.
