@@ -18,7 +18,6 @@ import { cleanModulesForType, modulesForSwitch, navChangeOnSwitch } from "@/lib/
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import type { Settings } from "@/services/settings.service";
 import { Select } from "@/components/ui/Select";
-import { CashDrawerCard } from "./CashDrawerCard";
 import { formatAppointmentTime, type TimeFormat } from "@/lib/time";
 import { Switch } from "@/components/ui/Switch";
 
@@ -57,8 +56,6 @@ export default function SettingsPage() {
           <SettingsForm key={settings.id ?? "new"} settings={settings} />
         ) : null}
       </div>
-
-      <CashDrawerCard />
 
       <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-3xl p-6 md:p-8 shadow-sm">
         <h2 className="text-lg font-bold text-on-surface mb-1">Negocio y módulos</h2>
