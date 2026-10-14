@@ -40,21 +40,20 @@ Ve a **Configuración** en el menú lateral. Tiene tres pestañas.
 ### Datos de tu negocio
 
 - Sube tu **logo** y completa el nombre comercial, contacto y datos de identificación (tipo, número y DV).
-- Elige tu **responsabilidad tributaria**: "Responsable" o "No responsable de IVA".
-- Toca "Guardar".
+- En la tarjeta **IVA** elige tu **responsabilidad tributaria**. Es el único lugar donde se configura el IVA:
+  - **Responsable de IVA**: escribe la **tasa de IVA (%)** (19 % por defecto). Los precios de tu catálogo ya la incluyen; la venta y el recibo separan la base y el IVA.
+  - **No responsable de IVA**: el IVA desaparece del punto de venta, los recibos, el detalle de ventas, las exportaciones, la facturación y los clientes. Las ventas viejas que sí cobraron IVA lo siguen mostrando.
+- Toca "Guardar". El punto de venta toma el cambio antes del siguiente cobro.
 
 ### General
 
 | Opción | Qué hace | Valor inicial |
 | --- | --- | --- |
-| Desglosar IVA y Tasa de IVA (%) | Muestra el IVA dentro del precio en ventas y recibos | Activado, 19 % |
 | Permitir vender sin stock | Deja vender aunque el inventario esté en cero | Activado |
 | Exigir turno activo para facturar | Tus trabajadores deben abrir caja antes de cobrar | Desactivado |
 | Moneda | Moneda en la que se muestran los montos | COP |
 | Cobrar por transferencia / con datáfono | Habilita esos medios de pago en el POS | — |
 | Negocio y módulos | Cambia tu tipo de negocio o activa módulos (por ejemplo, Producción) | Según tu tipo |
-
-> **Importante:** si no eres responsable de IVA, además de marcarlo en "Datos de tu negocio", desactiva **Desglosar IVA** o pon la tasa en 0 en la pestaña **General**. Son dos ajustes distintos.
 
 Toca **"Guardar Cambios"** al final. La opción "Exigir turno activo" se guarda sola al cambiarla; las demás necesitan este botón.
 
@@ -246,7 +245,7 @@ Para dudas usa el botón **Soporte** (WhatsApp).
 Depende de tu tipo de negocio, de los módulos activos (Configuración → General) y, si eres trabajador, de tus permisos.
 
 **¿Por qué el precio muestra IVA si no soy responsable?**
-Desactiva "Desglosar IVA" o pon la tasa en 0 en Configuración → General.
+Ve a Configuración → Datos de tu negocio, elige "No responsable de IVA" en la tarjeta IVA y guarda. Es el único ajuste de IVA; las compras a proveedores siguen mostrando el IVA que te cobran.
 
 **¿Puedo vender sin internet?**
 Sí. Las ventas se guardan y se sincronizan al volver la conexión.

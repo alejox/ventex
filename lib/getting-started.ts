@@ -102,7 +102,7 @@ export function gettingStartedSteps(
     {
       id: "business",
       label: "Configura los datos del negocio y el IVA",
-      hint: "Régimen de IVA, NIT o cédula y datos que salen en el recibo.",
+      hint: "Si cobras IVA y su tasa, NIT o cédula y datos que salen en el recibo.",
       href: "/dashboard/settings/business",
       done: facts.businessConfigured,
     },

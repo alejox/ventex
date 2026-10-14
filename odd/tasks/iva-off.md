@@ -69,9 +69,11 @@ A business that is not responsible for IVA printed receipts and screens with IVA
   - Tests: `tests/pos-cart-iva-off.test.tsx` (new), plus cases in `tests/reports.test.ts`, `tests/billing-view.test.ts` and `tests/import.test.ts`. RED: 2 POS + 2 export + 2 import failures. GREEN: 953/953.
   - Exception: billing form, customers screen, sale detail, `SaleConfigModal` tags and `IngredientQuickModal` copy are UI-only gating with no runnable RED (the POS store renders its initial state under SSR); checked by `tsc` and lint.
   - Notes: the product import price help is now neutral ("Precio final, el que paga el cliente") because `PRODUCT_IMPORT` is a constant used by the inventory page; a customer file that still has "Exento de IVA" imports with that column ignored and `tax_exempt` untouched.
-- [ ] **T4 Copy and docs.**
+- [x] **T4 Copy and docs.**
   - The getting-started step copy matches where IVA now lives.
   - `docs/guia-de-uso.md` describes the single control.
+  - Route: delegated writer (same worker as T2/T3).
+  - Exception: copy and docs only, no runnable RED; `tests/getting-started.test.ts` stays green (7/7).
 
 ## Acceptance criteria
 
@@ -91,8 +93,9 @@ A business that is not responsible for IVA printed receipts and screens with IVA
 
 - 2026-10-14: T1 done on branch `feat/iva-off`, commit `5634bff`.
 - 2026-10-14: T2 done, commit `fedcb6f`.
-- 2026-10-14: T3 done (commit recorded with T4).
+- 2026-10-14: T3 done, commit `f93059c`.
+- 2026-10-14: T4 done (getting-started hint and `docs/guia-de-uso.md`), committed with this update.
 
 ## Next step
 
-T2 + T3 through one delegated writer.
+Manual check from the Checks list (toggle the regime and walk the POS, receipt, sale detail and customers). Then review and delivery under ordinary repository policy.
