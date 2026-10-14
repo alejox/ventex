@@ -25,7 +25,7 @@ Expose Punto de Venta directly after Panel, outside expandable modules, and move
   - Source surface: app/dashboard/settings/page.tsx.
   - Acceptance: no printer/drawer setup card in General; other settings unchanged; drawer store/services and POS print/manual/auto paths untouched.
   - Checks: structural diff/readback; focused lint/typecheck and cash-drawer/receipt regressions; full suite with T1 verification.
-  - Commit: follows this verified record; identity added after commit. Risk addressed by the same independent verification; RDD disabled/unmanaged.
+  - Commit: `0eec7e9` — refactor(settings): remove printer and drawer configuration card. Risk addressed by the same independent verification; RDD disabled/unmanaged.
 
 ## Progress
 T1 verified: deterministic RED 2 failures → GREEN focused 10/10; final full suite 986/986; lint/typecheck/diff-check passed. Independent focused business/mobile/drawer/POS checks 51/51; actual desktop/mobile renderer harness confirms standalone POS and Finance ordering; parent replay passed. No authenticated browser navigation tested.
