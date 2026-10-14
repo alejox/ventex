@@ -79,7 +79,8 @@ Order and visibility:
 ## Progress
 
 - 2026-10-14: decisions taken. Branch `feat/getting-started-v2`.
+- 2026-10-14: parent applied migration `settings_payment_methods_configured_at` via MCP. Verified live: the column is timestamptz, nullable, with no default, and `authenticated` can SELECT and UPDATE it. `npm test` 972/972, tsc clean.
 
 ## Next step
 
-The parent reviews and applies `20261014110000_settings_payment_methods_configured_at.sql`; until then, saving Métodos de pago fails with a PostgREST unknown-column error (nothing is written).
+Manual check: save Métodos de pago (cash only) and confirm the step completes; check the checklist per business type.
