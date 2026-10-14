@@ -73,6 +73,8 @@ interface PosCatalogProps {
   allowOversell: boolean;
   isWorker: boolean;
   requireActiveShift: boolean;
+  /** Dueño/administrador con `settings.owner_uses_shifts`: caja opcional, nunca bloquea. */
+  ownerUsesShifts?: boolean;
   currentShift: { opened_at: string } | null;
   addToCart: (item: CatalogItem) => void;
   increment: (key: string) => void;
@@ -110,6 +112,7 @@ export function PosCatalog({
   allowOversell,
   isWorker,
   requireActiveShift,
+  ownerUsesShifts = false,
   currentShift,
   addToCart,
   increment,
@@ -126,6 +129,7 @@ export function PosCatalog({
 }: PosCatalogProps) {
   const fmtMoney = useFormatMoney();
   const salesBlocked = isWorker && requireActiveShift && !currentShift;
+  const usesShifts = isWorker || ownerUsesShifts;
   const router = useRouter();
   const profile = useProfile();
   /**
@@ -313,7 +317,7 @@ export function PosCatalog({
         </div>
 
         <div className="order-2 flex items-center gap-2 lg:gap-3 w-full lg:w-auto overflow-x-auto scrollbar-hide">
-          {isWorker && currentShift && (
+          {usesShifts && currentShift && (
             <>
               <button
                 onClick={onOpenWithdrawal}
@@ -328,7 +332,7 @@ export function PosCatalog({
                 title={`Turno abierto desde ${new Date(currentShift.opened_at).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })}`}
               >
                 <span className="w-2 h-2 rounded-full bg-accent-fin animate-pulse" />
-                Cerrar turno
+                {isWorker ? "Cerrar turno" : "Cerrar caja"}
               </button>
             </>
           )}
@@ -390,6 +394,22 @@ export function PosCatalog({
             className="shrink-0 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary transition-colors hover:bg-primary-dim"
           >
             Abrir turno
+          </button>
+        </div>
+      )}
+      {/*
+        Dueño/administrador con caja opcional que eligió vender sin abrirla:
+        solo un recordatorio discreto, nunca un bloqueo.
+      */}
+      {!isWorker && ownerUsesShifts && !currentShift && (
+        <div className="mb-4 flex items-center justify-between gap-3 rounded-2xl border border-outline-variant/30 bg-surface-container-low px-4 py-2">
+          <p className="min-w-0 text-xs text-on-surface-variant">Estás vendiendo sin caja abierta</p>
+          <button
+            type="button"
+            onClick={onOpenShift}
+            className="shrink-0 rounded-lg px-2 py-1 text-xs font-semibold text-primary transition-colors hover:bg-primary/10"
+          >
+            Abrir caja
           </button>
         </div>
       )}

@@ -6,6 +6,12 @@ import type { CurrentShift, Shift, ShiftSummary, WithdrawalKind } from "@/servic
 interface ShiftsState {
   /** Turno abierto del empleado autenticado (null = sin turno). */
   currentShift: CurrentShift | null;
+  /**
+   * Ya llegó al menos una respuesta de `current_shift` en esta sesión. Sin
+   * esto, "no hay turno" y "todavía no sé" se confunden y el aviso de abrir
+   * caja parpadearía al entrar al POS con una caja abierta.
+   */
+  currentShiftResolved: boolean;
   /** Historial de turnos del negocio (vista del dueño). */
   shifts: Shift[];
   loading: boolean;
@@ -35,6 +41,7 @@ interface ShiftsState {
 
 export const useShiftsStore = create<ShiftsState>((set) => ({
   currentShift: null,
+  currentShiftResolved: false,
   shifts: [],
   loading: false,
   submitting: false,
@@ -45,7 +52,7 @@ export const useShiftsStore = create<ShiftsState>((set) => ({
     set({ loading: true, error: null });
     try {
       const currentShift = await shiftsService.fetchCurrentShift();
-      set({ currentShift, loading: false });
+      set({ currentShift, currentShiftResolved: true, loading: false });
     } catch (e) {
       set({ error: toMessage(e), loading: false });
     }

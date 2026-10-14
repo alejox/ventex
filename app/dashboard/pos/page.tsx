@@ -12,6 +12,17 @@ import { OpenShiftModal } from "@/components/shift/OpenShiftModal";
 import { CloseShiftModal } from "@/components/shift/CloseShiftModal";
 import { WithdrawalModal } from "@/components/shift/WithdrawalModal";
 import {
+  clearOwnerShiftSkip,
+  isOwnerShiftSkipped,
+  localDayKey,
+  markOwnerShiftSkipped,
+  ownerShiftSkipKey,
+  safeLocalStorage,
+  shouldPromptOwnerShift,
+  usesShifts as computeUsesShifts,
+} from "@/lib/owner-shift-prompt";
+import { OwnerShiftPrompt } from "./components/OwnerShiftPrompt";
+import {
   computeTotals,
   lineKey,
   linePrice,
@@ -148,7 +159,15 @@ function POSContent() {
   const profile = useProfile();
   const isWorker = profile?.isWorker ?? false;
   const requireActiveShift = useSettingsStore((s) => s.loading || (s.settings?.require_active_shift ?? true));
+  /**
+   * Dueño/administrador que eligió trabajar con caja. No los bloquea (pueden
+   * vender sin caja): solo muestra la caja, el aviso de entrada y el banner.
+   */
+  const ownerUsesShifts = useSettingsStore((s) => !isWorker && (s.settings?.owner_uses_shifts ?? false));
+  const usesShifts = computeUsesShifts({ isWorker, ownerUsesShifts });
   const currentShift = useShiftsStore((s) => s.currentShift);
+  const currentShiftResolved = useShiftsStore((s) => s.currentShiftResolved);
+  // La exigencia de turno es solo del trabajador: el dueño siempre puede saltarla.
   const salesBlocked = isWorker && requireActiveShift && !currentShift;
   const fetchCurrentShift = useShiftsStore((s) => s.fetchCurrentShift);
   const [isCloseShiftOpen, setIsCloseShiftOpen] = useState(false);
@@ -157,8 +176,36 @@ function POSContent() {
   const pendingActionRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
-    if (isWorker) fetchCurrentShift();
-  }, [isWorker, fetchCurrentShift]);
+    if (usesShifts) fetchCurrentShift();
+  }, [usesShifts, fetchCurrentShift]);
+
+  // ---- Caja del dueño/administrador: "Abre tu caja para empezar" ----
+  const ownerSkipKey = ownerShiftSkipKey(
+    profile?.workspaceId ?? profile?.id ?? "-",
+    profile?.membershipId ?? null,
+  );
+  /** Día en que se saltó en ESTA visita: vale aunque el navegador bloquee localStorage. */
+  const [skippedDay, setSkippedDay] = useState<string | null>(null);
+  // Se lee recién cuando el turno ya respondió (siempre después de hidratar),
+  // así el render del servidor y el primero del cliente coinciden.
+  const ownerSkippedToday =
+    ownerUsesShifts &&
+    currentShiftResolved &&
+    (skippedDay === localDayKey(new Date()) ||
+      isOwnerShiftSkipped(safeLocalStorage(), ownerSkipKey, new Date()));
+  const showOwnerShiftPrompt = shouldPromptOwnerShift({
+    isWorker,
+    ownerUsesShifts,
+    shiftResolved: currentShiftResolved,
+    hasShift: Boolean(currentShift),
+    skippedToday: ownerSkippedToday,
+    otherShiftModalOpen: isOpenShiftOpen || isCloseShiftOpen,
+  });
+  const skipOwnerShift = () => {
+    const now = new Date();
+    markOwnerShiftSkipped(safeLocalStorage(), ownerSkipKey, now);
+    setSkippedDay(localDayKey(now));
+  };
 
   const openCloseShift = () => {
     fetchCurrentShift();
@@ -1204,6 +1251,7 @@ function POSContent() {
             onSubmitCode={(code) => handleScannedCode(code, "input")}
             onSubmitEmpty={() => latest.current?.openCheckoutFromKeyboard() ?? false}
             searchRef={searchRef}
+            ownerUsesShifts={ownerUsesShifts && currentShiftResolved}
             onOpenShift={() => setIsOpenShiftOpen(true)}
             onOpenWithdrawal={() => setIsWithdrawalOpen(true)}
             openCloseShift={openCloseShift}
@@ -1506,21 +1554,32 @@ function POSContent() {
         />
       )}
 
-      {isWorker && isWithdrawalOpen && <WithdrawalModal onClose={() => setIsWithdrawalOpen(false)} />}
-      {isWorker && isOpenShiftOpen && (
+      <OwnerShiftPrompt
+        open={showOwnerShiftPrompt}
+        onOpenShift={() => setIsOpenShiftOpen(true)}
+        onSkip={skipOwnerShift}
+      />
+      {usesShifts && isWithdrawalOpen && <WithdrawalModal onClose={() => setIsWithdrawalOpen(false)} />}
+      {usesShifts && isOpenShiftOpen && (
         <OpenShiftModal
           onClose={() => {
             pendingActionRef.current = null;
             setIsOpenShiftOpen(false);
           }}
           onOpened={() => {
+            // Abrir caja borra el salto de hoy: si después la cierra y sigue
+            // vendiendo, el aviso vuelve a aparecer.
+            if (!isWorker) {
+              clearOwnerShiftSkip(safeLocalStorage(), ownerSkipKey);
+              setSkippedDay(null);
+            }
             const action = pendingActionRef.current;
             pendingActionRef.current = null;
             action?.();
           }}
         />
       )}
-      {isWorker && isCloseShiftOpen && (
+      {usesShifts && isCloseShiftOpen && (
         <CloseShiftModal live={currentShift} onClose={() => setIsCloseShiftOpen(false)} />
       )}
       {isSaleConfigModalOpen && <SaleConfigModal onClose={() => setIsSaleConfigModalOpen(false)} />}
