@@ -81,6 +81,8 @@ A business setting lets the owner, and workspace admins, choose to work with a c
 - 2026-10-14: exploration done. Branch `feat/owner-cash-shift`.
 - 2026-10-14: T1–T4 implemented (delegated writer). `npm test` 966/966, `npx tsc --noEmit` clean, eslint on touched files clean. Migrations authored, pending parent review/apply; manual SQL test pending execution. DashboardHome quick actions and `chargeAppointment` left unchanged (appointments already stamp any open shift of the caller).
 
+- 2026-10-14: parent reviewed both migrations against the live `pg_get_functiondef` output: only the `CAMBIO` blocks differ. Applied both via MCP (`owner_uses_shifts_setting`, `owner_cash_fallbacks`). Verified live: column default false and NOT NULL, 0 tenants with the flag on, trigger enabled, `authenticated` can UPDATE the column, both functions updated and still SECURITY DEFINER with EXECUTE kept. The manual rollback test was NOT run, because it needs a real tenant's open worker shift.
+
 ## Next step
 
-Parent reviews and applies `20261014100000` and `20261014100100` via MCP, runs the manual rollback test, then the manual POS check (open → sell → withdraw → close) as owner with the setting on.
+Manual POS check as owner with the setting on (open → sell → withdraw → close → skip-for-today). Run the manual rollback SQL test only with the user's go-ahead: it needs a real tenant with a worker's open shift.
