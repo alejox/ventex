@@ -103,6 +103,7 @@ export function gettingStartedSteps(
   businessType: BusinessType | null,
   modules: Modules | null,
   facts: GettingStartedFacts,
+  staffManuallyDone = false,
 ): GettingStartedStep[] {
   if (!businessType) return [];
 
@@ -149,7 +150,8 @@ export function gettingStartedSteps(
           ? "Cada profesor con su perfil docente, para asignarle clases."
           : "Para asignarles citas y calcular sus comisiones.",
       href: "/dashboard/staff",
-      done: facts.hasStaff,
+      done: facts.hasStaff || staffManuallyDone,
+      optional: true,
     });
   }
 
@@ -185,7 +187,7 @@ export function gettingStartedSteps(
 export const requiredGettingStartedSteps = (steps: GettingStartedStep[]): GettingStartedStep[] =>
   steps.filter((s) => !s.optional);
 
-/** Completo cuando están hechos todos los pasos OBLIGATORIOS (el sitio no cuenta). */
+/** Completo cuando están hechos todos los pasos OBLIGATORIOS (personal y sitio no cuentan). */
 export const allGettingStartedDone = (steps: GettingStartedStep[]): boolean => {
   const required = requiredGettingStartedSteps(steps);
   return required.length > 0 && required.every((s) => s.done);

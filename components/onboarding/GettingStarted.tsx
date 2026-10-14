@@ -16,7 +16,24 @@ import { IconCheck } from "@/app/assets/icons/DashboardIcons";
  */
 const storageKey = (scope: string) => `ventex:primeros-pasos:${scope}`;
 
+const staffStorageKey = (scope: string) => `ventex:primeros-pasos:staff:${scope}`;
+// Failed writes remain usable during this visit, isolated by membership.
+const transientStaffFlags = new Map<string, boolean>();
 const listeners = new Set<() => void>();
+
+function readStaffDone(key: string): boolean {
+  return transientStaffFlags.get(key) ?? (readFlag(key) === "done");
+}
+
+function writeStaffDone(key: string, done: boolean) {
+  try {
+    window.localStorage.setItem(key, done ? "done" : "pending");
+    transientStaffFlags.delete(key);
+  } catch {
+    transientStaffFlags.set(key, done);
+  }
+  listeners.forEach((listener) => listener());
+}
 
 function subscribe(onChange: () => void) {
   listeners.add(onChange);
@@ -58,7 +75,14 @@ export function GettingStarted() {
   const fetchFacts = useGettingStartedStore((s) => s.fetchFacts);
 
   const eligible = Boolean(profile && !profile.isWorker && profile.businessType);
-  const key = storageKey(profile?.membershipId ?? profile?.id ?? "anon");
+  const scope = profile?.membershipId ?? profile?.id ?? "anon";
+  const key = storageKey(scope);
+  const staffKey = staffStorageKey(scope);
+  const staffManuallyDone = useSyncExternalStore(
+    subscribe,
+    () => readStaffDone(staffKey),
+    () => false,
+  );
   // En el servidor no hay storage: se asume oculto y se decide al hidratar,
   // para no mostrar y esconder el bloque de golpe.
   const flag = useSyncExternalStore(
@@ -74,8 +98,8 @@ export function GettingStarted() {
 
   const steps = useMemo(
     () =>
-      facts && profile ? gettingStartedSteps(profile.businessType, profile.modules ?? null, facts) : [],
-    [facts, profile],
+      facts && profile ? gettingStartedSteps(profile.businessType, profile.modules ?? null, facts, staffManuallyDone) : [],
+    [facts, profile, staffManuallyDone],
   );
   const allDone = allGettingStartedDone(steps);
 
@@ -86,7 +110,7 @@ export function GettingStarted() {
 
   if (hidden || !facts || steps.length === 0 || allDone) return null;
 
-  // El progreso cuenta solo los pasos obligatorios: el sitio es opcional.
+  // El progreso cuenta solo los pasos obligatorios: personal y sitio son opcionales.
   const required = requiredGettingStartedSteps(steps);
   const doneCount = required.filter((s) => s.done).length;
   const pct = Math.round((doneCount / required.length) * 100);
@@ -128,14 +152,17 @@ export function GettingStarted() {
 
       <ol className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-2">
         {steps.map((step, i) => (
-          <li key={step.id}>
+          <li
+            key={step.id}
+            className={`flex items-center rounded-xl border transition-colors ${
+              step.done
+                ? "border-outline-variant/10 bg-surface-container-lowest/60"
+                : "border-outline-variant/20 bg-surface-container-lowest hover:border-primary/40"
+            }`}
+          >
             <Link
               href={step.href}
-              className={`flex items-start gap-3 rounded-xl border p-3 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
-                step.done
-                  ? "border-outline-variant/10 bg-surface-container-lowest/60"
-                  : "border-outline-variant/20 bg-surface-container-lowest hover:border-primary/40"
-              }`}
+              className="flex min-w-0 flex-1 items-start gap-3 rounded-xl p-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
               <span
                 className={`mt-0.5 w-6 h-6 shrink-0 rounded-full flex items-center justify-center text-xs font-bold ${
@@ -162,6 +189,18 @@ export function GettingStarted() {
                 {!step.done && <span className="block text-xs text-on-surface-variant mt-0.5">{step.hint}</span>}
               </span>
             </Link>
+            {step.id === "staff" && (
+              <label className="ml-auto flex shrink-0 self-center items-center gap-2 px-3 text-xs text-on-surface-variant">
+                <input
+                  type="checkbox"
+                  checked={step.done}
+                  disabled={facts.hasStaff}
+                  onChange={(event) => writeStaffDone(staffKey, event.target.checked)}
+                  className="h-4 w-4 accent-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                />
+                {step.done ? "Marcado como hecho" : "Marcar como hecho"}
+              </label>
+            )}
           </li>
         ))}
       </ol>

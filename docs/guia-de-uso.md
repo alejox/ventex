@@ -37,7 +37,7 @@ Esta guía te lleva paso a paso desde que creas tu cuenta hasta tu operación di
 > 2. Tu primer proveedor (si tu negocio tiene Proveedores en el menú).
 > 3. Tu primer producto, servicio o plan de clases.
 > 4. Tus métodos de pago.
-> 5. Tu personal (en escuela, tus profesores).
+> 5. Tu personal (en escuela, tus profesores), **opcional**: no cuenta para completar la lista. Si trabajas sin personal, puedes usar **"Marcar como hecho"** y desmarcarlo después. Se recuerda en este navegador; si ya tienes personal, el paso se completa automáticamente.
 > 6. Tu primera venta.
 > 7. Tu página web, que es **opcional**: no cuenta para completar la lista.
 >

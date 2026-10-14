@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   allGettingStartedDone,
   gettingStartedSteps,
+  requiredGettingStartedSteps,
   type GettingStartedFacts,
 } from "@/lib/getting-started";
 
@@ -71,11 +72,11 @@ test("el paso del proveedor y el de pagos apuntan a su sección", () => {
   assert.match(step(steps, "payments").label, /métodos de pago/);
 });
 
-test("solo el sitio es opcional", () => {
+test("el personal y el sitio son opcionales", () => {
   const steps = gettingStartedSteps("salon", null, NOTHING);
   assert.deepEqual(
     steps.filter((s) => s.optional).map((s) => s.id),
-    ["site"],
+    ["staff", "site"],
   );
 });
 
@@ -137,4 +138,34 @@ test("un paso obligatorio pendiente sí impide completarlos", () => {
   assert.equal(allGettingStartedDone(gettingStartedSteps("tienda", null, sinProveedor)), false);
   // La escuela no tiene paso de proveedor: no tenerlo no la frena.
   assert.equal(allGettingStartedDone(gettingStartedSteps("escuela", { school: true }, sinProveedor)), true);
+});
+
+test("staff and site never block required completion or change required progress", () => {
+  for (const type of ["tienda", "salon", "escuela", "lavaautos", "servicios"] as const) {
+    const modules = type === "escuela" ? { school: true } : null;
+    const facts = { ...EVERYTHING, hasStaff: false, sitePublished: false };
+    const steps = gettingStartedSteps(type, modules, facts);
+    assert.equal(step(steps, "staff").done, false, type);
+    assert.equal(step(steps, "staff").optional, true, type);
+    assert.equal(allGettingStartedDone(steps), true, type);
+    const required = requiredGettingStartedSteps(steps);
+    assert.equal(required.length, type === "escuela" || type === "servicios" ? 4 : 5, type);
+    assert.equal(required.every((entry) => entry.done), true, type);
+  }
+});
+
+test("manual staff completion is reversible and never overrides actual staff", () => {
+  assert.equal(step(gettingStartedSteps("salon", null, NOTHING, true), "staff").done, true);
+  assert.equal(step(gettingStartedSteps("salon", null, NOTHING, false), "staff").done, false);
+  assert.equal(step(gettingStartedSteps("salon", null, EVERYTHING, false), "staff").done, true);
+  assert.equal(allGettingStartedDone(gettingStartedSteps("salon", null, NOTHING, true)), false);
+});
+
+test("manual completion preserves teacher wording and staff navigation visibility", () => {
+  const school = gettingStartedSteps("escuela", { school: true }, NOTHING, true);
+  assert.match(step(school, "staff").label, /profesores/);
+  assert.equal(step(school, "staff").href, "/dashboard/staff");
+  assert.equal(step(school, "staff").done, true);
+  const staffModuleDisabled = gettingStartedSteps("tienda", { staff: false }, NOTHING, true);
+  assert.equal(step(staffModuleDisabled, "staff").href, "/dashboard/staff");
 });
