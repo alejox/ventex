@@ -17,7 +17,7 @@ Use “Configuración” for the settings destination and section heading. Allow
   - Allowed source surfaces: app/dashboard/settings/layout.tsx; app/dashboard/settings/business/page.tsx; lib/business-logo.ts; tests/business-logo.test.ts; e2e/settings-logo.spec.ts.
   - Acceptance: menu/heading use Configuración; click and drop share validation/upload; preview appears before upload completes; unsupported/oversized files rejected; concurrent uploads guarded; existing saved logo retained on failure; object URLs cleaned up; explicit Save behavior preserved.
   - Checks: deterministic validation tests RED → GREEN where applicable, focused ESLint, standalone typecheck, unit suite; browser interaction check if feasible.
-  - Commit: implementation work-unit commit follows this checked task record; exact identity recorded in Progress after commit.
+  - Commit: `d2c4132` — feat(settings): add logo drop upload with instant preview.
   - Native risk assessment: unassessable/high due to undeclared untracked inventory; independent verifier completed. Review disabled/unmanaged.
 
 ## Progress
@@ -35,4 +35,4 @@ Verification observed:
 - Authored change count remains below 250; no delivery strategy fork required.
 
 ## Next step
-Commit local work unit; no push or merge authorized.
+Local work unit committed on `feat/settings-logo-drop`. No push or merge performed; await user delivery instruction.
