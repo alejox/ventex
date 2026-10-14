@@ -456,9 +456,8 @@ export default function StaffPage() {
             const acceso_texto =
               acceso === "pending" ? "Invitación pendiente" : acceso === "suspended" ? "Acceso suspendido" : null;
 
-            // Lo secundario va al menú "⋯": antes eran hasta seis botones
-            // apilados por tarjeta y la foto, el nombre y lo que se le debe
-            // quedaban perdidos entre ellos.
+            // First-time access is a primary card action. Existing account
+            // management and other secondary actions stay in the overflow menu.
             const actions: StaffMenuAction[] = [];
             if (editable) actions.push({ label: "Editar ficha", onSelect: () => openEdit(m) });
             actions.push({ label: "Ver ventas", onSelect: () => void openSales(m) });
@@ -468,9 +467,7 @@ export default function StaffPage() {
             if (teacher) actions.push({ label: "Disponibilidad", onSelect: () => setAvailabilityFor(teacher) });
             if (canManageAccess) {
               const account = m.account;
-              if (!account) {
-                actions.push({ label: "Dar acceso al sistema", tone: "primary", onSelect: () => setGrantFor(m.id) });
-              } else {
+              if (account) {
                 actions.push({ label: "Permisos", onSelect: () => setPermsFor(account.id) });
                 actions.push({ label: "Cuenta de acceso", onSelect: () => setEditAccessFor(account.id) });
                 if (account.access_status === "suspended") {
@@ -571,6 +568,16 @@ export default function StaffPage() {
                     </span>
                   </span>
                 </button>
+
+                {canManageAccess && !m.account && (
+                  <button
+                    type="button"
+                    onClick={() => setGrantFor(m.id)}
+                    aria-label={`Dar acceso al sistema a ${m.full_name}`}
+                    disabled={submitting}
+                    className="min-h-10 w-full rounded-b-2xl border-t border-outline-variant/10 px-3 py-2.5 text-sm font-semibold text-primary transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
+                  >Dar acceso al sistema</button>
+                )}
 
                 <div className="absolute right-2 top-2 z-10">
                   <StaffCardMenu label={`Más acciones para ${m.full_name}`} actions={actions} />
