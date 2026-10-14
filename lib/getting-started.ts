@@ -96,7 +96,18 @@ export function gettingStartedSteps(
 ): GettingStartedStep[] {
   if (!businessType) return [];
 
-  const steps: GettingStartedStep[] = [catalogStep(businessType, modules, facts)];
+  // El negocio y el IVA van PRIMERO: definen cómo se guardan los precios, así
+  // que cargar el catálogo antes deja productos con un IVA que no corresponde.
+  const steps: GettingStartedStep[] = [
+    {
+      id: "business",
+      label: "Configura los datos del negocio y el IVA",
+      hint: "Régimen de IVA, NIT o cédula y datos que salen en el recibo.",
+      href: "/dashboard/settings/business",
+      done: facts.businessConfigured,
+    },
+    catalogStep(businessType, modules, facts),
+  ];
 
   if (STAFF_TYPES.includes(businessType)) {
     steps.push({
@@ -110,14 +121,6 @@ export function gettingStartedSteps(
       done: facts.hasStaff,
     });
   }
-
-  steps.push({
-    id: "business",
-    label: "Configura los datos del negocio y el IVA",
-    hint: "Régimen de IVA, NIT o cédula y datos que salen en el recibo.",
-    href: "/dashboard/settings/business",
-    done: facts.businessConfigured,
-  });
 
   if (visibleNavItems(businessType, modules).some((item) => item.id === "landing")) {
     const siteCopy =
