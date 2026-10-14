@@ -4,7 +4,7 @@ import { useEffect, useMemo, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useProfile } from "@/components/ProfileProvider";
 import { useGettingStartedStore } from "@/stores/getting-started.store";
-import { allGettingStartedDone, gettingStartedSteps } from "@/lib/getting-started";
+import { allGettingStartedDone, gettingStartedSteps, requiredGettingStartedSteps } from "@/lib/getting-started";
 import { IconCheck } from "@/app/assets/icons/DashboardIcons";
 
 /**
@@ -86,8 +86,10 @@ export function GettingStarted() {
 
   if (hidden || !facts || steps.length === 0 || allDone) return null;
 
-  const doneCount = steps.filter((s) => s.done).length;
-  const pct = Math.round((doneCount / steps.length) * 100);
+  // El progreso cuenta solo los pasos obligatorios: el sitio es opcional.
+  const required = requiredGettingStartedSteps(steps);
+  const doneCount = required.filter((s) => s.done).length;
+  const pct = Math.round((doneCount / required.length) * 100);
 
   return (
     <section
@@ -100,7 +102,7 @@ export function GettingStarted() {
             Primeros pasos
           </h2>
           <p className="text-sm text-on-surface-variant mt-0.5">
-            {doneCount} de {steps.length} listos. Completa estos pasos para empezar a vender con todo
+            {doneCount} de {required.length} listos. Completa estos pasos para empezar a vender con todo
             configurado.
           </p>
         </div>
@@ -117,7 +119,7 @@ export function GettingStarted() {
         className="mt-4 h-1.5 rounded-full bg-surface-container-high overflow-hidden"
         role="progressbar"
         aria-valuemin={0}
-        aria-valuemax={steps.length}
+        aria-valuemax={required.length}
         aria-valuenow={doneCount}
         aria-label="Progreso de los primeros pasos"
       >
@@ -152,6 +154,11 @@ export function GettingStarted() {
                   {step.label}
                   <span className="sr-only">{step.done ? " (hecho)" : " (pendiente)"}</span>
                 </span>
+                {step.optional && (
+                  <span className="mt-1 inline-block rounded-full bg-surface-container-high px-2 py-0.5 text-[11px] font-semibold text-on-surface-variant">
+                    Opcional
+                  </span>
+                )}
                 {!step.done && <span className="block text-xs text-on-surface-variant mt-0.5">{step.hint}</span>}
               </span>
             </Link>

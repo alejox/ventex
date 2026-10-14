@@ -10,38 +10,73 @@ const NOTHING: GettingStartedFacts = {
   hasProduct: false,
   hasService: false,
   hasStaff: false,
+  hasDistributor: false,
   businessConfigured: false,
+  paymentMethodsConfigured: false,
   sitePublished: false,
   hasSale: false,
 };
 
+const EVERYTHING: GettingStartedFacts = {
+  hasProduct: true,
+  hasService: true,
+  hasStaff: true,
+  hasDistributor: true,
+  businessConfigured: true,
+  paymentMethodsConfigured: true,
+  sitePublished: true,
+  hasSale: true,
+};
+
 const ids = (steps: { id: string }[]) => steps.map((s) => s.id);
-const catalog = <T extends { id: string }>(steps: T[]) => steps.find((s) => s.id === "catalog")!;
+const step = <T extends { id: string }>(steps: T[], id: string) => steps.find((s) => s.id === id)!;
 
-test("tienda: producto, datos del negocio, catálogo web y primera venta — sin personal", () => {
+test("tienda: negocio, proveedor, producto, pagos, personal, primera venta y catálogo web opcional", () => {
   const steps = gettingStartedSteps("tienda", null, NOTHING);
-  assert.deepEqual(ids(steps), ["business", "catalog", "site", "first-sale"]);
-  assert.equal(catalog(steps).href, "/dashboard/inventory/product");
-  assert.match(catalog(steps).label, /producto/);
-  const site = steps.find((s) => s.id === "site");
-  assert.equal(site?.href, "/dashboard/landing");
-  assert.match(site?.label ?? "", /catálogo/);
-  assert.match(site?.hint ?? "", /WhatsApp/);
-  assert.doesNotMatch(`${site?.label} ${site?.hint}`, /reserv/i);
+  assert.deepEqual(ids(steps), ["business", "supplier", "catalog", "payments", "staff", "first-sale", "site"]);
+  assert.equal(step(steps, "catalog").href, "/dashboard/inventory/product");
+  assert.match(step(steps, "catalog").label, /producto/);
+  const site = step(steps, "site");
+  assert.equal(site.href, "/dashboard/landing");
+  assert.equal(site.optional, true);
+  assert.match(site.label, /catálogo/);
+  assert.match(site.hint, /WhatsApp/);
+  assert.doesNotMatch(`${site.label} ${site.hint}`, /reserv/i);
 });
 
-test("salón: servicio, personal, datos, sitio de reservas y primera venta", () => {
+test("salón: lleva proveedor y personal, y el sitio de reservas va al final", () => {
   const steps = gettingStartedSteps("salon", null, NOTHING);
-  assert.deepEqual(ids(steps), ["business", "catalog", "staff", "site", "first-sale"]);
-  assert.equal(catalog(steps).href, "/dashboard/inventory/product?type=servicio");
-  assert.equal(steps.find((s) => s.id === "site")?.href, "/dashboard/landing");
+  assert.deepEqual(ids(steps), ["business", "supplier", "catalog", "payments", "staff", "first-sale", "site"]);
+  assert.equal(step(steps, "catalog").href, "/dashboard/inventory/product?type=servicio");
+  assert.equal(step(steps, "site").href, "/dashboard/landing");
 });
 
-test("escuela: el catálogo es el plan de clases y el personal son profesores", () => {
+test("escuela: sin proveedor; el catálogo es el plan de clases y el personal son profesores", () => {
   const steps = gettingStartedSteps("escuela", { school: true }, NOTHING);
-  assert.deepEqual(ids(steps), ["business", "catalog", "staff", "site", "first-sale"]);
-  assert.equal(catalog(steps).href, "/dashboard/school/planes");
-  assert.match(steps.find((s) => s.id === "staff")!.label, /profesores/);
+  assert.deepEqual(ids(steps), ["business", "catalog", "payments", "staff", "first-sale", "site"]);
+  assert.equal(step(steps, "catalog").href, "/dashboard/school/planes");
+  assert.match(step(steps, "staff").label, /profesores/);
+});
+
+test("servicios: sin proveedor (no tiene ese ítem en el menú)", () => {
+  const steps = gettingStartedSteps("servicios", null, NOTHING);
+  assert.deepEqual(ids(steps), ["business", "catalog", "payments", "staff", "first-sale", "site"]);
+});
+
+test("el paso del proveedor y el de pagos apuntan a su sección", () => {
+  const steps = gettingStartedSteps("tienda", null, NOTHING);
+  assert.equal(step(steps, "supplier").href, "/dashboard/distributors?new=1");
+  assert.match(step(steps, "supplier").label, /proveedor/);
+  assert.equal(step(steps, "payments").href, "/dashboard/settings/pagos");
+  assert.match(step(steps, "payments").label, /métodos de pago/);
+});
+
+test("solo el sitio es opcional", () => {
+  const steps = gettingStartedSteps("salon", null, NOTHING);
+  assert.deepEqual(
+    steps.filter((s) => s.optional).map((s) => s.id),
+    ["site"],
+  );
 });
 
 test("sin tipo de negocio no hay checklist", () => {
@@ -51,43 +86,55 @@ test("sin tipo de negocio no hay checklist", () => {
 
 test("cualquier ítem del catálogo marca el paso del catálogo", () => {
   const conServicio = gettingStartedSteps("tienda", null, { ...NOTHING, hasService: true });
-  assert.equal(catalog(conServicio).done, true);
+  assert.equal(step(conServicio, "catalog").done, true);
   const conProducto = gettingStartedSteps("salon", null, { ...NOTHING, hasProduct: true });
-  assert.equal(catalog(conProducto).done, true);
+  assert.equal(step(conProducto, "catalog").done, true);
+});
+
+test("pagos se marca solo cuando se guardó la sección, aunque se cobre solo en efectivo", () => {
+  assert.equal(step(gettingStartedSteps("tienda", null, NOTHING), "payments").done, false);
+  const guardado = gettingStartedSteps("tienda", null, { ...NOTHING, paymentMethodsConfigured: true });
+  assert.equal(step(guardado, "payments").done, true);
 });
 
 test("cada paso se marca con su propio hecho", () => {
   const steps = gettingStartedSteps("salon", null, {
     ...NOTHING,
     hasStaff: true,
+    hasDistributor: true,
     sitePublished: true,
   });
   const done = Object.fromEntries(steps.map((s) => [s.id, s.done]));
   assert.deepEqual(done, {
-    catalog: false,
-    staff: true,
     business: false,
-    site: true,
+    supplier: true,
+    catalog: false,
+    payments: false,
+    staff: true,
     "first-sale": false,
+    site: true,
   });
   assert.equal(allGettingStartedDone(steps), false);
 });
 
 test("todo hecho: el checklist se da por completo", () => {
-  const all: GettingStartedFacts = {
-    hasProduct: true,
-    hasService: true,
-    hasStaff: true,
-    businessConfigured: true,
-    sitePublished: true,
-    hasSale: true,
-  };
-  assert.equal(allGettingStartedDone(gettingStartedSteps("salon", null, all)), true);
-  // La tienda no necesita personal para terminar, pero sí publicar su catálogo.
-  const tiendaSinPersonal = { ...NOTHING, hasProduct: true, businessConfigured: true, hasSale: true };
-  assert.equal(allGettingStartedDone(gettingStartedSteps("tienda", null, tiendaSinPersonal)), false);
-  assert.equal(
-    allGettingStartedDone(gettingStartedSteps("tienda", null, { ...tiendaSinPersonal, sitePublished: true })),
-    true,
-  );
+  assert.equal(allGettingStartedDone(gettingStartedSteps("salon", null, EVERYTHING)), true);
+});
+
+test("un sitio sin publicar no impide completar los primeros pasos", () => {
+  const sinSitio = { ...EVERYTHING, sitePublished: false };
+  for (const type of ["tienda", "salon", "escuela", "lavaautos", "servicios"] as const) {
+    const steps = gettingStartedSteps(type, type === "escuela" ? { school: true } : null, sinSitio);
+    assert.equal(step(steps, "site").done, false, type);
+    assert.equal(allGettingStartedDone(steps), true, type);
+  }
+});
+
+test("un paso obligatorio pendiente sí impide completarlos", () => {
+  const sinPagos = { ...EVERYTHING, paymentMethodsConfigured: false };
+  assert.equal(allGettingStartedDone(gettingStartedSteps("tienda", null, sinPagos)), false);
+  const sinProveedor = { ...EVERYTHING, hasDistributor: false };
+  assert.equal(allGettingStartedDone(gettingStartedSteps("tienda", null, sinProveedor)), false);
+  // La escuela no tiene paso de proveedor: no tenerlo no la frena.
+  assert.equal(allGettingStartedDone(gettingStartedSteps("escuela", { school: true }, sinProveedor)), true);
 });

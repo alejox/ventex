@@ -7,9 +7,10 @@
  * negocio y de sus módulos, y si están hechos, de unos pocos hechos que trae
  * `services/getting-started.service.ts`.
  *
- * Qué rubro ve qué sale de `config/business.ts` (la fuente de verdad): el paso
- * del sitio de reservas aparece solo si el negocio tiene el ítem "landing" en
- * su menú, en vez de repetir acá la lista de rubros que lo llevan.
+ * Qué rubro ve qué sale de `config/business.ts` (la fuente de verdad): los
+ * pasos del proveedor, el personal y el sitio aparecen solo si el negocio
+ * tiene ese ítem en su menú (`distributors`, `staff`, `landing`), en vez de
+ * repetir acá la lista de rubros que los llevan.
  */
 import { effectiveModules, visibleNavItems, type BusinessType, type Modules } from "@/config/business";
 
@@ -18,13 +19,23 @@ export interface GettingStartedFacts {
   hasProduct: boolean;
   hasService: boolean;
   hasStaff: boolean;
+  hasDistributor: boolean;
   /** Datos del negocio guardados (régimen de IVA o identificación). */
   businessConfigured: boolean;
+  /** Guardó al menos una vez Ajustes → Métodos de pago (aunque sea solo efectivo). */
+  paymentMethodsConfigured: boolean;
   sitePublished: boolean;
   hasSale: boolean;
 }
 
-export type GettingStartedStepId = "catalog" | "staff" | "business" | "site" | "first-sale";
+export type GettingStartedStepId =
+  | "business"
+  | "supplier"
+  | "catalog"
+  | "payments"
+  | "staff"
+  | "first-sale"
+  | "site";
 
 export interface GettingStartedStep {
   id: GettingStartedStepId;
@@ -32,10 +43,9 @@ export interface GettingStartedStep {
   hint: string;
   href: string;
   done: boolean;
+  /** No cuenta para el progreso ni para dar el checklist por completo. */
+  optional?: boolean;
 }
-
-/** Rubros que atienden con personal propio (comisiones, agenda, profesores). */
-const STAFF_TYPES: BusinessType[] = ["salon", "escuela", "lavaautos", "servicios"];
 
 function catalogStep(
   businessType: BusinessType,
@@ -96,20 +106,41 @@ export function gettingStartedSteps(
 ): GettingStartedStep[] {
   if (!businessType) return [];
 
+  const nav = new Set(visibleNavItems(businessType, modules).map((item) => item.id));
+  const steps: GettingStartedStep[] = [];
+
   // El negocio y el IVA van PRIMERO: definen cómo se guardan los precios, así
   // que cargar el catálogo antes deja productos con un IVA que no corresponde.
-  const steps: GettingStartedStep[] = [
-    {
-      id: "business",
-      label: "Configura los datos del negocio y el IVA",
-      hint: "Si cobras IVA y su tasa, NIT o cédula y datos que salen en el recibo.",
-      href: "/dashboard/settings/business",
-      done: facts.businessConfigured,
-    },
-    catalogStep(businessType, modules, facts),
-  ];
+  steps.push({
+    id: "business",
+    label: "Configura los datos del negocio y el IVA",
+    hint: "Si cobras IVA y su tasa, NIT o cédula y datos que salen en el recibo.",
+    href: "/dashboard/settings/business",
+    done: facts.businessConfigured,
+  });
 
-  if (STAFF_TYPES.includes(businessType)) {
+  // Antes del catálogo: al crear un producto ya se puede elegir su proveedor.
+  if (nav.has("distributors")) {
+    steps.push({
+      id: "supplier",
+      label: "Crea tu primer proveedor",
+      hint: "A quién le compras: lo usas en compras y pedidos.",
+      href: "/dashboard/distributors?new=1",
+      done: facts.hasDistributor,
+    });
+  }
+
+  steps.push(catalogStep(businessType, modules, facts));
+
+  steps.push({
+    id: "payments",
+    label: "Configura tus métodos de pago",
+    hint: "Efectivo, transferencia o datáfono: lo que aceptas al cobrar.",
+    href: "/dashboard/settings/pagos",
+    done: facts.paymentMethodsConfigured,
+  });
+
+  if (nav.has("staff")) {
     steps.push({
       id: "staff",
       label: businessType === "escuela" ? "Agrega a tus profesores" : "Agrega a tu personal",
@@ -122,7 +153,16 @@ export function gettingStartedSteps(
     });
   }
 
-  if (visibleNavItems(businessType, modules).some((item) => item.id === "landing")) {
+  steps.push({
+    id: "first-sale",
+    label: "Registra tu primera venta",
+    hint: "Desde el punto de venta, en efectivo, datáfono o transferencia.",
+    href: "/dashboard/pos",
+    done: facts.hasSale,
+  });
+
+  // Al final y opcional: se puede vender sin sitio, así que no frena el checklist.
+  if (nav.has("landing")) {
     const siteCopy =
       businessType === "escuela"
         ? { label: "Publica tu sitio web", hint: "Una página pública para que las familias te encuentren." }
@@ -134,22 +174,22 @@ export function gettingStartedSteps(
       ...siteCopy,
       href: "/dashboard/landing",
       done: facts.sitePublished,
+      optional: true,
     });
   }
-
-  steps.push({
-    id: "first-sale",
-    label: "Registra tu primera venta",
-    hint: "Desde el punto de venta, en efectivo, datáfono o transferencia.",
-    href: "/dashboard/pos",
-    done: facts.hasSale,
-  });
 
   return steps;
 }
 
-export const allGettingStartedDone = (steps: GettingStartedStep[]): boolean =>
-  steps.length > 0 && steps.every((s) => s.done);
+/** Los pasos que cuentan para el progreso y para dar el checklist por completo. */
+export const requiredGettingStartedSteps = (steps: GettingStartedStep[]): GettingStartedStep[] =>
+  steps.filter((s) => !s.optional);
+
+/** Completo cuando están hechos todos los pasos OBLIGATORIOS (el sitio no cuenta). */
+export const allGettingStartedDone = (steps: GettingStartedStep[]): boolean => {
+  const required = requiredGettingStartedSteps(steps);
+  return required.length > 0 && required.every((s) => s.done);
+};
 
 /* ── A dónde aterriza alguien después de iniciar sesión ─────────────────── */
 

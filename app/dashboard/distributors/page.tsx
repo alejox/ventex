@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { IconPlus } from "@/app/assets/icons/DashboardIcons";
 import { useDistributorsStore } from "@/stores/distributors.store";
 import { DataTable, type DataColumn } from "@/components/DataTable";
@@ -10,6 +10,7 @@ import { CollectionEmpty, CollectionError, CollectionLoading } from "@/component
 import type { Distributor, NewDistributorInput } from "@/services/distributors.service";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
+import { OpenOnNewParam } from "@/components/ui/OpenOnNewParam";
 import { useTableUrlState, useUrlParams } from "@/lib/useUrlState";
 import { ImportWizard } from "@/lib/import/ImportWizard";
 import { DISTRIBUTOR_IMPORT, existingDistributorKeys } from "@/lib/import/distributors";
@@ -92,12 +93,14 @@ export default function DistributorsPage() {
     fetchDistributors();
   }, [fetchDistributors]);
 
-  const openCreateModal = () => {
+  // Estable: `OpenOnNewParam` la usa como dependencia (`?new=1`, p. ej. desde
+  // "Primeros pasos").
+  const openCreateModal = useCallback(() => {
     setEditId(null);
     setForm(EMPTY_DISTRIBUTOR);
     setPhoneErrors({});
     setModalOpen(true);
-  };
+  }, []);
 
   const openEditModal = (d: typeof distributors[number]) => {
     setEditId(d.id);
@@ -309,6 +312,7 @@ export default function DistributorsPage() {
 
   return (
     <div className="flex flex-col gap-6 w-full animate-in fade-in duration-500">
+      <Suspense fallback={null}><OpenOnNewParam onOpen={openCreateModal} /></Suspense>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-on-surface">Proveedores</h1>

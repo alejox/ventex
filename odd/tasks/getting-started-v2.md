@@ -60,8 +60,11 @@ Order and visibility:
 - [x] **T1 Payment-methods section.** Migration plus types; service, store and save stamping; the new tab and page; General cleanup; palette and links.
   - Route: delegated (writer trigger: 2+ non-trivial files). Migration `20261014110000_settings_payment_methods_configured_at.sql` authored, NOT applied (parent applies).
   - `savePaymentMethods` sends only the four payment fields + the stamp; General's save no longer sends them. The palette has only one "Configuración" command, built in `components/DashboardShell.tsx` (outside the writer's surface): no dedicated entry added. No POS hint linked to these settings.
-  - Evidence: `npx tsc --noEmit` clean; eslint on touched files clean; `npm test` 966/966.
-- [ ] **T2 Getting started v2.** New facts, order, optional site step, UI tag and progress; tests.
+  - Commit `106c11c`. Evidence: `npx tsc --noEmit` clean; eslint on touched files clean; `npm test` 966/966.
+- [x] **T2 Getting started v2.** New facts, order, optional site step, UI tag and progress; tests.
+  - Route: delegated. RED observed first (`tests/getting-started.test.ts`: 10 fail / 3 pass), then GREEN (13/13).
+  - Visibility from `visibleNavItems` (`distributors`, `staff`, `landing`); `STAFF_TYPES` removed. Supplier step links to `/dashboard/distributors?new=1`, now handled by `OpenOnNewParam` on that page. The facts query reads `settings` with `*` so the missing column (pre-migration) never fails the query.
+  - Evidence: `npx tsc --noEmit` clean; eslint on touched files clean; `npm test` 972/972.
 - [ ] **T3 Docs.** Guide sections 2 and 3 plus the new section.
 
 ## Acceptance criteria
