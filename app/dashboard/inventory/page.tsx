@@ -52,6 +52,7 @@ import { contentLabel } from "@/lib/units";
 import { Button } from "@/components/ui/Button";
 import { OpenOnNewParam } from "@/components/ui/OpenOnNewParam";
 import { IngredientQuickModal } from "./product/components/IngredientQuickModal";
+import { useCatalogSearchFocus } from "@/lib/useCatalogSearchFocus";
 
 /**
  * Vistas del catálogo que solo existen con "Recetas y producción". `?filtro=`
@@ -264,6 +265,7 @@ export default function CatalogPage() {
     size: "10",
   });
   const searchQuery = filters.q;
+  const searchInputRef = useCatalogSearchFocus();
   const typeFilter: "" | "product" | "service" =
     filters.type === "product" || filters.type === "service" ? filters.type : "";
   const categoryFilter = filters.cat;
@@ -594,6 +596,7 @@ export default function CatalogPage() {
             <div className="relative flex-1 min-w-0">
               <IconSearch className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant" />
               <input
+                ref={searchInputRef}
                 type="text"
                 value={searchQuery}
                 onChange={e => { setSearchQuery(e.target.value); setCurrentPage(1); }}
