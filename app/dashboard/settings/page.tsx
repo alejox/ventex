@@ -284,6 +284,10 @@ function SettingsForm({ settings }: { settings: Settings }) {
   const requireActiveShift = useSettingsStore((s) => s.settings?.require_active_shift ?? settings.require_active_shift);
   const saveShiftRequirement = useSettingsStore((s) => s.saveShiftRequirement);
   const [shiftSettingSaved, setShiftSettingSaved] = useState(false);
+  const ownerUsesShifts = useSettingsStore((s) => s.settings?.owner_uses_shifts ?? settings.owner_uses_shifts);
+  const saveOwnerUsesShifts = useSettingsStore((s) => s.saveOwnerUsesShifts);
+  const [ownerShiftSaving, setOwnerShiftSaving] = useState(false);
+  const [ownerShiftSaved, setOwnerShiftSaved] = useState(false);
   const saveSettings = useSettingsStore((s) => s.saveSettings);
   const submitting = useSettingsStore((s) => s.submitting);
   const error = useSettingsStore((s) => s.error);
@@ -376,7 +380,27 @@ function SettingsForm({ settings }: { settings: Settings }) {
         }}
       />
         <p className="px-1 text-xs text-on-surface-variant" role="status">
-          {submitting ? "Guardando…" : shiftSettingSaved ? "Cambio guardado. Se aplica al abrir o actualizar el punto de venta." : "Este ajuste se guarda automáticamente al cambiarlo."}
+          {submitting && !ownerShiftSaving ? "Guardando…" : shiftSettingSaved ? "Cambio guardado. Se aplica al abrir o actualizar el punto de venta." : "Este ajuste se guarda automáticamente al cambiarlo."}
+        </p>
+      </div>}
+
+      {canManageShiftRequirement && <div className="space-y-2"><ToggleSetting
+        title="Abrir caja como administrador"
+        description={ownerUsesShifts
+          ? "Te pedimos abrir caja al entrar al punto de venta; puedes iniciar sin abrirla. Con caja abierta registras retiros y cierras con arqueo."
+          : "Vendes sin caja, como hasta ahora. Actívalo para abrir tu propia caja, registrar retiros y cerrar con arqueo."}
+        checked={ownerUsesShifts}
+        disabled={submitting}
+        onChange={async (value) => {
+          setOwnerShiftSaved(false);
+          setOwnerShiftSaving(true);
+          const ok = await saveOwnerUsesShifts(value);
+          setOwnerShiftSaving(false);
+          if (ok) setOwnerShiftSaved(true);
+        }}
+      />
+        <p className="px-1 text-xs text-on-surface-variant" role="status">
+          {ownerShiftSaving ? "Guardando…" : ownerShiftSaved ? "Cambio guardado. Se aplica al abrir o actualizar el punto de venta." : "Aplica a ti y a los administradores del negocio."}
         </p>
       </div>}
 

@@ -3469,6 +3469,7 @@ export type Database = {
           currency: string
           id: string
           include_tax: boolean
+          owner_uses_shifts: boolean
           points_enabled: boolean
           points_min_redeem: number
           points_peso_per_point: number | null
@@ -3492,6 +3493,7 @@ export type Database = {
           currency?: string
           id?: string
           include_tax?: boolean
+          owner_uses_shifts?: boolean
           points_enabled?: boolean
           points_min_redeem?: number
           points_peso_per_point?: number | null
@@ -3515,6 +3517,7 @@ export type Database = {
           currency?: string
           id?: string
           include_tax?: boolean
+          owner_uses_shifts?: boolean
           points_enabled?: boolean
           points_min_redeem?: number
           points_peso_per_point?: number | null

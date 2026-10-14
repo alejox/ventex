@@ -38,6 +38,11 @@ export interface Settings {
   /** Si el POS puede cobrar más unidades de las que hay en stock. */
   allow_oversell: boolean;
   require_active_shift: boolean;
+  /**
+   * Si el dueño y los administradores trabajan con caja (turno, retiros, arqueo).
+   * Opcional para ellos: el POS les pide abrir caja pero pueden vender sin ella.
+   */
+  owner_uses_shifts: boolean;
   /** Si el negocio cobra con tarjeta. false = ni siquiera se ofrece el medio. */
   accepts_card: boolean;
   /** Si el negocio cobra por transferencia. false = ni siquiera se ofrece. */
@@ -71,6 +76,7 @@ const DEFAULTS: Settings = {
   include_tax: true,
   allow_oversell: true,
   require_active_shift: false,
+  owner_uses_shifts: false,
   accepts_card: true,
   accepts_transfer: true,
   currency: "COP",
@@ -124,7 +130,7 @@ const SETTINGS_SELECT = "*";
  * de `saveSettings`, así que agregar una columna obligaba a acordarse de tres
  * lugares, y olvidarse de uno devolvía el valor por defecto en silencio.
  */
-function mapSettings(raw: Record<string, unknown>): Settings {
+export function mapSettings(raw: Record<string, unknown>): Settings {
   return {
     time_format: (raw.business_profile as BusinessProfile | null)?.timeFormat === "24" ? "24" : "12",
     id: (raw.id as string) ?? null,
@@ -132,6 +138,8 @@ function mapSettings(raw: Record<string, unknown>): Settings {
     include_tax: (raw.include_tax as boolean) ?? true,
     allow_oversell: (raw.allow_oversell as boolean) ?? true,
     require_active_shift: (raw.require_active_shift as boolean) ?? false,
+    // `?? false`: antes de la migración la columna no existe y `select *` no la trae.
+    owner_uses_shifts: (raw.owner_uses_shifts as boolean | null) ?? false,
     accepts_card: (raw.accepts_card as boolean) ?? true,
     accepts_transfer: (raw.accepts_transfer as boolean) ?? true,
     currency: (raw.currency as string) ?? "COP",
@@ -253,6 +261,23 @@ export async function saveShiftRequirement(enabled: boolean): Promise<Settings> 
   const query = existing
     ? supabase.from("settings").update({ require_active_shift: enabled }).eq("id", existing.id)
     : supabase.from("settings").insert({ require_active_shift: enabled });
+  const { data, error } = await query.select(SETTINGS_SELECT).single();
+  if (error) throw error;
+  return mapSettings(data as Record<string, unknown>);
+}
+
+/**
+ * Guarda únicamente si el dueño/administrador usa caja. `settings` es perezosa:
+ * un negocio que nunca abrió Ajustes no tiene fila, así que se lee y se
+ * actualiza o se inserta.
+ */
+export async function saveOwnerUsesShifts(enabled: boolean): Promise<Settings> {
+  const supabase = createClient();
+  const { data: existing, error: readError } = await supabase.from("settings").select("id").maybeSingle();
+  if (readError) throw readError;
+  const query = existing
+    ? supabase.from("settings").update({ owner_uses_shifts: enabled }).eq("id", existing.id)
+    : supabase.from("settings").insert({ owner_uses_shifts: enabled });
   const { data, error } = await query.select(SETTINGS_SELECT).single();
   if (error) throw error;
   return mapSettings(data as Record<string, unknown>);

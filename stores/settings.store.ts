@@ -19,6 +19,8 @@ interface SettingsState {
   /** Devuelve true si se guardó correctamente. */
   saveSettings: (input: SettingsInput) => Promise<boolean>;
   saveShiftRequirement: (enabled: boolean) => Promise<boolean>;
+  /** Si el dueño/administrador trabaja con caja. Devuelve true si se guardó. */
+  saveOwnerUsesShifts: (enabled: boolean) => Promise<boolean>;
 
   /** Sube el logo y devuelve su URL pública (o null si falla). */
   uploadLogo: (file: File) => Promise<string | null>;
@@ -63,6 +65,18 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     set({ submitting: true, error: null });
     try {
       const settings = await settingsService.saveShiftRequirement(enabled);
+      set({ settings, submitting: false });
+      return true;
+    } catch (error) {
+      set({ error: toMessage(error), submitting: false });
+      return false;
+    }
+  },
+
+  saveOwnerUsesShifts: async (enabled) => {
+    set({ submitting: true, error: null });
+    try {
+      const settings = await settingsService.saveOwnerUsesShifts(enabled);
       set({ settings, submitting: false });
       return true;
     } catch (error) {
