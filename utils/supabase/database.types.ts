@@ -4277,6 +4277,26 @@ export type Database = {
       is_super_admin: { Args: never; Returns: boolean }
       is_tenant_owner: { Args: never; Returns: boolean }
       is_workspace_owner: { Args: never; Returns: boolean }
+      my_commission_lines: {
+        Args: { p_from: string; p_to: string }
+        Returns: {
+          commission_amount: number
+          item_name: string
+          line_net: number
+          quantity: number
+          sale_id: string
+          sale_item_id: string
+          sale_number: number
+          settled: boolean
+          settlement_paid_on: string
+          sold_at: string
+        }[]
+      }
+      my_commission_period_totals: {
+        Args: { p_from: string; p_to: string }
+        Returns: Json
+      }
+      my_commission_summary: { Args: never; Returns: Json }
       my_subscription: { Args: never; Returns: Json }
       notify_low_ingredient: {
         Args: {
