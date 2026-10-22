@@ -332,13 +332,16 @@
   padding: 150px 32px 100px;
 }
 
+/* Contorno por defecto; cualquier fuente elegida lo cambia por relleno con la
+   misma tinta (ver `heroTitleFontStyleFrom`). */
 .qutterHero .heroTitle {
-  color: transparent;
+  --hero-title-ink: #fff;
+  color: var(--hero-title-fill, transparent);
   font-size: clamp(70px, 8.5vw, 126px);
   line-height: .98;
   max-width: 850px;
   text-transform: uppercase;
-  -webkit-text-stroke: 1px #fff;
+  -webkit-text-stroke: var(--hero-title-stroke, 1px) #fff;
 }
 
 .qutterHero .heroDescription { color: #d0d0d0; }

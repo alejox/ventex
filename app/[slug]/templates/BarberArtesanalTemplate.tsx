@@ -8,6 +8,7 @@ import { ConfigurableSections, SiteFooter } from "./SiteSections";
 import { paletteFor } from "./theme";
 import baseStyles from "./templates.module.css";
 import styles from "./BarberArtesanalTemplate.module.css";
+import { heroTitleFontStyle } from "./hero-fonts";
 
 export function BarberArtesanalTemplate({ site, preview = false }: { site: PublicSite; preview?: boolean }) {
   const hero = site.config.hero;
@@ -24,7 +25,7 @@ export function BarberArtesanalTemplate({ site, preview = false }: { site: Publi
         <Image src={hero.imageUrl ?? DEFAULT_SITE_IMAGES["barberia-artesanal"]} unoptimized={esImagenAjena(hero.imageUrl ?? DEFAULT_SITE_IMAGES["barberia-artesanal"])} alt="" fill preload={!preview} sizes="100vw" className={styles.heroImage} />
         <div className={styles.heroShade} />
         <div className={styles.heroBody}>
-          <h1 className={`${styles.heroTitle} ${styles.manuscrita}`}>{hero.title ?? site.businessName}</h1>
+          <h1 className={`${styles.heroTitle} ${styles.manuscrita}`} style={heroTitleFontStyle(hero.titleFont)}>{hero.title ?? site.businessName}</h1>
           <p className={styles.heroKicker}>{hero.eyebrow}</p>
           {hero.description ? <p className="mx-auto mt-5 max-w-2xl text-sm leading-7 text-[#ecd9cd]">{hero.description}</p> : null}
           <div className={styles.heroActions}>{site.bookingEnabled ? <a className={styles.primary} href="#reservar">Reserva tu turno <ArrowUpRight size={16} aria-hidden="true" /></a> : null}<a className={styles.secondary} href="#servicios">Ver servicios</a></div>

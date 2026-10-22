@@ -12,6 +12,7 @@ import { StoreCatalog } from "./StoreCatalog";
 import { paletteFor, whatsappHref } from "./theme";
 import baseStyles from "./templates.module.css";
 import styles from "./MercadoTemplate.module.css";
+import { heroTitleFontStyle } from "./hero-fonts";
 
 // Publicadas como variables: la paleta (`--site-heading-font`) las nombra
 // primero, así un cambio de tipografía sigue pasando por el tema.
@@ -71,7 +72,7 @@ export function MercadoTemplate({ site, preview = false }: { site: PublicSite; p
       <div className={`${styles.mainPanel} site-enter`}>
         <div className={styles.mainCopy}>
           <span className={styles.eyebrow}>{hero.eyebrow}</span>
-          <h1 className={styles.title}>{hero.title ?? site.businessName}</h1>
+          <h1 className={styles.title} style={heroTitleFontStyle(hero.titleFont)}>{hero.title ?? site.businessName}</h1>
           {hero.description ? <p className={styles.description}>{hero.description}</p> : null}
           <BusinessStatus site={site} className={styles.status} />
           {showCatalog ? <a href="#productos" className={`${styles.cta} site-action`}>Ver productos</a> : null}

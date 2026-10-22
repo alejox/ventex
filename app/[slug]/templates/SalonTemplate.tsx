@@ -7,6 +7,7 @@ import { ConfigurableSections, SiteFooter } from "./SiteSections";
 import { paletteFor } from "./theme";
 import baseStyles from "./templates.module.css";
 import styles from "./SalonTemplate.module.css";
+import { heroTitleFontStyle } from "./hero-fonts";
 
 export type SalonVariant = "luxia" | "lezar" | "zen";
 
@@ -30,7 +31,7 @@ export function SalonTemplate({ site, preview = false, variant }: { site: Public
         <div className={styles.hero}>
           <div className={`${styles.copy} site-enter`}>
             <span className={styles.eyebrow}>{hero.eyebrow}</span>
-            <h1 className={styles.title}>{hero.title ?? site.businessName}</h1>
+            <h1 className={styles.title} style={heroTitleFontStyle(hero.titleFont)}>{hero.title ?? site.businessName}</h1>
             {hero.description ? <p className={styles.description}>{hero.description}</p> : null}
             <BusinessStatus site={site} className="mt-5 text-[var(--site-muted)]" />
             <div className={styles.actions}>{site.bookingEnabled ? <a href="#reservar" className={`${styles.primary} site-action`}>Reservar ahora</a> : null}<a href="#servicios" className={`${styles.secondary} site-action`}>Ver servicios</a></div>

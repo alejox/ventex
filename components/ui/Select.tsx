@@ -1,6 +1,6 @@
 "use client";
 
-import { Children, isValidElement, useEffect, useId, useRef, useState } from "react";
+import { Children, Fragment, isValidElement, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePortalContainer } from "@/components/ui/portal-container";
 
@@ -40,15 +40,21 @@ export interface SelectProps {
   name?: string;
   id?: string;
   "aria-label"?: string;
+  /** Ids extra para `aria-describedby` del botón (se suman al de `hint`/`error`). */
+  "aria-describedby"?: string;
 }
 
 /** Alto de la franja del buscador. Lo usan el cálculo de apertura y la lista. */
 const SEARCH_BOX_HEIGHT = 48;
 
-interface OptionData {
+export interface OptionData {
   value: string;
   label: string;
   disabled: boolean;
+  /** Etiqueta del `<optgroup>` que la contiene. Solo existe si hay grupo. */
+  group?: string;
+  /** `style` del `<option>`: se aplica a su fila y, si es la elegida, al botón. */
+  style?: React.CSSProperties;
 }
 
 const SIZES = {
@@ -56,18 +62,46 @@ const SIZES = {
   sm: "h-9 pl-3 pr-8 text-sm lg:text-xs rounded-lg",
 } as const;
 
-/** Lee los `<option>` hijos. Acepta arrays y fragmentos, como el select nativo. */
-function readOptions(children: React.ReactNode): OptionData[] {
+/**
+ * Lee los `<option>` hijos. Acepta arrays y fragmentos, como el select nativo,
+ * y también `<optgroup label>`: sus opciones se aplanan (la navegación con
+ * teclado y la búsqueda siguen siendo solo sobre opciones) marcadas con `group`.
+ */
+export function readOptions(children: React.ReactNode, group?: string): OptionData[] {
   return Children.toArray(children).flatMap((child): OptionData[] => {
     if (!isValidElement(child)) return [];
-    const props = child.props as { value?: string | number; children?: React.ReactNode; disabled?: boolean };
+    if (child.type === "optgroup") {
+      const props = child.props as { label?: string; children?: React.ReactNode };
+      return readOptions(props.children, String(props.label ?? ""));
+    }
+    const props = child.props as {
+      value?: string | number;
+      children?: React.ReactNode;
+      disabled?: boolean;
+      style?: React.CSSProperties;
+    };
     const label = Children.toArray(props.children).join("");
-    return [{
+    const option: OptionData = {
       value: String(props.value ?? label),
       label,
       disabled: Boolean(props.disabled),
-    }];
+    };
+    // Las claves solo existen si vienen: un Select plano queda idéntico.
+    if (group !== undefined) option.group = group;
+    if (props.style) option.style = props.style;
+    return [option];
   });
+}
+
+/**
+ * Encabezado de grupo que va ANTES de `options[index]`: el grupo de la opción
+ * cuando cambia respecto de la anterior visible, si no `null`. Recibe la lista
+ * ya filtrada, así un grupo sin coincidencias no deja su encabezado colgando.
+ */
+export function groupHeaderBefore(options: OptionData[], index: number): string | null {
+  const group = options[index]?.group;
+  if (group === undefined) return null;
+  return index > 0 && options[index - 1].group === group ? null : group;
 }
 
 /**
@@ -104,6 +138,7 @@ export function Select({
   name,
   id,
   "aria-label": ariaLabel,
+  "aria-describedby": ariaDescribedBy,
 }: SelectProps) {
   const generatedId = useId();
   const selectId = id ?? generatedId;
@@ -144,6 +179,11 @@ export function Select({
   const message = error ?? hint;
   const enabledIndexes = visible.map((o, i) => (o.disabled ? -1 : i)).filter((i) => i >= 0);
   const optionCount = visible.length;
+  // Los encabezados de grupo ocupan alto propio (~28px) que la estimación de
+  // apertura tiene que contar; sin grupos suma 0 y nada cambia.
+  const headerCount = visible.filter((_, i) => groupHeaderBefore(visible, i) !== null).length;
+  const allHeaderCount = options.filter((_, i) => groupHeaderBefore(options, i) !== null).length;
+  const describedBy = [message ? describedById : null, ariaDescribedBy].filter(Boolean).join(" ") || undefined;
 
   // Sin `useCallback`: `options` y `enabledIndexes` se derivan en cada render,
   // así que la memoización manual no se puede preservar y el compilador de
@@ -156,7 +196,7 @@ export function Select({
     // Alto estimado del panel para decidir si se abre hacia arriba. El buscador
     // ocupa su propia franja y hay que contarla o el panel se abre para el lado
     // equivocado justo cuando está pegado al borde.
-    const height = Math.min(options.length * 40 + 8, 280) + (searchable ? SEARCH_BOX_HEIGHT : 0);
+    const height = Math.min(options.length * 40 + allHeaderCount * 28 + 8, 280) + (searchable ? SEARCH_BOX_HEIGHT : 0);
     const up = below < height && box.top > below;
     setRect({
       top: up ? box.top - height - 4 : box.bottom + 4,
@@ -195,7 +235,7 @@ export function Select({
       if (!el) return;
       const box = el.getBoundingClientRect();
       const below = window.innerHeight - box.bottom;
-      const height = Math.min(optionCount * 40 + 8, 280) + (searchable ? SEARCH_BOX_HEIGHT : 0);
+      const height = Math.min(optionCount * 40 + headerCount * 28 + 8, 280) + (searchable ? SEARCH_BOX_HEIGHT : 0);
       const up = below < height && box.top > below;
       setRect({
         top: up ? box.top - height - 4 : box.bottom + 4,
@@ -210,7 +250,7 @@ export function Select({
       window.removeEventListener("scroll", reposition, true);
       window.removeEventListener("resize", reposition);
     };
-  }, [open, optionCount, searchable]);
+  }, [open, optionCount, headerCount, searchable]);
 
   // El foco va al buscador apenas se abre: si no, hay que ir a buscarlo con el
   // mouse y el buscador deja de ahorrar tiempo.
@@ -296,7 +336,7 @@ export function Select({
         aria-activedescendant={open ? `${listId}-${activeIndex}` : undefined}
         aria-label={ariaLabel}
         aria-invalid={error ? true : undefined}
-        aria-describedby={message ? describedById : undefined}
+        aria-describedby={describedBy}
         disabled={disabled}
         onClick={() => (open ? setOpen(false) : openList())}
         onKeyDown={handleKeyDown}
@@ -311,7 +351,7 @@ export function Select({
           }
           ${className}`}
       >
-        <span className={`truncate ${selected ? "" : "text-on-surface-variant"}`}>
+        <span className={`truncate ${selected ? "" : "text-on-surface-variant"}`} style={selected?.style}>
           {selected?.label ?? "—"}
         </span>
         <svg
@@ -379,8 +419,15 @@ export function Select({
             {visible.map((option, index) => {
               const isSelected = option.value === current;
               const isActive = index === activeIndex;
+              const header = groupHeaderBefore(visible, index);
               return (
-                <li key={`${option.value}-${index}`}>
+                <Fragment key={`${option.value}-${index}`}>
+                {header !== null && (
+                  <li role="presentation" aria-hidden="true" className="px-3 pt-2.5 pb-1 text-[11px] font-bold uppercase tracking-wide text-on-surface-variant">
+                    {header}
+                  </li>
+                )}
+                <li>
                   <button
                     type="button"
                     id={`${listId}-${index}`}
@@ -390,6 +437,7 @@ export function Select({
                     disabled={option.disabled}
                     onMouseEnter={() => !option.disabled && setActiveIndex(index)}
                     onClick={() => commit(option)}
+                    style={option.style}
                     className={`w-full flex items-center gap-2 px-3 min-h-[40px] py-2 text-left text-sm transition-colors
                       disabled:opacity-40 disabled:cursor-not-allowed
                       ${isActive ? "bg-primary/10" : ""}
@@ -403,6 +451,7 @@ export function Select({
                     )}
                   </button>
                 </li>
+                </Fragment>
               );
             })}
             {searchable && visible.length === 0 && (

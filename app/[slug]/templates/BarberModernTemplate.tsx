@@ -8,6 +8,7 @@ import { ConfigurableSections, SiteFooter } from "./SiteSections";
 import { paletteFor } from "./theme";
 import baseStyles from "./templates.module.css";
 import styles from "./BarberModernTemplate.module.css";
+import { heroTitleFontStyle } from "./hero-fonts";
 
 export function BarberModernTemplate({ site, preview = false }: { site: PublicSite; preview?: boolean }) {
   const hero = site.config.hero;
@@ -25,7 +26,7 @@ export function BarberModernTemplate({ site, preview = false }: { site: PublicSi
           </nav>
           <div className={styles.heroBody}>
             <p className={styles.eyebrow}><span />{hero.eyebrow}</p>
-            <h1>{hero.title ?? site.businessName}</h1>
+            <h1 style={heroTitleFontStyle(hero.titleFont)}>{hero.title ?? site.businessName}</h1>
             {hero.description ? <p className={styles.heroIntro}>{hero.description}</p> : null}
             <div className={styles.actions}>{site.bookingEnabled ? <a href="#reservar" className={styles.primary}>Reserva tu cita <ArrowUpRight size={18} aria-hidden="true" /></a> : null}<a href="#servicios" className={styles.secondary}>Nuestros servicios</a></div>
           </div>

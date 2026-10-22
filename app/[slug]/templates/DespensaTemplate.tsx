@@ -12,6 +12,7 @@ import { StoreCatalog } from "./StoreCatalog";
 import { paletteFor, whatsappHref } from "./theme";
 import baseStyles from "./templates.module.css";
 import styles from "./DespensaTemplate.module.css";
+import { heroTitleFontStyle } from "./hero-fonts";
 
 // Publicada como variable: la paleta (`--site-heading-font`/`--site-body-font`)
 // la nombra primero, así un cambio de tipografía sigue pasando por el tema.
@@ -71,7 +72,7 @@ export function DespensaTemplate({ site, preview = false }: { site: PublicSite; 
       <div className={`${styles.heroInner} site-enter`}>
         <div className={styles.heroCopy}>
           <span className={styles.eyebrow}>{hero.eyebrow}</span>
-          <h1 className={styles.title}>{hero.title ?? site.businessName}</h1>
+          <h1 className={styles.title} style={heroTitleFontStyle(hero.titleFont)}>{hero.title ?? site.businessName}</h1>
           {hero.description ? <p className={styles.description}>{hero.description}</p> : null}
           {/* Bloques propios: el estado y el botón nunca comparten renglón. */}
           <div className={styles.statusRow}><BusinessStatus site={site} className={styles.status} /></div>

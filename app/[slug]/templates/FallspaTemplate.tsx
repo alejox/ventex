@@ -6,6 +6,7 @@ import { BusinessStatus } from "./BusinessStatus";
 import { ConfigurableSections, SiteFooter } from "./SiteSections";
 import { paletteFor } from "./theme";
 import styles from "./templates.module.css";
+import { heroTitleFontStyle } from "./hero-fonts";
 
 export function FallspaTemplate({ site, preview = false }: { site: PublicSite; preview?: boolean }) {
   const hero = site.config.hero;
@@ -20,7 +21,7 @@ export function FallspaTemplate({ site, preview = false }: { site: PublicSite; p
           <div className={styles.fallspaHeroInner}>
           <div className={`${styles.heroCopy} site-enter`}>
             <span className={styles.eyebrow}>{hero.eyebrow}</span>
-            <h1 className={styles.heroTitle}>{hero.title ?? site.businessName}</h1>
+            <h1 className={styles.heroTitle} style={heroTitleFontStyle(hero.titleFont)}>{hero.title ?? site.businessName}</h1>
             {hero.description ? <p className={styles.heroDescription}>{hero.description}</p> : null}
             <BusinessStatus site={site} className="mt-5 text-[var(--site-muted)]" />
             <div className={styles.heroActions}><a href="#servicios" className={`${styles.heroCta} site-action`}>Descubrir más</a>{site.bookingEnabled ? <a href="#reservar" className={`${styles.heroCta} site-action`}>Reservar ahora</a> : null}</div>

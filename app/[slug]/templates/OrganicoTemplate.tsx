@@ -12,6 +12,7 @@ import { StoreCatalog } from "./StoreCatalog";
 import { paletteFor, whatsappHref } from "./theme";
 import baseStyles from "./templates.module.css";
 import styles from "./OrganicoTemplate.module.css";
+import { heroTitleFontStyle } from "./hero-fonts";
 
 // Publicadas como variables: la paleta (`--site-heading-font`) las nombra
 // primero, así un cambio de tipografía sigue pasando por el tema.
@@ -71,7 +72,7 @@ export function OrganicoTemplate({ site, preview = false }: { site: PublicSite; 
         <div className={styles.heroInner}>
           <div className={`${styles.heroCopy} site-enter`}>
             {hero.eyebrow ? <span className={styles.eyebrow}>{hero.eyebrow}</span> : null}
-            <h1 className={styles.title}>{hero.title ?? site.businessName}</h1>
+            <h1 className={styles.title} style={heroTitleFontStyle(hero.titleFont)}>{hero.title ?? site.businessName}</h1>
             {hero.description ? <p className={styles.description}>{hero.description}</p> : null}
             <BusinessStatus site={site} className={styles.status} />
             <div className={styles.actions}>

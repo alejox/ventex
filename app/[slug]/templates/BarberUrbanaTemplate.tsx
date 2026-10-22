@@ -8,6 +8,7 @@ import { ConfigurableSections, SiteFooter } from "./SiteSections";
 import { paletteFor, whatsappHref } from "./theme";
 import baseStyles from "./templates.module.css";
 import styles from "./BarberUrbanaTemplate.module.css";
+import { heroTitleFontStyle } from "./hero-fonts";
 
 export function BarberUrbanaTemplate({ site, preview = false }: { site: PublicSite; preview?: boolean }) {
   const hero = site.config.hero;
@@ -25,7 +26,7 @@ export function BarberUrbanaTemplate({ site, preview = false }: { site: PublicSi
         <Image src={hero.imageUrl ?? DEFAULT_SITE_IMAGES["barberia-urbana"]} unoptimized={esImagenAjena(hero.imageUrl ?? DEFAULT_SITE_IMAGES["barberia-urbana"])} alt="" fill preload={!preview} sizes="100vw" className={styles.heroImage} />
         <div className={styles.heroShade} />
         <div className={styles.heroBody}>
-          <h1 className={styles.heroTitle}>{hero.title ?? site.businessName}</h1>
+          <h1 className={styles.heroTitle} style={heroTitleFontStyle(hero.titleFont)}>{hero.title ?? site.businessName}</h1>
           <p className={styles.heroKicker}>{hero.eyebrow}</p>
           {hero.description ? <p className="mt-5 max-w-2xl text-sm leading-7 text-[#cfd8d2]">{hero.description}</p> : null}
           <div className={styles.heroActions}>{site.bookingEnabled ? <a className={styles.primary} href="#reservar">Reserva ahora <ArrowUpRight size={16} aria-hidden="true" /></a> : null}<a className={styles.secondary} href="#servicios">Ver servicios</a></div>

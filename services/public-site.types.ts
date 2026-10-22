@@ -1,4 +1,5 @@
 import type { BusinessType } from "@/config/business";
+import { heroTitleFontOrNull, type HeroTitleFont } from "@/lib/hero-title-fonts";
 
 /**
  * Shape of the public micro-site payload.
@@ -179,6 +180,11 @@ export interface LandingConfig {
      * atenuarla solo la apagaría.
      */
     overlay: number | null;
+    /**
+     * Fuente SOLO del título de la portada (`lib/hero-title-fonts.ts`). `null` =
+     * la de la plantilla. Un id desconocido se normaliza a `null`.
+     */
+    titleFont: HeroTitleFont | null;
   };
   about: {
     title: string;
@@ -271,6 +277,7 @@ export function defaultLandingConfig(template: SiteTemplate = "rasm"): LandingCo
       description: null,
       imageUrl: null,
       overlay: null,
+      titleFont: null,
     },
     about: { title: "Nuestra esencia", description: null, imageUrl: null },
     gallery: { title: "Nuestro espacio", images: [] },
@@ -409,6 +416,7 @@ export function normalizeLandingConfig(value: unknown): LandingConfig {
     description: nullableString(hero.description),
     imageUrl: nullableString(hero.imageUrl),
     overlay: percentOrNull(hero.overlay),
+    titleFont: heroTitleFontOrNull(hero.titleFont),
   };
   result.about = {
     title: nullableString(about.title) ?? result.about.title,
