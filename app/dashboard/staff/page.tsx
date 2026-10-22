@@ -170,8 +170,12 @@ export default function StaffPage() {
   // tiene poderes de dueño pero no puede ascender a nadie (ni a sí mismo).
   const canManageAccess = profile?.membershipKind === "owner";
   // Escribir `staff` es del dueño o admin (policy `workspace_staff_owner_write`).
-  const canDeleteStaff = !profile?.isWorker;
+  // Quien tiene cuenta de acceso solo se borra por la ruta del dueño real, que
+  // cancela la invitación nunca aceptada (la membresía bloquea el borrado).
+  const canDeleteMember = (m: { account?: unknown } | null | undefined) =>
+    Boolean(m) && !profile?.isWorker && (!m?.account || canManageAccess);
   const deleteMember = confirmDelete ? team.find((m) => m.id === confirmDelete) ?? null : null;
+  const deleteCancelsInvitation = deleteMember?.account?.access_status === "pending";
 
   const grantMember = grantFor ? team.find((m) => m.id === grantFor) ?? null : null;
   const accountToEdit = editAccessFor ? accounts.find((a) => a.id === editAccessFor) ?? null : null;
@@ -595,7 +599,7 @@ export default function StaffPage() {
                       <Pencil className="h-4 w-4" aria-hidden="true" />
                     </button>
                   )}
-                  {editable && canDeleteStaff && (
+                  {editable && canDeleteMember(m) && (
                     <button
                       type="button"
                       onClick={() => setConfirmDelete(m.id)}
@@ -618,7 +622,11 @@ export default function StaffPage() {
       <ConfirmDialog
         open={Boolean(confirmDelete)}
         title="Eliminar miembro"
-        description={`¿Eliminar a ${deleteMember?.full_name ?? "este miembro"} del equipo? Esta acción no se puede deshacer. Si tiene acceso al sistema o comisiones pagadas, no se podrá eliminar: márcala como inactiva.`}
+        description={`¿Eliminar a ${deleteMember?.full_name ?? "este miembro"} del equipo? Esta acción no se puede deshacer.${
+          deleteCancelsInvitation
+            ? " Su invitación de acceso al sistema también se cancelará."
+            : " Si ya usa su acceso al sistema, tiene turnos de caja o comisiones pagadas, no se podrá eliminar: márcala como inactiva."
+        }`}
         confirmLabel="Eliminar"
         loadingLabel="Eliminando…"
         tone="danger"
@@ -634,7 +642,7 @@ export default function StaffPage() {
           const name = deleteMember?.full_name ?? "La persona";
           const result = await deleteStaff(confirmDelete);
           setConfirmDelete(null);
-          if (result.ok) notifySuccess("Miembro eliminado", `${name} ya no está en tu equipo.`);
+          if (result.ok) notifySuccess("Miembro eliminado", result.warning ?? `${name} ya no está en tu equipo.`);
           else notifyError("No se pudo eliminar", result.message);
         }}
       />
@@ -916,7 +924,7 @@ export default function StaffPage() {
               )}
 
               <div className="pt-4 flex flex-col sm:flex-row gap-3 border-t border-outline-variant/10">
-                {editingId && (
+                {editingId && canDeleteMember(team.find((x) => x.id === editingId)) && (
                   <button
                     type="button"
                     onClick={() => {

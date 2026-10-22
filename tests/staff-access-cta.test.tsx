@@ -96,3 +96,18 @@ test("un trabajador no ve el botón de eliminar", () => {
   const html = renderPage("worker");
   assert.doesNotMatch(html, /aria-label="Eliminar a /);
 });
+
+test("el dueño ve eliminar también en quien tiene cuenta (la ruta decide si se puede)", () => {
+  const html = renderPage("owner");
+  for (const name of ["No Account", "Active", "Pending", "Suspended"]) {
+    assert.match(html, new RegExp(`aria-label="Eliminar a ${name}"`), name);
+  }
+});
+
+test("un administrador solo ve eliminar en quien no tiene cuenta de acceso", () => {
+  const html = renderPage("admin");
+  assert.match(html, /aria-label="Eliminar a No Account"/);
+  for (const name of ["Active", "Pending", "Suspended"]) {
+    assert.doesNotMatch(html, new RegExp(`aria-label="Eliminar a ${name}"`), name);
+  }
+});

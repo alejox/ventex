@@ -137,3 +137,26 @@ export async function changeWorkerAccess(
     body: JSON.stringify({ membershipId, action }),
   });
 }
+
+/**
+ * Borra a una persona del personal que tiene (o tuvo) una invitación de acceso.
+ * Solo el dueño real; la ruta cancela la invitación nunca aceptada y rechaza el
+ * resto con un código (`STAFF_DELETE_CODES`) que el store traduce.
+ */
+export async function deleteStaffViaApi(
+  staffId: string,
+): Promise<{ warning?: string }> {
+  const response = await fetch("/api/worker/delete-staff", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ staffId }),
+  });
+  const data = await response.json().catch(() => null);
+  if (!response.ok || data?.ok !== true) {
+    throw Object.assign(
+      new Error(data?.message ?? "No se pudo eliminar a la persona."),
+      { code: data?.error },
+    );
+  }
+  return typeof data.warning === "string" ? { warning: data.warning } : {};
+}

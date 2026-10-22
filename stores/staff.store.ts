@@ -96,7 +96,13 @@ interface StaffState {
    * El fallo vuelve en el resultado y NO en `error`: ese campo pinta el aviso
    * de "no se pudo cargar el equipo", y un borrado bloqueado no es eso.
    */
-  deleteStaff: (id: string) => Promise<{ ok: true } | { ok: false; message: string }>;
+  /**
+   * Con cuenta de acceso (invitación) pasa por la ruta del dueño, que cancela
+   * una invitación nunca aceptada; sin cuenta, borra la ficha directo.
+   */
+  deleteStaff: (
+    id: string,
+  ) => Promise<{ ok: true; warning?: string } | { ok: false; message: string }>;
 
   /** Le crea cuenta a una ficha existente; `staffId` es lo que las enlaza. */
   grantAccess: (input: InviteWorkerInput) => Promise<boolean>;
@@ -251,12 +257,16 @@ export const useStaffStore = create<StaffState>((set, get) => ({
   deleteStaff: async (id) => {
     set({ submitting: true });
     try {
-      await staffService.deleteStaff(id);
+      const hasAccount = get().accounts.some((a) => a.staff_id === id);
+      let warning: string | undefined;
+      if (hasAccount) ({ warning } = await workerService.deleteStaffViaApi(id));
+      else await staffService.deleteStaff(id);
       set((s) => ({
         staff: s.staff.filter((x) => x.id !== id),
+        accounts: s.accounts.filter((a) => a.staff_id !== id),
         submitting: false,
       }));
-      return { ok: true };
+      return warning ? { ok: true, warning } : { ok: true };
     } catch (e) {
       set({ submitting: false });
       return { ok: false, message: staffDeleteErrorMessage(e) };
