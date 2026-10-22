@@ -20,12 +20,13 @@ import { staffRolesForType, effectiveModules, permissionSummary } from "@/config
 import { useApplicablePermissions } from "./components/PermissionToggles";
 import { mergeTeam, hasStaffRecord } from "@/lib/team";
 import { AvailabilityEditor } from "@/components/school/AvailabilityEditor";
-import { notifySuccess } from "@/lib/notifications";
+import { notifyError, notifySuccess } from "@/lib/notifications";
+import { Pencil, Trash2 } from "lucide-react";
 import { GrantAccessModal } from "./components/GrantAccessModal";
 import { EditAccessModal } from "./components/EditAccessModal";
 import { PermissionsPanel } from "./components/PermissionsPanel";
 import { ShiftHistorySection } from "./components/ShiftHistorySection";
-import { StaffCardMenu, type StaffMenuAction } from "./components/StaffCardMenu";
+import { StaffCardMenu, type StaffMenuAction, CARD_ICON_BUTTON } from "./components/StaffCardMenu";
 import { Switch } from "@/components/ui/Switch";
 import { CollectionEmpty, CollectionError, CollectionLoading } from "@/components/CollectionState";
 import { StaffPhotoField } from "@/components/StaffPhotoField";
@@ -168,6 +169,9 @@ export default function StaffPage() {
   // Crear, editar y quitar accesos es solo del dueño real: un administrador
   // tiene poderes de dueño pero no puede ascender a nadie (ni a sí mismo).
   const canManageAccess = profile?.membershipKind === "owner";
+  // Escribir `staff` es del dueño o admin (policy `workspace_staff_owner_write`).
+  const canDeleteStaff = !profile?.isWorker;
+  const deleteMember = confirmDelete ? team.find((m) => m.id === confirmDelete) ?? null : null;
 
   const grantMember = grantFor ? team.find((m) => m.id === grantFor) ?? null : null;
   const accountToEdit = editAccessFor ? accounts.find((a) => a.id === editAccessFor) ?? null : null;
@@ -459,7 +463,6 @@ export default function StaffPage() {
             // First-time access is a primary card action. Existing account
             // management and other secondary actions stay in the overflow menu.
             const actions: StaffMenuAction[] = [];
-            if (editable) actions.push({ label: "Editar ficha", onSelect: () => openEdit(m) });
             actions.push({ label: "Ver ventas", onSelect: () => void openSales(m) });
             if (canSettle && editable && pending > 0) {
               actions.push({ label: "Ver comisiones", onSelect: () => router.push("/dashboard/staff/comisiones") });
@@ -579,7 +582,31 @@ export default function StaffPage() {
                   >Dar acceso al sistema</button>
                 )}
 
-                <div className="absolute right-2 top-2 z-10">
+                {/* Editar y eliminar a la vista: en el menú "⋯" nadie los encontraba. */}
+                <div className="absolute right-2 top-2 z-10 flex items-center gap-1.5">
+                  {editable && (
+                    <button
+                      type="button"
+                      onClick={() => openEdit(m)}
+                      aria-label={`Editar a ${m.full_name}`}
+                      title="Editar"
+                      className={CARD_ICON_BUTTON}
+                    >
+                      <Pencil className="h-4 w-4" aria-hidden="true" />
+                    </button>
+                  )}
+                  {editable && canDeleteStaff && (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDelete(m.id)}
+                      disabled={submitting}
+                      aria-label={`Eliminar a ${m.full_name}`}
+                      title="Eliminar"
+                      className={`${CARD_ICON_BUTTON} disabled:opacity-50`}
+                    >
+                      <Trash2 className="h-4 w-4 text-error" aria-hidden="true" />
+                    </button>
+                  )}
                   <StaffCardMenu label={`Más acciones para ${m.full_name}`} actions={actions} />
                 </div>
               </div>
@@ -591,7 +618,7 @@ export default function StaffPage() {
       <ConfirmDialog
         open={Boolean(confirmDelete)}
         title="Eliminar miembro"
-        description="¿Estás seguro de eliminar este miembro del equipo? Esta acción no se puede deshacer."
+        description={`¿Eliminar a ${deleteMember?.full_name ?? "este miembro"} del equipo? Esta acción no se puede deshacer. Si tiene acceso al sistema o comisiones pagadas, no se podrá eliminar: márcala como inactiva.`}
         confirmLabel="Eliminar"
         loadingLabel="Eliminando…"
         tone="danger"
@@ -604,8 +631,11 @@ export default function StaffPage() {
         onCancel={() => setConfirmDelete(null)}
         onConfirm={async () => {
           if (!confirmDelete) return;
-          await deleteStaff(confirmDelete);
+          const name = deleteMember?.full_name ?? "La persona";
+          const result = await deleteStaff(confirmDelete);
           setConfirmDelete(null);
+          if (result.ok) notifySuccess("Miembro eliminado", `${name} ya no está en tu equipo.`);
+          else notifyError("No se pudo eliminar", result.message);
         }}
       />
 

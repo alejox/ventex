@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { toMessage } from "@/lib/errors";
+import { staffDeleteErrorMessage } from "@/lib/staff-delete";
 import * as staffService from "@/services/staff.service";
 import * as workerService from "@/services/worker.service";
 import type {
@@ -91,7 +92,11 @@ interface StaffState {
   addStaff: (input: NewStaffInput) => Promise<StaffMember | null>;
   uploadPhoto: (file: File) => Promise<string>;
   updateStaff: (id: string, input: NewStaffInput) => Promise<boolean>;
-  deleteStaff: (id: string) => Promise<boolean>;
+  /**
+   * El fallo vuelve en el resultado y NO en `error`: ese campo pinta el aviso
+   * de "no se pudo cargar el equipo", y un borrado bloqueado no es eso.
+   */
+  deleteStaff: (id: string) => Promise<{ ok: true } | { ok: false; message: string }>;
 
   /** Le crea cuenta a una ficha existente; `staffId` es lo que las enlaza. */
   grantAccess: (input: InviteWorkerInput) => Promise<boolean>;
@@ -244,17 +249,17 @@ export const useStaffStore = create<StaffState>((set, get) => ({
   },
 
   deleteStaff: async (id) => {
-    set({ submitting: true, error: null });
+    set({ submitting: true });
     try {
       await staffService.deleteStaff(id);
       set((s) => ({
         staff: s.staff.filter((x) => x.id !== id),
         submitting: false,
       }));
-      return true;
+      return { ok: true };
     } catch (e) {
-      set({ error: toMessage(e), submitting: false });
-      return false;
+      set({ submitting: false });
+      return { ok: false, message: staffDeleteErrorMessage(e) };
     }
   },
 

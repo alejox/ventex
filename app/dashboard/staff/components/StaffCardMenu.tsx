@@ -10,6 +10,10 @@ export interface StaffMenuAction {
   disabled?: boolean;
 }
 
+/** Botón redondo sobre el retrato de la tarjeta: lo comparten el "⋯", editar y eliminar. */
+export const CARD_ICON_BUTTON =
+  "grid h-9 w-9 place-items-center rounded-full border border-outline-variant/20 bg-surface-container-lowest/90 text-on-surface-variant shadow-sm transition-colors hover:bg-surface-container-high hover:text-on-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary";
+
 /**
  * Menú "⋯" de la tarjeta de Personal: las acciones secundarias que antes eran
  * seis botones apilados en cada tarjeta.
@@ -82,7 +86,7 @@ export function StaffCardMenu({ label, actions }: { label: string; actions: Staf
             setOpen(true);
           }
         }}
-        className="grid h-9 w-9 place-items-center rounded-full border border-outline-variant/20 bg-surface-container-lowest/90 text-on-surface-variant shadow-sm transition-colors hover:bg-surface-container-high hover:text-on-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        className={CARD_ICON_BUTTON}
       >
         <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
       </button>

@@ -37,9 +37,9 @@ function renderPage(membershipKind = "owner", submitting = false) {
     "@/components/ProfileProvider": { useProfile: () => ({ businessType: "salon", membershipKind, isWorker: membershipKind === "worker", modules: { school: false } }) },
     "@/components/ui/ConfirmDialog": { ConfirmDialog: Empty, useConfirm: () => ({ confirm: noop, dialog: null }) },
     "./components/PermissionToggles": { useApplicablePermissions: () => [] },
-    "@/lib/notifications": { notifySuccess: noop },
+    "@/lib/notifications": { notifySuccess: noop, notifyError: noop },
     "@/lib/useMoney": { useFormatMoney: () => (value: number) => `$${value}` },
-    "./components/StaffCardMenu": { StaffCardMenu: ({ actions }: { actions: { label: string }[] }) => <div role="menu">{actions.map((action) => <button key={action.label} role="menuitem" data-menu-action={action.label}>{action.label}</button>)}</div> },
+    "./components/StaffCardMenu": { CARD_ICON_BUTTON: "card-icon", StaffCardMenu: ({ actions }: { actions: { label: string }[] }) => <div role="menu">{actions.map((action) => <button key={action.label} role="menuitem" data-menu-action={action.label}>{action.label}</button>)}</div> },
   };
   for (const [path, name] of [
     ["@/components/ui/Select", "Select"], ["@/components/ui/Switch", "Switch"],
@@ -53,7 +53,7 @@ function renderPage(membershipKind = "owner", submitting = false) {
   const exports: { default?: React.ComponentType } = {};
   runInNewContext(compiled, { exports, require: (path: string) => {
     if (path in mocks) return mocks[path];
-    if (["react", "react/jsx-runtime", "@/config/business", "@/config/plans", "@/lib/team", "@/components/CollectionState", "@/app/assets/icons/DashboardIcons"].includes(path)) return require(path);
+    if (["react", "react/jsx-runtime", "@/config/business", "@/config/plans", "@/lib/team", "@/components/CollectionState", "@/app/assets/icons/DashboardIcons", "lucide-react"].includes(path)) return require(path);
     throw new Error(`Unexpected page dependency: ${path}`);
   } });
   assert.ok(exports.default);
@@ -81,4 +81,18 @@ test("administrators and workers cannot grant access or manage other accounts", 
 test("the visible grant action is disabled while a shared staff submission is pending", () => {
   const html = renderPage("owner", true);
   assert.match(html, /<button[^>]*disabled=""[^>]*>Dar acceso al sistema<\/button>/);
+});
+
+test("editar y eliminar están a la vista en la tarjeta, fuera del menú", () => {
+  for (const membership of ["owner", "admin"]) {
+    const html = renderPage(membership);
+    assert.match(html, /aria-label="Editar a No Account"/);
+    assert.match(html, /aria-label="Eliminar a No Account"/);
+    assert.doesNotMatch(html, /data-menu-action="Editar ficha"/);
+  }
+});
+
+test("un trabajador no ve el botón de eliminar", () => {
+  const html = renderPage("worker");
+  assert.doesNotMatch(html, /aria-label="Eliminar a /);
 });
