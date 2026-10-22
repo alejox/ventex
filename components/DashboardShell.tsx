@@ -40,7 +40,7 @@ import { NotificationsBell } from "@/components/NotificationsBell";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { ExpenseModal } from "@/components/ExpenseModal";
 import { useProfile } from "@/components/ProfileProvider";
-import { visibleNavItems, workerNavItems, groupNavItems, footerNavItems } from "@/config/business";
+import { visibleNavItems, workerNavItems, groupNavItems, footerNavItems, withSelfServiceNavItems } from "@/config/business";
 import { SidebarNavGroup, useOpenNavGroups } from "@/components/SidebarNavGroup";
 import { DesktopHeaderActions, MobileDrawerContent, MobileSidebarNavigation } from "@/components/MobileDrawerTools";
 import { SidebarTooltip } from "@/components/ui/SidebarTooltip";
@@ -127,6 +127,7 @@ const NAV_ICONS: Record<string, IconType> = {
   credits: IconClock,
   staff: IconUserBadge,
   commissions: IconDollar,
+  "my-commissions": IconDollar,
   // Tijera: el reporte de producción. `services` ya no tiene entrada propia
   // desde que el catálogo unificado la absorbió, así que el icono queda libre.
   haircuts: IconScissors,
@@ -271,11 +272,14 @@ export function DashboardShell({
   // Para workers, la navegación se filtra por sus permisos granulares.
   const workerPerms = profile?.workerPermissions ?? {};
 
-  const navigation = isWorker
+  const roleNavigation = isWorker
     // `modules` afina los ítems de la Escuela (opt-in): sin el módulo activo,
     // ni siquiera quien tiene el permiso `school` ve la sección.
     ? workerNavItems(workerPerms, profile?.modules ?? null)
     : visibleNavItems(profile?.businessType ?? null, profile?.modules ?? null);
+  // "Mis comisiones" depende de QUIÉN es (miembro con ficha), no del rol: la ve
+  // tanto el trabajador como el admin-miembro; el dueño, nunca.
+  const navigation = withSelfServiceNavItems(roleNavigation, profile ?? null);
   // Agrupar es solo presentación: `navigation` ya trae únicamente lo que esta
   // persona puede ver, y `groupNavItems` no agrega ni quita nada.
   const navGroups = useMemo(() => groupNavItems(navigation), [navigation]);

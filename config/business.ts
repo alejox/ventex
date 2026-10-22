@@ -478,6 +478,11 @@ export const NAV_ITEMS: NavItem[] = [
   { id: "commissions", name: "Comisiones", href: "/dashboard/staff/comisiones", modules: [] },
   // Actividad del equipo: todos los servicios vendidos, independiente de promociones.
   { id: "haircuts", name: "Servicios por persona", href: "/dashboard/staff/servicios", modules: ["services"] },
+  // Lo que cada miembro del equipo cobra: SUS comisiones, nunca las de otro.
+  // No sale de módulos ni de permisos: lo agrega `withSelfServiceNavItems` a
+  // quien tiene ficha de personal. Por eso ni `visibleNavItems` ni
+  // `workerNavItems` lo listan solos.
+  { id: "my-commissions", name: "Mis comisiones", href: "/dashboard/mis-comisiones", modules: [] },
   { id: "billing", name: "Facturación", href: "/dashboard/billing", modules: ["billing"] },
   { id: "subscription", name: "Mi Plan", href: "/dashboard/subscription", modules: [] },
   { id: "landing", name: "Página web", href: "/dashboard/landing", modules: [] },
@@ -666,7 +671,7 @@ const NAV_GROUP_ORDER: { id: string; label: string | null; itemIds: string[] }[]
   // qué me falta → a quién se lo pido → qué me llegó.
   { id: "inventario", label: "Inventario", itemIds: ["inventory", "production", "pedidos", "distributors", "purchases"] },
   { id: "finanzas", label: "Finanzas", itemIds: ["sales", "expenses", "reports"] },
-  { id: "equipo", label: "Equipo", itemIds: ["staff", "commissions", "haircuts"] },
+  { id: "equipo", label: "Equipo", itemIds: ["staff", "commissions", "haircuts", "my-commissions"] },
   // Académico es OPT-IN: el grupo entero desaparece cuando el módulo está apagado
   // (visibleNavItems lo filtra por módulo y workerNavItems por permiso + módulo).
   { id: "escuela", label: "Académico", itemIds: ["school", "school-agenda", "school-estudiantes", "school-planes", "school-config"] },
@@ -739,6 +744,36 @@ export function visibleNavItems(
       base.includes(item.id) ||
       item.modules.some((m) => Boolean(active[m])),
   );
+}
+
+/** Ítems que dependen de QUIÉN es la persona, no de módulos ni permisos. */
+const SELF_SERVICE_NAV_IDS = ["my-commissions"];
+
+/**
+ * ¿Esta sesión es un miembro del equipo con ficha de personal?
+ *
+ * Espejo de `public.current_staff_id()`: solo una membresía `member` (trabajador
+ * o admin) con `staff_id`. El dueño nunca, aunque su membresía tuviera ficha:
+ * el RPC tampoco le devuelve nada.
+ */
+export function hasStaffRecord(
+  profile: Pick<Profile, "membershipKind" | "staffId"> | null,
+): boolean {
+  return profile?.membershipKind === "member" && Boolean(profile.staffId);
+}
+
+/**
+ * Suma a la lista YA filtrada (`visibleNavItems`/`workerNavItems`) los ítems
+ * de autoservicio que le tocan a esta persona, en el orden de `NAV_ITEMS`.
+ */
+export function withSelfServiceNavItems(
+  items: NavItem[],
+  profile: Pick<Profile, "membershipKind" | "staffId"> | null,
+): NavItem[] {
+  const ids = new Set(items.map((i) => i.id));
+  if (hasStaffRecord(profile)) for (const id of SELF_SERVICE_NAV_IDS) ids.add(id);
+  else for (const id of SELF_SERVICE_NAV_IDS) ids.delete(id);
+  return NAV_ITEMS.filter((item) => ids.has(item.id));
 }
 
 /**
