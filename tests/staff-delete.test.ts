@@ -70,7 +70,9 @@ test("una invitación pendiente sin identidad provisional también se cancela", 
   );
 });
 
-for (const status of ["active", "suspended", "revoked"]) {
+// "revoked" sin aceptar ni activar es una invitación fallida y se cancela (ver
+// los tests de invitación revocada más abajo); revocada tras activarse, bloquea.
+for (const status of ["active", "suspended"]) {
   test(`una cuenta en estado ${status} bloquea el borrado`, () => {
     assert.deepEqual(
       staffDeleteDecision({ memberships: [{ ...pending, status }], ...clean }),
@@ -165,4 +167,25 @@ test("ningún mensaje de la ruta usa voseo", () => {
     const msg = staffDeleteErrorMessage(routeError(code));
     assert.doesNotMatch(msg, /\b(podés|tenés|usá|marcala|recargá|intentá)\b/i, code);
   }
+});
+
+test("una invitación revocada que nunca se aceptó ni se activó se cancela igual que una pendiente", () => {
+  // `/api/worker/create` la deja así cuando falla el correo de invitación.
+  const failed = { ...pending, status: "revoked", provisional_auth_user: false };
+  assert.equal(staffDeleteDecision({ memberships: [failed], ...clean }), "cancel-invitation-and-delete");
+});
+
+test("una cuenta revocada que llegó a activarse sigue bloqueada", () => {
+  const used = { ...pending, status: "revoked", activated_at: "2026-10-01T00:00:00Z" };
+  assert.deepEqual(staffDeleteDecision({ memberships: [used], ...clean }), { blocked: STAFF_DELETE_CODES.accountAccepted });
+});
+
+test("una invitación pendiente con activación registrada no se trata como nunca aceptada", () => {
+  const odd = { ...pending, activated_at: "2026-10-01T00:00:00Z" };
+  assert.deepEqual(staffDeleteDecision({ memberships: [odd], ...clean }), { blocked: STAFF_DELETE_CODES.accountAccepted });
+});
+
+test("suspendida nunca se cancela, aunque no tenga fecha de aceptación", () => {
+  const suspended = { ...pending, status: "suspended" };
+  assert.deepEqual(staffDeleteDecision({ memberships: [suspended], ...clean }), { blocked: STAFF_DELETE_CODES.accountAccepted });
 });

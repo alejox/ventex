@@ -63,6 +63,8 @@ export interface StaffDeleteMembership {
   id: string;
   status: string;
   accepted_at: string | null;
+  /** Se pide en la ruta; opcional para que un hecho sin la columna no cuente como activado. */
+  activated_at?: string | null;
   provisional_auth_user: boolean;
   auth_user_id: string | null;
 }
@@ -82,8 +84,19 @@ export type StaffDeleteDecision =
   | { blocked: StaffDeleteCode };
 
 /** Una invitación que nadie aceptó nunca: lo único que esta ruta cancela. */
+/**
+ * Una invitación que nadie usó: pendiente, o revocada por el propio sistema
+ * cuando falló el correo (`/api/worker/create`). Las dos sin aceptar ni
+ * activar; suspendida o activada alguna vez es una cuenta que se usó.
+ */
+export const CANCELLABLE_INVITATION_STATUSES = ["pending", "revoked"] as const;
+
 export function isNeverAcceptedInvitation(m: StaffDeleteMembership): boolean {
-  return m.status === "pending" && m.accepted_at === null;
+  return (
+    (CANCELLABLE_INVITATION_STATUSES as readonly string[]).includes(m.status) &&
+    m.accepted_at === null &&
+    (m.activated_at ?? null) === null
+  );
 }
 
 /**

@@ -4,6 +4,7 @@ import { createAdminClient } from "@/utils/supabase/admin";
 import { requireSelectedWorkspaceOwner } from "@/services/workspace.server";
 import { provisionalIdentityIsUnused } from "@/services/workspace-admin.server";
 import {
+  CANCELLABLE_INVITATION_STATUSES,
   STAFF_DELETE_CODES,
   staffDeleteDecision,
   staffDeleteErrorMessage,
@@ -75,7 +76,7 @@ export async function POST(request: NextRequest) {
   const [memberships, settlements, teacher] = await Promise.all([
     admin
       .from("workspace_memberships")
-      .select("id, status, accepted_at, provisional_auth_user, auth_user_id")
+      .select("id, status, accepted_at, activated_at, provisional_auth_user, auth_user_id")
       .eq("staff_id", staffId),
     admin
       .from("commission_settlements")
@@ -131,8 +132,9 @@ export async function POST(request: NextRequest) {
       .delete()
       .in("id", membershipIds)
       .eq("workspace_id", workspaceId)
-      .eq("status", "pending")
+      .in("status", [...CANCELLABLE_INVITATION_STATUSES])
       .is("accepted_at", null)
+      .is("activated_at", null)
       .select("id");
     if (removeError) {
       console.error("[delete-staff] membership delete failed", removeError);

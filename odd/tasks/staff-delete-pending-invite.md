@@ -27,6 +27,8 @@ Sending an invitation creates a `workspace_memberships` row (`status = 'pending'
   - GREEN: `npm test` 1060/1060 pass; `npx tsc --noEmit` exit 0; eslint on touched files exit 0; `npm run build` exit 0 (route `/api/worker/delete-staff` listed).
   - Not verified: live DB / browser run (no DB tools in the writer). Commit pending (parent).
 
+- [x] T2 — Revoked-but-never-used invitations (failed invitation email) are cancellable too: status in (pending, revoked), accepted_at and activated_at null (route: inline; 2 files) — live DB had 2 such rows; RED 2 new tests failing, then `npm test` 1063/1063, tsc/eslint clean, `npm run build` compiled.
+
 ## Acceptance criteria
 - Pending-invitation staff with no shifts can be deleted by the owner; membership and provisional auth user are gone.
 - Accepted/active accounts, staff with shifts or paid commissions, and non-owners are refused with a clear Spanish message.
