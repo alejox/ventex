@@ -1,4 +1,5 @@
 import type { BusyAppointment } from "@/lib/appointment-availability";
+import type { AgendaBusySlot } from "@/lib/agenda-privacy";
 import type { OpeningHour } from "@/lib/appointment-hours";
 import { createClient } from "@/utils/supabase/client";
 import { findOrCreateVehicleByPlate } from "@/services/vehicles.service";
@@ -149,7 +150,11 @@ export async function fetchBusinessHours(): Promise<OpeningHour[] | null> {
   return data.map((h) => ({ ...h, opens_at: h.opens_at.slice(0, 5), closes_at: h.closes_at.slice(0, 5) }));
 }
 
-/** Las citas no canceladas de un día, para saber quién está libre. */
+/**
+ * Las citas no canceladas de un día, para saber quién está libre. A un
+ * trabajador la RLS le devuelve solo las suyas (con su título, que ya ve), que
+ * son las únicas contra las que puede chocar: no puede agendarle a otro.
+ */
 export async function fetchDayBusy(date: string): Promise<BusyAppointment[]> {
   const supabase = createClient();
   const { data, error } = await supabase
@@ -159,6 +164,24 @@ export async function fetchDayBusy(date: string): Promise<BusyAppointment[]> {
     .neq("status", "cancelled");
   if (error) throw error;
   return (data ?? []) as BusyAppointment[];
+}
+
+/**
+ * Horarios ocupados del negocio SIN identidad (`agenda_busy_slots`): fecha,
+ * inicio, fin y si la cita es propia. Es lo que ve un trabajador del resto del
+ * equipo; sus propias citas le llegan completas por `fetchAppointments` (la RLS
+ * le recorta todo lo demás). El RPC no está en los tipos generados hasta que se
+ * aplique la migración `20261021100000_private_agenda.sql`.
+ */
+export async function fetchAgendaBusy(from: string, to: string): Promise<AgendaBusySlot[]> {
+  const supabase = createClient();
+  const rpc = supabase.rpc as unknown as (
+    fn: string,
+    args: Record<string, unknown>,
+  ) => PromiseLike<{ data: AgendaBusySlot[] | null; error: { message: string } | null }>;
+  const { data, error } = await rpc("agenda_busy_slots", { p_from: from, p_to: to });
+  if (error) throw error;
+  return data ?? [];
 }
 
 export async function createAppointment(

@@ -123,3 +123,24 @@ test("C17. Con solo `pos` no se descuenta; el dueño y el admin siempre", () => 
   assert.equal(can(worker({ pos: true, pos_discount: true }), "pos_discount"), true);
   assert.equal(can({ isWorker: false } as unknown as Profile, "pos_discount"), true);
 });
+
+test("Agenda privada: `calendar_all` es hijo de `calendar`, solo donde hay calendario", () => {
+  assert.equal(WORKER_PERMISSION_PARENT.calendar_all, "calendar");
+  assert.equal(WORKER_PERMISSION_LABELS.calendar_all, "Ver agenda completa");
+  assert.ok(WORKER_PERMISSION_HINTS.calendar_all.length > 0);
+  assert.ok(salon().includes("calendar_all"));
+  assert.ok(!tienda().includes("calendar_all"));
+  assert.ok(!escuela().includes("calendar_all"));
+  assert.equal(ADMIN_WORKER_PERMISSIONS.calendar_all, true);
+  // Afina a Calendario: no abre otra pantalla ni sale en el resumen.
+  assert.deepEqual(
+    workerNavItems({ calendar: true, calendar_all: true }).map((i) => i.id),
+    workerNavItems({ calendar: true }).map((i) => i.id),
+  );
+  assert.deepEqual(permissionSummary({ calendar: true, calendar_all: true }, salon()), ["Calendario"]);
+});
+
+test("Agenda privada: el barbero de la plantilla ve solo su agenda", () => {
+  const atencion = permissionTemplatesFor("salon", defaultModulesForType("salon")).find((t) => t.id === "atencion");
+  assert.ok(atencion && !atencion.permissions.includes("calendar_all"));
+});

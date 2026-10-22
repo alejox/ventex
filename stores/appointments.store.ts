@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { toMessage } from "@/lib/errors";
 import type { BusyAppointment } from "@/lib/appointment-availability";
+import type { AgendaBusySlot } from "@/lib/agenda-privacy";
 import type { OpeningHour } from "@/lib/appointment-hours";
 import * as appointmentsService from "@/services/appointments.service";
 import type {
@@ -25,7 +26,13 @@ interface AppointmentsState {
   linkError: string | null;
   fetchLinkedAppointment: (id: string) => Promise<Appointment | null>;
 
-  fetchAppointments: (startDate: string, endDate: string) => Promise<void>;
+  /**
+   * Citas del período. Con `withBusy` (trabajador sin agenda completa) trae
+   * además los horarios ocupados del resto del equipo, sin identidad.
+   */
+  fetchAppointments: (startDate: string, endDate: string, options?: { withBusy?: boolean }) => Promise<void>;
+  /** Horarios ocupados del período (`agenda_busy_slots`); vacío si no se pidieron. */
+  busySlots: AgendaBusySlot[];
   /** Las citas de un día (sin cancelar) para calcular quién está libre. No toca el estado. */
   fetchDayBusy: (date: string) => Promise<BusyAppointment[]>;
   addAppointment: (input: NewAppointmentInput) => Promise<boolean>;
@@ -105,16 +112,21 @@ export const useAppointmentsStore = create<AppointmentsState>((set, get) => ({
   },
   billable: [],
 
-  fetchAppointments: async (startDate, endDate) => {
+  busySlots: [],
+
+  fetchAppointments: async (startDate, endDate, options) => {
     const request = ++calendarRequest;
     set({ loading: true, error: null });
     try {
-      const appointments = await appointmentsService.fetchAppointments(
-        startDate,
-        endDate,
-      );
+      const [appointments, busySlots] = await Promise.all([
+        appointmentsService.fetchAppointments(startDate, endDate),
+        options?.withBusy
+          ? appointmentsService.fetchAgendaBusy(startDate, endDate).catch((): AgendaBusySlot[] => [])
+          : Promise.resolve<AgendaBusySlot[]>([]),
+      ]);
       if (request !== calendarRequest) return;
-      set({ appointments, loading: false });
+      // Sin los ocupados la agenda propia igual sirve: no se tumba la pantalla.
+      set({ appointments, busySlots, loading: false });
     } catch (e) {
       if (request !== calendarRequest) return;
       set({ error: toMessage(e), loading: false });

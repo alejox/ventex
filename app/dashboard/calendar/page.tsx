@@ -23,6 +23,7 @@ import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { formatWeekRange, initialStaffFilter, toMinutes, type CalendarView } from "@/lib/calendar-layout";
 import { isWithinOpenHours, weekdayOf } from "@/lib/appointment-hours";
 import { checkReschedule } from "@/lib/appointment-drag";
+import { BUSY_STATUS, busyPlaceholders, canSeeFullAgenda, isBusyPlaceholder } from "@/lib/agenda-privacy";
 import { formatDateOnly } from "@/lib/date";
 import { useCalendarView } from "./useCalendarView";
 
@@ -112,6 +113,9 @@ function getStatusColor(status: string) {
       return "bg-emerald-500/15 text-emerald-600 border-l-emerald-500";
     case "cancelled":
       return "bg-error-container/20 text-error-dim border-l-error-container";
+    case BUSY_STATUS:
+      // Horario de otra persona: gris y sin nada que abrir.
+      return "bg-surface-container-high text-on-surface-variant border-l-outline-variant cursor-default";
     default:
       return "bg-amber-500/15 text-amber-600 border-l-amber-500";
   }
@@ -146,6 +150,7 @@ function CalendarContent() {
   const loading = useAppointmentsStore((s) => s.loading);
   const error = useAppointmentsStore((s) => s.error);
   const fetchAppointments = useAppointmentsStore((s) => s.fetchAppointments);
+  const busySlots = useAppointmentsStore((s) => s.busySlots);
   const setSelectedDate = useAppointmentsStore((s) => s.setSelectedDate);
   const fetchLinkedAppointment = useAppointmentsStore((s) => s.fetchLinkedAppointment);
   const linkLoading = useAppointmentsStore((s) => s.linkLoading);
@@ -163,9 +168,13 @@ function CalendarContent() {
   const [selectedAppointment, setSelectedAppointment] =
     useState<Appointment | null>(null);
   const [selectedStatus, setSelectedStatus] = useState("all");
-  // Un trabajador abre en "Mis citas"; puede pasar a ver a todo el equipo.
+  // Dueño y administradores ven la agenda completa y filtran por persona. Un
+  // trabajador ve completas solo sus citas (la base no le entrega más) y del
+  // resto, bloques "Ocupado" sin identidad: no hay filtro de persona.
+  const fullAgenda = canSeeFullAgenda(profile);
+  const privateAgenda = Boolean(profile) && !fullAgenda;
   const myStaffId = profile?.isWorker ? profile.staffId ?? null : null;
-  const defaultStaffFilter = initialStaffFilter(Boolean(profile?.isWorker), profile?.staffId);
+  const defaultStaffFilter = fullAgenda ? initialStaffFilter(Boolean(profile?.isWorker), profile?.staffId) : "all";
   const [selectedStaffId, setSelectedStaffId] = useState<string>(defaultStaffFilter);
   const { confirm, dialog: confirmDialog } = useConfirm();
   const fetchDayBusy = useAppointmentsStore((s) => s.fetchDayBusy);
@@ -223,8 +232,10 @@ function CalendarContent() {
       end = formatDate(currentDate);
     }
 
-    fetchAppointments(start, end);
-  }, [view, currentDate, currentMonth, currentYear, fetchAppointments]);
+    // Sin perfil todavía no se sabe qué vista corresponde: se espera.
+    if (!profile) return;
+    void fetchAppointments(start, end, { withBusy: privateAgenda });
+  }, [view, currentDate, currentMonth, currentYear, fetchAppointments, profile, privateAgenda]);
 
   useEffect(() => {
     void fetchStaff();
@@ -240,15 +251,20 @@ function CalendarContent() {
   ), [filteredAppointments, displayMode, selectedStatus]);
   const pendingCount = filteredAppointments.filter((appointment) => appointment.status === "pending").length;
 
+  // Bloques "Ocupado" del resto del equipo: solo en la vista de calendario,
+  // nunca en la lista (no son citas que se puedan revisar).
+  const busyBlocks = useMemo(() => (privateAgenda ? busyPlaceholders(busySlots) : []), [privateAgenda, busySlots]);
+
   // Group appointments by date
   const appointmentsByDate = useMemo(() => {
     const map: Record<string, Appointment[]> = {};
-    visibleAppointments.forEach((a) => {
+    [...visibleAppointments, ...busyBlocks].forEach((a) => {
       if (!map[a.appointment_date]) map[a.appointment_date] = [];
       map[a.appointment_date].push(a);
     });
+    for (const day of Object.values(map)) day.sort((a, b) => a.start_time.localeCompare(b.start_time));
     return map;
-  }, [visibleAppointments]);
+  }, [visibleAppointments, busyBlocks]);
 
   // Navigate
   const navigatePrev = () => {
@@ -281,6 +297,7 @@ function CalendarContent() {
 
   // Open modal for existing appointment
   const handleEditAppointment = (appt: Appointment) => {
+    if (isBusyPlaceholder(appt)) return;
     setSelectedAppointment(appt);
     setModalOpen(true);
   };
@@ -412,7 +429,7 @@ function CalendarContent() {
             ))}
           </div>
 
-          {(staffList.length > 0 || myStaffId) && (
+          {fullAgenda && (staffList.length > 0 || myStaffId) && (
             <div className="w-48 shrink-0">
               <Select
                 size="sm"
@@ -582,7 +599,9 @@ function CalendarContent() {
                         key={appt.id}
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleEditAppointment(appt);
+                          // Un bloque "Ocupado" no se abre: lleva al día.
+                          if (isBusyPlaceholder(appt)) openDay(cell.date);
+                          else handleEditAppointment(appt);
                         }}
                         className={`w-full text-center sm:text-left px-0.5 sm:px-2 py-1 text-[11px] font-bold rounded-md truncate border-l-2 ${getStatusColor(
                           appt.status,

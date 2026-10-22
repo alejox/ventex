@@ -22,6 +22,7 @@ import { toISODate, formatDateOnly } from "@/lib/date";
 import { formatAppointmentTime, type TimeFormat } from "@/lib/time";
 import { DateTimeDialog, DateTimeField } from "./DateTimeField";
 import { conflictsFor, pickStaff, type BusyAppointment } from "@/lib/appointment-availability";
+import { defaultAppointmentStaffId, ownAgendaStaffId } from "@/lib/agenda-privacy";
 import { useFormatMoney } from "@/lib/useMoney";
 import { currentAppointment } from "@/lib/appointment-state";
 
@@ -155,12 +156,35 @@ function AppointmentModalBody({
   const timeFormat = useSettingsStore((s) => s.settings?.time_format ?? "12");
   const isCarWash = profile?.businessType === "lavaautos";
   const isWorker = profile?.isWorker ?? false;
+  // Un trabajador (no admin) solo agenda para sí mismo: la base rechaza
+  // cualquier cita de otra persona, así que el formulario ni lo ofrece.
+  const lockedStaffId = ownAgendaStaffId(profile);
 
-  const [form, setForm] = useState<NewAppointmentInput>(() =>
-    buildInitialForm(appointment, selectedDate, defaultStartTime),
-  );
+  // Cita nueva: "Asignado a" arranca en la ficha propia (si está en el equipo
+  // activo), para cualquier rol. Editar nunca cambia la persona.
+  const defaultStaffFor = (current: string | null) =>
+    lockedStaffId && !appointment
+      ? lockedStaffId
+      : defaultAppointmentStaffId({ staffId: profile?.staffId, staffList: staff, isEditing: Boolean(appointment), current });
+  const [form, setForm] = useState<NewAppointmentInput>(() => {
+    const initial = buildInitialForm(appointment, selectedDate, defaultStartTime);
+    return { ...initial, staff_id: defaultStaffFor(initial.staff_id) };
+  });
   const [customTitle, setCustomTitle] = useState(Boolean(appointment));
   const [savedForm, setSavedForm] = useState(form);
+  // El equipo puede cargar después de abrir el modal: el default se aplica UNA
+  // vez, al llegar, y solo si nadie eligió todavía (ajuste en render, sin efecto).
+  const [staffDefaultApplied, setStaffDefaultApplied] = useState(staff.length > 0 || Boolean(appointment));
+  if (!staffDefaultApplied && staff.length > 0) {
+    setStaffDefaultApplied(true);
+    if (!form.staff_id) {
+      const next = defaultStaffFor(null);
+      if (next) {
+        setForm({ ...form, staff_id: next });
+        if (!savedForm.staff_id) setSavedForm({ ...savedForm, staff_id: next });
+      }
+    }
+  }
   const [saving, setSaving] = useState(false);
   const busy = submitting || saving;
   const dirty = JSON.stringify(form) !== JSON.stringify(savedForm);
@@ -238,7 +262,10 @@ function AppointmentModalBody({
     return () => { stale = true; };
   }, [fetchDayBusy, form.appointment_date]);
 
-  const teamIds = useMemo(() => staff.filter((member) => member.status === "active").map((member) => member.id), [staff]);
+  const teamIds = useMemo(
+    () => (lockedStaffId ? [lockedStaffId] : staff.filter((member) => member.status === "active").map((member) => member.id)),
+    [staff, lockedStaffId],
+  );
   const staffNameOf = (id: string | null) => staff.find((member) => member.id === id)?.full_name ?? "Esa persona";
   const staffConflicts = form.staff_id ? conflictsFor(dayBusy, form.staff_id, form.start_time, form.end_time, appointment?.id) : [];
   // Sin persona elegida se asigna sola a quien esté libre; si hay equipo y nadie lo está, no hay cupo.
@@ -514,6 +541,11 @@ function AppointmentModalBody({
                   </option>
                 ))}
               </Select>
+            {lockedStaffId ? (
+              <Select label="Asignado a" value={lockedStaffId} disabled onChange={() => {}}>
+                <option value={lockedStaffId}>{staff.find((m) => m.id === lockedStaffId)?.full_name ?? "Tú"}</option>
+              </Select>
+            ) : (
             <Select
               label="Asignado a"
               value={form.staff_id || ""}
@@ -528,6 +560,7 @@ function AppointmentModalBody({
                   </option>
                 ))}
               </Select>
+            )}
           </div>
 
           {/* Vehículo (lavaautos) */}

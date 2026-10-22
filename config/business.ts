@@ -35,6 +35,7 @@ export type WorkerPermission =
   | "pos"
   | "pos_discount"
   | "calendar"
+  | "calendar_all"
   | "customers"
   | "sales"
   | "inventory"
@@ -56,6 +57,7 @@ export const WORKER_PERMISSION_LABELS: Record<WorkerPermission, string> = {
   pos: "Punto de Venta",
   pos_discount: "Aplicar descuentos",
   calendar: "Calendario / Citas",
+  calendar_all: "Ver agenda completa",
   customers: "Clientes",
   sales: "Ventas",
   inventory: "Productos (inventario)",
@@ -100,6 +102,10 @@ export const WORKER_PERMISSION_PARENT: Partial<Record<WorkerPermission, WorkerPe
   // del catálogo (y aplica las ofertas y premios automáticos); regalar plata a
   // mano es otra decisión del dueño. Ver `DiscountModal`.
   pos_discount: "pos",
+  // Con solo `calendar` el trabajador ve completas SUS citas y del resto solo
+  // que el horario está ocupado (RLS de `appointments` + `agenda_busy_slots`).
+  // Ver la agenda de todos —cliente y servicio incluidos— es otra decisión.
+  calendar_all: "calendar",
   inventory_costs: "inventory",
   inventory_edit: "inventory",
   inventory_stock: "inventory",
@@ -113,7 +119,8 @@ export const WORKER_PERMISSION_HINTS: Record<WorkerPermission, string> = {
   panel: "La pantalla de inicio con las ventas del día y los atajos.",
   pos: "Cobrar ventas en el punto de venta, al precio del catálogo.",
   pos_discount: "Rebajar el precio a mano en el punto de venta, en porcentaje o en pesos.",
-  calendar: "Ver la agenda y gestionar las citas.",
+  calendar: "Ver y gestionar sus propias citas; del resto del equipo solo ve que el horario está ocupado.",
+  calendar_all: "Ve todas las citas con cliente y servicio, y puede cobrarlas si tiene Punto de venta.",
   customers: "Ver y registrar clientes, y cobrar sus créditos (fiados).",
   sales: "Historial de ventas y sus comprobantes.",
   inventory: "Ver los productos, sus precios de venta y el stock.",
@@ -135,6 +142,7 @@ export const WORKER_PERMISSION_SHORT_LABELS: Record<WorkerPermission, string> = 
   pos: "POS",
   pos_discount: "Descuentos",
   calendar: "Calendario",
+  calendar_all: "Agenda completa",
   customers: "Clientes",
   sales: "Ventas",
   inventory: "Productos",

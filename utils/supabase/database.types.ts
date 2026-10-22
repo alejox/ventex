@@ -4181,6 +4181,15 @@ export type Database = {
         }
         Returns: undefined
       }
+      agenda_busy_slots: {
+        Args: { p_from: string; p_to: string }
+        Returns: {
+          appointment_date: string
+          end_time: string
+          is_mine: boolean
+          start_time: string
+        }[]
+      }
       apply_billing_charge: { Args: { p_order_id: string }; Returns: Json }
       apply_sale_recipe: {
         Args: {
@@ -4229,6 +4238,7 @@ export type Database = {
       }
       current_session_id: { Args: never; Returns: string }
       current_shift: { Args: never; Returns: Json }
+      current_staff_id: { Args: never; Returns: string }
       current_tenant: { Args: never; Returns: string }
       current_user_profile: { Args: never; Returns: Json }
       deactivate_worker: { Args: { p_worker_id: string }; Returns: undefined }
@@ -4263,6 +4273,7 @@ export type Database = {
       }
       is_measure_unit: { Args: { p_unit: string }; Returns: boolean }
       is_reseller: { Args: never; Returns: boolean }
+      is_staff_only_account: { Args: { p_user_id: string }; Returns: boolean }
       is_super_admin: { Args: never; Returns: boolean }
       is_tenant_owner: { Args: never; Returns: boolean }
       is_workspace_owner: { Args: never; Returns: boolean }
