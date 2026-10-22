@@ -1090,6 +1090,9 @@ function CalculatorModal({ onClose }: { onClose: () => void }) {
     if (prev === null) {
       setPrev(n);
       setExpression(`${n} ${displayOp(nextOp)}`);
+    } else if (op && reset) {
+      // No second operand typed yet: switch the operator instead of reusing the display.
+      setExpression(`${prev} ${displayOp(nextOp)}`);
     } else if (op) {
       const result = calculate(prev, n, op);
       setDisplay(String(result));
@@ -1114,7 +1117,7 @@ function CalculatorModal({ onClose }: { onClose: () => void }) {
 
   const evaluate = () => {
     const n = parseFloat(display);
-    if (prev !== null && op) {
+    if (prev !== null && op && !reset) {
       const result = calculate(prev, n, op);
       setExpression(`${prev} ${displayOp(op)} ${n} =`);
       setDisplay(String(result));
