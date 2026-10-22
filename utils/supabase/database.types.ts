@@ -28,6 +28,7 @@ export type Database = {
           service_type: string | null
           staff_id: string | null
           start_time: string
+          station_id: string | null
           status: string | null
           title: string
           user_id: string
@@ -48,6 +49,7 @@ export type Database = {
           service_type?: string | null
           staff_id?: string | null
           start_time: string
+          station_id?: string | null
           status?: string | null
           title: string
           user_id?: string
@@ -68,6 +70,7 @@ export type Database = {
           service_type?: string | null
           staff_id?: string | null
           start_time?: string
+          station_id?: string | null
           status?: string | null
           title?: string
           user_id?: string
@@ -102,6 +105,13 @@ export type Database = {
             columns: ["staff_id"]
             isOneToOne: false
             referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_station_id_fkey"
+            columns: ["station_id"]
+            isOneToOne: false
+            referencedRelation: "stations"
             referencedColumns: ["id"]
           },
           {
@@ -3616,6 +3626,7 @@ export type Database = {
           auth_user_id: string | null
           can_login: boolean
           created_at: string
+          default_station_id: string | null
           email: string | null
           full_name: string
           id: string
@@ -3639,6 +3650,7 @@ export type Database = {
           auth_user_id?: string | null
           can_login?: boolean
           created_at?: string
+          default_station_id?: string | null
           email?: string | null
           full_name: string
           id?: string
@@ -3662,6 +3674,7 @@ export type Database = {
           auth_user_id?: string | null
           can_login?: boolean
           created_at?: string
+          default_station_id?: string | null
           email?: string | null
           full_name?: string
           id?: string
@@ -3680,7 +3693,15 @@ export type Database = {
           user_id?: string
           username?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "staff_default_station_id_fkey"
+            columns: ["default_station_id"]
+            isOneToOne: false
+            referencedRelation: "stations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       staff_audit_log: {
         Row: {
@@ -3729,6 +3750,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      stations: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       subscriptions: {
         Row: {
