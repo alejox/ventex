@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { parseSidebarCollapsed } from "../lib/sidebar";
 import { ShellUserMenu } from "../components/ShellUserMenu";
 import { HEADER_ICON_BUTTON } from "../components/ui/HeaderIconButton";
-import { SUPPORT_FAB_CLEARANCE } from "../components/SupportFab";
+import { SUPPORT_FAB_CLEARANCE, showsSupportFab } from "../components/SupportFab";
 Object.assign(globalThis, { React });
 
 test("sidebar: sin cookie arranca expandido (A24)", () => {
@@ -32,4 +32,10 @@ test("el espacio del botón de soporte sobrevive al p-4 sm:p-6 lg:p-10 del main"
   assert.match(SUPPORT_FAB_CLEARANCE, /(^| )pb-/);
   assert.match(SUPPORT_FAB_CLEARANCE, /sm:pb-/);
   assert.match(SUPPORT_FAB_CLEARANCE, /lg:pb-/);
+});
+
+test("la ficha de producto tiene su propia barra de guardado: sin flotante ni espacio reservado", () => {
+  // Con el padding del flotante en el <main>, la barra sticky quedaba a mitad de pantalla.
+  assert.equal(showsSupportFab("/dashboard/inventory/product"), false);
+  assert.equal(showsSupportFab("/dashboard/inventory"), true);
 });

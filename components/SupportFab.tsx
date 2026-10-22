@@ -20,13 +20,18 @@ import { WhatsappFab } from "@/components/WhatsappFab";
  * botón se superpondría justo encima del control que la persona está usando, así
  * que no se muestra. El soporte sigue a un clic desde cualquier otra pantalla.
  *
+ * La ficha de producto (`/dashboard/inventory/product`) también: su barra
+ * Cancelar/Guardar es `sticky bottom-0`, y un sticky se pega al borde del
+ * PADDING del contenedor de scroll — con el espacio reservado de abajo quedaba
+ * flotando a mitad de pantalla en móvil y tablet.
+ *
  * El editor de la landing entra por el mismo motivo y por uno propio: es un
  * panel del alto de la ventana con su propia barra de acciones arriba, así que
  * el espacio reservado abajo le agregaría un scroll que no lleva a ninguna
  * parte, y el flotante quedaría sobre la vista previa del sitio del cliente
  * —donde se lee como si fuera parte de ese sitio, que no lo es—.
  */
-const ROUTES_WITH_OWN_BOTTOM_BAR = ["/dashboard/pos", "/dashboard/settings/business", "/dashboard/landing"];
+const ROUTES_WITH_OWN_BOTTOM_BAR = ["/dashboard/pos", "/dashboard/settings/business", "/dashboard/landing", "/dashboard/inventory/product"];
 
 /** ¿Se muestra el botón flotante en esta ruta? */
 export function showsSupportFab(pathname: string): boolean {

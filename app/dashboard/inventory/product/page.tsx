@@ -1629,8 +1629,10 @@ function ProductForm() {
         )}
 
         {/* Barra de acciones fija abajo en el teléfono (D18): en un formulario
-            de esta longitud "Guardar" quedaba a varios scrolls de distancia. */}
-        <div className="sticky bottom-0 z-20 -mx-4 sm:-mx-6 lg:mx-0 px-4 sm:px-6 lg:px-0 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] lg:pb-0 bg-surface/95 backdrop-blur border-t border-outline-variant/20 lg:border-0 lg:bg-transparent lg:backdrop-blur-none lg:static flex justify-between items-center gap-3">
+            de esta longitud "Guardar" quedaba a varios scrolls de distancia.
+            `-bottom-4 sm:-bottom-6` compensa el p-4/sm:p-6 del <main>: un
+            sticky se pega al borde del padding, no al de la pantalla. */}
+        <div className="sticky -bottom-4 sm:-bottom-6 z-20 -mx-4 sm:-mx-6 lg:mx-0 px-4 sm:px-6 lg:px-0 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] lg:pb-0 bg-surface/95 backdrop-blur border-t border-outline-variant/20 lg:border-0 lg:bg-transparent lg:backdrop-blur-none lg:static flex justify-between items-center gap-3">
           <Link
             href={backTo}
             onClick={guardLeave}
