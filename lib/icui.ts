@@ -12,11 +12,8 @@
  * para que el formulario muestre el mismo número antes de guardar.
  */
 
-/** Tasa vigente del ICUI (dato del usuario: "Su tarifa actual es del 20 %"). */
+/** Tasa nacional vigente del ICUI (dato del usuario: "Su tarifa actual es del 20 %"). */
 export const ICUI_RATE = 0.2;
-
-/** Rótulo para el selector de compras, derivado de la tasa para no divergir. */
-export const ICUI_LABEL = `ICUI ${Math.round(ICUI_RATE * 100)}%`;
 
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
@@ -25,15 +22,17 @@ const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
  *
  * Espejo de `purchaseTaxRateFor` (IVA): editando una compra que ya tenía ICUI se
  * conserva la tasa GUARDADA, y solo un cambio explícito la mueve. "Ninguno"
- * apaga el impuesto.
+ * apaga el impuesto. Sin tasa guardada cae a la configurada del negocio
+ * (`businessRate`, que a su vez respalda en `ICUI_RATE`).
  */
 export function icuiRateFor(
   option: "ICUI" | "Ninguno" | string,
   storedRate: number | null | undefined,
+  businessRate: number = ICUI_RATE,
 ): number {
   if (option === "Ninguno") return 0;
   if (storedRate != null && storedRate > 0) return storedRate;
-  return ICUI_RATE;
+  return businessRate;
 }
 
 /**

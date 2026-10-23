@@ -23,6 +23,13 @@ export interface BusinessTax {
   percentLabel: string;
   /** La tasa configurada para mostrar, se use o no en las ventas. */
   rawPercentLabel: string;
+  /**
+   * Tasa de ICUI configurada del negocio (0..1). Solo compras: el ICUI es
+   * monofásico y ya viene en el costo, así que no entra en las ventas.
+   */
+  icuiRate: number;
+  /** La tasa de ICUI para mostrar: "20%". */
+  icuiPercentLabel: string;
 }
 
 /**
@@ -47,12 +54,15 @@ export function useBusinessTax(): BusinessTax {
   const includeTax = settings?.include_tax ?? true;
   const rawRate = settings?.tax_rate ?? 0.19;
   const rate = includeTax ? rawRate : 0;
+  const icuiRate = settings?.icui_rate ?? 0.2;
 
   return {
     rate,
     rawRate,
     includeTax,
+    icuiRate,
     percentLabel: `${+(rate * 100).toFixed(2)}%`,
     rawPercentLabel: `${+(rawRate * 100).toFixed(2)}%`,
+    icuiPercentLabel: `${+(icuiRate * 100).toFixed(2)}%`,
   };
 }

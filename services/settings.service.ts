@@ -37,6 +37,8 @@ export interface Settings {
   tax_rate: number;
   /** Si el negocio desglosa IVA (responsable de IVA). */
   include_tax: boolean;
+  /** Tasa de ICUI del negocio (0..1). Solo compras; no se cobra en ventas. */
+  icui_rate: number;
   /** Si el POS puede cobrar más unidades de las que hay en stock. */
   allow_oversell: boolean;
   require_active_shift: boolean;
@@ -66,6 +68,8 @@ export interface SettingsInput {
   /** Solo los manda Datos de tu negocio (régimen de IVA); el resto no los pisa. */
   tax_rate?: number;
   include_tax?: boolean;
+  /** Tasa de ICUI (0..1). Solo Datos de tu negocio. */
+  icui_rate?: number;
   allow_oversell: boolean;
   require_active_shift?: boolean;
   accepts_card?: boolean;
@@ -81,6 +85,7 @@ const DEFAULTS: Settings = {
   id: null,
   tax_rate: 0.19,
   include_tax: true,
+  icui_rate: 0.2,
   allow_oversell: true,
   require_active_shift: false,
   owner_uses_shifts: false,
@@ -144,6 +149,7 @@ export function mapSettings(raw: Record<string, unknown>): Settings {
     id: (raw.id as string) ?? null,
     tax_rate: (raw.tax_rate as number) ?? DEFAULTS.tax_rate,
     include_tax: (raw.include_tax as boolean) ?? true,
+    icui_rate: (raw.icui_rate as number) ?? DEFAULTS.icui_rate,
     allow_oversell: (raw.allow_oversell as boolean) ?? true,
     require_active_shift: (raw.require_active_shift as boolean) ?? false,
     // `?? false`: antes de la migración la columna no existe y `select *` no la trae.
@@ -230,6 +236,7 @@ export async function saveSettings(input: SettingsInput, supabase = createClient
   const payload = {
     ...(input.tax_rate !== undefined ? { tax_rate: input.tax_rate } : {}),
     ...(input.include_tax !== undefined ? { include_tax: input.include_tax } : {}),
+    ...(input.icui_rate !== undefined ? { icui_rate: input.icui_rate } : {}),
     allow_oversell: input.allow_oversell,
     ...(input.require_active_shift !== undefined ? { require_active_shift: input.require_active_shift } : {}),
     ...(input.accepts_card !== undefined ? { accepts_card: input.accepts_card } : {}),

@@ -14,6 +14,7 @@ import { notifySuccess } from "@/lib/notifications";
 import { validateBusinessLogoFile, type BusinessLogoFileError } from "@/lib/business-logo";
 import { Select } from "@/components/ui/Select";
 import { CitySelect } from "@/components/CitySelect";
+import { useProfile } from "@/components/ProfileProvider";
 
 function CameraIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -64,12 +65,15 @@ function BusinessProfileForm({ settings }: { settings: Settings }) {
   const submitting = useSettingsStore((s) => s.submitting);
   const saveSettings = useSettingsStore((s) => s.saveSettings);
   const uploadLogo = useSettingsStore((s) => s.uploadLogo);
+  const profile = useProfile();
+  const isTienda = profile?.businessType === "tienda";
 
   const [form, setForm] = useState<BusinessProfile>(() => settings.business_profile ?? {});
   // El régimen se siembra desde `include_tax`, no desde `taxResponsibility`:
   // si los dos quedaron desfasados, se muestra lo que de verdad se cobra.
   const [regime, setRegime] = useState<TaxRegime>(() => taxRegimeOf(settings.include_tax));
   const [taxPercent, setTaxPercent] = useState(() => String(+(settings.tax_rate * 100).toFixed(2)));
+  const [icuiPercent, setIcuiPercent] = useState(() => String(+(settings.icui_rate * 100).toFixed(2)));
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [logoError, setLogoError] = useState<string | null>(null);
   const [logoPreviewUrl, setLogoPreviewUrl] = useState(() => settings.business_profile?.logoUrl ?? "");
@@ -148,6 +152,7 @@ function BusinessProfileForm({ settings }: { settings: Settings }) {
     setLogoPreviewUrl(settings.business_profile?.logoUrl ?? "");
     setRegime(taxRegimeOf(settings.include_tax));
     setTaxPercent(String(+(settings.tax_rate * 100).toFixed(2)));
+    setIcuiPercent(String(+(settings.icui_rate * 100).toFixed(2)));
     setLogoError(null);
   };
 
@@ -156,12 +161,18 @@ function BusinessProfileForm({ settings }: { settings: Settings }) {
     if (uploadingLogoRef.current) return;
     // IVA y régimen van en el MISMO guardado: no pueden volver a contradecirse.
     const tax = taxSettingsForRegime(regime, taxPercent, settings.tax_rate);
+    // ICUI: tasa en porcentaje, 0..100, guardada como fracción (0..1).
+    const icuiPct = parseFloat(icuiPercent);
+    const icuiRate = Number.isFinite(icuiPct)
+      ? Math.round(Math.min(Math.max(icuiPct, 0), 100) / 100 * 10000) / 10000
+      : settings.icui_rate;
     // Printing preferences belong to their own editor, not this form snapshot.
     const { receiptSettings: _receiptSettings, ...businessProfile } = form;
     void _receiptSettings;
     const ok = await saveSettings({
       tax_rate: tax.tax_rate,
       include_tax: tax.include_tax,
+      ...(isTienda ? { icui_rate: icuiRate } : {}),
       allow_oversell: settings.allow_oversell,
       currency: settings.currency,
       business_profile: { ...businessProfile, taxResponsibility: tax.taxResponsibility },
@@ -381,6 +392,42 @@ function BusinessProfileForm({ settings }: { settings: Settings }) {
             )}
           </div>
         </div>
+
+        {/* Card: ICUI. Tasa configurable del impuesto a los comestibles
+            ultraprocesados (Ley 2277 de 2022, Colombia). Solo compras: el ICUI
+            ya viene en el costo y no se cobra en ventas. Se muestra solo en
+            tienda, el rubro que maneja alimentos. */}
+        {isTienda && (
+          <div className="bg-surface-container-lowest rounded-3xl overflow-hidden shadow-sm border border-outline-variant/10">
+            <div className="p-6 md:p-8">
+              <h2 className="text-lg font-bold text-on-surface">ICUI</h2>
+              <p className="text-sm text-on-surface-variant mt-1">
+                Impuesto a los comestibles ultraprocesados. Se registra en las compras de los productos marcados; no se cobra al cliente porque ya viene en tu costo.
+              </p>
+            </div>
+
+            <hr className="border-outline-variant/10" />
+
+            <div className="p-6 md:p-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Field label="Tasa de ICUI (%)" required>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="100"
+                  required
+                  value={icuiPercent}
+                  onChange={(e) => setIcuiPercent(e.target.value)}
+                  placeholder="20"
+                  className="w-full h-[42px] px-3 bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary text-sm text-on-surface"
+                />
+              </Field>
+              <p className="sm:col-span-2 text-xs text-on-surface-variant">
+                La tarifa nacional actual es del 20 %. Cámbiala aquí si el Gobierno la ajusta.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* "Información básica" (Sector, Precisión y Separador decimal) se quitó:
             ningún lado de la app leía esos valores. Siguen en `business_profile` si

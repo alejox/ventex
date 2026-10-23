@@ -3489,6 +3489,7 @@ export type Database = {
           card_methods_enabled: Json
           created_at: string
           currency: string
+          icui_rate: number
           id: string
           include_tax: boolean
           owner_uses_shifts: boolean
@@ -3514,6 +3515,7 @@ export type Database = {
           card_methods_enabled?: Json
           created_at?: string
           currency?: string
+          icui_rate?: number
           id?: string
           include_tax?: boolean
           owner_uses_shifts?: boolean
@@ -3539,6 +3541,7 @@ export type Database = {
           card_methods_enabled?: Json
           created_at?: string
           currency?: string
+          icui_rate?: number
           id?: string
           include_tax?: boolean
           owner_uses_shifts?: boolean

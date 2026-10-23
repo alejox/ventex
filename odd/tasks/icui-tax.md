@@ -29,3 +29,4 @@ Rama: `feat/icui-tax`. Entrega: `ask-on-risk` (rama única, commits por unidad).
 - L2 (2026-10-23) — usuario: "cuando termines, lo subes" (autoriza push al terminar).
 - L3 (2026-10-23) — usuario: "este impuesto debe ir individual, ya que no todos los productos lo manejan". Confirmado en el diseño: ICUI por producto, no un impuesto global de la compra.
 - L4 (2026-10-23) — usuario: "cuando termines sube todo a main" (push a main, no a rama).
+- L5 (2026-10-23) — usuario: "si agreegalo ahi y ajusta lo de la tasa por si cambia". Se agregó el switch "Aplica ICUI" al alta rápida (`ProductModal`) y la tasa pasó a `settings.icui_rate` (configurable en Datos de tu negocio, con respaldo `ICUI_RATE = 0.2`).

@@ -16,7 +16,7 @@ import { useProfile } from "@/components/ProfileProvider";
 import { can } from "@/lib/permissions";
 import { useBusinessTax } from "@/lib/useBusinessTax";
 import { purchaseTaxRateFor, purchaseTotalsOf } from "@/lib/purchase-totals";
-import { icuiRateFor, icuiAmountFor, ICUI_LABEL } from "@/lib/icui";
+import { icuiRateFor, icuiAmountFor } from "@/lib/icui";
 import type { Product } from "@/services/inventory.service";
 import { getUnitCost, isServiceItem, tracksStock } from "@/services/inventory.service";
 import { needsRestock } from "@/lib/stock";
@@ -150,7 +150,12 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
   const profile = useProfile();
   const canSeeCosts = can(profile, "inventory_costs");
   const isTienda = profile?.businessType === "tienda";
-  const { rawRate: businessTaxRate, rawPercentLabel: percentLabel } = useBusinessTax();
+  const {
+    rawRate: businessTaxRate,
+    rawPercentLabel: percentLabel,
+    icuiRate: businessIcuiRate,
+    icuiPercentLabel,
+  } = useBusinessTax();
 
   const [distributorId, setDistributorId] = useState(editingInvoice?.distributor_id ?? "");
   const [issueDate, setIssueDate] = useState(() => editingInvoice?.issue_date ?? todayISO());
@@ -375,7 +380,12 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
     [lines, discount, taxMultiplier]
   );
   // ICUI: SOLO las líneas de productos marcados. Individual, no sobre el total.
-  const icuiMultiplier = icuiRateFor(icuiOption, editingInvoice?.icui_rate);
+  const icuiMultiplier = icuiRateFor(icuiOption, editingInvoice?.icui_rate, businessIcuiRate);
+  // Editando manda la tasa GUARDADA, igual que el IVA; si no, la configurada.
+  const icuiLabel =
+    editingInvoice && editingInvoice.icui_rate > 0
+      ? `${+(editingInvoice.icui_rate * 100).toFixed(2)}%`
+      : icuiPercentLabel;
   const icuiBase = useMemo(
     () => lines.filter((l) => l.icui_applies).reduce((s, l) => s + lineTotalOf(l), 0),
     [lines]
@@ -700,7 +710,7 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
               {isTienda && (
                 <Select label="ICUI" value={icuiOption} onChange={(e) => setIcuiOption(e.target.value)}>
                   <option value="Ninguno">Ninguno</option>
-                  <option value="ICUI">{ICUI_LABEL}</option>
+                  <option value="ICUI">ICUI {icuiLabel}</option>
                 </Select>
               )}
             </div>

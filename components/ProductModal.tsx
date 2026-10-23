@@ -16,6 +16,8 @@ import { productImageUrl } from "@/lib/product-image";
 import { priceMultipliers } from "@/lib/product-tax";
 import { MoneyInput } from "@/components/ui/MoneyInput";
 import { Select } from "@/components/ui/Select";
+import { Switch } from "@/components/ui/Switch";
+import { useProfile } from "@/components/ProfileProvider";
 import { notifySuccess } from "@/lib/notifications";
 import { useFormatMoney } from "@/lib/useMoney";
 import { Modal } from "@/components/ui/Modal";
@@ -60,6 +62,8 @@ function IconExternalLink(props: React.SVGProps<SVGSVGElement>) {
 export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModalProps) {
   const fmtMoney = useFormatMoney();
   const router = useRouter();
+  const profile = useProfile();
+  const isTienda = profile?.businessType === "tienda";
   const categories = useInventoryStore((s) => s.categories);
   const fetchInventory = useInventoryStore((s) => s.fetchInventory);
   const addProduct = useInventoryStore((s) => s.addProduct);
@@ -88,6 +92,7 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
   /** Unidad o caja: define cómo se cuenta el stock y si se ofrece precio de caja. */
   const [presentation, setPresentation] = useState<"unit" | "package">("unit");
   const [tax, setTax] = useState("IVA");
+  const [icuiApplies, setIcuiApplies] = useState(false);
   const [packageSellingPrice, setPackageSellingPrice] = useState("");
 
   /** El stock siempre se guarda en unidades sueltas: una caja son N. */
@@ -180,6 +185,7 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
           has_commission: false,
           commission_type: "percentage",
           commission_value: "",
+          icui_applies: icuiApplies,
           units_per_package: presentation === "package" ? (unitsPerPackage || "1") : "1",
         },
         imageFile,
@@ -409,6 +415,24 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
                 </div>
               </div>
           </div>
+
+          {/* ICUI: impuesto saludable, solo para tienda. Mismo switch que la ficha
+              avanzada, para que el alta rápida no deje el producto sin marcar. */}
+          {isTienda && (
+            <div className="flex items-start justify-between gap-4 rounded-2xl border border-outline-variant/15 bg-surface-container-low/50 p-4">
+              <div>
+                <p id="quick-icui-label" className="text-sm font-semibold text-on-surface">Aplica ICUI</p>
+                <p id="quick-icui-help" className="text-xs text-on-surface-variant mt-0.5">
+                  Marca los comestibles ultraprocesados (snacks, embutidos, dulces, galletas). Ya viene en tu costo: solo se registra.
+                </p>
+              </div>
+              <Switch
+                aria-labelledby="quick-icui-label"
+                checked={icuiApplies}
+                onCheckedChange={setIcuiApplies}
+              />
+            </div>
+          )}
 
           {/* Sección de precios. Sin IVA en el negocio: compra y venta son un
               campo cada uno, lado a lado desde `sm`, sin base ni selector. */}

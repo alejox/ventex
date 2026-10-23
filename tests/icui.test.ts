@@ -1,20 +1,21 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ICUI_RATE, ICUI_LABEL, icuiRateFor, icuiAmountFor } from "../lib/icui";
+import { ICUI_RATE, icuiRateFor, icuiAmountFor } from "../lib/icui";
 
-test("la tasa ICUI es la vigente (20 %) y el rótulo la refleja", () => {
+test("la tasa ICUI por defecto es la vigente (20 %)", () => {
   assert.equal(ICUI_RATE, 0.2);
-  assert.equal(ICUI_LABEL, "ICUI 20%");
 });
 
 test("icuiRateFor conserva la tasa guardada al editar y 'Ninguno' la apaga", () => {
   // Compra guardada con ICUI: sigue con su tasa aunque la vigente cambie.
-  assert.equal(icuiRateFor("ICUI", 0.15), 0.15);
+  assert.equal(icuiRateFor("ICUI", 0.15, 0.2), 0.15);
   // Pasar a "Ninguno" es explícito.
-  assert.equal(icuiRateFor("Ninguno", 0.2), 0);
-  // Compra sin ICUI a la que se le activa: toma la vigente.
-  assert.equal(icuiRateFor("ICUI", 0), ICUI_RATE);
-  // Alta: la vigente.
+  assert.equal(icuiRateFor("Ninguno", 0.2, 0.2), 0);
+  // Compra sin ICUI a la que se le activa: toma la tasa configurada del negocio.
+  assert.equal(icuiRateFor("ICUI", 0, 0.15), 0.15);
+  // Alta: la configurada del negocio.
+  assert.equal(icuiRateFor("ICUI", undefined, 0.15), 0.15);
+  // Sin tasa configurada: el respaldo nacional (20 %).
   assert.equal(icuiRateFor("ICUI", undefined), ICUI_RATE);
 });
 
