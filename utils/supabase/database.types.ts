@@ -4372,6 +4372,16 @@ export type Database = {
         Args: { p_staff_id: string }
         Returns: string
       }
+      product_prices_by_distributor: {
+        Args: { p_product_ids?: string[] }
+        Returns: {
+          distributor_id: string
+          distributor_name: string
+          last_purchase_at: string
+          product_id: string
+          unit_cost: number
+        }[]
+      }
       product_unit_factor: {
         Args: {
           p_content_qty: number

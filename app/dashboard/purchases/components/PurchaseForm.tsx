@@ -17,11 +17,13 @@ import { can } from "@/lib/permissions";
 import { useBusinessTax } from "@/lib/useBusinessTax";
 import { purchaseTaxRateFor, purchaseTotalsOf } from "@/lib/purchase-totals";
 import { icuiRateFor, icuiAmountFor } from "@/lib/icui";
+import { bestOtherPrice, purchaseLineUnitCost, type DistributorPrice } from "@/lib/price-comparison";
 import type { Product } from "@/services/inventory.service";
 import { getUnitCost, isServiceItem, tracksStock } from "@/services/inventory.service";
 import { needsRestock } from "@/lib/stock";
 import type { PurchaseInvoice } from "@/services/purchases.service";
 import { totalUnitsOf, lineTotalOf } from "@/services/purchases.service";
+import { fetchProductPricesByDistributor } from "@/services/purchases.service";
 import { useFormatMoney } from "@/lib/useMoney";
 import { toMessage } from "@/lib/errors";
 import { useSearchParam } from "@/lib/useUrlState";
@@ -195,6 +197,8 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
   const [lines, setLines] = useState<PurchaseLineForm[]>(
     initialLines.length > 0 ? initialLines : [{ ...EMPTY_LINE }]
   );
+  /** Precios por proveedor (historial de compras), para la alerta de "más caro". */
+  const [priceRows, setPriceRows] = useState<DistributorPrice[]>([]);
 
   const [productSearch, setProductSearch] = useState("");
   const [showDropdown, setShowDropdown] = useState<number | null>(null);
@@ -293,6 +297,22 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
       window.removeEventListener("resize", reposition);
     };
   }, [showDropdown]);
+
+  // Precios por proveedor para la alerta "estás pagando más que otro proveedor".
+  // Se leen UNA vez: el historial no cambia mientras cargás la compra.
+  useEffect(() => {
+    let active = true;
+    fetchProductPricesByDistributor()
+      .then((rows) => {
+        if (active) setPriceRows(rows);
+      })
+      .catch(() => {
+        // La alerta es un extra: si falla, la compra sigue sin ella.
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   /** Cómo llama el negocio a la unidad suelta de ese producto ("Unidad", "Litro"…). */
   const unitLabel = (productId: string) =>
@@ -923,6 +943,23 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
                           {line.loose_quantity > 0 ? ` + ${line.loose_quantity}` : ""})
                         </p>
                       )}
+
+                      {/* Alerta de precio: si lo que cargaste sale más caro que
+                          el mejor precio de OTRO proveedor, lo avisamos. Solo
+                          informa; nunca bloquea. */}
+                      {(() => {
+                        const cost = purchaseLineUnitCost(line);
+                        const best = line.product_id
+                          ? bestOtherPrice(priceRows, line.product_id, distributorId)
+                          : null;
+                        if (cost == null || best == null || cost <= best.unit_cost) return null;
+                        return (
+                          <p className="text-[11px] text-on-surface-variant mt-1">
+                            💡 {best.distributor_name} vende esto a{" "}
+                            <strong className="text-on-surface">{fmtMoney(best.unit_cost)}</strong> por unidad.
+                          </p>
+                        );
+                      })()}
                     </div>
 
                     {/* Cajas: solo tiene sentido si el producto viene por caja */}

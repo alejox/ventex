@@ -286,9 +286,14 @@ export default function PurchasesPage() {
             Registra tus compras de productos y mantén actualizadas las cantidades en tu inventario.
           </p>
         </div>
-        <Button onClick={() => router.push(formHref("/dashboard/purchases/new"))} icon={<IconPlus className="w-4 h-4" />}>
-          Nueva compra
-        </Button>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button variant="secondary" onClick={() => router.push("/dashboard/purchases/comparar")}>
+            Comparar precios
+          </Button>
+          <Button onClick={() => router.push(formHref("/dashboard/purchases/new"))} icon={<IconPlus className="w-4 h-4" />}>
+            Nueva compra
+          </Button>
+        </div>
       </div>
 
       {error && <CollectionError message={error} onRetry={fetchInvoices} />}

@@ -1,6 +1,7 @@
 import { createClient } from "@/utils/supabase/client";
 import { purchaseTotalsOf } from "@/lib/purchase-totals";
 import { isUnknownSignatureError } from "@/lib/sale-discounts";
+import type { DistributorPrice } from "@/lib/price-comparison";
 
 export interface PurchaseInvoice {
   id: string;
@@ -212,6 +213,26 @@ export async function fetchPurchaseInvoiceItems(invoiceId: string): Promise<Purc
     .order("created_at");
   if (error) throw error;
   return (data ?? []) as unknown as PurchaseInvoiceItem[];
+}
+
+/**
+ * Último costo unitario por (producto, proveedor), desde el historial de compras
+ * no anuladas. Sirve al comparador de precios y a la alerta de compra.
+ *
+ * La base devuelve las filas ordenadas por producto y, dentro, proveedor más
+ * barato primero. La cuenta del costo es la misma que `sync_products_last_cost`.
+ */
+export async function fetchProductPricesByDistributor(): Promise<DistributorPrice[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("product_prices_by_distributor", {});
+  if (error) throw error;
+  return (data ?? []).map((r) => ({
+    product_id: r.product_id,
+    distributor_id: r.distributor_id,
+    distributor_name: r.distributor_name,
+    unit_cost: Number(r.unit_cost),
+    last_purchase_at: r.last_purchase_at,
+  }));
 }
 
 /**
