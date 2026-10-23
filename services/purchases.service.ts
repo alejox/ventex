@@ -49,6 +49,8 @@ export interface PurchaseInvoiceItem {
   units_per_package: number;
   /** Snapshot del flag del producto: esta línea aporta al ICUI de la compra. */
   icui_applies: boolean;
+  /** Descuento individual de la línea. */
+  discount_amount: number;
   products?: { name: string; sku: string } | null;
 }
 
@@ -70,6 +72,8 @@ interface PurchaseLineInput {
   /** Costo de UNA caja. */
   package_price: number;
   units_per_package: number;
+  /** Descuento individual de la línea, restado de su total. */
+  discount_amount: number;
 }
 
 const perPackage = (units: number) => Math.max(units || 1, 1);
@@ -110,8 +114,11 @@ export function lineTotalOf(line: {
   loose_quantity: number;
   unit_price: number;
   package_price: number;
+  /** Descuento individual de la línea, restado del bruto. */
+  discount_amount?: number;
 }): number {
-  const total = line.package_quantity * line.package_price + line.loose_quantity * line.unit_price;
+  const gross = line.package_quantity * line.package_price + line.loose_quantity * line.unit_price;
+  const total = gross - (line.discount_amount ?? 0);
   return Math.round(total * 100) / 100;
 }
 
@@ -124,7 +131,6 @@ export interface PurchaseInvoiceParams {
   tax_rate?: number;
   /** Tasa de ICUI (0..1). 0 = sin ICUI. */
   icui_rate?: number;
-  discount_amount?: number;
   due_date?: string;
   notes?: string;
 }
@@ -138,7 +144,7 @@ const INVOICE_SELECT = `
 
 const ITEM_SELECT = `
   id, invoice_id, product_id, description, quantity, package_quantity,
-  unit_price, package_price, line_total, units_per_package, icui_applies,
+  unit_price, package_price, line_total, units_per_package, icui_applies, discount_amount,
   products(name, sku)
 `;
 
@@ -273,16 +279,19 @@ function toRpcItems(items: PurchaseLineInput[]) {
     package_quantity: i.package_quantity,
     unit_price: i.unit_price,
     package_price: i.package_price,
+    discount_amount: i.discount_amount ?? 0,
     // La base lo recalcula; se manda igual para la RPC vieja (fallback).
     line_total: lineTotalOf(i),
     units_per_package: i.units_per_package,
   }));
 }
 
-/** Totales con la misma cuenta que la base (IVA sobre subtotal − descuento). */
+/** Totales con la misma cuenta que la base (el descuento ya está en cada línea). */
 function totalsFor(params: PurchaseInvoiceParams) {
   const subtotal = params.items.reduce((s, i) => s + lineTotalOf(i), 0);
-  return purchaseTotalsOf(subtotal, params.discount_amount ?? 0, params.tax_rate ?? 0);
+  const discountTotal = params.items.reduce((s, i) => s + (i.discount_amount ?? 0), 0);
+  const { subtotal: s, taxAmount, total } = purchaseTotalsOf(subtotal, 0, params.tax_rate ?? 0);
+  return { subtotal: s, taxAmount, total, discountTotal };
 }
 
 /**
@@ -312,7 +321,6 @@ export async function savePurchaseInvoice(
       issue_date: params.issue_date,
       due_date: params.due_date || null,
       notes: params.notes || null,
-      discount_amount: params.discount_amount ?? 0,
       tax_rate: params.tax_rate ?? 0,
       icui_rate: params.icui_rate ?? 0,
     },
@@ -339,7 +347,7 @@ async function legacyCreatePurchaseInvoice(params: PurchaseInvoiceParams): Promi
   const supabase = createClient();
 
   const supplierNumber = requireSupplierNumber(params.supplier_invoice_number);
-  const { subtotal, taxAmount, total } = totalsFor(params);
+  const { subtotal, taxAmount, total, discountTotal } = totalsFor(params);
 
   const { data: invoice, error: invErr } = await supabase
     .from("invoices")
@@ -352,7 +360,7 @@ async function legacyCreatePurchaseInvoice(params: PurchaseInvoiceParams): Promi
       due_date: params.due_date || null,
       notes: params.notes || null,
       subtotal,
-      discount_amount: params.discount_amount ?? 0,
+      discount_amount: discountTotal,
       tax_rate: params.tax_rate ?? 0,
       tax_amount: taxAmount,
       icui_rate: params.icui_rate ?? 0,
@@ -411,7 +419,7 @@ async function legacyUpdatePurchaseInvoice(
   const supabase = createClient();
 
   const supplierNumber = requireSupplierNumber(params.supplier_invoice_number);
-  const { subtotal, taxAmount, total } = totalsFor(params);
+  const { subtotal, taxAmount, total, discountTotal } = totalsFor(params);
 
   // Las LÍNEAS van primero: la RPC es la que valida y mueve inventario, así que
   // si rechaza no se tocó nada.
@@ -431,7 +439,7 @@ async function legacyUpdatePurchaseInvoice(
       notes: params.notes || null,
       status: params.status,
       subtotal,
-      discount_amount: params.discount_amount ?? 0,
+      discount_amount: discountTotal,
       tax_rate: params.tax_rate ?? 0,
       tax_amount: taxAmount,
       icui_rate: params.icui_rate ?? 0,
@@ -481,6 +489,7 @@ export async function fetchLastPurchaseFromDistributor(distributorId: string): P
     unit_price: number;
     package_price: number;
     units_per_package: number;
+    discount_amount: number;
   }[];
 } | null> {
   const supabase = createClient();
@@ -501,7 +510,7 @@ export async function fetchLastPurchaseFromDistributor(distributorId: string): P
 
   const { data: items, error: itemsErr } = await supabase
     .from("invoice_items")
-    .select(`product_id, description, quantity, package_quantity, unit_price, package_price, units_per_package, products(name)`)
+    .select(`product_id, description, quantity, package_quantity, unit_price, package_price, units_per_package, discount_amount, products(name)`)
     .eq("invoice_id", invoice.id);
 
   if (itemsErr) throw itemsErr;
@@ -521,6 +530,7 @@ export async function fetchLastPurchaseFromDistributor(distributorId: string): P
         unit_price: (i.unit_price as number) ?? 0,
         package_price: (i.package_price as number) ?? 0,
         units_per_package: stored.units_per_package,
+        discount_amount: (i.discount_amount as number) ?? 0,
       };
     }),
   };

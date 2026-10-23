@@ -479,6 +479,7 @@ async function legacyReceivePurchaseOrder(
           unit_price: b.looseUnitPrice,
           package_price: b.packagePrice,
           units_per_package: b.unitsPerPackage,
+          discount_amount: 0,
         };
       }),
   });

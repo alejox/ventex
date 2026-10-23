@@ -70,6 +70,8 @@ export interface PurchaseLineForm {
   units_per_package: number;
   /** Snapshot del flag del producto: aporta (o no) al ICUI de la compra. */
   icui_applies?: boolean;
+  /** Descuento individual de la línea, restado de su total. */
+  discount_amount: number;
 }
 
 interface DropdownRect {
@@ -105,6 +107,7 @@ const EMPTY_LINE: PurchaseLineForm = {
   package_price: 0,
   units_per_package: 1,
   icui_applies: false,
+  discount_amount: 0,
 };
 
 interface PurchaseFormProps {
@@ -191,9 +194,6 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
     if (editingInvoice) return editingInvoice.icui_rate > 0 ? "ICUI" : "Ninguno";
     return "Ninguno";
   });
-  const [discountAmount, setDiscountAmount] = useState(
-    editingInvoice ? String(editingInvoice.discount_amount) : "0"
-  );
   const [notes, setNotes] = useState(editingInvoice?.notes ?? "");
   const [lines, setLines] = useState<PurchaseLineForm[]>(
     initialLines.length > 0 ? initialLines : [{ ...EMPTY_LINE }]
@@ -225,7 +225,7 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
    * el que abrió el formulario (tomada una sola vez, en el primer render).
    */
   const snapshot = JSON.stringify({
-    distributorId, issueDate, dueDate, supplierInvoiceNumber, status, taxOption, icuiOption, discountAmount, notes, lines,
+    distributorId, issueDate, dueDate, supplierInvoiceNumber, status, taxOption, icuiOption, notes, lines,
   });
   const [initialSnapshot] = useState(snapshot);
   const dirty = snapshot !== initialSnapshot;
@@ -378,6 +378,8 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
               units_per_package: Math.max(product.units_per_package ?? 1, 1),
               // ICUI: heredado del flag del producto (individual, por producto).
               icui_applies: product.icui_applies === true,
+              // Un producto recién elegido arranca sin descuento.
+              discount_amount: 0,
             }
           : line
       )
@@ -394,11 +396,13 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
     editingInvoice && editingInvoice.tax_rate > 0
       ? `${+(editingInvoice.tax_rate * 100).toFixed(2)}%`
       : percentLabel;
-  const discount = parseFloat(discountAmount || "0") || 0;
-  // IVA sobre (subtotal − descuento), la misma cuenta que hace la base.
+  // El descuento vive en cada línea: el subtotal ya lo descuenta. Acá se suma
+  // solo para mostrarlo como total de descuentos.
+  const discountsTotal = lines.reduce((s, l) => s + (l.discount_amount || 0), 0);
+  // IVA sobre el subtotal neto (descuentos ya restados en cada línea).
   const { subtotal, taxAmount, total: ivaTotal } = useMemo(
-    () => purchaseTotalsOf(lines.reduce((s, l) => s + lineTotalOf(l), 0), discount, taxMultiplier),
-    [lines, discount, taxMultiplier]
+    () => purchaseTotalsOf(lines.reduce((s, l) => s + lineTotalOf(l), 0), 0, taxMultiplier),
+    [lines, taxMultiplier]
   );
   // ICUI: SOLO las líneas de productos marcados. Individual, no sobre el total.
   const icuiMultiplier = icuiRateFor(icuiOption, editingInvoice?.icui_rate, businessIcuiRate);
@@ -415,10 +419,11 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
   const total = ivaTotal + icuiAmount;
 
   // Columnas de la grilla de líneas: en tienda hay una columna extra para el
-  // checkbox de ICUI por línea.
+  // checkbox de ICUI por línea. El descuento por línea va entre costo unidad y
+  // observaciones.
   const lineGridCols = isTienda
-    ? "lg:grid-cols-[minmax(0,1.5fr)_80px_115px_90px_115px_minmax(0,1fr)_44px_115px_76px]"
-    : "lg:grid-cols-[minmax(0,1.5fr)_80px_115px_90px_115px_minmax(0,1fr)_115px_76px]";
+    ? "lg:grid-cols-[minmax(0,1.5fr)_80px_115px_90px_115px_90px_minmax(0,1fr)_44px_115px_76px]"
+    : "lg:grid-cols-[minmax(0,1.5fr)_80px_115px_90px_115px_90px_minmax(0,1fr)_115px_76px]";
 
   /**
    * D14: "Última compra" ya no pisa en silencio lo que estaba cargado. Si hay
@@ -444,6 +449,7 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
         unit_price: i.unit_price,
         package_price: i.package_price,
         units_per_package: i.units_per_package,
+        discount_amount: i.discount_amount ?? 0,
         // ICUI re-derivado del producto HOY, no del snapshot de la compra vieja.
         icui_applies: products.find((p) => p.id === i.product_id)?.icui_applies === true,
       }));
@@ -479,7 +485,6 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
     distributorId,
     issueDate,
     dueDate,
-    discount: discountAmount,
     subtotal,
     lines,
   });
@@ -514,7 +519,6 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
       })),
       tax_rate: taxMultiplier,
       icui_rate: isTienda ? icuiMultiplier : 0,
-      discount_amount: discount,
       due_date: dueDate,
       notes,
     };
@@ -788,6 +792,7 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
                 <span className="text-right">Costo caja</span>
                 <span className="text-center">Unidades</span>
                 <span className="text-right">Costo unidad</span>
+                <span className="text-right">Descuento</span>
                 <span>Observaciones</span>
                 {isTienda && <span className="text-center">ICUI</span>}
                 <span className="text-right">Total</span>
@@ -1067,6 +1072,27 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
                       />
                     </div>
 
+                    {/* Descuento individual de la línea */}
+                    <div>
+                      <span className="lg:hidden text-[11px] font-semibold text-on-surface-variant block mb-1">
+                        Descuento
+                      </span>
+                      <input
+                        type="number"
+                        min={0}
+                        step={0.01}
+                        placeholder="0"
+                        id={lineFieldId(idx, "discount")}
+                        aria-label={`Descuento de la línea ${idx + 1}`}
+                        aria-invalid={lineErrors(idx)?.discount ? true : undefined}
+                        value={line.discount_amount || ""}
+                        onChange={(e) =>
+                          handleLineChange(idx, "discount_amount", Math.max(0, Number(e.target.value)))
+                        }
+                        className={`${cellClass} text-right font-mono${errClass(lineErrors(idx)?.discount)}`}
+                      />
+                    </div>
+
                     {/* Observaciones */}
                     <div className="min-w-0">
                       <span className="lg:hidden text-[11px] font-semibold text-on-surface-variant block mb-1">
@@ -1172,25 +1198,12 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
                 <dd className="font-mono tabular-nums text-on-surface">{fmtMoney(subtotal)}</dd>
               </div>
 
-              <div className="flex items-center justify-between gap-4 text-sm">
-                <dt>
-                  <label htmlFor="purchase-discount" className="text-on-surface-variant">Descuento</label>
-                </dt>
-                <dd className="flex items-center gap-1">
-                  <span className="text-on-surface-variant">-$</span>
-                  <input
-                    id="purchase-discount"
-                    type="number"
-                    min={0}
-                    step={0.01}
-                    value={discountAmount}
-                    aria-invalid={errors?.discount ? true : undefined}
-                    onChange={(e) => setDiscountAmount(e.target.value)}
-                    className={`${errors?.discount ? "border-error " : ""}w-28 bg-surface-container-lowest border border-outline-variant/30 rounded-lg py-1.5 px-2 text-base lg:text-sm text-on-surface text-right font-mono tabular-nums focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all`}
-                  />
-                </dd>
-              </div>
-              {errors?.discount && <p className="text-xs text-error text-right">{errors.discount}</p>}
+              {discountsTotal > 0 && (
+                <div className="flex items-center justify-between gap-4 text-sm">
+                  <dt className="text-on-surface-variant">Descuentos</dt>
+                  <dd className="font-mono tabular-nums text-on-surface">-{fmtMoney(discountsTotal)}</dd>
+                </div>
+              )}
 
               {taxMultiplier > 0 && (
                 <div className="flex items-center justify-between gap-4 text-sm">

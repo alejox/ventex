@@ -16,6 +16,7 @@ const line = (over: Partial<PurchaseFormDraft["lines"][number]> = {}) => ({
   unit_price: 1000,
   package_price: 0,
   units_per_package: 1,
+  discount_amount: 0,
   ...over,
 });
 
@@ -24,7 +25,6 @@ const draft = (over: Partial<PurchaseFormDraft> = {}): PurchaseFormDraft => ({
   distributorId: "d1",
   issueDate: "2026-10-06",
   dueDate: "",
-  discount: "0",
   subtotal: 2000,
   lines: [line()],
   ...over,
@@ -74,13 +74,21 @@ test("costo inválido solo cuenta para la cantidad que se usa", () => {
   assert.equal(hasErrors(ok), false);
 });
 
-test("vencimiento antes de la compra y descuento mayor que el total", () => {
-  const e = validatePurchaseForm(draft({ dueDate: "2026-10-01", discount: "5000" }));
+test("vencimiento antes de la fecha de compra", () => {
+  const e = validatePurchaseForm(draft({ dueDate: "2026-10-01" }));
   assert.ok(e.dueDate);
-  assert.equal(e.discount, "El descuento no puede superar el subtotal de la compra.");
-  const neg = validatePurchaseForm(draft({ discount: "-1" }));
-  assert.ok(neg.discount);
-  assert.equal(hasErrors(validatePurchaseForm(draft({ discount: "" }))), false);
+});
+
+test("descuento por línea: negativo o mayor que su bruto", () => {
+  // Bruto de la línea por defecto: 2 sueltas × 1.000 = 2.000.
+  const over = validatePurchaseForm(draft({ lines: [line({ discount_amount: 2500 })] }));
+  assert.equal(over.lines[0]?.discount, "Línea 1: el descuento no puede ser negativo ni mayor que el total.");
+  assert.equal(over.firstFieldId, lineFieldId(0, "discount"));
+  const neg = validatePurchaseForm(draft({ lines: [line({ discount_amount: -1 })] }));
+  assert.ok(neg.lines[0]?.discount);
+  // Igual al bruto es válido; sin descuento no hay error.
+  assert.equal(hasErrors(validatePurchaseForm(draft({ lines: [line({ discount_amount: 2000 })] }))), false);
+  assert.equal(hasErrors(validatePurchaseForm(draft())), false);
 });
 
 test("applyLastPurchase: reemplazar o agregar sin perder lo cargado", () => {
@@ -92,11 +100,4 @@ test("applyLastPurchase: reemplazar o agregar sin perder lo cargado", () => {
   assert.deepEqual(applyLastPurchase(current, [], "replace"), current);
   assert.equal(hasFilledLines([{ product_id: "" }]), false);
   assert.equal(hasFilledLines(current), true);
-});
-
-test("el tope del descuento es el SUBTOTAL (el IVA va después del descuento)", () => {
-  assert.equal(hasErrors(validatePurchaseForm(draft({ subtotal: 2000, discount: "2000" }))), false);
-  assert.ok(validatePurchaseForm(draft({ subtotal: 2000, discount: "2000.01" })).discount);
-  // Sin subtotal no hay nada que descontar: la base lo rechazaría igual.
-  assert.ok(validatePurchaseForm(draft({ subtotal: 0, discount: "1" })).discount);
 });

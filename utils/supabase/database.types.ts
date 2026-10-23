@@ -1004,6 +1004,7 @@ export type Database = {
         Row: {
           created_at: string
           description: string
+          discount_amount: number
           icui_applies: boolean
           id: string
           invoice_id: string
@@ -1021,6 +1022,7 @@ export type Database = {
         Insert: {
           created_at?: string
           description: string
+          discount_amount?: number
           icui_applies?: boolean
           id?: string
           invoice_id: string
@@ -1038,6 +1040,7 @@ export type Database = {
         Update: {
           created_at?: string
           description?: string
+          discount_amount?: number
           icui_applies?: boolean
           id?: string
           invoice_id?: string

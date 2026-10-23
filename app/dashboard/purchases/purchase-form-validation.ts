@@ -17,6 +17,8 @@ export interface PurchaseLineDraft {
   unit_price: number;
   package_price: number;
   units_per_package: number;
+  /** Descuento individual de la línea (0 si no hay). */
+  discount_amount: number;
 }
 
 export interface PurchaseFormDraft {
@@ -24,13 +26,7 @@ export interface PurchaseFormDraft {
   distributorId: string;
   issueDate: string;
   dueDate: string;
-  /** Tal como está en el campo (texto). */
-  discount: string;
-  /**
-   * Subtotal de las líneas. El descuento se aplica ANTES del IVA (el IVA va
-   * sobre subtotal − descuento), así que el tope es el subtotal — la base
-   * rechaza lo mismo con DESCUENTO_COMPRA_INVALIDO.
-   */
+  /** Subtotal NETO (los descuentos de línea ya están restados de cada línea). */
   subtotal: number;
   lines: PurchaseLineDraft[];
 }
@@ -39,6 +35,7 @@ export interface LineErrors {
   product?: string;
   quantity?: string;
   cost?: string;
+  discount?: string;
 }
 
 export interface PurchaseFormErrors {
@@ -46,7 +43,6 @@ export interface PurchaseFormErrors {
   distributor?: string;
   issueDate?: string;
   dueDate?: string;
-  discount?: string;
   /** Por índice de línea (0-based). */
   lines: Record<number, LineErrors>;
   /** Todos los mensajes, en el orden de la pantalla, para el resumen. */
@@ -56,14 +52,13 @@ export interface PurchaseFormErrors {
 }
 
 /** Ids de los campos de una línea; los usa el formulario en sus inputs. */
-export const lineFieldId = (idx: number, field: "product" | "qty" | "cost" | "boxcost") => `purchase-line-${idx}-${field}`;
+export const lineFieldId = (idx: number, field: "product" | "qty" | "cost" | "boxcost" | "discount") => `purchase-line-${idx}-${field}`;
 
 export const FIELD_IDS = {
   supplierNumber: "supplier-number",
   issueDate: "issue-date",
   distributor: "purchase-distributor",
   dueDate: "due-date",
-  discount: "purchase-discount",
 } as const;
 
 const badMoney = (n: number) => !Number.isFinite(n) || n < 0;
@@ -113,18 +108,16 @@ export function validatePurchaseForm(draft: PurchaseFormDraft): PurchaseFormErro
         le.cost = `Línea ${n}: el costo no es válido.`;
         mark(lineFieldId(idx, unitCostUsed ? "cost" : "boxcost"), le.cost);
       }
+      // El descuento por línea no puede ser negativo ni superar su bruto.
+      const gross =
+        line.package_quantity * line.package_price + line.loose_quantity * line.unit_price;
+      if (line.discount_amount < 0 || line.discount_amount > gross) {
+        le.discount = `Línea ${n}: el descuento no puede ser negativo ni mayor que el total.`;
+        mark(lineFieldId(idx, "discount"), le.discount);
+      }
     }
-    if (le.product || le.quantity || le.cost) errors.lines[idx] = le;
+    if (le.product || le.quantity || le.cost || le.discount) errors.lines[idx] = le;
   });
-
-  const discount = draft.discount.trim() === "" ? 0 : Number(draft.discount);
-  if (!Number.isFinite(discount) || discount < 0) {
-    errors.discount = "El descuento debe ser un número igual o mayor que cero.";
-    mark(FIELD_IDS.discount, errors.discount);
-  } else if (discount > draft.subtotal) {
-    errors.discount = "El descuento no puede superar el subtotal de la compra.";
-    mark(FIELD_IDS.discount, errors.discount);
-  }
 
   return errors;
 }
