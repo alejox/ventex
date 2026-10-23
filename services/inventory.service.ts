@@ -52,6 +52,12 @@ export interface Product {
    */
   is_ingredient?: boolean;
   /**
+   * Sujeto al ICUI (Impuesto a los Comestibles Ultraprocesados Industrialmente,
+   * Colombia). Solo informativo: el impuesto ya viene en el costo de compra, así
+   * que no se cobra en las ventas. Ausente en filas viejas = false.
+   */
+  icui_applies?: boolean;
+  /**
    * Si admite media unidad. Lo decide la UNIDAD DE MEDIDA, no una preferencia:
    * es una columna generada en la base (`kg`, `g`, `lb`, `L`, `ml`, `m`, `cm`),
    * así que no se escribe desde acá y no puede divergir entre pantallas.
@@ -156,6 +162,8 @@ export interface NewProductInput {
   open_price?: boolean;
   /** Solo insumo. `undefined` = no tocar la columna (formularios sin el módulo). */
   is_ingredient?: boolean;
+  /** Sujeto al ICUI (tienda). Solo informativo; no se cobra en ventas. */
+  icui_applies?: boolean;
 }
 
 
@@ -337,7 +345,7 @@ const PRODUCT_COLUMNS =
   "id, created_at, updated_at, user_id, name, sku, barcode, price, package_price, stock_level, image_url, status, " +
   "category_id, unit, distributor_id, minimum_stock, icon, has_commission, commission_type, " +
   "commission_value, units_per_package, tracks_stock, open_price, allows_fractions, is_ingredient, " +
-  "content_qty, content_unit";
+  "content_qty, content_unit, icui_applies";
 
 const PRODUCT_SELECT = `${PRODUCT_COLUMNS}, categories(name), distributors(business_name)`;
 
@@ -517,10 +525,16 @@ function stockPatch(input: NewProductInput): { stock_level: number; minimum_stoc
  * los insumos y la base rechaza volver a encenderlo (RECETA_SIN_STOCK_PROPIO).
  * El formulario tiene que mandar `tracks_stock: false` para esos productos.
  */
-function flagsPatch(input: NewProductInput): { tracks_stock: boolean; open_price: boolean; is_ingredient?: boolean } {
+function flagsPatch(input: NewProductInput): {
+  tracks_stock: boolean;
+  open_price: boolean;
+  icui_applies: boolean;
+  is_ingredient?: boolean;
+} {
   return {
     tracks_stock: input.tracks_stock !== false,
     open_price: input.open_price === true,
+    icui_applies: input.icui_applies === true,
     ...(input.is_ingredient !== undefined ? { is_ingredient: input.is_ingredient } : {}),
   };
 }

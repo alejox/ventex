@@ -16,6 +16,7 @@ import { useProfile } from "@/components/ProfileProvider";
 import { can } from "@/lib/permissions";
 import { useBusinessTax } from "@/lib/useBusinessTax";
 import { purchaseTaxRateFor, purchaseTotalsOf } from "@/lib/purchase-totals";
+import { icuiRateFor, icuiAmountFor, ICUI_LABEL } from "@/lib/icui";
 import type { Product } from "@/services/inventory.service";
 import { getUnitCost, isServiceItem, tracksStock } from "@/services/inventory.service";
 import { needsRestock } from "@/lib/stock";
@@ -64,6 +65,8 @@ export interface PurchaseLineForm {
   package_price: number;
   /** Unidades por caja que se congelan en la línea al guardar. */
   units_per_package: number;
+  /** Snapshot del flag del producto: aporta (o no) al ICUI de la compra. */
+  icui_applies?: boolean;
 }
 
 interface DropdownRect {
@@ -98,6 +101,7 @@ const EMPTY_LINE: PurchaseLineForm = {
   unit_price: 0,
   package_price: 0,
   units_per_package: 1,
+  icui_applies: false,
 };
 
 interface PurchaseFormProps {
@@ -145,6 +149,7 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
 
   const profile = useProfile();
   const canSeeCosts = can(profile, "inventory_costs");
+  const isTienda = profile?.businessType === "tienda";
   const { rawRate: businessTaxRate, rawPercentLabel: percentLabel } = useBusinessTax();
 
   const [distributorId, setDistributorId] = useState(editingInvoice?.distributor_id ?? "");
@@ -168,6 +173,15 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
   const [taxOption, setTaxOption] = useState(() => {
     if (editingInvoice) return editingInvoice.tax_rate > 0 ? "IVA" : "Ninguno";
     return "IVA";
+  });
+  /**
+   * ICUI: individual, por producto. El monto se calcula SOLO sobre las líneas
+   * cuyo producto tiene `icui_applies`; este selector decide si la compra lleva
+   * ICUI (sobre esas líneas) o no. Editando manda lo guardado, como el IVA.
+   */
+  const [icuiOption, setIcuiOption] = useState(() => {
+    if (editingInvoice) return editingInvoice.icui_rate > 0 ? "ICUI" : "Ninguno";
+    return "Ninguno";
   });
   const [discountAmount, setDiscountAmount] = useState(
     editingInvoice ? String(editingInvoice.discount_amount) : "0"
@@ -201,7 +215,7 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
    * el que abrió el formulario (tomada una sola vez, en el primer render).
    */
   const snapshot = JSON.stringify({
-    distributorId, issueDate, dueDate, supplierInvoiceNumber, status, taxOption, discountAmount, notes, lines,
+    distributorId, issueDate, dueDate, supplierInvoiceNumber, status, taxOption, icuiOption, discountAmount, notes, lines,
   });
   const [initialSnapshot] = useState(snapshot);
   const dirty = snapshot !== initialSnapshot;
@@ -336,6 +350,8 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
               unit_price: getUnitCost(product) || product.price,
               package_price: product.purchase_price ?? product.price,
               units_per_package: Math.max(product.units_per_package ?? 1, 1),
+              // ICUI: heredado del flag del producto (individual, por producto).
+              icui_applies: product.icui_applies === true,
             }
           : line
       )
@@ -354,10 +370,18 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
       : percentLabel;
   const discount = parseFloat(discountAmount || "0") || 0;
   // IVA sobre (subtotal − descuento), la misma cuenta que hace la base.
-  const { subtotal, taxAmount, total } = useMemo(
+  const { subtotal, taxAmount, total: ivaTotal } = useMemo(
     () => purchaseTotalsOf(lines.reduce((s, l) => s + lineTotalOf(l), 0), discount, taxMultiplier),
     [lines, discount, taxMultiplier]
   );
+  // ICUI: SOLO las líneas de productos marcados. Individual, no sobre el total.
+  const icuiMultiplier = icuiRateFor(icuiOption, editingInvoice?.icui_rate);
+  const icuiBase = useMemo(
+    () => lines.filter((l) => l.icui_applies).reduce((s, l) => s + lineTotalOf(l), 0),
+    [lines]
+  );
+  const icuiAmount = icuiAmountFor(icuiBase, icuiMultiplier);
+  const total = ivaTotal + icuiAmount;
 
   /**
    * D14: "Última compra" ya no pisa en silencio lo que estaba cargado. Si hay
@@ -383,6 +407,8 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
         unit_price: i.unit_price,
         package_price: i.package_price,
         units_per_package: i.units_per_package,
+        // ICUI re-derivado del producto HOY, no del snapshot de la compra vieja.
+        icui_applies: products.find((p) => p.id === i.product_id)?.icui_applies === true,
       }));
       if (hasFilledLines(lines)) setPendingLastLines(incoming);
       else setLines(applyLastPurchase(lines, incoming, "replace"));
@@ -450,6 +476,7 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
         description: l.description || l.product_name,
       })),
       tax_rate: taxMultiplier,
+      icui_rate: isTienda ? icuiMultiplier : 0,
       discount_amount: discount,
       due_date: dueDate,
       notes,
@@ -666,6 +693,16 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
                 <option value="Ninguno">Ninguno</option>
                 <option value="IVA">IVA {ivaLabel}</option>
               </Select>
+
+              {/* ICUI: impuesto individual, solo sobre los productos marcados.
+                  Se muestra únicamente en tienda, el rubro que maneja alimentos
+                  ultraprocesados. */}
+              {isTienda && (
+                <Select label="ICUI" value={icuiOption} onChange={(e) => setIcuiOption(e.target.value)}>
+                  <option value="Ninguno">Ninguno</option>
+                  <option value="ICUI">{ICUI_LABEL}</option>
+                </Select>
+              )}
             </div>
           </section>
 
@@ -1084,6 +1121,13 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
                 <div className="flex items-center justify-between gap-4 text-sm">
                   <dt className="text-on-surface-variant">IVA ({percentLabel})</dt>
                   <dd className="font-mono tabular-nums text-on-surface">{fmtMoney(taxAmount)}</dd>
+                </div>
+              )}
+
+              {isTienda && icuiMultiplier > 0 && (
+                <div className="flex items-center justify-between gap-4 text-sm">
+                  <dt className="text-on-surface-variant">ICUI (solo productos marcados)</dt>
+                  <dd className="font-mono tabular-nums text-on-surface">{fmtMoney(icuiAmount)}</dd>
                 </div>
               )}
 

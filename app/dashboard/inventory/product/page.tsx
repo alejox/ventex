@@ -149,6 +149,8 @@ function ProductForm() {
    */
   const productionOn =
     effectiveModules(profile?.businessType ?? null, profile?.modules ?? null).production === true;
+  /** ICUI: impuesto saludable, solo para el rubro tienda (alimentos). */
+  const isTienda = profile?.businessType === "tienda";
   const recipes = useRecipesStore((s) => s.recipes);
   const recipesLoaded = useRecipesStore((s) => s.loaded);
   const recipesLoadError = useRecipesStore((s) => s.error);
@@ -178,6 +180,7 @@ function ProductForm() {
     tracks_stock: true,
     open_price: false,
     is_ingredient: false,
+    icui_applies: false,
     // Van desde el arranque (y no `undefined`) para que el snapshot de
     // "cambios sin guardar" sea estable: una clave que aparece después cuenta
     // como cambio.
@@ -447,6 +450,7 @@ function ProductForm() {
       tracks_stock: editingProduct.tracks_stock !== false,
       open_price: editingProduct.open_price === true,
       is_ingredient: editingProduct.is_ingredient === true,
+      icui_applies: editingProduct.icui_applies === true,
       // Presentación ("cada unidad trae 900 ml"), con coma decimal como el
       // resto de cantidades de la receta.
       content_qty:
@@ -1136,6 +1140,26 @@ function ProductForm() {
                 checked={form.is_ingredient === true}
                 disabled={saleRecipeActive}
                 onCheckedChange={(on) => setForm((prev) => ({ ...prev, is_ingredient: on }))}
+              />
+            </div>
+          )}
+
+          {/* "Aplica ICUI": impuesto saludable a los comestibles ultraprocesados
+              (Ley 2277 de 2022, Colombia, 20 %). Es individual y por producto:
+              lo marca el negocio y solo pesa en las compras de esos productos.
+              Se muestra únicamente en tienda. */}
+          {isTienda && itemType === "Producto" && (
+            <div className="flex items-start justify-between gap-4 rounded-2xl border border-outline-variant/15 bg-surface-container-low/50 p-4">
+              <div>
+                <p id="icui-label" className="text-sm font-semibold text-on-surface">Aplica ICUI</p>
+                <p id="icui-help" className="text-xs text-on-surface-variant mt-0.5">
+                  Marca los comestibles ultraprocesados (snacks, embutidos, dulces, galletas). El ICUI ya viene en tu costo de compra: aquí solo lo registras, no se cobra al cliente.
+                </p>
+              </div>
+              <Switch
+                aria-labelledby="icui-label"
+                checked={form.icui_applies === true}
+                onCheckedChange={(on) => setForm((prev) => ({ ...prev, icui_applies: on }))}
               />
             </div>
           )}

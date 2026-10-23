@@ -235,6 +235,7 @@ export function toMessage(e: unknown): string {
 const PURCHASE_ERRORS: [RegExp, string][] = [
   [/^DESCUENTO_COMPRA_INVALIDO\b/, "El descuento no puede ser negativo ni mayor que el subtotal de la compra."],
   [/^TASA_IVA_INVALIDA\b/, "La tasa de IVA de la compra no es válida."],
+  [/^TASA_ICUI_INVALIDA\b/, "La tasa de ICUI de la compra no es válida."],
   [/^ESTADO_COMPRA_INVALIDO\b/, "Una compra solo puede quedar como Pagada o Pendiente. Para anularla usa la acción Anular."],
   [/^COMPRA_SIN_LINEAS\b/, "Agrega al menos un producto a la compra."],
   [/^LINEA_COMPRA_INVALIDA\b/, "Una línea de la compra tiene cantidades o costos inválidos. Revísala y vuelve a guardar."],

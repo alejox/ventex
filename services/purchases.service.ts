@@ -15,6 +15,10 @@ export interface PurchaseInvoice {
   discount_amount: number;
   tax_rate: number;
   tax_amount: number;
+  /** Tasa de ICUI de la compra (0..1). 0 = sin ICUI. */
+  icui_rate: number;
+  /** Monto de ICUI, calculado sobre las líneas de productos marcados. */
+  icui_amount: number;
   total: number;
   notes: string | null;
   created_at: string;
@@ -42,6 +46,8 @@ export interface PurchaseInvoiceItem {
   line_total: number;
   /** Unidades por caja congeladas al comprar. */
   units_per_package: number;
+  /** Snapshot del flag del producto: esta línea aporta al ICUI de la compra. */
+  icui_applies: boolean;
   products?: { name: string; sku: string } | null;
 }
 
@@ -115,6 +121,8 @@ export interface PurchaseInvoiceParams {
   status: string;
   items: PurchaseLineInput[];
   tax_rate?: number;
+  /** Tasa de ICUI (0..1). 0 = sin ICUI. */
+  icui_rate?: number;
   discount_amount?: number;
   due_date?: string;
   notes?: string;
@@ -122,14 +130,14 @@ export interface PurchaseInvoiceParams {
 
 const INVOICE_SELECT = `
   id, invoice_number, supplier_invoice_number, distributor_id, type, status, issue_date, due_date,
-  subtotal, discount_amount, tax_rate, tax_amount, total, notes, created_at, created_by,
+  subtotal, discount_amount, tax_rate, tax_amount, icui_rate, icui_amount, total, notes, created_at, created_by,
   distributors(business_name),
   creator:profiles!created_by(full_name)
 `;
 
 const ITEM_SELECT = `
   id, invoice_id, product_id, description, quantity, package_quantity,
-  unit_price, package_price, line_total, units_per_package,
+  unit_price, package_price, line_total, units_per_package, icui_applies,
   products(name, sku)
 `;
 
@@ -155,6 +163,8 @@ const toInvoice = (r: RawInvoice): PurchaseInvoice => ({
   discount_amount: r.discount_amount as number,
   tax_rate: r.tax_rate as number,
   tax_amount: r.tax_amount as number,
+  icui_rate: (r.icui_rate as number) ?? 0,
+  icui_amount: (r.icui_amount as number) ?? 0,
   total: r.total as number,
   notes: r.notes as string | null,
   created_at: r.created_at as string,
@@ -283,6 +293,7 @@ export async function savePurchaseInvoice(
       notes: params.notes || null,
       discount_amount: params.discount_amount ?? 0,
       tax_rate: params.tax_rate ?? 0,
+      icui_rate: params.icui_rate ?? 0,
     },
     p_items: toRpcItems(params.items),
   });
@@ -323,6 +334,7 @@ async function legacyCreatePurchaseInvoice(params: PurchaseInvoiceParams): Promi
       discount_amount: params.discount_amount ?? 0,
       tax_rate: params.tax_rate ?? 0,
       tax_amount: taxAmount,
+      icui_rate: params.icui_rate ?? 0,
       total,
     })
     .select(INVOICE_SELECT)
@@ -401,6 +413,7 @@ async function legacyUpdatePurchaseInvoice(
       discount_amount: params.discount_amount ?? 0,
       tax_rate: params.tax_rate ?? 0,
       tax_amount: taxAmount,
+      icui_rate: params.icui_rate ?? 0,
       total,
     })
     .eq("id", id)

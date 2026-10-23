@@ -55,6 +55,7 @@ export default function EditPurchasePage() {
               unit_price: item.unit_price,
               package_price: item.package_price,
               units_per_package: item.units_per_package,
+              icui_applies: item.icui_applies === true,
             }))
           );
         }
