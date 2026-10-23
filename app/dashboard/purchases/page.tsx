@@ -287,7 +287,7 @@ export default function PurchasesPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <Button variant="secondary" onClick={() => router.push("/dashboard/purchases/comparar")}>
+          <Button variant="secondary" onClick={() => router.push("/dashboard/inventory/comparar")}>
             Comparar precios
           </Button>
           <Button onClick={() => router.push(formHref("/dashboard/purchases/new"))} icon={<IconPlus className="w-4 h-4" />}>

@@ -83,3 +83,20 @@ export function purchaseLineUnitCost(line: {
   }
   return null;
 }
+
+/**
+ * ¿El producto coincide con la búsqueda? Compara nombre, SKU y código de
+ * barras, sin tildes ni mayúsculas. Con la búsqueda vacía todo pasa.
+ */
+export function matchesProductSearch(
+  product: { name: string; sku: string; barcode?: string | null },
+  query: string,
+): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  return (
+    product.name.toLowerCase().includes(q) ||
+    product.sku.toLowerCase().includes(q) ||
+    (product.barcode ?? "").toLowerCase().includes(q)
+  );
+}

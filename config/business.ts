@@ -451,6 +451,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: "pedidos", name: "Pedidos", href: "/dashboard/pedidos", modules: ["inventory"] },
   { id: "distributors", name: "Proveedores", href: "/dashboard/distributors", modules: ["inventory"] },
   { id: "purchases", name: "Compras", href: "/dashboard/purchases", modules: ["inventory"] },
+  { id: "price-compare", name: "Comparar precios", href: "/dashboard/inventory/comparar", modules: ["inventory"] },
 
   // ---- El negocio, no la operación diaria ----
   { id: "vehicles", name: "Vehículos", href: "/dashboard/vehicles", modules: ["vehicles"] },

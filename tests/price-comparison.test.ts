@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { bestOtherPrice, isPayingMore, pricesByProduct, purchaseLineUnitCost, type DistributorPrice } from "../lib/price-comparison";
+import { bestOtherPrice, isPayingMore, pricesByProduct, purchaseLineUnitCost, matchesProductSearch, type DistributorPrice } from "../lib/price-comparison";
 
 const row = (product_id: string, distributor_id: string, distributor_name: string, unit_cost: number): DistributorPrice =>
   ({ product_id, distributor_id, distributor_name, unit_cost, last_purchase_at: "2026-10-23T00:00:00Z" });
@@ -58,4 +58,14 @@ test("purchaseLineUnitCost: caja divide por unidades, suelto usa unit_price, vac
   );
   // Línea sin costo todavía.
   assert.equal(purchaseLineUnitCost({ package_quantity: 0, loose_quantity: 0, package_price: 0, unit_price: 0, units_per_package: 1 }), null);
+});
+
+test("matchesProductSearch busca por nombre, SKU y código de barras", () => {
+  const p = { name: "Gaseosa Postobón", sku: "PRD-ABC123", barcode: "7702004000000" };
+  assert.equal(matchesProductSearch(p, "gaseosa"), true);
+  assert.equal(matchesProductSearch(p, "abc123"), true);
+  assert.equal(matchesProductSearch(p, "7702004"), true);
+  assert.equal(matchesProductSearch(p, "agua"), false);
+  // Vacía deja pasar todo.
+  assert.equal(matchesProductSearch(p, "  "), true);
 });
