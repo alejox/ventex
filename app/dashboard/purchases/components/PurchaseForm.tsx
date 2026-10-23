@@ -31,6 +31,7 @@ import { isSafeNext } from "@/lib/safe-next";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
+import { Switch } from "@/components/ui/Switch";
 import {
   validatePurchaseForm,
   hasErrors,
@@ -413,6 +414,12 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
   const icuiAmount = icuiAmountFor(icuiBase, icuiMultiplier);
   const total = ivaTotal + icuiAmount;
 
+  // Columnas de la grilla de líneas: en tienda hay una columna extra para el
+  // checkbox de ICUI por línea.
+  const lineGridCols = isTienda
+    ? "lg:grid-cols-[minmax(0,1.5fr)_80px_115px_90px_115px_minmax(0,1fr)_44px_115px_76px]"
+    : "lg:grid-cols-[minmax(0,1.5fr)_80px_115px_90px_115px_minmax(0,1fr)_115px_76px]";
+
   /**
    * D14: "Última compra" ya no pisa en silencio lo que estaba cargado. Si hay
    * líneas con producto, pregunta Reemplazar o Agregar; y si la lectura falla
@@ -775,13 +782,14 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
                 las redondea la cabecera por su cuenta (15px = 16 del contenedor
                 menos su borde de 1px). */}
             <div className="border border-outline-variant/20 rounded-2xl">
-              <div className="hidden lg:grid grid-cols-[minmax(0,1.5fr)_80px_115px_90px_115px_minmax(0,1fr)_115px_76px] gap-3 px-3 py-2.5 bg-surface-container-low rounded-t-[15px] border-b border-outline-variant/20 text-xs font-semibold text-on-surface-variant">
+              <div className={`hidden lg:grid ${lineGridCols} gap-3 px-3 py-2.5 bg-surface-container-low rounded-t-[15px] border-b border-outline-variant/20 text-xs font-semibold text-on-surface-variant`}>
                 <span>Producto</span>
                 <span className="text-center">Cajas</span>
                 <span className="text-right">Costo caja</span>
                 <span className="text-center">Unidades</span>
                 <span className="text-right">Costo unidad</span>
                 <span>Observaciones</span>
+                {isTienda && <span className="text-center">ICUI</span>}
                 <span className="text-right">Total</span>
                 <span className="sr-only">Acciones</span>
               </div>
@@ -790,7 +798,7 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
                 {lines.map((line, idx) => (
                   <div
                     key={idx}
-                    className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.5fr)_80px_115px_90px_115px_minmax(0,1fr)_115px_76px] gap-3 p-3 items-start"
+                    className={`grid grid-cols-1 ${lineGridCols} gap-3 p-3 items-start`}
                   >
                     {/* Producto */}
                     <div className="relative min-w-0">
@@ -1073,6 +1081,26 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
                         className={cellClass}
                       />
                     </div>
+
+                    {/* ICUI por línea: hereda del flag del producto al elegirlo,
+                        pero se puede cambiar a mano (por si el producto se creó
+                        sin el flag). Solo tienda. */}
+                    {isTienda && (
+                      <div>
+                        <span className="lg:hidden text-[11px] font-semibold text-on-surface-variant block mb-1">
+                          ICUI
+                        </span>
+                        <div className="flex lg:justify-center items-center lg:h-10">
+                          <Switch
+                            aria-label={`Aplica ICUI en la línea ${idx + 1}`}
+                            checked={line.icui_applies === true}
+                            onCheckedChange={(on) =>
+                              setLines((prev) => prev.map((l, i) => (i === idx ? { ...l, icui_applies: on } : l)))
+                            }
+                          />
+                        </div>
+                      </div>
+                    )}
 
                     {/* Total de la línea */}
                     <div className="flex lg:justify-end items-center lg:h-10">
