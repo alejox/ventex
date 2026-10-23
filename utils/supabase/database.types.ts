@@ -1004,6 +1004,7 @@ export type Database = {
         Row: {
           created_at: string
           description: string
+          icui_applies: boolean
           id: string
           invoice_id: string
           line_total: number
@@ -1020,6 +1021,7 @@ export type Database = {
         Insert: {
           created_at?: string
           description: string
+          icui_applies?: boolean
           id?: string
           invoice_id: string
           line_total?: number
@@ -1036,6 +1038,7 @@ export type Database = {
         Update: {
           created_at?: string
           description?: string
+          icui_applies?: boolean
           id?: string
           invoice_id?: string
           line_total?: number
@@ -1081,6 +1084,8 @@ export type Database = {
           discount_amount: number
           distributor_id: string | null
           due_date: string | null
+          icui_amount: number
+          icui_rate: number
           id: string
           invoice_number: number
           issue_date: string
@@ -1102,6 +1107,8 @@ export type Database = {
           discount_amount?: number
           distributor_id?: string | null
           due_date?: string | null
+          icui_amount?: number
+          icui_rate?: number
           id?: string
           invoice_number?: number
           issue_date?: string
@@ -1123,6 +1130,8 @@ export type Database = {
           discount_amount?: number
           distributor_id?: string | null
           due_date?: string | null
+          icui_amount?: number
+          icui_rate?: number
           id?: string
           invoice_number?: number
           issue_date?: string
@@ -1588,6 +1597,7 @@ export type Database = {
           distributor_id: string | null
           has_commission: boolean
           icon: string | null
+          icui_applies: boolean
           id: string
           image_url: string | null
           is_ingredient: boolean
@@ -1618,6 +1628,7 @@ export type Database = {
           distributor_id?: string | null
           has_commission?: boolean
           icon?: string | null
+          icui_applies?: boolean
           id?: string
           image_url?: string | null
           is_ingredient?: boolean
@@ -1648,6 +1659,7 @@ export type Database = {
           distributor_id?: string | null
           has_commission?: boolean
           icon?: string | null
+          icui_applies?: boolean
           id?: string
           image_url?: string | null
           is_ingredient?: boolean
@@ -4423,6 +4435,10 @@ export type Database = {
         }[]
       }
       public_site_slug_taken: { Args: { p_slug: string }; Returns: boolean }
+      purchase_icui_amount: {
+        Args: { p_icui_base: number; p_icui_rate: number }
+        Returns: number
+      }
       purchase_totals: {
         Args: { p_discount: number; p_subtotal: number; p_tax_rate: number }
         Returns: {
