@@ -1,6 +1,7 @@
 import { createClient } from "@/utils/supabase/client";
 import { SERVICE_UNIT, tracksStock } from "@/services/inventory.service";
-import { createSaleWithFallback } from "@/lib/sale-discounts";
+import { createSaleWithFallback, checkoutDiscounts, type CheckoutDiscounts } from "@/lib/sale-discounts";
+import { saleTaxTotals } from "@/lib/sale-tax";
 
 // ---- Tipos del dominio del POS ----
 /** Un ítem del catálogo: producto (con stock) o servicio (sin stock). */
@@ -40,6 +41,12 @@ export interface CatalogItem {
   commission_value: number | null;
   /** Lo que dura un servicio, en minutos. Los productos no lo tienen. */
   duration_minutes?: number | null;
+  /**
+   * Tasa de IVA propia del producto (`products.tax_rate`, 0..1; 0 = exento).
+   * null/ausente = usa la tasa del negocio. Los servicios no tienen tasa propia.
+   * La usa `computeTotals` (ver `lineTaxRate`), igual que `create_sale`.
+   */
+  tax_rate?: number | null;
 }
 
 export interface CustomerOption {
@@ -181,6 +188,12 @@ export interface SaleTotals {
   /** Rebaja por cliente exento de IVA (0 si no aplica). */
   exemptionDiscount: number;
   total: number;
+  /**
+   * IVA desglosado por tasa ("IVA 19 %", base exenta), de mayor a menor. Solo
+   * lo trae una venta recién calculada en el POS; ausente/vacío = no se
+   * desglosa (reimpresión, negocio sin IVA).
+   */
+  taxBreakdown?: { rate: number; base: number; tax: number }[];
 }
 
 export type PaymentMethod = "efectivo" | "tarjeta" | "transferencia" | "credito";
@@ -243,7 +256,6 @@ export interface CheckoutInput {
   clientSaleId?: string;
 }
 
-const round2 = (n: number) => Math.round(n * 100) / 100;
 
 /**
  * Total de UNA línea en centavos, igual que `create_sale`: el precio va a
@@ -259,9 +271,26 @@ export function lineTotalCents(price: number, quantity: number): number {
   return Math.round((priceCents * qtyMilli) / 1000);
 }
 
+/** Tasa de IVA de una línea: la del producto o, si no tiene, la del negocio. */
+export function lineTaxRate(line: CartLine, businessRate: number): number {
+  if (line.item.kind === "service") return businessRate;
+  return line.item.tax_rate ?? businessRate;
+}
+
+/**
+ * Los descuentos tal como viajan a `create_sale` (total, manual y por línea).
+ * Lo usan el cobro (`pos.store`) y `computeTotals`, así el total en pantalla
+ * sale de los MISMOS centavos que recibe la base.
+ */
+export function cartCheckoutDiscounts(cart: CartLine[]): CheckoutDiscounts {
+  return checkoutDiscounts(cart, (l) => linePrice(l) * l.quantity);
+}
+
 /**
  * Totales de la venta para previsualización. Espejo de la matemática del RPC
- * `create_sale`: si cambia una, tiene que cambiar la otra.
+ * `create_sale`: si cambia una, tiene que cambiar la otra. La cuenta del IVA
+ * vive en `saleTaxTotals` (`lib/sale-tax.ts`), con IVA POR LÍNEA: cada línea
+ * usa la tasa de su producto (`lineTaxRate`).
  *
  * Los precios del catálogo son PRECIO FINAL AL PÚBLICO (IVA incluido), así que
  * el IVA se deriva hacia atrás: base = precio / (1 + tasa).
@@ -271,7 +300,8 @@ export function lineTotalCents(price: number, quantity: number): number {
  * - No responsable (`!includeTax`): no hay impuesto que reportar NI que eximir.
  *   Va primero: sin IVA cobrado, un cliente exento no tiene nada que descontar.
  * - Cliente exento: no paga IVA, así que paga la base. La diferencia contra el
- *   precio de vitrina es el descuento por exención.
+ *   precio de vitrina es el descuento por exención (solo el IVA que cada línea
+ *   tenía: el pan exento se cobra completo).
  * - Responsable de IVA: el cliente paga el precio de vitrina y el recibo
  *   desglosa base + IVA.
  */
@@ -285,36 +315,24 @@ export function computeTotals(
   // con cantidades fraccionarias, un total un centavo distinto al que cobra
   // la base, y un pago dividido por ese total fallaba con "La suma de los
   // pagos no coincide".
-  const grossCents = lines.reduce((s, l) => s + lineTotalCents(linePrice(l), l.quantity), 0);
-  const discountCents = lines.reduce((s, l) => s + Math.round((l.discountAmount || 0) * 100), 0);
-  const gross = grossCents / 100;
-  const discount = discountCents / 100;
-  const neto = Math.max(grossCents - discountCents, 0) / 100;
-
-  if (!includeTax) {
-    return { gross, subtotal: neto, taxAmount: 0, discount, exemptionDiscount: 0, total: neto };
-  }
-
-  if (taxExempt) {
-    const total = round2(neto / (1 + taxRate));
-    return {
-      gross,
-      subtotal: total,
-      taxAmount: 0,
-      discount,
-      exemptionDiscount: round2(neto - total),
-      total,
-    };
-  }
-
-  const subtotal = round2(neto / (1 + taxRate));
+  const discounts = cartCheckoutDiscounts(lines);
+  const r = saleTaxTotals(
+    lines.map((l) => ({ grossCents: lineTotalCents(linePrice(l), l.quantity), rate: lineTaxRate(l, taxRate) })),
+    discounts.lines ? discounts.lines.map((d) => Math.round(d * 100)) : null,
+    Math.round(discounts.total * 100),
+    taxRate,
+    taxExempt,
+    includeTax,
+  );
+  const c = (n: number) => n / 100;
   return {
-    gross,
-    subtotal,
-    taxAmount: round2(neto - subtotal),
-    discount,
-    exemptionDiscount: 0,
-    total: neto,
+    gross: c(r.grossCents),
+    subtotal: c(r.subtotalCents),
+    taxAmount: c(r.taxCents),
+    discount: c(r.discountCents),
+    exemptionDiscount: includeTax && taxExempt ? c(r.netCents - r.totalCents) : 0,
+    total: c(r.totalCents),
+    taxBreakdown: r.groups.map((g) => ({ rate: g.rate, base: c(g.baseCents), tax: c(g.taxCents) })),
   };
 }
 
@@ -324,7 +342,7 @@ export async function fetchCatalog(): Promise<CatalogItem[]> {
   const [productsRes, servicesRes] = await Promise.all([
     supabase
       .from("products")
-      .select("id, name, sku, barcode, unit, price, package_price, units_per_package, stock_level, tracks_stock, open_price, allows_fractions, image_url, has_commission, commission_type, commission_value, category_id, categories(name)")
+      .select("id, name, sku, barcode, unit, price, package_price, units_per_package, stock_level, tracks_stock, open_price, allows_fractions, image_url, has_commission, commission_type, commission_value, category_id, tax_rate, categories(name)")
       // Un servicio entra por `services`, nunca por acá: las filas con unidad
       // "Servicio" son legadas y su servicio ya viaja en la otra consulta.
       .neq("unit", SERVICE_UNIT)
@@ -400,6 +418,8 @@ export async function fetchCatalog(): Promise<CatalogItem[]> {
       has_commission: p.has_commission ?? false,
       commission_type: (p.commission_type ?? null) as "percentage" | "fixed" | null,
       commission_value: p.commission_value ?? null,
+      // IVA propio del producto; null = la tasa del negocio (como create_sale).
+      tax_rate: p.tax_rate ?? null,
     };
   });
 

@@ -3,6 +3,7 @@
 import React from "react";
 import { useFormatMoney } from "@/lib/useMoney";
 import type { ReceiptData } from "@/lib/receipt";
+import { taxSummaryRows } from "@/lib/sale-tax";
 import { normalizeReceiptSettings, normalizePaperWidth, type ReceiptSettings, type PaperWidth } from "@/lib/receipt-settings";
 
 export type { ReceiptData } from "@/lib/receipt";
@@ -185,6 +186,15 @@ export function ReceiptContent({ data, settings, paperWidth, sample }: ContentPr
                     <span className="font-bold">IVA:</span>
                     <span>{fmtMoney(data.totals.taxAmount)}</span>
                   </div>
+                  {/* Venta con varias tasas (pan exento + gaseosa al 19 %):
+                      el detalle por tasa, como una factura. */}
+                  {(data.totals.taxBreakdown?.length ?? 0) > 1 &&
+                    taxSummaryRows(data.totals.taxBreakdown, 0, data.totals.taxAmount).map((row) => (
+                      <div key={row.label} className="flex justify-between pl-2">
+                        <span>{row.label}:</span>
+                        <span>{fmtMoney(row.amount)}</span>
+                      </div>
+                    ))}
                 </>
               ) : (
                 <div className="flex justify-between">

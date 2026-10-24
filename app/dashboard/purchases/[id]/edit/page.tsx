@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { useDistributorsStore } from "@/stores/distributors.store";
 import { useInventoryStore } from "@/stores/inventory.store";
 import { toMessage } from "@/lib/errors";
+import { purchaseLineRateOf } from "@/lib/purchase-totals";
 import * as purchasesService from "@/services/purchases.service";
 import type { PurchaseInvoice } from "@/services/purchases.service";
 import { PurchaseForm, type PurchaseLineForm } from "../../components/PurchaseForm";
@@ -57,6 +58,10 @@ export default function EditPurchasePage() {
               units_per_package: item.units_per_package,
               icui_applies: item.icui_applies === true,
               discount_amount: item.discount_amount ?? 0,
+              // Línea legada (anterior al IVA por línea, `tax_rate` null): se
+              // muestra con la tasa de la CABECERA guardada, que es la que la
+              // base le aplica.
+              tax_rate: purchaseLineRateOf(item.tax_rate, found.tax_rate),
             }))
           );
         }

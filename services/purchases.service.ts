@@ -1,5 +1,5 @@
 import { createClient } from "@/utils/supabase/client";
-import { purchaseTotalsOf } from "@/lib/purchase-totals";
+import { purchaseTotalsByLine } from "@/lib/purchase-totals";
 import { isUnknownSignatureError } from "@/lib/sale-discounts";
 import type { DistributorPrice } from "@/lib/price-comparison";
 
@@ -47,8 +47,14 @@ export interface PurchaseInvoiceItem {
   line_total: number;
   /** Unidades por caja congeladas al comprar. */
   units_per_package: number;
-  /** Snapshot del flag del producto: esta línea aporta al ICUI de la compra. */
+  /** Esta línea aporta al ICUI de la compra (lo eligió la línea o, si no, el producto). */
   icui_applies: boolean;
+  /**
+   * Tasa de IVA de la línea (0..1; 0 = exenta). `null` = línea LEGADA, guardada
+   * antes del IVA por línea (20261024100000): usa `invoices.tax_rate` de la
+   * cabecera — resuélvela con `purchaseLineRateOf(item.tax_rate, invoice.tax_rate)`.
+   */
+  tax_rate: number | null;
   /** Descuento individual de la línea. */
   discount_amount: number;
   products?: { name: string; sku: string } | null;
@@ -60,7 +66,7 @@ export interface PurchaseInvoiceItem {
  * El servicio deriva de acá el `quantity` canónico; quien llama no tiene que
  * saber la cuenta.
  */
-interface PurchaseLineInput {
+export interface PurchaseLineInput {
   product_id: string;
   description: string;
   /** Cajas recibidas. 0 si el producto no viene por caja. */
@@ -74,6 +80,17 @@ interface PurchaseLineInput {
   units_per_package: number;
   /** Descuento individual de la línea, restado de su total. */
   discount_amount: number;
+  /**
+   * Tasa de IVA de la línea (0..1; 0 = exenta). El formulario la manda SIEMPRE
+   * (hereda `product.tax_rate ?? tasa del negocio`). Si se omite, la base usa
+   * `coalesce(producto.tax_rate, invoices.tax_rate)`.
+   */
+  tax_rate?: number;
+  /**
+   * La línea aporta al ICUI. Si viene, MANDA sobre el flag del producto; si se
+   * omite, la base toma `products.icui_applies`.
+   */
+  icui_applies?: boolean;
 }
 
 const perPackage = (units: number) => Math.max(units || 1, 1);
@@ -128,6 +145,11 @@ export interface PurchaseInvoiceParams {
   supplier_invoice_number: string;
   status: string;
   items: PurchaseLineInput[];
+  /**
+   * Tasa de IVA de CABECERA (`invoices.tax_rate`): la del negocio en esta
+   * compra. Ya no decide el IVA (cada línea trae el suyo); queda como snapshot
+   * y como tasa de las líneas legadas o de las que no traigan `tax_rate`.
+   */
   tax_rate?: number;
   /** Tasa de ICUI (0..1). 0 = sin ICUI. */
   icui_rate?: number;
@@ -144,7 +166,7 @@ const INVOICE_SELECT = `
 
 const ITEM_SELECT = `
   id, invoice_id, product_id, description, quantity, package_quantity,
-  unit_price, package_price, line_total, units_per_package, icui_applies, discount_amount,
+  unit_price, package_price, line_total, units_per_package, icui_applies, tax_rate, discount_amount,
   products(name, sku)
 `;
 
@@ -283,15 +305,22 @@ function toRpcItems(items: PurchaseLineInput[]) {
     // La base lo recalcula; se manda igual para la RPC vieja (fallback).
     line_total: lineTotalOf(i),
     units_per_package: i.units_per_package,
+    // Solo si vienen: sin la clave la base deriva del producto.
+    ...(i.tax_rate != null ? { tax_rate: i.tax_rate } : {}),
+    ...(i.icui_applies != null ? { icui_applies: i.icui_applies } : {}),
   }));
 }
 
-/** Totales con la misma cuenta que la base (el descuento ya está en cada línea). */
+/**
+ * Totales con la misma cuenta que la base (el descuento ya está en cada línea;
+ * IVA por línea, la de cabecera para la línea que no trae tasa).
+ */
 function totalsFor(params: PurchaseInvoiceParams) {
-  const subtotal = params.items.reduce((s, i) => s + lineTotalOf(i), 0);
   const discountTotal = params.items.reduce((s, i) => s + (i.discount_amount ?? 0), 0);
-  const { subtotal: s, taxAmount, total } = purchaseTotalsOf(subtotal, 0, params.tax_rate ?? 0);
-  return { subtotal: s, taxAmount, total, discountTotal };
+  const { subtotal, taxAmount, total } = purchaseTotalsByLine(
+    params.items.map((i) => ({ lineTotal: lineTotalOf(i), taxRate: i.tax_rate ?? params.tax_rate ?? 0 })),
+  );
+  return { subtotal, taxAmount, total, discountTotal };
 }
 
 /**

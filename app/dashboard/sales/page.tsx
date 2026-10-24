@@ -35,6 +35,7 @@ import { downloadCsv, downloadXlsx, exportFilename, inclusiveEnd, sheet } from "
 import { toISODate, todayISO } from "@/lib/date";
 import { ExportButtons } from "@/components/ui/ExportButtons";
 import { Modal } from "@/components/ui/Modal";
+import { saleTaxLabel } from "@/lib/sale-tax";
 
 const formatDate = (iso: string) =>
   new Date(iso).toLocaleString("es-CO", {
@@ -805,7 +806,7 @@ export default function SalesPage() {
                       venta (vieja) lo haya cobrado de verdad. */}
                   {((settings?.include_tax ?? true) || Number(detail.tax_amount) > 0) && (
                     <div className="flex justify-between text-sm">
-                      <span className="text-on-surface-variant">Impuesto ({Math.round(detail.tax_rate * 100)}%)</span>
+                      <span className="text-on-surface-variant">{saleTaxLabel(detail.tax_rate, detail.items.map((i) => i.tax_rate))}</span>
                       <span className="text-on-surface font-medium">{fmtMoney(detail.tax_amount)}</span>
                     </div>
                   )}

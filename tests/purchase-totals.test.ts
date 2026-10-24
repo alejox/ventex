@@ -1,6 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { purchaseTaxRateFor, purchaseTotalsOf } from "../lib/purchase-totals";
+import {
+  purchaseLineRateOf,
+  purchaseLineTax,
+  purchaseTaxRateFor,
+  purchaseTotalsByLine,
+  purchaseTotalsOf,
+} from "../lib/purchase-totals";
+import { icuiAmountFor } from "../lib/icui";
 import { lineTotalOf } from "../services/purchases.service";
 
 test("el IVA va sobre subtotal − descuento, no sobre el subtotal", () => {
@@ -52,4 +59,52 @@ test("los códigos de compras llegan traducidos", async () => {
   );
   assert.match(toMessage({ message: "DESCUENTO_COMPRA_INVALIDO: x" }), /mayor que el subtotal/);
   assert.match(toMessage({ message: "PEDIDO_NO_EMITIDO: x" }), /ya no está pendiente/);
+});
+
+test("IVA por línea: la factura real (Pingüinos 19 % + ICUI, pan y tostadas exentos)", () => {
+  // Mismo caso que supabase/manual-tests/20261024100000_purchase_line_tax_rate.rollback.sql.
+  const lines = [
+    { lineTotal: 7014, taxRate: 0.19 },
+    { lineTotal: 17001, taxRate: 0 },
+    { lineTotal: 12332, taxRate: 0 },
+  ];
+  const t = purchaseTotalsByLine(lines);
+  assert.deepEqual(t, { subtotal: 36347, taxAmount: 1332.66, total: 37679.66 });
+  const icui = icuiAmountFor(7014, 0.2);
+  assert.equal(icui, 1402.8);
+  assert.equal(Math.round((t.total + icui) * 100) / 100, 39082.46);
+  // La tasa única de cabecera (la cuenta vieja) cobraba IVA sobre lo exento.
+  assert.equal(purchaseTotalsOf(36347, 0, 0.19).taxAmount, 6905.93);
+});
+
+test("purchaseLineTax redondea POR LÍNEA, mitad hacia arriba, como la base", () => {
+  assert.equal(purchaseLineTax(0.5, 0.05), 0.03); // 0,025 → 0,03
+  assert.equal(purchaseLineTax(10.05, 0.19), 1.91); // 1,9095 → 1,91
+  assert.equal(purchaseLineTax(-100, 0.19), 0); // greatest(…, 0)
+  assert.equal(purchaseLineTax(100, 0), 0);
+  // Redondear por línea puede diferir de redondear la suma: manda la línea.
+  const byLine = purchaseTotalsByLine([
+    { lineTotal: 0.5, taxRate: 0.05 },
+    { lineTotal: 0.5, taxRate: 0.05 },
+  ]);
+  assert.equal(byLine.taxAmount, 0.06);
+  assert.equal(purchaseTotalsOf(1, 0, 0.05).taxAmount, 0.05);
+});
+
+test("sumas en centavos: sin artefactos de punto flotante", () => {
+  const t = purchaseTotalsByLine([
+    { lineTotal: 0.1, taxRate: 0 },
+    { lineTotal: 0.2, taxRate: 0 },
+  ]);
+  assert.equal(t.subtotal, 0.3);
+  assert.equal(t.total, 0.3);
+  assert.deepEqual(purchaseTotalsByLine([]), { subtotal: 0, taxAmount: 0, total: 0 });
+});
+
+test("línea legada (tax_rate null) usa la tasa de la cabecera", () => {
+  assert.equal(purchaseLineRateOf(null, 0.19), 0.19);
+  assert.equal(purchaseLineRateOf(undefined, 0.19), 0.19);
+  assert.equal(purchaseLineRateOf(0, 0.19), 0); // exenta explícita NO cae a la cabecera
+  assert.equal(purchaseLineRateOf(0.05, 0.19), 0.05);
+  assert.equal(purchaseLineRateOf(null, null), 0);
 });

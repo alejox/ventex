@@ -55,6 +55,11 @@ interface SaleLine {
    * si además de deshacer la venta hay plata que ya salió por ella.
    */
   commission_settlement_id: string | null;
+  /**
+   * Tasa de IVA efectiva de la línea al vender (`sale_items.tax_rate`). null =
+   * venta anterior al IVA por línea: vale `sales.tax_rate`.
+   */
+  tax_rate?: number | null;
 }
 
 // El detalle NO hereda las métricas del ítem filtrado: son propiedades de la
@@ -324,7 +329,7 @@ const one = <T,>(embed: unknown): T | null => {
 // llega a la tabla por dos caminos (la cabecera y cada línea) y PostgREST no
 // tiene por qué adivinar cuál es cuál.
 const DETAIL_SELECT =
-  "id, sale_number, created_at, payment_method, transfer_method, card_method, status, subtotal, discount_amount, tax_rate, tax_amount, total, customers(full_name), staff!sales_staff_id_fkey(full_name), sale_items(id, product_name, sku, unit_price, quantity, line_total, unit_kind, units_per_item, commission_amount, commission_settlement_id, staff!sale_items_staff_id_fkey(full_name))";
+  "id, sale_number, created_at, payment_method, transfer_method, card_method, status, subtotal, discount_amount, tax_rate, tax_amount, total, customers(full_name), staff!sales_staff_id_fkey(full_name), sale_items(id, product_name, sku, unit_price, quantity, line_total, unit_kind, units_per_item, commission_amount, commission_settlement_id, tax_rate, staff!sale_items_staff_id_fkey(full_name))";
 
 export const SALES_PAGE_SIZE = 50;
 
@@ -424,6 +429,7 @@ export async function fetchSaleDetail(saleId: string): Promise<SaleDetail> {
     staff_name: one<{ full_name: string }>(it.staff)?.full_name ?? null,
     commission_amount: (it.commission_amount as number) ?? 0,
     commission_settlement_id: (it.commission_settlement_id as string | null) ?? null,
+    tax_rate: (it.tax_rate as number | null) ?? null,
   }));
   return {
     id: data.id,

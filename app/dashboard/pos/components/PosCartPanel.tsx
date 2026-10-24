@@ -19,6 +19,7 @@ import { useProfile } from "@/components/ProfileProvider";
 import { formatQty, parseQuantityDraft } from "@/lib/stock";
 import { creditAlertText } from "@/lib/credits";
 import { useFormatMoney } from "@/lib/useMoney";
+import { taxSummaryRows } from "@/lib/sale-tax";
 import type { DiscountBreakdownEntry } from "@/lib/pos-discount-breakdown";
 import { Switch } from "@/components/ui/Switch";
 
@@ -740,10 +741,14 @@ export function PosCartPanel({
                     <span>Subtotal (base)</span>
                     <span className="font-semibold text-on-surface">{fmtMoney(totals.subtotal)}</span>
                   </div>
-                  <div className="flex justify-between text-sm text-on-surface-variant">
-                    <span>IVA ({(taxRate * 100).toFixed(0)}%)</span>
-                    <span className="font-semibold text-on-surface">{fmtMoney(totals.taxAmount)}</span>
-                  </div>
+                  {/* Una fila por tasa cuando el carrito mezcla tasas (pan exento
+                      + gaseosa al 19 %), igual que el recibo. */}
+                  {taxSummaryRows(totals.taxBreakdown, taxRate, totals.taxAmount).map((row) => (
+                    <div key={row.label} className="flex justify-between text-sm text-on-surface-variant">
+                      <span>{row.label}</span>
+                      <span className="font-semibold text-on-surface">{fmtMoney(row.amount)}</span>
+                    </div>
+                  ))}
                 </>
               ) : (
                 <div className="flex justify-between text-sm text-on-surface-variant">

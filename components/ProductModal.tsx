@@ -13,7 +13,7 @@ import { useBusinessTax } from "@/lib/useBusinessTax";
 import { usePricePair } from "@/lib/usePricePair";
 import { createSubmitGuard } from "@/lib/submit-guard";
 import { productImageUrl } from "@/lib/product-image";
-import { priceMultipliers } from "@/lib/product-tax";
+import { productPriceMultipliers, effectiveProductTaxRate, productTaxLabel } from "@/lib/product-tax";
 import { MoneyInput } from "@/components/ui/MoneyInput";
 import { Select } from "@/components/ui/Select";
 import { Switch } from "@/components/ui/Switch";
@@ -73,7 +73,7 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
   }, [categories.length, fetchInventory]);
 
   // La tasa sale de los ajustes del negocio, no de un 19% escrito a mano.
-  const { rate: taxRate, rawRate, includeTax, percentLabel, rawPercentLabel } = useBusinessTax();
+  const { rawRate, includeTax } = useBusinessTax();
 
   const [name, setName] = useState("");
   const [barcode, setBarcode] = useState(initialBarcode ?? "");
@@ -91,8 +91,9 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
   const [unitsPerPackage, setUnitsPerPackage] = useState("24");
   /** Unidad o caja: define cómo se cuenta el stock y si se ofrece precio de caja. */
   const [presentation, setPresentation] = useState<"unit" | "package">("unit");
-  const [tax, setTax] = useState("IVA");
   const [icuiApplies, setIcuiApplies] = useState(false);
+  /** IVA propio del producto. "" = usa la tasa del negocio (null en la base). */
+  const [productTaxRate, setProductTaxRate] = useState("");
   const [packageSellingPrice, setPackageSellingPrice] = useState("");
 
   /** El stock siempre se guarda en unidades sueltas: una caja son N. */
@@ -151,16 +152,21 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
   const { product: lookedUp, searching } = useBarcodeLookup(barcode, handleBarcodeFound);
 
   // Base y total, editables por los dos lados: escribir uno recalcula el otro.
-  // Sin IVA en el negocio, los precios se guardan tal cual se escriben.
-  const { purchase: purchaseMultiplier, selling: taxMultiplier } = priceMultipliers({
+  // Sin IVA en el negocio, los precios se guardan tal cual se escriben. La tasa
+  // es la del campo "IVA" de abajo (la del producto, o la del negocio), la
+  // MISMA que se guarda y que cobra `create_sale`: ya no hay un selector aparte.
+  const productRate = productTaxRate === "" ? null : Number(productTaxRate);
+  const effectiveRate = effectiveProductTaxRate(productRate, rawRate);
+  const { purchase: purchaseMultiplier, selling: taxMultiplier } = productPriceMultipliers({
     includeTax,
-    rate: taxRate,
-    rawRate,
-    purchaseTax: tax,
-    sellingTax: tax,
+    businessRate: rawRate,
+    productRate,
   });
-  const [packagePrice, setPackagePrice] = usePricePair(purchaseMultiplier, `${includeTax}:${rawRate}`);
-  const [unitPrice, setUnitPrice] = usePricePair(taxMultiplier, `${includeTax}:${rawRate}`);
+  // La tasa va en la clave: cambiar el IVA conserva el TOTAL (precio de
+  // vitrina, lo que se guarda) y rehace la base.
+  const [packagePrice, setPackagePrice] = usePricePair(purchaseMultiplier, `${includeTax}:${rawRate}:${effectiveRate}`);
+  const [unitPrice, setUnitPrice] = usePricePair(taxMultiplier, `${includeTax}:${rawRate}:${effectiveRate}`);
+  const taxLabel = productTaxLabel(effectiveRate);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -186,6 +192,7 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
           commission_type: "percentage",
           commission_value: "",
           icui_applies: icuiApplies,
+          tax_rate: productTaxRate === "" ? null : Number(productTaxRate),
           units_per_package: presentation === "package" ? (unitsPerPackage || "1") : "1",
         },
         imageFile,
@@ -434,6 +441,21 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
             </div>
           )}
 
+          {/* IVA del producto: mismo campo que la ficha avanzada. Se usa al
+              vender y al comprar (cada línea de compra lo hereda). */}
+          <Select
+            id="quick-product-tax-rate"
+            label="IVA"
+            hint="Se aplica al vender, al comprar y en la calculadora de precios."
+            value={productTaxRate}
+            onChange={(e) => setProductTaxRate(e.target.value)}
+          >
+            <option value="">Tasa del negocio ({+(rawRate * 100).toFixed(2)} %)</option>
+            <option value="0">Exento (0 %)</option>
+            <option value="0.05">5 %</option>
+            <option value="0.19">19 %</option>
+          </Select>
+
           {/* Sección de precios. Sin IVA en el negocio: compra y venta son un
               campo cada uno, lado a lado desde `sm`, sin base ni selector. */}
           {!includeTax ? (
@@ -496,15 +518,14 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
                   />
                 </div>
                 <div className="pb-3 text-primary font-bold text-lg hidden sm:block">+</div>
-                <Select
-                  label="Impuestos"
-                  containerClassName="flex-1 w-full"
-                  value={tax}
-                  onChange={(e) => setTax(e.target.value)}
-                >
-                  <option value="Ninguno">Ninguno</option>
-                  <option value="IVA">IVA {rawPercentLabel}</option>
-                </Select>
+                <div className="space-y-1.5 flex-1 w-full">
+                  <span className="flex items-center gap-1 text-sm font-semibold text-on-surface">IVA</span>
+                  <p className="py-3 text-sm text-on-surface-variant">
+                    {effectiveRate > 0
+                      ? `${taxLabel} → ${fmtMoney(Math.max(parseFloat(packagePrice.total || "0") - parseFloat(packagePrice.base || "0"), 0))}`
+                      : taxLabel}
+                  </p>
+                </div>
                 <div className="pb-3 text-primary font-bold text-lg hidden sm:block">=</div>
                 <div className="space-y-1.5 flex-1 w-full">
                   <label className="flex items-center gap-1 text-sm font-semibold text-on-surface">
@@ -522,9 +543,9 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
                 <div>
                   <h3 className="text-sm font-bold text-on-surface">Precio de venta (unidad)</h3>
                   <p className="text-xs text-on-surface-variant mt-0.5">
-                    {includeTax
-                      ? "El Total es el precio de vitrina: el IVA se desglosa hacia atrás."
-                      : "Tu negocio no factura IVA: el precio de venta no lo suma, aunque sí lo pagues al proveedor."}
+                    {effectiveRate > 0
+                      ? `El Total es el precio de vitrina: el ${taxLabel} se desglosa hacia atrás.`
+                      : "Producto exento de IVA: el precio de vitrina es la base."}
                   </p>
                 </div>
                 <div className="flex flex-col sm:flex-row sm:items-end gap-3">
@@ -542,11 +563,11 @@ export function ProductModal({ onClose, onCreated, initialBarcode }: ProductModa
                   <div className="space-y-1 flex-1 w-full">
                     <label className="flex items-center gap-1 text-xs font-semibold text-on-surface">IVA</label>
                     <div className="pt-3 text-xs text-on-surface-variant">
-                      {tax === "Ninguno"
-                        ? "Sin IVA"
-                        : `${percentLabel} → ${fmtMoney(
-                            parseFloat(unitPrice.total || "0") - parseFloat(unitPrice.base || "0"),
-                          )}`}
+                      {effectiveRate > 0
+                        ? `${taxLabel} → ${fmtMoney(
+                            Math.max(parseFloat(unitPrice.total || "0") - parseFloat(unitPrice.base || "0"), 0),
+                          )}`
+                        : taxLabel}
                     </div>
                   </div>
                   <div className="pb-3 text-primary font-bold text-lg hidden sm:block">=</div>

@@ -15,7 +15,8 @@ import { usePurchasesStore } from "@/stores/purchases.store";
 import { useProfile } from "@/components/ProfileProvider";
 import { can } from "@/lib/permissions";
 import { useBusinessTax } from "@/lib/useBusinessTax";
-import { purchaseTaxRateFor, purchaseTotalsOf } from "@/lib/purchase-totals";
+import { purchaseLineTax, purchaseTotalsByLine } from "@/lib/purchase-totals";
+import { toCents, fromCents } from "@/lib/money-sum";
 import { icuiRateFor, icuiAmountFor } from "@/lib/icui";
 import { bestOtherPrice, purchaseLineUnitCost, type DistributorPrice } from "@/lib/price-comparison";
 import type { Product } from "@/services/inventory.service";
@@ -39,6 +40,8 @@ import {
   FIELD_IDS,
   applyLastPurchase,
   hasFilledLines,
+  vatRateLabel,
+  vatRateOptions,
 } from "../purchase-form-validation";
 import { useUnsavedChangesGuard } from "@/lib/unsaved-changes";
 
@@ -72,6 +75,12 @@ export interface PurchaseLineForm {
   icui_applies?: boolean;
   /** Descuento individual de la línea, restado de su total. */
   discount_amount: number;
+  /**
+   * Tasa de IVA de ESTA línea (0..1; 0 = exenta). Al elegir producto hereda
+   * `product.tax_rate ?? tasa del negocio`, y se puede cambiar a mano: una
+   * misma factura de proveedor mezcla productos con 19 %, 5 % y exentos.
+   */
+  tax_rate: number;
 }
 
 interface DropdownRect {
@@ -97,7 +106,8 @@ function rectFor(el: HTMLElement): DropdownRect {
   };
 }
 
-const EMPTY_LINE: PurchaseLineForm = {
+/** Una fila vacía. Arranca con la tasa de IVA del negocio; elegir producto la re-deriva. */
+const emptyLine = (taxRate: number): PurchaseLineForm => ({
   product_id: "",
   product_name: "",
   description: "",
@@ -108,7 +118,8 @@ const EMPTY_LINE: PurchaseLineForm = {
   units_per_package: 1,
   icui_applies: false,
   discount_amount: 0,
-};
+  tax_rate: taxRate,
+});
 
 interface PurchaseFormProps {
   /** `null` para un alta; la factura cuando se está editando. */
@@ -158,7 +169,6 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
   const isTienda = profile?.businessType === "tienda";
   const {
     rawRate: businessTaxRate,
-    rawPercentLabel: percentLabel,
     icuiRate: businessIcuiRate,
     icuiPercentLabel,
   } = useBusinessTax();
@@ -171,20 +181,17 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
   );
   const [status, setStatus] = useState(editingInvoice?.status ?? "paid");
   /**
-   * Una compra NUEVA arranca con IVA si el negocio tiene tasa configurada.
+   * El IVA es POR LÍNEA (`PurchaseLineForm.tax_rate`): ya no hay un selector
+   * de cabecera que lo aplique al subtotal entero, porque una factura de
+   * proveedor mezcla productos gravados y exentos.
    *
-   * Arrancaba en "Ninguno" y la fila del IVA simplemente no aparecía, así que
-   * parecía roto. Una factura de proveedor casi siempre trae IVA, y —como
-   * documenta `useBusinessTax`— un negocio no responsable igual lo PAGA aunque
-   * no pueda descontarlo: ponerlo en cero por defecto hacía desaparecer un
-   * impuesto realmente pagado. Se puede cambiar a "Ninguno" en el selector.
-   *
-   * Editando manda lo que se guardó, no este default.
+   * La tasa de la CABECERA (`invoices.tax_rate`) se sigue guardando como la
+   * tasa por defecto de esa compra: editando se conserva la guardada (si el
+   * negocio cambió su IVA después, reabrir una compra vieja no se la cambia);
+   * en una compra nueva es la configurada. Un negocio no responsable igual
+   * PAGA IVA a sus proveedores (ver `useBusinessTax`): por eso `rawRate`.
    */
-  const [taxOption, setTaxOption] = useState(() => {
-    if (editingInvoice) return editingInvoice.tax_rate > 0 ? "IVA" : "Ninguno";
-    return "IVA";
-  });
+  const headerTaxRate = editingInvoice ? editingInvoice.tax_rate ?? 0 : businessTaxRate;
   /**
    * ICUI: individual, por producto. El monto se calcula SOLO sobre las líneas
    * cuyo producto tiene `icui_applies`; este selector decide si la compra lleva
@@ -196,7 +203,7 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
   });
   const [notes, setNotes] = useState(editingInvoice?.notes ?? "");
   const [lines, setLines] = useState<PurchaseLineForm[]>(
-    initialLines.length > 0 ? initialLines : [{ ...EMPTY_LINE }]
+    initialLines.length > 0 ? initialLines : [emptyLine(businessTaxRate)]
   );
   /** Precios por proveedor (historial de compras), para la alerta de "más caro". */
   const [priceRows, setPriceRows] = useState<DistributorPrice[]>([]);
@@ -225,7 +232,7 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
    * el que abrió el formulario (tomada una sola vez, en el primer render).
    */
   const snapshot = JSON.stringify({
-    distributorId, issueDate, dueDate, supplierInvoiceNumber, status, taxOption, icuiOption, notes, lines,
+    distributorId, issueDate, dueDate, supplierInvoiceNumber, status, icuiOption, notes, lines,
   });
   const [initialSnapshot] = useState(snapshot);
   const dirty = snapshot !== initialSnapshot;
@@ -319,7 +326,7 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
   const unitLabel = (productId: string) =>
     products.find((p) => p.id === productId)?.unit || "Unidad";
 
-  const handleAddLine = () => setLines((prev) => [...prev, { ...EMPTY_LINE }]);
+  const handleAddLine = () => setLines((prev) => [...prev, emptyLine(businessTaxRate)]);
 
   /**
    * Inserta una fila JUSTO DEBAJO de aquella cuyo "+" se tocó, no al final.
@@ -327,7 +334,7 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
    * larga obliga a buscar dónde apareció.
    */
   const handleInsertLineAfter = (idx: number) =>
-    setLines((prev) => [...prev.slice(0, idx + 1), { ...EMPTY_LINE }, ...prev.slice(idx + 1)]);
+    setLines((prev) => [...prev.slice(0, idx + 1), emptyLine(businessTaxRate), ...prev.slice(idx + 1)]);
 
   /**
    * Abre el modal de alta apuntando a la primera fila vacía; si no hay ninguna,
@@ -378,6 +385,8 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
               units_per_package: Math.max(product.units_per_package ?? 1, 1),
               // ICUI: heredado del flag del producto (individual, por producto).
               icui_applies: product.icui_applies === true,
+              // IVA: el del producto si lo tiene (exento, 5 %…); si no, el del negocio.
+              tax_rate: product.tax_rate ?? businessTaxRate,
               // Un producto recién elegido arranca sin descuento.
               discount_amount: 0,
             }
@@ -386,24 +395,39 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
     );
     setShowDropdown(null);
     setProductSearch("");
-  }, []);
+  }, [businessTaxRate]);
 
 
-  // Editando, la tasa GUARDADA manda: si el negocio cambió su IVA después,
-  // reabrir una compra vieja no le recalcula el impuesto en silencio.
-  const taxMultiplier = purchaseTaxRateFor(taxOption, editingInvoice?.tax_rate, businessTaxRate);
-  const ivaLabel =
-    editingInvoice && editingInvoice.tax_rate > 0
-      ? `${+(editingInvoice.tax_rate * 100).toFixed(2)}%`
-      : percentLabel;
   // El descuento vive en cada línea: el subtotal ya lo descuenta. Acá se suma
   // solo para mostrarlo como total de descuentos.
   const discountsTotal = lines.reduce((s, l) => s + (l.discount_amount || 0), 0);
-  // IVA sobre el subtotal neto (descuentos ya restados en cada línea).
-  const { subtotal, taxAmount, total: ivaTotal } = useMemo(
-    () => purchaseTotalsOf(lines.reduce((s, l) => s + lineTotalOf(l), 0), 0, taxMultiplier),
-    [lines, taxMultiplier]
+  // IVA POR LÍNEA, redondeado línea a línea como lo imprime el proveedor
+  // (espejo de `recompute_purchase_invoice_totals` en la base).
+  const { subtotal, total: ivaTotal } = useMemo(
+    () => purchaseTotalsByLine(lines.map((l) => ({ lineTotal: lineTotalOf(l), taxRate: l.tax_rate }))),
+    [lines]
   );
+  /**
+   * IVA desglosado por tasa ("IVA 19 %", "IVA 5 %"), como la factura del
+   * proveedor. Se acumula en centavos; las exentas no generan fila.
+   */
+  const ivaByRate = useMemo(() => {
+    const cents = new Map<number, number>();
+    for (const l of lines) {
+      const rate = l.tax_rate || 0;
+      if (rate <= 0) continue;
+      cents.set(rate, (cents.get(rate) ?? 0) + toCents(purchaseLineTax(lineTotalOf(l), rate)));
+    }
+    return [...cents.entries()]
+      .sort(([a], [b]) => b - a)
+      .map(([rate, c]) => ({ rate, amount: fromCents(c) }));
+  }, [lines]);
+  // Opciones del selector de IVA: exento, 5 %, la del negocio y cualquier tasa
+  // que ya traiga alguna línea (una compra vieja con otra tasa).
+  const lineRates = lines.map((l) => l.tax_rate);
+  const vatOptions = vatRateOptions(businessTaxRate, [headerTaxRate, ...lineRates]);
+  const applyVatToAll = (rate: number) =>
+    setLines((prev) => prev.map((l) => ({ ...l, tax_rate: rate })));
   // ICUI: SOLO las líneas de productos marcados. Individual, no sobre el total.
   const icuiMultiplier = icuiRateFor(icuiOption, editingInvoice?.icui_rate, businessIcuiRate);
   // Editando manda la tasa GUARDADA, igual que el IVA; si no, la configurada.
@@ -420,10 +444,10 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
 
   // Columnas de la grilla de líneas: en tienda hay una columna extra para el
   // checkbox de ICUI por línea. El descuento por línea va entre costo unidad y
-  // observaciones.
+  // observaciones; el IVA por línea, después de observaciones (todos los rubros).
   const lineGridCols = isTienda
-    ? "lg:grid-cols-[minmax(0,1.5fr)_80px_115px_90px_115px_90px_minmax(0,1fr)_44px_115px_76px]"
-    : "lg:grid-cols-[minmax(0,1.5fr)_80px_115px_90px_115px_90px_minmax(0,1fr)_115px_76px]";
+    ? "lg:grid-cols-[minmax(0,1.5fr)_80px_115px_90px_115px_90px_minmax(0,1fr)_112px_44px_115px_76px]"
+    : "lg:grid-cols-[minmax(0,1.5fr)_80px_115px_90px_115px_90px_minmax(0,1fr)_112px_115px_76px]";
 
   /**
    * D14: "Última compra" ya no pisa en silencio lo que estaba cargado. Si hay
@@ -450,8 +474,9 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
         package_price: i.package_price,
         units_per_package: i.units_per_package,
         discount_amount: i.discount_amount ?? 0,
-        // ICUI re-derivado del producto HOY, no del snapshot de la compra vieja.
+        // ICUI e IVA re-derivados del producto HOY, no del snapshot de la compra vieja.
         icui_applies: products.find((p) => p.id === i.product_id)?.icui_applies === true,
+        tax_rate: products.find((p) => p.id === i.product_id)?.tax_rate ?? businessTaxRate,
       }));
       if (hasFilledLines(lines)) setPendingLastLines(incoming);
       else setLines(applyLastPurchase(lines, incoming, "replace"));
@@ -517,7 +542,8 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
         ...l,
         description: l.description || l.product_name,
       })),
-      tax_rate: taxMultiplier,
+      // Tasa por defecto/snapshot de la compra; el IVA real va en cada línea.
+      tax_rate: headerTaxRate,
       icui_rate: isTienda ? icuiMultiplier : 0,
       due_date: dueDate,
       notes,
@@ -730,9 +756,23 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
                 {errors?.dueDate && <p className="mt-1 text-xs text-error">{errors.dueDate}</p>}
               </div>
 
-              <Select label="Impuesto" value={taxOption} onChange={(e) => setTaxOption(e.target.value)}>
-                <option value="Ninguno">Ninguno</option>
-                <option value="IVA">IVA {ivaLabel}</option>
+              {/* Acción, no estado: el IVA vive en cada línea. Esto solo pone
+                  la misma tasa en todas de una vez (p. ej. una factura toda
+                  exenta) y vuelve a quedar en blanco. */}
+              <Select
+                label="Aplicar IVA a todas las líneas"
+                value=""
+                onChange={(e) => {
+                  if (e.target.value !== "") applyVatToAll(Number(e.target.value));
+                }}
+                hint="Cada línea tiene su IVA; aquí lo cambias en todas a la vez."
+              >
+                <option value="">Elegir tasa…</option>
+                {vatOptions.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
               </Select>
 
               {/* ICUI: impuesto individual, solo sobre los productos marcados.
@@ -794,6 +834,7 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
                 <span className="text-right">Costo unidad</span>
                 <span className="text-right">Descuento</span>
                 <span>Observaciones</span>
+                <span>IVA</span>
                 {isTienda && <span className="text-center">ICUI</span>}
                 <span className="text-right">Total</span>
                 <span className="sr-only">Acciones</span>
@@ -1108,6 +1149,30 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
                       />
                     </div>
 
+                    {/* IVA por línea: hereda la tasa del producto (o la del
+                        negocio) al elegirlo, y se cambia a mano. Todos los
+                        rubros: el IVA no es solo de tienda. */}
+                    <div className="min-w-0">
+                      <span className="lg:hidden text-[11px] font-semibold text-on-surface-variant block mb-1">
+                        IVA
+                      </span>
+                      <Select
+                        aria-label={`IVA de la línea ${idx + 1}`}
+                        value={String(vatOptions.find((o) => Number(o.value) === (line.tax_rate || 0))?.value ?? "0")}
+                        onChange={(e) =>
+                          setLines((prev) =>
+                            prev.map((l, i) => (i === idx ? { ...l, tax_rate: Number(e.target.value) } : l))
+                          )
+                        }
+                      >
+                        {vatOptions.map((o) => (
+                          <option key={o.value} value={o.value}>
+                            {o.value === "0" ? "Exento" : o.label}
+                          </option>
+                        ))}
+                      </Select>
+                    </div>
+
                     {/* ICUI por línea: hereda del flag del producto al elegirlo,
                         pero se puede cambiar a mano (por si el producto se creó
                         sin el flag). Solo tienda. */}
@@ -1205,12 +1270,13 @@ export function PurchaseForm({ editingInvoice, initialLines }: PurchaseFormProps
                 </div>
               )}
 
-              {taxMultiplier > 0 && (
-                <div className="flex items-center justify-between gap-4 text-sm">
-                  <dt className="text-on-surface-variant">IVA ({percentLabel})</dt>
-                  <dd className="font-mono tabular-nums text-on-surface">{fmtMoney(taxAmount)}</dd>
+              {/* Una fila por tasa, como la factura del proveedor. */}
+              {ivaByRate.map(({ rate, amount }) => (
+                <div key={rate} className="flex items-center justify-between gap-4 text-sm">
+                  <dt className="text-on-surface-variant">IVA {vatRateLabel(rate)}</dt>
+                  <dd className="font-mono tabular-nums text-on-surface">{fmtMoney(amount)}</dd>
                 </div>
-              )}
+              ))}
 
               {isTienda && icuiMultiplier > 0 && (
                 <div className="flex items-center justify-between gap-4 text-sm">

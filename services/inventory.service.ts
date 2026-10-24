@@ -58,6 +58,12 @@ export interface Product {
    */
   icui_applies?: boolean;
   /**
+   * Tasa de IVA del producto (0..1; 0 = exento). `null` = usa la tasa del
+   * negocio. Hoy la usan las compras (IVA por línea); el POS la adoptará
+   * después. Ausente en filas viejas = null.
+   */
+  tax_rate: number | null;
+  /**
    * Si admite media unidad. Lo decide la UNIDAD DE MEDIDA, no una preferencia:
    * es una columna generada en la base (`kg`, `g`, `lb`, `L`, `ml`, `m`, `cm`),
    * así que no se escribe desde acá y no puede divergir entre pantallas.
@@ -164,6 +170,11 @@ export interface NewProductInput {
   is_ingredient?: boolean;
   /** Sujeto al ICUI (tienda). Solo informativo; no se cobra en ventas. */
   icui_applies?: boolean;
+  /**
+   * Tasa de IVA del producto (0..1; 0 = exento); `null` = la del negocio.
+   * `undefined` = no tocar la columna (formularios que no la muestran).
+   */
+  tax_rate?: number | null;
 }
 
 
@@ -345,7 +356,7 @@ const PRODUCT_COLUMNS =
   "id, created_at, updated_at, user_id, name, sku, barcode, price, package_price, stock_level, image_url, status, " +
   "category_id, unit, distributor_id, minimum_stock, icon, has_commission, commission_type, " +
   "commission_value, units_per_package, tracks_stock, open_price, allows_fractions, is_ingredient, " +
-  "content_qty, content_unit, icui_applies";
+  "content_qty, content_unit, icui_applies, tax_rate";
 
 const PRODUCT_SELECT = `${PRODUCT_COLUMNS}, categories(name), distributors(business_name)`;
 
@@ -530,13 +541,26 @@ function flagsPatch(input: NewProductInput): {
   open_price: boolean;
   icui_applies: boolean;
   is_ingredient?: boolean;
+  tax_rate?: number | null;
 } {
   return {
     tracks_stock: input.tracks_stock !== false,
     open_price: input.open_price === true,
     icui_applies: input.icui_applies === true,
     ...(input.is_ingredient !== undefined ? { is_ingredient: input.is_ingredient } : {}),
+    ...(input.tax_rate !== undefined ? { tax_rate: normalizeProductTaxRate(input.tax_rate) } : {}),
   };
+}
+
+/**
+ * Tasa de IVA del producto tal como se guarda: `null` (la del negocio) o un
+ * número entre 0 y 1. Fuera de rango es un error de la pantalla, no del usuario:
+ * la base lo rechaza igual (CHECK `products_tax_rate_range`).
+ */
+export function normalizeProductTaxRate(rate: number | null): number | null {
+  if (rate == null || Number.isNaN(rate)) return null;
+  if (rate < 0 || rate > 1) throw new Error("La tasa de IVA debe estar entre 0 y 100 %.");
+  return Math.round(rate * 10000) / 10000;
 }
 
 /** The catalog stores the tax-inclusive shelf price, not a formatted display value. */

@@ -20,7 +20,7 @@ import { can } from "@/lib/permissions";
 import { useBusinessTax } from "@/lib/useBusinessTax";
 import { createCatalogSave, recipeKindToRemove } from "@/lib/product-form-save";
 import { createSubmitGuard } from "@/lib/submit-guard";
-import { priceMultipliers } from "@/lib/product-tax";
+import { priceMultipliers, productPriceMultipliers, effectiveProductTaxRate } from "@/lib/product-tax";
 import { useBarcodeLookup } from "@/lib/useBarcodeLookup";
 import { barcodeAutofill, suggestedName, type AutofillMemory } from "@/lib/autofill";
 import { Button } from "@/components/ui/Button";
@@ -181,6 +181,8 @@ function ProductForm() {
     open_price: false,
     is_ingredient: false,
     icui_applies: false,
+    // null = usa la tasa de IVA del negocio.
+    tax_rate: null,
     // Van desde el arranque (y no `undefined`) para que el snapshot de
     // "cambios sin guardar" sea estable: una clave que aparece después cuenta
     // como cambio.
@@ -240,7 +242,11 @@ function ProductForm() {
    */
   const [entryPackages, setEntryPackages] = useState("");
   const [entryLoose, setEntryLoose] = useState("");
-  const [purchasePriceTax, setPurchasePriceTax] = useState("IVA");
+  /**
+   * Solo para SERVICIOS: el desglose de su precio. Los productos ya no tienen
+   * selector propio en la calculadora: usan la tasa del campo "IVA"
+   * (`form.tax_rate`), que es la que se guarda y la que cobra `create_sale`.
+   */
   const [sellingPriceTax, setSellingPriceTax] = useState("IVA");
 
   // La tasa sale de los ajustes del negocio, no de un 19% escrito a mano.
@@ -248,16 +254,23 @@ function ProductForm() {
   // COMPRA y VENTA usan tasas distintas a propósito: un negocio no responsable
   // de IVA igual se lo paga al proveedor (`rawRate`), pero no lo cobra en sus
   // propios precios (`rate`, que en ese caso vale 0).
-  const { rate: taxRate, rawRate, includeTax, percentLabel, rawPercentLabel } = useBusinessTax();
+  const { rate: taxRate, rawRate, includeTax, percentLabel } = useBusinessTax();
   // Sin IVA en el negocio no hay IVA en la ficha: lo que se escribe es el precio.
-  const { purchase: purchaseMultiplier, selling: sellingMultiplier } = priceMultipliers({
+  // Producto: la calculadora usa la tasa EFECTIVA del campo "IVA" persistido
+  // (la suya, o la del negocio si es null; exento = sin IVA).
+  const productTaxRate = effectiveProductTaxRate(form.tax_rate, rawRate);
+  const { purchase: purchaseMultiplier, selling: sellingMultiplier } = productPriceMultipliers({
+    includeTax,
+    businessRate: rawRate,
+    productRate: form.tax_rate,
+  });
+  const { selling: serviceMultiplier } = priceMultipliers({
     includeTax,
     rate: taxRate,
     rawRate,
-    purchaseTax: purchasePriceTax,
+    purchaseTax: "IVA",
     sellingTax: sellingPriceTax,
   });
-  const serviceMultiplier = sellingMultiplier;
   const serviceFinalValue = parseFloat(serviceFinalPrice || "0");
   const serviceBaseValue = serviceFinalValue > 0 ? serviceFinalValue / serviceMultiplier : 0;
   const serviceTaxValue = Math.max(serviceFinalValue - serviceBaseValue, 0);
@@ -268,8 +281,10 @@ function ProductForm() {
    * recalculara desde la base en cada tecla, escribir "50000" en el total lo
    * reescribiría a mitad de camino y no se podría teclear.
    */
-  const [purchase, setPurchase] = usePricePair(purchaseMultiplier, `${includeTax}:${rawRate}`);
-  const [selling, setSelling] = usePricePair(sellingMultiplier, `${includeTax}:${rawRate}`);
+  // La tasa del producto va en la clave: cambiar su IVA conserva el TOTAL (el
+  // precio de vitrina que se guarda) y rehace la base, en vez de subir el precio.
+  const [purchase, setPurchase] = usePricePair(purchaseMultiplier, `${includeTax}:${rawRate}:${productTaxRate}`);
+  const [selling, setSelling] = usePricePair(sellingMultiplier, `${includeTax}:${rawRate}:${productTaxRate}`);
   const purchasePriceTotal = purchase.total;
   const sellingPriceTotal = selling.total;
 
@@ -451,6 +466,7 @@ function ProductForm() {
       open_price: editingProduct.open_price === true,
       is_ingredient: editingProduct.is_ingredient === true,
       icui_applies: editingProduct.icui_applies === true,
+      tax_rate: editingProduct.tax_rate ?? null,
       // Presentación ("cada unidad trae 900 ml"), con coma decimal como el
       // resto de cantidades de la receta.
       content_qty:
@@ -1164,6 +1180,32 @@ function ProductForm() {
             </div>
           )}
 
+          {/* IVA del producto: el del negocio (null), exento o una tasa propia.
+              Se usa al vender y al comprar; en compras es el que hereda cada
+              línea de la factura. Todos los rubros. */}
+          {itemType === "Producto" && (
+            <Select
+              id="product-tax-rate"
+              label="IVA"
+              hint="Se aplica al vender, al comprar y en la calculadora de precios de abajo."
+              value={form.tax_rate == null ? "" : String(form.tax_rate)}
+              onChange={(e) =>
+                setForm((prev) => ({
+                  ...prev,
+                  tax_rate: e.target.value === "" ? null : Number(e.target.value),
+                }))
+              }
+            >
+              <option value="">Tasa del negocio ({+(rawRate * 100).toFixed(2)} %)</option>
+              <option value="0">Exento (0 %)</option>
+              <option value="0.05">5 %</option>
+              <option value="0.19">19 %</option>
+              {form.tax_rate != null && ![0, 0.05, 0.19].includes(Number(form.tax_rate)) && (
+                <option value={String(form.tax_rate)}>{+(Number(form.tax_rate) * 100).toFixed(2)} %</option>
+              )}
+            </Select>
+          )}
+
           {/* Distributor & Unit of Measure — 2 column grid for products */}
           {itemType === "Producto" && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
@@ -1348,12 +1390,7 @@ function ProductForm() {
                       setSelling.fromTotal(value);
                       setFieldErrors((previous) => ({ ...previous, price: undefined }));
                     } }}
-                    purchasePriceTax={purchasePriceTax}
-                    setPurchasePriceTax={setPurchasePriceTax}
-                    sellingPriceTax={sellingPriceTax}
-                    setSellingPriceTax={setSellingPriceTax}
-                    rawPercentLabel={rawPercentLabel}
-                    percentLabel={percentLabel}
+                    taxRate={productTaxRate}
                     includeTax={includeTax}
                     margin={margin}
                     presentation={presentation}

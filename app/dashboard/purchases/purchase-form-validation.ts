@@ -142,3 +142,28 @@ export function applyLastPurchase<L extends { product_id: string }>(
 
 /** ¿Hay algo cargado que se perdería al reemplazar? */
 export const hasFilledLines = (lines: { product_id: string }[]) => lines.some((l) => l.product_id);
+
+/** "19 %", "5 %", "Exento (0 %)": cómo se nombra una tasa de IVA en compras. */
+export function vatRateLabel(rate: number): string {
+  if (!(rate > 0)) return "Exento (0 %)";
+  return `${+(rate * 100).toFixed(2)} %`;
+}
+
+/**
+ * Opciones del selector de IVA de una línea de compra: exento, 5 % y la tasa
+ * del negocio, sin repetir (si el negocio está en 5 % o 0, no sale dos veces).
+ * `extra` suma tasas que ya están en uso —una compra vieja con 16 %— para que
+ * el selector pueda mostrarlas en vez de quedar en blanco.
+ */
+export function vatRateOptions(
+  businessRate: number,
+  extra: readonly number[] = [],
+): { value: string; label: string }[] {
+  const rates: number[] = [];
+  for (const r of [0, 0.05, businessRate, ...extra]) {
+    const n = Number.isFinite(r) && r > 0 ? Math.round(r * 10000) / 10000 : 0;
+    if (!rates.includes(n)) rates.push(n);
+  }
+  rates.sort((a, b) => a - b);
+  return rates.map((r) => ({ value: String(r), label: vatRateLabel(r) }));
+}

@@ -45,3 +45,38 @@ export function repricePair(
     : String(Math.round((preserveTotal ? value / multiplier : value * multiplier) * 100) / 100);
   return preserveTotal ? { base: converted, total: pair.total } : { base: pair.base, total: converted };
 }
+
+/**
+ * Tasa de IVA EFECTIVA de un producto: la suya (`products.tax_rate`) o, si no
+ * tiene (null), la del negocio. Es la misma que usa `create_sale` al vender y
+ * la que hereda cada línea de compra.
+ */
+export function effectiveProductTaxRate(productRate: number | null | undefined, businessRate: number): number {
+  return productRate ?? businessRate;
+}
+
+/**
+ * Multiplicadores base → total de la ficha de PRODUCTO, con la tasa del campo
+ * "IVA" persistido (`products.tax_rate`; null = la del negocio, 0 = exento).
+ * Reemplaza al selector viejo "Impuestos (Ninguno / IVA)", que solo movía la
+ * calculadora y no se guardaba. Sin IVA en el negocio no hay IVA en la ficha.
+ */
+export function productPriceMultipliers({
+  includeTax,
+  businessRate,
+  productRate,
+}: {
+  includeTax: boolean;
+  businessRate: number;
+  productRate: number | null | undefined;
+}): { purchase: number; selling: number } {
+  if (!includeTax) return { purchase: 1, selling: 1 };
+  const m = 1 + effectiveProductTaxRate(productRate, businessRate);
+  return { purchase: m, selling: m };
+}
+
+/** "IVA 19 %", "IVA 5 %" o "Exento de IVA", para la calculadora de la ficha. */
+export function productTaxLabel(rate: number): string {
+  if (!(rate > 0)) return "Exento de IVA";
+  return `IVA ${+(rate * 100).toFixed(2)} %`;
+}

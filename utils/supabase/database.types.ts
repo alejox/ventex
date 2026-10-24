@@ -1015,6 +1015,7 @@ export type Database = {
           quantity: number
           service_id: string | null
           stock_qty_applied: number | null
+          tax_rate: number | null
           unit_price: number
           units_per_package: number
           user_id: string
@@ -1033,6 +1034,7 @@ export type Database = {
           quantity?: number
           service_id?: string | null
           stock_qty_applied?: number | null
+          tax_rate?: number | null
           unit_price?: number
           units_per_package?: number
           user_id?: string
@@ -1051,6 +1053,7 @@ export type Database = {
           quantity?: number
           service_id?: string | null
           stock_qty_applied?: number | null
+          tax_rate?: number | null
           unit_price?: number
           units_per_package?: number
           user_id?: string
@@ -1613,6 +1616,7 @@ export type Database = {
           sku: string
           status: string | null
           stock_level: number
+          tax_rate: number | null
           tracks_stock: boolean
           unit: string
           units_per_package: number
@@ -1644,6 +1648,7 @@ export type Database = {
           sku: string
           status?: string | null
           stock_level?: number
+          tax_rate?: number | null
           tracks_stock?: boolean
           unit?: string
           units_per_package?: number
@@ -1675,6 +1680,7 @@ export type Database = {
           sku?: string
           status?: string | null
           stock_level?: number
+          tax_rate?: number | null
           tracks_stock?: boolean
           unit?: string
           units_per_package?: number
@@ -2268,6 +2274,7 @@ export type Database = {
           sku: string | null
           staff_id: string | null
           stock_qty_applied: number | null
+          tax_rate: number | null
           unit_kind: string
           unit_price: number
           units_per_item: number
@@ -2288,6 +2295,7 @@ export type Database = {
           sku?: string | null
           staff_id?: string | null
           stock_qty_applied?: number | null
+          tax_rate?: number | null
           unit_kind?: string
           unit_price: number
           units_per_item?: number
@@ -2308,6 +2316,7 @@ export type Database = {
           sku?: string | null
           staff_id?: string | null
           stock_qty_applied?: number | null
+          tax_rate?: number | null
           unit_kind?: string
           unit_price?: number
           units_per_item?: number
@@ -4453,6 +4462,10 @@ export type Database = {
       public_site_slug_taken: { Args: { p_slug: string }; Returns: boolean }
       purchase_icui_amount: {
         Args: { p_icui_base: number; p_icui_rate: number }
+        Returns: number
+      }
+      purchase_line_tax: {
+        Args: { p_line_total: number; p_rate: number }
         Returns: number
       }
       purchase_totals: {

@@ -22,6 +22,7 @@ function product(over: Partial<Product> = {}): Product {
     allows_fractions: false,
     content_qty: null,
     content_unit: null,
+    tax_rate: null,
     minimum_stock: 3,
     image_url: null,
     has_commission: false,

@@ -11,7 +11,7 @@ import type { AppliedLoyaltyPoints } from "@/services/loyalty.service";
 import type { ProductOffer } from "@/services/offers.service";
 import { useShiftsStore } from "@/stores/shifts.store";
 import { lineKey, cartLineKey as keyOf } from "@/services/pos.service";
-import { checkoutDiscounts, nextManualDiscount, tenderedForSale, type DiscountSource } from "@/lib/sale-discounts";
+import { nextManualDiscount, tenderedForSale, type DiscountSource } from "@/lib/sale-discounts";
 import { heldTabsKey, restoreHeldTabs, snapshotHeldTabs, type HeldTabsSnapshot } from "@/lib/pos-held-tabs";
 import {
   getWorkspaceExecutionContext,
@@ -1203,7 +1203,7 @@ export const usePosStore = create<PosState>((set, get) => {
       // El descuento sale desglosado: el total (como siempre), la parte
       // MANUAL —la única que a un trabajador le pide `pos_discount` en la
       // base— y el de cada línea, redondeado a centavos sin perder la suma.
-      const discounts = checkoutDiscounts(cart, (l) => posService.linePrice(l) * l.quantity);
+      const discounts = posService.cartCheckoutDiscounts(cart);
       const input: posService.CheckoutInput = {
         workspaceId: state.executionContext.workspaceId,
         membershipId: state.executionContext.membershipId,

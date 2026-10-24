@@ -1,8 +1,8 @@
 import { MoneyInput } from "@/components/ui/MoneyInput";
-import { Select } from "@/components/ui/Select";
 import type { Ref } from "react";
 import { useFormatMoney } from "@/lib/useMoney";
 import { calculateMargin } from "@/services/inventory.service";
+import { productTaxLabel } from "@/lib/product-tax";
 
 interface PricePair {
   base: string;
@@ -22,12 +22,13 @@ export interface ProductMargin {
 interface ProductPricingSectionProps {
   purchase: PricePair;
   selling: PricePair;
-  purchasePriceTax: string;
-  setPurchasePriceTax: (v: string) => void;
-  sellingPriceTax: string;
-  setSellingPriceTax: (v: string) => void;
-  rawPercentLabel: string;
-  percentLabel: string;
+  /**
+   * Tasa de IVA EFECTIVA del producto (0..1): la del campo "IVA" de la ficha
+   * o, si es "Tasa del negocio", la del negocio. Es la que mueve la
+   * calculadora base + IVA = total; ya no hay un selector aparte que no se
+   * guardaba.
+   */
+  taxRate: number;
   includeTax: boolean;
   margin: ProductMargin | null;
   presentation: "unit" | "package";
@@ -64,12 +65,7 @@ export interface RecipeCostInfo {
 export function ProductPricingSection({
   purchase,
   selling,
-  purchasePriceTax,
-  setPurchasePriceTax,
-  sellingPriceTax,
-  setSellingPriceTax,
-  rawPercentLabel,
-  percentLabel,
+  taxRate,
   includeTax,
   margin,
   presentation,
@@ -84,6 +80,20 @@ export function ProductPricingSection({
   const unitsCount = Math.max(parseInt(unitsPerPackage || "1") || 1, 1);
   const purchaseTotal = parseFloat(purchase.total || "0");
   const derivedUnitCost = purchaseTotal > 0 ? purchaseTotal / (isPackage ? unitsCount : 1) : 0;
+  const taxLabel = productTaxLabel(taxRate);
+
+  /** Celda del medio de la calculadora: la tasa (del campo "IVA") y cuánto suma. */
+  const taxCell = (pair: PricePair) => {
+    const amount = Math.max(parseFloat(pair.total || "0") - parseFloat(pair.base || "0"), 0);
+    return (
+      <div className="space-y-1.5 flex-1 w-full">
+        <span className="text-[13px] font-semibold text-on-surface block">IVA</span>
+        <p className="py-3 text-sm text-on-surface-variant">
+          {taxRate > 0 ? `${taxLabel} → ${fmtMoney(amount)}` : taxLabel}
+        </p>
+      </div>
+    );
+  };
 
   // Con receta de venta el costo sale de los insumos, por unidad vendida: el
   // margen se calcula contra ese costo y no contra un precio de compra en 0.
@@ -218,8 +228,8 @@ export function ProductPricingSection({
               {ingredientMode
                 ? `Lo que pagas por ${isPackage ? "caja" : "unidad"}, con IVA.`
                 : isPackage
-                  ? "Ingresa el precio de compra de la caja completa. Escribe en Base o Total y el IVA se calcula."
-                  : "Ingresa el precio de compra por unidad. Escribe en Base o Total y el IVA se calcula."}
+                  ? "Ingresa el precio de compra de la caja completa. Escribe en Base o Total y el IVA se calcula con la tasa del campo IVA."
+                  : "Ingresa el precio de compra por unidad. Escribe en Base o Total y el IVA se calcula con la tasa del campo IVA."}
             </p>
           </div>
           <div className="flex flex-col sm:flex-row sm:items-end gap-3">
@@ -232,15 +242,7 @@ export function ProductPricingSection({
               />
             </div>
             <div className="pb-3 text-primary font-bold text-lg hidden sm:block">+</div>
-            <Select
-              label="IVA"
-              containerClassName="flex-1 w-full"
-              value={purchasePriceTax}
-              onChange={(e) => setPurchasePriceTax(e.target.value)}
-            >
-              <option value="Ninguno">Ninguno</option>
-              <option value="IVA">{rawPercentLabel}</option>
-            </Select>
+            {taxCell(purchase)}
             <div className="pb-3 text-primary font-bold text-lg hidden sm:block">=</div>
             <div className="space-y-1.5 flex-1 w-full">
               <label className="text-[13px] font-semibold text-on-surface block">Total</label>
@@ -271,7 +273,9 @@ export function ProductPricingSection({
           <div>
             <h3 className="text-base font-bold text-on-surface">Precio de Venta (Unidad)</h3>
             <p className="text-xs text-on-surface-variant mt-1">
-              Escribe el precio de vitrina en el Total y el IVA se desglosa hacia atrás.
+              {taxRate > 0
+                ? `Escribe el precio de vitrina en el Total y el ${taxLabel} se desglosa hacia atrás.`
+                : "Este producto está exento de IVA: el precio de vitrina es la base."}
             </p>
           </div>
           <div className="flex flex-col sm:flex-row sm:items-end gap-3">
@@ -284,15 +288,7 @@ export function ProductPricingSection({
               />
             </div>
             <div className="pb-3 text-primary font-bold text-lg hidden sm:block">+</div>
-            <Select
-              label="IVA"
-              containerClassName="flex-1 w-full"
-              value={sellingPriceTax}
-              onChange={(e) => setSellingPriceTax(e.target.value)}
-            >
-              <option value="Ninguno">Ninguno</option>
-              {includeTax && <option value="IVA">{percentLabel}</option>}
-            </Select>
+            {taxCell(selling)}
             <div className="pb-3 text-primary font-bold text-lg hidden sm:block">=</div>
             <div className="space-y-1.5 flex-1 w-full">
               <label className="text-[13px] font-semibold text-on-surface block">
