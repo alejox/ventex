@@ -7,7 +7,7 @@ import { useInventoryStore } from "@/stores/inventory.store";
 import { useMovementsStore } from "@/stores/inventory-movements.store";
 import { useServicesStore } from "@/stores/services.store";
 import type { NewProductInput } from "@/services/inventory.service";
-import { calculateMargin, handlePresentationModeChange, parseProductSalePrice } from "@/services/inventory.service";
+import { calculateMargin, handlePresentationModeChange, parseProductSalePrice, showOnSiteOf } from "@/services/inventory.service";
 import type { NewServiceInput } from "@/services/services.service";
 import { DistributorQuickModal } from "@/components/DistributorQuickModal";
 import { CategoryQuickModal } from "@/components/CategoryQuickModal";
@@ -183,6 +183,7 @@ function ProductForm() {
     icui_applies: false,
     // null = usa la tasa de IVA del negocio.
     tax_rate: null,
+    show_on_site: true,
     // Van desde el arranque (y no `undefined`) para que el snapshot de
     // "cambios sin guardar" sea estable: una clave que aparece después cuenta
     // como cambio.
@@ -436,6 +437,7 @@ function ProductForm() {
       commission_type: editingService.commission_type ?? "percentage",
       commission_value: editingService.commission_value ? String(editingService.commission_value) : "",
       image_url: editingService.image_url ?? "",
+      show_on_site: showOnSiteOf(editingService),
     }));
     setServiceFinalPrice(String(editingService.price));
     setServiceDuration(String(editingService.duration_minutes));
@@ -467,6 +469,7 @@ function ProductForm() {
       is_ingredient: editingProduct.is_ingredient === true,
       icui_applies: editingProduct.icui_applies === true,
       tax_rate: editingProduct.tax_rate ?? null,
+      show_on_site: showOnSiteOf(editingProduct),
       // Presentación ("cada unidad trae 900 ml"), con coma decimal como el
       // resto de cantidades de la receta.
       content_qty:
@@ -761,6 +764,7 @@ function ProductForm() {
           commission_value: form.commission_value || "",
           category_id: form.category_id,
           image_url: imagenServicio,
+          show_on_site: form.show_on_site !== false,
         };
 
         const savedService = await serviceSave.current.run(editServiceId, serviceInput, addService, updateService);
@@ -1204,6 +1208,25 @@ function ProductForm() {
                 <option value={String(form.tax_rate)}>{+(Number(form.tax_rate) * 100).toFixed(2)} %</option>
               )}
             </Select>
+          )}
+
+          {/* "Mostrar en el sitio web": solo filtra la página pública; el POS y
+              el inventario no lo miran. Un insumo nunca sale en el sitio, así
+              que ahí no se ofrece. */}
+          {!(itemType === "Producto" && form.is_ingredient === true) && (
+            <div className="flex items-start justify-between gap-4 rounded-2xl border border-outline-variant/15 bg-surface-container-low/50 p-4">
+              <div>
+                <p id="show-on-site-label" className="text-sm font-semibold text-on-surface">Mostrar en el sitio web</p>
+                <p id="show-on-site-help" className="text-xs text-on-surface-variant mt-0.5">
+                  Si lo apagas, no aparece en tu página web. Puedes seguir vendiéndolo en el POS.
+                </p>
+              </div>
+              <Switch
+                aria-labelledby="show-on-site-label"
+                checked={form.show_on_site !== false}
+                onCheckedChange={(on) => setForm((prev) => ({ ...prev, show_on_site: on }))}
+              />
+            </div>
           )}
 
           {/* Distributor & Unit of Measure — 2 column grid for products */}

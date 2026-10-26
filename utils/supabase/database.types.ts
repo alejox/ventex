@@ -1613,6 +1613,7 @@ export type Database = {
           package_price: number | null
           price: number
           purchase_price: number
+          show_on_site: boolean
           sku: string
           status: string | null
           stock_level: number
@@ -1645,6 +1646,7 @@ export type Database = {
           package_price?: number | null
           price?: number
           purchase_price?: number
+          show_on_site?: boolean
           sku: string
           status?: string | null
           stock_level?: number
@@ -1677,6 +1679,7 @@ export type Database = {
           package_price?: number | null
           price?: number
           purchase_price?: number
+          show_on_site?: boolean
           sku?: string
           status?: string | null
           stock_level?: number
@@ -3447,6 +3450,7 @@ export type Database = {
           image_url: string | null
           name: string
           price: number
+          show_on_site: boolean
           status: string
           user_id: string
         }
@@ -3463,6 +3467,7 @@ export type Database = {
           image_url?: string | null
           name: string
           price?: number
+          show_on_site?: boolean
           status?: string
           user_id?: string
         }
@@ -3479,6 +3484,7 @@ export type Database = {
           image_url?: string | null
           name?: string
           price?: number
+          show_on_site?: boolean
           status?: string
           user_id?: string
         }

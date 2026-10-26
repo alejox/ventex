@@ -64,6 +64,11 @@ export interface Product {
    */
   tax_rate: number | null;
   /**
+   * Se muestra en el sitio web público. Solo filtra el sitio: POS e inventario
+   * no lo miran. Ausente en filas viejas = true (ver `showOnSiteOf`).
+   */
+  show_on_site?: boolean;
+  /**
    * Si admite media unidad. Lo decide la UNIDAD DE MEDIDA, no una preferencia:
    * es una columna generada en la base (`kg`, `g`, `lb`, `L`, `ml`, `m`, `cm`),
    * así que no se escribe desde acá y no puede divergir entre pantallas.
@@ -175,6 +180,11 @@ export interface NewProductInput {
    * `undefined` = no tocar la columna (formularios que no la muestran).
    */
   tax_rate?: number | null;
+  /**
+   * Mostrar en el sitio web. `undefined` = no tocar la columna (importación,
+   * alta rápida de insumos): la base pone `true` por defecto.
+   */
+  show_on_site?: boolean;
 }
 
 
@@ -356,7 +366,7 @@ const PRODUCT_COLUMNS =
   "id, created_at, updated_at, user_id, name, sku, barcode, price, package_price, stock_level, image_url, status, " +
   "category_id, unit, distributor_id, minimum_stock, icon, has_commission, commission_type, " +
   "commission_value, units_per_package, tracks_stock, open_price, allows_fractions, is_ingredient, " +
-  "content_qty, content_unit, icui_applies, tax_rate";
+  "content_qty, content_unit, icui_applies, tax_rate, show_on_site";
 
 const PRODUCT_SELECT = `${PRODUCT_COLUMNS}, categories(name), distributors(business_name)`;
 
@@ -536,12 +546,13 @@ function stockPatch(input: NewProductInput): { stock_level: number; minimum_stoc
  * los insumos y la base rechaza volver a encenderlo (RECETA_SIN_STOCK_PROPIO).
  * El formulario tiene que mandar `tracks_stock: false` para esos productos.
  */
-function flagsPatch(input: NewProductInput): {
+export function flagsPatch(input: NewProductInput): {
   tracks_stock: boolean;
   open_price: boolean;
   icui_applies: boolean;
   is_ingredient?: boolean;
   tax_rate?: number | null;
+  show_on_site?: boolean;
 } {
   return {
     tracks_stock: input.tracks_stock !== false,
@@ -549,6 +560,7 @@ function flagsPatch(input: NewProductInput): {
     icui_applies: input.icui_applies === true,
     ...(input.is_ingredient !== undefined ? { is_ingredient: input.is_ingredient } : {}),
     ...(input.tax_rate !== undefined ? { tax_rate: normalizeProductTaxRate(input.tax_rate) } : {}),
+    ...(input.show_on_site !== undefined ? { show_on_site: input.show_on_site } : {}),
   };
 }
 
@@ -561,6 +573,15 @@ export function normalizeProductTaxRate(rate: number | null): number | null {
   if (rate == null || Number.isNaN(rate)) return null;
   if (rate < 0 || rate > 1) throw new Error("La tasa de IVA debe estar entre 0 y 100 %.");
   return Math.round(rate * 10000) / 10000;
+}
+
+/**
+ * ¿Se muestra en el sitio web? La columna nace en `true`: una fila que no la
+ * trae (o la trae en null) se muestra, así un catálogo existente no desaparece
+ * del sitio por leer un valor ausente como apagado.
+ */
+export function showOnSiteOf(row: { show_on_site?: boolean | null }): boolean {
+  return row.show_on_site !== false;
 }
 
 /** The catalog stores the tax-inclusive shelf price, not a formatted display value. */

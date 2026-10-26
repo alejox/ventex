@@ -30,6 +30,8 @@ export interface Service {
    * las dos son imágenes de catálogo y tienen el mismo ciclo de vida.
    */
   image_url: string | null;
+  /** Se muestra en el sitio web público (reservas). Ausente = true. */
+  show_on_site?: boolean;
 }
 
 export interface NewServiceInput {
@@ -43,10 +45,15 @@ export interface NewServiceInput {
   commission_value: string;
   category_id?: string;
   image_url: string | null;
+  /**
+   * Mostrar en el sitio web. `undefined` = no tocar la columna (p. ej. el
+   * servicio que crea un plan de escuela): la base pone `true` por defecto.
+   */
+  show_on_site?: boolean;
 }
 
 const SERVICE_COLUMNS =
-  "id, name, description, price, duration_minutes, status, has_commission, commission_type, commission_value, category_id, created_at, image_url";
+  "id, name, description, price, duration_minutes, status, has_commission, commission_type, commission_value, category_id, created_at, image_url, show_on_site";
 
 const SELECT = `${SERVICE_COLUMNS}, categories(name)`;
 
@@ -56,7 +63,7 @@ const SELECT = `${SERVICE_COLUMNS}, categories(name)`;
  * Vive en una función y no repetido en `createService`/`updateService` porque
  * eran dos listas idénticas que ya se habían desincronizado una vez.
  */
-function servicePayload(input: NewServiceInput) {
+export function servicePayload(input: NewServiceInput) {
   return {
     name: input.name.trim(),
     description: input.description?.trim() || null,
@@ -68,6 +75,7 @@ function servicePayload(input: NewServiceInput) {
     commission_type: input.has_commission ? input.commission_type : null,
     commission_value: input.has_commission ? parseFloat(input.commission_value) || null : null,
     image_url: input.image_url,
+    ...(input.show_on_site !== undefined ? { show_on_site: input.show_on_site } : {}),
   };
 }
 
