@@ -612,6 +612,28 @@ export interface BookingResult {
 }
 
 /**
+ * Una próxima cita del visitante, tal como la devuelve
+ * `public_site_find_appointments`. Nunca trae el nombre del cliente.
+ */
+export interface UpcomingAppointment {
+  id: string;
+  /** "YYYY-MM-DD" */
+  date: string;
+  /** "HH:MM" */
+  time: string;
+  service: string | null;
+  staff: string | null;
+  status: "pending" | "confirmed";
+}
+
+export interface CancelAppointmentResult {
+  id: string;
+  status: "cancelled";
+  /** true si ya estaba cancelada: no se mandó otro aviso al negocio. */
+  already: boolean;
+}
+
+/**
  * Turns the `public_site_by_slug` payload into a `PublicSite`.
  *
  * The RPC merges `published_config` with top-level fields, and one of them —

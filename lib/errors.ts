@@ -172,6 +172,13 @@ export function toMessage(e: unknown): string {
       if (/^GASTO_VINCULADO\b/.test(raw)) {
         return "Los gastos de una liquidación o de un retiro de caja solo los crea el sistema.";
       }
+      // ---- Sitio público: cancelar una cita (migración 20261101100000) ----
+      if (/^CITA_NO_ENCONTRADA\b/.test(raw)) {
+        return "No encontramos esa cita con ese número. Revisa el teléfono y vuelve a buscar.";
+      }
+      if (/^CITA_NO_CANCELABLE\b/.test(raw)) {
+        return "Esta cita ya pasó o ya se atendió, así que no se puede cancelar desde aquí. Escríbele al negocio si necesitas ayuda.";
+      }
       // ---- Clientes, abonos y caja (migraciones 20261007110000–20261007119999) ----
       // Guard de `customers`: cupo y exención de IVA son del dueño.
       if (/^CLIENTE_CAMPO_DE_DUENO\b/.test(raw)) {

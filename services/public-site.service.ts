@@ -2,9 +2,11 @@ import { createClient } from "@/utils/supabase/client";
 import type {
   BookingInput,
   BookingResult,
+  CancelAppointmentResult,
   DaySlot,
   DayAvailability,
   SlotState,
+  UpcomingAppointment,
 } from "@/services/public-site.types";
 
 /**
@@ -94,4 +96,58 @@ export async function bookAppointment(input: BookingInput): Promise<BookingResul
   // The RPC returns jsonb, which the generated types widen to `Json`. The shape
   // is fixed by public_site_book itself — see BookingResult.
   return data as unknown as BookingResult;
+}
+
+type RpcError = { message?: string; code?: string };
+
+/**
+ * RPC not yet in `database.types.ts` (migration 20261101100000), with `this`
+ * bound. Regenerating the types makes this unnecessary.
+ */
+function untypedRpc<T>(fn: string, args: Record<string, unknown>) {
+  const supabase = createClient();
+  const rpc = supabase.rpc.bind(supabase) as unknown as (
+    fn: string,
+    args: Record<string, unknown>,
+  ) => PromiseLike<{ data: T | null; error: RpcError | null }>;
+  return rpc(fn, args);
+}
+
+/**
+ * Upcoming `pending|confirmed` appointments booked with this phone on this
+ * site. The RPC matches the last 10 digits (see `phoneLookupKey`) and returns
+ * an empty list for a phone too short to match safely.
+ */
+export async function findAppointments(
+  slug: string,
+  phone: string,
+): Promise<UpcomingAppointment[]> {
+  const { data, error } = await untypedRpc<UpcomingAppointment[]>(
+    "public_site_find_appointments",
+    { p_slug: slug, p_phone: phone },
+  );
+
+  if (error) throw error;
+  return data ?? [];
+}
+
+/**
+ * Cancels one of those appointments. Idempotent: an already-cancelled one
+ * comes back with `already: true`. Raises `CITA_NO_ENCONTRADA` (not this
+ * phone's, or gone) or `CITA_NO_CANCELABLE` (completed or already started),
+ * which `toMessage` translates.
+ */
+export async function cancelAppointment(
+  slug: string,
+  phone: string,
+  appointmentId: string,
+): Promise<CancelAppointmentResult> {
+  const { data, error } = await untypedRpc<CancelAppointmentResult>(
+    "public_site_cancel_appointment",
+    { p_slug: slug, p_phone: phone, p_appointment_id: appointmentId },
+  );
+
+  if (error) throw error;
+  if (!data) throw new Error("No pudimos cancelar la cita. Intenta de nuevo.");
+  return data;
 }
