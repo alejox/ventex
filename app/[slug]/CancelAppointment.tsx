@@ -77,7 +77,7 @@ export function CancelAppointment({ site }: Props) {
         onClick={() => setOpen(true)}
         className="mt-4 w-full rounded-[var(--site-radius)] border border-[var(--site-on-surface-border)] px-4 py-2.5 text-sm font-medium text-[var(--site-on-surface)] transition-colors hover:border-[var(--site-accent)]"
       >
-        ¿Ya tienes una cita? Cancélala aquí
+        Cancelar cita
       </button>
 
       <Modal

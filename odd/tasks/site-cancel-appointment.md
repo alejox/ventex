@@ -21,13 +21,17 @@ Today the only way to cancel is to message the business on WhatsApp. The user as
 - `lib/errors.ts` (`CITA_NO_ENCONTRADA` / `CITA_NO_CANCELABLE` translations)
 - `app/[slug]/CancelAppointment.tsx` (new), `app/[slug]/templates/SiteSections.tsx`
 - `lib/co-mobile.ts` (`phoneLookupKey`, mirror of the SQL phone match), `tests/co-mobile.test.ts` (new)
+- T2: `supabase/migrations/20261101110000_cancel_notification_whatsapp_data.sql` (new), `lib/appointment-cancel-message.ts` (new), `tests/appointment-cancel-message.test.ts` (new), `components/NotificationsBell.tsx`
 
 ## Tasks
 - [x] T1 — Migration + RPCs + client flow + button + tests. Route: delegated (writer trigger: 4+ non-trivial files). Checks: `npm test`, `npx tsc --noEmit`, `npm run lint`, migration applied via MCP and smoke-tested.
 
+- [x] T2 — "Avisar por WhatsApp" for the owner: the "Cita cancelada por el cliente" notification gets a `wa.me` button to the CUSTOMER's phone with a prefilled "Se ha cancelado tu cita…" message (no WhatsApp API: same `wa.me` model as promos, a person taps Send). The cancel RPC adds `event`, `date`, `time`, `service` to the notification `data`. Route: delegated (migration + pure message builder + test + bell UI). Checks: `npm test`, `npx tsc --noEmit`, eslint, migration applied + smoke-tested.
+
 ## Progress / evidence
 - T1: RED `phoneLookupKey is not a function` → GREEN 6/6; `npm test` 1133/1133; `tsc` clean; eslint clean on changed files.
 - Migration applied to remote via MCP; manual test (rollback) all 9 expectations met: find 1 (no name), short phone [], cancel already=false, re-cancel already=true, 1 notification, find after [], foreign phone CITA_NO_ENCONTRADA, completed/past CITA_NO_CANCELABLE.
+- T2: RED `Cannot find module` → GREEN 7/7; `npm test` 1140/1140; tsc + eslint clean. Migration applied via MCP; rollback smoke test shows notification data with event/date/time/service. Site button relabeled "Cancelar cita" (user request).
 - Pending: browser check of the UI; regenerate `database.types.ts` to drop the `untypedRpc` helper.
 - RDD: off (global) — no native review.
 - Delivery strategy: ask-on-risk; forecast ~350 lines, single PR.

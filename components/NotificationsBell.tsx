@@ -8,6 +8,10 @@ import type { AppNotification } from "@/services/notifications.service";
 import { notificationDestination } from "@/services/notifications.service";
 import { backdropProps } from "@/components/modal";
 import { HEADER_ICON_BUTTON } from "@/components/ui/HeaderIconButton";
+import { useProfile } from "@/components/ProfileProvider";
+import { useSettingsStore } from "@/stores/settings.store";
+import { businessDisplayName } from "@/services/promos.service";
+import { cancelNoticeLink } from "@/lib/appointment-cancel-message";
 
 const SEVERITY_DOT: Record<string, string> = {
   error: "bg-error",
@@ -29,41 +33,58 @@ function timeAgo(iso: string): string {
 
 function NotificationRow({
   notification,
+  businessName,
   onActivate,
 }: {
   notification: AppNotification;
+  businessName: string | null;
   onActivate: (notification: AppNotification) => void;
 }) {
   const unread = !notification.read_at;
   const destination = notificationDestination(notification);
+  const whatsappUrl = cancelNoticeLink(notification, businessName);
   return (
-    <button
-      type="button"
-      onClick={() => onActivate(notification)}
-      className={`w-full text-left px-5 py-3.5 flex gap-3.5 transition-colors hover:bg-surface-container-highest/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-ink ${
-        unread ? "bg-primary/5" : ""
-      }`}
-    >
-      <span
-        className={`mt-1.5 w-2.5 h-2.5 rounded-full shrink-0 ${SEVERITY_DOT[notification.severity] ?? "bg-primary"} ${
-          unread ? "ring-2 ring-primary/20" : "opacity-30"
-        }`}
-      />
-      <span className="min-w-0 flex-1">
-        <span className={`block text-sm ${unread ? "font-bold text-on-surface" : "font-medium text-on-surface-variant"}`}>
-          {notification.title}
-        </span>
-        {notification.body && (
-          <span className="block text-xs text-on-surface-variant/90 mt-1 leading-relaxed">
-            {notification.body}
+    <div className={unread ? "bg-primary/5" : undefined}>
+      <button
+        type="button"
+        onClick={() => onActivate(notification)}
+        className="w-full text-left px-5 py-3.5 flex gap-3.5 transition-colors hover:bg-surface-container-highest/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-ink"
+      >
+        <span
+          className={`mt-1.5 w-2.5 h-2.5 rounded-full shrink-0 ${SEVERITY_DOT[notification.severity] ?? "bg-primary"} ${
+            unread ? "ring-2 ring-primary/20" : "opacity-30"
+          }`}
+        />
+        <span className="min-w-0 flex-1">
+          <span className={`block text-sm ${unread ? "font-bold text-on-surface" : "font-medium text-on-surface-variant"}`}>
+            {notification.title}
           </span>
-        )}
-        {destination && <span className="mt-1.5 block text-xs font-semibold text-primary-ink">Ver reserva en Calendario →</span>}
-        <span className="block text-[11px] text-on-surface-variant mt-1.5 font-mono">
-          {timeAgo(notification.created_at)}
+          {notification.body && (
+            <span className="block text-xs text-on-surface-variant/90 mt-1 leading-relaxed">
+              {notification.body}
+            </span>
+          )}
+          {destination && <span className="mt-1.5 block text-xs font-semibold text-primary-ink">Ver reserva en Calendario →</span>}
+          <span className="block text-[11px] text-on-surface-variant mt-1.5 font-mono">
+            {timeAgo(notification.created_at)}
+          </span>
         </span>
-      </span>
-    </button>
+      </button>
+      {/* Hermano del botón, no hijo: un enlace dentro de un <button> es HTML
+          inválido y su clic dispararía también la navegación al Calendario. */}
+      {whatsappUrl && (
+        <div className="pl-11 pr-5 pb-3.5 -mt-1.5">
+          <a
+            href={whatsappUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex min-h-10 items-center rounded-lg border border-outline-variant px-3 text-xs font-semibold text-primary-ink transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-ink"
+          >
+            Avisar por WhatsApp
+          </a>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -81,6 +102,11 @@ export function NotificationsBell() {
   const fetchUnreadCount = useNotificationsStore((s) => s.fetchUnreadCount);
   const markRead = useNotificationsStore((s) => s.markRead);
   const markAllRead = useNotificationsStore((s) => s.markAllRead);
+  // Sin I/O propia: `DashboardShell` ya carga `settings` (ensureSettings) y el
+  // perfil llega del layout. Mismo respaldo que el mensaje de las promociones.
+  const profile = useProfile();
+  const settingsBusinessName = useSettingsStore((s) => s.settings?.business_profile?.businessName);
+  const businessName = businessDisplayName(settingsBusinessName, profile?.businessName);
 
   // Al montar solo se pide el contador (`head: true`, sin filas): la campana está
   // en el header de todo el dashboard y traer las 30 notificaciones en cada carga
@@ -231,7 +257,7 @@ export function NotificationsBell() {
                 </div>
               ) : (
                 notifications.map((n) => (
-                  <NotificationRow key={n.id} notification={n} onActivate={activateNotification} />
+                  <NotificationRow key={n.id} notification={n} businessName={businessName} onActivate={activateNotification} />
                 ))
               )}
             </div>
