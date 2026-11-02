@@ -20,12 +20,16 @@ const CARD = "bg-surface-container-lowest rounded-3xl shadow-sm border border-ou
  * El interruptor y el intervalo son columnas de `business_sites`, las mismas que
  * guarda el editor de la página: los dos leen lo mismo. Los horarios se siguen
  * editando en el editor, que es donde también se ven publicados.
+ *
+ * "Asignación de reservas" solo decide a quién cae "Cualquiera disponible", así
+ * que se muestra solo mientras alguna página lo ofrece (`booking_allow_any`).
  */
 export function BookingSettings() {
   const sites = useBusinessSiteStore((s) => s.sites);
   const loaded = useBusinessSiteStore((s) => s.loaded);
   const error = useBusinessSiteStore((s) => s.error);
   const fetchConfig = useBusinessSiteStore((s) => s.fetchConfig);
+  const offersAnyStaff = sites.some((site) => site.booking_allow_any);
 
   useEffect(() => {
     void fetchConfig();
@@ -61,7 +65,7 @@ export function BookingSettings() {
         </Link>
       </div>
 
-      <BookingAdminCard />
+      {offersAnyStaff ? <BookingAdminCard /> : null}
     </div>
   );
 }
@@ -99,6 +103,22 @@ function SiteBookingCard({ site, showName }: { site: BusinessSite; showName: boo
             checked={site.booking_enabled}
             disabled={saving}
             onCheckedChange={(checked) => void save({ booking_enabled: checked }, checked ? "Tu página ya recibe reservas." : "Tu página dejó de recibir reservas.")}
+          />
+        </div>
+        <div className="sm:col-span-2">
+          <Switch
+            label="Permitir «Cualquiera disponible»"
+            description="Si lo apagas, tus clientes tienen que elegir con quién reservan."
+            checked={site.booking_allow_any}
+            disabled={saving || !site.booking_enabled}
+            onCheckedChange={(checked) =>
+              void save(
+                { booking_allow_any: checked },
+                checked
+                  ? "Tus clientes pueden reservar con quien esté disponible."
+                  : "Tus clientes eligen con quién reservan.",
+              )
+            }
           />
         </div>
         <Select

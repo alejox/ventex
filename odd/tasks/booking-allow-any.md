@@ -19,7 +19,7 @@ behaviour (default on).
 ## Scope / tasks
 - [x] T1 SQL: column + `public_site_by_slug` exposes it + `public_site_book` guard
   (full create or replace from live). Types regenerated. Rolled-back live test.
-- [ ] T2 UI: widget (no "any" card when off) + Ajustes → Reservas switch, service,
+- [x] T2 UI: widget (no "any" card when off) + Ajustes → Reservas switch, service,
   store; pure helper + tests.
 
 ## Route
@@ -39,3 +39,20 @@ behaviour (default on).
   `P0001 Elige con quién quieres tu cita.`; off + staff → booked (Carlos Henao);
   on + null → booked (auto-assigned Julian Jimenez). Afterwards 0 of 14 sites
   have the flag off and 0 test customers remain. Types regenerated (+3 lines).
+- T2 (delegated writer): `lib/booking-staff-choice.ts` (`staffChoiceMode`,
+  `initialStaffId`, `needsStaffChoice`, `staffSummaryLabel`), tests first in
+  `tests/booking-staff-choice.test.ts` + `tests/public-site-from-rpc.test.ts`
+  (RED: module missing / `bookingAllowAny` undefined; GREEN 11/11).
+  `publicSiteFromRpc` sets `bookingAllowAny` (absent → true; field optional on
+  `PublicSite` so the editor's hand-built preview keeps compiling). Widget: no
+  "Cualquiera disponible" card when off, single person preselected, day/hours
+  show "Elige primero con quién quieres tu cita." and load nothing until a
+  person is picked, submit disabled, summary rows never print "Cualquiera
+  disponible" in that mode. Ajustes → Reservas: per-site Switch "Permitir
+  «Cualquiera disponible»" (disabled while reservations are off) saved via
+  `saveSiteBooking` (`SiteBookingPatch.booking_allow_any`, selected/mapped in
+  `business-site.service.ts`; store unchanged — it already forwards the patch).
+  `BookingAdminCard` renders only while some site has the option on (hidden,
+  no inline note: it only governs "Cualquiera disponible").
+  Checks: `npm test` 1218/1218; `npx tsc --noEmit` clean; eslint on changed
+  files clean; `npx playwright test --list` 225 tests / 35 files.

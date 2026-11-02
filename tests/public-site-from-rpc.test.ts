@@ -28,3 +28,12 @@ test("missing categories become an empty list and timeFormat is coerced", () => 
   assert.deepEqual(site.categories, []);
   assert.equal(site.timeFormat, "12");
 });
+
+test("bookingAllowAny defaults to true when the RPC does not send it", () => {
+  assert.equal(publicSiteFromRpc({ version: 1, template: "rasm" }).bookingAllowAny, true);
+  assert.equal(publicSiteFromRpc({ version: 1, template: "rasm", bookingAllowAny: null }).bookingAllowAny, true);
+});
+
+test("bookingAllowAny false is kept", () => {
+  assert.equal(publicSiteFromRpc({ version: 1, template: "rasm", bookingAllowAny: false }).bookingAllowAny, false);
+});

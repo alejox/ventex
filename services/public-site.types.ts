@@ -556,6 +556,12 @@ export interface PublicSite {
   telegram: string | null;
   website: string | null;
   bookingEnabled: boolean;
+  /**
+   * `business_sites.booking_allow_any`: whether the widget offers
+   * "Cualquiera disponible". `publicSiteFromRpc` always sets it (true when an
+   * older RPC payload omits it); optional only for hand-built previews.
+   */
+  bookingAllowAny?: boolean;
   timezone: string;
   hours: PublicHour[];
   services: PublicService[];
@@ -667,6 +673,8 @@ export function publicSiteFromRpc(raw: Record<string, unknown>): PublicSite {
   return {
     ...raw,
     timeFormat: raw.timeFormat === "24" ? "24" : "12",
+    // Absent before 20261102120000: keep offering "Cualquiera disponible".
+    bookingAllowAny: raw.bookingAllowAny !== false,
     categories: Array.isArray(raw.categories) ? raw.categories : [],
     config: normalizeLandingConfig(snapshot),
   } as unknown as PublicSite;

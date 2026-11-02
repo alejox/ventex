@@ -15,6 +15,8 @@ export interface BusinessSite {
   site_name: string | null;
   published: boolean;
   booking_enabled: boolean;
+  /** Offer "Cualquiera disponible" in the public booking widget. */
+  booking_allow_any: boolean;
   timezone: string;
   slot_interval_minutes: number;
   draft_config: LandingConfig;
@@ -46,7 +48,7 @@ export interface SiteInput {
 }
 
 const SITE_SELECT =
-  "id, slug, site_name, published, booking_enabled, timezone, slot_interval_minutes, draft_config, published_config, created_at";
+  "id, slug, site_name, published, booking_enabled, booking_allow_any, timezone, slot_interval_minutes, draft_config, published_config, created_at";
 const SITE_IMAGES_BUCKET = "site-images";
 
 export function defaultHours(): BusinessHour[] {
@@ -101,6 +103,7 @@ function mapSite(raw: Record<string, unknown>): BusinessSite {
     created_at: raw.created_at as string,
     published: raw.published as boolean,
     booking_enabled: raw.booking_enabled as boolean,
+    booking_allow_any: raw.booking_allow_any !== false,
     timezone: raw.timezone as string,
     slot_interval_minutes: raw.slot_interval_minutes as number,
     draft_config: normalizeLandingConfig(raw.draft_config),
@@ -163,6 +166,7 @@ export const SLOT_INTERVAL_OPTIONS = [15, 20, 30, 45, 60] as const;
 
 export interface SiteBookingPatch {
   booking_enabled?: boolean;
+  booking_allow_any?: boolean;
   slot_interval_minutes?: number;
 }
 

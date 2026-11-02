@@ -24,6 +24,12 @@ import { formatColombianMobile } from "@/lib/phone-format";
 import { esImagenAjena } from "@/lib/remoteImage";
 import { claveMes, longDateFmt, parseDateInput, toDateInput } from "@/lib/booking-month";
 import { LoadFailed, MonthCalendar, SlotGroups } from "./BookingPickers";
+import {
+  initialStaffId,
+  needsStaffChoice,
+  staffChoiceMode,
+  staffSummaryLabel,
+} from "@/lib/booking-staff-choice";
 
 /**
  * Booking flow for a public visitor: service -> professional -> day -> time ->
@@ -38,6 +44,11 @@ import { LoadFailed, MonthCalendar, SlotGroups } from "./BookingPickers";
  * `staffId: null`. That is not a UI shortcut: `appointments.staff_id` is
  * nullable and the slot RPC widens capacity to the whole roster when it is
  * null, so the shop stays bookable until every professional is busy.
+ *
+ * A business can turn that card off (`site.bookingAllowAny === false`, see
+ * `lib/booking-staff-choice.ts`): then only real people are offered, nobody is
+ * preselected unless there is exactly one, days and hours wait until a person
+ * is picked, and a null staff is never sent (`public_site_book` rejects it).
  *
  * Styling comes entirely from the `--site-*` variables the surrounding template
  * publishes, so this looks native inside all three designs.
@@ -86,7 +97,11 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
   const [serviceId, setServiceId] = useState<string>(
     initialServiceId ?? site.services[0]?.id ?? "",
   );
-  const [staffId, setStaffId] = useState<string | null>(null);
+  const allowAny = site.bookingAllowAny !== false;
+  const staffMode = staffChoiceMode(site.staff.length, allowAny);
+  const [staffId, setStaffId] = useState<string | null>(() =>
+    initialStaffId(site.staff.map((m) => m.id), allowAny),
+  );
   const [today] = useState(() => toDateInput(new Date()));
   // null = "todavía no eligió": los horarios aparecen al tocar un día, junto al
   // calendario, y mientras tanto se pide elegir uno.
@@ -123,7 +138,10 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
 
   const service: PublicService | undefined = site.services.find((s) => s.id === serviceId);
   const staffMember = site.staff.find((m) => m.id === staffId) ?? null;
-  const canQuery = Boolean(serviceId);
+  // Without "Cualquiera disponible" there is no availability to ask for until
+  // a person is picked: asking with a null staff would show the whole roster.
+  const mustPickStaff = needsStaffChoice(staffMode, staffId);
+  const canQuery = Boolean(serviceId) && !mustPickStaff;
 
   const availKey = availabilityKeyOf(serviceId, today, staffId);
   const days = canQuery && storedAvailKey === availKey ? storedAvailability : [];
@@ -190,7 +208,7 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
-    if (!service || !time || !date) return;
+    if (!service || !time || !date || mustPickStaff) return;
     if (!mobile) {
       setPhoneTouched(true);
       return;
@@ -226,7 +244,10 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
     void loadAvailability(site.slug, serviceId, today, DAYS_AHEAD, staffId);
   }
 
+  const staffLabel = staffSummaryLabel(staffMode, staffMember?.fullName ?? null);
+
   if (confirmed) {
+    const confirmedStaffLabel = staffSummaryLabel(staffMode, staffMember?.fullName ?? confirmed.staff);
     const cuando = `${longDateFmt.format(parseDateInput(confirmed.date))} a las ${formatAppointmentTime(confirmed.time, site.timeFormat)}`;
     /*
      * La reserva entra PENDIENTE y la confirma una persona del negocio. Antes
@@ -285,7 +306,7 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
 
         <dl className="mt-4 space-y-1.5 rounded-[var(--site-radius)] bg-[var(--site-surface-alt)] p-4 text-left text-sm">
           <SummaryRow label="Servicio" value={confirmed.service} />
-          <SummaryRow label="Con" value={staffMember?.fullName ?? confirmed.staff ?? "Cualquiera disponible"} />
+          {confirmedStaffLabel ? <SummaryRow label="Con" value={confirmedStaffLabel} /> : null}
           <SummaryRow label="Cuándo" value={cuando} />
           {service ? (
             <SummaryRow label="Duración" value={formatDuration(service.durationMinutes)} />
@@ -423,14 +444,16 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
               ¿Con quién?
             </legend>
             <div role="radiogroup" aria-label="Profesional" className="grid gap-2 @md:grid-cols-2">
-              <StaffCard
-                name="booking-staff"
-                value=""
-                checked={staffId === null}
-                onSelect={() => setStaffId(null)}
-                title="Cualquiera disponible"
-                subtitle="Te atiende quien esté libre"
-              />
+              {staffMode === "any" ? (
+                <StaffCard
+                  name="booking-staff"
+                  value=""
+                  checked={staffId === null}
+                  onSelect={() => setStaffId(null)}
+                  title="Cualquiera disponible"
+                  subtitle="Te atiende quien esté libre"
+                />
+              ) : null}
               {site.staff.map((member: PublicStaff) => (
                 <StaffCard
                   key={member.id}
@@ -450,7 +473,11 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
 
       {/* ---- Calendario del mes ---- */}
       <Step n={2} title="¿Qué día?">
-        {availStatus === "failed" ? (
+        {mustPickStaff ? (
+          <p className="rounded-[var(--site-radius)] bg-[var(--site-surface-alt)] px-4 py-6 text-center text-sm text-[var(--site-on-surface-muted)]">
+            Elige primero con quién quieres tu cita.
+          </p>
+        ) : availStatus === "failed" ? (
           <LoadFailed onRetry={retryAvailability} />
         ) : availStatus === "empty" ? (
           <p className="py-3 text-sm text-[var(--site-on-surface-muted)]">
@@ -599,7 +626,7 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
         {time && service && date ? (
           <dl className="space-y-1.5 rounded-[var(--site-radius)] bg-[var(--site-surface-alt)] p-4 text-sm">
             <SummaryRow label="Servicio" value={service.name} />
-            <SummaryRow label="Con" value={staffMember?.fullName ?? "Cualquiera disponible"} />
+            {staffLabel ? <SummaryRow label="Con" value={staffLabel} /> : null}
             <SummaryRow
               label="Cuándo"
               value={`${shortDateFmt.format(parseDateInput(date))} · ${formatAppointmentTime(time, site.timeFormat)}`}
@@ -611,7 +638,7 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
 
         <button
           type="submit"
-          disabled={submitting || !time || !name || !mobile}
+          disabled={submitting || mustPickStaff || !time || !name || !mobile}
           className="min-h-12 w-full rounded-[var(--site-radius)] bg-[var(--site-accent)] px-4 py-3.5 text-sm font-semibold text-[var(--site-on-accent)] transition-opacity focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--site-accent)] disabled:opacity-60"
         >
           {submitting ? "Enviando…" : time ? `Reservar a las ${formatAppointmentTime(time, site.timeFormat)}` : "Reservar cita"}
