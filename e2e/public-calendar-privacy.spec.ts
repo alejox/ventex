@@ -25,9 +25,10 @@ test.describe("Privacidad del calendario público", () => {
 
     await page.waitForLoadState("networkidle");
 
-    // La grilla se llena en cliente; esperamos a que aparezca algún turno.
-    const anySlot = page.locator("li, button").filter({ hasText: /^\d{2}:\d{2}/ }).first();
-    await expect(anySlot).toBeVisible({ timeout: 20000 });
+    // La grilla del mes se llena en cliente; esperamos a que aparezca algún día.
+    // Cada día dice su estado en el aria-label ("…, 5 turnos libres", "…, cerrado").
+    const dayButtons = page.getByRole("button", { name: /turnos libres$/ });
+    await expect(dayButtons.first()).toBeVisible({ timeout: 20000 });
 
     const dom = await page.content();
 
@@ -36,48 +37,57 @@ test.describe("Privacidad del calendario público", () => {
       expect(dom, `"${forbidden}" no puede aparecer en el sitio público`).not.toContain(forbidden);
     }
 
-    // Un turno ocupado se marca, pero sin decir de quién es. Se busca en los
-    // <li> de la grilla y no por texto suelto: "Reservado" también está en la
-    // leyenda, y esa no es la que interesa auditar.
-    const reservedSlots = page.locator("li").filter({ hasText: "Reservado" });
-
-    // El día que se abre por defecto es el primero con cupo, que justamente
-    // suele NO tener reservas. Hay que recorrer la tira hasta encontrar un día
-    // ocupado; si no, este test pasaría sin haber mirado nada.
-    const dayButtons = page.locator("button[aria-pressed]").filter({ hasText: /libres/ });
+    // Un turno ocupado se marca, pero sin decir de quién es. Los horarios de
+    // un día se abren en un diálogo: los libres son botones y los ocupados o
+    // ya pasados, <li> de texto ("Reservado" / "Pasó").
+    //
+    // El primer día con cupo suele NO tener reservas. Hay que recorrer los días
+    // hasta encontrar uno ocupado; si no, este test pasaría sin haber mirado nada.
+    const hours = page.getByRole("dialog", { name: /^Horarios del / });
     const dayCount = await dayButtons.count();
-    let found = 0;
+    let labels: string[] = [];
 
-    for (let d = 0; d < dayCount && found === 0; d++) {
+    for (let d = 0; d < dayCount && labels.length === 0; d++) {
       await dayButtons.nth(d).click();
-      await expect(page.getByText("Buscando horarios…")).toHaveCount(0, { timeout: 15000 });
-      found = await reservedSlots.count();
+      await expect(hours).toBeVisible();
+      await expect(hours.getByText("Buscando horarios…")).toHaveCount(0, { timeout: 15000 });
+      const reserved = hours.locator("li").filter({ hasText: /Reservado/i });
+      labels = (await reserved.allInnerTexts()).map((t) => t.replace(/\s+/g, " ").trim());
+      await hours.getByRole("button", { name: "Cerrar horarios" }).click();
+      await expect(hours).toBeHidden();
     }
 
-    test.skip(found === 0, "Ningún día del período tiene turnos reservados para auditar");
+    test.skip(labels.length === 0, "Ningún día del período tiene turnos reservados para auditar");
 
-    for (let i = 0; i < found; i++) {
-      const label = (await reservedSlots.nth(i).innerText()).replace(/\s+/g, " ").trim();
-      // Sólo la hora y la palabra: nada que identifique a una persona.
+    for (const label of labels) {
+      // Sólo la hora (12 o 24 h, según el negocio) y la palabra: nada que
+      // identifique a una persona.
       expect(label, "un turno ocupado sólo puede mostrar la hora y 'Reservado'").toMatch(
-        /^\d{2}:\d{2} RESERVADO$/i,
+        /^\d{1,2}:\d{2}( [AP]M)? RESERVADO$/i,
       );
     }
   });
 
-  test("la tira de días informa disponibilidad sin exponer la agenda", async ({ page }) => {
+  test("el calendario del mes informa disponibilidad sin exponer la agenda", async ({ page }) => {
     const response = await page.goto(`/${SLUG}`);
     test.skip(response?.status() === 404, `El sitio /${SLUG} no está publicado`);
 
     await page.waitForLoadState("networkidle");
 
-    const days = page.locator("button[aria-pressed]").filter({
-      hasText: /libres|Cerrado|Lleno/,
-    });
-    await expect(days.first()).toBeVisible({ timeout: 20000 });
+    // Cada día del mes es un botón cuyo aria-label es "<fecha>, <estado>".
+    const allowedState = /, (\d+ turnos libres|cerrado|cerrado por hoy|sin cupos|todavía no se puede reservar)$/;
+    const days = page.locator('button[aria-pressed][aria-label*=", "]');
+    await expect(page.getByRole("button", { name: allowedState }).first()).toBeVisible({ timeout: 20000 });
 
-    // Un día cerrado no se puede elegir: el negocio no atiende y punto.
-    const closed = days.filter({ hasText: "Cerrado" }).first();
+    const labels = await days.evaluateAll((els) => els.map((el) => el.getAttribute("aria-label") ?? ""));
+    expect(labels.length, "el calendario del mes tiene que mostrar días").toBeGreaterThan(0);
+    for (const label of labels) {
+      // El estado de un día es un conteo o una palabra, nunca quién reservó.
+      expect(label, "el aria-label de un día sólo puede decir su disponibilidad").toMatch(allowedState);
+    }
+
+    // Un día cerrado (o sin cupos) no se puede elegir.
+    const closed = page.getByRole("button", { name: /, (cerrado|sin cupos)$/ }).first();
     if ((await closed.count()) > 0) {
       await expect(closed).toBeDisabled();
     }

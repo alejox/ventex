@@ -26,7 +26,7 @@ from the UX audit of 2026-11-01 (customer site, barber, admin).
   if it fits).
 - [x] T4 "Pendientes": count/list pending appointments across all dates (future
   + overdue), not just the visible period.
-- [ ] T5 E2E: fix stale privacy spec; add specs for public booking, cancel by
+- [x] T5 E2E (written; mutating run PENDING user decision): fix stale privacy spec; add specs for public booking, cancel by
   phone, confirming a pending booking (self-cleaning).
 
 ## Constraints
@@ -80,3 +80,17 @@ push phase results to main.
   change: `notificationDestination` already opens the appointment and
   `cancelNoticeLink` ignores other events; one characterization test added
   (no RED: behaviour already existed). npm test 1162/1162, tsc clean, eslint clean.
+- T5 (delegated writer B) — `e2e/public-calendar-privacy.spec.ts` aligned with
+  the month grid (day buttons by aria-label "…, N turnos libres", hours dialog
+  "Horarios del …", busy `<li>` "Reservado"; slot regex accepts 12h and 24h)
+  and the second test now audits every day's aria-label against the allowed
+  states. New `e2e/public-booking.spec.ts` (a) book → success screen,
+  (b) cancel by phone, (c) owner confirms from "Pendientes"; helper
+  `e2e/helpers/booking.ts` gates on `E2E_BOOKING_SLUG` (must be readable by the
+  E2E account under RLS, published, booking enabled — otherwise skip) and
+  cleans up in `afterAll` (appointments + customer by unique phone;
+  notifications deleted only with `SUPABASE_SERVICE_ROLE_KEY`, otherwise the
+  owner's are marked read since there is no DELETE policy). Checks:
+  `playwright --list` 5 tests in 2 files, tsc clean, eslint clean. NOT RUN:
+  no dev server on :3001 for the privacy spec; mutating specs await the user's
+  decision and an `E2E_BOOKING_SLUG` for the E2E tenant.
