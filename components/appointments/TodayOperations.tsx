@@ -6,6 +6,7 @@ import { useAppointmentsStore } from "@/stores/appointments.store";
 import { useSettingsStore } from "@/stores/settings.store";
 import { toISODate } from "@/lib/date";
 import { formatAppointmentTime } from "@/lib/time";
+import { freesSlot } from "@/lib/appointment-status";
 
 /** Vista del día separada de la colección del calendario: no cambia su rango. */
 export function TodayOperations() {
@@ -21,7 +22,8 @@ export function TodayOperations() {
     const timer = window.setInterval(refresh, 60_000);
     return () => { window.removeEventListener("focus", refresh); window.clearInterval(timer); };
   }, [fetchToday]);
-  const active = appointments.filter((a) => a.status !== "cancelled");
+  // "No vino" sale de la operación del día igual que una cancelada.
+  const active = appointments.filter((a) => !freesSlot(a.status));
   const pending = active.filter((a) => a.status === "pending");
   const unpaid = active.filter((a) => a.service_id && !a.sale_id);
   const upcoming = active.filter((a) => a.status !== "completed").slice(0, 4);

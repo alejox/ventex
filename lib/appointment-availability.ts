@@ -1,4 +1,5 @@
 import { toMinutes } from "@/lib/calendar-layout";
+import { freesSlot } from "@/lib/appointment-status";
 
 /** Lo mínimo de una cita para saber si ocupa a alguien: un día de agenda. */
 export interface BusyAppointment {
@@ -7,7 +8,12 @@ export interface BusyAppointment {
   start_time: string;
   end_time: string;
   title?: string | null;
+  /** Si viene, una cancelada o "No vino" no ocupa a nadie (como en la base). */
+  status?: string | null;
 }
+
+/** Solo lo que de verdad ocupa el horario. */
+const occupying = (busy: BusyAppointment[]) => busy.filter((a) => a.status === undefined || !freesSlot(a.status));
 
 const DEFAULT_MINUTES = 30;
 
@@ -24,7 +30,7 @@ export function overlaps(aStart: number, aEnd: number, bStart: number, bEnd: num
 export function conflictsFor(busy: BusyAppointment[], staffId: string, start: string, end: string, excludeId?: string | null): BusyAppointment[] {
   const s = toMinutes(start);
   const e = toMinutes(end);
-  return busy.filter((a) => a.staff_id === staffId && a.id !== excludeId && overlaps(s, e, toMinutes(a.start_time), endOf(a)));
+  return occupying(busy).filter((a) => a.staff_id === staffId && a.id !== excludeId && overlaps(s, e, toMinutes(a.start_time), endOf(a)));
 }
 
 /** De `pool`, quiénes no tienen ninguna cita en ese tramo. */
@@ -40,7 +46,7 @@ export function freeStaff(busy: BusyAppointment[], pool: string[], start: string
 export function pickStaff(busy: BusyAppointment[], pool: string[], start: string, end: string, excludeId?: string | null): string | null {
   const free = freeStaff(busy, pool, start, end, excludeId);
   if (free.length === 0) return null;
-  const load = (id: string) => busy.filter((a) => a.staff_id === id && a.id !== excludeId).length;
+  const load = (id: string) => occupying(busy).filter((a) => a.staff_id === id && a.id !== excludeId).length;
   return free.reduce((best, id) => (load(id) < load(best) ? id : best), free[0]);
 }
 
@@ -56,6 +62,6 @@ export function isTaken(busy: BusyAppointment[], opts: { staffId: string | null;
   if (opts.pool.length === 0) return false;
   const s = toMinutes(start);
   const e = toMinutes(end);
-  const unassigned = busy.filter((a) => a.staff_id === null && a.id !== excludeId && overlaps(s, e, toMinutes(a.start_time), endOf(a))).length;
+  const unassigned = occupying(busy).filter((a) => a.staff_id === null && a.id !== excludeId && overlaps(s, e, toMinutes(a.start_time), endOf(a))).length;
   return freeStaff(busy, opts.pool, start, end, excludeId).length - unassigned <= 0;
 }

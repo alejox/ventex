@@ -48,3 +48,14 @@ test("old unassigned appointments take a seat from the team", () => {
   // Sin equipo no hay a quién asignar: nunca se bloquea.
   assert.equal(isTaken(busy, { staffId: null, pool: [] }, "15:00", "15:30"), false);
 });
+
+test("una cita 'No vino' o cancelada que llega en la lista no ocupa a nadie", () => {
+  const busy = [
+    { ...appt("a", "ana", "10:00", "11:00"), status: "no_show" },
+    { ...appt("b", "ana", "12:00", "13:00"), status: "cancelled" },
+    { ...appt("c", null, "10:00", "11:00"), status: "no_show" },
+  ];
+  assert.deepEqual(conflictsFor(busy, "ana", "10:00", "11:00"), []);
+  assert.deepEqual(conflictsFor(busy, "ana", "12:00", "12:30"), []);
+  assert.equal(isTaken(busy, { staffId: null, pool: ["ana"] }, "10:00", "11:00"), false);
+});

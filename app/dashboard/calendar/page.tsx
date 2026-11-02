@@ -28,6 +28,7 @@ import { formatDateOnly } from "@/lib/date";
 import { byStaffFilter, isOverdue } from "@/lib/pending-appointments";
 import { useCalendarView } from "./useCalendarView";
 import { staffColumnsFor } from "@/lib/staff-columns";
+import { APPOINTMENT_STATUSES, statusLabel } from "@/lib/appointment-status";
 
 import { useSettingsStore } from "@/stores/settings.store";
 import { formatAppointmentTime } from "@/lib/time";
@@ -115,6 +116,9 @@ function getStatusColor(status: string) {
       return "bg-emerald-500/15 text-emerald-600 border-l-emerald-500";
     case "cancelled":
       return "bg-error-container/20 text-error-dim border-l-error-container";
+    case "no_show":
+      // "No vino": color propio, distinto de cancelada (la decidió el negocio, no el cliente).
+      return "bg-tertiary-container/30 text-on-tertiary-container border-l-tertiary";
     case BUSY_STATUS:
       // Horario de otra persona: gris y sin nada que abrir.
       return "bg-surface-container-high text-on-surface-variant border-l-outline-variant cursor-default";
@@ -128,13 +132,16 @@ function canReschedule(appointment: Appointment): boolean {
   return (appointment.status === "pending" || appointment.status === "confirmed") && !appointment.sale_id;
 }
 
-function getStatusLabel(status: string) {
+const getStatusLabel = statusLabel;
+
+/** Barra de color de cada fila de la Lista. */
+function statusBarClass(status: string) {
   switch (status) {
-    case "pending": return "Pendiente";
-    case "confirmed": return "Confirmada";
-    case "completed": return "Completada";
-    case "cancelled": return "Cancelada";
-    default: return status;
+    case "confirmed": return "bg-primary";
+    case "completed": return "bg-emerald-500";
+    case "cancelled": return "bg-error-container";
+    case "no_show": return "bg-tertiary";
+    default: return "bg-amber-500";
   }
 }
 
@@ -492,7 +499,7 @@ function CalendarContent() {
             </div>
           )}
 
-          {displayMode !== "pending" ? <div className="w-44 shrink-0"><Select size="sm" label="Estado" value={selectedStatus} onChange={(event) => setSelectedStatus(event.target.value)}><option value="all">Todos los estados</option><option value="pending">Pendiente</option><option value="confirmed">Confirmada</option><option value="completed">Completada</option><option value="cancelled">Cancelada</option></Select></div> : null}
+          {displayMode !== "pending" ? <div className="w-44 shrink-0"><Select size="sm" label="Estado" value={selectedStatus} onChange={(event) => setSelectedStatus(event.target.value)}><option value="all">Todos los estados</option>{APPOINTMENT_STATUSES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</Select></div> : null}
           <div className="flex shrink-0 items-center bg-surface-container border border-outline-variant/10 rounded-xl p-1 shadow-sm">
             {(["month", "week", "day"] as const).map((v) => (
               <button
@@ -710,17 +717,7 @@ function CalendarContent() {
                   onClick={() => handleEditAppointment(appt)}
                   className="w-full flex items-center gap-4 p-4 hover:bg-surface-container/50 transition-colors text-left"
                 >
-                  <div
-                    className={`w-2 h-10 rounded-full shrink-0 ${
-                      appt.status === "confirmed"
-                        ? "bg-primary"
-                        : appt.status === "completed"
-                          ? "bg-emerald-500"
-                          : appt.status === "cancelled"
-                            ? "bg-error-container"
-                            : "bg-amber-500"
-                    }`}
-                  />
+                  <div className={`w-2 h-10 rounded-full shrink-0 ${statusBarClass(appt.status)}`} />
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-bold text-on-surface truncate">
                       {appt.title}

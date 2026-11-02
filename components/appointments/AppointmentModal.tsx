@@ -27,6 +27,7 @@ import { useFormatMoney } from "@/lib/useMoney";
 import { currentAppointment } from "@/lib/appointment-state";
 import { buildCancelNoticeMessage } from "@/lib/appointment-cancel-message";
 import { businessDisplayName } from "@/services/promos.service";
+import { canMarkNoShow } from "@/lib/appointment-status";
 
 /**
  * Mensaje de confirmación ya redactado para el cliente.
@@ -127,7 +128,14 @@ const STATUS_OPTIONS = [
   { value: "confirmed", label: "Confirmada", color: "bg-primary/10 text-primary border-primary/20" },
   { value: "completed", label: "Completada", color: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" },
   { value: "cancelled", label: "Cancelada", color: "bg-error-container/20 text-error-dim border-error-container/30" },
+  { value: "no_show", label: "No vino", color: "bg-tertiary-container/30 text-on-tertiary-container border-tertiary/30" },
 ];
+
+/** "Ahora" del reloj local, para saber si la cita ya empezó. */
+function localNow() {
+  const now = new Date();
+  return { date: toISODate(now), minutes: now.getHours() * 60 + now.getMinutes() };
+}
 
 export default function AppointmentModal(props: AppointmentModalProps) {
   if (!props.open) return null;
@@ -388,6 +396,16 @@ function AppointmentModalBody({
       });
       if (!proceed) return;
     }
+    if (status === "no_show") {
+      const who = selectedCustomer?.full_name?.trim();
+      const proceed = await confirm({
+        title: "¿Marcar que no vino?",
+        description: `${who ? `${who} quedará` : "La cita quedará"} como «No vino» y su horario se libera. Si te equivocaste, puedes volverla a pendiente.`,
+        confirmLabel: "Sí, no vino",
+        cancelLabel: "No, dejarla así",
+      });
+      if (!proceed) return;
+    }
     const ok = await updateStatus(appointment.id, status);
     if (ok) {
       const label = STATUS_OPTIONS.find((o) => o.value === status)?.label ?? status;
@@ -397,7 +415,10 @@ function AppointmentModalBody({
     }
   };
 
-  const canCharge = !!liveAppointment?.service_id && !liveSaleId && liveStatus !== "cancelled" && canUsePos;
+  const canCharge = !!liveAppointment?.service_id && !liveSaleId && liveStatus !== "cancelled" && liveStatus !== "no_show" && canUsePos;
+  // Se evalúa al abrir el modal: "No vino" aparece cuando ya pasó la hora de la cita.
+  const [openedAt] = useState(localNow);
+  const showNoShow = liveAppointment ? canMarkNoShow(liveAppointment, openedAt) : false;
   const chargedService = services.find((s) => s.id === liveAppointment?.service_id) ?? null;
   const confirmPending = async () => {
     if (!appointment || busy) return;
@@ -474,12 +495,17 @@ function AppointmentModalBody({
             {isEditing ? <details className="relative">
               <summary className="cursor-pointer text-sm text-on-surface-variant">Más acciones</summary>
               <div className="absolute bottom-full left-0 mb-3 w-52 rounded-xl border border-outline-variant/30 bg-surface-container-high p-2 shadow-xl flex flex-col">
-                {liveStatus !== "cancelled" && liveStatus !== "completed" && !liveSaleId ? (
+                {liveStatus !== "cancelled" && liveStatus !== "completed" && liveStatus !== "no_show" && !liveSaleId ? (
                   <button type="button" disabled={busy} onClick={() => setMoveOpen(true)} className="text-left rounded-lg p-2 text-sm text-on-surface hover:bg-surface-container-highest">
                     Mover a…
                   </button>
                 ) : null}
-                {STATUS_OPTIONS.filter(option => option.value !== liveStatus && option.value !== "confirmed").map(option =>
+                {showNoShow ? (
+                  <button type="button" disabled={busy} onClick={() => void handleStatusChange("no_show")} className="text-left rounded-lg p-2 text-sm text-on-surface hover:bg-surface-container-highest">
+                    Marcar como no vino
+                  </button>
+                ) : null}
+                {STATUS_OPTIONS.filter(option => option.value !== liveStatus && option.value !== "confirmed" && option.value !== "no_show").map(option =>
                   <button key={option.value} type="button" disabled={busy} onClick={() => void handleStatusChange(option.value)} className="text-left rounded-lg p-2 text-sm text-on-surface hover:bg-surface-container-highest">
                     {option.value === "cancelled" ? "Cancelar cita" : option.value === "completed" ? "Marcar completada" : "Volver a pendiente"}
                   </button>)}

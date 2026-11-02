@@ -1,6 +1,7 @@
 import type { BusyAppointment } from "@/lib/appointment-availability";
 import type { AgendaBusySlot } from "@/lib/agenda-privacy";
 import type { OpeningHour } from "@/lib/appointment-hours";
+import { SLOT_FREEING_STATUSES, type AppointmentStatus } from "@/lib/appointment-status";
 import { createClient } from "@/utils/supabase/client";
 import { findOrCreateVehicleByPlate } from "@/services/vehicles.service";
 import { createSale } from "@/services/pos.service";
@@ -23,7 +24,7 @@ export interface Appointment {
   appointment_date: string;
   start_time: string;
   end_time: string;
-  status: "pending" | "confirmed" | "completed" | "cancelled";
+  status: AppointmentStatus;
   notes: string | null;
   created_at: string;
   /**
@@ -182,7 +183,7 @@ export async function fetchBusinessHours(): Promise<OpeningHour[] | null> {
 }
 
 /**
- * Las citas no canceladas de un día, para saber quién está libre. A un
+ * Las citas no canceladas (ni "No vino") de un día, para saber quién está libre. A un
  * trabajador la RLS le devuelve solo las suyas (con su título, que ya ve), que
  * son las únicas contra las que puede chocar: no puede agendarle a otro.
  */
@@ -190,9 +191,9 @@ export async function fetchDayBusy(date: string): Promise<BusyAppointment[]> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("appointments")
-    .select("id, staff_id, start_time, end_time, title")
+    .select("id, staff_id, start_time, end_time, title, status")
     .eq("appointment_date", date)
-    .neq("status", "cancelled");
+    .not("status", "in", `(${SLOT_FREEING_STATUSES.join(",")})`);
   if (error) throw error;
   return (data ?? []) as BusyAppointment[];
 }
