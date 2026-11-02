@@ -794,6 +794,17 @@ export function usesHaircutPromos(
   return visibleNavItems(businessType, modules).some((item) => item.id === "promociones");
 }
 
+/**
+ * ¿Este negocio agenda citas? Mismo cálculo que el ítem "Calendario" del menú
+ * (módulo `appointments`): decide si Ajustes muestra la pestaña "Reservas".
+ */
+export function usesAppointments(
+  businessType: BusinessType | null,
+  modules: Modules | null,
+): boolean {
+  return visibleNavItems(businessType, modules).some((item) => item.id === "calendar");
+}
+
 // ---- Permisos de trabajador que aplican a ESTE negocio ----
 //
 // Un salón no tiene vehículos ni facturación: ofrecerle esos permisos al

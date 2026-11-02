@@ -158,6 +158,31 @@ export async function saveSite(input: SiteInput, siteId?: string | null): Promis
   return mapSite(data as unknown as Record<string, unknown>);
 }
 
+/** Opciones de "Intervalo entre horarios" (Ajustes → Reservas), en minutos. */
+export const SLOT_INTERVAL_OPTIONS = [15, 20, 30, 45, 60] as const;
+
+export interface SiteBookingPatch {
+  booking_enabled?: boolean;
+  slot_interval_minutes?: number;
+}
+
+/**
+ * Ajustes → Reservas: cambia solo la reserva en línea de una página, sin
+ * reescribir su diseño. Son las mismas columnas que guarda el editor de la
+ * página (no viven en `draft_config`), así que los dos leen lo mismo.
+ */
+export async function saveSiteBooking(siteId: string, patch: SiteBookingPatch): Promise<BusinessSite> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("business_sites")
+    .update(patch)
+    .eq("id", siteId)
+    .select(SITE_SELECT)
+    .single();
+  if (error) throw error;
+  return mapSite(data as unknown as Record<string, unknown>);
+}
+
 export async function deleteSite(siteId: string): Promise<void> {
   const supabase = createClient();
   const { error } = await supabase.from("business_sites").delete().eq("id", siteId);

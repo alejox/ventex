@@ -78,3 +78,13 @@ test("mapSettings: booking admin fields default when the columns are missing", (
   assert.equal(saved.booking_admin_staff_id, "a");
   assert.equal(saved.booking_assign_admin, true);
 });
+
+test("Ajustes → Reservas: solo para negocios que ven el calendario de citas", async () => {
+  const { usesAppointments } = await import("../config/business");
+  assert.equal(usesAppointments("salon", null), true);
+  assert.equal(usesAppointments("lavaautos", null), true);
+  assert.equal(usesAppointments("servicios", null), true);
+  // Escuela agenda en su propia agenda de clases, no en el calendario de citas.
+  assert.equal(usesAppointments("escuela", null), false);
+  assert.equal(usesAppointments(null, null), false);
+});

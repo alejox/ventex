@@ -23,7 +23,7 @@ from the UX audit of 2026-11-01. Phases 1–2: `odd/tasks/booking-ux-phase1.md`,
   only if they already split by status.
 - [x] T3 "Recordar por WhatsApp" on confirmed upcoming appointments (modal +
   list row), prefilled reminder message (pure builder + tests).
-- [ ] T4 Ajustes → "Reservas" tab: online booking switch, slot interval
+- [x] T4 Ajustes → "Reservas" tab: online booking switch, slot interval
   (`business_sites.slot_interval_minutes`), the admin-assignment card (moved
   from Negocio), and a link to edit hours in the page editor. Calendar's
   "Configurar reservas y horarios" points here.
@@ -70,4 +70,23 @@ from the UX audit of 2026-11-01. Phases 1–2: `odd/tasks/booking-ux-phase1.md`,
   embeds `customers(full_name, phone)`). No phone → disabled button + visible
   "Sin teléfono". Time via `formatAppointmentTime` (business 12/24 h), business name
   via `businessDisplayName`. Checks: npm test 1192/1192, tsc clean, eslint clean.
-  Commit: see T4 entry.
+  Commit: `66f41f7`.
+- T4 (delegated writer): `usesAppointments()` in `config/business.ts` (same calc as the
+  "Calendario" nav item; +1 test in `tests/booking-admin.test.ts`). Tab "Reservas" in
+  `SettingsTabs` (owner + appointments); `settings/reservas/page.tsx` server-gates the
+  same rule (redirect to /dashboard/settings). `components/settings/BookingSettings.tsx`:
+  per-site card (Switch `booking_enabled`, Select interval 15/20/30/45/60, an off-list
+  saved value is kept), "Horarios de atención" card → `/dashboard/landing?tab=business`,
+  `BookingAdminCard` moved here (retitled "Asignación de reservas", removed from
+  Ajustes → Datos de tu negocio), empty state → "Crear mi página". Service
+  `saveSiteBooking` + store `saveBooking` update only the two columns; `booking_enabled`
+  lives only in the column (not in draft/published config), and the editor re-fetches on
+  mount, so both read the same source; editor got a pointer to Ajustes → Reservas.
+  Calendar link now points to `/dashboard/settings/reservas`.
+  Checks: npm test 1193/1193, tsc clean, eslint clean. Commit: see git log
+  (`feat(settings): add the Reservas tab…`).
+
+## Known gaps
+- `app/dashboard/pos/page.tsx` (~L766) refuses to charge a cancelled appointment via
+  `?appointment=` but not a `no_show` one (outside the T2 edit surface). The modal hides
+  "Cobrar" for no_show, so it is only reachable by a hand-built URL.

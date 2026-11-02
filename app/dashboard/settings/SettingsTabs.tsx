@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useProfile } from "@/components/ProfileProvider";
-import { usesHaircutPromos } from "@/config/business";
+import { usesAppointments, usesHaircutPromos } from "@/config/business";
 
 /**
  * Navegación por pestañas de Ajustes. Cliente solo por `usePathname`.
@@ -24,12 +24,19 @@ export function SettingsTabs() {
     profile?.businessType === "tienda" ||
     usesHaircutPromos(profile?.businessType ?? null, profile?.modules ?? null);
 
+  // "Reservas": del dueño, y solo si el negocio agenda citas (mismo cálculo
+  // que el ítem "Calendario" del menú; la página repite el gate en el servidor).
+  const showBooking =
+    Boolean(profile) && !profile?.isWorker &&
+    usesAppointments(profile?.businessType ?? null, profile?.modules ?? null);
+
   const tabs = [
     { name: "General", href: "/dashboard/settings" },
     { name: "Datos de tu negocio", href: "/dashboard/settings/business" },
     { name: "Negocio y módulos", href: "/dashboard/settings/modulos" },
     { name: "Impresión", href: "/dashboard/settings/impresion" },
     { name: "Métodos de pago", href: "/dashboard/settings/pagos" },
+    ...(showBooking ? [{ name: "Reservas", href: "/dashboard/settings/reservas" }] : []),
     ...(showPromos ? [{ name: "Promociones", href: "/dashboard/settings/promociones" }] : []),
   ];
 

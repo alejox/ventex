@@ -45,6 +45,8 @@ interface BusinessSiteState {
     hours: BusinessHour[],
   ) => Promise<BusinessSite | null>;
   setPublished: (siteId: string, published: boolean) => Promise<boolean>;
+  /** Ajustes → Reservas: activar la reserva en línea o cambiar el intervalo. */
+  saveBooking: (siteId: string, patch: siteService.SiteBookingPatch) => Promise<boolean>;
   deleteSite: (siteId: string) => Promise<boolean>;
   checkSlug: (slug: string, currentSlug?: string) => Promise<boolean>;
   uploadImage: (file: File) => Promise<string | null>;
@@ -93,6 +95,19 @@ export const useBusinessSiteStore = create<BusinessSiteState>((set, get) => ({
     set({ saving: true, error: null });
     try {
       const saved = await siteService.setSitePublished(siteId, published);
+      const sites = replaceSite(get().sites, saved);
+      set({ sites, site: primarySite(sites), saving: false });
+      return true;
+    } catch (e) {
+      set({ error: toMessage(e), saving: false });
+      return false;
+    }
+  },
+
+  saveBooking: async (siteId, patch) => {
+    set({ saving: true, error: null });
+    try {
+      const saved = await siteService.saveSiteBooking(siteId, patch);
       const sites = replaceSite(get().sites, saved);
       set({ sites, site: primarySite(sites), saving: false });
       return true;

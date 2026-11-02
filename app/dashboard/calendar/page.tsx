@@ -499,7 +499,7 @@ function CalendarContent() {
           <p className="text-sm text-on-surface-variant mt-1">
             Revisa las reservas pendientes, confirma las citas y organiza la atención de tu equipo.
           </p>
-          {!profile?.isWorker ? <Link href="/dashboard/landing?tab=business" className="mt-2 inline-block text-sm font-semibold text-primary underline underline-offset-2">Configurar reservas y horarios</Link> : null}
+          {!profile?.isWorker ? <Link href="/dashboard/settings/reservas" className="mt-2 inline-block text-sm font-semibold text-primary underline underline-offset-2">Configurar reservas y horarios</Link> : null}
         </div>
         {/*
           En móvil los cuatro grupos suman ~480px contra 390 de pantalla: la

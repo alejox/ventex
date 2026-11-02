@@ -15,7 +15,6 @@ import { validateBusinessLogoFile, type BusinessLogoFileError } from "@/lib/busi
 import { Select } from "@/components/ui/Select";
 import { CitySelect } from "@/components/CitySelect";
 import { useProfile } from "@/components/ProfileProvider";
-import { BookingAdminCard } from "@/components/settings/BookingAdminCard";
 
 function CameraIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -71,8 +70,6 @@ function BusinessProfileForm({ settings }: { settings: Settings }) {
   const uploadLogo = useSettingsStore((s) => s.uploadLogo);
   const profile = useProfile();
   const isTienda = profile?.businessType === "tienda";
-  // Owner-only, like the other owner settings (the SQL guard enforces it too).
-  const isOwner = Boolean(profile && !profile.isWorker);
 
   const [form, setForm] = useState<BusinessProfile>(() => settings.business_profile ?? {});
   // El régimen se siembra desde `include_tax`, no desde `taxResponsibility`:
@@ -435,7 +432,6 @@ function BusinessProfileForm({ settings }: { settings: Settings }) {
           </div>
         )}
 
-        {isOwner && <BookingAdminCard />}
 
         {/* "Información básica" (Sector, Precisión y Separador decimal) se quitó:
             ningún lado de la app leía esos valores. Siguen en `business_profile` si

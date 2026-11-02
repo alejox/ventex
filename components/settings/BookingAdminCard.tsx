@@ -11,9 +11,9 @@ import { Switch } from "@/components/ui/Switch";
 const NONE = "";
 
 /**
- * Ajustes → Negocio → "Reservas en línea". Owner only (the caller hides it from
- * workers; the SQL guard `settings_guard_booking_admin` enforces it). Saves on
- * change, independent from the business form's "Guardar".
+ * Ajustes → Reservas → "Asignación de reservas". Owner only (the Reservas page
+ * redirects workers; the SQL guard `settings_guard_booking_admin` enforces it).
+ * Saves on change.
  */
 export function BookingAdminCard() {
   const titleId = useId();
@@ -46,7 +46,7 @@ export function BookingAdminCard() {
   return (
     <div className="bg-surface-container-lowest rounded-3xl overflow-hidden shadow-sm border border-outline-variant/10">
       <div className="p-6 md:p-8">
-        <h2 id={titleId} className="text-lg font-bold text-on-surface">Reservas en línea</h2>
+        <h2 id={titleId} className="text-lg font-bold text-on-surface">Asignación de reservas</h2>
         <p className="text-sm text-on-surface-variant mt-1">
           Decide si las reservas de tu sitio web pueden asignarse a ti cuando el cliente elige &quot;Cualquiera disponible&quot;.
         </p>
