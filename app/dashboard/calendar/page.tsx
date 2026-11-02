@@ -26,6 +26,7 @@ import { checkReschedule } from "@/lib/appointment-drag";
 import { BUSY_STATUS, busyPlaceholders, canSeeFullAgenda, isBusyPlaceholder } from "@/lib/agenda-privacy";
 import { formatDateOnly } from "@/lib/date";
 import { byStaffFilter, isOverdue } from "@/lib/pending-appointments";
+import { formatAppointmentDay } from "@/lib/appointment-day";
 import { useCalendarView } from "./useCalendarView";
 import { staffColumnsFor } from "@/lib/staff-columns";
 import { APPOINTMENT_STATUSES, statusLabel } from "@/lib/appointment-status";
@@ -770,7 +771,7 @@ function CalendarContent() {
                       {appt.title}
                     </div>
                     <div className="text-xs text-on-surface-variant">
-                      {appt.appointment_date} · {timeRange(appt, timeFormat)}
+                      <time dateTime={appt.appointment_date}>{formatAppointmentDay(appt.appointment_date, todayIso)}</time> · {timeRange(appt, timeFormat)}
                     </div>
                     {appt.customers?.full_name && (
                       <div className="text-xs text-on-surface-variant/80 truncate">

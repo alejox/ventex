@@ -19,6 +19,7 @@ import type {
   NewAppointmentInput,
 } from "@/services/appointments.service";
 import { toISODate, formatDateOnly } from "@/lib/date";
+import { formatAppointmentDay } from "@/lib/appointment-day";
 import { formatAppointmentTime, type TimeFormat } from "@/lib/time";
 import { DateTimeDialog, DateTimeField } from "./DateTimeField";
 import { conflictsFor, pickStaff, type BusyAppointment } from "@/lib/appointment-availability";
@@ -477,7 +478,7 @@ function AppointmentModalBody({
             </span>
           )}
           <span className="block truncate">{generatedTitle || form.title || "Organiza la próxima visita"}</span>
-          <span className="mt-1 block text-xs">{form.appointment_date && formatDateOnly(form.appointment_date)} · {formatAppointmentTime(form.start_time, timeFormat)}–{formatAppointmentTime(form.end_time, timeFormat)}</span>
+          <span className="mt-1 block text-xs">{form.appointment_date && formatAppointmentDay(form.appointment_date, toISODate())} · {formatAppointmentTime(form.start_time, timeFormat)}–{formatAppointmentTime(form.end_time, timeFormat)}</span>
         </>
       }
       placement="sheet"
