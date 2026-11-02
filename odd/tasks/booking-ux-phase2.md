@@ -24,7 +24,7 @@ site template, from the UX audit of 2026-11-01. Phase 1: `odd/tasks/booking-ux-p
   dashboard tokens.
 - [x] T3 Success screen: "Agregar a mi calendario" (Google Calendar link + .ics),
   how to cancel (points to "Cancelar cita"), phone formatted.
-- [ ] T4 Staff picker as cards with photo/initials, name, role, plus
+- [x] T4 Staff picker as cards with photo/initials, name, role, plus
   "Cualquiera disponible"; notes as a textarea.
 - [ ] T5 Copy: one CTA label "Reservar cita" across templates; "cita" instead of
   "turno" in public booking copy (aria-labels too; update e2e specs that match).
@@ -64,3 +64,11 @@ site template, from the UX audit of 2026-11-01. Phase 1: `odd/tasks/booking-ux-p
   cita» más abajo con tu celular.", phone shown as "300 123 4567". RED: both
   test files failed with "Cannot find module"; GREEN: 11/11. Checks: npm test
   1173 pass; tsc clean; eslint clean; playwright --list 5 tests.
+  Commit bfc69c9.
+- T4 (delegated writer): staff `<select>` → `<fieldset>` + `role="radiogroup"`
+  ("Profesional") of native visually-hidden radios styled as cards
+  ("Cualquiera disponible" first, then photo via `next/image` from
+  `PublicStaff.photoUrl` or initials, name, role); arrow keys/Tab come from the
+  native radios. Notes is a `<textarea rows={3}>` (same label; there was no
+  maxLength before, none added). No SQL change. Checks: npm test 1173 pass; tsc
+  clean; eslint clean; playwright --list 5 tests.

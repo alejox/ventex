@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -22,6 +23,7 @@ import { normalizeColombianMobile } from "@/lib/co-mobile";
 import { loadStatusOf } from "@/lib/booking-load-state";
 import { buildIcs, googleCalendarUrl, type BookingEvent } from "@/lib/booking-calendar";
 import { formatColombianMobile } from "@/lib/phone-format";
+import { esImagenAjena } from "@/lib/remoteImage";
 
 /**
  * Booking flow for a public visitor: service -> professional -> day -> time ->
@@ -487,20 +489,40 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
         </select>
 
         {site.staff.length > 0 ? (
-          <select
-            aria-label="Profesional"
-            className={`${fieldClass} mt-2`}
-            value={staffId ?? ""}
-            onChange={(e) => setStaffId(e.target.value || null)}
-          >
-            <option value="">Con cualquiera disponible</option>
-            {site.staff.map((member: PublicStaff) => (
-              <option key={member.id} value={member.id}>
-                Con {member.fullName}
-                {member.role ? ` · ${member.role}` : ""}
-              </option>
-            ))}
-          </select>
+          /*
+           * Tarjetas con foto en vez de un <select>: a quien te atiende se lo
+           * elige por la cara, y un desplegable escondía al equipo detrás de un
+           * clic. Son radios NATIVOS (ocultos a la vista, no al lector de
+           * pantalla) dentro de un <fieldset>: flechas, Tab y anuncio de
+           * "1 de 4" vienen del navegador sin escribir un roving tabindex.
+           */
+          <fieldset className="mt-3 min-w-0">
+            <legend className="mb-1.5 text-xs font-semibold text-[var(--site-on-surface)]">
+              ¿Con quién?
+            </legend>
+            <div role="radiogroup" aria-label="Profesional" className="grid gap-2 @md:grid-cols-2">
+              <StaffCard
+                name="booking-staff"
+                value=""
+                checked={staffId === null}
+                onSelect={() => setStaffId(null)}
+                title="Cualquiera disponible"
+                subtitle="Te atiende quien esté libre"
+              />
+              {site.staff.map((member: PublicStaff) => (
+                <StaffCard
+                  key={member.id}
+                  name="booking-staff"
+                  value={member.id}
+                  checked={staffId === member.id}
+                  onSelect={() => setStaffId(member.id)}
+                  title={member.fullName}
+                  subtitle={member.role}
+                  photoUrl={member.photoUrl}
+                />
+              ))}
+            </div>
+          </fieldset>
         ) : null}
       </Step>
 
@@ -802,9 +824,10 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
           <label htmlFor="booking-notes" className="block text-xs font-semibold text-[var(--site-on-surface)]">
             Comentario <span className="font-normal text-[var(--site-on-surface-muted)]">(opcional)</span>
           </label>
-          <input
+          <textarea
             id="booking-notes"
-            className={fieldClass}
+            rows={3}
+            className={`${fieldClass} resize-y`}
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             placeholder="¿Algo que debamos saber?"
@@ -849,6 +872,84 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
         </div>
       </div>
     </form>
+  );
+}
+
+/** "Laura Gómez" → "LG"; una sola palabra → su inicial. */
+function initialsOf(fullName: string): string {
+  const words = fullName.trim().split(/\s+/).filter(Boolean);
+  const letters = words.length > 1 ? [words[0], words[words.length - 1]] : words;
+  return letters.map((w) => w[0]!.toUpperCase()).join("") || "?";
+}
+
+/** Una opción del selector de profesional: radio nativo con aspecto de tarjeta. */
+function StaffCard({
+  name,
+  value,
+  checked,
+  onSelect,
+  title,
+  subtitle,
+  photoUrl,
+}: {
+  name: string;
+  value: string;
+  checked: boolean;
+  onSelect: () => void;
+  title: string;
+  subtitle?: string | null;
+  photoUrl?: string | null;
+}) {
+  return (
+    <label
+      className={`flex min-h-14 cursor-pointer items-center gap-3 rounded-[var(--site-radius)] border p-2.5 transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[var(--site-accent)]/40 ${
+        checked
+          ? "border-[var(--site-accent)] bg-[var(--site-surface-alt)] shadow-[inset_0_0_0_1px_var(--site-accent)]"
+          : "border-[var(--site-on-surface-border)] hover:border-[var(--site-accent)]"
+      }`}
+    >
+      <input
+        type="radio"
+        name={name}
+        value={value}
+        checked={checked}
+        onChange={onSelect}
+        className="sr-only"
+      />
+      <span
+        aria-hidden="true"
+        className="relative grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full bg-[var(--site-surface-alt)] text-xs font-bold text-[var(--site-on-surface)]"
+      >
+        {photoUrl ? (
+          <Image
+            src={photoUrl}
+            unoptimized={esImagenAjena(photoUrl)}
+            alt=""
+            fill
+            sizes="40px"
+            className="object-cover"
+          />
+        ) : value ? (
+          initialsOf(title)
+        ) : (
+          "✦"
+        )}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-semibold text-[var(--site-on-surface)]">{title}</span>
+        {subtitle ? (
+          <span className="block truncate text-xs text-[var(--site-on-surface-muted)]">{subtitle}</span>
+        ) : null}
+      </span>
+      {checked ? (
+        <span
+          aria-hidden="true"
+          className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[var(--site-accent)] text-[0.65rem] font-bold text-[var(--site-on-accent)]"
+        >
+          ✓
+        </span>
+      ) : null}
+    </label>
   );
 }
 
