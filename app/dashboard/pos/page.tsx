@@ -763,7 +763,7 @@ function POSContent() {
     let stale = false;
     void fetchLinkedAppointment(requestedAppointment).then((appointment) => {
       if (stale) return;
-      if (!appointment || appointment.sale_id || appointment.status === "cancelled" || !appointment.service_id) {
+      if (!appointment || appointment.sale_id || (appointment.status === "cancelled" || appointment.status === "no_show") || !appointment.service_id) {
         notifyError("No se puede cargar la cita", "La cita ya fue cobrada, está cancelada o no tiene servicio. Revisa la agenda.");
       } else {
         handlePickCita({

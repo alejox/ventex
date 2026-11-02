@@ -89,3 +89,4 @@ from the UX audit of 2026-11-01. Phases 1–2: `odd/tasks/booking-ux-phase1.md`,
 - `app/dashboard/pos/page.tsx` (~L766) refuses to charge a cancelled appointment via
   `?appointment=` but not a `no_show` one (outside the T2 edit surface). The modal hides
   "Cobrar" for no_show, so it is only reachable by a hand-built URL.
+  Fixed by the parent: the POS guard now also refuses `no_show`.
