@@ -504,7 +504,7 @@ export const QUICK_ACTIONS: QuickAction[] = [
   // El mismo formulario, abierto en la pestaña Servicio. Es lo que ya hacía el
   // enlace del modal rápido, salvo que ese `?type=` nunca se leía.
   { id: "new-customer", title: "Registrar Cliente", href: "/dashboard/customers", module: null },
-  { id: "new-appointment", title: "Nueva Cita", href: "/dashboard/calendar", module: "appointments" },
+  { id: "new-appointment", title: "Nueva cita", href: "/dashboard/calendar", module: "appointments" },
   { id: "new-service", title: "Nuevo Servicio", href: "/dashboard/inventory/product?type=servicio", module: "services" },
   { id: "new-staff", title: "Añadir Personal", href: "/dashboard/staff", module: "staff" },
   { id: "new-vehicle", title: "Registrar Vehículo", href: "/dashboard/vehicles", module: "vehicles" },

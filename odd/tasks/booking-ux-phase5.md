@@ -46,6 +46,7 @@ this branch stacks on phase 4).
   `<time dateTime>`) and the AppointmentModal header. "Today" is the page's
   existing device-clock `todayIso` (same one `isOverdue` uses); the calendar has
   no business-timezone "today" yet.
+- Parent: command-palette entry in `config/business.ts` → "Nueva cita".
 - Checks after T3: `npm test` 1206/1206 pass; `npx tsc --noEmit` clean; eslint
   on changed files clean; `npx playwright test --list` 225 tests in 35 files.
 
