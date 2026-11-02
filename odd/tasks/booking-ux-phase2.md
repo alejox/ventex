@@ -26,7 +26,7 @@ site template, from the UX audit of 2026-11-01. Phase 1: `odd/tasks/booking-ux-p
   how to cancel (points to "Cancelar cita"), phone formatted.
 - [x] T4 Staff picker as cards with photo/initials, name, role, plus
   "Cualquiera disponible"; notes as a textarea.
-- [ ] T5 Copy: one CTA label "Reservar cita" across templates; "cita" instead of
+- [x] T5 Copy: one CTA label "Reservar cita" across templates; "cita" instead of
   "turno" in public booking copy (aria-labels too; update e2e specs that match).
 
 ## Constraints
@@ -71,4 +71,19 @@ site template, from the UX audit of 2026-11-01. Phase 1: `odd/tasks/booking-ux-p
   `PublicStaff.photoUrl` or initials, name, role); arrow keys/Tab come from the
   native radios. Notes is a `<textarea rows={3}>` (same label; there was no
   maxLength before, none added). No SQL change. Checks: npm test 1173 pass; tsc
-  clean; eslint clean; playwright --list 5 tests.
+  clean; eslint clean; playwright --list 5 tests. Commit db66c2a.
+- T5 (delegated writer): every template nav/hero booking CTA (Rasm, Qutter,
+  Fallspa, Salon, BarberModern/Artesanal/Urbana) now reads "Reservar cita"
+  (arrow glyph/icon kept where the template had one). Per-service card button
+  stays "Reservar" (contextual action on a service). Day aria-label "N turnos
+  libres" → "N horarios libres"; submit fallback "Reservar turno" → "Reservar
+  cita"; Urbana WhatsApp text "pedir un turno" → "pedir una cita". e2e specs
+  updated to `/horarios libres$/`. Evidence: `rg turno app/[slug]` leaves only
+  code comments and `app/[slug]/page.tsx:26` (meta description, outside this
+  task's edit surface). Also outside the surface: `SECTION_DEFAULTS.booking.title`
+  "Reserva tu turno" in `services/public-site.types.ts` (saved per site; only
+  affects new sites). Checks: npm test 1173 pass; tsc clean; eslint clean;
+  playwright --list 5 tests.
+
+Next step: parent decides on the two out-of-surface "turno" strings and on
+native review/delivery.

@@ -18,7 +18,7 @@ export function BarberArtesanalTemplate({ site, preview = false }: { site: Publi
         <div className={styles.headerInner}>
           <a className={styles.brand} href="#inicio">{site.logoUrl ? <Image src={site.logoUrl} unoptimized={esImagenAjena(site.logoUrl)} alt="" width={36} height={36} /> : <Scissors size={22} strokeWidth={1.4} aria-hidden="true" />}<span>{site.businessName}</span></a>
           <nav className={styles.navLinks} aria-label="Principal"><a href="#servicios">Servicios</a><a href="#equipo">Equipo</a><a href="#contacto">Contacto</a></nav>
-          {site.bookingEnabled ? <a className={styles.navCta} href="#reservar">Reservar <ArrowUpRight size={14} aria-hidden="true" /></a> : null}
+          {site.bookingEnabled ? <a className={styles.navCta} href="#reservar">Reservar cita <ArrowUpRight size={14} aria-hidden="true" /></a> : null}
         </div>
       </header>
       <section id="inicio" className={styles.hero}>
@@ -28,7 +28,7 @@ export function BarberArtesanalTemplate({ site, preview = false }: { site: Publi
           <h1 className={`${styles.heroTitle} ${styles.manuscrita}`} style={heroTitleFontStyle(hero.titleFont)}>{hero.title ?? site.businessName}</h1>
           <p className={styles.heroKicker}>{hero.eyebrow}</p>
           {hero.description ? <p className="mx-auto mt-5 max-w-2xl text-sm leading-7 text-[#ecd9cd]">{hero.description}</p> : null}
-          <div className={styles.heroActions}>{site.bookingEnabled ? <a className={styles.primary} href="#reservar">Reserva tu turno <ArrowUpRight size={16} aria-hidden="true" /></a> : null}<a className={styles.secondary} href="#servicios">Ver servicios</a></div>
+          <div className={styles.heroActions}>{site.bookingEnabled ? <a className={styles.primary} href="#reservar">Reservar cita <ArrowUpRight size={16} aria-hidden="true" /></a> : null}<a className={styles.secondary} href="#servicios">Ver servicios</a></div>
           <div className={styles.heroStatus}><BusinessStatus site={site} /></div>
         </div>
         {!hero.imageUrl ? <span className={styles.sample}>Imagen de referencia</span> : null}

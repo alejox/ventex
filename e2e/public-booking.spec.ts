@@ -53,7 +53,7 @@ test.describe("Reservas del sitio público", () => {
     await expect(booking.getByRole("combobox", { name: "Servicio" })).toBeVisible({ timeout: 20000 });
 
     // El primer día con cupo del mes (o del siguiente, si este ya no tiene).
-    const freeDay = booking.getByRole("button", { name: /turnos libres$/ }).first();
+    const freeDay = booking.getByRole("button", { name: /horarios libres$/ }).first();
     if ((await freeDay.count()) === 0) {
       await booking.getByRole("button", { name: "Mes siguiente" }).click();
     }

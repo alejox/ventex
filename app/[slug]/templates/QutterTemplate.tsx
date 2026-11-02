@@ -17,7 +17,7 @@ export function QutterTemplate({ site, preview = false }: { site: PublicSite; pr
       <header id="inicio" className={styles.qutterHeader}>
         <nav aria-label="Principal" className={styles.nav}>
           <a href="#inicio" className={styles.brand}>{site.logoUrl ? <Image src={site.logoUrl} unoptimized={esImagenAjena(site.logoUrl)} alt="" width={48} height={48} className={styles.logo} /> : <span className={styles.brandMark}>✂</span>}<span>{site.businessName}</span></a>
-          <div className={styles.navLinks}><a href="#servicios">Servicios</a><a href="#galeria">Galería</a><a href="#contacto">Contacto</a>{site.bookingEnabled ? <a href="#reservar" className={styles.navCta}>Agendar →</a> : null}</div>
+          <div className={styles.navLinks}><a href="#servicios">Servicios</a><a href="#galeria">Galería</a><a href="#contacto">Contacto</a>{site.bookingEnabled ? <a href="#reservar" className={styles.navCta}>Reservar cita →</a> : null}</div>
         </nav>
         <div className={styles.qutterHero}>
           <div className={styles.qutterSideImage}><Image src={DEFAULT_SITE_DETAIL_IMAGES.qutterSide} unoptimized={esImagenAjena(DEFAULT_SITE_DETAIL_IMAGES.qutterSide)} alt="" fill sizes="12vw" /></div>
@@ -28,7 +28,7 @@ export function QutterTemplate({ site, preview = false }: { site: PublicSite; pr
             <h1 className={styles.heroTitle} style={heroTitleFontStyle(hero.titleFont)}>{hero.title ?? site.businessName}</h1>
             {hero.description ? <p className={styles.heroDescription}>{hero.description}</p> : null}
             <BusinessStatus site={site} className="mt-5 text-[var(--site-on-surface-muted)]" />
-            <div className={styles.heroActions}>{site.bookingEnabled ? <a href="#reservar" className={`${styles.heroCta} site-action`}>Reservar turno →</a> : null}<a href="#servicios" className={styles.textLink}>Explorar servicios</a></div>
+            <div className={styles.heroActions}>{site.bookingEnabled ? <a href="#reservar" className={`${styles.heroCta} site-action`}>Reservar cita →</a> : null}<a href="#servicios" className={styles.textLink}>Explorar servicios</a></div>
           </div>
         </div>
       </header>

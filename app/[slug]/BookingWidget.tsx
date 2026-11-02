@@ -628,7 +628,7 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
                             ? esHoy
                               ? "cerrado por hoy"
                               : "sin cupos"
-                            : `${info.freeSlots} turnos libres`
+                            : `${info.freeSlots} horarios libres`
                     }`}
                     onClick={() => setPickedDate(fecha)}
                     className={`relative flex aspect-square flex-col items-center justify-center rounded-[var(--site-radius)] border text-sm transition-all ${
@@ -855,7 +855,7 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
           disabled={submitting || !time || !name || !mobile}
           className="min-h-12 w-full rounded-[var(--site-radius)] bg-[var(--site-accent)] px-4 py-3.5 text-sm font-semibold text-[var(--site-on-accent)] transition-opacity focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--site-accent)] disabled:opacity-60"
         >
-          {submitting ? "Enviando…" : time ? `Reservar a las ${formatAppointmentTime(time, site.timeFormat)}` : "Reservar turno"}
+          {submitting ? "Enviando…" : time ? `Reservar a las ${formatAppointmentTime(time, site.timeFormat)}` : "Reservar cita"}
         </button>
 
         {/* Dice qué falta, en vez de dejar un botón apagado sin explicación. */}

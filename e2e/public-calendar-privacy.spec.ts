@@ -26,8 +26,8 @@ test.describe("Privacidad del calendario público", () => {
     await page.waitForLoadState("networkidle");
 
     // La grilla del mes se llena en cliente; esperamos a que aparezca algún día.
-    // Cada día dice su estado en el aria-label ("…, 5 turnos libres", "…, cerrado").
-    const dayButtons = page.getByRole("button", { name: /turnos libres$/ });
+    // Cada día dice su estado en el aria-label ("…, 5 horarios libres", "…, cerrado").
+    const dayButtons = page.getByRole("button", { name: /horarios libres$/ });
     await expect(dayButtons.first()).toBeVisible({ timeout: 20000 });
 
     const dom = await page.content();
@@ -78,7 +78,7 @@ test.describe("Privacidad del calendario público", () => {
     await page.waitForLoadState("networkidle");
 
     // Cada día del mes es un botón cuyo aria-label es "<fecha>, <estado>".
-    const allowedState = /, (\d+ turnos libres|cerrado|cerrado por hoy|sin cupos|todavía no se puede reservar)$/;
+    const allowedState = /, (\d+ horarios libres|cerrado|cerrado por hoy|sin cupos|todavía no se puede reservar)$/;
     const days = page.locator('button[aria-pressed][aria-label*=", "]');
     await expect(page.getByRole("button", { name: allowedState }).first()).toBeVisible({ timeout: 20000 });
 

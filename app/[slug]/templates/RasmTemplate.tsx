@@ -20,7 +20,7 @@ export function RasmTemplate({ site, preview = false }: { site: PublicSite; prev
           </a>
           <div className={styles.navLinks}>
             <a href="#servicios">Servicios</a><a href="#equipo">Equipo</a><a href="#contacto">Contacto</a>
-            {site.bookingEnabled ? <a href="#reservar" className={styles.navCta}>Reservar</a> : null}
+            {site.bookingEnabled ? <a href="#reservar" className={styles.navCta}>Reservar cita</a> : null}
           </div>
         </nav>
         <div className={styles.rasmHero}>
@@ -29,7 +29,7 @@ export function RasmTemplate({ site, preview = false }: { site: PublicSite; prev
             <h1 className={styles.heroTitle} style={heroTitleFontStyle(hero.titleFont)}>{hero.title ?? site.businessName}</h1>
             {hero.description ? <p className={styles.heroDescription}>{hero.description}</p> : null}
             <BusinessStatus site={site} className="mt-5 text-[var(--site-muted)]" />
-            <div className={styles.heroActions}>{site.bookingEnabled ? <a href="#reservar" className={`${styles.heroCta} site-action`}>Reservar turno →</a> : null}<a href="#servicios" className={styles.textLink}>Ver servicios</a></div>
+            <div className={styles.heroActions}>{site.bookingEnabled ? <a href="#reservar" className={`${styles.heroCta} site-action`}>Reservar cita →</a> : null}<a href="#servicios" className={styles.textLink}>Ver servicios</a></div>
           </div>
           <div className={`${styles.heroImage} site-enter site-enter-delay-2`}>
             <Image src={hero.imageUrl ?? DEFAULT_SITE_IMAGES.rasm} unoptimized={esImagenAjena(hero.imageUrl ?? DEFAULT_SITE_IMAGES.rasm)} alt="" fill preload={!preview} sizes="(max-width: 1024px) 100vw, 42vw" className="object-cover" />

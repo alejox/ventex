@@ -34,7 +34,7 @@ export function SalonTemplate({ site, preview = false, variant }: { site: Public
             <h1 className={styles.title} style={heroTitleFontStyle(hero.titleFont)}>{hero.title ?? site.businessName}</h1>
             {hero.description ? <p className={styles.description}>{hero.description}</p> : null}
             <BusinessStatus site={site} className="mt-5 text-[var(--site-muted)]" />
-            <div className={styles.actions}>{site.bookingEnabled ? <a href="#reservar" className={`${styles.primary} site-action`}>Reservar ahora</a> : null}<a href="#servicios" className={`${styles.secondary} site-action`}>Ver servicios</a></div>
+            <div className={styles.actions}>{site.bookingEnabled ? <a href="#reservar" className={`${styles.primary} site-action`}>Reservar cita</a> : null}<a href="#servicios" className={`${styles.secondary} site-action`}>Ver servicios</a></div>
           </div>
           <div className={`${styles.frame} site-enter site-enter-delay-2`}>
             <Image src={image} unoptimized={esImagenAjena(image)} alt="" fill preload={!preview} sizes="(max-width: 900px) 100vw, 46vw" className={styles.photo} />

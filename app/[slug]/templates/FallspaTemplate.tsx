@@ -24,7 +24,7 @@ export function FallspaTemplate({ site, preview = false }: { site: PublicSite; p
             <h1 className={styles.heroTitle} style={heroTitleFontStyle(hero.titleFont)}>{hero.title ?? site.businessName}</h1>
             {hero.description ? <p className={styles.heroDescription}>{hero.description}</p> : null}
             <BusinessStatus site={site} className="mt-5 text-[var(--site-muted)]" />
-            <div className={styles.heroActions}><a href="#servicios" className={`${styles.heroCta} site-action`}>Descubrir más</a>{site.bookingEnabled ? <a href="#reservar" className={`${styles.heroCta} site-action`}>Reservar ahora</a> : null}</div>
+            <div className={styles.heroActions}><a href="#servicios" className={`${styles.heroCta} site-action`}>Descubrir más</a>{site.bookingEnabled ? <a href="#reservar" className={`${styles.heroCta} site-action`}>Reservar cita</a> : null}</div>
           </div>
           <div className={`${styles.heroImage} site-enter site-enter-delay-2`}>
             <Image src={hero.imageUrl ?? DEFAULT_SITE_IMAGES.fallspa} unoptimized={esImagenAjena(hero.imageUrl ?? DEFAULT_SITE_IMAGES.fallspa)} alt="" fill preload={!preview} sizes="(max-width: 1024px) 100vw, 50vw" />
