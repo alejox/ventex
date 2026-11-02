@@ -19,7 +19,7 @@ from the UX audit of 2026-11-01 (customer site, barber, admin).
 ## Scope / tasks
 - [x] T1 Widget error states: distinguish loading vs failed for availability and
   day slots; show an error message with "Reintentar". Pure state helper + unit test.
-- [ ] T2 Notify assigned staff on new site booking (`recipient_staff_id`, same
+- [x] T2 Notify assigned staff on new site booking (`recipient_staff_id`, same
   model as the cancel notice). Full `create or replace` from the live definition.
 - [x] T3 Dashboard cancel: `useConfirm` before cancelling; after cancelling,
   offer "Avisar por WhatsApp" to the customer (reuse `lib/appointment-cancel-message.ts`
@@ -67,3 +67,16 @@ push phase results to main.
   stale pendings are exactly what needs review. RED (module missing) → GREEN 6/6
   (`tests/pending-appointments.test.ts`). npm test 1161/1161, tsc clean, eslint
   clean. Commit: see `git log` (feat(calendar): …).
+- T2 (delegated writer B) — `20261101140000_notify_staff_on_site_booking.sql`
+  (applied via MCP, identical file): `public_site_book` rebuilt from the live
+  definition; the owner row ("Nueva reserva pendiente", `recipient_staff_id`
+  null) is unchanged, and a second row "Nueva reserva asignada a ti"
+  (`recipient_staff_id = v_assigned`, `event = 'booked_staff'`, same body +
+  date/time/service) is added only when the assigned staff has an active
+  `member` membership — same gate as the cancel notice; RLS keeps it to that
+  person. Live check (DO block ending in `raise exception`, rolled back):
+  booking on a site with a member staff produced total=2, owner=1, staff=1;
+  afterwards 0 appointments/customers/notifications left. Client needed no
+  change: `notificationDestination` already opens the appointment and
+  `cancelNoticeLink` ignores other events; one characterization test added
+  (no RED: behaviour already existed). npm test 1162/1162, tsc clean, eslint clean.

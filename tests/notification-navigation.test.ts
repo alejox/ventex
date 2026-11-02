@@ -29,3 +29,11 @@ test("'Reponer insumo' opens the ingredient's product page", () => {
   assert.equal(notificationDestination(alert), "/dashboard/inventory/product?id=prod-1");
   assert.equal(notificationDestination(notification({ type: "insumo_bajo", data: {} })), null);
 });
+
+test("the assigned staff's booking notice opens the same appointment", () => {
+  const staffNotice = notification({
+    title: "Nueva reserva asignada a ti",
+    data: { appointment_id: "reserve-1", event: "booked_staff", service: "Corte", date: "2026-11-03", time: "09:00" },
+  });
+  assert.equal(notificationDestination(staffNotice), "/dashboard/calendar?appointment=reserve-1");
+});
