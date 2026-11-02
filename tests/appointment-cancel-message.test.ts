@@ -109,3 +109,17 @@ test("cancelNoticeLink: el aviso al barbero (cancelled_by_customer_staff) nunca 
   // Aunque algún día compartiera el título del dueño, el `event` manda.
   assert.equal(cancelNoticeLink({ ...barbero, title: "Cita cancelada por el cliente" }, "Barbería"), null);
 });
+
+test("buildCancelNoticeMessage respeta la hora ya formateada del dashboard (12 h)", () => {
+  const message = buildCancelNoticeMessage({
+    customerName: "Ana",
+    service: "Corte",
+    date: "2026-11-05",
+    time: "3:00 p. m.",
+    businessName: "Barbería Centro",
+  });
+  assert.equal(
+    message,
+    "Hola Ana, se ha cancelado tu cita de Corte del 05/11/2026 a las 3:00 p. m. en Barbería Centro. Si quieres agendar de nuevo, escríbenos por aquí.",
+  );
+});

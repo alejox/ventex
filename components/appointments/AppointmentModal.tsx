@@ -25,6 +25,8 @@ import { conflictsFor, pickStaff, type BusyAppointment } from "@/lib/appointment
 import { defaultAppointmentStaffId, ownAgendaStaffId } from "@/lib/agenda-privacy";
 import { useFormatMoney } from "@/lib/useMoney";
 import { currentAppointment } from "@/lib/appointment-state";
+import { buildCancelNoticeMessage } from "@/lib/appointment-cancel-message";
+import { businessDisplayName } from "@/services/promos.service";
 
 /**
  * Mensaje de confirmación ya redactado para el cliente.
@@ -154,6 +156,7 @@ function AppointmentModalBody({
   const fetchStaff = useStaffStore((s) => s.fetchStaff);
   const profile = useProfile();
   const timeFormat = useSettingsStore((s) => s.settings?.time_format ?? "12");
+  const settingsBusinessName = useSettingsStore((s) => s.settings?.business_profile?.businessName);
   const isCarWash = profile?.businessType === "lavaautos";
   const isWorker = profile?.isWorker ?? false;
   // Un trabajador (no admin) solo agenda para sí mismo: la base rechaza
@@ -231,6 +234,16 @@ function AppointmentModalBody({
     date: form.appointment_date,
     startTime: form.start_time,
     timeFormat,
+  });
+
+  // Aviso de cancelación al cliente: mismo texto que el de la notificación
+  // "Cita cancelada por el cliente" (lo manda una persona, sin API).
+  const cancellationMessage = buildCancelNoticeMessage({
+    customerName: selectedCustomer?.full_name.trim().split(" ")[0] ?? null,
+    service: services.find((s) => s.id === form.service_id)?.name || form.service_type || form.title,
+    date: form.appointment_date,
+    time: formatAppointmentTime(form.start_time, timeFormat),
+    businessName: businessDisplayName(settingsBusinessName, profile?.businessName),
   });
 
   useEffect(() => {
@@ -359,6 +372,18 @@ function AppointmentModalBody({
       return;
     }
     setShowCompleteConfirm(false);
+    if (status === "cancelled") {
+      const who = selectedCustomer?.full_name?.trim();
+      const when = `${formatDateOnly(form.appointment_date, { weekday: "long", day: "numeric", month: "long" })} a las ${formatAppointmentTime(form.start_time, timeFormat)}`;
+      const proceed = await confirm({
+        title: "¿Cancelar esta cita?",
+        description: `${who ? `La cita de ${who}` : "La cita"} del ${when} quedará cancelada y su horario se libera.`,
+        confirmLabel: "Sí, cancelar",
+        cancelLabel: "No, mantenerla",
+        tone: "danger",
+      });
+      if (!proceed) return;
+    }
     const ok = await updateStatus(appointment.id, status);
     if (ok) {
       const label = STATUS_OPTIONS.find((o) => o.value === status)?.label ?? status;
@@ -429,6 +454,14 @@ function AppointmentModalBody({
             <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
               <span className="font-semibold text-primary" role="status">Reserva confirmada</span>
               {customerWhatsapp ? <a href={whatsappUrl(confirmationMessage, customerWhatsapp)} target="_blank" rel="noopener noreferrer"
+                className="font-semibold text-primary underline underline-offset-4">Avisar por WhatsApp</a>
+                : <span className="text-xs text-on-surface-variant">Sin teléfono para avisar.</span>}
+            </div>
+          )}
+          {isEditing && liveStatus === "cancelled" && !dirty && (
+            <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+              <span className="font-semibold text-error-dim" role="status">Cita cancelada</span>
+              {customerWhatsapp ? <a href={whatsappUrl(cancellationMessage, customerWhatsapp)} target="_blank" rel="noopener noreferrer"
                 className="font-semibold text-primary underline underline-offset-4">Avisar por WhatsApp</a>
                 : <span className="text-xs text-on-surface-variant">Sin teléfono para avisar.</span>}
             </div>
