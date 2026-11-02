@@ -4442,6 +4442,7 @@ export type Database = {
       public_site_availability: {
         Args: {
           p_days?: number
+          p_exclude_appointment_id?: string
           p_from: string
           p_service_id: string
           p_slug: string
@@ -4474,6 +4475,7 @@ export type Database = {
       public_site_day_slots: {
         Args: {
           p_date: string
+          p_exclude_appointment_id?: string
           p_service_id: string
           p_slug: string
           p_staff_id?: string
@@ -4487,9 +4489,20 @@ export type Database = {
         Args: { p_phone: string; p_slug: string }
         Returns: Json
       }
+      public_site_reschedule_appointment: {
+        Args: {
+          p_appointment_id: string
+          p_date: string
+          p_phone: string
+          p_slug: string
+          p_time: string
+        }
+        Returns: Json
+      }
       public_site_slots: {
         Args: {
           p_date: string
+          p_exclude_appointment_id?: string
           p_service_id: string
           p_slug: string
           p_staff_id?: string
