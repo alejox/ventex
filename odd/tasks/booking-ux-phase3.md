@@ -83,8 +83,7 @@ from the UX audit of 2026-11-01. Phases 1–2: `odd/tasks/booking-ux-phase1.md`,
   lives only in the column (not in draft/published config), and the editor re-fetches on
   mount, so both read the same source; editor got a pointer to Ajustes → Reservas.
   Calendar link now points to `/dashboard/settings/reservas`.
-  Checks: npm test 1193/1193, tsc clean, eslint clean. Commit: see git log
-  (`feat(settings): add the Reservas tab…`).
+  Checks: npm test 1193/1193, tsc clean, eslint clean. Commit: `87f8aa7`.
 
 ## Known gaps
 - `app/dashboard/pos/page.tsx` (~L766) refuses to charge a cancelled appointment via
