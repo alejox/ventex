@@ -20,7 +20,7 @@ site template, from the UX audit of 2026-11-01. Phase 1: `odd/tasks/booking-ux-p
 - [x] T1 Inline hours: tapping a day selects it and shows its slots inline
   (next to / under the calendar), no overlay; keyboard and screen-reader
   friendly; selected day highlighted; picking a slot scrolls to step 3 on mobile.
-- [ ] T2 Cancel modal follows the site theme (`--site-*` variables) instead of
+- [x] T2 Cancel modal follows the site theme (`--site-*` variables) instead of
   dashboard tokens.
 - [ ] T3 Success screen: "Agregar a mi calendario" (Google Calendar link + .ics),
   how to cancel (points to "Cancelar cita"), phone formatted.
@@ -45,3 +45,12 @@ site template, from the UX audit of 2026-11-01. Phase 1: `odd/tasks/booking-ux-p
   picking a slot scrolls step 3 into view only when it is below the fold
   (reduced-motion → instant). e2e specs moved from the dialog to the region.
   Checks: npm test 1162 pass; tsc clean; eslint clean; playwright --list 5 tests.
+  Commit 9e71c56.
+- T2 (delegated writer): `CancelAppointment` keeps the shared `Modal`
+  (behaviour) but repaints its panel via `className` with `--site-*`
+  (important modifier), title/description as site-colored spans, no dashboard
+  X (themed "Cerrar" at the bottom). `ConfirmDialog` replaced by an inline
+  per-row "¿Cancelar esta cita?" step (same "Sí, cancelar" / "No, mantenerla"
+  labels, so e2e (b) still matches). Phone validated client-side with
+  `normalizeColombianMobile` + the widget's copy before searching. Checks:
+  npm test 1162 pass; tsc clean; eslint clean; playwright --list 5 tests.
