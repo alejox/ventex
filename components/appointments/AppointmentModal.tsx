@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useId, useMemo, useRef, type ReactNode } from "react";
 import Link from "next/link";
+import { CalendarDays, ChevronDown, Phone, Scissors, User, UserPlus } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { QuickCustomerModal } from "./QuickCustomerModal";
 import { toast } from "sonner";
@@ -19,7 +20,6 @@ import type {
   NewAppointmentInput,
 } from "@/services/appointments.service";
 import { toISODate, formatDateOnly } from "@/lib/date";
-import { formatAppointmentDay } from "@/lib/appointment-day";
 import { businessNow } from "@/lib/tz";
 import { formatAppointmentTime, type TimeFormat } from "@/lib/time";
 import { DateTimeDialog, DateTimeField } from "./DateTimeField";
@@ -135,6 +135,43 @@ const STATUS_OPTIONS = [
   { value: "cancelled", label: "Cancelada", color: "bg-error-container/20 text-error-dim border-error-container/30" },
   { value: "no_show", label: "No vino", color: "bg-tertiary-container/30 text-on-tertiary-container border-tertiary/30" },
 ];
+
+/** Iniciales para el avatar del encabezado ("Ana María Pérez" → "AM"). */
+function initialsOf(name: string): string {
+  return name.trim().split(/\s+/).slice(0, 2).map((word) => word[0] ?? "").join("").toUpperCase();
+}
+
+/**
+ * Los tres desplegables del modal ("Notas y detalles opcionales", "Personalizar
+ * título", "Más acciones") comparten estilo: sin el triángulo nativo y con un
+ * chevron que gira al abrir.
+ */
+const SUMMARY_CLASS =
+  "flex min-h-10 cursor-pointer list-none items-center justify-between gap-2 rounded-xl text-sm font-semibold text-on-surface-variant transition-colors hover:text-on-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-ink [&::-webkit-details-marker]:hidden";
+
+function SummaryChevron() {
+  return <ChevronDown size={16} aria-hidden="true" className="shrink-0 transition-transform group-open:rotate-180" />;
+}
+
+const SECTION_ACTION_CLASS =
+  "inline-flex min-h-8 items-center gap-1 rounded-lg px-2 text-xs font-semibold text-primary-ink hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-ink";
+
+/** Bloque del formulario sobre superficie tintada, con ícono y rótulo. */
+function FormSection({ icon, title, action, children }: { icon: ReactNode; title: string; action?: ReactNode; children: ReactNode }) {
+  const headingId = useId();
+  return (
+    <section aria-labelledby={headingId} className="rounded-2xl bg-surface-container-low p-4">
+      <div className="mb-3 flex min-h-8 items-center justify-between gap-2">
+        <h3 id={headingId} className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-on-surface-variant">
+          <span aria-hidden="true" className="text-primary-ink">{icon}</span>
+          {title}
+        </h3>
+        {action}
+      </div>
+      {children}
+    </section>
+  );
+}
 
 export default function AppointmentModal(props: AppointmentModalProps) {
   if (!props.open) return null;
@@ -278,6 +315,13 @@ function AppointmentModalBody({
   const [showNewCustomer, setShowNewCustomer] = useState(false);
   const canUsePos = !isWorker || Boolean(profile?.workerPermissions?.pos);
 
+  // Encabezado: el cliente es la línea principal. Mientras la lista de clientes
+  // carga se usa el nombre embebido en la cita (si sigue siendo el mismo cliente).
+  const headerCustomerName =
+    selectedCustomer?.full_name ??
+    (form.customer_id && form.customer_id === appointment?.customer_id ? appointment?.customers?.full_name : undefined) ??
+    null;
+  const headerServiceName = services.find((service) => service.id === form.service_id)?.name || form.service_type;
   const generatedTitle = [
     services.find((service) => service.id === form.service_id)?.name || form.service_type,
     selectedCustomer?.full_name,
@@ -472,23 +516,55 @@ function AppointmentModalBody({
       onClose={() => {
         if (!busy) void requestClose();
       }}
-      title={isEditing ? "Editar cita" : "Nueva cita"}
+      // El título sigue siendo el nombre accesible del diálogo ("Editar cita" /
+      // "Nueva cita"), pero se ve como antetítulo: la línea principal es el cliente.
+      title={<span className="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant">{isEditing ? "Editar cita" : "Nueva cita"}</span>}
       description={
-        <>
-          {liveStatus && (
-            <span className="mb-1 inline-block rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary-ink">
-              {STATUS_OPTIONS.find((option) => option.value === liveStatus)?.label}
+        // La fecha no se repite acá: la tarjeta "Fecha y hora" del cuerpo es su dueña.
+        <span className="mt-2 flex items-center gap-3">
+          <span aria-hidden="true" className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-primary-container text-sm font-bold text-on-primary-container">
+            {headerCustomerName ? initialsOf(headerCustomerName) : <User size={20} />}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span className="min-w-0 truncate text-lg font-bold text-on-surface">
+                {headerCustomerName ?? (customTitle && form.title ? form.title : "Sin cliente")}
+              </span>
+              {liveStatus && (
+                <span className={`inline-block shrink-0 rounded-full border px-2.5 py-0.5 text-xs font-semibold ${STATUS_OPTIONS.find((option) => option.value === liveStatus)?.color ?? ""}`}>
+                  {STATUS_OPTIONS.find((option) => option.value === liveStatus)?.label}
+                </span>
+              )}
             </span>
-          )}
-          <span className="block truncate">{generatedTitle || form.title || "Organiza la próxima visita"}</span>
-          <span className="mt-1 block text-xs">{form.appointment_date && formatAppointmentDay(form.appointment_date, openedAt.date)} · {formatAppointmentTime(form.start_time, timeFormat)}–{formatAppointmentTime(form.end_time, timeFormat)}</span>
-        </>
+            <span className="block truncate text-sm text-on-surface-variant">
+              {[
+                headerServiceName,
+                form.staff_id
+                  ? staff.find((member) => member.id === form.staff_id)?.full_name ??
+                    (form.staff_id === appointment?.staff_id ? appointment?.staff?.full_name : null)
+                  : autoStaff ? staff.find((member) => member.id === autoStaff)?.full_name : null,
+              ].filter(Boolean).join(" · ") || "Organiza la próxima visita"}
+            </span>
+          </span>
+        </span>
       }
       placement="sheet"
       bodyClassName="border-t border-outline-variant/10"
-      footerClassName="border-t border-outline-variant/20 bg-surface-container-lowest p-4 sm:px-6"
+      footerClassName="border-t border-outline-variant/20 bg-surface-container-low p-4 sm:px-6"
       footer={
         <div className="space-y-3">
+          {/*
+            Siguiente paso de una reserva pendiente. "Confirmar reserva" corre
+            `confirmPending`, que PRIMERO guarda el formulario (`saveForm`) y
+            después cambia el estado: con cambios sin guardar, los guarda también.
+          */}
+          {isEditing && liveStatus === "pending" && (
+            <p className="rounded-xl bg-warning/10 px-3 py-2 text-xs text-on-surface">
+              {dirty
+                ? "Tienes cambios sin guardar: al confirmar la reserva también se guardan."
+                : "Esta reserva está pendiente. Confírmala y después podrás avisarle al cliente por WhatsApp."}
+            </p>
+          )}
           {isEditing && liveStatus === "confirmed" && !dirty && (
             <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
               <span className="font-semibold text-primary" role="status">Reserva confirmada</span>
@@ -515,9 +591,10 @@ function AppointmentModalBody({
             </div>
           )}
           <div className="flex items-center justify-between gap-2">
-            {isEditing ? <details className="relative">
-              <summary className="cursor-pointer text-sm text-on-surface-variant">Más acciones</summary>
-              <div className="absolute bottom-full left-0 mb-3 w-52 rounded-xl border border-outline-variant/30 bg-surface-container-high p-2 shadow-xl flex flex-col">
+            {isEditing ? <details className="group relative">
+              <summary className={`${SUMMARY_CLASS} px-1`}>Más acciones<SummaryChevron /></summary>
+              {/* Agrupado: reprogramar, después estados, y al final lo destructivo en rojo. */}
+              <div className="absolute bottom-full left-0 mb-3 flex w-56 flex-col rounded-xl border border-outline-variant/30 bg-surface-container-high p-2 shadow-xl">
                 {liveStatus !== "cancelled" && liveStatus !== "completed" && liveStatus !== "no_show" && !liveSaleId ? (
                   <button type="button" disabled={busy} onClick={() => setMoveOpen(true)} className="text-left rounded-lg p-2 text-sm text-on-surface hover:bg-surface-container-highest">
                     Mover a…
@@ -528,16 +605,27 @@ function AppointmentModalBody({
                     Marcar como no vino
                   </button>
                 ) : null}
-                {STATUS_OPTIONS.filter(option => option.value !== liveStatus && option.value !== "confirmed" && option.value !== "no_show").map(option =>
+                {STATUS_OPTIONS.filter(option => option.value !== liveStatus && option.value !== "confirmed" && option.value !== "no_show" && option.value !== "cancelled").map(option =>
                   <button key={option.value} type="button" disabled={busy} onClick={() => void handleStatusChange(option.value)} className="text-left rounded-lg p-2 text-sm text-on-surface hover:bg-surface-container-highest">
-                    {option.value === "cancelled" ? "Cancelar cita" : option.value === "completed" ? "Marcar completada" : "Volver a pendiente"}
+                    {option.value === "completed" ? "Marcar completada" : "Volver a pendiente"}
                   </button>)}
-                <button type="button" disabled={busy} onClick={() => setShowDeleteConfirm(true)} className="text-left rounded-lg p-2 text-sm text-error-dim">Eliminar cita</button>
+                <div role="separator" className="my-1 border-t border-outline-variant/30" />
+                {liveStatus !== "cancelled" ? (
+                  <button type="button" disabled={busy} onClick={() => void handleStatusChange("cancelled")} className="text-left rounded-lg p-2 text-sm text-error-dim hover:bg-error-container/20">
+                    Cancelar cita
+                  </button>
+                ) : null}
+                <button type="button" disabled={busy} onClick={() => setShowDeleteConfirm(true)} className="text-left rounded-lg p-2 text-sm font-semibold text-error-dim hover:bg-error-container/20">Eliminar cita</button>
               </div>
-            </details> : <button type="button" onClick={() => void requestClose()} className="text-sm text-on-surface-variant">Volver</button>}
+            </details> : <button type="button" onClick={() => void requestClose()} className="min-h-10 text-sm font-semibold text-on-surface-variant hover:text-on-surface">Volver</button>}
             <div className="flex flex-wrap justify-end gap-2">
-              <button type="submit" form="appointment-edit-form" disabled={busy}
-                className={`rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-50 ${isEditing ? "border border-outline-variant/30 text-on-surface" : "bg-primary text-on-primary"}`}>
+              {/*
+                Al editar, "Guardar cambios" solo se habilita con cambios: sin
+                ellos no hay nada que guardar y no compite con la acción principal.
+              */}
+              <button type="submit" form="appointment-edit-form" disabled={busy || (isEditing && !dirty)}
+                title={isEditing && !dirty ? "No hay cambios por guardar" : undefined}
+                className={`rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-50 ${!isEditing ? "bg-primary text-on-primary" : dirty && liveStatus !== "pending" ? "bg-primary text-on-primary" : "border border-outline-variant/40 bg-surface-container-lowest text-on-surface"}`}>
                 {busy ? "Guardando…" : isEditing ? "Guardar cambios" : "Crear cita"}
               </button>
               {liveStatus === "pending" ? <button type="button" disabled={busy} onClick={() => void confirmPending()} className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary disabled:opacity-50">Confirmar reserva</button>
@@ -564,146 +652,172 @@ function AppointmentModalBody({
             </div>
           )}
 
-          {/* Customer */}
-          <Select
-            label="Cliente"
-            searchable
-            searchPlaceholder="Buscar cliente…"
-            value={form.customer_id || ""}
-            onChange={(e) =>
-              setForm({
-                ...form,
-                customer_id: e.target.value || null,
-              })
+          {/* Cliente */}
+          <FormSection
+            icon={<User size={14} />}
+            title="Cliente"
+            action={
+              <button type="button" onClick={() => setShowNewCustomer(true)} className={SECTION_ACTION_CLASS}>
+                <UserPlus size={14} aria-hidden="true" />Crear cliente
+              </button>
             }
           >
-              <option value="">Sin cliente</option>
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.full_name}
-                  {c.phone ? ` · ${c.phone}` : ""}
-                </option>
-              ))}
-            </Select>
+            <div className="space-y-3">
+              <Select
+                aria-label="Cliente"
+                searchable
+                searchPlaceholder="Buscar cliente…"
+                value={form.customer_id || ""}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    customer_id: e.target.value || null,
+                  })
+                }
+              >
+                  <option value="">Sin cliente</option>
+                  {customers.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.full_name}
+                      {c.phone ? ` · ${c.phone}` : ""}
+                    </option>
+                  ))}
+                </Select>
 
-          <button type="button" onClick={() => setShowNewCustomer(true)} className="min-h-10 text-sm font-semibold text-primary">+ Crear cliente</button>
+              {/*
+                Contacto del cliente. Las citas que entran por el sitio web público
+                llegan como "Pendiente" y hay que confirmarlas a mano, así que el
+                teléfono tiene que estar acá: sin él, el dueño ve la reserva pero no
+                tiene cómo responderle a quien la hizo. Es el dato de la ficha del
+                cliente (no se edita desde la cita) y es el que usan los avisos por
+                WhatsApp de abajo.
+              */}
+              {selectedCustomer ? (
+                <div className="space-y-1.5">
+                  <span className="block text-[13px] font-semibold text-on-surface">Teléfono del cliente</span>
+                  <div className="flex items-center gap-2 rounded-xl border border-outline-variant/30 bg-surface-container-lowest px-4 py-2.5">
+                    <Phone size={14} aria-hidden="true" className="shrink-0 text-on-surface-variant" />
+                    {selectedCustomer.phone ? (
+                      <a
+                        href={`tel:${selectedCustomer.phone}`}
+                        className="text-sm font-medium text-on-surface hover:text-primary-ink transition-colors"
+                      >
+                        {selectedCustomer.phone}
+                      </a>
+                    ) : (
+                      <span className="text-sm text-on-surface-variant">
+                        Este cliente no tiene teléfono cargado.
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-on-surface-variant">
+                    {selectedCustomer.phone
+                      ? "Se usa para avisarle por WhatsApp. Se cambia en la ficha del cliente."
+                      : "Sin teléfono no podrás avisarle por WhatsApp. Agrégalo en la ficha del cliente."}
+                  </p>
+                </div>
+              ) : null}
 
-          {/*
-            Contacto del cliente. Las citas que entran por el sitio web público
-            llegan como "Pendiente" y hay que confirmarlas a mano, así que el
-            teléfono tiene que estar acá: sin él, el dueño ve la reserva pero no
-            tiene cómo responderle a quien la hizo.
-          */}
-          {selectedCustomer ? (
-            <div className="-mt-1 flex flex-col gap-2 rounded-xl bg-surface-container-lowest border border-outline-variant/30 p-3 sm:flex-row sm:items-center sm:justify-between">
-              {selectedCustomer.phone ? (
-                <a
-                  href={`tel:${selectedCustomer.phone}`}
-                  className="text-sm font-medium text-on-surface hover:text-primary transition-colors"
-                >
-                  {selectedCustomer.phone}
-                </a>
-              ) : (
-                <span className="text-sm text-on-surface-variant">
-                  Este cliente no tiene teléfono cargado.
-                </span>
+              {/* Vehículo (lavaautos) */}
+              {isCarWash && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[13px] font-semibold text-on-surface block">
+                      Placa
+                    </label>
+                    <input
+                      type="text"
+                      value={form.vehicle_plate}
+                      onChange={(e) =>
+                        setForm({ ...form, vehicle_plate: e.target.value.toUpperCase() })
+                      }
+                      className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all font-mono uppercase placeholder:text-on-surface-variant/50"
+                      placeholder="ABC123"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[13px] font-semibold text-on-surface block">
+                      Vehículo
+                    </label>
+                    <input
+                      type="text"
+                      value={form.vehicle_model}
+                      onChange={(e) =>
+                        setForm({ ...form, vehicle_model: e.target.value })
+                      }
+                      className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50"
+                      placeholder="Ej. Mazda 3 gris"
+                    />
+                  </div>
+                </div>
               )}
-
             </div>
-          ) : null}
+          </FormSection>
 
-          {/* Service + staff */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Select
-              label="Servicio"
-              value={form.service_id || ""}
-              onChange={(e) => handleServiceChange(e.target.value)}
-            >
-                <option value="">Sin servicio</option>
-                {form.service_id && services.some((s) => s.id === form.service_id && s.status !== "active") && <option value={form.service_id} disabled>{services.find((s) => s.id === form.service_id)?.name} (archivado)</option>}
-                {activeServices.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </Select>
-            {lockedStaffId ? (
-              <Select label="Asignado a" value={lockedStaffId} disabled onChange={() => {}}>
-                <option value={lockedStaffId}>{staff.find((m) => m.id === lockedStaffId)?.full_name ?? "Tú"}</option>
-              </Select>
-            ) : (
-            <Select
-              label="Asignado a"
-              value={form.staff_id || ""}
-              onChange={(e) =>
-                setForm({ ...form, staff_id: e.target.value || null })
-              }
-            >
-                <option value="">Asignar automáticamente (quien esté libre)</option>
-                {activeStaff.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.full_name}
-                  </option>
-                ))}
-              </Select>
-            )}
-          </div>
-
-          {/* Vehículo (lavaautos) */}
-          {isCarWash && (
+          {/* Servicio + profesional */}
+          <FormSection icon={<Scissors size={14} />} title="Servicio y profesional">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-[13px] font-semibold text-on-surface block">
-                  Placa
-                </label>
-                <input
-                  type="text"
-                  value={form.vehicle_plate}
-                  onChange={(e) =>
-                    setForm({ ...form, vehicle_plate: e.target.value.toUpperCase() })
-                  }
-                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all font-mono uppercase placeholder:text-on-surface-variant/50"
-                  placeholder="ABC123"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-[13px] font-semibold text-on-surface block">
-                  Vehículo
-                </label>
-                <input
-                  type="text"
-                  value={form.vehicle_model}
-                  onChange={(e) =>
-                    setForm({ ...form, vehicle_model: e.target.value })
-                  }
-                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50"
-                  placeholder="Ej. Mazda 3 gris"
-                />
-              </div>
+              <Select
+                label="Servicio"
+                value={form.service_id || ""}
+                onChange={(e) => handleServiceChange(e.target.value)}
+              >
+                  <option value="">Sin servicio</option>
+                  {form.service_id && services.some((s) => s.id === form.service_id && s.status !== "active") && <option value={form.service_id} disabled>{services.find((s) => s.id === form.service_id)?.name} (archivado)</option>}
+                  {activeServices.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </Select>
+              {lockedStaffId ? (
+                <Select label="Profesional" value={lockedStaffId} disabled onChange={() => {}}>
+                  <option value={lockedStaffId}>{staff.find((m) => m.id === lockedStaffId)?.full_name ?? "Tú"}</option>
+                </Select>
+              ) : (
+              <Select
+                label="Profesional"
+                value={form.staff_id || ""}
+                onChange={(e) =>
+                  setForm({ ...form, staff_id: e.target.value || null })
+                }
+              >
+                  <option value="">Asignar automáticamente (quien esté libre)</option>
+                  {activeStaff.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.full_name}
+                    </option>
+                  ))}
+                </Select>
+              )}
             </div>
-          )}
+          </FormSection>
 
           {/* Fecha y hora: un solo campo que abre el selector (valores en 24 h). */}
-          <DateTimeField
-            value={{ date: form.appointment_date, start: form.start_time, end: form.end_time }}
-            format={timeFormat}
-            onChange={({ date, start, end }) => setForm({ ...form, appointment_date: date, start_time: start, end_time: end })}
-            availability={{ staffId: form.staff_id, staffName: staffNameOf(form.staff_id), pool: teamIds, excludeId: appointment?.id ?? null, loadBusy: fetchDayBusy }}
-            hours={businessHours}
-          />
-          {staffConflicts.length > 0 ? (
-            <p role="alert" className="-mt-2 rounded-xl bg-error/10 px-3 py-2 text-sm font-semibold text-error">
-              {staffNameOf(form.staff_id)} ya tiene una cita de {formatAppointmentTime(staffConflicts[0].start_time, timeFormat)} a {formatAppointmentTime(staffConflicts[0].end_time, timeFormat)}. Elige otra hora u otra persona.
-            </p>
-          ) : nobodyFree ? (
-            <p role="alert" className="-mt-2 rounded-xl bg-error/10 px-3 py-2 text-sm font-semibold text-error">No hay nadie disponible a esa hora. Elige otra hora.</p>
-          ) : autoStaff ? (
-            <p className="-mt-2 rounded-xl bg-primary/5 px-3 py-2 text-xs text-on-surface-variant">Se asignará automáticamente a <strong className="text-on-surface">{staffNameOf(autoStaff)}</strong>, que está disponible a esa hora.</p>
-          ) : null}
+          <FormSection icon={<CalendarDays size={14} />} title="Fecha y hora">
+            <DateTimeField
+              label={null}
+              value={{ date: form.appointment_date, start: form.start_time, end: form.end_time }}
+              format={timeFormat}
+              onChange={({ date, start, end }) => setForm({ ...form, appointment_date: date, start_time: start, end_time: end })}
+              availability={{ staffId: form.staff_id, staffName: staffNameOf(form.staff_id), pool: teamIds, excludeId: appointment?.id ?? null, loadBusy: fetchDayBusy }}
+              hours={businessHours}
+            />
+            {staffConflicts.length > 0 ? (
+              <p role="alert" className="mt-3 rounded-xl bg-error/10 px-3 py-2 text-sm font-semibold text-error">
+                {staffNameOf(form.staff_id)} ya tiene una cita de {formatAppointmentTime(staffConflicts[0].start_time, timeFormat)} a {formatAppointmentTime(staffConflicts[0].end_time, timeFormat)}. Elige otra hora u otra persona.
+              </p>
+            ) : nobodyFree ? (
+              <p role="alert" className="mt-3 rounded-xl bg-error/10 px-3 py-2 text-sm font-semibold text-error">No hay nadie disponible a esa hora. Elige otra hora.</p>
+            ) : autoStaff ? (
+              <p className="mt-3 rounded-xl bg-primary/5 px-3 py-2 text-xs text-on-surface-variant">Se asignará automáticamente a <strong className="text-on-surface">{staffNameOf(autoStaff)}</strong>, que está disponible a esa hora.</p>
+            ) : null}
+          </FormSection>
 
-          <details className="rounded-xl border border-outline-variant/20 p-3">
-            <summary className="cursor-pointer text-sm font-semibold text-on-surface">Notas y detalles opcionales</summary>
-            <div className="mt-4 space-y-4">
+          <div className="space-y-1">
+          <details className="group rounded-2xl border border-outline-variant/20 px-3">
+            <summary className={SUMMARY_CLASS}>Notas y detalles opcionales<SummaryChevron /></summary>
+            <div className="space-y-4 pb-3 pt-1">
           {/* Description */}
           <div className="space-y-1.5">
             <label className="text-[13px] font-semibold text-on-surface block">
@@ -736,25 +850,27 @@ function AppointmentModalBody({
 
             </div>
           </details>
-          <details className="text-sm text-on-surface-variant">
-            <summary className="cursor-pointer">Personalizar título</summary>
-            <div className="mt-3">
-          {/* Title */}
+          <details className="group rounded-2xl border border-outline-variant/20 px-3">
+            <summary className={SUMMARY_CLASS}>Personalizar título<SummaryChevron /></summary>
+            <div className="pb-3 pt-1">
+          {/* Title: sin asterisco, como el resto (si no lo tocas, se arma solo con servicio y cliente). */}
           <div className="space-y-1.5">
             <label className="text-[13px] font-semibold text-on-surface block">
-              Título *
+              Título
             </label>
             <input
               type="text"
-                            value={customTitle ? form.title : generatedTitle || form.title}
+              value={customTitle ? form.title : generatedTitle || form.title}
               onChange={(e) => { setCustomTitle(true); setForm({ ...form, title: e.target.value }); }}
               className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-on-surface-variant/50"
               placeholder="Ej. Corte de cabello"
             />
+            <p className="text-xs text-on-surface-variant">Si no lo cambias, se arma con el servicio y el cliente.</p>
           </div>
 
             </div>
           </details>
+          </div>
           </fieldset>
         </form>
     </Modal>

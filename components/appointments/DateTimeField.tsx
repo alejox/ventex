@@ -70,21 +70,26 @@ export interface DateTimeFieldProps {
   availability?: Availability;
   /** Horario de atención (`business_hours`): qué horas se ofrecen. */
   hours?: OpeningHour[] | null;
+  /**
+   * Rótulo visible sobre el campo. `null` lo omite cuando quien lo usa ya pone
+   * su propio encabezado (la sección "Fecha y hora" del modal de cita).
+   */
+  label?: string | null;
 }
 
-export function DateTimeField({ value, format, onChange, availability, hours }: DateTimeFieldProps) {
+export function DateTimeField({ value, format, onChange, availability, hours, label = "Fecha y hora" }: DateTimeFieldProps) {
   const [open, setOpen] = useState(false);
   const duration = Math.max(toMinutes(value.end) - toMinutes(value.start), 0);
 
   return (
     <div className="space-y-1.5">
-      <span className="block text-[13px] font-semibold text-on-surface">Fecha y hora *</span>
+      {label ? <span className="block text-[13px] font-semibold text-on-surface">{label}</span> : null}
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="group flex w-full items-center gap-3 rounded-xl border border-outline-variant/30 bg-surface-container-lowest px-4 py-3 text-left transition-colors hover:border-primary focus:outline-none focus:ring-2 focus:ring-primary/40"
+        className="group flex w-full items-center gap-3 rounded-xl border border-outline-variant/30 bg-surface-container-lowest px-3 py-3 text-left shadow-sm transition-colors hover:border-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-ink"
       >
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary"><CalendarDays size={18} aria-hidden="true" /></span>
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-primary-container text-on-primary-container"><CalendarDays size={20} aria-hidden="true" /></span>
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm font-semibold text-on-surface">
             {value.date ? upperFirst(formatDateOnly(value.date, { weekday: "long", day: "numeric", month: "long", year: "numeric" })) : "Elegir fecha"}
@@ -94,7 +99,8 @@ export function DateTimeField({ value, format, onChange, availability, hours }: 
             {duration > 0 ? ` · ${formatDuration(duration)}` : ""}
           </span>
         </span>
-        <span className="flex items-center gap-1 text-xs font-bold text-primary">Cambiar<ChevronRight size={14} aria-hidden="true" className="transition-transform group-hover:translate-x-0.5" /></span>
+        {/* "Cambiar" se dibuja como botón: toda la tarjeta lo es, pero así se nota. */}
+        <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary-ink transition-colors group-hover:bg-primary/15">Cambiar<ChevronRight size={14} aria-hidden="true" className="transition-transform group-hover:translate-x-0.5" /></span>
       </button>
       {open ? <DateTimeDialog initial={value} format={format} availability={availability} hours={hours} onClose={() => setOpen(false)} onApply={(next) => { onChange(next); setOpen(false); }} /> : null}
     </div>
