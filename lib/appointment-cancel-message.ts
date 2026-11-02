@@ -54,6 +54,9 @@ export function buildCancelNoticeMessage(input: CancelNoticeInput): string {
  * cliente. Las notificaciones anteriores a `20261101110000` no traen `event`
  * (ni fecha/hora/servicio): se reconocen por el título y el mensaje usa solo
  * lo que hay en `data`. null = no aplica o el teléfono no sirve.
+ *
+ * El aviso a quien atiende la cita (`event = 'cancelled_by_customer_staff'`,
+ * `20261101120000`) nunca trae el enlace: avisarle al cliente es del dueño.
  */
 export function cancelNoticeLink(notification: AppNotification, businessName: string | null): string | null {
   const data = notification.data ?? {};

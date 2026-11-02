@@ -102,3 +102,10 @@ test("cancelNoticeLink: notificaciones viejas (sin event) se reconocen por el t�
   );
   assert.equal(cancelNoticeLink({ ...vieja, title: "Otra cosa" }, null), null);
 });
+
+test("cancelNoticeLink: el aviso al barbero (cancelled_by_customer_staff) nunca trae WhatsApp", () => {
+  const barbero = notif({ title: "Se canceló una de tus citas", data: { ...notif().data, event: "cancelled_by_customer_staff" } });
+  assert.equal(cancelNoticeLink(barbero, "Barbería"), null);
+  // Aunque algún día compartiera el título del dueño, el `event` manda.
+  assert.equal(cancelNoticeLink({ ...barbero, title: "Cita cancelada por el cliente" }, "Barbería"), null);
+});
