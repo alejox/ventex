@@ -125,9 +125,9 @@ function buildInitialForm(
 }
 
 const STATUS_OPTIONS = [
-  { value: "pending", label: "Pendiente", color: "bg-amber-500/10 text-amber-600 border-amber-500/20" },
+  { value: "pending", label: "Pendiente", color: "bg-warning/10 text-warning border-warning/20" },
   { value: "confirmed", label: "Confirmada", color: "bg-primary/10 text-primary border-primary/20" },
-  { value: "completed", label: "Completada", color: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" },
+  { value: "completed", label: "Completada", color: "bg-success/10 text-success border-success/20" },
   { value: "cancelled", label: "Cancelada", color: "bg-error-container/20 text-error-dim border-error-container/30" },
   { value: "no_show", label: "No vino", color: "bg-tertiary-container/30 text-on-tertiary-container border-tertiary/30" },
 ];
@@ -546,7 +546,7 @@ function AppointmentModalBody({
       }
     >
         {isEditing && liveSaleId && (
-          <div className="px-4 sm:px-6 py-3 border-b border-emerald-500/20 bg-emerald-500/10 shrink-0 text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+          <div className="px-4 sm:px-6 py-3 border-b border-success/20 bg-success/10 shrink-0 text-sm font-semibold text-success">
             Cita cobrada: la venta ya está registrada.
           </div>
         )}
@@ -780,7 +780,7 @@ function AppointmentModalBody({
                 type="button"
                 onClick={confirmDeleteAction}
                 disabled={busy}
-                className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold bg-error-dim hover:bg-error text-white transition-colors disabled:opacity-50"
+                className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold bg-error text-on-error hover:bg-error/90 transition-colors disabled:opacity-50"
               >
                 {submitting ? "Eliminando…" : "Eliminar"}
               </button>

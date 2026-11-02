@@ -458,8 +458,8 @@ export function TimeGrid({
 
                   {isToday && nowMinutes >= from * 60 && nowMinutes <= to * 60 ? (
                     <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 z-20" style={{ top: ((nowMinutes - from * 60) / 60) * HOUR_PX }}>
-                      <div className="h-0.5 bg-[#ea4335]" />
-                      <span className="absolute -left-1 -top-[5px] h-2.5 w-2.5 rounded-full bg-[#ea4335]" />
+                      <div className="h-0.5 bg-error" />
+                      <span className="absolute -left-1 -top-[5px] h-2.5 w-2.5 rounded-full bg-error" />
                     </div>
                   ) : null}
                 </div>

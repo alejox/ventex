@@ -116,7 +116,7 @@ function getStatusColor(status: string) {
     case "confirmed":
       return "bg-primary/15 text-primary-ink border-l-primary";
     case "completed":
-      return "bg-emerald-500/15 text-emerald-600 border-l-emerald-500";
+      return "bg-success/15 text-success border-l-success";
     case "cancelled":
       return "bg-error-container/20 text-error-dim border-l-error-container";
     case "no_show":
@@ -126,7 +126,7 @@ function getStatusColor(status: string) {
       // Horario de otra persona: gris y sin nada que abrir.
       return "bg-surface-container-high text-on-surface-variant border-l-outline-variant cursor-default";
     default:
-      return "bg-amber-500/15 text-amber-600 border-l-amber-500";
+      return "bg-warning/15 text-warning border-l-warning";
   }
 }
 
@@ -141,10 +141,10 @@ const getStatusLabel = statusLabel;
 function statusBarClass(status: string) {
   switch (status) {
     case "confirmed": return "bg-primary";
-    case "completed": return "bg-emerald-500";
+    case "completed": return "bg-success";
     case "cancelled": return "bg-error-container";
     case "no_show": return "bg-tertiary";
-    default: return "bg-amber-500";
+    default: return "bg-warning";
   }
 }
 
