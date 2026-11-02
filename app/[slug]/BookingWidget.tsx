@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import { ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import {
   usePublicBookingStore,
@@ -13,7 +12,6 @@ import type {
   PublicService,
   PublicStaff,
   PublicSite,
-  DaySlot,
 } from "@/services/public-site.types";
 import { formatCOP, whatsappHref } from "./templates/theme";
 import { formatDuration } from "@/lib/duration";
@@ -24,6 +22,8 @@ import { loadStatusOf } from "@/lib/booking-load-state";
 import { buildIcs, googleCalendarUrl, type BookingEvent } from "@/lib/booking-calendar";
 import { formatColombianMobile } from "@/lib/phone-format";
 import { esImagenAjena } from "@/lib/remoteImage";
+import { claveMes, longDateFmt, parseDateInput, toDateInput } from "@/lib/booking-month";
+import { LoadFailed, MonthCalendar, SlotGroups } from "./BookingPickers";
 
 /**
  * Booking flow for a public visitor: service -> professional -> day -> time ->
@@ -60,17 +60,6 @@ import { esImagenAjena } from "@/lib/remoteImage";
  */
 const DAYS_AHEAD = 60;
 
-/**
- * Un día abierto son veinte y pico de turnos. Puestos en una sola grilla son
- * una pared de cajas iguales que nadie lee: se escanea por franja ("a la
- * mañana", "después de almorzar"), no hora por hora.
- */
-const SLOT_GROUPS = [
-  { id: "manana", label: "Mañana", from: 0, to: 12 },
-  { id: "tarde", label: "Tarde", from: 12, to: 18 },
-  { id: "noche", label: "Noche", from: 18, to: 24 },
-] as const;
-
 interface Props {
   site: PublicSite;
   /** Preselected from a "Reservar" button on a service card. */
@@ -78,55 +67,6 @@ interface Props {
   onClose?: () => void;
 }
 
-/** Local YYYY-MM-DD; toISOString() would shift the day for negative offsets. */
-function toDateInput(date: Date): string {
-  const month = `${date.getMonth() + 1}`.padStart(2, "0");
-  const day = `${date.getDate()}`.padStart(2, "0");
-  return `${date.getFullYear()}-${month}-${day}`;
-}
-
-/** Parsed field by field: `new Date("2026-08-05")` is UTC and shifts a day. */
-function parseDateInput(value: string): Date {
-  const [year, month, day] = value.split("-").map(Number);
-  return new Date(year, (month ?? 1) - 1, day ?? 1);
-}
-
-function hourOf(slot: DaySlot): number {
-  return Number(slot.time.slice(0, 2));
-}
-
-const mesFmt = new Intl.DateTimeFormat("es-CO", { month: "long", year: "numeric" });
-
-/**
- * Empieza en domingo, como el resto de la app.
- *
- * `WEEKDAY_LABELS` y el `dow` de Postgres arrancan en domingo, y la lista de
- * horarios del micrositio se dibuja en ese orden. Un calendario que empezara en
- * lunes obligaría a leer dos órdenes distintos en la misma página.
- */
-const INICIALES_SEMANA = ["D", "L", "M", "M", "J", "V", "S"] as const;
-
-/** Clave `YYYY-MM` del mes de una fecha, para comparar meses sin tocar husos. */
-const claveMes = (fecha: string) => fecha.slice(0, 7);
-
-/**
- * Las celdas del mes que se está mirando, con los huecos del principio.
- *
- * Se arma desde el primer día del mes y no desde la lista cargada: un mes tiene
- * que verse entero aunque la disponibilidad empiece a mitad de mes, o el
- * visitante no reconoce el calendario.
- */
-function celdasDelMes(mes: string): (string | null)[] {
-  const [anio, num] = mes.split("-").map(Number);
-  const primero = new Date(anio, num - 1, 1);
-  const diasEnMes = new Date(anio, num, 0).getDate();
-  const huecos = primero.getDay();
-  const celdas: (string | null)[] = Array.from({ length: huecos }, () => null);
-  for (let d = 1; d <= diasEnMes; d++) {
-    celdas.push(`${anio}-${String(num).padStart(2, "0")}-${String(d).padStart(2, "0")}`);
-  }
-  return celdas;
-}
 /**
  * Lleva el paso de contacto a la vista después de elegir la hora, solo si no
  * se ve ya. En una columna (celular) el formulario queda debajo de calendario y
@@ -140,11 +80,6 @@ function revealIfBelow(el: HTMLElement | null) {
   el.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
 }
 
-const longDateFmt = new Intl.DateTimeFormat("es-CO", {
-  weekday: "long",
-  day: "numeric",
-  month: "long",
-});
 const shortDateFmt = new Intl.DateTimeFormat("es-CO", { weekday: "short", day: "numeric" });
 
 export function BookingWidget({ site, initialServiceId = null, onClose }: Props) {
@@ -200,19 +135,6 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
     count: days.length,
   });
 
-  /** Disponibilidad indexada por fecha: el calendario busca por celda. */
-  const porFecha = new Map(days.map((d) => [d.date, d]));
-
-  /*
-   * Los meses navegables salen de la VENTANA CARGADA, no del calendario.
-   * Dejar avanzar más allá llevaría a un mes entero en gris, que se lee como
-   * "este negocio cerró" y no como "todavía no abrió la agenda".
-   */
-  const mesesConDatos = [...new Set(days.map((d) => claveMes(d.date)))].sort();
-  const indiceMes = mesesConDatos.indexOf(mesVisible);
-  const mesAnterior = indiceMes > 0 ? mesesConDatos[indiceMes - 1] : null;
-  const mesSiguiente =
-    indiceMes >= 0 && indiceMes < mesesConDatos.length - 1 ? mesesConDatos[indiceMes + 1] : null;
   const date = pickedDate;
 
   const slotKey = date ? slotKeyOf(serviceId, date, staffId) : null;
@@ -547,119 +469,14 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
            */
           <div className="@container">
           <div className="grid gap-5 @xl:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] @xl:items-start @xl:gap-6">
-          {/* Tope de ancho al calendario: las celdas son cuadradas, así que sin
-              tope crecen con la columna y un mes pasa de 300 a 450px de ALTO. */}
-          <div className="max-w-[26rem]">
-            {/* La navegación va ARRIBA del calendario y dentro de su mismo
-                ancho. En el encabezado del paso quedaba alineada al borde de la
-                columna, o sea flotando lejos de la grilla que controla. */}
-            <div className="mb-2 flex items-center justify-between gap-2">
-            {/*
-              * Flechas de verdad, no scroll horizontal.
-              *
-              * Antes esto era una tira que se desplazaba de costado: con
-              * trackpad se movía y con mouse no, así que el visitante no podía
-              * pasar de la primera semana y creía que no había más turnos. Un
-              * control que solo funciona con cierto hardware no es un control.
-              */}
-            <button
-              type="button"
-              onClick={() => setMesVisible(mesAnterior!)}
-              disabled={!mesAnterior}
-              aria-label="Mes anterior"
-              className="grid h-8 w-8 place-items-center rounded-[var(--site-radius)] border border-[var(--site-on-surface-border)] text-[var(--site-on-surface)] transition-colors enabled:hover:border-[var(--site-accent)] disabled:opacity-30"
-            >
-              <ChevronLeft size={15} aria-hidden="true" />
-            </button>
-            {/* `first-letter` y no `capitalize`: en español el mes va en
-                minúscula y la preposición también. Con `capitalize` salía
-                "Septiembre De 2026". Necesita ser inline-block para que
-                ::first-letter aplique. */}
-            <span className="inline-block min-w-[7.5rem] text-center text-xs font-semibold text-[var(--site-on-surface)] first-letter:uppercase">
-              {mesFmt.format(parseDateInput(`${mesVisible}-01`))}
-            </span>
-            <button
-              type="button"
-              onClick={() => setMesVisible(mesSiguiente!)}
-              disabled={!mesSiguiente}
-              aria-label="Mes siguiente"
-              className="grid h-8 w-8 place-items-center rounded-[var(--site-radius)] border border-[var(--site-on-surface-border)] text-[var(--site-on-surface)] transition-colors enabled:hover:border-[var(--site-accent)] disabled:opacity-30"
-            >
-              <ChevronRight size={15} aria-hidden="true" />
-            </button>
-                      </div>
-
-            <div className="grid grid-cols-7 gap-1 pb-1">
-              {INICIALES_SEMANA.map((inicial, i) => (
-                <span
-                  key={i}
-                  aria-hidden="true"
-                  className="py-1 text-center text-[0.6rem] font-semibold tracking-wide text-[var(--site-on-surface-muted)] uppercase"
-                >
-                  {inicial}
-                </span>
-              ))}
-            </div>
-
-            <div className="grid grid-cols-7 gap-1">
-              {celdasDelMes(mesVisible).map((fecha, i) => {
-                if (!fecha) return <span key={`hueco-${i}`} aria-hidden="true" />;
-
-                const info = porFecha.get(fecha);
-                const seleccionado = fecha === date;
-                const esHoy = fecha === today;
-                // Sin info es un día fuera de la ventana cargada: ni abierto ni
-                // cerrado, sencillamente todavía no se puede reservar. Se
-                // muestra apagado y sin borde para que no parezca un "lleno".
-                const reservable = Boolean(info && info.isOpen && info.freeSlots > 0);
-
-                return (
-                  <button
-                    key={fecha}
-                    type="button"
-                    disabled={!reservable}
-                    aria-pressed={seleccionado}
-                    aria-label={`${longDateFmt.format(parseDateInput(fecha))}, ${
-                      !info
-                        ? "todavía no se puede reservar"
-                        : !info.isOpen
-                          ? "cerrado"
-                          : info.freeSlots === 0
-                            ? esHoy
-                              ? "cerrado por hoy"
-                              : "sin cupos"
-                            : `${info.freeSlots} horarios libres`
-                    }`}
-                    onClick={() => setPickedDate(fecha)}
-                    className={`relative flex aspect-square flex-col items-center justify-center rounded-[var(--site-radius)] border text-sm transition-all ${
-                      seleccionado
-                        ? "border-[var(--site-accent)] bg-[var(--site-accent)] font-bold text-[var(--site-on-accent)]"
-                        : reservable
-                          ? "border-[var(--site-on-surface-border)] text-[var(--site-on-surface)] hover:border-[var(--site-accent)]"
-                          : info
-                            ? "cursor-not-allowed border-transparent bg-[var(--site-surface-alt)] text-[var(--site-on-surface-muted)] opacity-85"
-                            : "cursor-not-allowed border-transparent text-[var(--site-on-surface-muted)] opacity-65"
-                    } ${esHoy && !seleccionado ? "font-bold" : ""}`}
-                  >
-                    {parseDateInput(fecha).getDate()}
-                    {/*
-                      * Un punto y no el número de cupos: en una celda de
-                      * calendario "20 libres" no entra, y lo que el visitante
-                      * necesita saber para elegir el día es si hay o no hay.
-                      * El número exacto viaja en el aria-label y la lista de
-                      * horarios lo muestra entero al entrar.
-                      */}
-                    {reservable && !seleccionado && (
-                      <span
-                        aria-hidden="true"
-                        className="absolute bottom-1 h-1 w-1 rounded-full bg-[var(--site-accent)]"
-                      />
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+          <MonthCalendar
+            days={days}
+            today={today}
+            month={mesVisible}
+            onMonthChange={setMesVisible}
+            selected={date}
+            onSelect={setPickedDate}
+          />
 
           {!date ? (
             <p className="rounded-[var(--site-radius)] bg-[var(--site-surface-alt)] px-4 py-6 text-center text-sm text-[var(--site-on-surface-muted)]">
@@ -694,73 +511,15 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
               Elige otra fecha en el calendario.
             </p>
           ) : (
-            <div className="space-y-4">
-              {SLOT_GROUPS.map((group) => {
-                const slots = daySlots.filter(
-                  (s) => hourOf(s) >= group.from && hourOf(s) < group.to,
-                );
-                if (slots.length === 0) return null;
-
-                const freeInGroup = slots.filter((s) => s.state === "free").length;
-
-                return (
-                  <div key={group.id}>
-                    <div className="mb-1.5 flex items-baseline justify-between">
-                      <h5 className="text-xs font-semibold tracking-wide text-[var(--site-on-surface)] uppercase">
-                        {group.label}
-                      </h5>
-                      <span className="text-[0.65rem] text-[var(--site-on-surface-muted)]">
-                        {freeInGroup === 0 ? "Sin cupos" : `${freeInGroup} disponibles`}
-                      </span>
-                    </div>
-
-                    <ul className="grid grid-cols-3 gap-2 @xs:grid-cols-4">
-                      {slots.map((slot) => {
-                        if (slot.state === "free") {
-                          const isPicked = time === slot.time;
-                          return (
-                            <li key={slot.time}>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setPickedTime(slot.time);
-                                  revealIfBelow(contactRef.current);
-                                }}
-                                aria-pressed={isPicked}
-                                // Misma altura que el turno ocupado: la grilla no
-                                // se descuadra según qué haya reservado.
-                                className={`flex h-11 w-full items-center justify-center rounded-[var(--site-radius)] border text-sm transition-all ${
-                                  isPicked
-                                    ? "border-[var(--site-accent)] bg-[var(--site-accent)] font-semibold text-[var(--site-on-accent)] shadow-sm"
-                                    : "border-[var(--site-on-surface-border)] text-[var(--site-on-surface)] hover:border-[var(--site-accent)]"
-                                }`}
-                              >
-                                {formatAppointmentTime(slot.time, site.timeFormat)}
-                              </button>
-                            </li>
-                          );
-                        }
-
-                        // Ocupado o ya pasado. Va como texto y no como botón
-                        // deshabilitado: no hay nada que activar, y un lector de
-                        // pantalla debe leer el estado, no ofrecer un control muerto.
-                        return (
-                          <li
-                            key={slot.time}
-                            className="flex h-11 flex-col items-center justify-center rounded-[var(--site-radius)] bg-[var(--site-surface-alt)] text-[var(--site-on-surface-muted)]"
-                          >
-                            <span className="text-sm leading-none opacity-70">{formatAppointmentTime(slot.time, site.timeFormat)}</span>
-                            <span className="mt-0.5 text-[0.55rem] uppercase opacity-70">
-                              {slot.state === "taken" ? "Reservado" : "Pasó"}
-                            </span>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </div>
-                );
-              })}
-            </div>
+            <SlotGroups
+              slots={daySlots}
+              picked={time}
+              onPick={(picked) => {
+                setPickedTime(picked);
+                revealIfBelow(contactRef.current);
+              }}
+              timeFormat={site.timeFormat}
+            />
           )}
         </div>
           </section>
@@ -1005,29 +764,6 @@ function SummaryRow({
       >
         {value}
       </dd>
-    </div>
-  );
-}
-
-/**
- * Carga fallida (red caída, RPC con error). Antes se leía como "Cargando…"
- * eterno o como "El negocio no atiende ese día", y el visitante se iba
- * creyendo que no había agenda.
- */
-function LoadFailed({ onRetry }: { onRetry: () => void }) {
-  return (
-    <div
-      role="alert"
-      className="rounded-[var(--site-radius)] bg-[var(--site-surface-alt)] px-4 py-5 text-center text-sm text-[var(--site-on-surface-muted)]"
-    >
-      <p>No pudimos cargar los horarios. Revisa tu conexión e inténtalo de nuevo.</p>
-      <button
-        type="button"
-        onClick={onRetry}
-        className="mt-3 inline-flex min-h-10 items-center justify-center rounded-[var(--site-radius)] border border-[var(--site-accent)] px-4 py-2 text-sm font-semibold text-[var(--site-on-surface)]"
-      >
-        Reintentar
-      </button>
     </div>
   );
 }

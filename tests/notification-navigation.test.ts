@@ -37,3 +37,13 @@ test("the assigned staff's booking notice opens the same appointment", () => {
   });
   assert.equal(notificationDestination(staffNotice), "/dashboard/calendar?appointment=reserve-1");
 });
+
+test("a customer reschedule notice (owner and staff) opens the moved appointment", () => {
+  for (const event of ["rescheduled", "rescheduled_staff"]) {
+    const notice = notification({
+      title: event === "rescheduled" ? "Cita reprogramada" : "Se reprogramó una de tus citas",
+      data: { appointment_id: "reserve-1", event, date: "2026-11-05", time: "15:00", previous_date: "2026-11-03", previous_time: "09:00" },
+    });
+    assert.equal(notificationDestination(notice), "/dashboard/calendar?appointment=reserve-1");
+  }
+});

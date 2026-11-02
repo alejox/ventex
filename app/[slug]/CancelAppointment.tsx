@@ -3,22 +3,12 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { Modal } from "@/components/ui/Modal";
-import { formatAppointmentTime } from "@/lib/time";
 import { normalizeColombianMobile } from "@/lib/co-mobile";
+import { canReschedule, rescheduleWhen } from "@/lib/site-reschedule";
 import { usePublicCancelStore } from "@/stores/public-cancel.store";
-import type { PublicSite, UpcomingAppointment } from "@/services/public-site.types";
-
-const longDateFmt = new Intl.DateTimeFormat("es-CO", {
-  weekday: "long",
-  day: "numeric",
-  month: "long",
-});
-
-/** "YYYY-MM-DD" a medianoche LOCAL: `new Date("YYYY-MM-DD")` sería UTC y correría el día. */
-function dateOf(value: string): Date {
-  const [y, m, d] = value.split("-").map(Number);
-  return new Date(y, m - 1, d);
-}
+import { usePublicRescheduleStore } from "@/stores/public-reschedule.store";
+import type { PublicSite, RescheduleResult, UpcomingAppointment } from "@/services/public-site.types";
+import { RescheduleAppointment } from "./RescheduleAppointment";
 
 interface Props {
   site: Pick<PublicSite, "slug" | "timeFormat">;
@@ -26,8 +16,9 @@ interface Props {
 
 /**
  * "¿Ya tienes una cita?" del sitio público: el visitante busca sus próximas
- * citas con el celular con el que reservó y cancela la que no va a usar.
- * Toda la I/O pasa por `usePublicCancelStore`.
+ * citas con el celular con el que reservó y cancela la que no va a usar o la
+ * cambia de fecha ("Cambiar fecha", `RescheduleAppointment`, en la misma fila).
+ * Toda la I/O pasa por `usePublicCancelStore` y `usePublicRescheduleStore`.
  *
  * Se pinta con las `--site-on-surface*` de la plantilla, como el widget de
  * reservas, y no con los tokens del panel: con ellos el modal salía con los
@@ -49,6 +40,10 @@ export function CancelAppointment({ site }: Props) {
   const [phoneTouched, setPhoneTouched] = useState(false);
   /** Cita cuya fila está preguntando "¿seguro?". */
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  /** Cita cuya fila muestra el paso "Cambiar fecha". */
+  const [reschedulingId, setReschedulingId] = useState<string | null>(null);
+  /** Último cambio de fecha, para el mensaje de éxito. */
+  const [rescheduled, setRescheduled] = useState<RescheduleResult | null>(null);
   const appointments = usePublicCancelStore((s) => s.appointments);
   const searching = usePublicCancelStore((s) => s.searching);
   const cancellingId = usePublicCancelStore((s) => s.cancellingId);
@@ -57,33 +52,57 @@ export function CancelAppointment({ site }: Props) {
   const search = usePublicCancelStore((s) => s.search);
   const cancel = usePublicCancelStore((s) => s.cancel);
   const reset = usePublicCancelStore((s) => s.reset);
+  const searchedPhone = usePublicCancelStore((s) => s.searchedPhone);
+  const applyReschedule = usePublicCancelStore((s) => s.applyReschedule);
+  const savingReschedule = usePublicRescheduleStore((s) => s.saving);
+  const resetReschedule = usePublicRescheduleStore((s) => s.reset);
+  const busy = cancellingId !== null || savingReschedule;
 
   // Mismo validador y mismo texto que el formulario de reserva: con un número
   // que no es celular no hay cita que encontrar.
   const mobile = normalizeColombianMobile(phone);
   const phoneError = phoneTouched && !mobile;
 
-  const when = (a: UpcomingAppointment) =>
-    `${longDateFmt.format(dateOf(a.date))} a las ${formatAppointmentTime(a.time, site.timeFormat)}`;
+  const when = (a: Pick<UpcomingAppointment, "date" | "time">) =>
+    rescheduleWhen(a.date, a.time, site.timeFormat);
 
   const close = () => {
-    if (cancellingId) return;
+    if (busy) return;
     setOpen(false);
     setPhone("");
     setPhoneTouched(false);
     setConfirmingId(null);
+    setReschedulingId(null);
+    setRescheduled(null);
     reset();
+    resetReschedule();
+  };
+
+  const startReschedule = (id: string) => {
+    resetReschedule();
+    setConfirmingId(null);
+    setRescheduled(null);
+    setReschedulingId(id);
+  };
+
+  const handleRescheduled = (result: RescheduleResult) => {
+    applyReschedule(result);
+    setReschedulingId(null);
+    setRescheduled(result);
   };
 
   const handleSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setPhoneTouched(true);
     setConfirmingId(null);
+    setReschedulingId(null);
+    setRescheduled(null);
     if (!mobile) return;
     void search(site.slug, mobile);
   };
 
   const handleCancel = async (a: UpcomingAppointment) => {
+    setRescheduled(null);
     const ok = await cancel(site.slug, a.id);
     if (ok) setConfirmingId(null);
   };
@@ -101,10 +120,11 @@ export function CancelAppointment({ site }: Props) {
       <Modal
         open={open}
         onClose={close}
-        title={<span className="text-[var(--site-on-surface)]">Cancelar mi cita</span>}
+        title={<span className="text-[var(--site-on-surface)]">Cancelar o cambiar mi cita</span>}
         description={
           <span className="text-[var(--site-on-surface-muted)]">
-            Escribe el celular con el que reservaste y te mostramos tus próximas citas.
+            Escribe el celular con el que reservaste y te mostramos tus próximas citas para cancelarlas o
+            cambiarlas de fecha.
           </span>
         }
         size="md"
@@ -162,6 +182,15 @@ export function CancelAppointment({ site }: Props) {
           </p>
         )}
 
+        {/* Vive fuera de la fila: al cambiar de fecha la lista se reordena. */}
+        <div aria-live="polite">
+          {rescheduled && (
+            <p className="mt-4 rounded-[var(--site-radius)] bg-[var(--site-surface-alt)] p-3 text-sm text-[var(--site-on-surface)]">
+              Tu cita quedó para el {when(rescheduled)}. El negocio la confirmará.
+            </p>
+          )}
+        </div>
+
         {appointments && appointments.length === 0 && !cancelled && (
           <p className="mt-4 text-sm text-[var(--site-on-surface-muted)]">
             No encontramos citas próximas con ese número.
@@ -171,8 +200,9 @@ export function CancelAppointment({ site }: Props) {
         {appointments && appointments.length > 0 && (
           <ul className="mt-4 space-y-2">
             {appointments.map((a) => {
-              const busy = cancellingId === a.id;
+              const cancellingThis = cancellingId === a.id;
               const asking = confirmingId === a.id;
+              const moving = reschedulingId === a.id && searchedPhone !== null;
               return (
                 <li
                   key={a.id}
@@ -187,17 +217,43 @@ export function CancelAppointment({ site }: Props) {
                         {a.status === "pending" ? " · pendiente de confirmación" : ""}
                       </p>
                     </div>
-                    {!asking && (
-                      <button
-                        type="button"
-                        disabled={cancellingId !== null}
-                        onClick={() => setConfirmingId(a.id)}
-                        className={SECONDARY}
-                      >
-                        Cancelar
-                      </button>
+                    {!asking && !moving && (
+                      <div className="flex gap-2">
+                        {canReschedule(a) && (
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => startReschedule(a.id)}
+                            aria-label={`Cambiar fecha de la cita del ${when(a)}`}
+                            className={`${SECONDARY} flex-1 sm:flex-none`}
+                          >
+                            Cambiar fecha
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => {
+                            setReschedulingId(null);
+                            setConfirmingId(a.id);
+                          }}
+                          className={`${SECONDARY} flex-1 sm:flex-none`}
+                        >
+                          Cancelar
+                        </button>
+                      </div>
                     )}
                   </div>
+                  {moving && searchedPhone && (
+                    <RescheduleAppointment
+                      slug={site.slug}
+                      timeFormat={site.timeFormat}
+                      appointment={a}
+                      phone={searchedPhone}
+                      onDone={handleRescheduled}
+                      onBack={() => setReschedulingId(null)}
+                    />
+                  )}
                   {asking && (
                     <div
                       role="group"
@@ -211,7 +267,7 @@ export function CancelAppointment({ site }: Props) {
                       <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                         <button
                           type="button"
-                          disabled={busy}
+                          disabled={cancellingThis}
                           onClick={() => setConfirmingId(null)}
                           className={`${SECONDARY} sm:flex-1`}
                         >
@@ -219,12 +275,12 @@ export function CancelAppointment({ site }: Props) {
                         </button>
                         <button
                           type="button"
-                          disabled={busy}
-                          aria-busy={busy || undefined}
+                          disabled={cancellingThis}
+                          aria-busy={cancellingThis || undefined}
                           onClick={() => void handleCancel(a)}
                           className={`${PRIMARY} sm:flex-1`}
                         >
-                          {busy ? "Cancelando…" : "Sí, cancelar"}
+                          {cancellingThis ? "Cancelando…" : "Sí, cancelar"}
                         </button>
                       </div>
                     </div>
@@ -235,7 +291,7 @@ export function CancelAppointment({ site }: Props) {
           </ul>
         )}
 
-        <button type="button" onClick={close} disabled={cancellingId !== null} className={`${SECONDARY} mt-5 w-full`}>
+        <button type="button" onClick={close} disabled={busy} className={`${SECONDARY} mt-5 w-full`}>
           Cerrar
         </button>
       </Modal>

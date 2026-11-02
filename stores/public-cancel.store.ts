@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { toMessage } from "@/lib/errors";
 import { phoneLookupKey } from "@/lib/co-mobile";
 import * as publicSiteService from "@/services/public-site.service";
-import type { UpcomingAppointment } from "@/services/public-site.types";
+import type { RescheduleResult, UpcomingAppointment } from "@/services/public-site.types";
 
 /**
  * Visitor-side "cancel my appointment" state for the public micro-site.
@@ -24,6 +24,8 @@ interface PublicCancelState {
   error: string | null;
   search: (slug: string, phone: string) => Promise<void>;
   cancel: (slug: string, appointmentId: string) => Promise<boolean>;
+  /** Puts a rescheduled appointment's new date/time (and `pending`) in the list. */
+  applyReschedule: (result: RescheduleResult) => void;
   reset: () => void;
 }
 
@@ -71,6 +73,18 @@ export const usePublicCancelStore = create<PublicCancelState>((set, get) => ({
       set({ cancellingId: null, error: toMessage(e) });
       return false;
     }
+  },
+
+  applyReschedule: (result) => {
+    const list = get().appointments ?? [];
+    const updated = list.map((a) =>
+      a.id === result.id
+        ? { ...a, date: result.date, time: result.time, status: result.status, staff: result.staff ?? a.staff }
+        : a,
+    );
+    // Same order as the RPC: soonest first.
+    updated.sort((x, y) => `${x.date} ${x.time}`.localeCompare(`${y.date} ${y.time}`));
+    set({ appointments: updated, cancelled: null, error: null });
   },
 
   reset: () => set(INITIAL),

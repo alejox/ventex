@@ -624,6 +624,23 @@ export interface UpcomingAppointment {
   service: string | null;
   staff: string | null;
   status: "pending" | "confirmed";
+  /** Since `20261102100000`; absent in older payloads. */
+  serviceId?: string | null;
+  staffId?: string | null;
+  /** Service still bookable and assigned person still on the site. */
+  reschedulable?: boolean;
+}
+
+export interface RescheduleResult {
+  id: string;
+  /** "YYYY-MM-DD" */
+  date: string;
+  /** "HH:MM" */
+  time: string;
+  service: string;
+  staff: string | null;
+  /** Always `pending`: the business confirms the new time again. */
+  status: "pending";
 }
 
 export interface CancelAppointmentResult {

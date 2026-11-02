@@ -176,6 +176,10 @@ export function toMessage(e: unknown): string {
       if (/^CITA_NO_ENCONTRADA\b/.test(raw)) {
         return "No encontramos esa cita con ese número. Revisa el teléfono y vuelve a buscar.";
       }
+      // `public_site_reschedule_appointment` (20261102100000).
+      if (/^CITA_NO_REPROGRAMABLE\b/.test(raw)) {
+        return "Esta cita ya pasó, ya se atendió o se canceló, así que no se puede cambiar desde aquí. Escríbele al negocio si necesitas ayuda.";
+      }
       if (/^CITA_NO_CANCELABLE\b/.test(raw)) {
         return "Esta cita ya pasó o ya se atendió, así que no se puede cancelar desde aquí. Escríbele al negocio si necesitas ayuda.";
       }

@@ -26,7 +26,7 @@ on main; this branch stacks on phase 3).
   slot rules as `public_site_book` (excluding itself), tuteo errors, notifications.
   Full `create or replace` from live definitions if any existing function changes.
   Rolled-back live test.
-- [ ] T2 UI: "Cambiar fecha" per appointment in the cancel/lookup modal (site theme
+- [x] T2 UI: "Cambiar fecha" per appointment in the cancel/lookup modal (site theme
   `--site-*`), reusing the widget's day/slot pickers for that service/staff, confirm
   step, success state ("Tu cita quedó para …, el negocio la confirmará").
   Service/store/types; pure helpers with tests.
@@ -58,3 +58,23 @@ on main; this branch stacks on phase 3).
   `day_slots` 11:30 free with exclusion vs taken without. p-bbarbershop: cross-day
   move with a staff member with membership → owner + staff (`rescheduled_staff`)
   notices. No rows left behind (verified).
+- T1 commit: f9ab18d.
+- T2 (delegated writer): "Cambiar fecha" per row of the lookup modal
+  (`app/[slug]/CancelAppointment.tsx`, title now "Cancelar o cambiar mi cita"), inline
+  step `app/[slug]/RescheduleAppointment.tsx` (rendered inside the Modal tree; focus
+  to the step heading; confirm "¿Pasar tu cita al …?"; success in an `aria-live`
+  region "Tu cita quedó para el … El negocio la confirmará."). Month calendar, slot
+  groups and `LoadFailed` extracted from `BookingWidget` to `app/[slug]/BookingPickers.tsx`
+  (widget now uses them); date helpers to `lib/booking-month.ts`. Pure rules in
+  `lib/site-reschedule.ts` (`canReschedule`, `markCurrentSlot` — the appointment's own
+  time shows as "Tu cita", never offered — `rescheduleWhen`). New store
+  `stores/public-reschedule.store.ts` (own slot/availability cache keyed by appointment,
+  so it never fights the booking widget's), `applyReschedule` in the cancel store,
+  `rescheduleAppointment` + `excludeAppointmentId` in the service, `RescheduleResult`
+  type, `CITA_NO_REPROGRAMABLE` in `lib/errors.ts`. Tests: `tests/site-reschedule.test.ts`
+  (RED first: module missing; then GREEN 6/6), notification routing for
+  `rescheduled`/`rescheduled_staff`; e2e scenario (d) in `e2e/public-booking.spec.ts`
+  (listed only, not run). Checks: `npm test` 1200/1200; `npx tsc --noEmit` clean;
+  eslint on changed files clean; `npx playwright test --list` 225 tests.
+- Known: the day availability count on the appointment's own day includes its
+  current time (excluded from busy); the slot list marks it "Tu cita".

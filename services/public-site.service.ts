@@ -4,6 +4,7 @@ import type {
   BookingResult,
   CancelAppointmentResult,
   DaySlot,
+  RescheduleResult,
   DayAvailability,
   SlotState,
   UpcomingAppointment,
@@ -29,6 +30,8 @@ export async function fetchDaySlots(
   serviceId: string,
   date: string,
   staffId: string | null,
+  /** The appointment being rescheduled: its own row must not block a slot. */
+  excludeAppointmentId: string | null = null,
 ): Promise<DaySlot[]> {
   const supabase = createClient();
 
@@ -37,6 +40,7 @@ export async function fetchDaySlots(
     p_service_id: serviceId,
     p_date: date,
     p_staff_id: staffId ?? undefined,
+    p_exclude_appointment_id: excludeAppointmentId ?? undefined,
   });
 
   if (error) throw error;
@@ -53,6 +57,7 @@ export async function fetchAvailability(
   from: string,
   days: number,
   staffId: string | null,
+  excludeAppointmentId: string | null = null,
 ): Promise<DayAvailability[]> {
   const supabase = createClient();
 
@@ -62,6 +67,7 @@ export async function fetchAvailability(
     p_from: from,
     p_days: days,
     p_staff_id: staffId ?? undefined,
+    p_exclude_appointment_id: excludeAppointmentId ?? undefined,
   });
 
   if (error) throw error;
@@ -150,4 +156,33 @@ export async function cancelAppointment(
   if (error) throw error;
   if (!data) throw new Error("No pudimos cancelar la cita. Intenta de nuevo.");
   return data;
+}
+
+/**
+ * Moves one of those appointments to another free slot (same service, same
+ * professional) and leaves it `pending` (migration 20261102100000). Raises
+ * `CITA_NO_ENCONTRADA`, `CITA_NO_REPROGRAMABLE` (translated by `toMessage`)
+ * or a Spanish business message such as "Ese horario ya fue tomado…".
+ */
+export async function rescheduleAppointment(
+  slug: string,
+  phone: string,
+  appointmentId: string,
+  date: string,
+  time: string,
+): Promise<RescheduleResult> {
+  const supabase = createClient();
+
+  const { data, error } = await supabase.rpc("public_site_reschedule_appointment", {
+    p_slug: slug,
+    p_appointment_id: appointmentId,
+    p_phone: phone,
+    p_date: date,
+    p_time: time,
+  });
+
+  if (error) throw error;
+  if (!data) throw new Error("No pudimos cambiar la cita. Intenta de nuevo.");
+  // jsonb widens to `Json`; the shape is fixed by the RPC — see RescheduleResult.
+  return data as unknown as RescheduleResult;
 }

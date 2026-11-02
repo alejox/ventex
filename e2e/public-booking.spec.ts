@@ -13,6 +13,7 @@ import {
  * Flujo de reservas del sitio público, de punta a punta:
  *   (a) el visitante reserva y llega a la pantalla de éxito;
  *   (b) cancela con su celular;
+ *   (d) cambia de fecha su cita con el mismo celular;
  *   (c) el dueño confirma la reserva pendiente desde "Pendientes".
  *
  * ESCRIBE en la base compartida: solo corre con `E2E_BOOKING_SLUG` apuntando a
@@ -84,7 +85,7 @@ test.describe("Reservas del sitio público", () => {
     await page.goto(`/${site!.slug}#reservar`);
     await page.getByRole("button", { name: "Cancelar cita", exact: true }).click();
 
-    const modal = page.getByRole("dialog", { name: "Cancelar mi cita" });
+    const modal = page.getByRole("dialog", { name: "Cancelar o cambiar mi cita" });
     await expect(modal).toBeVisible();
     await modal.locator("#cancel-phone").fill(phone);
     await modal.getByRole("button", { name: "Buscar mis citas" }).click();
@@ -97,6 +98,40 @@ test.describe("Reservas del sitio público", () => {
     await expect(modal.getByRole("status")).toContainText("cancelamos tu cita", { timeout: 15000 });
 
     await expect.poll(() => appointmentStatus(seeded.id)).toBe("cancelled");
+  });
+
+  test("(d) cambiar fecha con el celular deja la cita pendiente en otro horario", async ({ page }) => {
+    const phone = uniqueBookingPhone();
+    phones.push(phone);
+    const seeded = await seedSiteBooking(site!.slug, `E2E Reprograma ${stamp}`, phone);
+
+    await page.goto(`/${site!.slug}#reservar`);
+    await page.getByRole("button", { name: "Cancelar cita", exact: true }).click();
+    const modal = page.getByRole("dialog", { name: "Cancelar o cambiar mi cita" });
+    await expect(modal).toBeVisible();
+    await modal.locator("#cancel-phone").fill(phone);
+    await modal.getByRole("button", { name: "Buscar mis citas" }).click();
+
+    const row = modal.locator("li").filter({ hasText: seeded.service });
+    await expect(row).toHaveCount(1, { timeout: 15000 });
+    await row.getByRole("button", { name: /^Cambiar fecha/ }).click();
+    await expect(modal.getByRole("heading", { name: "Elige la nueva fecha" })).toBeFocused();
+
+    const freeDay = modal.getByRole("button", { name: /horarios libres$/ }).first();
+    if ((await freeDay.count()) === 0) {
+      await modal.getByRole("button", { name: "Mes siguiente" }).click();
+    }
+    await expect(freeDay).toBeVisible({ timeout: 20000 });
+    await freeDay.click();
+
+    const hours = modal.getByRole("region", { name: /^Horarios del / });
+    await hours.locator("li > button").first().click();
+    await modal.getByRole("button", { name: "Continuar" }).click();
+    await expect(modal.getByText(/^¿Pasar tu cita al /)).toBeVisible();
+    await modal.getByRole("button", { name: "Sí, cambiarla" }).click();
+
+    await expect(modal.getByText(/^Tu cita quedó para el /)).toBeVisible({ timeout: 15000 });
+    await expect.poll(() => appointmentStatus(seeded.id)).toBe("pending");
   });
 
   test("(c) el dueño confirma una reserva pendiente desde Pendientes", async ({ page }) => {
