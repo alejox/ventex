@@ -1244,6 +1244,7 @@ export type Database = {
           data: Json
           id: string
           read_at: string | null
+          recipient_staff_id: string | null
           severity: string
           title: string
           type: string
@@ -1255,6 +1256,7 @@ export type Database = {
           data?: Json
           id?: string
           read_at?: string | null
+          recipient_staff_id?: string | null
           severity?: string
           title: string
           type: string
@@ -1266,12 +1268,21 @@ export type Database = {
           data?: Json
           id?: string
           read_at?: string | null
+          recipient_staff_id?: string | null
           severity?: string
           title?: string
           type?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "notifications_recipient_staff_id_fkey"
+            columns: ["recipient_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       plan_periods: {
         Row: {
@@ -3503,6 +3514,8 @@ export type Database = {
           accepts_card: boolean
           accepts_transfer: boolean
           allow_oversell: boolean
+          booking_admin_staff_id: string | null
+          booking_assign_admin: boolean
           business_profile: Json | null
           card_methods_enabled: Json
           created_at: string
@@ -3529,6 +3542,8 @@ export type Database = {
           accepts_card?: boolean
           accepts_transfer?: boolean
           allow_oversell?: boolean
+          booking_admin_staff_id?: string | null
+          booking_assign_admin?: boolean
           business_profile?: Json | null
           card_methods_enabled?: Json
           created_at?: string
@@ -3555,6 +3570,8 @@ export type Database = {
           accepts_card?: boolean
           accepts_transfer?: boolean
           allow_oversell?: boolean
+          booking_admin_staff_id?: string | null
+          booking_assign_admin?: boolean
           business_profile?: Json | null
           card_methods_enabled?: Json
           created_at?: string
@@ -3577,7 +3594,15 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "settings_booking_admin_staff_id_fkey"
+            columns: ["booking_admin_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       shifts: {
         Row: {
@@ -4442,6 +4467,10 @@ export type Database = {
         Returns: Json
       }
       public_site_by_slug: { Args: { p_slug: string }; Returns: Json }
+      public_site_cancel_appointment: {
+        Args: { p_appointment_id: string; p_phone: string; p_slug: string }
+        Returns: Json
+      }
       public_site_day_slots: {
         Args: {
           p_date: string
@@ -4453,6 +4482,10 @@ export type Database = {
           slot_state: string
           slot_time: string
         }[]
+      }
+      public_site_find_appointments: {
+        Args: { p_phone: string; p_slug: string }
+        Returns: Json
       }
       public_site_slots: {
         Args: {
@@ -4765,6 +4798,10 @@ export type Database = {
           p_to: string
           p_to_ts: string
         }
+        Returns: string
+      }
+      site_booking_excluded_staff: {
+        Args: { p_config: Json; p_user_id: string }
         Returns: string
       }
       site_catalog_ids: {

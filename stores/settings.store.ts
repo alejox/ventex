@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { ReceiptSettings } from "@/lib/receipt-settings";
+import type { BookingAdminSettingsInput } from "@/lib/booking-admin";
 import { toMessage } from "@/lib/errors";
 import * as settingsService from "@/services/settings.service";
 import type { PaymentMethodsInput, Settings, SettingsInput } from "@/services/settings.service";
@@ -23,6 +24,8 @@ interface SettingsState {
   saveShiftRequirement: (enabled: boolean) => Promise<boolean>;
   /** Si el dueño/administrador trabaja con caja. Devuelve true si se guardó. */
   saveOwnerUsesShifts: (enabled: boolean) => Promise<boolean>;
+  /** Reservas en línea: ficha del administrador y si recibe reservas automáticas. */
+  saveBookingAdmin: (input: BookingAdminSettingsInput) => Promise<boolean>;
   /** Ajustes → Métodos de pago. Devuelve true si se guardó. */
   savePaymentMethods: (input: PaymentMethodsInput) => Promise<boolean>;
 
@@ -93,6 +96,18 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     set({ submitting: true, error: null });
     try {
       const settings = await settingsService.saveOwnerUsesShifts(enabled);
+      set({ settings, submitting: false });
+      return true;
+    } catch (error) {
+      set({ error: toMessage(error), submitting: false });
+      return false;
+    }
+  },
+
+  saveBookingAdmin: async (input) => {
+    set({ submitting: true, error: null });
+    try {
+      const settings = await settingsService.saveBookingAdmin(input);
       set({ settings, submitting: false });
       return true;
     } catch (error) {

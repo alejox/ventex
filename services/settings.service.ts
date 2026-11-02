@@ -4,6 +4,7 @@ import type { Json } from "@/utils/supabase/database.types";
 import { toWebp, verificarPeso } from "@/lib/image";
 import type { TimeFormat } from "@/lib/time";
 import { normalizeReceiptSettings, type ReceiptSettings } from "@/lib/receipt-settings";
+import type { BookingAdminSettingsInput } from "@/lib/booking-admin";
 
 // ---- Tipos del dominio de ajustes (config por cuenta) ----
 export interface BusinessProfile {
@@ -47,6 +48,13 @@ export interface Settings {
    * Opcional para ellos: el POS les pide abrir caja pero pueden vender sin ella.
    */
   owner_uses_shifts: boolean;
+  /**
+   * Staff row that belongs to the owner/admin (nothing in the data links them).
+   * `null` = not chosen: online bookings behave as before.
+   */
+  booking_admin_staff_id: string | null;
+  /** Whether "any available" online bookings may be auto-assigned to that row. */
+  booking_assign_admin: boolean;
   /** Si el negocio cobra con tarjeta. false = ni siquiera se ofrece el medio. */
   accepts_card: boolean;
   /** Si el negocio cobra por transferencia. false = ni siquiera se ofrece. */
@@ -89,6 +97,8 @@ const DEFAULTS: Settings = {
   allow_oversell: true,
   require_active_shift: false,
   owner_uses_shifts: false,
+  booking_admin_staff_id: null,
+  booking_assign_admin: false,
   accepts_card: true,
   accepts_transfer: true,
   currency: "COP",
@@ -154,6 +164,9 @@ export function mapSettings(raw: Record<string, unknown>): Settings {
     require_active_shift: (raw.require_active_shift as boolean) ?? false,
     // `?? false`: antes de la migración la columna no existe y `select *` no la trae.
     owner_uses_shifts: (raw.owner_uses_shifts as boolean | null) ?? false,
+    // Same fallback: missing before 20261101120000_booking_admin_assignment.
+    booking_admin_staff_id: (raw.booking_admin_staff_id as string | null) ?? null,
+    booking_assign_admin: (raw.booking_assign_admin as boolean | null) ?? false,
     accepts_card: (raw.accepts_card as boolean) ?? true,
     accepts_transfer: (raw.accepts_transfer as boolean) ?? true,
     currency: (raw.currency as string) ?? "COP",
@@ -298,6 +311,22 @@ export async function saveOwnerUsesShifts(enabled: boolean): Promise<Settings> {
   const query = existing
     ? supabase.from("settings").update({ owner_uses_shifts: enabled }).eq("id", existing.id)
     : supabase.from("settings").insert({ owner_uses_shifts: enabled });
+  const { data, error } = await query.select(SETTINGS_SELECT).single();
+  if (error) throw error;
+  return mapSettings(data as Record<string, unknown>);
+}
+
+/**
+ * Saves only the online-booking admin assignment. Owner-only (guarded in SQL by
+ * `settings_guard_booking_admin`). `settings` is lazy: read, then update or insert.
+ */
+export async function saveBookingAdmin(input: BookingAdminSettingsInput): Promise<Settings> {
+  const supabase = createClient();
+  const { data: existing, error: readError } = await supabase.from("settings").select("id").maybeSingle();
+  if (readError) throw readError;
+  const query = existing
+    ? supabase.from("settings").update(input).eq("id", existing.id)
+    : supabase.from("settings").insert(input);
   const { data, error } = await query.select(SETTINGS_SELECT).single();
   if (error) throw error;
   return mapSettings(data as Record<string, unknown>);
