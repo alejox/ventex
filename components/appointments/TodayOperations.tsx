@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import Link from "next/link";
 import { useAppointmentsStore } from "@/stores/appointments.store";
 import { useSettingsStore } from "@/stores/settings.store";
-import { toISODate } from "@/lib/date";
+import { calendarDayIn } from "@/lib/tz";
 import { formatAppointmentTime } from "@/lib/time";
 import { freesSlot } from "@/lib/appointment-status";
 
@@ -15,13 +15,17 @@ export function TodayOperations() {
   const error = useAppointmentsStore((s) => s.todayError);
   const fetchToday = useAppointmentsStore((s) => s.fetchToday);
   const timeFormat = useSettingsStore((s) => s.settings?.time_format ?? "12");
+  // "Hoy" es el día del NEGOCIO; al llegar su zona (si difiere) se vuelve a pedir.
+  const timeZone = useAppointmentsStore((s) => s.timeZone);
+  const ensureTimeZone = useAppointmentsStore((s) => s.ensureTimeZone);
+  useEffect(() => { void ensureTimeZone(); }, [ensureTimeZone]);
   useEffect(() => {
-    const refresh = () => { if (document.visibilityState === "visible") void fetchToday(toISODate()); };
+    const refresh = () => { if (document.visibilityState === "visible") void fetchToday(calendarDayIn(timeZone)); };
     refresh();
     window.addEventListener("focus", refresh);
     const timer = window.setInterval(refresh, 60_000);
     return () => { window.removeEventListener("focus", refresh); window.clearInterval(timer); };
-  }, [fetchToday]);
+  }, [fetchToday, timeZone]);
   // "No vino" sale de la operación del día igual que una cancelada.
   const active = appointments.filter((a) => !freesSlot(a.status));
   const pending = active.filter((a) => a.status === "pending");
@@ -31,7 +35,7 @@ export function TodayOperations() {
     <div className="flex items-center justify-between gap-3"><h2 className="font-bold text-on-surface">Operación de hoy</h2>
       <Link href="/dashboard/calendar" className="text-sm font-semibold text-primary">Abrir agenda →</Link></div>
     {loading ? <p role="status" className="mt-3 text-sm text-on-surface-variant">Actualizando agenda…</p>
-      : error ? <div role="alert" className="mt-3 text-sm text-error">{error} <button onClick={() => void fetchToday(toISODate())} className="underline">Reintentar</button></div>
+      : error ? <div role="alert" className="mt-3 text-sm text-error">{error} <button onClick={() => void fetchToday(calendarDayIn(timeZone))} className="underline">Reintentar</button></div>
       : <>
         <div className="mt-3 flex flex-wrap gap-2 text-sm"><span className="rounded-lg bg-primary/10 px-3 py-2">{pending.length} por confirmar</span>
           <span className="rounded-lg bg-surface-container px-3 py-2">{unpaid.length} sin cobrar</span>

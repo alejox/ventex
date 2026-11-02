@@ -5,6 +5,7 @@ import type { AgendaBusySlot } from "@/lib/agenda-privacy";
 import type { OpeningHour } from "@/lib/appointment-hours";
 import { removePending, upsertPending } from "@/lib/pending-appointments";
 import * as appointmentsService from "@/services/appointments.service";
+import { browserTimeZone, fetchBusinessTimeZone } from "@/services/finance.service";
 import type {
   Appointment,
   AppointmentPaymentMethod,
@@ -77,6 +78,13 @@ interface AppointmentsState {
   businessHours: OpeningHour[] | null;
   businessHoursLoaded: boolean;
   fetchBusinessHours: () => Promise<void>;
+
+  /**
+   * Business timezone (`business_sites.timezone`): the agenda's "today" and
+   * "now" come from it. Starts as the device zone so nothing waits on it.
+   */
+  timeZone: string;
+  ensureTimeZone: () => Promise<void>;
 }
 
 
@@ -350,5 +358,13 @@ export const useAppointmentsStore = create<AppointmentsState>((set, get) => ({
     } catch {
       set({ businessHours: null, businessHoursLoaded: true });
     }
+  },
+
+  timeZone: browserTimeZone(),
+  // The loader caches its promise for the session, so calling this from every
+  // surface that shows "today" costs one request at most.
+  ensureTimeZone: async () => {
+    const timeZone = await fetchBusinessTimeZone();
+    if (get().timeZone !== timeZone) set({ timeZone });
   },
 }));

@@ -16,6 +16,7 @@ import {
   type DragMode,
 } from "@/lib/appointment-drag";
 import { groupByColumn, staffInitials, type StaffColumn } from "@/lib/staff-columns";
+import { businessNow } from "@/lib/tz";
 
 /** Alto de una hora, en px: de acá salen la posición y el alto de cada cita. */
 const HOUR_PX = 64;
@@ -52,6 +53,8 @@ interface TimeGridProps {
   days: GridDay[];
   appointmentsByDate: Record<string, Appointment[]>;
   today: string;
+  /** Business timezone: the now-line follows the shop's clock, not the device's. */
+  timeZone: string;
   timeFormat: TimeFormat;
   statusClass: (status: string) => string;
   /** `staffId` llega al tocar el hueco de una columna por persona (no la de "Sin asignar"). */
@@ -113,6 +116,7 @@ export function TimeGrid({
   days,
   appointmentsByDate,
   today,
+  timeZone,
   timeFormat,
   statusClass,
   onCreate,
@@ -166,7 +170,7 @@ export function TimeGrid({
   );
   const hoursList = Array.from({ length: to - from }, (_, i) => from + i);
   const totalHeight = (to - from) * HOUR_PX;
-  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const nowMinutes = businessNow(timeZone, now).minutes;
   const firstDate = days[0]?.date;
   const showsToday = days.some((day) => day.date === today);
   const draggable = (appointment: Appointment) => Boolean(onReschedule) && (canReschedule?.(appointment) ?? true);

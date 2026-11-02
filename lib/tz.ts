@@ -85,3 +85,26 @@ export function zonedMidnight(day: string, tz: string): Date {
 export function monthKeyIn(tz: string, iso: string | Date): string {
   return calendarDayIn(tz, typeof iso === "string" ? new Date(iso) : iso).slice(0, 7);
 }
+
+/**
+ * "Now" on the business clock: its calendar day and the minutes elapsed since
+ * its midnight. The agenda decides "today", overdue pendings and the now-line
+ * with this, so someone looking from another timezone sees the shop's day.
+ */
+export function businessNow(
+  tz: string,
+  instant: Date = new Date(),
+): { date: string; minutes: number } {
+  const p = partsIn(tz, instant);
+  return { date: `${p.year}-${pad(p.month)}-${pad(p.day)}`, minutes: p.hour * 60 + p.minute };
+}
+
+/**
+ * A "YYYY-MM-DD" as a local-midnight `Date`, for UI state that navigates with
+ * local `Date` fields (the calendar grid). `new Date("YYYY-MM-DD")` would be
+ * UTC midnight, which is the previous day west of Greenwich.
+ */
+export function localDateOf(day: string): Date {
+  const [y, m, d] = day.slice(0, 10).split("-").map(Number);
+  return new Date(y, (m ?? 1) - 1, d ?? 1);
+}

@@ -27,6 +27,7 @@ import { BUSY_STATUS, busyPlaceholders, canSeeFullAgenda, isBusyPlaceholder } fr
 import { formatDateOnly } from "@/lib/date";
 import { byStaffFilter, isOverdue } from "@/lib/pending-appointments";
 import { formatAppointmentDay } from "@/lib/appointment-day";
+import { businessNow, localDateOf } from "@/lib/tz";
 import { useCalendarView } from "./useCalendarView";
 import { staffColumnsFor } from "@/lib/staff-columns";
 import { APPOINTMENT_STATUSES, statusLabel } from "@/lib/appointment-status";
@@ -215,17 +216,31 @@ function CalendarContent() {
   const appointmentId = searchParams.get("appointment");
 
   const [displayMode, setDisplayMode] = useState<"calendar" | "list" | "pending">("calendar");
-  /** 'YYYY-MM-DD' local de hoy, para marcar las pendientes vencidas. */
-  const [todayIso] = useState(() => toISODate(new Date()));
+  // "Hoy" y "ahora" son los del NEGOCIO (`business_sites.timezone`), no los del
+  // dispositivo: quien mira desde otra zona ve el día del local. Hasta que
+  // llega la zona se usa la del dispositivo, así nada espera para dibujarse.
+  const timeZone = useAppointmentsStore((s) => s.timeZone);
+  const ensureTimeZone = useAppointmentsStore((s) => s.ensureTimeZone);
+  useEffect(() => { void ensureTimeZone(); }, [ensureTimeZone]);
+  /** Instante en que se abrió la pantalla; se lee en el reloj del negocio. */
+  const [openedInstant] = useState(() => new Date());
   /** "Ahora" al abrir la pantalla: decide qué citas se pueden recordar por WhatsApp. */
-  const [openedAt] = useState(() => {
-    const now = new Date();
-    return { date: toISODate(now), minutes: now.getHours() * 60 + now.getMinutes() };
-  });
+  const openedAt = useMemo(() => businessNow(timeZone, openedInstant), [timeZone, openedInstant]);
+  /** 'YYYY-MM-DD' de hoy en el negocio, para marcar las pendientes vencidas. */
+  const todayIso = openedAt.date;
   // La semana es la vista de trabajo en escritorio; en el teléfono no entra y
   // se abre en Día. Lo que la persona elige a mano se respeta (y se recuerda).
   const { view, chooseView, showView } = useCalendarView();
-  const [currentDate, setCurrentDate] = useState(new Date());
+  const [currentDate, setCurrentDate] = useState(() => localDateOf(todayIso));
+  // Cuando llega la zona del negocio y difiere de la del dispositivo, la grilla
+  // salta al "hoy" del negocio, salvo que la persona ya haya navegado a otro día.
+  const [timeZoneShown, setTimeZoneShown] = useState(timeZone);
+  if (timeZoneShown !== timeZone) {
+    setTimeZoneShown(timeZone);
+    if (formatDate(currentDate) === businessNow(timeZoneShown, openedInstant).date) {
+      setCurrentDate(localDateOf(todayIso));
+    }
+  }
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedAppointment, setSelectedAppointment] =
     useState<Appointment | null>(null);
@@ -273,7 +288,7 @@ function CalendarContent() {
     return () => { cancelled = true; };
   }, [appointmentId, fetchLinkedAppointment, openLinkedAppointment]);
 
-  const today = useMemo(() => formatDate(new Date()), []);
+  const today = todayIso;
   const currentMonth = currentDate.getMonth();
   const currentYear = currentDate.getFullYear();
 
@@ -366,7 +381,7 @@ function CalendarContent() {
     setCurrentDate(d);
   };
 
-  const goToday = () => setCurrentDate(new Date());
+  const goToday = () => setCurrentDate(localDateOf(businessNow(timeZone).date));
 
   // Open modal for new appointment
   const handleNewAppointment = (date?: string, time?: string, staffId?: string) => {
@@ -481,9 +496,8 @@ function CalendarContent() {
    * qué. El botón funciona; lo que faltaba era que dijera dónde estás parado.
    */
   const isOnToday = useMemo(() => {
-    const now = new Date();
     if (view === "month") {
-      return currentMonth === now.getMonth() && currentYear === now.getFullYear();
+      return currentYear === Number(today.slice(0, 4)) && currentMonth === Number(today.slice(5, 7)) - 1;
     }
     if (view === "week") {
       return weekDays.some((d) => d.date === today);
@@ -736,6 +750,7 @@ function CalendarContent() {
           days={view === "week" ? weekDays : [dayColumn]}
           appointmentsByDate={appointmentsByDate}
           today={today}
+          timeZone={timeZone}
           timeFormat={timeFormat}
           statusClass={getStatusColor}
           onCreate={handleNewAppointment}

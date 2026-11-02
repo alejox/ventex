@@ -20,6 +20,7 @@ import type {
 } from "@/services/appointments.service";
 import { toISODate, formatDateOnly } from "@/lib/date";
 import { formatAppointmentDay } from "@/lib/appointment-day";
+import { businessNow } from "@/lib/tz";
 import { formatAppointmentTime, type TimeFormat } from "@/lib/time";
 import { DateTimeDialog, DateTimeField } from "./DateTimeField";
 import { conflictsFor, pickStaff, type BusyAppointment } from "@/lib/appointment-availability";
@@ -99,6 +100,8 @@ function buildInitialForm(
   appointment: Appointment | null | undefined,
   selectedDate: Date | undefined,
   defaultStartTime: string | undefined,
+  /** Business "today" ('YYYY-MM-DD'), used when no day was picked. */
+  today: string,
 ): NewAppointmentInput {
   if (appointment) {
     return {
@@ -119,7 +122,7 @@ function buildInitialForm(
 
   return {
     ...EMPTY_FORM,
-    appointment_date: toISODate(selectedDate ?? new Date()),
+    appointment_date: selectedDate ? toISODate(selectedDate) : today,
     start_time: defaultStartTime || "09:00",
     end_time: defaultStartTime ? addMinutes(defaultStartTime, 60) : "10:00",
   };
@@ -132,12 +135,6 @@ const STATUS_OPTIONS = [
   { value: "cancelled", label: "Cancelada", color: "bg-error-container/20 text-error-dim border-error-container/30" },
   { value: "no_show", label: "No vino", color: "bg-tertiary-container/30 text-on-tertiary-container border-tertiary/30" },
 ];
-
-/** "Ahora" del reloj local, para saber si la cita ya empezó. */
-function localNow() {
-  const now = new Date();
-  return { date: toISODate(now), minutes: now.getHours() * 60 + now.getMinutes() };
-}
 
 export default function AppointmentModal(props: AppointmentModalProps) {
   if (!props.open) return null;
@@ -155,6 +152,13 @@ function AppointmentModalBody({
   defaultStaffId = null,
 }: AppointmentModalProps) {
   const fmtMoney = useFormatMoney();
+  const timeZone = useAppointmentsStore((s) => s.timeZone);
+  const ensureTimeZone = useAppointmentsStore((s) => s.ensureTimeZone);
+  useEffect(() => { void ensureTimeZone(); }, [ensureTimeZone]);
+  // "Ahora" al abrir el modal, leído en el reloj del NEGOCIO: decide si la cita
+  // ya empezó ("No vino", recordatorio) y qué día es "hoy" en el encabezado.
+  const [openedInstant] = useState(() => new Date());
+  const openedAt = useMemo(() => businessNow(timeZone, openedInstant), [timeZone, openedInstant]);
   const submitting = useAppointmentsStore((s) => s.submitting);
   const addAppointment = useAppointmentsStore((s) => s.addAppointment);
   const updateAppointment = useAppointmentsStore((s) => s.updateAppointment);
@@ -183,7 +187,7 @@ function AppointmentModalBody({
       ? lockedStaffId
       : defaultAppointmentStaffId({ staffId: profile?.staffId, staffList: staff, isEditing: Boolean(appointment), current });
   const [form, setForm] = useState<NewAppointmentInput>(() => {
-    const initial = buildInitialForm(appointment, selectedDate, defaultStartTime);
+    const initial = buildInitialForm(appointment, selectedDate, defaultStartTime, openedAt.date);
     const chosen = !appointment && !lockedStaffId && defaultStaffId ? defaultStaffId : null;
     return { ...initial, staff_id: chosen ?? defaultStaffFor(initial.staff_id) };
   });
@@ -418,8 +422,7 @@ function AppointmentModalBody({
   };
 
   const canCharge = !!liveAppointment?.service_id && !liveSaleId && liveStatus !== "cancelled" && liveStatus !== "no_show" && canUsePos;
-  // Se evalúa al abrir el modal: "No vino" aparece cuando ya pasó la hora de la cita.
-  const [openedAt] = useState(localNow);
+  // Se evalúa al abrir el modal (`openedAt`): "No vino" aparece cuando ya pasó la hora de la cita.
   const showNoShow = liveAppointment ? canMarkNoShow(liveAppointment, openedAt) : false;
   // Recordatorio: cita confirmada que todavía no empezó. Mismo dato que el aviso de cancelación.
   const showReminder = liveAppointment ? canRemind(liveAppointment, openedAt) : false;
@@ -478,7 +481,7 @@ function AppointmentModalBody({
             </span>
           )}
           <span className="block truncate">{generatedTitle || form.title || "Organiza la próxima visita"}</span>
-          <span className="mt-1 block text-xs">{form.appointment_date && formatAppointmentDay(form.appointment_date, toISODate())} · {formatAppointmentTime(form.start_time, timeFormat)}–{formatAppointmentTime(form.end_time, timeFormat)}</span>
+          <span className="mt-1 block text-xs">{form.appointment_date && formatAppointmentDay(form.appointment_date, openedAt.date)} · {formatAppointmentTime(form.start_time, timeFormat)}–{formatAppointmentTime(form.end_time, timeFormat)}</span>
         </>
       }
       placement="sheet"
