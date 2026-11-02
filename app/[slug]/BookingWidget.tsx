@@ -19,6 +19,7 @@ import { formatDuration } from "@/lib/duration";
 import { formatAppointmentTime } from "@/lib/time";
 import { BOOK_SERVICE_EVENT } from "./BookServiceLink";
 import { normalizeColombianMobile } from "@/lib/co-mobile";
+import { loadStatusOf } from "@/lib/booking-load-state";
 
 /**
  * Booking flow for a public visitor: service -> professional -> day -> time ->
@@ -169,6 +170,8 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
   const storedSlots = usePublicBookingStore((s) => s.slots);
   const storedAvailKey = usePublicBookingStore((s) => s.availabilityKey);
   const storedAvailability = usePublicBookingStore((s) => s.availability);
+  const slotErrorKey = usePublicBookingStore((s) => s.slotErrorKey);
+  const availErrorKey = usePublicBookingStore((s) => s.availabilityErrorKey);
   const submitting = usePublicBookingStore((s) => s.booking);
   const loadDay = usePublicBookingStore((s) => s.loadDay);
   const loadAvailability = usePublicBookingStore((s) => s.loadAvailability);
@@ -180,6 +183,13 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
 
   const availKey = availabilityKeyOf(serviceId, today, staffId);
   const days = canQuery && storedAvailKey === availKey ? storedAvailability : [];
+  const availStatus = loadStatusOf({
+    enabled: canQuery,
+    wantedKey: availKey,
+    loadedKey: storedAvailKey,
+    failedKey: availErrorKey,
+    count: days.length,
+  });
 
   // El día mostrado: el que eligió el visitante, o el primero con cupo.
   const firstBookable = days.find((d) => d.isOpen && d.freeSlots > 0)?.date;
@@ -237,8 +247,17 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
 
   // "Loading" is a key mismatch, not a flag: the answer to an older
   // service/day/professional combination can never repaint a newer one.
-  const loadingSlots = canQuery && storedSlotKey !== slotKey;
   const daySlots = canQuery && storedSlotKey === slotKey ? storedSlots : [];
+  const slotStatus = loadStatusOf({
+    enabled: canQuery,
+    wantedKey: slotKey,
+    loadedKey: storedSlotKey,
+    failedKey: slotErrorKey,
+    count: daySlots.length,
+  });
+  const retryAvailability = () =>
+    void loadAvailability(site.slug, serviceId, today, DAYS_AHEAD, staffId);
+  const retryDay = () => void loadDay(site.slug, serviceId, date, staffId);
 
   const freeTimes = daySlots.filter((s) => s.state === "free").map((s) => s.time);
   // A picked hour this combination no longer offers is simply not selected —
@@ -421,7 +440,13 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
 
       {/* ---- Calendario del mes ---- */}
       <Step n={2} title="¿Qué día?">
-        {days.length === 0 ? (
+        {availStatus === "failed" ? (
+          <LoadFailed onRetry={retryAvailability} />
+        ) : availStatus === "empty" ? (
+          <p className="py-3 text-sm text-[var(--site-on-surface-muted)]">
+            Por ahora no hay días disponibles para reservar.
+          </p>
+        ) : days.length === 0 ? (
           <p className="py-3 text-sm text-[var(--site-on-surface-muted)]">Cargando disponibilidad…</p>
         ) : (
           // Tope de ancho al calendario: las celdas son cuadradas, así que sin
@@ -681,8 +706,10 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
             </div>
 
         <div aria-live="polite">
-          {loadingSlots ? (
+          {slotStatus === "loading" ? (
             <p className="py-3 text-sm text-[var(--site-on-surface-muted)]">Buscando horarios…</p>
+          ) : slotStatus === "failed" ? (
+            <LoadFailed onRetry={retryDay} />
           ) : daySlots.length === 0 ? (
             <p className="rounded-[var(--site-radius)] bg-[var(--site-surface-alt)] px-4 py-6 text-center text-sm text-[var(--site-on-surface-muted)]">
               El negocio no atiende ese día.
@@ -818,6 +845,29 @@ function SummaryRow({
       >
         {value}
       </dd>
+    </div>
+  );
+}
+
+/**
+ * Carga fallida (red caída, RPC con error). Antes se leía como "Cargando…"
+ * eterno o como "El negocio no atiende ese día", y el visitante se iba
+ * creyendo que no había agenda.
+ */
+function LoadFailed({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div
+      role="alert"
+      className="rounded-[var(--site-radius)] bg-[var(--site-surface-alt)] px-4 py-5 text-center text-sm text-[var(--site-on-surface-muted)]"
+    >
+      <p>No pudimos cargar los horarios. Revisa tu conexión e inténtalo de nuevo.</p>
+      <button
+        type="button"
+        onClick={onRetry}
+        className="mt-3 inline-flex min-h-10 items-center justify-center rounded-[var(--site-radius)] border border-[var(--site-accent)] px-4 py-2 text-sm font-semibold text-[var(--site-on-surface)]"
+      >
+        Reintentar
+      </button>
     </div>
   );
 }
