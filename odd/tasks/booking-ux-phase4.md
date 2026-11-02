@@ -78,3 +78,4 @@ on main; this branch stacks on phase 3).
   eslint on changed files clean; `npx playwright test --list` 225 tests.
 - Known: the day availability count on the appointment's own day includes its
   current time (excluded from busy); the slot list marks it "Tu cita".
+- T2 commit: 8cdfc36.
