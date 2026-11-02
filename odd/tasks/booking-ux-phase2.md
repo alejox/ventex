@@ -22,7 +22,7 @@ site template, from the UX audit of 2026-11-01. Phase 1: `odd/tasks/booking-ux-p
   friendly; selected day highlighted; picking a slot scrolls to step 3 on mobile.
 - [x] T2 Cancel modal follows the site theme (`--site-*` variables) instead of
   dashboard tokens.
-- [ ] T3 Success screen: "Agregar a mi calendario" (Google Calendar link + .ics),
+- [x] T3 Success screen: "Agregar a mi calendario" (Google Calendar link + .ics),
   how to cancel (points to "Cancelar cita"), phone formatted.
 - [ ] T4 Staff picker as cards with photo/initials, name, role, plus
   "Cualquiera disponible"; notes as a textarea.
@@ -54,3 +54,13 @@ site template, from the UX audit of 2026-11-01. Phase 1: `odd/tasks/booking-ux-p
   labels, so e2e (b) still matches). Phone validated client-side with
   `normalizeColombianMobile` + the widget's copy before searching. Checks:
   npm test 1162 pass; tsc clean; eslint clean; playwright --list 5 tests.
+  Commit 6ec0d15.
+- T3 (delegated writer): `lib/booking-calendar.ts` (`eventTimes`,
+  `escapeIcsText`, `foldIcsLine` octet-aware, `buildIcs` CRLF,
+  `googleCalendarUrl`) and `lib/phone-format.ts` (`formatColombianMobile`).
+  Time zone: `site.timezone` when valid → UTC instants (`…Z`); otherwise
+  floating local time (documented in the module). Success screen: "Agregar a mi
+  calendario" (Google link + .ics Blob download), "¿No puedes ir? Usa «Cancelar
+  cita» más abajo con tu celular.", phone shown as "300 123 4567". RED: both
+  test files failed with "Cannot find module"; GREEN: 11/11. Checks: npm test
+  1173 pass; tsc clean; eslint clean; playwright --list 5 tests.

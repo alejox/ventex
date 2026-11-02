@@ -20,6 +20,8 @@ import { formatAppointmentTime } from "@/lib/time";
 import { BOOK_SERVICE_EVENT } from "./BookServiceLink";
 import { normalizeColombianMobile } from "@/lib/co-mobile";
 import { loadStatusOf } from "@/lib/booking-load-state";
+import { buildIcs, googleCalendarUrl, type BookingEvent } from "@/lib/booking-calendar";
+import { formatColombianMobile } from "@/lib/phone-format";
 
 /**
  * Booking flow for a public visitor: service -> professional -> day -> time ->
@@ -163,6 +165,7 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
   const [phoneTouched, setPhoneTouched] = useState(false);
   const [notes, setNotes] = useState("");
   const [confirmed, setConfirmed] = useState<{
+    id: string;
     date: string;
     time: string;
     service: string;
@@ -282,6 +285,7 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
 
     if (result) {
       setConfirmed({
+        id: result.id,
         date: result.date,
         time: result.time,
         service: result.service,
@@ -307,6 +311,39 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
      * quiere certeza la pide en el momento, y el mensaje ya dice qué reservó.
      */
     const mensaje = `Hola ${site.businessName}, acabo de reservar ${confirmed.service} para el ${cuando} a nombre de ${name.trim()}. ¿Me la confirman?`;
+    /*
+     * La cita para el calendario del visitante, a la hora del NEGOCIO
+     * (`site.timezone`; sin zona válida, hora flotante — ver
+     * `lib/booking-calendar.ts`). La duración es la del servicio elegido; si ya
+     * no está en la lista, una hora, que es más útil que no poder agendarla.
+     */
+    const evento: BookingEvent = {
+      uid: confirmed.id,
+      title: `${confirmed.service} en ${site.businessName}`,
+      date: confirmed.date,
+      time: confirmed.time,
+      durationMinutes: service?.durationMinutes ?? 60,
+      timeZone: site.timezone,
+      location: site.address,
+      description: [
+        `Reserva en ${site.businessName}, pendiente de confirmación.`,
+        notes.trim() ? `Comentario: ${notes.trim()}` : null,
+      ]
+        .filter(Boolean)
+        .join("\n"),
+    };
+    const descargarIcs = () => {
+      const blob = new Blob([buildIcs(evento, new Date())], { type: "text/calendar;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `cita-${site.slug}-${confirmed.date}.ics`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      // Diferido: Safari cancela la descarga si la URL se revoca en el mismo tick.
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    };
     return (
       <div className="rounded-[var(--site-radius)] border border-[var(--site-on-surface-border)] bg-[var(--site-surface)] p-6 text-center">
         <div
@@ -333,7 +370,7 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
 
         <p className="mt-4 text-sm text-[var(--site-on-surface-muted)]">
           Queda <strong className="text-[var(--site-on-surface)]">pendiente de confirmación</strong>. El
-          negocio te escribe al <strong className="text-[var(--site-on-surface)]">{phone}</strong> para
+          negocio te escribe al <strong className="text-[var(--site-on-surface)]">{formatColombianMobile(phone)}</strong> para
           confirmarte.
         </p>
 
@@ -347,6 +384,43 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
             Escribir al negocio por WhatsApp
           </a>
         ) : null}
+
+        {/* Agregar a mi calendario: Google por enlace, el resto (Apple, Outlook)
+            con el .ics, que se arma en el navegador. */}
+        <div
+          role="group"
+          aria-labelledby="booking-add-calendar"
+          className="mt-5 rounded-[var(--site-radius)] border border-[var(--site-on-surface-border)] p-4 text-left"
+        >
+          <p id="booking-add-calendar" className="text-sm font-semibold text-[var(--site-on-surface)]">
+            Agregar a mi calendario
+          </p>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            <a
+              href={googleCalendarUrl(evento)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex min-h-11 items-center justify-center rounded-[var(--site-radius)] border border-[var(--site-on-surface-border)] px-4 py-2.5 text-sm font-medium text-[var(--site-on-surface)] transition-colors hover:border-[var(--site-accent)]"
+            >
+              Google Calendar
+            </a>
+            <button
+              type="button"
+              onClick={descargarIcs}
+              className="inline-flex min-h-11 items-center justify-center rounded-[var(--site-radius)] border border-[var(--site-on-surface-border)] px-4 py-2.5 text-sm font-medium text-[var(--site-on-surface)] transition-colors hover:border-[var(--site-accent)]"
+            >
+              Descargar .ics
+            </button>
+          </div>
+          <p className="mt-2 text-xs text-[var(--site-on-surface-muted)]">
+            El archivo .ics sirve para Apple Calendar, Outlook y otros.
+          </p>
+        </div>
+
+        <p className="mt-4 text-sm text-[var(--site-on-surface-muted)]">
+          ¿No puedes ir? Usa <strong className="text-[var(--site-on-surface)]">«Cancelar cita»</strong>{" "}
+          más abajo con tu celular.
+        </p>
 
         {onClose ? (
           <button
