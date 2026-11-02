@@ -28,6 +28,7 @@ import { currentAppointment } from "@/lib/appointment-state";
 import { buildCancelNoticeMessage } from "@/lib/appointment-cancel-message";
 import { businessDisplayName } from "@/services/promos.service";
 import { canMarkNoShow } from "@/lib/appointment-status";
+import { buildReminderMessage, canRemind } from "@/lib/appointment-reminder";
 
 /**
  * Mensaje de confirmación ya redactado para el cliente.
@@ -419,6 +420,15 @@ function AppointmentModalBody({
   // Se evalúa al abrir el modal: "No vino" aparece cuando ya pasó la hora de la cita.
   const [openedAt] = useState(localNow);
   const showNoShow = liveAppointment ? canMarkNoShow(liveAppointment, openedAt) : false;
+  // Recordatorio: cita confirmada que todavía no empezó. Mismo dato que el aviso de cancelación.
+  const showReminder = liveAppointment ? canRemind(liveAppointment, openedAt) : false;
+  const reminderMessage = buildReminderMessage({
+    customerName: selectedCustomer?.full_name,
+    service: services.find((s) => s.id === form.service_id)?.name || form.service_type || form.title,
+    date: form.appointment_date,
+    time: formatAppointmentTime(form.start_time, timeFormat),
+    businessName: businessDisplayName(settingsBusinessName, profile?.businessName),
+  });
   const chargedService = services.find((s) => s.id === liveAppointment?.service_id) ?? null;
   const confirmPending = async () => {
     if (!appointment || busy) return;
@@ -478,9 +488,18 @@ function AppointmentModalBody({
           {isEditing && liveStatus === "confirmed" && !dirty && (
             <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
               <span className="font-semibold text-primary" role="status">Reserva confirmada</span>
-              {customerWhatsapp ? <a href={whatsappUrl(confirmationMessage, customerWhatsapp)} target="_blank" rel="noopener noreferrer"
-                className="font-semibold text-primary underline underline-offset-4">Avisar por WhatsApp</a>
-                : <span className="text-xs text-on-surface-variant">Sin teléfono para avisar.</span>}
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                {customerWhatsapp ? <a href={whatsappUrl(confirmationMessage, customerWhatsapp)} target="_blank" rel="noopener noreferrer"
+                  className="font-semibold text-primary underline underline-offset-4">Avisar por WhatsApp</a>
+                  : <span className="text-xs text-on-surface-variant">Sin teléfono para avisar.</span>}
+                {showReminder ? (customerWhatsapp
+                  ? <a href={whatsappUrl(reminderMessage, customerWhatsapp)} target="_blank" rel="noopener noreferrer"
+                      className="font-semibold text-primary underline underline-offset-4">Recordar por WhatsApp</a>
+                  : <span className="inline-flex items-center gap-1.5">
+                      <button type="button" disabled aria-describedby="reminder-no-phone" className="font-semibold text-on-surface-variant opacity-50">Recordar por WhatsApp</button>
+                      <span id="reminder-no-phone" className="text-xs text-on-surface-variant">Sin teléfono</span>
+                    </span>) : null}
+              </div>
             </div>
           )}
           {isEditing && liveStatus === "cancelled" && !dirty && (

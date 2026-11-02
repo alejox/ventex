@@ -33,7 +33,8 @@ export interface Appointment {
    * o `chargeAppointment` al cobrar desde la cita. null = todavía no se cobró.
    */
   sale_id?: string | null;
-  customers: { full_name: string } | null;
+  /** `phone` llega con el SELECT del calendario (recordatorio por WhatsApp desde la Lista). */
+  customers: { full_name: string; phone?: string | null } | null;
   services: { name: string } | null;
   staff: { full_name: string } | null;
 }
@@ -54,7 +55,7 @@ export interface NewAppointmentInput {
 }
 
 // ---- SELECT ----
-const SELECT = "*, customers(full_name), services(name), staff(full_name)";
+const SELECT = "*, customers(full_name, phone), services(name), staff(full_name)";
 
 // ---- HELPERS ----
 const one = <T>(embed: unknown): T | null => {
@@ -70,7 +71,7 @@ export async function fetchAppointmentById(id: string): Promise<Appointment | nu
   if (!data) return null;
   return {
     ...data,
-    customers: one<{ full_name: string }>(data.customers),
+    customers: one<{ full_name: string; phone?: string | null }>(data.customers),
     services: one<{ name: string }>(data.services),
     staff: one<{ full_name: string }>(data.staff),
   } as Appointment;
@@ -91,7 +92,7 @@ export async function fetchAppointments(
   if (error) throw error;
   return (data ?? []).map((a) => ({
     ...a,
-    customers: one<{ full_name: string }>(a.customers),
+    customers: one<{ full_name: string; phone?: string | null }>(a.customers),
     services: one<{ name: string }>(a.services),
     staff: one<{ full_name: string }>(a.staff),
   })) as Appointment[];
@@ -119,7 +120,7 @@ export async function fetchPendingAppointments(): Promise<Appointment[]> {
   );
   return rows.map((a) => ({
     ...a,
-    customers: one<{ full_name: string }>(a.customers),
+    customers: one<{ full_name: string; phone?: string | null }>(a.customers),
     services: one<{ name: string }>(a.services),
     staff: one<{ full_name: string }>(a.staff),
   })) as Appointment[];
@@ -159,7 +160,7 @@ export async function rescheduleAppointment(
   if (error) throw mapAppointmentError(error);
   return {
     ...data,
-    customers: one<{ full_name: string }>(data.customers),
+    customers: one<{ full_name: string; phone?: string | null }>(data.customers),
     services: one<{ name: string }>(data.services),
     staff: one<{ full_name: string }>(data.staff),
   } as Appointment;
@@ -247,7 +248,7 @@ export async function createAppointment(
   if (error) throw mapAppointmentError(error);
   return {
     ...data,
-    customers: one<{ full_name: string }>(data.customers),
+    customers: one<{ full_name: string; phone?: string | null }>(data.customers),
     services: one<{ name: string }>(data.services),
     staff: one<{ full_name: string }>(data.staff),
   } as Appointment;
@@ -286,7 +287,7 @@ export async function updateAppointment(
   if (error) throw mapAppointmentError(error);
   return {
     ...data,
-    customers: one<{ full_name: string }>(data.customers),
+    customers: one<{ full_name: string; phone?: string | null }>(data.customers),
     services: one<{ name: string }>(data.services),
     staff: one<{ full_name: string }>(data.staff),
   } as Appointment;

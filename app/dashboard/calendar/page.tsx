@@ -29,6 +29,9 @@ import { byStaffFilter, isOverdue } from "@/lib/pending-appointments";
 import { useCalendarView } from "./useCalendarView";
 import { staffColumnsFor } from "@/lib/staff-columns";
 import { APPOINTMENT_STATUSES, statusLabel } from "@/lib/appointment-status";
+import { buildReminderMessage, canRemind } from "@/lib/appointment-reminder";
+import { toWhatsappNumber, whatsappUrl } from "@/config/contact";
+import { businessDisplayName } from "@/services/promos.service";
 
 import { useSettingsStore } from "@/stores/settings.store";
 import { formatAppointmentTime } from "@/lib/time";
@@ -145,6 +148,43 @@ function statusBarClass(status: string) {
   }
 }
 
+/**
+ * "Recordar por WhatsApp" en una fila de la Lista. Va al lado del botón de la
+ * fila, no adentro: un enlace dentro de un botón no se puede tocar aparte.
+ */
+function ReminderAction({ appointment, timeFormat, businessName }: {
+  appointment: Appointment;
+  timeFormat: Parameters<typeof formatAppointmentTime>[1];
+  businessName: string;
+}) {
+  const phone = toWhatsappNumber(appointment.customers?.phone);
+  if (!phone) {
+    return (
+      <span className="flex items-center gap-1.5 px-4 pb-3 text-xs text-on-surface-variant sm:pb-0 sm:pr-4">
+        <button type="button" disabled aria-label="Recordar por WhatsApp: sin teléfono" className="font-semibold opacity-50">Recordar por WhatsApp</button>
+        <span aria-hidden="true">· Sin teléfono</span>
+      </span>
+    );
+  }
+  const message = buildReminderMessage({
+    customerName: appointment.customers?.full_name,
+    service: appointment.services?.name || appointment.service_type || appointment.title,
+    date: appointment.appointment_date,
+    time: formatAppointmentTime(appointment.start_time, timeFormat),
+    businessName,
+  });
+  return (
+    <a
+      href={whatsappUrl(message, phone)}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="mx-4 mb-3 self-start rounded-lg border border-outline-variant/30 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/10 sm:mb-0 sm:self-center"
+    >
+      Recordar por WhatsApp
+    </a>
+  );
+}
+
 // ---- COMPONENT ----
 export default function CalendarPage() {
   return <Suspense fallback={<CollectionLoading label="Cargando calendario…" />}><CalendarContent /></Suspense>;
@@ -153,6 +193,7 @@ export default function CalendarPage() {
 function CalendarContent() {
   const profile = useProfile();
   const timeFormat = useSettingsStore((s) => s.settings?.time_format ?? "12");
+  const settingsBusinessName = useSettingsStore((s) => s.settings?.business_profile?.businessName);
   const fetchSettings = useSettingsStore((s) => s.fetchSettings);
   useEffect(() => { void fetchSettings(); }, [fetchSettings]);
   const appointments = useAppointmentsStore((s) => s.appointments);
@@ -175,6 +216,11 @@ function CalendarContent() {
   const [displayMode, setDisplayMode] = useState<"calendar" | "list" | "pending">("calendar");
   /** 'YYYY-MM-DD' local de hoy, para marcar las pendientes vencidas. */
   const [todayIso] = useState(() => toISODate(new Date()));
+  /** "Ahora" al abrir la pantalla: decide qué citas se pueden recordar por WhatsApp. */
+  const [openedAt] = useState(() => {
+    const now = new Date();
+    return { date: toISODate(now), minutes: now.getHours() * 60 + now.getMinutes() };
+  });
   // La semana es la vista de trabajo en escritorio; en el teléfono no entra y
   // se abre en Día. Lo que la persona elige a mano se respeta (y se recuerda).
   const { view, chooseView, showView } = useCalendarView();
@@ -712,10 +758,11 @@ function CalendarContent() {
           {visibleAppointments.length > 0 ? (
             <div className="divide-y divide-outline-variant/5">
               {visibleAppointments.map((appt) => (
+                <div key={appt.id} className="flex flex-col sm:flex-row sm:items-center hover:bg-surface-container/50 transition-colors">
                 <button
-                  key={appt.id}
+                  type="button"
                   onClick={() => handleEditAppointment(appt)}
-                  className="w-full flex items-center gap-4 p-4 hover:bg-surface-container/50 transition-colors text-left"
+                  className="min-w-0 flex-1 flex items-center gap-4 p-4 text-left"
                 >
                   <div className={`w-2 h-10 rounded-full shrink-0 ${statusBarClass(appt.status)}`} />
                   <div className="flex-1 min-w-0">
@@ -749,6 +796,8 @@ function CalendarContent() {
                     {getStatusLabel(appt.status)}
                   </span>
                 </button>
+                {canRemind(appt, openedAt) ? <ReminderAction appointment={appt} timeFormat={timeFormat} businessName={businessDisplayName(settingsBusinessName, profile?.businessName)} /> : null}
+                </div>
               ))}
             </div>
           ) : <CollectionFilteredEmpty title={displayMode === "pending" ? "No hay reservas pendientes" : "No hay citas para estos filtros"} description={displayMode === "pending" ? selectedStaffId === "all" ? "Las reservas recibidas desde tu web aparecerán aquí hasta que las confirmes o canceles." : "No hay reservas pendientes para esta persona. Quita el filtro de persona para ver las del resto del equipo." : "Prueba otro período o quita los filtros de persona y estado."} action={{ label: "Ver calendario", onClick: () => { setDisplayMode("calendar"); setSelectedStatus("all"); } }} />}

@@ -21,7 +21,7 @@ from the UX audit of 2026-11-01. Phases 1–2: `odd/tasks/booking-ux-phase1.md`,
   "Marcar como no vino" (with confirmation), chip/colour from theme tokens,
   filters/legend, excluded from availability like cancelled, counted in reports
   only if they already split by status.
-- [ ] T3 "Recordar por WhatsApp" on confirmed upcoming appointments (modal +
+- [x] T3 "Recordar por WhatsApp" on confirmed upcoming appointments (modal +
   list row), prefilled reminder message (pure builder + tests).
 - [ ] T4 Ajustes → "Reservas" tab: online booking switch, slot interval
   (`business_sites.slot_interval_minutes`), the admin-assignment card (moved
@@ -62,4 +62,12 @@ from the UX audit of 2026-11-01. Phases 1–2: `odd/tasks/booking-ux-phase1.md`,
   Estado filter/labels/colours (tertiary tokens), modal "Marcar como no vino" (useConfirm,
   only after start time, unpaid pending/confirmed), no Cobrar/Mover for no_show,
   TodayOperations drops it. Reports: none split appointments by status (skipped).
-  Checks: npm test 1188/1188, tsc clean, eslint clean. Commit: see T3 entry.
+  Checks: npm test 1188/1188, tsc clean, eslint clean. Commit: `4d92169`.
+- T3 (delegated writer): `lib/appointment-reminder.ts` (`buildReminderMessage`,
+  timezone-safe `formatReminderDate`, `canRemind` = confirmed and not started; 4 tests
+  RED→GREEN). Modal footer (confirmed, not dirty): "Recordar por WhatsApp" next to
+  "Avisar por WhatsApp"; Lista row: action beside the row button (calendar SELECT now
+  embeds `customers(full_name, phone)`). No phone → disabled button + visible
+  "Sin teléfono". Time via `formatAppointmentTime` (business 12/24 h), business name
+  via `businessDisplayName`. Checks: npm test 1192/1192, tsc clean, eslint clean.
+  Commit: see T4 entry.
