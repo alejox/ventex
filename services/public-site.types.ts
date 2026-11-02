@@ -225,7 +225,7 @@ const SECTION_DEFAULTS: Record<SiteSectionId, Omit<SiteSectionConfig, "id">> = {
   products: { visible: true, title: "Productos", subtitle: "Para llevar" },
   team: { visible: true, title: "El equipo", subtitle: "Quienes te reciben" },
   gallery: { visible: true, title: "Nuestro espacio", subtitle: "Conócenos" },
-  booking: { visible: true, title: "Reserva tu turno", subtitle: "Agenda online" },
+  booking: { visible: true, title: "Reserva tu cita", subtitle: "Agenda online" },
   hours: { visible: true, title: "Horarios", subtitle: "Planifica tu visita" },
   contact: { visible: true, title: "Dónde estamos", subtitle: "Hablemos" },
 };

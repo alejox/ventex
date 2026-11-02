@@ -23,7 +23,7 @@ export async function generateMetadata(props: PageProps<"/[slug]">): Promise<Met
   const description = site.config.seo.description ??
     site.headline ?? site.about ?? (site.businessType === "tienda"
       ? `Conoce ${site.businessName}: mira nuestros productos y haz tu pedido.`
-      : `Conoce los servicios de ${site.businessName} y reserva tu turno.`);
+      : `Conoce los servicios de ${site.businessName} y reserva tu cita.`);
   const title = site.config.seo.title ?? site.businessName;
 
   return {
