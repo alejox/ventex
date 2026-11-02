@@ -105,7 +105,7 @@ test.describe("Calendario / Citas", () => {
   }
 
   test("botón de nueva cita está presente", async ({ page }) => {
-    const newApptBtn = page.getByRole("button", { name: "Nueva Cita" }).first();
+    const newApptBtn = page.getByRole("button", { name: "Nueva cita" }).first();
     if (await newApptBtn.isVisible()) {
       await expect(newApptBtn).toBeVisible();
     }

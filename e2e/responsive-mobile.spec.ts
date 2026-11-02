@@ -229,7 +229,7 @@ test.describe("responsive movil 375px", () => {
 
   /**
    * La barra del calendario se salía de la pantalla en móvil: sus cuatro grupos
-   * sumaban ~480px contra 390 de viewport y "Nueva Cita" —la acción principal—
+   * sumaban ~480px contra 390 de viewport y "Nueva cita" —la acción principal—
    * quedaba fuera, alcanzable sólo con scroll horizontal.
    *
    * El chequeo genérico de `docScrollWidth` NO lo detectaba: el documento medía
@@ -245,14 +245,14 @@ test.describe("responsive movil 375px", () => {
       await page.getByRole("button", { name: view, exact: true }).first().click();
       await page.waitForTimeout(500);
 
-      const cta = page.getByRole("button", { name: /Nueva Cita/i }).first();
+      const cta = page.getByRole("button", { name: /Nueva cita/i }).first();
       await expect(cta).toBeVisible();
 
       const box = await cta.boundingBox();
       expect(box, "el boton de nueva cita debe existir").not.toBeNull();
       expect(
         Math.round((box?.x ?? 0) + (box?.width ?? 0)),
-        `vista ${view}: "Nueva Cita" se sale del viewport de ${MOBILE.width}px`,
+        `vista ${view}: "Nueva cita" se sale del viewport de ${MOBILE.width}px`,
       ).toBeLessThanOrEqual(MOBILE.width + 1);
     });
   }

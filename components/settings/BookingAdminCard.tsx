@@ -72,7 +72,7 @@ export function BookingAdminCard() {
         <div className="sm:col-span-2">
           <Switch
             label="Asignar reservas automáticas al administrador"
-            description="Si está apagado, las reservas de 'Cualquiera disponible' solo se asignan a los barberos, y el horario se bloquea cuando todos están ocupados."
+            description="Si está apagado, las reservas de 'Cualquiera disponible' solo se asignan al resto del equipo, y el horario se bloquea cuando todos están ocupados."
             checked={Boolean(adminStaffId) && assignAdmin}
             disabled={submitting || !adminStaffId}
             onCheckedChange={(checked) => void save(adminStaffId ?? NONE, checked)}

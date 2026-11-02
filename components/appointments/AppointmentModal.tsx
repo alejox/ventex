@@ -608,7 +608,7 @@ function AppointmentModalBody({
             </div>
           ) : null}
 
-          {/* Service + Barber */}
+          {/* Service + staff */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Select
               label="Servicio"
@@ -761,7 +761,7 @@ function AppointmentModalBody({
           onClose={() => {
             if (!busy) setShowDeleteConfirm(false);
           }}
-          title="Eliminar Cita"
+          title="Eliminar cita"
           description="¿Estás seguro de eliminar esta cita? Esta acción no se puede deshacer."
           role="alertdialog"
           size="sm"

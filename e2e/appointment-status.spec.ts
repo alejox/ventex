@@ -27,7 +27,7 @@ test.describe("Estado de una cita", () => {
   });
 
   test("el estado mostrado sigue al estado guardado", async ({ page }) => {
-    await page.getByRole("button", { name: "Nueva Cita" }).first().click();
+    await page.getByRole("button", { name: "Nueva cita" }).first().click();
     const nueva = page.getByRole("dialog", { name: "Nueva cita" });
     await expect(nueva).toBeVisible({ timeout: 10000 });
 

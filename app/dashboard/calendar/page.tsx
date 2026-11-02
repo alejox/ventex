@@ -503,7 +503,7 @@ function CalendarContent() {
         </div>
         {/*
           En móvil los cuatro grupos suman ~480px contra 390 de pantalla: la
-          fila no envolvía y "Nueva Cita" —la acción principal— quedaba fuera
+          fila no envolvía y "Nueva cita" —la acción principal— quedaba fuera
           del viewport, alcanzable sólo con scroll horizontal. Ahora los
           controles envuelven y el botón se lleva su propia fila completa.
         */}
@@ -587,7 +587,7 @@ function CalendarContent() {
             className="w-full sm:w-auto shrink-0 bg-primary hover:bg-primary-dim text-on-primary text-sm font-semibold py-2.5 px-4 rounded-xl shadow-lg shadow-primary/20 transition-colors flex items-center justify-center gap-2"
           >
             <IconPlus className="w-4 h-4" />
-            <span>Nueva Cita</span>
+            <span>Nueva cita</span>
           </button>
         </div>
       </div>

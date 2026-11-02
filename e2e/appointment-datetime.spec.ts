@@ -4,7 +4,7 @@ import { tryLogin } from "./helpers/auth";
 /**
  * Fecha y hora de la cita en un solo campo que abre un diálogo.
  *
- * No guarda nada: abre «Nueva Cita», juega con el selector y cierra, así que no
+ * No guarda nada: abre «Nueva cita», juega con el selector y cierra, así que no
  * deja citas de prueba en la base.
  */
 test.describe("Cita: selector de fecha y hora", () => {
@@ -13,8 +13,8 @@ test.describe("Cita: selector de fecha y hora", () => {
     test.skip(!loggedIn, "No se pudo autenticar - saltando prueba");
     await page.goto("/dashboard/calendar");
     await page.waitForLoadState("networkidle");
-    await page.getByRole("button", { name: "Nueva Cita" }).first().click();
-    await expect(page.getByRole("heading", { name: "Nueva Cita" })).toBeVisible({ timeout: 10000 });
+    await page.getByRole("button", { name: "Nueva cita" }).first().click();
+    await expect(page.getByRole("heading", { name: "Nueva cita" })).toBeVisible({ timeout: 10000 });
   });
 
   test("muestra el resumen en una línea y el calendario solo al abrirlo", async ({ page }) => {
@@ -62,7 +62,7 @@ test.describe("Cita: selector de fecha y hora", () => {
     await expect(dialog).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(dialog).toBeHidden();
-    await expect(page.getByRole("heading", { name: "Nueva Cita" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Nueva cita" })).toBeVisible();
   });
 
   test("no deja confirmar si la hora de fin es anterior a la de inicio", async ({ page }) => {
