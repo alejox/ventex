@@ -70,7 +70,8 @@ interface AppointmentsState {
    * Mueve la cita (arrastre en la grilla o "Mover a…"). Optimista: la grilla
    * la dibuja ya en su lugar nuevo y, si la base la rechaza, vuelve atrás.
    */
-  rescheduleAppointment: (id: string, next: { date: string; start: string; end: string }) => Promise<boolean>;
+  /** `staffId` (opcional) reasigna la cita: arrastrarla a la columna de otra persona. */
+  rescheduleAppointment: (id: string, next: { date: string; start: string; end: string; staffId?: string | null }) => Promise<boolean>;
 
   /** Horario de atención; `null` = sin cargar o el negocio nunca lo configuró. */
   businessHours: OpeningHour[] | null;
@@ -309,10 +310,17 @@ export const useAppointmentsStore = create<AppointmentsState>((set, get) => ({
 
   rescheduleAppointment: async (id, next) => {
     const previous = get().appointments.find((a) => a.id === id) ?? null;
-    const moved = (a: Appointment): Appointment => ({ ...a, appointment_date: next.date, start_time: next.start, end_time: next.end });
+    const reassigned = next.staffId !== undefined && next.staffId !== previous?.staff_id;
+    const moved = (a: Appointment): Appointment => ({
+      ...a,
+      appointment_date: next.date,
+      start_time: next.start,
+      end_time: next.end,
+      ...(reassigned ? { staff_id: next.staffId ?? null, staff: null } : {}),
+    });
     set((s) => ({ error: null, appointments: s.appointments.map((a) => (a.id === id ? moved(a) : a)) }));
     try {
-      const updated = await appointmentsService.rescheduleAppointment(id, next.date, next.start, next.end);
+      const updated = await appointmentsService.rescheduleAppointment(id, next.date, next.start, next.end, next.staffId);
       set((s) => ({
         appointments: s.appointments.map((a) => (a.id === id ? updated : a)),
         linkedAppointment: s.linkedAppointment?.id === id ? updated : s.linkedAppointment,

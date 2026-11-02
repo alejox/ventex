@@ -73,3 +73,16 @@ test("swipe: horizontal y largo cambia de día; vertical o corto no", () => {
   assert.equal(swipeDirection(-40, 0), null);
   assert.equal(swipeDirection(-100, 90), null);
 });
+
+test("el swipe de día no le roba el scroll horizontal a las columnas por persona", async () => {
+  const { swipeAllowed } = await import("../lib/appointment-drag");
+  // Sin desborde horizontal: los dos sentidos cambian de día, como siempre.
+  assert.equal(swipeAllowed("next", 0, 0), true);
+  assert.equal(swipeAllowed("prev", 0, 0), true);
+  // Con columnas que desbordan: solo cambia de día quien ya estaba en el borde.
+  assert.equal(swipeAllowed("next", 0, 300), false);
+  assert.equal(swipeAllowed("prev", 0, 300), true);
+  assert.equal(swipeAllowed("next", 300, 300), true);
+  assert.equal(swipeAllowed("prev", 300, 300), false);
+  assert.equal(swipeAllowed("next", 120, 300), false);
+});

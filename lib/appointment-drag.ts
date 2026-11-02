@@ -84,3 +84,14 @@ export function swipeDirection(dx: number, dy: number, minDistance = 60): "prev"
   if (Math.abs(dx) < minDistance || Math.abs(dx) < Math.abs(dy) * 1.5) return null;
   return dx < 0 ? "next" : "prev";
 }
+
+/**
+ * ¿Ese swipe cambia de día? Con las columnas por persona la grilla puede
+ * desbordar a lo ancho, y el mismo gesto sirve para recorrerlas: solo cambia
+ * de día si al empezar ya se estaba en el borde hacia el que se desliza.
+ * `scrollLeft`/`maxScroll` son los del inicio del toque (sin desborde, 0 y 0).
+ */
+export function swipeAllowed(direction: "prev" | "next", scrollLeft: number, maxScroll: number): boolean {
+  if (maxScroll <= 1) return true;
+  return direction === "next" ? scrollLeft >= maxScroll - 1 : scrollLeft <= 1;
+}

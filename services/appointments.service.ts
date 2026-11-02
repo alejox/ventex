@@ -145,11 +145,13 @@ export async function rescheduleAppointment(
   date: string,
   start: string,
   end: string,
+  /** Solo al soltarla en la columna de otra persona; `undefined` no toca la asignación. */
+  staffId?: string | null,
 ): Promise<Appointment> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("appointments")
-    .update({ appointment_date: date, start_time: start, end_time: end })
+    .update({ appointment_date: date, start_time: start, end_time: end, ...(staffId !== undefined ? { staff_id: staffId } : {}) })
     .eq("id", id)
     .select(SELECT)
     .single();

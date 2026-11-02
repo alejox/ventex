@@ -27,6 +27,7 @@ import { BUSY_STATUS, busyPlaceholders, canSeeFullAgenda, isBusyPlaceholder } fr
 import { formatDateOnly } from "@/lib/date";
 import { byStaffFilter, isOverdue } from "@/lib/pending-appointments";
 import { useCalendarView } from "./useCalendarView";
+import { staffColumnsFor } from "@/lib/staff-columns";
 
 import { useSettingsStore } from "@/stores/settings.store";
 import { formatAppointmentTime } from "@/lib/time";
@@ -194,6 +195,8 @@ function CalendarContent() {
   const staffList = useMemo(() => staff.filter((member) => member.status === "active"), [staff]);
   const otherStaff = useMemo(() => staffList.filter((member) => member.id !== myStaffId), [staffList, myStaffId]);
   const [defaultStartTime, setDefaultStartTime] = useState<string>("09:00");
+  /** Persona con la que abre una cita nueva tocada en su columna (vista Día por persona). */
+  const [defaultStaffId, setDefaultStaffId] = useState<string | null>(null);
 
   const openLinkedAppointment = useCallback((appointment: Appointment) => {
     const date = new Date(`${appointment.appointment_date}T12:00:00`);
@@ -312,9 +315,10 @@ function CalendarContent() {
   const goToday = () => setCurrentDate(new Date());
 
   // Open modal for new appointment
-  const handleNewAppointment = (date?: string, time?: string) => {
+  const handleNewAppointment = (date?: string, time?: string, staffId?: string) => {
     setSelectedAppointment(null);
     setDefaultStartTime(time || "09:00");
+    setDefaultStaffId(staffId ?? null);
     if (date) {
       setSelectedDate(new Date(date + "T12:00:00"));
     }
@@ -343,14 +347,20 @@ function CalendarContent() {
    */
   const handleReschedule = async (appointment: Appointment, next: RescheduleTarget) => {
     const busy = await fetchDayBusy(next.date);
-    const check = checkReschedule(busy, appointment, next.start, next.end);
+    const reassigned = next.staffId !== undefined;
+    const targetStaffId = reassigned ? next.staffId ?? null : appointment.staff_id;
+    const targetName = reassigned
+      ? staff.find((member) => member.id === targetStaffId)?.full_name
+      : appointment.staff?.full_name;
+    const check = checkReschedule(busy, { id: appointment.id, staff_id: targetStaffId }, next.start, next.end);
     if (!check.ok) {
       toast.error(
-        `${appointment.staff?.full_name ?? "Esa persona"} ya tiene una cita de ${formatAppointmentTime(check.conflict.start_time, timeFormat)} a ${formatAppointmentTime(check.conflict.end_time, timeFormat)}. La cita quedó donde estaba.`,
+        `${targetName ?? "Esa persona"} ya tiene una cita de ${formatAppointmentTime(check.conflict.start_time, timeFormat)} a ${formatAppointmentTime(check.conflict.end_time, timeFormat)}. La cita quedó donde estaba.`,
       );
       return;
     }
     const when = `${formatDateOnly(next.date, { weekday: "long", day: "numeric", month: "long" })}, ${formatAppointmentTime(next.start, timeFormat)} – ${formatAppointmentTime(next.end, timeFormat)}`;
+    const whoLabel = reassigned ? ` · ${targetStaffId ? targetName ?? "otra persona" : "sin asignar"}` : "";
     if (!isWithinOpenHours(businessHours, weekdayOf(next.date), toMinutes(next.start), toMinutes(next.end))) {
       const ok = await confirm({
         title: "¿Mover la cita fuera del horario de atención?",
@@ -363,12 +373,13 @@ function CalendarContent() {
       date: appointment.appointment_date,
       start: appointment.start_time.slice(0, 5),
       end: appointment.end_time.slice(0, 5),
+      ...(reassigned ? { staffId: appointment.staff_id } : {}),
     };
     if (!(await rescheduleAppointment(appointment.id, next))) {
       toast.error(useAppointmentsStore.getState().error ?? "No se pudo mover la cita. Quedó donde estaba.");
       return;
     }
-    toast.success(`Cita movida: ${when}.`, {
+    toast.success(`Cita movida: ${when}${whoLabel}.`, {
       duration: 8000,
       action: {
         label: "Deshacer",
@@ -399,6 +410,14 @@ function CalendarContent() {
     () => ({ date: formatDate(currentDate), day: currentDate.getDate(), dayName: DAYS_SHORT[currentDate.getDay()] }),
     [currentDate],
   );
+
+  // Día por persona: quien ve la agenda completa ve una columna por persona.
+  // Un trabajador sin agenda completa sigue con su columna de siempre (el resto
+  // del equipo le llega como bloques "Ocupado", sin persona).
+  const dayStaffColumns = useMemo(() => {
+    if (view !== "day" || privateAgenda || !fullAgenda) return undefined;
+    return staffColumnsFor(staffList, appointmentsByDate[dayColumn.date] ?? [], selectedStaffId);
+  }, [view, privateAgenda, fullAgenda, staffList, appointmentsByDate, dayColumn.date, selectedStaffId]);
 
   /**
    * ¿El periodo que se está viendo ya contiene el día de hoy?
@@ -671,6 +690,7 @@ function CalendarContent() {
           onReschedule={(appointment, next) => void handleReschedule(appointment, next)}
           canReschedule={canReschedule}
           onSwipe={view === "day" ? (direction) => (direction === "next" ? navigateNext() : navigatePrev()) : undefined}
+          staffColumns={dayStaffColumns}
         />
       )}
 
@@ -747,6 +767,7 @@ function CalendarContent() {
         onClose={() => {
           setModalOpen(false);
           setSelectedAppointment(null);
+          setDefaultStaffId(null);
           if (appointmentId) {
             const params = new URLSearchParams(searchParams.toString());
             params.delete("appointment");
@@ -756,6 +777,7 @@ function CalendarContent() {
         selectedDate={currentDate}
         appointment={selectedAppointment}
         defaultStartTime={defaultStartTime}
+        defaultStaffId={defaultStaffId}
       />
       {confirmDialog}
     </div>

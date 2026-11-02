@@ -65,6 +65,8 @@ interface AppointmentModalProps {
   selectedDate?: Date;
   appointment?: Appointment | null;
   defaultStartTime?: string;
+  /** Cita nueva tocada en la columna de una persona (Día por persona): arranca asignada a ella. */
+  defaultStaffId?: string | null;
 }
 
 const EMPTY_FORM: NewAppointmentInput = {
@@ -140,6 +142,7 @@ function AppointmentModalBody({
   selectedDate,
   appointment,
   defaultStartTime,
+  defaultStaffId = null,
 }: AppointmentModalProps) {
   const fmtMoney = useFormatMoney();
   const submitting = useAppointmentsStore((s) => s.submitting);
@@ -171,7 +174,8 @@ function AppointmentModalBody({
       : defaultAppointmentStaffId({ staffId: profile?.staffId, staffList: staff, isEditing: Boolean(appointment), current });
   const [form, setForm] = useState<NewAppointmentInput>(() => {
     const initial = buildInitialForm(appointment, selectedDate, defaultStartTime);
-    return { ...initial, staff_id: defaultStaffFor(initial.staff_id) };
+    const chosen = !appointment && !lockedStaffId && defaultStaffId ? defaultStaffId : null;
+    return { ...initial, staff_id: chosen ?? defaultStaffFor(initial.staff_id) };
   });
   const [customTitle, setCustomTitle] = useState(Boolean(appointment));
   const [savedForm, setSavedForm] = useState(form);
