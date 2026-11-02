@@ -3,6 +3,7 @@ import { toMessage } from "@/lib/errors";
 import type { BusyAppointment } from "@/lib/appointment-availability";
 import type { AgendaBusySlot } from "@/lib/agenda-privacy";
 import type { OpeningHour } from "@/lib/appointment-hours";
+import { removePending, upsertPending } from "@/lib/pending-appointments";
 import * as appointmentsService from "@/services/appointments.service";
 import type {
   Appointment,
@@ -25,6 +26,16 @@ interface AppointmentsState {
   linkLoading: boolean;
   linkError: string | null;
   fetchLinkedAppointment: (id: string) => Promise<Appointment | null>;
+
+  /**
+   * Reservas pendientes de CUALQUIER fecha (ver `fetchPendingAppointments`).
+   * Cada acción que cambia una cita la refleja aquí, así el contador de
+   * "Pendientes" no queda viejo tras confirmar o cancelar.
+   */
+  pendingAppointments: Appointment[];
+  pendingLoading: boolean;
+  pendingError: string | null;
+  fetchPendingAppointments: () => Promise<void>;
 
   /**
    * Citas del período. Con `withBusy` (trabajador sin agenda completa) trae
@@ -71,6 +82,17 @@ interface AppointmentsState {
 let linkRequest = 0;
 let calendarRequest = 0;
 let todayRequest = 0;
+let pendingRequest = 0;
+
+/**
+ * Una cita fuera del período cargado (abierta desde "Pendientes" o desde un
+ * enlace) no está en `appointments`: se sigue en `linkedAppointment`, que es lo
+ * que el modal lee primero (`currentAppointment`). Sin esto, confirmar una
+ * reserva de otro mes dejaba la píldora en "Pendiente".
+ */
+function tracksOutside(s: Pick<AppointmentsState, "appointments" | "linkedAppointment">, id: string): boolean {
+  return s.linkedAppointment?.id === id || !s.appointments.some((a) => a.id === id);
+}
 
 export const useAppointmentsStore = create<AppointmentsState>((set, get) => ({
   today: [],
@@ -94,6 +116,22 @@ export const useAppointmentsStore = create<AppointmentsState>((set, get) => ({
   linkedAppointment: null,
   linkLoading: false,
   linkError: null,
+
+  pendingAppointments: [],
+  pendingLoading: false,
+  pendingError: null,
+  fetchPendingAppointments: async () => {
+    const request = ++pendingRequest;
+    set({ pendingLoading: true, pendingError: null });
+    try {
+      const pendingAppointments = await appointmentsService.fetchPendingAppointments();
+      if (request !== pendingRequest) return;
+      set({ pendingAppointments, pendingLoading: false });
+    } catch (e) {
+      if (request !== pendingRequest) return;
+      set({ pendingError: toMessage(e), pendingLoading: false });
+    }
+  },
 
   fetchLinkedAppointment: async (id) => {
     const request = ++linkRequest;
@@ -148,6 +186,7 @@ export const useAppointmentsStore = create<AppointmentsState>((set, get) => ({
       const appointment = await appointmentsService.createAppointment(input);
       set((s) => ({
         appointments: [...s.appointments, appointment],
+        pendingAppointments: upsertPending(s.pendingAppointments, appointment),
         submitting: false,
       }));
       return true;
@@ -163,7 +202,8 @@ export const useAppointmentsStore = create<AppointmentsState>((set, get) => ({
       const updated = await appointmentsService.updateAppointment(id, input);
       set((s) => ({
         appointments: s.appointments.map((a) => (a.id === id ? updated : a)),
-        linkedAppointment: s.linkedAppointment?.id === id ? updated : s.linkedAppointment,
+        linkedAppointment: tracksOutside(s, id) ? updated : s.linkedAppointment,
+        pendingAppointments: upsertPending(s.pendingAppointments, updated),
         submitting: false,
       }));
       return true;
@@ -177,13 +217,23 @@ export const useAppointmentsStore = create<AppointmentsState>((set, get) => ({
     set({ submitting: true, error: null });
     try {
       await appointmentsService.updateAppointmentStatus(id, status);
-      set((s) => ({
-        submitting: false,
-        linkedAppointment: s.linkedAppointment?.id === id ? { ...s.linkedAppointment, status: status as Appointment["status"] } : s.linkedAppointment,
-        appointments: s.appointments.map((a) =>
-          a.id === id ? { ...a, status: status as Appointment["status"] } : a,
-        ),
-      }));
+      set((s) => {
+        const nextStatus = status as Appointment["status"];
+        const source = s.linkedAppointment?.id === id
+          ? s.linkedAppointment
+          : s.appointments.find((a) => a.id === id) ?? s.pendingAppointments.find((a) => a.id === id) ?? null;
+        const pendingAppointments = source
+          ? upsertPending(s.pendingAppointments, { ...source, status: nextStatus })
+          : removePending(s.pendingAppointments, id);
+        return {
+          submitting: false,
+          linkedAppointment: source && tracksOutside(s, id) ? { ...source, status: nextStatus } : s.linkedAppointment,
+          appointments: s.appointments.map((a) =>
+            a.id === id ? { ...a, status: nextStatus } : a,
+          ),
+          pendingAppointments,
+        };
+      });
       return true;
     } catch (e) {
       set({ error: toMessage(e), submitting: false });
@@ -201,6 +251,7 @@ export const useAppointmentsStore = create<AppointmentsState>((set, get) => ({
           a.id === appointment.id ? { ...a, status: "completed", sale_id: saleId } : a,
         ),
         billable: s.billable.filter((b) => b.id !== appointment.id),
+        pendingAppointments: removePending(s.pendingAppointments, appointment.id),
         submitting: false,
       }));
       return true;
@@ -217,6 +268,7 @@ export const useAppointmentsStore = create<AppointmentsState>((set, get) => ({
       set((s) => ({
         linkedAppointment: s.linkedAppointment?.id === id ? null : s.linkedAppointment,
         appointments: s.appointments.filter((a) => a.id !== id),
+        pendingAppointments: removePending(s.pendingAppointments, id),
       }));
       return true;
     } catch (e) {
@@ -241,6 +293,7 @@ export const useAppointmentsStore = create<AppointmentsState>((set, get) => ({
       await appointmentsService.linkAppointmentToSale(appointmentId, saleId);
       set((s) => ({
         billable: s.billable.filter((b) => b.id !== appointmentId),
+        pendingAppointments: removePending(s.pendingAppointments, appointmentId),
         appointments: s.appointments.map((a) =>
           a.id === appointmentId ? { ...a, status: "completed", sale_id: saleId } : a,
         ),
@@ -263,6 +316,9 @@ export const useAppointmentsStore = create<AppointmentsState>((set, get) => ({
       set((s) => ({
         appointments: s.appointments.map((a) => (a.id === id ? updated : a)),
         linkedAppointment: s.linkedAppointment?.id === id ? updated : s.linkedAppointment,
+        pendingAppointments: s.pendingAppointments.some((a) => a.id === id)
+          ? upsertPending(s.pendingAppointments, updated)
+          : s.pendingAppointments,
       }));
       return true;
     } catch (e) {

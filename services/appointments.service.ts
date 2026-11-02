@@ -6,6 +6,7 @@ import { findOrCreateVehicleByPlate } from "@/services/vehicles.service";
 import { createSale } from "@/services/pos.service";
 import { getWorkspaceExecutionContext } from "@/services/workspace.service";
 import { fetchCurrentShift } from "@/services/shifts.service";
+import { fetchAllRows } from "@/services/finance.service";
 
 // ---- TYPES ----
 export interface Appointment {
@@ -88,6 +89,34 @@ export async function fetchAppointments(
     .order("start_time");
   if (error) throw error;
   return (data ?? []).map((a) => ({
+    ...a,
+    customers: one<{ full_name: string }>(a.customers),
+    services: one<{ name: string }>(a.services),
+    staff: one<{ full_name: string }>(a.staff),
+  })) as Appointment[];
+}
+
+/**
+ * Todas las reservas pendientes del negocio, de cualquier fecha (las vencidas
+ * incluidas): "Pendientes" del calendario no depende del período en pantalla.
+ * Sin límite inferior a propósito: una reserva vieja sin confirmar ni cancelar
+ * es justo la que hay que revisar, y esconderla la deja pendiente para siempre.
+ * La RLS decide qué ve cada quien (un trabajador sin agenda completa, solo las
+ * suyas). Paginada: PostgREST corta en 1.000 filas sin avisar.
+ */
+export async function fetchPendingAppointments(): Promise<Appointment[]> {
+  const supabase = createClient();
+  const rows = await fetchAllRows((from, to) =>
+    supabase
+      .from("appointments")
+      .select(SELECT)
+      .eq("status", "pending")
+      .order("appointment_date")
+      .order("start_time")
+      .order("id")
+      .range(from, to),
+  );
+  return rows.map((a) => ({
     ...a,
     customers: one<{ full_name: string }>(a.customers),
     services: one<{ name: string }>(a.services),

@@ -24,7 +24,7 @@ from the UX audit of 2026-11-01 (customer site, barber, admin).
 - [x] T3 Dashboard cancel: `useConfirm` before cancelling; after cancelling,
   offer "Avisar por WhatsApp" to the customer (reuse `lib/appointment-cancel-message.ts`
   if it fits).
-- [ ] T4 "Pendientes": count/list pending appointments across all dates (future
+- [x] T4 "Pendientes": count/list pending appointments across all dates (future
   + overdue), not just the visible period.
 - [ ] T5 E2E: fix stale privacy spec; add specs for public booking, cancel by
   phone, confirming a pending booking (self-cleaning).
@@ -56,3 +56,14 @@ push phase results to main.
   "Cita cancelada" footer row with "Avisar por WhatsApp" (same pattern as the
   confirmed row), reusing `buildCancelNoticeMessage`. One added unit test (no RED:
   builder already existed). npm test 1155/1155, tsc clean, eslint clean.
+  Commit `53ca854`.
+- T4 (delegated writer A) — `fetchPendingAppointments` (status = pending, no
+  date bound, paginated with `fetchAllRows`, RLS decides visibility) + store
+  `pendingAppointments`, kept in sync by add/update/status/charge/link/delete/
+  reschedule via pure `upsertPending`/`removePending` (`lib/pending-appointments.ts`).
+  Tab count and list use it with the same "Persona" filter; overdue rows get a
+  "Vencida" chip. An appointment outside the loaded period is tracked in
+  `linkedAppointment` so the modal's status stays live. No lower date bound:
+  stale pendings are exactly what needs review. RED (module missing) → GREEN 6/6
+  (`tests/pending-appointments.test.ts`). npm test 1161/1161, tsc clean, eslint
+  clean. Commit: see `git log` (feat(calendar): …).

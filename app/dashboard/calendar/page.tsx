@@ -25,6 +25,7 @@ import { isWithinOpenHours, weekdayOf } from "@/lib/appointment-hours";
 import { checkReschedule } from "@/lib/appointment-drag";
 import { BUSY_STATUS, busyPlaceholders, canSeeFullAgenda, isBusyPlaceholder } from "@/lib/agenda-privacy";
 import { formatDateOnly } from "@/lib/date";
+import { byStaffFilter, isOverdue } from "@/lib/pending-appointments";
 import { useCalendarView } from "./useCalendarView";
 
 import { useSettingsStore } from "@/stores/settings.store";
@@ -155,11 +156,17 @@ function CalendarContent() {
   const fetchLinkedAppointment = useAppointmentsStore((s) => s.fetchLinkedAppointment);
   const linkLoading = useAppointmentsStore((s) => s.linkLoading);
   const linkError = useAppointmentsStore((s) => s.linkError);
+  const pendingAppointments = useAppointmentsStore((s) => s.pendingAppointments);
+  const pendingLoading = useAppointmentsStore((s) => s.pendingLoading);
+  const pendingError = useAppointmentsStore((s) => s.pendingError);
+  const fetchPendingAppointments = useAppointmentsStore((s) => s.fetchPendingAppointments);
   const searchParams = useSearchParams();
   const router = useRouter();
   const appointmentId = searchParams.get("appointment");
 
   const [displayMode, setDisplayMode] = useState<"calendar" | "list" | "pending">("calendar");
+  /** 'YYYY-MM-DD' local de hoy, para marcar las pendientes vencidas. */
+  const [todayIso] = useState(() => toISODate(new Date()));
   // La semana es la vista de trabajo en escritorio; en el teléfono no entra y
   // se abre en Día. Lo que la persona elige a mano se respeta (y se recuerda).
   const { view, chooseView, showView } = useCalendarView();
@@ -241,15 +248,34 @@ function CalendarContent() {
     void fetchStaff();
   }, [fetchStaff]);
 
+  // "Pendientes" cuenta TODAS las reservas sin confirmar, no las del período:
+  // se piden aparte, al tener perfil y otra vez al abrir la pestaña (pueden
+  // haber entrado reservas nuevas desde el sitio).
+  const pendingTabOpen = displayMode === "pending";
+  useEffect(() => {
+    if (!profile) return;
+    void fetchPendingAppointments();
+  }, [profile, fetchPendingAppointments, pendingTabOpen]);
+
   const filteredAppointments = useMemo(() => {
     if (selectedStaffId === "all") return appointments;
     return appointments.filter((a) => selectedStaffId === "unassigned" ? !a.staff_id : a.staff_id === selectedStaffId);
   }, [appointments, selectedStaffId]);
 
-  const visibleAppointments = useMemo(() => filteredAppointments.filter((appointment) =>
-    displayMode === "pending" ? appointment.status === "pending" : selectedStatus === "all" || appointment.status === selectedStatus
-  ), [filteredAppointments, displayMode, selectedStatus]);
-  const pendingCount = filteredAppointments.filter((appointment) => appointment.status === "pending").length;
+  // La RLS ya deja a un trabajador sin agenda completa solo con sus citas; aquí
+  // se aplica el mismo filtro "Persona" que al resto del calendario.
+  const pendingVisible = useMemo(
+    () => byStaffFilter(pendingAppointments, selectedStaffId),
+    [pendingAppointments, selectedStaffId],
+  );
+  const visibleAppointments = useMemo(() => displayMode === "pending"
+    ? pendingVisible
+    : filteredAppointments.filter((appointment) => selectedStatus === "all" || appointment.status === selectedStatus),
+  [filteredAppointments, pendingVisible, displayMode, selectedStatus]);
+  const pendingCount = pendingVisible.length;
+  // Recargar la pestaña no esconde una lista ya cargada: solo la primera vez.
+  const pendingFirstLoad = pendingLoading && pendingAppointments.length === 0;
+  const listLoading = displayMode === "pending" ? pendingFirstLoad : loading;
 
   // Bloques "Ocupado" del resto del equipo: solo en la vista de calendario,
   // nunca en la lista (no son citas que se puedan revisar).
@@ -424,7 +450,7 @@ function CalendarContent() {
                     : "text-on-surface-variant hover:text-on-surface"
                 }`}
               >
-                {m === "calendar" ? "Calendario" : m === "list" ? "Lista" : `Pendientes${loading ? "" : ` (${pendingCount})`}`}
+                {m === "calendar" ? "Calendario" : m === "list" ? "Lista" : `Pendientes${pendingFirstLoad || pendingError ? "" : ` (${pendingCount})`}`}
               </button>
             ))}
           </div>
@@ -522,7 +548,7 @@ function CalendarContent() {
         </div>
       </div>
 
-      <p className="text-sm text-on-surface-variant">{displayMode === "pending" ? "Reservas pendientes del período mostrado. Abre una reserva para revisar sus datos y confirmarla." : "Selecciona una cita para ver sus datos. Puedes filtrar por persona y estado en cualquiera de las vistas."}</p>
+      <p className="text-sm text-on-surface-variant">{displayMode === "pending" ? "Todas las reservas pendientes, de cualquier fecha. Abre una reserva para revisar sus datos y confirmarla o cancelarla." : "Selecciona una cita para ver sus datos. Puedes filtrar por persona y estado en cualquiera de las vistas."}</p>
       {/*
         Sin un segundo "estado vacío" encima de la grilla: la grilla vacía ya
         dice que no hay citas. Solo se avisa cuando lo que esconde las citas es
@@ -536,14 +562,16 @@ function CalendarContent() {
       ) : null}
 
       {/* Error */}
-      {error && <CollectionError message={error} />}
+      {displayMode === "pending"
+        ? pendingError && <CollectionError message={pendingError} onRetry={() => void fetchPendingAppointments()} />
+        : error && <CollectionError message={error} />}
       {appointmentId && linkError && <CollectionError message={linkError} onRetry={() => void fetchLinkedAppointment(appointmentId).then((appointment) => {
         if (appointment) openLinkedAppointment(appointment);
       })} />}
       {appointmentId && linkLoading && <CollectionLoading label="Abriendo la reserva…" />}
 
       {/* Loading */}
-      {loading && <CollectionLoading label="Cargando citas…" />}
+      {listLoading && <CollectionLoading label={displayMode === "pending" ? "Cargando reservas pendientes…" : "Cargando citas…"} />}
 
       {/* ---- MONTH VIEW ---- */}
       {!loading && displayMode === "calendar" && view === "month" && (
@@ -647,7 +675,7 @@ function CalendarContent() {
       )}
 
       {/* ---- LIST VIEW ---- */}
-      {!loading && displayMode !== "calendar" && (
+      {!listLoading && !(displayMode === "pending" && pendingError) && displayMode !== "calendar" && (
         <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-3xl shadow-sm">
           <div className="p-4 border-b border-outline-variant/10">
             <h3 className="font-bold text-on-surface">
@@ -691,6 +719,11 @@ function CalendarContent() {
                       </div>
                     )}
                   </div>
+                  {appt.status === "pending" && isOverdue(appt, todayIso) ? (
+                    <span className="text-[11px] font-bold px-2 py-1 rounded-md shrink-0 border bg-error-container/20 text-error-dim border-error-container/30">
+                      Vencida
+                    </span>
+                  ) : null}
                   <span
                     className={`text-[11px] font-bold px-2 py-1 rounded-md shrink-0 border ${getStatusColor(
                       appt.status,
@@ -701,7 +734,7 @@ function CalendarContent() {
                 </button>
               ))}
             </div>
-          ) : <CollectionFilteredEmpty title={displayMode === "pending" ? "No hay reservas pendientes en este período" : "No hay citas para estos filtros"} description={displayMode === "pending" ? "Las reservas recibidas desde tu web aparecerán aquí hasta que las confirmes o canceles. Revisa otros períodos para ver más reservas." : "Prueba otro período o quita los filtros de persona y estado."} action={{ label: "Ver calendario", onClick: () => { setDisplayMode("calendar"); setSelectedStatus("all"); } }} />}
+          ) : <CollectionFilteredEmpty title={displayMode === "pending" ? "No hay reservas pendientes" : "No hay citas para estos filtros"} description={displayMode === "pending" ? selectedStaffId === "all" ? "Las reservas recibidas desde tu web aparecerán aquí hasta que las confirmes o canceles." : "No hay reservas pendientes para esta persona. Quita el filtro de persona para ver las del resto del equipo." : "Prueba otro período o quita los filtros de persona y estado."} action={{ label: "Ver calendario", onClick: () => { setDisplayMode("calendar"); setSelectedStatus("all"); } }} />}
         </div>
       )}
 
