@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import {
   usePublicBookingStore,
@@ -42,9 +42,8 @@ import { loadStatusOf } from "@/lib/booking-load-state";
  * del fondo de la página: este widget siempre se monta dentro de
  * `.site-booking-panel`, que se pinta con `--site-surface`. En Qutter —fondo
  * blanco, superficies negras— usar los del fondo daba `#111` sobre `#1a1a1a` y
- * el formulario entero era invisible. El modal de horarios se pinta con la misma
- * superficie por lo mismo: así el widget se ve igual esté donde esté, y el
- * contraste lo garantiza la paleta en un solo lugar.
+ * el formulario entero era invisible. Así el widget se ve igual esté donde
+ * esté, y el contraste lo garantiza la paleta en un solo lugar.
  */
 
 /*
@@ -124,6 +123,19 @@ function celdasDelMes(mes: string): (string | null)[] {
   }
   return celdas;
 }
+/**
+ * Lleva el paso de contacto a la vista después de elegir la hora, solo si no
+ * se ve ya. En una columna (celular) el formulario queda debajo de calendario y
+ * horarios; en dos columnas ya está a la vista y no se mueve nada.
+ */
+function revealIfBelow(el: HTMLElement | null) {
+  if (!el) return;
+  const { top } = el.getBoundingClientRect();
+  if (top < window.innerHeight * 0.75) return;
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  el.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+}
+
 const longDateFmt = new Intl.DateTimeFormat("es-CO", {
   weekday: "long",
   day: "numeric",
@@ -137,21 +149,13 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
   );
   const [staffId, setStaffId] = useState<string | null>(null);
   const [today] = useState(() => toDateInput(new Date()));
-  // null = "todavía no eligió". El día efectivo se DERIVA más abajo del primer
-  // día con cupo, así que quien entra un domingo con el local cerrado no se
-  // encuentra una grilla vacía y se va.
+  // null = "todavía no eligió": los horarios aparecen al tocar un día, junto al
+  // calendario, y mientras tanto se pide elegir uno.
   const [pickedDate, setPickedDate] = useState<string | null>(null);
   /** Mes que se está mirando. Arranca en el de hoy. */
   const [mesVisible, setMesVisible] = useState(() => claveMes(toDateInput(new Date())));
-  /**
-   * Las horas viven en un modal.
-   *
-   * Debajo del calendario empujaban el formulario de contacto fuera de la
-   * pantalla: scroll para elegir la hora, scroll para volver a ver qué día era,
-   * y otra vez abajo para los datos. Como modal, el calendario queda quieto y la
-   * elección pasa en un solo lugar.
-   */
-  const [horasAbiertas, setHorasAbiertas] = useState(false);
+  /** Paso 3: después de elegir la hora en el celular se lleva a la vista. */
+  const contactRef = useRef<HTMLDivElement>(null);
   const [pickedTime, setPickedTime] = useState<string>("");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -191,9 +195,6 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
     count: days.length,
   });
 
-  // El día mostrado: el que eligió el visitante, o el primero con cupo.
-  const firstBookable = days.find((d) => d.isOpen && d.freeSlots > 0)?.date;
-
   /** Disponibilidad indexada por fecha: el calendario busca por celda. */
   const porFecha = new Map(days.map((d) => [d.date, d]));
 
@@ -207,9 +208,9 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
   const mesAnterior = indiceMes > 0 ? mesesConDatos[indiceMes - 1] : null;
   const mesSiguiente =
     indiceMes >= 0 && indiceMes < mesesConDatos.length - 1 ? mesesConDatos[indiceMes + 1] : null;
-  const date = pickedDate ?? firstBookable ?? today;
+  const date = pickedDate;
 
-  const slotKey = slotKeyOf(serviceId, date, staffId);
+  const slotKey = date ? slotKeyOf(serviceId, date, staffId) : null;
 
   useEffect(() => {
     if (!canQuery) return;
@@ -220,17 +221,6 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
     if (!canQuery || !date) return;
     void loadDay(site.slug, serviceId, date, staffId);
   }, [canQuery, loadDay, site.slug, serviceId, date, staffId]);
-
-  // Escape cierra el modal. Sin esto, con teclado la única salida es encontrar
-  // la X tabulando.
-  useEffect(() => {
-    if (!horasAbiertas) return;
-    const cerrar = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setHorasAbiertas(false);
-    };
-    window.addEventListener("keydown", cerrar);
-    return () => window.removeEventListener("keydown", cerrar);
-  }, [horasAbiertas]);
 
   useEffect(() => {
     const selectService = (event: Event) => {
@@ -247,17 +237,19 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
 
   // "Loading" is a key mismatch, not a flag: the answer to an older
   // service/day/professional combination can never repaint a newer one.
-  const daySlots = canQuery && storedSlotKey === slotKey ? storedSlots : [];
+  const daySlots = canQuery && slotKey && storedSlotKey === slotKey ? storedSlots : [];
   const slotStatus = loadStatusOf({
-    enabled: canQuery,
-    wantedKey: slotKey,
+    enabled: canQuery && slotKey !== null,
+    wantedKey: slotKey ?? "",
     loadedKey: storedSlotKey,
     failedKey: slotErrorKey,
     count: daySlots.length,
   });
   const retryAvailability = () =>
     void loadAvailability(site.slug, serviceId, today, DAYS_AHEAD, staffId);
-  const retryDay = () => void loadDay(site.slug, serviceId, date, staffId);
+  const retryDay = () => {
+    if (date) void loadDay(site.slug, serviceId, date, staffId);
+  };
 
   const freeTimes = daySlots.filter((s) => s.state === "free").map((s) => s.time);
   // A picked hour this combination no longer offers is simply not selected —
@@ -271,7 +263,7 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
-    if (!service || !time) return;
+    if (!service || !time || !date) return;
     if (!mobile) {
       setPhoneTouched(true);
       return;
@@ -302,7 +294,7 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
     // The RPC raises its business errors in Spanish, ready to show as-is.
     toast.error(usePublicBookingStore.getState().error ?? "No se pudo reservar.");
     // The slot may have just been taken by somebody else; refresh the grid.
-    void loadDay(site.slug, serviceId, date, staffId);
+    retryDay();
     void loadAvailability(site.slug, serviceId, today, DAYS_AHEAD, staffId);
   }
 
@@ -449,10 +441,18 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
         ) : days.length === 0 ? (
           <p className="py-3 text-sm text-[var(--site-on-surface-muted)]">Cargando disponibilidad…</p>
         ) : (
-          // Tope de ancho al calendario: las celdas son cuadradas, así que sin
-          // tope crecen con la columna y un mes pasa de 300 a 450px de ALTO. Un
-          // calendario se lee mejor compacto; el espacio que sobra a la derecha
-          // lo usa el resto de la columna.
+          /*
+           * Horarios EN LÍNEA, no en un modal: el modal se abría al tocar el día
+           * y tapaba el calendario, así que comparar dos días era abrir, cerrar
+           * y volver a abrir. Ahora tocar un día solo lo elige; sus horarios
+           * aparecen al lado del calendario si el contenedor da (consulta de
+           * contenedor, por lo mismo que el layout de dos columnas) y debajo si
+           * no, y el calendario sigue navegable.
+           */
+          <div className="@container">
+          <div className="grid gap-5 @xl:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] @xl:items-start @xl:gap-6">
+          {/* Tope de ancho al calendario: las celdas son cuadradas, así que sin
+              tope crecen con la columna y un mes pasa de 300 a 450px de ALTO. */}
           <div className="max-w-[26rem]">
             {/* La navegación va ARRIBA del calendario y dentro de su mismo
                 ancho. En el encabezado del paso quedaba alineada al borde de la
@@ -534,10 +534,7 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
                               : "sin cupos"
                             : `${info.freeSlots} turnos libres`
                     }`}
-                    onClick={() => {
-                      setPickedDate(fecha);
-                      setHorasAbiertas(true);
-                    }}
+                    onClick={() => setPickedDate(fecha)}
                     className={`relative flex aspect-square flex-col items-center justify-center rounded-[var(--site-radius)] border text-sm transition-all ${
                       seleccionado
                         ? "border-[var(--site-accent)] bg-[var(--site-accent)] font-bold text-[var(--site-on-accent)]"
@@ -567,12 +564,119 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
               })}
             </div>
           </div>
+
+          {!date ? (
+            <p className="rounded-[var(--site-radius)] bg-[var(--site-surface-alt)] px-4 py-6 text-center text-sm text-[var(--site-on-surface-muted)]">
+              Elige un día para ver los horarios.
+            </p>
+          ) : (
+          <section
+            role="region"
+            aria-label={`Horarios del ${longDateFmt.format(parseDateInput(date))}`}
+            className="@container min-w-0"
+          >
+            <div className="mb-3">
+              <h4
+                className="text-base font-semibold text-[var(--site-on-surface)]"
+                style={{ fontFamily: "var(--site-heading-font)" }}
+              >
+                ¿A qué hora?
+              </h4>
+              <p className="mt-0.5 text-xs text-[var(--site-on-surface-muted)] first-letter:uppercase">
+                {longDateFmt.format(parseDateInput(date))}
+              </p>
+            </div>
+            <div aria-live="polite">
+          {slotStatus === "loading" ? (
+            <p className="py-3 text-sm text-[var(--site-on-surface-muted)]">Buscando horarios…</p>
+          ) : slotStatus === "failed" ? (
+            <LoadFailed onRetry={retryDay} />
+          ) : daySlots.length === 0 ? (
+            <p className="rounded-[var(--site-radius)] bg-[var(--site-surface-alt)] px-4 py-6 text-center text-sm text-[var(--site-on-surface-muted)]">
+              El negocio no atiende ese día.
+              <br />
+              Elige otra fecha en el calendario.
+            </p>
+          ) : (
+            <div className="space-y-4">
+              {SLOT_GROUPS.map((group) => {
+                const slots = daySlots.filter(
+                  (s) => hourOf(s) >= group.from && hourOf(s) < group.to,
+                );
+                if (slots.length === 0) return null;
+
+                const freeInGroup = slots.filter((s) => s.state === "free").length;
+
+                return (
+                  <div key={group.id}>
+                    <div className="mb-1.5 flex items-baseline justify-between">
+                      <h5 className="text-xs font-semibold tracking-wide text-[var(--site-on-surface)] uppercase">
+                        {group.label}
+                      </h5>
+                      <span className="text-[0.65rem] text-[var(--site-on-surface-muted)]">
+                        {freeInGroup === 0 ? "Sin cupos" : `${freeInGroup} disponibles`}
+                      </span>
+                    </div>
+
+                    <ul className="grid grid-cols-3 gap-2 @xs:grid-cols-4">
+                      {slots.map((slot) => {
+                        if (slot.state === "free") {
+                          const isPicked = time === slot.time;
+                          return (
+                            <li key={slot.time}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setPickedTime(slot.time);
+                                  revealIfBelow(contactRef.current);
+                                }}
+                                aria-pressed={isPicked}
+                                // Misma altura que el turno ocupado: la grilla no
+                                // se descuadra según qué haya reservado.
+                                className={`flex h-11 w-full items-center justify-center rounded-[var(--site-radius)] border text-sm transition-all ${
+                                  isPicked
+                                    ? "border-[var(--site-accent)] bg-[var(--site-accent)] font-semibold text-[var(--site-on-accent)] shadow-sm"
+                                    : "border-[var(--site-on-surface-border)] text-[var(--site-on-surface)] hover:border-[var(--site-accent)]"
+                                }`}
+                              >
+                                {formatAppointmentTime(slot.time, site.timeFormat)}
+                              </button>
+                            </li>
+                          );
+                        }
+
+                        // Ocupado o ya pasado. Va como texto y no como botón
+                        // deshabilitado: no hay nada que activar, y un lector de
+                        // pantalla debe leer el estado, no ofrecer un control muerto.
+                        return (
+                          <li
+                            key={slot.time}
+                            className="flex h-11 flex-col items-center justify-center rounded-[var(--site-radius)] bg-[var(--site-surface-alt)] text-[var(--site-on-surface-muted)]"
+                          >
+                            <span className="text-sm leading-none opacity-70">{formatAppointmentTime(slot.time, site.timeFormat)}</span>
+                            <span className="mt-0.5 text-[0.55rem] uppercase opacity-70">
+                              {slot.state === "taken" ? "Reservado" : "Pasó"}
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+          </section>
+          )}
+          </div>
+          </div>
         )}
       </Step>
 
         </div>
 
-        <div className="min-w-0 space-y-7">
+        <div ref={contactRef} className="min-w-0 scroll-mt-4 space-y-7">
       <Step n={3} title="¿Cómo te contactamos?">
         {/* B24: labels visibles. El placeholder desaparece al escribir y
             dejaba el campo sin nombre a la vista. */}
@@ -636,7 +740,7 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
 
       {/* ---- Resumen + CTA ---- */}
       <div className="space-y-3 border-t border-[var(--site-on-surface-border)] pt-5">
-        {time && service ? (
+        {time && service && date ? (
           <dl className="space-y-1.5 rounded-[var(--site-radius)] bg-[var(--site-surface-alt)] p-4 text-sm">
             <SummaryRow label="Servicio" value={service.name} />
             <SummaryRow label="Con" value={staffMember?.fullName ?? "Cualquiera disponible"} />
@@ -670,125 +774,6 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
       </div>
         </div>
       </div>
-      {/* ---- Horas, en modal ---- */}
-      {horasAbiertas && date && (
-        <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 p-0 sm:items-center sm:p-4"
-          onClick={() => setHorasAbiertas(false)}
-        >
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-label={`Horarios del ${longDateFmt.format(parseDateInput(date))}`}
-            onClick={(e) => e.stopPropagation()}
-            className="max-h-[85svh] w-full overflow-y-auto rounded-t-[var(--site-radius)] border border-[var(--site-on-surface-border)] bg-[var(--site-surface)] p-5 sm:max-w-lg sm:rounded-[var(--site-radius)]"
-          >
-            <div className="mb-4 flex items-start justify-between gap-4">
-              <div>
-                <h3
-                  className="text-lg font-semibold text-[var(--site-on-surface)]"
-                  style={{ fontFamily: "var(--site-heading-font)" }}
-                >
-                  ¿A qué hora?
-                </h3>
-                <p className="mt-0.5 text-xs text-[var(--site-on-surface-muted)]">
-                  {longDateFmt.format(parseDateInput(date))}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setHorasAbiertas(false)}
-                aria-label="Cerrar horarios"
-                className="grid h-9 w-9 shrink-0 place-items-center rounded-[var(--site-radius)] border border-[var(--site-on-surface-border)] text-[var(--site-on-surface)]"
-              >
-                <X size={16} aria-hidden="true" />
-              </button>
-            </div>
-
-        <div aria-live="polite">
-          {slotStatus === "loading" ? (
-            <p className="py-3 text-sm text-[var(--site-on-surface-muted)]">Buscando horarios…</p>
-          ) : slotStatus === "failed" ? (
-            <LoadFailed onRetry={retryDay} />
-          ) : daySlots.length === 0 ? (
-            <p className="rounded-[var(--site-radius)] bg-[var(--site-surface-alt)] px-4 py-6 text-center text-sm text-[var(--site-on-surface-muted)]">
-              El negocio no atiende ese día.
-              <br />
-              Cierra y elige otra fecha en el calendario.
-            </p>
-          ) : (
-            <div className="space-y-4">
-              {SLOT_GROUPS.map((group) => {
-                const slots = daySlots.filter(
-                  (s) => hourOf(s) >= group.from && hourOf(s) < group.to,
-                );
-                if (slots.length === 0) return null;
-
-                const freeInGroup = slots.filter((s) => s.state === "free").length;
-
-                return (
-                  <div key={group.id}>
-                    <div className="mb-1.5 flex items-baseline justify-between">
-                      <h4 className="text-xs font-semibold tracking-wide text-[var(--site-on-surface)] uppercase">
-                        {group.label}
-                      </h4>
-                      <span className="text-[0.65rem] text-[var(--site-on-surface-muted)]">
-                        {freeInGroup === 0 ? "Sin cupos" : `${freeInGroup} disponibles`}
-                      </span>
-                    </div>
-
-                    <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-                      {slots.map((slot) => {
-                        if (slot.state === "free") {
-                          const isPicked = time === slot.time;
-                          return (
-                            <li key={slot.time}>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setPickedTime(slot.time);
-                                  setHorasAbiertas(false);
-                                }}
-                                aria-pressed={isPicked}
-                                // Misma altura que el turno ocupado: la grilla no
-                                // se descuadra según qué haya reservado.
-                                className={`flex h-11 w-full items-center justify-center rounded-[var(--site-radius)] border text-sm transition-all ${
-                                  isPicked
-                                    ? "border-[var(--site-accent)] bg-[var(--site-accent)] font-semibold text-[var(--site-on-accent)] shadow-sm"
-                                    : "border-[var(--site-on-surface-border)] text-[var(--site-on-surface)] hover:border-[var(--site-accent)]"
-                                }`}
-                              >
-                                {formatAppointmentTime(slot.time, site.timeFormat)}
-                              </button>
-                            </li>
-                          );
-                        }
-
-                        // Ocupado o ya pasado. Va como texto y no como botón
-                        // deshabilitado: no hay nada que activar, y un lector de
-                        // pantalla debe leer el estado, no ofrecer un control muerto.
-                        return (
-                          <li
-                            key={slot.time}
-                            className="flex h-11 flex-col items-center justify-center rounded-[var(--site-radius)] bg-[var(--site-surface-alt)] text-[var(--site-on-surface-muted)]"
-                          >
-                            <span className="text-sm leading-none opacity-70">{formatAppointmentTime(slot.time, site.timeFormat)}</span>
-                            <span className="mt-0.5 text-[0.55rem] uppercase opacity-70">
-                              {slot.state === "taken" ? "Reservado" : "Pasó"}
-                            </span>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-          </div>
-        </div>
-      )}
     </form>
   );
 }

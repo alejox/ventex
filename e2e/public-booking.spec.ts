@@ -60,11 +60,13 @@ test.describe("Reservas del sitio público", () => {
     await expect(freeDay).toBeVisible({ timeout: 20000 });
     await freeDay.click();
 
-    const hours = page.getByRole("dialog", { name: /^Horarios del / });
+    // Los horarios del día aparecen en línea, junto al calendario.
+    const hours = page.getByRole("region", { name: /^Horarios del / });
     await expect(hours).toBeVisible();
-    // Los turnos libres son botones; ocupados/pasados son <li> de texto.
-    await hours.locator("li > button").first().click();
-    await expect(hours).toBeHidden();
+    // Los horarios libres son botones; ocupados/pasados son <li> de texto.
+    const slot = hours.locator("li > button").first();
+    await slot.click();
+    await expect(slot).toHaveAttribute("aria-pressed", "true");
 
     await page.locator("#booking-name").fill(name);
     await page.locator("#booking-phone").fill(phone);

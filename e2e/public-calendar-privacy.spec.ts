@@ -37,24 +37,27 @@ test.describe("Privacidad del calendario público", () => {
       expect(dom, `"${forbidden}" no puede aparecer en el sitio público`).not.toContain(forbidden);
     }
 
-    // Un turno ocupado se marca, pero sin decir de quién es. Los horarios de
-    // un día se abren en un diálogo: los libres son botones y los ocupados o
-    // ya pasados, <li> de texto ("Reservado" / "Pasó").
+    // Un turno ocupado se marca, pero sin decir de quién es. Los horarios del
+    // día elegido aparecen en línea (región "Horarios del <fecha>"): los libres
+    // son botones y los ocupados o ya pasados, <li> de texto ("Reservado" / "Pasó").
     //
     // El primer día con cupo suele NO tener reservas. Hay que recorrer los días
     // hasta encontrar uno ocupado; si no, este test pasaría sin haber mirado nada.
-    const hours = page.getByRole("dialog", { name: /^Horarios del / });
     const dayCount = await dayButtons.count();
     let labels: string[] = [];
 
     for (let d = 0; d < dayCount && labels.length === 0; d++) {
-      await dayButtons.nth(d).click();
+      const day = dayButtons.nth(d);
+      // "<fecha>, <estado>": la fecha ya trae su propia coma ("lunes, 3 de …").
+      const dayLabel = ((await day.getAttribute("aria-label")) ?? "").replace(/, [^,]+$/, "");
+      await day.click();
+      // La región se renombra con el día elegido: esperar ESA evita leer los
+      // horarios del día anterior.
+      const hours = page.getByRole("region", { name: `Horarios del ${dayLabel}` });
       await expect(hours).toBeVisible();
       await expect(hours.getByText("Buscando horarios…")).toHaveCount(0, { timeout: 15000 });
       const reserved = hours.locator("li").filter({ hasText: /Reservado/i });
       labels = (await reserved.allInnerTexts()).map((t) => t.replace(/\s+/g, " ").trim());
-      await hours.getByRole("button", { name: "Cerrar horarios" }).click();
-      await expect(hours).toBeHidden();
     }
 
     test.skip(labels.length === 0, "Ningún día del período tiene turnos reservados para auditar");
