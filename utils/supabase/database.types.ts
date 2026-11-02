@@ -247,6 +247,7 @@ export type Database = {
         Row: {
           about: string | null
           address: string | null
+          booking_allow_any: boolean
           booking_enabled: boolean
           created_at: string
           draft_config: Json
@@ -281,6 +282,7 @@ export type Database = {
         Insert: {
           about?: string | null
           address?: string | null
+          booking_allow_any?: boolean
           booking_enabled?: boolean
           created_at?: string
           draft_config?: Json
@@ -315,6 +317,7 @@ export type Database = {
         Update: {
           about?: string | null
           address?: string | null
+          booking_allow_any?: boolean
           booking_enabled?: boolean
           created_at?: string
           draft_config?: Json
