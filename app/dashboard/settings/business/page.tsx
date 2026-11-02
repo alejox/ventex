@@ -56,10 +56,13 @@ export default function BusinessSettingsPage() {
     return <div className="p-8 text-sm text-on-surface-variant">Cargando…</div>;
   }
 
-  // El `key` remonta el formulario cuando llegan otros ajustes, así el estado
-  // inicial se siembra en `useState` y no hace falta un efecto que copie el
-  // store al state (que además disparaba renders en cascada).
-  return <BusinessProfileForm key={settings.id ?? "new"} settings={settings} />;
+  // The form only mounts once settings have loaded (a refetch shows "Cargando…"
+  // and remounts it), so its initial state is seeded in `useState` without an
+  // effect copying the store into state. No `key` on the settings id: the first
+  // save of a business without a settings row (e.g. the "Reservas en línea"
+  // card) turns the id from null into a uuid, and keying on it remounted the
+  // form and discarded unsaved edits.
+  return <BusinessProfileForm settings={settings} />;
 }
 
 function BusinessProfileForm({ settings }: { settings: Settings }) {
