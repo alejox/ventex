@@ -29,6 +29,14 @@ export interface StaffMember {
    * cliente ni cuentan como silla libre en la reserva pública.
    */
   show_on_website: boolean;
+  /**
+   * "Disponible" para reservas del sitio web. Apagado ("No disponible") la
+   * persona sigue en el equipo del sitio, pero no se puede reservar con ella:
+   * lo hace cumplir la base (`public_site_slots`/`public_site_book`, migración
+   * 20261103100000_staff_accepts_bookings.sql). El calendario del dashboard no
+   * cambia: el negocio sigue agendando a mano.
+   */
+  accepts_bookings: boolean;
 }
 
 export interface NewStaffInput {
@@ -253,13 +261,41 @@ export function isSettlementChangedError(e: unknown): boolean {
   return typeof message === "string" && /^LIQUIDACION_CAMBIO\b/.test(message);
 }
 
-const SELECT = "id, full_name, role, phone, email, status, created_at, photo_url, show_on_website";
+const LEGACY_SELECT = "id, full_name, role, phone, email, status, created_at, photo_url, show_on_website";
+const SELECT = `${LEGACY_SELECT}, accepts_bookings`;
+
+/**
+ * `accepts_bookings` llega con la migración 20261103100000. Si la base todavía
+ * no la tiene (42703, columna inexistente), se relee sin ella y todos quedan
+ * disponibles: Personal no puede caerse por un deploy adelantado a la base.
+ */
+function isMissingColumn(error: { code?: string } | null): boolean {
+  return error?.code === "42703";
+}
+
+function withAvailability<T extends object>(row: T): T & { accepts_bookings: boolean } {
+  const value = (row as { accepts_bookings?: boolean | null }).accepts_bookings;
+  return { ...row, accepts_bookings: value ?? true };
+}
 
 export async function fetchStaff(): Promise<StaffMember[]> {
   const supabase = createClient();
-  const { data, error } = await supabase.from("staff").select(SELECT).order("full_name");
+  const first = await supabase.from("staff").select(SELECT).order("full_name");
+  const { data, error } = isMissingColumn(first.error)
+    ? await supabase.from("staff").select(LEGACY_SELECT).order("full_name")
+    : first;
   if (error) throw error;
-  return (data ?? []) as StaffMember[];
+  return ((data ?? []) as object[]).map(withAvailability) as StaffMember[];
+}
+
+/** Prende o apaga "Disponible para reservas en la web" de una persona. */
+export async function setStaffAcceptsBookings(id: string, acceptsBookings: boolean): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase.from("staff").update({ accepts_bookings: acceptsBookings }).eq("id", id);
+  if (isMissingColumn(error) || error?.code === "PGRST204") {
+    throw new Error("Esta opción todavía no está activa en tu base de datos. Inténtalo más tarde.");
+  }
+  if (error) throw error;
 }
 
 export async function createStaff(input: NewStaffInput): Promise<StaffMember> {
@@ -275,10 +311,12 @@ export async function createStaff(input: NewStaffInput): Promise<StaffMember> {
       photo_url: input.photo_url ?? null,
       show_on_website: input.show_on_website,
     })
-    .select(SELECT)
+    // Sin `accepts_bookings`: una ficha nueva nace disponible (default de la
+    // columna), y así el alta no depende de que la migración ya esté aplicada.
+    .select(LEGACY_SELECT)
     .single();
   if (error) throw error;
-  return data as StaffMember;
+  return withAvailability(data) as StaffMember;
 }
 
 const STAFF_PHOTOS_BUCKET = "staff-photos";
@@ -793,7 +831,14 @@ export async function deleteStaff(id: string): Promise<void> {
   if (error) throw error;
 }
 
-export async function updateStaff(id: string, input: NewStaffInput): Promise<StaffMember> {
+/**
+ * No devuelve `accepts_bookings`: el formulario no lo toca (es el switch de la
+ * tarjeta), así que quien llama conserva el valor que ya tenía.
+ */
+export async function updateStaff(
+  id: string,
+  input: NewStaffInput,
+): Promise<Omit<StaffMember, "accepts_bookings">> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("staff")
@@ -810,8 +855,8 @@ export async function updateStaff(id: string, input: NewStaffInput): Promise<Sta
       show_on_website: input.show_on_website,
     })
     .eq("id", id)
-    .select(SELECT)
+    .select(LEGACY_SELECT)
     .single();
   if (error) throw error;
-  return data as StaffMember;
+  return data as Omit<StaffMember, "accepts_bookings">;
 }

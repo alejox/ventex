@@ -25,7 +25,9 @@ import { esImagenAjena } from "@/lib/remoteImage";
 import { claveMes, longDateFmt, parseDateInput, toDateInput } from "@/lib/booking-month";
 import { LoadFailed, MonthCalendar, SlotGroups } from "./BookingPickers";
 import {
+  bookableStaff,
   initialStaffId,
+  isStaffBookable,
   needsStaffChoice,
   staffChoiceMode,
   staffSummaryLabel,
@@ -98,9 +100,13 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
     initialServiceId ?? site.services[0]?.id ?? "",
   );
   const allowAny = site.bookingAllowAny !== false;
-  const staffMode = staffChoiceMode(site.staff.length, allowAny);
+  // Quien está "No disponible" (Personal) se ve, pero no se elige; la base
+  // igual rechaza reservar con esa persona.
+  const bookable = bookableStaff(site.staff);
+  const noOneAvailable = site.staff.length > 0 && bookable.length === 0;
+  const staffMode = staffChoiceMode(bookable.length, allowAny);
   const [staffId, setStaffId] = useState<string | null>(() =>
-    initialStaffId(site.staff.map((m) => m.id), allowAny),
+    initialStaffId(bookable.map((m) => m.id), allowAny),
   );
   const [today] = useState(() => toDateInput(new Date()));
   // null = "todavía no eligió": los horarios aparecen al tocar un día, junto al
@@ -141,7 +147,7 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
   // Without "Cualquiera disponible" there is no availability to ask for until
   // a person is picked: asking with a null staff would show the whole roster.
   const mustPickStaff = needsStaffChoice(staffMode, staffId);
-  const canQuery = Boolean(serviceId) && !mustPickStaff;
+  const canQuery = Boolean(serviceId) && !mustPickStaff && !noOneAvailable;
 
   const availKey = availabilityKeyOf(serviceId, today, staffId);
   const days = canQuery && storedAvailKey === availKey ? storedAvailability : [];
@@ -454,18 +460,22 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
                   subtitle="Te atiende quien esté libre"
                 />
               ) : null}
-              {site.staff.map((member: PublicStaff) => (
-                <StaffCard
-                  key={member.id}
-                  name="booking-staff"
-                  value={member.id}
-                  checked={staffId === member.id}
-                  onSelect={() => setStaffId(member.id)}
-                  title={member.fullName}
-                  subtitle={member.role}
-                  photoUrl={member.photoUrl}
-                />
-              ))}
+              {site.staff.map((member: PublicStaff) => {
+                const available = isStaffBookable(member);
+                return (
+                  <StaffCard
+                    key={member.id}
+                    name="booking-staff"
+                    value={member.id}
+                    checked={available && staffId === member.id}
+                    onSelect={() => setStaffId(member.id)}
+                    title={member.fullName}
+                    subtitle={available ? member.role : "No disponible por ahora"}
+                    photoUrl={member.photoUrl}
+                    disabled={!available}
+                  />
+                );
+              })}
             </div>
           </fieldset>
         ) : null}
@@ -473,7 +483,11 @@ export function BookingWidget({ site, initialServiceId = null, onClose }: Props)
 
       {/* ---- Calendario del mes ---- */}
       <Step n={2} title="¿Qué día?">
-        {mustPickStaff ? (
+        {noOneAvailable ? (
+          <p className="rounded-[var(--site-radius)] bg-[var(--site-surface-alt)] px-4 py-6 text-center text-sm text-[var(--site-on-surface-muted)]">
+            Por ahora no hay nadie disponible para reservar en línea. Escríbenos para coordinar tu cita.
+          </p>
+        ) : mustPickStaff ? (
           <p className="rounded-[var(--site-radius)] bg-[var(--site-surface-alt)] px-4 py-6 text-center text-sm text-[var(--site-on-surface-muted)]">
             Elige primero con quién quieres tu cita.
           </p>
@@ -677,6 +691,7 @@ function StaffCard({
   title,
   subtitle,
   photoUrl,
+  disabled = false,
 }: {
   name: string;
   value: string;
@@ -685,13 +700,16 @@ function StaffCard({
   title: string;
   subtitle?: string | null;
   photoUrl?: string | null;
+  disabled?: boolean;
 }) {
   return (
     <label
-      className={`flex min-h-14 cursor-pointer items-center gap-3 rounded-[var(--site-radius)] border p-2.5 transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[var(--site-accent)]/40 ${
-        checked
-          ? "border-[var(--site-accent)] bg-[var(--site-surface-alt)] shadow-[inset_0_0_0_1px_var(--site-accent)]"
-          : "border-[var(--site-on-surface-border)] hover:border-[var(--site-accent)]"
+      className={`flex min-h-14 items-center gap-3 rounded-[var(--site-radius)] border p-2.5 transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[var(--site-accent)]/40 ${
+        disabled
+          ? "cursor-not-allowed border-[var(--site-on-surface-border)] opacity-50"
+          : checked
+            ? "cursor-pointer border-[var(--site-accent)] bg-[var(--site-surface-alt)] shadow-[inset_0_0_0_1px_var(--site-accent)]"
+            : "cursor-pointer border-[var(--site-on-surface-border)] hover:border-[var(--site-accent)]"
       }`}
     >
       <input
@@ -700,6 +718,7 @@ function StaffCard({
         value={value}
         checked={checked}
         onChange={onSelect}
+        disabled={disabled}
         className="sr-only"
       />
       <span

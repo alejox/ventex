@@ -3683,6 +3683,7 @@ export type Database = {
       }
       staff: {
         Row: {
+          accepts_bookings: boolean
           allowed_branches: string[]
           auth_user_id: string | null
           can_login: boolean
@@ -3707,6 +3708,7 @@ export type Database = {
           username: string | null
         }
         Insert: {
+          accepts_bookings?: boolean
           allowed_branches?: string[]
           auth_user_id?: string | null
           can_login?: boolean
@@ -3731,6 +3733,7 @@ export type Database = {
           username?: string | null
         }
         Update: {
+          accepts_bookings?: boolean
           allowed_branches?: string[]
           auth_user_id?: string | null
           can_login?: boolean

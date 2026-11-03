@@ -42,3 +42,16 @@ export function staffSummaryLabel(mode: StaffChoiceMode, staffName: string | nul
   if (staffName) return staffName;
   return mode === "required" ? null : "Cualquiera disponible";
 }
+
+/**
+ * "No disponible" (switch de la tarjeta en Personal, `staff.accepts_bookings`):
+ * la persona se sigue viendo en el sitio pero no se puede elegir. `available`
+ * ausente = sitio servido antes de la migración 20261103100000 → disponible.
+ */
+export function isStaffBookable(member: { available?: boolean }): boolean {
+  return member.available !== false;
+}
+
+export function bookableStaff<T extends { available?: boolean }>(staff: readonly T[]): T[] {
+  return staff.filter(isStaffBookable);
+}

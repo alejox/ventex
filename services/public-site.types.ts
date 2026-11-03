@@ -528,6 +528,12 @@ export interface PublicStaff {
   role: string | null;
   /** Public-facing portrait stored on the staff record. */
   photoUrl: string | null;
+  /**
+   * false = "No disponible" en Personal: se muestra, pero no se puede reservar
+   * con esta persona. Ausente en respuestas anteriores a la migración
+   * 20261103100000 (se toma como disponible).
+   */
+  available?: boolean;
 }
 
 export interface PublicSite {

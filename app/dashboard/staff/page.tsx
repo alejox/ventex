@@ -67,6 +67,7 @@ export default function StaffPage() {
   const fetchStaff = useStaffStore((s) => s.fetchStaff);
   const addStaff = useStaffStore((s) => s.addStaff);
   const updateStaff = useStaffStore((s) => s.updateStaff);
+  const setAcceptsBookings = useStaffStore((s) => s.setAcceptsBookings);
   const commissions = useStaffStore((s) => s.commissions);
   const fetchCommissions = useStaffStore((s) => s.fetchCommissions);
 
@@ -447,6 +448,9 @@ export default function StaffPage() {
             const editable = hasStaffRecord(m);
             const teacher = teacherByStaffId.get(m.id) ?? null;
             const summaryId = `staff-card-${m.id}-summary`;
+            // Solo quien se ofrece en la web puede quedar "No disponible": a
+            // quien está oculto o inactivo igual nadie lo reserva.
+            const bookable = hasBooking && m.status === "active" && editable && m.show_on_website;
 
             // Qué VE esta persona, no solo si entra: "Activo" no dice si es la
             // cajera o la que lleva el inventario.
@@ -548,6 +552,12 @@ export default function StaffPage() {
                         Oculto en la web
                       </span>
                     )}
+
+                    {bookable && !m.accepts_bookings && (
+                      <span className="absolute left-2 bottom-2 rounded-md bg-error px-1.5 py-0.5 text-[11px] font-bold text-on-error">
+                        No disponible
+                      </span>
+                    )}
                   </span>
 
                   <span className="flex flex-1 flex-col p-3">
@@ -575,6 +585,20 @@ export default function StaffPage() {
                     </span>
                   </span>
                 </button>
+
+                {bookable && !profile?.isWorker && (
+                  <Switch
+                    label="Disponible para reservas"
+                    description={m.accepts_bookings ? "Recibe reservas en tu web." : "No recibe reservas en tu web."}
+                    checked={m.accepts_bookings}
+                    onCheckedChange={async (checked) => {
+                      const failure = await setAcceptsBookings(m.id, checked);
+                      if (failure) notifyError("No se pudo cambiar la disponibilidad", failure);
+                      else if (!checked) notifySuccess(`${m.full_name} quedó como no disponible`, "Tu página web ya no permite reservar con esta persona.");
+                    }}
+                    className="border-t border-outline-variant/10 px-3 py-2 text-xs"
+                  />
+                )}
 
                 {canManageAccess && !m.account && (
                   <button

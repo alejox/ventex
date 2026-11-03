@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  bookableStaff,
   initialStaffId,
+  isStaffBookable,
   needsStaffChoice,
   staffChoiceMode,
   staffSummaryLabel,
@@ -42,4 +44,18 @@ test("staffSummaryLabel: never prints Cualquiera disponible in required mode", (
   assert.equal(staffSummaryLabel("any", "Ana"), "Ana");
   assert.equal(staffSummaryLabel("required", "Ana"), "Ana");
   assert.equal(staffSummaryLabel("required", null), null);
+});
+
+test("bookableStaff: drops only members marked unavailable", () => {
+  const staff = [
+    { id: "a", available: true },
+    { id: "b", available: false },
+    { id: "c" },
+  ];
+  assert.deepEqual(bookableStaff(staff).map((m) => m.id), ["a", "c"]);
+});
+
+test("isStaffBookable: a missing flag means available (sites served before the migration)", () => {
+  assert.equal(isStaffBookable({}), true);
+  assert.equal(isStaffBookable({ available: false }), false);
 });

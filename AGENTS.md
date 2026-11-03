@@ -125,6 +125,10 @@ Fase 2 de las promociones de tienda (la fase 1 es "Ofertas de tienda", arriba). 
 - **Defaults** (`siteDefaultsFor`): sin reservas, productos primero, servicios/equipo/reservas ocultos. Solo aplican a sitios NUEVOS; `normalizeLandingConfig` respeta lo guardado.
 - **`public_site_by_slug` trae `categoryId` por producto y `categories`** (solo las que tienen productos visibles), y desde `20261013010000` excluye `is_ingredient` y no marca agotado lo que no controla stock (antes solo lo hacía `site_public_projection`, ya borrada junto con `own_site_preview` en `20261013060000`). Devuelve además `config` = el `published_config` intacto: el `about` de arriba (texto) pisa a `config.about`, y `publicSiteFromRpc` normaliza desde `config`.
 
+# Personal "No disponible" para reservas (`20261103100000`)
+
+`staff.accepts_bookings` (default true) es el switch "Disponible para reservas" de cada tarjeta en Personal (solo con agenda, persona activa y visible en la web; lo cambia dueño/admin). Distinto de `show_on_website`: quien está "No disponible" SIGUE en el equipo del sitio (`public_site_by_slug` trae `available` por persona), pero el widget no lo deja elegir y la base lo hace cumplir: `public_site_slots`/`_day_slots` no le dan horarios ni lo cuentan como silla, "Cualquiera disponible" nunca cae en él, `public_site_book` rechaza reservar con él y, si NADIE visible está disponible, no hay horarios ni reserva (antes la capacidad mínima era 1). Reprogramar desde el sitio una cita suya tampoco se puede. El calendario del dashboard no cambia. Toda función nueva del sitio que filtre equipo reservable lleva `coalesce(accepts_bookings, true)` junto a `coalesce(is_active, true)`.
+
 # Comisiones: el estado vive en la LÍNEA de venta
 
 `sale_items.commission_amount` es el monto congelado al vender; `sale_items.commission_settlement_id` dice si ya se pagó. No hay total "pendiente" guardado en ninguna parte — se deriva sumando las líneas sin liquidación, y eso es lo que impide que el número y el detalle se contradigan.

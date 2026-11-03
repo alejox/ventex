@@ -93,6 +93,12 @@ interface StaffState {
   uploadPhoto: (file: File) => Promise<string>;
   updateStaff: (id: string, input: NewStaffInput) => Promise<boolean>;
   /**
+   * Switch "Disponible para reservas" de la tarjeta. Optimista: cambia en
+   * pantalla al toque y vuelve atrás si la base lo rechaza. Devuelve el error
+   * (no lo deja en `error`, que pinta "no se pudo cargar el equipo").
+   */
+  setAcceptsBookings: (id: string, acceptsBookings: boolean) => Promise<string | null>;
+  /**
    * El fallo vuelve en el resultado y NO en `error`: ese campo pinta el aviso
    * de "no se pudo cargar el equipo", y un borrado bloqueado no es eso.
    */
@@ -244,13 +250,26 @@ export const useStaffStore = create<StaffState>((set, get) => ({
     try {
       const member = await staffService.updateStaff(id, input);
       set((s) => ({
-        staff: s.staff.map((x) => (x.id === id ? member : x)),
+        staff: s.staff.map((x) => (x.id === id ? { ...member, accepts_bookings: x.accepts_bookings } : x)),
         submitting: false,
       }));
       return true;
     } catch (e) {
       set({ error: toMessage(e), submitting: false });
       return false;
+    }
+  },
+
+  setAcceptsBookings: async (id, acceptsBookings) => {
+    const patch = (value: boolean) =>
+      set((s) => ({ staff: s.staff.map((x) => (x.id === id ? { ...x, accepts_bookings: value } : x)) }));
+    patch(acceptsBookings);
+    try {
+      await staffService.setStaffAcceptsBookings(id, acceptsBookings);
+      return null;
+    } catch (e) {
+      patch(!acceptsBookings);
+      return toMessage(e);
     }
   },
 
