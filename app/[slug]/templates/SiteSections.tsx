@@ -1,4 +1,5 @@
 import { formatAppointmentTime } from "@/lib/time";
+import { isStaffBookable } from "@/lib/booking-staff-choice";
 import Image from "next/image";
 import { esImagenAjena } from "@/lib/remoteImage";
 import Link from "next/link";
@@ -120,7 +121,16 @@ function TeamSection({ site, section }: SectionProps) {
             <span className="site-team-avatar shrink-0" aria-hidden="true">
               {member.photoUrl ? <Image src={member.photoUrl} alt="" fill sizes={large ? "(max-width: 768px) 100vw, 33vw" : "72px"} className="object-cover" /> : member.fullName.slice(0, 1).toUpperCase()}
             </span>
-            <span><strong className="block text-[var(--site-text)]">{member.fullName}</strong>{member.role ? <span className="mt-1 block text-xs text-[var(--site-muted)]">{member.role}</span> : null}</span>
+            <span>
+              <strong className="block text-[var(--site-text)]">{member.fullName}</strong>
+              {member.role ? <span className="mt-1 block text-xs text-[var(--site-muted)]">{member.role}</span> : null}
+              {/* Solo con reservas: sin agenda en línea, "No disponible" no dice nada. */}
+              {site.bookingEnabled && !isStaffBookable(member) ? (
+                <span className="mt-2 inline-block rounded-full border border-[var(--site-on-surface-border)] px-2 py-0.5 text-[0.7rem] font-semibold text-[var(--site-muted)]">
+                  No disponible
+                </span>
+              ) : null}
+            </span>
           </li>
         ))}
       </ul>
